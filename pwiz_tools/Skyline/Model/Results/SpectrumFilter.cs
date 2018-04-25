@@ -64,6 +64,7 @@ namespace pwiz.Skyline.Model.Results
         private readonly bool _isWatersFile;
         private readonly bool _isWatersMse;
         private readonly bool _isAgilentMse;
+        private readonly bool _extractIsotopeEnvelope;
         private readonly IIonMobilityFunctionsProvider _ionMobilityFunctionsProvider;
         private int _mseLevel;
         private MsDataSpectrum _mseLastSpectrum;
@@ -171,7 +172,7 @@ namespace pwiz.Skyline.Model.Results
                             {
                                 minTime = peakBoundaries.StartTime - _fullScan.RetentionTimeFilterLength;
                                 maxTime = peakBoundaries.EndTime + _fullScan.RetentionTimeFilterLength;
-                                canSchedule = false;
+                                _isSharedTime = false;
                             }
                         }
                         if (canSchedule)
@@ -728,8 +729,8 @@ namespace pwiz.Skyline.Model.Results
                     int iFilter = IndexOfFilter(isoTargMz, isoTargWidth.Value);
                     if (iFilter != -1)
                     {
-                        while (iFilter < _filterMzValues.Length && CompareMz(isoTargMz,
-                            _filterMzValues[iFilter].Q1, isoTargWidth.Value) == 0)
+                        while (iFilter < _filterMzValues.Length 
+                            && CompareMz(_filterMzValues[iFilter], isoTargMz, isoTargWidth.Value) == 0)
                             filterPairs.Add(_filterMzValues[iFilter++]);
                     }
                 }
@@ -888,22 +889,34 @@ namespace pwiz.Skyline.Model.Results
             if (left > right)
                 return -1;
             int mid = (left + right) / 2;
-            int compare = CompareMz(precursorMz, _filterMzValues[mid].Q1, window);
+            int compare = -CompareMz(_filterMzValues[mid], precursorMz, window);
             if (compare < 0)
                 return IndexOfFilter(precursorMz, window, left, mid - 1);
             if (compare > 0)
                 return IndexOfFilter(precursorMz, window, mid + 1, right);
             
             // Scan backward until the first matching element is found.
-            while (mid > 0 && CompareMz(precursorMz, _filterMzValues[mid - 1].Q1, window) == 0)
+            while (mid > 0 && CompareMz(_filterMzValues[mid - 1], precursorMz, window) == 0)
                 mid--;
 
             return mid;
         }
 
-        private static int CompareMz(SignedMz mz1, SignedMz mz2, double window)
+        private int CompareMz(SpectrumFilterPair filterPair, SignedMz mz2, double window)
         {
-            return mz1.CompareTolerant(mz2, 0.5 * window);
+            if (!_extractIsotopeEnvelope || filterPair.Q1.IsNegative != mz2.IsNegative)
+            {
+                return filterPair.Q1.CompareTolerant(mz2, 0.5 * window);
+            }
+            if (filterPair.MinMs1Filter.Value > mz2.Value + window / 2)
+            {
+                return 1;
+            }
+            if (filterPair.MaxMs1filter.Value < mz2.Value - window / 2)
+            {
+                return -1;
+            }
+            return 0;
         }
 
         public ChromatogramRequestDocument ToChromatogramRequestDocument()

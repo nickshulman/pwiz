@@ -2195,6 +2195,8 @@ namespace pwiz.Skyline.Model.DocSettings
             get { return IsotopeEnrichments != null ? IsotopeEnrichments.IsotopeAbundances : null; }
         }
 
+        public bool ExtractIsotopeEnvelope { get; private set; }
+
         public RetentionTimeFilterType RetentionTimeFilterType { get; private set; }
         public double RetentionTimeFilterLength { get; private set; }
 
@@ -2403,6 +2405,11 @@ namespace pwiz.Skyline.Model.DocSettings
             });
         }
 
+        public TransitionFullScan ChangeExtractIsotopeEnvelope(bool extractIsotopeEnvelope)
+        {
+            return ChangeProp(ImClone(this), im => im.ExtractIsotopeEnvelope = extractIsotopeEnvelope);
+        }
+
         public TransitionFullScan ChangePrecursorResolution(FullScanMassAnalyzerType typeProp, double? prop, double? mzProp)
         {
             return ChangeProp(ImClone(this), im =>
@@ -2465,6 +2472,7 @@ namespace pwiz.Skyline.Model.DocSettings
             scheduled_filter, // deprecated
             retention_time_filter_type,
             retention_time_filter_length,
+            extract_isotope_envelope
         }
 
         void IValidating.Validate()
@@ -2599,6 +2607,7 @@ namespace pwiz.Skyline.Model.DocSettings
             AcquisitionMethod = reader.GetAttribute(ATTR.precursor_filter_type) != null
                 ? TranslateLegacyFilterType(reader.GetEnumAttribute(ATTR.precursor_filter_type, LegacyAcquisitionMethod.None))
                 : reader.GetEnumAttribute(ATTR.acquisition_method, FullScanAcquisitionMethod.None);
+            ExtractIsotopeEnvelope = reader.GetBoolAttribute(ATTR.extract_isotope_envelope, false);
 
             if (AcquisitionMethod != FullScanAcquisitionMethod.None)
             {
@@ -2708,6 +2717,8 @@ namespace pwiz.Skyline.Model.DocSettings
 
         public void WriteXml(XmlWriter writer)
         {
+            writer.WriteAttribute(ATTR.extract_isotope_envelope, ExtractIsotopeEnvelope, false);
+
             // Write attributes
             if (AcquisitionMethod != FullScanAcquisitionMethod.None)
             {
@@ -2761,7 +2772,8 @@ namespace pwiz.Skyline.Model.DocSettings
                 other.UseSelectiveExtraction == UseSelectiveExtraction &&
                 other.PrecursorResMz.Equals(PrecursorResMz) &&
                 other.RetentionTimeFilterType == RetentionTimeFilterType &&
-                other.RetentionTimeFilterLength == RetentionTimeFilterLength;
+                other.RetentionTimeFilterLength == RetentionTimeFilterLength &&
+                other.ExtractIsotopeEnvelope == ExtractIsotopeEnvelope;
         }
 
         public override bool Equals(object obj)

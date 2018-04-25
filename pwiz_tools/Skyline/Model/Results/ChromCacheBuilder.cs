@@ -473,6 +473,7 @@ namespace pwiz.Skyline.Model.Results
                 _currentFileInfo.LocationScanIds = _fsScans.Stream.Position;
                 _currentFileInfo.SizeScanIds = scanIdBytes.Length;
                 _fsScans.Stream.Write(scanIdBytes, 0, scanIdBytes.Length);
+                _currentFileInfo.HasScanInfos = true;
             }
 
             // Release all provider memory before waiting for write completion
@@ -1481,6 +1482,22 @@ namespace pwiz.Skyline.Model.Results
                     Flags |= ChromCachedFile.FlagValues.has_midas_spectra;
                 else
                     Flags &= ~ChromCachedFile.FlagValues.has_midas_spectra;
+            }
+        }
+
+        public bool HasScanInfos
+        {
+            get { return (Flags & ChromCachedFile.FlagValues.scan_infos) != 0; }
+            set
+            {
+                if (value)
+                {
+                    Flags |= ChromCachedFile.FlagValues.scan_infos;
+                }
+                else
+                {
+                    Flags &= ~ChromCachedFile.FlagValues.scan_infos;
+                }
             }
         }
 

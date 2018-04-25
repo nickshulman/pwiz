@@ -1193,7 +1193,7 @@ namespace pwiz.Skyline.Controls.Graphs
                                                true,
                                                null,
                                                0,
-                                               COLORS_GROUPS[(int)extractor],
+                                               COLORS_GROUPS[(int)extractor % COLORS_GROUPS.Count],
                                                FontSize,
                                                LineWidth);
             _graphHelper.AddChromatogram(new PaneKey(nodeGroup), graphItem);
@@ -2236,19 +2236,15 @@ namespace pwiz.Skyline.Controls.Graphs
                 (settings.TransitionSettings.FullScan.IsEnabled || settings.PeptideSettings.Libraries.HasMidasLibrary))
             {
                 var nodeGroupsArray = nodeGroups.ToArray();
-                var transitionGroups = nodeGroupsArray.Select(nodeGroup => nodeGroup.TransitionGroup).ToArray();
                 if (Settings.Default.ShowPeptideIdTimes)
                 {
                     var listTimes = new List<double>();
-                    foreach (var group in transitionGroups)
+                    IsotopeLabelType labelType;
+                    double[] retentionTimes;
+                    if (settings.TryGetRetentionTimes(lookupSequence, 
+                                                        lookupMods, FilePath, out labelType, out retentionTimes))
                     {
-                        IsotopeLabelType labelType;
-                        double[] retentionTimes;
-                        if (settings.TryGetRetentionTimes(lookupSequence, group.PrecursorAdduct,
-                                                          lookupMods, FilePath, out labelType, out retentionTimes))
-                        {
-                            listTimes.AddRange(retentionTimes);
-                        }
+                        listTimes.AddRange(retentionTimes);
                     }
                     var selectedSpectrum = _stateProvider.SelectedSpectrum;
                     if (selectedSpectrum != null && Equals(FilePath, selectedSpectrum.FilePath))

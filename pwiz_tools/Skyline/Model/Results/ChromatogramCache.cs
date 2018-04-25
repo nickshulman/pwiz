@@ -750,6 +750,17 @@ namespace pwiz.Skyline.Model.Results
                                                              instrumentInfoList);
             }
 
+            for (int iFile = 0; iFile < raw.ChromCacheFiles.Length; iFile++)
+            {
+                var chromCachedFile = raw.ChromCacheFiles[iFile];
+                if ((chromCachedFile.Flags & ChromCachedFile.FlagValues.scan_infos) != 0)
+                {
+                    stream.Seek(chromCachedFile.LocationScanIds, SeekOrigin.Begin);
+                    byte[] bytes = new byte[chromCachedFile.SizeScanIds];
+                    stream.Read(bytes, 0, bytes.Length);
+
+                }
+            }
             if (progressMonitor != null)
                 progressMonitor.UpdateProgress(status = status.ChangePercentComplete(10));
 

@@ -1,0 +1,123 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="12.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProjectGuid>{50C612BD-A0D6-4998-A142-316691F9E2B3}</ProjectGuid>
+    <OutputType>WinExe</OutputType>
+    <AppDesignerFolder>Properties</AppDesignerFolder>
+    <RootNamespace>TopographTool</RootNamespace>
+    <AssemblyName>TopographTool</AssemblyName>
+    <TargetFrameworkVersion>v4.5.1</TargetFrameworkVersion>
+    <FileAlignment>512</FileAlignment>
+    <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>bin\Debug\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>bin\Release\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <PropertyGroup>
+    <StartupObject />
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="DigitalRune.Windows.Docking">
+      <HintPath>..\..\..\..\..\Shared\Lib\DigitalRune.Windows.Docking.dll</HintPath>
+    </Reference>
+    <Reference Include="JetBrains.Annotations">
+      <HintPath>..\..\..\..\..\..\..\..\svn\sky_turnover\pwiz_tools\Shared\Lib\JetBrains.Annotations.dll</HintPath>
+    </Reference>
+    <Reference Include="MathNet.Numerics">
+      <HintPath>..\..\..\..\..\..\..\..\svn\sky_turnover\pwiz_tools\Shared\Lib\MathNet.Numerics.dll</HintPath>
+    </Reference>
+    <Reference Include="Microsoft.VisualBasic" />
+    <Reference Include="System" />
+    <Reference Include="System.Core" />
+    <Reference Include="System.Drawing" />
+    <Reference Include="System.Windows.Forms" />
+    <Reference Include="System.Windows.Forms.DataVisualization" />
+    <Reference Include="System.Xml.Linq" />
+    <Reference Include="System.Data.DataSetExtensions" />
+    <Reference Include="Microsoft.CSharp" />
+    <Reference Include="System.Data" />
+    <Reference Include="System.Xml" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="Controls\ColorCell.cs" />
+    <Compile Include="Model\FeatureAreas.cs" />
+    <Compile Include="Model\FeatureKey.cs" />
+    <Compile Include="Model\IsolationWindow.cs" />
+    <Compile Include="Model\LabelContribution.cs" />
+    <Compile Include="Model\TransitionKey.cs" />
+    <Compile Include="Model\FeatureWeights.cs" />
+    <Compile Include="Model\IsolationScheme.cs" />
+    <Compile Include="Model\ModifiedSequence.cs" />
+    <Compile Include="Model\Peptide.cs" />
+    <Compile Include="Model\DataSet.cs" />
+    <Compile Include="Model\Precursor.cs" />
+    <Compile Include="Model\Protein.cs" />
+    <Compile Include="Model\Replicate.cs" />
+    <Compile Include="Model\ResultRow.cs" />
+    <Compile Include="Model\Settings.cs" />
+    <Compile Include="Model\TopographData.cs" />
+    <Compile Include="Model\Transition.cs" />
+    <Compile Include="Model\TransitionData.cs" />
+    <Compile Include="Model\TransitionResult.cs" />
+    <Compile Include="Model\TurnoverCalculator.cs" />
+    <Compile Include="Program.cs" />
+    <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Ui\PeptideForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Ui\PeptideForm.Designer.cs">
+      <DependentUpon>PeptideForm.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Ui\TopographForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Ui\TopographForm.Designer.cs">
+      <DependentUpon>TopographForm.cs</DependentUpon>
+    </Compile>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="App.config" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\..\..\Shared\Common\CommonUtil.csproj">
+      <Project>{13BF2FFB-50A1-4AB1-83A4-5733E36905CE}</Project>
+      <Name>CommonUtil</Name>
+    </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Ui\PeptideForm.resx">
+      <DependentUpon>PeptideForm.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Ui\TopographForm.resx">
+      <DependentUpon>TopographForm.cs</DependentUpon>
+    </EmbeddedResource>
+  </ItemGroup>
+  <ItemGroup />
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
+       Other similar extension points exist, see Microsoft.Common.targets.
+  <Target Name="BeforeBuild">
+  </Target>
+  <Target Name="AfterBuild">
+  </Target>
+  -->
+</Project>

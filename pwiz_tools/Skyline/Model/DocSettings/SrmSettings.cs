@@ -844,11 +844,11 @@ namespace pwiz.Skyline.Model.DocSettings
             return false;
         }
 
-        public bool TryGetRetentionTimes(Target sequence, Adduct adduct, ExplicitMods mods, MsDataFileUri filePath,
+        public bool TryGetRetentionTimes(Target sequence, ExplicitMods mods, MsDataFileUri filePath,
             out IsotopeLabelType type, out double[] retentionTimes)
         {
             var libraries = PeptideSettings.Libraries;
-            foreach (var typedSequence in GetTypedSequences(sequence, mods, adduct))
+            foreach (var typedSequence in GetTypedSequences(sequence, mods, Adduct.EMPTY))
             {
                 var key = new LibKey(typedSequence.ModifiedSequence, typedSequence.Adduct);
                 if (libraries.TryGetRetentionTimes(key, filePath, out retentionTimes))

@@ -463,7 +463,7 @@
     <value>$this</value>
   </data>
   <data name="&gt;&gt;groupBoxRetentionTimeToKeep.ZOrder" xml:space="preserve">
-    <value>3</value>
+    <value>4</value>
   </data>
   <data name="labelPrecursorPPM.AutoSize" type="System.Boolean, mscorlib">
     <value>True</value>
@@ -475,7 +475,7 @@
     <value>NoControl</value>
   </data>
   <data name="labelPrecursorPPM.Location" type="System.Drawing.Point, System.Drawing">
-    <value>290, 91</value>
+    <value>289, 70</value>
   </data>
   <data name="labelPrecursorPPM.Size" type="System.Drawing.Size, System.Drawing">
     <value>27, 13</value>
@@ -498,57 +498,6 @@
   <data name="&gt;&gt;labelPrecursorPPM.ZOrder" xml:space="preserve">
     <value>0</value>
   </data>
-  <data name="comboEnrichments.Location" type="System.Drawing.Point, System.Drawing">
-    <value>14, 162</value>
-  </data>
-  <data name="comboEnrichments.Size" type="System.Drawing.Size, System.Drawing">
-    <value>111, 21</value>
-  </data>
-  <data name="comboEnrichments.TabIndex" type="System.Int32, mscorlib">
-    <value>6</value>
-  </data>
-  <data name="&gt;&gt;comboEnrichments.Name" xml:space="preserve">
-    <value>comboEnrichments</value>
-  </data>
-  <data name="&gt;&gt;comboEnrichments.Type" xml:space="preserve">
-    <value>System.Windows.Forms.ComboBox, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
-  </data>
-  <data name="&gt;&gt;comboEnrichments.Parent" xml:space="preserve">
-    <value>groupBoxMS1</value>
-  </data>
-  <data name="&gt;&gt;comboEnrichments.ZOrder" xml:space="preserve">
-    <value>1</value>
-  </data>
-  <data name="labelEnrichments.AutoSize" type="System.Boolean, mscorlib">
-    <value>True</value>
-  </data>
-  <data name="labelEnrichments.ImeMode" type="System.Windows.Forms.ImeMode, System.Windows.Forms">
-    <value>NoControl</value>
-  </data>
-  <data name="labelEnrichments.Location" type="System.Drawing.Point, System.Drawing">
-    <value>14, 146</value>
-  </data>
-  <data name="labelEnrichments.Size" type="System.Drawing.Size, System.Drawing">
-    <value>139, 13</value>
-  </data>
-  <data name="labelEnrichments.TabIndex" type="System.Int32, mscorlib">
-    <value>5</value>
-  </data>
-  <data name="labelEnrichments.Text" xml:space="preserve">
-    <value>Isotope la&amp;beling enrichment:</value>
-  </data>
-  <data name="&gt;&gt;labelEnrichments.Name" xml:space="preserve">
-    <value>labelEnrichments</value>
-  </data>
-  <data name="&gt;&gt;labelEnrichments.Type" xml:space="preserve">
-    <value>System.Windows.Forms.Label, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
-  </data>
-  <data name="&gt;&gt;labelEnrichments.Parent" xml:space="preserve">
-    <value>groupBoxMS1</value>
-  </data>
-  <data name="&gt;&gt;labelEnrichments.ZOrder" xml:space="preserve">
-    <value>2</value>
-  </data>
   <data name="labelPrecursorIsotopeFilterPercent.AutoSize" type="System.Boolean, mscorlib">
     <value>True</value>
   </data>
@@ -556,7 +505,7 @@
     <value>NoControl</value>
   </data>
   <data name="labelPrecursorIsotopeFilterPercent.Location" type="System.Drawing.Point, System.Drawing">
-    <value>81, 105</value>
+    <value>80, 84</value>
   </data>
   <data name="labelPrecursorIsotopeFilterPercent.Size" type="System.Drawing.Size, System.Drawing">
     <value>15, 13</value>
@@ -580,10 +529,10 @@
     <value>groupBoxMS1</value>
   </data>
   <data name="&gt;&gt;labelPrecursorIsotopeFilterPercent.ZOrder" xml:space="preserve">
-    <value>3</value>
+    <value>1</value>
   </data>
   <data name="textPrecursorIsotopeFilter.Location" type="System.Drawing.Point, System.Drawing">
-    <value>14, 102</value>
+    <value>13, 81</value>
   </data>
   <data name="textPrecursorIsotopeFilter.Size" type="System.Drawing.Size, System.Drawing">
     <value>65, 20</value>
@@ -601,7 +550,7 @@
     <value>groupBoxMS1</value>
   </data>
   <data name="&gt;&gt;textPrecursorIsotopeFilter.ZOrder" xml:space="preserve">
-    <value>4</value>
+    <value>2</value>
   </data>
   <data name="labelPrecursorIsotopeFilter.AutoSize" type="System.Boolean, mscorlib">
     <value>True</value>
@@ -610,7 +559,7 @@
     <value>NoControl</value>
   </data>
   <data name="labelPrecursorIsotopeFilter.Location" type="System.Drawing.Point, System.Drawing">
-    <value>11, 85</value>
+    <value>10, 64</value>
   </data>
   <data name="labelPrecursorIsotopeFilter.Size" type="System.Drawing.Size, System.Drawing">
     <value>40, 13</value>
@@ -631,7 +580,7 @@
     <value>groupBoxMS1</value>
   </data>
   <data name="&gt;&gt;labelPrecursorIsotopeFilter.ZOrder" xml:space="preserve">
-    <value>5</value>
+    <value>3</value>
   </data>
   <data name="label23.AutoSize" type="System.Boolean, mscorlib">
     <value>True</value>
@@ -661,7 +610,7 @@
     <value>groupBoxMS1</value>
   </data>
   <data name="&gt;&gt;label23.ZOrder" xml:space="preserve">
-    <value>6</value>
+    <value>4</value>
   </data>
   <data name="comboPrecursorIsotopes.Location" type="System.Drawing.Point, System.Drawing">
     <value>14, 41</value>
@@ -682,7 +631,7 @@
     <value>groupBoxMS1</value>
   </data>
   <data name="&gt;&gt;comboPrecursorIsotopes.ZOrder" xml:space="preserve">
-    <value>7</value>
+    <value>5</value>
   </data>
   <data name="labelPrecursorAt.AutoSize" type="System.Boolean, mscorlib">
     <value>True</value>
@@ -691,7 +640,7 @@
     <value>NoControl</value>
   </data>
   <data name="labelPrecursorAt.Location" type="System.Drawing.Point, System.Drawing">
-    <value>246, 86</value>
+    <value>245, 65</value>
   </data>
   <data name="labelPrecursorAt.Size" type="System.Drawing.Size, System.Drawing">
     <value>20, 13</value>
@@ -712,10 +661,10 @@
     <value>groupBoxMS1</value>
   </data>
   <data name="&gt;&gt;labelPrecursorAt.ZOrder" xml:space="preserve">
-    <value>8</value>
+    <value>6</value>
   </data>
   <data name="textPrecursorAt.Location" type="System.Drawing.Point, System.Drawing">
-    <value>244, 102</value>
+    <value>243, 81</value>
   </data>
   <data name="textPrecursorAt.Size" type="System.Drawing.Size, System.Drawing">
     <value>44, 20</value>
@@ -733,7 +682,7 @@
     <value>groupBoxMS1</value>
   </data>
   <data name="&gt;&gt;textPrecursorAt.ZOrder" xml:space="preserve">
-    <value>9</value>
+    <value>7</value>
   </data>
   <data name="labelPrecursorTh.AutoSize" type="System.Boolean, mscorlib">
     <value>True</value>
@@ -745,7 +694,7 @@
     <value>NoControl</value>
   </data>
   <data name="labelPrecursorTh.Location" type="System.Drawing.Point, System.Drawing">
-    <value>290, 105</value>
+    <value>289, 84</value>
   </data>
   <data name="labelPrecursorTh.Size" type="System.Drawing.Size, System.Drawing">
     <value>25, 13</value>
@@ -766,13 +715,13 @@
     <value>groupBoxMS1</value>
   </data>
   <data name="&gt;&gt;labelPrecursorTh.ZOrder" xml:space="preserve">
-    <value>10</value>
+    <value>8</value>
   </data>
   <data name="textPrecursorRes.Enabled" type="System.Boolean, mscorlib">
     <value>False</value>
   </data>
   <data name="textPrecursorRes.Location" type="System.Drawing.Point, System.Drawing">
-    <value>153, 102</value>
+    <value>152, 81</value>
   </data>
   <data name="textPrecursorRes.Size" type="System.Drawing.Size, System.Drawing">
     <value>85, 20</value>
@@ -790,7 +739,7 @@
     <value>groupBoxMS1</value>
   </data>
   <data name="&gt;&gt;textPrecursorRes.ZOrder" xml:space="preserve">
-    <value>11</value>
+    <value>9</value>
   </data>
   <data name="labelPrecursorRes.AutoSize" type="System.Boolean, mscorlib">
     <value>True</value>
@@ -799,7 +748,7 @@
     <value>NoControl</value>
   </data>
   <data name="labelPrecursorRes.Location" type="System.Drawing.Point, System.Drawing">
-    <value>150, 86</value>
+    <value>149, 65</value>
   </data>
   <data name="labelPrecursorRes.Size" type="System.Drawing.Size, System.Drawing">
     <value>89, 13</value>
@@ -820,7 +769,7 @@
     <value>groupBoxMS1</value>
   </data>
   <data name="&gt;&gt;labelPrecursorRes.ZOrder" xml:space="preserve">
-    <value>12</value>
+    <value>10</value>
   </data>
   <data name="comboPrecursorAnalyzerType.Enabled" type="System.Boolean, mscorlib">
     <value>False</value>
@@ -850,7 +799,7 @@
     <value>groupBoxMS1</value>
   </data>
   <data name="&gt;&gt;comboPrecursorAnalyzerType.ZOrder" xml:space="preserve">
-    <value>13</value>
+    <value>11</value>
   </data>
   <data name="label32.AutoSize" type="System.Boolean, mscorlib">
     <value>True</value>
@@ -880,13 +829,13 @@
     <value>groupBoxMS1</value>
   </data>
   <data name="&gt;&gt;label32.ZOrder" xml:space="preserve">
-    <value>14</value>
+    <value>12</value>
   </data>
   <data name="groupBoxMS1.Location" type="System.Drawing.Point, System.Drawing">
     <value>17, 13</value>
   </data>
   <data name="groupBoxMS1.Size" type="System.Drawing.Size, System.Drawing">
-    <value>326, 192</value>
+    <value>326, 107</value>
   </data>
   <data name="groupBoxMS1.TabIndex" type="System.Int32, mscorlib">
     <value>2</value>
@@ -904,7 +853,58 @@
     <value>$this</value>
   </data>
   <data name="&gt;&gt;groupBoxMS1.ZOrder" xml:space="preserve">
-    <value>4</value>
+    <value>5</value>
+  </data>
+  <data name="comboEnrichments.Location" type="System.Drawing.Point, System.Drawing">
+    <value>9, 38</value>
+  </data>
+  <data name="comboEnrichments.Size" type="System.Drawing.Size, System.Drawing">
+    <value>111, 21</value>
+  </data>
+  <data name="comboEnrichments.TabIndex" type="System.Int32, mscorlib">
+    <value>6</value>
+  </data>
+  <data name="&gt;&gt;comboEnrichments.Name" xml:space="preserve">
+    <value>comboEnrichments</value>
+  </data>
+  <data name="&gt;&gt;comboEnrichments.Type" xml:space="preserve">
+    <value>System.Windows.Forms.ComboBox, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="&gt;&gt;comboEnrichments.Parent" xml:space="preserve">
+    <value>groupBoxIsotopes</value>
+  </data>
+  <data name="&gt;&gt;comboEnrichments.ZOrder" xml:space="preserve">
+    <value>1</value>
+  </data>
+  <data name="labelEnrichments.AutoSize" type="System.Boolean, mscorlib">
+    <value>True</value>
+  </data>
+  <data name="labelEnrichments.ImeMode" type="System.Windows.Forms.ImeMode, System.Windows.Forms">
+    <value>NoControl</value>
+  </data>
+  <data name="labelEnrichments.Location" type="System.Drawing.Point, System.Drawing">
+    <value>9, 22</value>
+  </data>
+  <data name="labelEnrichments.Size" type="System.Drawing.Size, System.Drawing">
+    <value>139, 13</value>
+  </data>
+  <data name="labelEnrichments.TabIndex" type="System.Int32, mscorlib">
+    <value>5</value>
+  </data>
+  <data name="labelEnrichments.Text" xml:space="preserve">
+    <value>Isotope la&amp;beling enrichment:</value>
+  </data>
+  <data name="&gt;&gt;labelEnrichments.Name" xml:space="preserve">
+    <value>labelEnrichments</value>
+  </data>
+  <data name="&gt;&gt;labelEnrichments.Type" xml:space="preserve">
+    <value>System.Windows.Forms.Label, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="&gt;&gt;labelEnrichments.Parent" xml:space="preserve">
+    <value>groupBoxIsotopes</value>
+  </data>
+  <data name="&gt;&gt;labelEnrichments.ZOrder" xml:space="preserve">
+    <value>2</value>
   </data>
   <data name="labelProductPPM.AutoSize" type="System.Boolean, mscorlib">
     <value>True</value>
@@ -1237,7 +1237,7 @@
     <value>11</value>
   </data>
   <data name="groupBoxMS2.Location" type="System.Drawing.Point, System.Drawing">
-    <value>17, 210</value>
+    <value>17, 126</value>
   </data>
   <data name="groupBoxMS2.Size" type="System.Drawing.Size, System.Drawing">
     <value>326, 135</value>
@@ -1258,7 +1258,7 @@
     <value>$this</value>
   </data>
   <data name="&gt;&gt;groupBoxMS2.ZOrder" xml:space="preserve">
-    <value>5</value>
+    <value>6</value>
   </data>
   <data name="lblPrecursorCharges.AutoSize" type="System.Boolean, mscorlib">
     <value>True</value>
@@ -1288,7 +1288,7 @@
     <value>$this</value>
   </data>
   <data name="&gt;&gt;lblPrecursorCharges.ZOrder" xml:space="preserve">
-    <value>2</value>
+    <value>3</value>
   </data>
   <data name="textPrecursorCharges.Location" type="System.Drawing.Point, System.Drawing">
     <value>17, 496</value>
@@ -1312,7 +1312,7 @@
     <value>$this</value>
   </data>
   <data name="&gt;&gt;textPrecursorCharges.ZOrder" xml:space="preserve">
-    <value>1</value>
+    <value>2</value>
   </data>
   <data name="cbHighSelectivity.AutoSize" type="System.Boolean, mscorlib">
     <value>True</value>
@@ -1343,6 +1343,57 @@ Checked uses single resolution for extraction width for hgher selectivity in com
     <value>$this</value>
   </data>
   <data name="&gt;&gt;cbHighSelectivity.ZOrder" xml:space="preserve">
+    <value>1</value>
+  </data>
+  <data name="cbxExtractIsotopeEnvelope.AutoSize" type="System.Boolean, mscorlib">
+    <value>True</value>
+  </data>
+  <data name="cbxExtractIsotopeEnvelope.Location" type="System.Drawing.Point, System.Drawing">
+    <value>158, 40</value>
+  </data>
+  <data name="cbxExtractIsotopeEnvelope.Size" type="System.Drawing.Size, System.Drawing">
+    <value>145, 17</value>
+  </data>
+  <data name="cbxExtractIsotopeEnvelope.TabIndex" type="System.Int32, mscorlib">
+    <value>7</value>
+  </data>
+  <data name="cbxExtractIsotopeEnvelope.Text" xml:space="preserve">
+    <value>Extract Isotope Envelope</value>
+  </data>
+  <data name="&gt;&gt;cbxExtractIsotopeEnvelope.Name" xml:space="preserve">
+    <value>cbxExtractIsotopeEnvelope</value>
+  </data>
+  <data name="&gt;&gt;cbxExtractIsotopeEnvelope.Type" xml:space="preserve">
+    <value>System.Windows.Forms.CheckBox, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="&gt;&gt;cbxExtractIsotopeEnvelope.Parent" xml:space="preserve">
+    <value>groupBoxIsotopes</value>
+  </data>
+  <data name="&gt;&gt;cbxExtractIsotopeEnvelope.ZOrder" xml:space="preserve">
+    <value>0</value>
+  </data>
+  <data name="groupBoxIsotopes.Location" type="System.Drawing.Point, System.Drawing">
+    <value>17, 267</value>
+  </data>
+  <data name="groupBoxIsotopes.Size" type="System.Drawing.Size, System.Drawing">
+    <value>318, 78</value>
+  </data>
+  <data name="groupBoxIsotopes.TabIndex" type="System.Int32, mscorlib">
+    <value>6</value>
+  </data>
+  <data name="groupBoxIsotopes.Text" xml:space="preserve">
+    <value>Isotopes</value>
+  </data>
+  <data name="&gt;&gt;groupBoxIsotopes.Name" xml:space="preserve">
+    <value>groupBoxIsotopes</value>
+  </data>
+  <data name="&gt;&gt;groupBoxIsotopes.Type" xml:space="preserve">
+    <value>System.Windows.Forms.GroupBox, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="&gt;&gt;groupBoxIsotopes.Parent" xml:space="preserve">
+    <value>$this</value>
+  </data>
+  <data name="&gt;&gt;groupBoxIsotopes.ZOrder" xml:space="preserve">
     <value>0</value>
   </data>
   <metadata name="$this.Localizable" type="System.Boolean, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">

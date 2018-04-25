@@ -44,6 +44,10 @@ namespace pwiz.Skyline.Model.Results
         // ReSharper disable NonLocalizedString
         public static int GetStructSize(CacheFormatVersion formatVersion)
         {
+            if (formatVersion >= CacheFormatVersion.Fourteen)
+            {
+                return 64;
+            }
             if (formatVersion >= CacheFormatVersion.Thirteen)
             {
                 return 52;

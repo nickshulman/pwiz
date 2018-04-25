@@ -20,6 +20,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using pwiz.Common.Chemistry;
 using pwiz.Common.DataBinding.Attributes;
 using pwiz.Skyline.Model.Databinding.Collections;
 using pwiz.Skyline.Model.DocSettings;
@@ -114,7 +115,7 @@ namespace pwiz.Skyline.Model.Databinding.Entities
             {
                 return IsCustomTransition()
                 ? (DocNode.Transition.CustomIon.Formula ?? string.Empty)
-                : string.Empty;
+                : GetFragmentedMolecule().FragmentFormula.ToString();
             }
         }
         public string ProductNeutralFormula
@@ -252,6 +253,51 @@ namespace pwiz.Skyline.Model.Databinding.Entities
                 return string.Format(Resources.Transition_GetDeleteConfirmation_Are_you_sure_you_want_to_delete_the_transition___0___, this);
             }
             return string.Format(Resources.Transition_GetDeleteConfirmation_Are_you_sure_you_want_to_delete_these__0__transitions_, nodeCount);
+        }
+
+        [InvariantDisplayName("ProductIonMzDistribution")]
+        [ChildDisplayName("ProductIon{0}")]
+        [Format(Formats.Mz)]
+        public AbstractDistribution.MzDistribution MzDistribution 
+        {
+            get
+            {
+                var fragmentedMolecule = GetFragmentedMolecule();
+                var settings = FragmentedMolecule.Settings.FromSrmSettings(SrmDocument.Settings);
+                var mzDistribution = fragmentedMolecule.GetFragmentDistribution(settings, null, null);
+                var monoMass = settings.GetMonoMass(fragmentedMolecule.FragmentFormula,
+                    fragmentedMolecule.FragmentMassShift, fragmentedMolecule.FragmentCharge);
+                return new AbstractDistribution.MzDistribution(mzDistribution, monoMass);
+            } 
+        }
+
+        [ChildDisplayName("ComplementaryProductMassDistribution{0}")]
+        [Format(Formats.Mz)]
+        public AbstractDistribution.MassDistribution ComplementaryProductMassDistribution
+        {
+            get
+            {
+                Molecule complementaryFormula;
+                var fragmentedMolecule = GetFragmentedMolecule();
+                try
+                {
+                    complementaryFormula = fragmentedMolecule.GetComplementaryProductFormula();
+                }
+                catch (Exception)
+                {
+                    return null;
+                }
+                var settings = FragmentedMolecule.Settings.FromSrmSettings(SrmDocument.Settings);
+                double massShift = fragmentedMolecule.PrecursorMassShift - fragmentedMolecule.FragmentMassShift;
+                return new AbstractDistribution.MassDistribution(settings.GetMassDistribution(complementaryFormula, massShift, 0),
+                    settings.GetMonoMass(complementaryFormula, massShift, 0));
+            }
+        }
+
+        public FragmentedMolecule GetFragmentedMolecule()
+        {
+            return FragmentedMolecule.GetFragmentedMolecule(SrmDocument.Settings,
+                Precursor.Peptide.DocNode, Precursor.DocNode, DocNode);
         }
 
         [InvariantDisplayName("TransitionLocator")]

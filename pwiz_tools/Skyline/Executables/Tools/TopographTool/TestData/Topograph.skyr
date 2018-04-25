@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<views>
+  <view name="Topograph" rowsource="pwiz.Skyline.Model.Databinding.Entities.Transition" sublist="Results!*">
+    <column name="Precursor.Peptide.Protein.Locator" />
+    <column name="Precursor.Peptide.Protein" />
+    <column name="Precursor.Peptide.ModifiedSequence.FullNames" />
+    <column name="Precursor.ModifiedSequence.FullNames" />
+    <column name="Precursor.Charge" />
+    <column name="Precursor.Mz" />
+    <column name="Locator" />
+    <column name="ProductCharge" />
+    <column name="ProductMz" />
+    <column name="FragmentIon" />
+    <column name="Results!*.Value.PrecursorResult.PeptideResult.ResultFile.Replicate.Locator" />
+    <column name="Results!*.Value.PrecursorResult.PeptideResult.ResultFile.Replicate" />
+    <column name="Results!*.Value.PrecursorResult.PeptideResult.ResultFile.Replicate.&quot;annotation_Condition&quot;" />
+    <column name="Results!*.Value.PrecursorResult.PeptideResult.ResultFile.Replicate.&quot;annotation_TimePoint&quot;" />
+    <column name="Results!*.Value.Area" />
+    <column name="Results!*.Value.Truncated" />
+    <filter column="Precursor.IsDecoy" opname="equals" operand="False" />
+    <filter column="Results!*.Value.Area" opname="isnotnullorblank" />
+  </view>
+</views>

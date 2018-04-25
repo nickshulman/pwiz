@@ -26,3 +26,23 @@ message ChromatogramGroupData {
 	bool inferZeroes = 9;
 }
 
+message ResultFileDataProto {
+	message ScanInfo {
+		double retentionTime = 1;
+		int32 scanTypeIndex = 2;
+		int32 scanIdentifierInt = 3;
+		string scanIdentifierText = 4;
+	}
+	message ScanType {
+		int32 msLevel = 1;
+		message IsolationWindow {
+			double targetMz = 1;
+			double lowerOffset = 2;
+			double upperOffset = 3;
+		}
+		repeated IsolationWindow isolationWindows = 2;
+		double ionMobility = 3;
+	}
+	repeated ScanInfo scanInfos = 1;
+	repeated ScanType scanTypes = 2;
+}

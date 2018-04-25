@@ -158,6 +158,19 @@ namespace pwiz.Skyline.Model.Results
             return FilterSpectrumList(spectra, Ms2ProductFilters, HighAccQ3, useDriftTimeHighEnergyOffset);
         }
 
+        public SignedMz MinMs1Filter
+        {
+            get { return Ms1ProductFilters.Length == 0 ? Q1 : Ms1ProductFilters[0].TargetMz; }
+        }
+
+        public SignedMz MaxMs1filter
+        {
+            get
+            {
+                return Ms1ProductFilters.Length == 0 ? Q1 : Ms1ProductFilters[Ms1ProductFilters.Length - 1].TargetMz;
+            }
+        }
+
         /// <summary>
         /// Apply the filter to a list of spectra.  In "normal" operation
         /// this list has a length of one. For ion mobility data it

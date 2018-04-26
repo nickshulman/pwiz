@@ -184,6 +184,11 @@ namespace pwiz.Skyline.Model.Results
             }
         }
 
+        internal ChromatogramCache GetChromatogramCache(string cachePath)
+        {
+            return Caches.FirstOrDefault(cache => cache.CachePath == cachePath);
+        }
+
         /// <summary>
         /// List of caches with _cacheRecalc as backstop during reloading
         /// </summary>

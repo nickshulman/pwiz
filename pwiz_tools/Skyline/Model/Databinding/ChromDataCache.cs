@@ -7,6 +7,7 @@ namespace pwiz.Skyline.Model.Databinding
     {
         private Tuple<Key, ChromatogramGroupInfo> _withoutPoints;
         private Tuple<Key, ChromatogramGroupInfo> _withPoints;
+        private Tuple<Tuple<string, ChromGroupHeaderInfo>, ChromatogramGroupInfo> _chromatogramGroupInfo;
 
         public ChromatogramGroupInfo GetChromatogramGroupInfo(SrmDocument document, 
             ChromatogramSet chromatogramSet, MsDataFileUri filePath,
@@ -30,6 +31,19 @@ namespace pwiz.Skyline.Model.Databinding
                 _withoutPoints = cacheSlot;
             }
             return chromatogramGroupInfo;
+        }
+
+        public ChromatogramGroupInfo LoadChromatogramPoints(ChromatogramCache cache, ChromatogramGroupInfo chromatogramGroupInfo)
+        {
+            var key = Tuple.Create(cache.CachePath, chromatogramGroupInfo.Header);
+            if (_chromatogramGroupInfo != null && Equals(key, _chromatogramGroupInfo.Item1))
+            {
+                return _chromatogramGroupInfo.Item2;
+            }
+            var groupInfo = cache.LoadChromatogramInfo(chromatogramGroupInfo.Header);
+            groupInfo.ReadChromatogram(cache);
+            _chromatogramGroupInfo = Tuple.Create(key, groupInfo);
+            return groupInfo;
         }
 
         private ChromatogramGroupInfo LoadChromatogramInfo(SrmDocument document, ChromatogramSet chromatogramSet, MsDataFileUri filePath,

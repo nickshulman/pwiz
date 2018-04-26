@@ -290,6 +290,13 @@
     <Compile Include="AlgLib\solvers.cs" />
     <Compile Include="AlgLib\specialfunctions.cs" />
     <Compile Include="AlgLib\statistics.cs" />
+    <Compile Include="Controls\Graphs\ChromatogramGridForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Model\Databinding\Collections\Chromatograms.cs" />
+    <Compile Include="Model\Databinding\Entities\AbstractChromatogram.cs" />
+    <Compile Include="Model\Databinding\Entities\CandidatePeak.cs" />
+    <Compile Include="Model\Databinding\Entities\ChromatogramGroup.cs" />
     <Compile Include="Model\Databinding\Entities\ColumnCaptions.Designer.cs">
       <AutoGen>True</AutoGen>
       <DesignTime>True</DesignTime>
@@ -300,6 +307,7 @@
       <DesignTime>True</DesignTime>
       <DependentUpon>ColumnToolTips.resx</DependentUpon>
     </Compile>
+    <Compile Include="Model\Databinding\Entities\TransitionChromatogram.cs" />
     <Compile Include="Model\ElementLocators\DocumentAnnotations.cs" />
     <Compile Include="Model\ElementLocators\ElementLocator.cs" />
     <Compile Include="Model\ElementLocators\ElementRef.cs" />
@@ -898,7 +906,7 @@
     <Compile Include="Model\Databinding\Collections\Transitions.cs" />
     <Compile Include="Model\Databinding\DocumentGridViewContext.cs" />
     <Compile Include="Model\Databinding\Entities\Chromatogram.cs" />
-    <Compile Include="Model\Databinding\Entities\ChromatogramGroup.cs" />
+    <Compile Include="Model\Databinding\Entities\PrecursorChromatogramGroup.cs" />
     <Compile Include="Model\Databinding\EditDescription.cs" />
     <Compile Include="Model\Databinding\Entities\MultiResult.cs" />
     <Compile Include="Model\Databinding\Entities\Peptide.cs" />

@@ -1,12 +1,13 @@
 ﻿using System.Collections.Generic;
 using pwiz.Common.Collections;
 using pwiz.Common.SystemUtil;
+using TopographTool.Model.DataRows;
 
 namespace TopographTool.Model
 {
     public class Peptide : Immutable
     {
-        public Peptide(ResultRow row, IEnumerable<Precursor> precursors)
+        public Peptide(TransitionRow row, IEnumerable<Precursor> precursors)
         {
             PeptideModifiedSequence = ModifiedSequence.Parse(row.PeptideModifiedSequenceFullNames);
             Precursors = ImmutableList.ValueOf(precursors);

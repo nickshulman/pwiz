@@ -105,6 +105,7 @@
       <DependentUpon>FindBox.cs</DependentUpon>
     </Compile>
     <Compile Include="Controls\IFormView.cs" />
+    <Compile Include="Controls\LongTextColumn.cs" />
     <Compile Include="Controls\RecordNavBar.cs">
       <SubType>UserControl</SubType>
     </Compile>

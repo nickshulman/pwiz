@@ -1,11 +1,8 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
-using System.Text;
 using System.Threading;
-using System.Threading.Tasks;
 using System.Windows.Forms;
+using TopographTool.Model;
 using TopographTool.Ui;
 
 namespace TopographTool
@@ -17,6 +14,11 @@ namespace TopographTool
         {
             Init();
             var form = new TopographForm();
+            if (args.Length == 3)
+            {
+                var data = TopographData.Read(args[0], args[1], args[2]);
+                form.Data = data;
+            }
             Application.Run(form);
         }
 

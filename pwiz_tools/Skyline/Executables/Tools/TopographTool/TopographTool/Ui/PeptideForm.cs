@@ -13,7 +13,7 @@ namespace TopographTool.Ui
     {
         private DataSet _dataSet;
         private bool _inUpdate;
-        private Replicate _replicate;
+        private ResultFile _replicate;
         private IDictionary<int, DataGridViewTextBoxColumn> _labelColumns;
         public PeptideForm()
         {
@@ -102,7 +102,7 @@ namespace TopographTool.Ui
             {
                 var row = dataGridViewFeatures.Rows[dataGridViewFeatures.Rows.Add()];
                 row.Cells[colTransition.Index].Value = featureWeights.TransitionKeys[i];
-                row.Cells[colFeature.Index].Value = FeatureWeights.FeatureKeys[i];
+                row.Cells[colFeature.Index].Value = featureWeights.FeatureKeys[i];
                 var area = featureAreas.Areas[i];
                 if (area.HasValue)
                 {

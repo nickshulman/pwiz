@@ -1,0 +1,54 @@
+<?xml version="1.0"?>
+<views>
+  <view name="Topograph_ScanInfos" rowsource="pwiz.Skyline.Model.Databinding.Entities.Replicate" sublist="Files!*">
+    <column name="Locator" />
+    <column name="Files!*.Locator" />
+    <column name="Files!*.ScanInfos.RetentionTimes" />
+    <column name="Files!*.ScanInfos.IsolationWindowTargets" />
+    <column name="Files!*.ScanInfos.IsolationWindowLowerOffsets" />
+    <column name="Files!*.ScanInfos.IsolationWindowUpperOffsets" />
+    <column name="Name" />
+    <column name="&quot;annotation_Condition&quot;" />
+    <column name="&quot;annotation_TimePoint&quot;" />
+  </view>
+  <view name="Topograph_TransitionResults" rowsource="pwiz.Skyline.Model.Databinding.Entities.Transition" sublist="Results!*">
+    <column name="Precursor.Locator" />
+    <column name="Locator" />
+    <column name="Results!*.Value.Chromatogram.RawData.Intensities" />
+    <column name="Results!*.Value.Chromatogram.RawData.ScanIndexes" />
+    <column name="Results!*.Value.PrecursorResult.PeptideResult.ResultFile.Locator" />
+    <column name="Results!*.Value.StartTime" />
+    <column name="Results!*.Value.EndTime" />
+    <column name="Results!*.Value.Area" />
+    <column name="Results!*.Value.Truncated" />
+    <filter column="Precursor.IsDecoy" opname="equals" operand="False" />
+    <filter column="Results!*.Value.Area" opname="isnotnullorblank" />
+  </view>
+  <view name="Topograph_Transitions" rowsource="pwiz.Skyline.Model.Databinding.Entities.Transition" sublist="Results!*">
+    <column name="Precursor.Peptide.Protein.Locator" />
+    <column name="Precursor.Peptide.Protein" />
+    <column name="Precursor.Peptide.ModifiedSequence.FullNames" />
+    <column name="Precursor.ModifiedSequence.FullNames" />
+    <column name="Precursor.Charge" />
+    <column name="Precursor.Mz" />
+    <column name="Precursor.MzDistribution.Mzs" />
+    <column name="Precursor.MzDistribution.Abundances" />
+    <column name="Locator" />
+    <column name="ProductCharge" />
+    <column name="ProductMz" />
+    <column name="MzDistribution.Mzs" />
+    <column name="MzDistribution.Abundances" />
+    <column name="ComplementaryProductMassDistribution.Masses" />
+    <column name="ComplementaryProductMassDistribution.Abundances" />
+    <column name="FragmentIon" />
+    <filter column="Precursor.IsDecoy" opname="equals" operand="False" />
+  </view>
+  <layouts viewName="Topograph_TransitionResults" defaultLayout="SortedPrecursorFile">
+    <layout name="SortedPrecursorFile">
+      <rowFilter>
+        <columnSort column="PrecursorLocator" direction="+" />
+        <columnSort column="ResultFileLocator" direction="+" />
+      </rowFilter>
+    </layout>
+  </layouts>
+</views>

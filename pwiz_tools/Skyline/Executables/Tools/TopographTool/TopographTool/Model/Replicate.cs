@@ -1,4 +1,5 @@
 ﻿using pwiz.Common.SystemUtil;
+using TopographTool.Model.DataRows;
 
 namespace TopographTool.Model
 {
@@ -9,9 +10,9 @@ namespace TopographTool.Model
             Name = name;
         }
 
-        public Replicate(ResultRow resultRow)
+        public Replicate(ScanInfoRow resultRow)
         {
-            Name = resultRow.Replicate;
+            Name = resultRow.ReplicateName;
             Locator = resultRow.ReplicateLocator;
             Cohort = resultRow.Condition;
             TimePoint = resultRow.TimePoint;

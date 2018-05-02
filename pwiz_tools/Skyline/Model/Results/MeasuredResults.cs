@@ -184,6 +184,11 @@ namespace pwiz.Skyline.Model.Results
             }
         }
 
+        internal ChromatogramCache GetChromatogramCache(string cachePath)
+        {
+            return Caches.FirstOrDefault(cache => cache.CachePath == cachePath);
+        }
+
         /// <summary>
         /// List of caches with _cacheRecalc as backstop during reloading
         /// </summary>
@@ -265,6 +270,19 @@ namespace pwiz.Skyline.Model.Results
         {
             return Chromatograms.Select(chromatogramSet => chromatogramSet.GetFileInfo(filePath))
                                 .FirstOrDefault(fileInfo => fileInfo != null);
+        }
+
+        public ImmutableList<ScanInfo> GetScanInfos(MsDataFileUri filePath)
+        {
+            foreach (var cache in CachesEx)
+            {
+                var chromCachedFile = cache.CachedFiles.FirstOrDefault(file => Equals(filePath, file.FilePath));
+                if (chromCachedFile != null)
+                {
+                    return chromCachedFile.ScanInfos;
+                }
+            }
+            return null;
         }
 
         private class RefCompareChromFileInfo : IEqualityComparer<ChromFileInfo>

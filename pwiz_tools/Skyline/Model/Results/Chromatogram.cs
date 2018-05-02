@@ -1021,7 +1021,6 @@ namespace pwiz.Skyline.Model.Results
                 return false;
             if (!ArrayUtil.EqualsDeep(other.RetentionTimeAlignments, RetentionTimeAlignments))
                 return false;
-
             return true;
         }
 

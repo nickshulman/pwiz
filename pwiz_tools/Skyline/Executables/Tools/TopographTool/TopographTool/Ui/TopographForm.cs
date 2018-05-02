@@ -55,7 +55,7 @@ namespace TopographTool.Ui
                 {
                     var parser = new TextFieldParser(fileOpenDialog.FileName);
                     parser.SetDelimiters(",");
-                    Data = TopographData.MakeTopographData(ResultRow.Read(parser));
+//                    Data = TopographData.MakeTopographData(Trans.Read(parser));
                 }
                 catch (Exception exception)
                 {

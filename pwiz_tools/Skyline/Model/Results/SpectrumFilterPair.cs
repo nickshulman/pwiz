@@ -23,13 +23,14 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
 using pwiz.Common.Chemistry;
+using pwiz.Common.SystemUtil;
 using pwiz.ProteowizardWrapper;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.Results.RemoteApi.GeneratedCode;
 
 namespace pwiz.Skyline.Model.Results
 {
-    public sealed class SpectrumFilterPair : IComparable<SpectrumFilterPair>
+    public sealed class SpectrumFilterPair : Immutable, IComparable<SpectrumFilterPair>
     {
         private static readonly SpectrumProductFilter[] EMPTY_FILTERS = new SpectrumProductFilter[0];
 

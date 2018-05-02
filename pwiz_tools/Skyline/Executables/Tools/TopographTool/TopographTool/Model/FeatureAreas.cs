@@ -72,7 +72,7 @@ namespace TopographTool.Model
             return turnoverCalculator.FindBestCombinationFilterNegatives(observations, candidateVectors);
         }
 
-        public static FeatureAreas GetFeatureAreas(FeatureWeights featureWeights, Replicate replicate, DataSet dataSet)
+        public static FeatureAreas GetFeatureAreas(FeatureWeights featureWeights, ResultFile replicate, DataSet dataSet)
         {
             var rowsByTransitionKeys = Enumerable.Range(0, featureWeights.TransitionKeys.Count)
                 .ToLookup(i => featureWeights.TransitionKeys[i]);
@@ -90,7 +90,7 @@ namespace TopographTool.Model
             return new FeatureAreas(featureWeights, areas);
         }
 
-        private static double? GetFeatureArea(Replicate replicate, IEnumerable<TransitionData> transitionDatas)
+        private static double? GetFeatureArea(ResultFile replicate, IEnumerable<TransitionData> transitionDatas)
         {
             foreach (var transitionData in transitionDatas)
             {

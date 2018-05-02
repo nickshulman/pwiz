@@ -33,18 +33,14 @@ namespace TopographTool.Ui
             this.menuStrip1 = new System.Windows.Forms.MenuStrip();
             this.fileToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.importToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.importIsolationSchemeToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.dockPanel = new DigitalRune.Windows.Docking.DockPanel();
             this.panel1 = new System.Windows.Forms.Panel();
             this.btnShowPeptide = new System.Windows.Forms.Button();
             this.comboPeptide = new System.Windows.Forms.ComboBox();
             this.backgroundWorker1 = new System.ComponentModel.BackgroundWorker();
-            this.importIsolationSchemeToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-            this.dataGridViewIsolationScheme = new System.Windows.Forms.DataGridView();
-            this.colIsolationStart = new System.Windows.Forms.DataGridViewTextBoxColumn();
-            this.colIsolationEnd = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.menuStrip1.SuspendLayout();
             this.panel1.SuspendLayout();
-            ((System.ComponentModel.ISupportInitialize)(this.dataGridViewIsolationScheme)).BeginInit();
             this.SuspendLayout();
             // 
             // menuStrip1
@@ -73,6 +69,13 @@ namespace TopographTool.Ui
             this.importToolStripMenuItem.Text = "Import Results...";
             this.importToolStripMenuItem.Click += new System.EventHandler(this.importToolStripMenuItem_Click);
             // 
+            // importIsolationSchemeToolStripMenuItem
+            // 
+            this.importIsolationSchemeToolStripMenuItem.Name = "importIsolationSchemeToolStripMenuItem";
+            this.importIsolationSchemeToolStripMenuItem.Size = new System.Drawing.Size(212, 22);
+            this.importIsolationSchemeToolStripMenuItem.Text = "Import Isolation Scheme...";
+            this.importIsolationSchemeToolStripMenuItem.Click += new System.EventHandler(this.importIsolationSchemeToolStripMenuItem_Click);
+            // 
             // dockPanel
             // 
             this.dockPanel.ActiveAutoHideContent = null;
@@ -84,7 +87,6 @@ namespace TopographTool.Ui
             // 
             // panel1
             // 
-            this.panel1.Controls.Add(this.dataGridViewIsolationScheme);
             this.panel1.Controls.Add(this.btnShowPeptide);
             this.panel1.Controls.Add(this.comboPeptide);
             this.panel1.Dock = System.Windows.Forms.DockStyle.Top;
@@ -114,35 +116,6 @@ namespace TopographTool.Ui
             this.comboPeptide.Size = new System.Drawing.Size(543, 21);
             this.comboPeptide.TabIndex = 0;
             // 
-            // importIsolationSchemeToolStripMenuItem
-            // 
-            this.importIsolationSchemeToolStripMenuItem.Name = "importIsolationSchemeToolStripMenuItem";
-            this.importIsolationSchemeToolStripMenuItem.Size = new System.Drawing.Size(212, 22);
-            this.importIsolationSchemeToolStripMenuItem.Text = "Import Isolation Scheme...";
-            this.importIsolationSchemeToolStripMenuItem.Click += new System.EventHandler(this.importIsolationSchemeToolStripMenuItem_Click);
-            // 
-            // dataGridViewIsolationScheme
-            // 
-            this.dataGridViewIsolationScheme.AutoSizeColumnsMode = System.Windows.Forms.DataGridViewAutoSizeColumnsMode.Fill;
-            this.dataGridViewIsolationScheme.ColumnHeadersHeightSizeMode = System.Windows.Forms.DataGridViewColumnHeadersHeightSizeMode.AutoSize;
-            this.dataGridViewIsolationScheme.Columns.AddRange(new System.Windows.Forms.DataGridViewColumn[] {
-            this.colIsolationStart,
-            this.colIsolationEnd});
-            this.dataGridViewIsolationScheme.Location = new System.Drawing.Point(708, 10);
-            this.dataGridViewIsolationScheme.Name = "dataGridViewIsolationScheme";
-            this.dataGridViewIsolationScheme.Size = new System.Drawing.Size(228, 57);
-            this.dataGridViewIsolationScheme.TabIndex = 2;
-            // 
-            // colIsolationStart
-            // 
-            this.colIsolationStart.HeaderText = "Start";
-            this.colIsolationStart.Name = "colIsolationStart";
-            // 
-            // colIsolationEnd
-            // 
-            this.colIsolationEnd.HeaderText = "End";
-            this.colIsolationEnd.Name = "colIsolationEnd";
-            // 
             // TopographForm
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
@@ -157,7 +130,6 @@ namespace TopographTool.Ui
             this.menuStrip1.ResumeLayout(false);
             this.menuStrip1.PerformLayout();
             this.panel1.ResumeLayout(false);
-            ((System.ComponentModel.ISupportInitialize)(this.dataGridViewIsolationScheme)).EndInit();
             this.ResumeLayout(false);
             this.PerformLayout();
 
@@ -174,8 +146,5 @@ namespace TopographTool.Ui
         private System.Windows.Forms.Button btnShowPeptide;
         private System.ComponentModel.BackgroundWorker backgroundWorker1;
         private System.Windows.Forms.ToolStripMenuItem importIsolationSchemeToolStripMenuItem;
-        private System.Windows.Forms.DataGridView dataGridViewIsolationScheme;
-        private System.Windows.Forms.DataGridViewTextBoxColumn colIsolationStart;
-        private System.Windows.Forms.DataGridViewTextBoxColumn colIsolationEnd;
     }
 }

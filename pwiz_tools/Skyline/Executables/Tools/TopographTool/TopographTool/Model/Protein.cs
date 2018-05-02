@@ -1,12 +1,13 @@
 ﻿using System.Collections.Generic;
 using pwiz.Common.Collections;
 using pwiz.Common.SystemUtil;
+using TopographTool.Model.DataRows;
 
 namespace TopographTool.Model
 {
     public class Protein : Immutable
     {
-        public Protein(ResultRow resultRow, IEnumerable<Peptide> children)
+        public Protein(TransitionRow resultRow, IEnumerable<Peptide> children)
         {
             Name = resultRow.Protein;
             Peptides = ImmutableList.ValueOf(children);

@@ -18,6 +18,7 @@
  */
 
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
 using pwiz.Common.DataBinding;
@@ -35,10 +36,12 @@ namespace pwiz.Skyline.Model.Databinding.Entities
     {
         private readonly CachedValue<PeptideChromInfo> _chromInfo;
         private readonly CachedValue<QuantificationResult> _quantificationResult;
+        private readonly CachedValue<IList<Chromatogram>> _chromatograms;
         public PeptideResult(Peptide peptide, ResultFile file) : base(peptide, file)
         {
             _chromInfo = CachedValue.Create(DataSchema, () => ResultFile.FindChromInfo(peptide.DocNode.Results));
             _quantificationResult = CachedValue.Create(DataSchema, GetQuantification);
+            _chromatograms = CachedValue.Create(DataSchema, GetPeptideChromatograms);
         }
 
         [HideWhen(AncestorOfType = typeof(Peptide))]
@@ -153,6 +156,17 @@ namespace pwiz.Skyline.Model.Databinding.Entities
         public string Locator
         {
             get { return GetLocator(); }
+        }
+
+        [InvariantDisplayName("PeptideChromatograms")]
+        public IList<Chromatogram> Chromatograms
+        {
+            get { return _chromatograms.Value; }
+        }
+
+        public IList<Chromatogram> GetPeptideChromatograms()
+        {
+            return null;
         }
     }
 }

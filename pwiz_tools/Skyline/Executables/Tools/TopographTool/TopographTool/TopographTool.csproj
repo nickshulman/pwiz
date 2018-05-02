@@ -59,10 +59,16 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Controls\ColorCell.cs" />
+    <Compile Include="Model\DataRows\ScanInfoRow.cs" />
+    <Compile Include="Model\DataRows\TransitionResultRow.cs" />
+    <Compile Include="Model\DataRows\TransitionRow.cs" />
     <Compile Include="Model\FeatureAreas.cs" />
     <Compile Include="Model\FeatureKey.cs" />
     <Compile Include="Model\IsolationWindow.cs" />
     <Compile Include="Model\LabelContribution.cs" />
+    <Compile Include="Model\DataRows\RowReader.cs" />
+    <Compile Include="Model\ResultFile.cs" />
+    <Compile Include="Model\ScanInfo.cs" />
     <Compile Include="Model\TransitionKey.cs" />
     <Compile Include="Model\FeatureWeights.cs" />
     <Compile Include="Model\IsolationScheme.cs" />
@@ -72,7 +78,6 @@
     <Compile Include="Model\Precursor.cs" />
     <Compile Include="Model\Protein.cs" />
     <Compile Include="Model\Replicate.cs" />
-    <Compile Include="Model\ResultRow.cs" />
     <Compile Include="Model\Settings.cs" />
     <Compile Include="Model\TopographData.cs" />
     <Compile Include="Model\Transition.cs" />

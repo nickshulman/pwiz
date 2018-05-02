@@ -755,10 +755,11 @@ namespace pwiz.Skyline.Model.Results
                 var chromCachedFile = raw.ChromCacheFiles[iFile];
                 if ((chromCachedFile.Flags & ChromCachedFile.FlagValues.scan_infos) != 0)
                 {
-                    stream.Seek(chromCachedFile.LocationScanIds, SeekOrigin.Begin);
+                    stream.Seek(raw.LocationScanIds + chromCachedFile.LocationScanIds, SeekOrigin.Begin);
                     byte[] bytes = new byte[chromCachedFile.SizeScanIds];
                     stream.Read(bytes, 0, bytes.Length);
-
+                    var scanInfos = ImmutableList.ValueOf(ScanInfo.FromBytes(bytes));
+                    raw.ChromCacheFiles[iFile] = chromCachedFile.ChangeScanInfos(scanInfos);
                 }
             }
             if (progressMonitor != null)

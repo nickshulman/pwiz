@@ -271,7 +271,7 @@ namespace pwiz.Skyline.Model.Databinding.Entities
             } 
         }
 
-        [ChildDisplayName("ComplementaryProductMassDistribution{0}")]
+        [ChildDisplayName("ComplementaryProduct{0}")]
         [Format(Formats.Mz)]
         public AbstractDistribution.MassDistribution ComplementaryProductMassDistribution
         {

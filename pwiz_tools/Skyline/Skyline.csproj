@@ -296,6 +296,13 @@
     <Compile Include="Controls\IsotopeDistForm.Designer.cs">
       <DependentUpon>IsotopeDistForm.cs</DependentUpon>
     </Compile>
+    <Compile Include="Controls\Graphs\ChromatogramGridForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Model\Databinding\Collections\Chromatograms.cs" />
+    <Compile Include="Model\Databinding\Entities\AbstractChromatogram.cs" />
+    <Compile Include="Model\Databinding\Entities\CandidatePeak.cs" />
+    <Compile Include="Model\Databinding\Entities\ChromatogramGroup.cs" />
     <Compile Include="Model\Databinding\Entities\ColumnCaptions.Designer.cs">
       <AutoGen>True</AutoGen>
       <DesignTime>True</DesignTime>
@@ -307,6 +314,8 @@
       <DependentUpon>ColumnToolTips.resx</DependentUpon>
     </Compile>
     <Compile Include="Model\Databinding\Entities\MzDistribution.cs" />
+    <Compile Include="Model\Databinding\Entities\ScanInfos.cs" />
+    <Compile Include="Model\Databinding\Entities\TransitionChromatogram.cs" />
     <Compile Include="Model\ElementLocators\DocumentAnnotations.cs" />
     <Compile Include="Model\ElementLocators\ElementLocator.cs" />
     <Compile Include="Model\ElementLocators\ElementRef.cs" />
@@ -908,7 +917,7 @@
     <Compile Include="Model\Databinding\Collections\Transitions.cs" />
     <Compile Include="Model\Databinding\DocumentGridViewContext.cs" />
     <Compile Include="Model\Databinding\Entities\Chromatogram.cs" />
-    <Compile Include="Model\Databinding\Entities\ChromatogramGroup.cs" />
+    <Compile Include="Model\Databinding\Entities\PrecursorChromatogramGroup.cs" />
     <Compile Include="Model\Databinding\EditDescription.cs" />
     <Compile Include="Model\Databinding\Entities\MultiResult.cs" />
     <Compile Include="Model\Databinding\Entities\Peptide.cs" />
@@ -3331,12 +3340,8 @@
     <Compile Include="Skyline.designer.cs">
       <DependentUpon>Skyline.cs</DependentUpon>
     </Compile>
-    <Compile Include="SkylineFiles.cs">
-      <SubType>Form</SubType>
-    </Compile>
-    <Compile Include="SkylineGraphs.cs">
-      <SubType>Form</SubType>
-    </Compile>
+    <Compile Include="SkylineFiles.cs" />
+    <Compile Include="SkylineGraphs.cs" />
     <Compile Include="Model\ToolService.cs" />
     <Compile Include="Controls\ToolStripNumericUpDown.cs">
       <SubType>Component</SubType>

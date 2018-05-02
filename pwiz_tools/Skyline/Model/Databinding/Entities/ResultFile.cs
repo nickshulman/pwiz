@@ -31,12 +31,14 @@ namespace pwiz.Skyline.Model.Databinding.Entities
     public class ResultFile : SkylineObject, IComparable
     {
         private readonly CachedValue<ChromFileInfo> _chromFileInfo;
+        private readonly CachedValue<ScanInfos> _scanInfos;
         public ResultFile(Replicate replicate, ChromFileInfoId chromFileInfoId, int optStep) : base(replicate.DataSchema)
         {
             Replicate = replicate;
             ChromFileInfoId = chromFileInfoId;
             _chromFileInfo = CachedValue.Create(DataSchema, () => Replicate.ChromatogramSet.GetFileInfo(ChromFileInfoId));
             OptimizationStep = optStep;
+            _scanInfos = CachedValue.Create(DataSchema, GetScanInfos);
         }
 
         [Browsable(false)]
@@ -154,6 +156,11 @@ namespace pwiz.Skyline.Model.Databinding.Entities
             return new ResultFileKey(Replicate.ReplicateIndex, ChromFileInfoId, OptimizationStep);
         }
 
+        public ScanInfos ScanInfos
+        {
+            get { return _scanInfos.Value; }
+        }
+
         [InvariantDisplayName("ResultFileLocator")]
         public string Locator
         {
@@ -165,6 +172,21 @@ namespace pwiz.Skyline.Model.Databinding.Entities
             var sibling = ResultFileRef.PROTOTYPE.ChangeParent(Replicate.GetElementRef());
             int fileIndex = Replicate.ChromatogramSet.IndexOfId(ChromFileInfoId);
             return sibling.ListChildrenOfParent(SrmDocument).Skip(fileIndex).FirstOrDefault();
+        }
+
+        private ScanInfos GetScanInfos()
+        {
+            var measuredResults = SrmDocument.MeasuredResults;
+            if (measuredResults == null)
+            {
+                return null;
+            }
+            var scanInfos = measuredResults.GetScanInfos(ChromFileInfo.FilePath);
+            if (scanInfos == null)
+            {
+                return null;
+            }
+            return new ScanInfos(scanInfos);
         }
     }
 }

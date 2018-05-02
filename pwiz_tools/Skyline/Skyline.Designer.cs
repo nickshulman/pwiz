@@ -526,6 +526,7 @@ namespace pwiz.Skyline
             this.massErorrRetentionTimeContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.massErrorMassToChargContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.massErrorlogScaleContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.chromatogramGridToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.contextMenuTreeNode.SuspendLayout();
             this.contextMenuSpectrum.SuspendLayout();
             this.contextMenuChromatogram.SuspendLayout();
@@ -2952,6 +2953,7 @@ namespace pwiz.Skyline
             this.groupComparisonsMenuItem,
             this.resultsGridMenuItem,
             this.documentGridMenuItem,
+            this.chromatogramGridToolStripMenuItem,
             this.toolStripSeparator36,
             this.toolBarToolStripMenuItem,
             this.statusToolStripMenuItem});
@@ -4032,6 +4034,12 @@ namespace pwiz.Skyline
             resources.ApplyResources(this.massErrorlogScaleContextMenuItem, "massErrorlogScaleContextMenuItem");
             this.massErrorlogScaleContextMenuItem.Click += new System.EventHandler(this.massErrorlogScaleContextMenuItem_Click);
             // 
+            // chromatogramGridToolStripMenuItem
+            // 
+            this.chromatogramGridToolStripMenuItem.Name = "chromatogramGridToolStripMenuItem";
+            resources.ApplyResources(this.chromatogramGridToolStripMenuItem, "chromatogramGridToolStripMenuItem");
+            this.chromatogramGridToolStripMenuItem.Click += new System.EventHandler(this.chromatogramGridToolStripMenuItem_Click);
+            // 
             // SkylineWindow
             // 
             resources.ApplyResources(this, "$this");
@@ -4556,6 +4564,7 @@ namespace pwiz.Skyline
         private System.Windows.Forms.ToolStripMenuItem graphTypeToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem barAreaGraphDisplayTypeMenuItem;
         private System.Windows.Forms.ToolStripMenuItem lineAreaGraphDisplayTypeMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem chromatogramGridToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem exportAnnotationsMenuItem;
         private System.Windows.Forms.ToolStripMenuItem importAnnotationsMenuItem;
     }

@@ -11,16 +11,23 @@ namespace TopographTool.Model
         {
             Settings = settings;
             Peptide = peptide;
-            Replicates = ImmutableList.ValueOf(Transitions.SelectMany(t => t.Transition.Results.Select(r => r.Replicate)).Distinct()
-                .OrderBy(replicate => Tuple.Create(replicate.TimePoint, replicate.Cohort, replicate.Name)));
-            TransitionsByFeature = Transitions.ToLookup(t => Tuple.Create(t.TransitionKey, GetFeature(t)));
+            Replicates = ImmutableList.ValueOf(Transitions.SelectMany(t => t.Transition.Results.Select(r => r.ResultFile)).Distinct()
+                .OrderBy(replicate => Tuple.Create(replicate.Replicate.TimePoint, replicate.Replicate.Cohort, replicate.Replicate.Name)));
+            IsolationWindows = ImmutableList.ValueOf(Replicates
+                .SelectMany(r => r.ScanInfos.SelectMany(si => si.IsolationWindows)).Distinct().OrderBy(si => si.Start));
+            TransitionsByFeature = Transitions.SelectMany(t =>
+                    GetFeatures(t).Select(featureContrib => Tuple.Create(t, featureContrib.Item1)))
+                .ToLookup(tranFeature => Tuple.Create(tranFeature.Item1.TransitionKey, tranFeature.Item2),
+                    tranFeature => tranFeature.Item1);
         }
 
         public Settings Settings { get; private set; }
 
         public Peptide Peptide { get; private set; }
 
-        public ImmutableList<Replicate> Replicates { get; private set; }
+        public ImmutableList<ResultFile> Replicates { get; private set; }
+
+        public ImmutableList<IsolationWindow> IsolationWindows { get; private set; }
 
         public IEnumerable<TransitionData> Transitions
         {
@@ -45,12 +52,14 @@ namespace TopographTool.Model
 
         private FeatureWeights AddWeights(FeatureWeights featureWeights, IGrouping<TransitionKey, TransitionData> grouping)
         {
-            var featureKeys = grouping.Select(GetFeature).Distinct().ToArray();
+            var featureKeys = grouping.SelectMany(GetFeatures)
+                .Select(tuple=>tuple.Item1).Distinct().ToArray();
             if (featureKeys.Contains(null))
             {
                 return featureWeights;
             }
-            var conflicts = featureKeys.SelectMany(EnumerateConflicts).Where(c=>!Equals(c.TransitionKey, grouping.Key));
+            var conflicts = featureKeys.SelectMany(EnumerateConflicts)
+                .Where(c=>!Equals(c.TransitionKey, grouping.Key));
             if (conflicts.Any())
             {
                 return featureWeights;
@@ -62,12 +71,22 @@ namespace TopographTool.Model
                 var labelContribs = new List<KeyValuePair<int, double>>();
                 foreach (var labelRow in byLabelCount)
                 {
-                    int contrib = labelRow.Count(transitionData => Equals(featureKey, GetFeature(transitionData)));
-                    if (contrib == 0)
+                    double contrib = 0;
+                    foreach (var transitionData in labelRow)
+                    {
+                        foreach (var featureContrib in GetFeatures(transitionData))
+                        {
+                            if (Equals(featureContrib.Item1, featureKey))
+                            {
+                                contrib += featureContrib.Item2;
+                            }
+                        }
+                    }
+                    if (contrib <= 0)
                     {
                         continue;
                     }
-                    labelContribs.Add(new KeyValuePair<int, double>(labelRow.Key, (double) contrib / labelRow.Count()));
+                    labelContribs.Add(new KeyValuePair<int, double>(labelRow.Key, contrib / labelRow.Count()));
                 }
                 if (labelContribs.Any())
                 {
@@ -81,8 +100,7 @@ namespace TopographTool.Model
         {
             return Transitions.Where(t =>
             {
-                var f = GetFeature(t);
-                return f != null && HasConflict(featureKey, f);
+                return GetFeatures(t).Any(fc=>HasConflict(fc.Item1, featureKey));
             });
         }
 
@@ -99,18 +117,23 @@ namespace TopographTool.Model
             return false;
         }
 
-        public FeatureKey GetFeature(TransitionData transitionData)
+        public IEnumerable<Tuple<FeatureKey, double>> GetFeatures(TransitionData transitionData)
         {
             if (transitionData.Transition.FragmentIon.StartsWith("precursor"))
             {
-                return new FeatureKey(null, transitionData.Transition.ProductMz);
+                yield return Tuple.Create(new FeatureKey(null, transitionData.Transition.ProductMz), 1.0);
+                yield break;
             }
-            var windows = Settings.IsolationScheme.GetWindows(transitionData.Precursor.PrecursorMz).ToArray();
-            if (windows.Length != 1)
+            foreach (var window in IsolationWindows)
             {
-                return null;
+                var precursorOverlap = transitionData.Precursor.MzDistribution.Where(kvp => window.Contains(kvp.Key)).ToArray();
+                if (precursorOverlap.Length == 0)
+                {
+                    continue;
+                }
+                yield return Tuple.Create(new FeatureKey(window, transitionData.Transition.ProductMz),
+                    precursorOverlap.Sum(kvp => kvp.Value));
             }
-            return new FeatureKey(windows[0], transitionData.Transition.ProductMz);
         }
     }
 }

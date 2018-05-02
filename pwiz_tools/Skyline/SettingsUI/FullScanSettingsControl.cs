@@ -62,6 +62,7 @@ namespace pwiz.Skyline.SettingsUI
             PrecursorMassAnalyzer = FullScan.PrecursorMassAnalyzer;
 
             cbHighSelectivity.Checked = FullScan.UseSelectiveExtraction;
+            cbxExtractIsotopeEnvelope.Checked = FullScan.ExtractIsotopeEnvelope;
 
             _prevval_comboIsolationScheme = IsolationScheme; // initialize previous value to initial value
         }
@@ -182,6 +183,12 @@ namespace pwiz.Skyline.SettingsUI
         {
             get { return cbHighSelectivity.Checked; }
             set { cbHighSelectivity.Checked = value; }
+        }
+
+        public bool ExtractIsotopeEnvelope
+        {
+            get { return cbxExtractIsotopeEnvelope.Checked; }
+            set { cbxExtractIsotopeEnvelope.Checked = value; }
         }
 
         public RetentionTimeFilterType RetentionTimeFilterType
@@ -381,19 +388,20 @@ namespace pwiz.Skyline.SettingsUI
                 return false;
 
             fullScanSettings = new TransitionFullScan(AcquisitionMethod,
-                                                  IsolationScheme,
-                                                  ProductMassAnalyzer,
-                                                  productRes,
-                                                  productResMz,
-                                                  PrecursorIsotopesCurrent,
-                                                  precursorIsotopeFilter,
-                                                  PrecursorMassAnalyzer,
-                                                  precursorRes,
-                                                  precursorResMz,
-                                                  UseSelectiveExtraction,
-                                                  Enrichments,
-                                                  retentionTimeFilterType,
-                                                  retentionTimeFilterLength);
+                    IsolationScheme,
+                    ProductMassAnalyzer,
+                    productRes,
+                    productResMz,
+                    PrecursorIsotopesCurrent,
+                    precursorIsotopeFilter,
+                    PrecursorMassAnalyzer,
+                    precursorRes,
+                    precursorResMz,
+                    UseSelectiveExtraction,
+                    Enrichments,
+                    retentionTimeFilterType,
+                    retentionTimeFilterLength)
+                .ChangeExtractIsotopeEnvelope(ExtractIsotopeEnvelope);
             return true;
         }
 

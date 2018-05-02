@@ -31,30 +31,38 @@ namespace pwiz.Skyline.Util
     /// </summary>
     public class FormattableList<T> : IFormattable where T : IFormattable
     {
-        private IList<T> _list;
-        public FormattableList(IList<T> list)
+        private readonly IList<T> _list;
+        private readonly string _prefix;
+        private readonly string _suffix;
+        public FormattableList(IList<T> list) : this(list, string.Empty, string.Empty)
+        {
+        }
+
+        public FormattableList(IList<T> list, string prefix, string suffix)
         {
             _list = list;
+            _prefix = prefix;
+            _suffix = suffix;
         }
 
         public string ToString(string format, IFormatProvider formatProvider)
         {
             if (_list == null)
             {
-                return string.Empty;
+                return _prefix + _suffix;
             }
-            return SeparateValues(TextUtil.CsvSeparator,
-                _list.Select(item => ValueToString(item, format, formatProvider)));
+            return _prefix + SeparateValues(TextUtil.CsvSeparator,
+                _list.Select(item => ValueToString(item, format, formatProvider))) + _suffix;
         }
 
         public override string ToString()
         {
             if (_list == null)
             {
-                return string.Empty;
+                return _prefix + _suffix;
             }
-            return SeparateValues(TextUtil.CsvSeparator, 
-                _list.Select(item => ((object) item ?? string.Empty).ToString()));
+            return _prefix + SeparateValues(TextUtil.CsvSeparator, 
+                _list.Select(item => ((object) item ?? string.Empty).ToString())) + _suffix;
         }
 
         private static string SeparateValues(char separator, IEnumerable<string> values)

@@ -1,0 +1,15 @@
+copy c:\users\nicksh\svn\reintegrate_fragmentedmolecule\pwiz_tools\Skyline\Controls\ControlUtil.cs pwiz_tools\Skyline\Controls\ControlUtil.cs
+copy c:\users\nicksh\svn\reintegrate_fragmentedmolecule\pwiz_tools\Skyline\Controls\IsotopeDistForm.Designer.cs pwiz_tools\Skyline\Controls\IsotopeDistForm.Designer.cs
+copy c:\users\nicksh\svn\reintegrate_fragmentedmolecule\pwiz_tools\Skyline\Controls\IsotopeDistForm.cs pwiz_tools\Skyline\Controls\IsotopeDistForm.cs
+copy c:\users\nicksh\svn\reintegrate_fragmentedmolecule\pwiz_tools\Skyline\Controls\IsotopeDistForm.resx pwiz_tools\Skyline\Controls\IsotopeDistForm.resx
+copy c:\users\nicksh\svn\reintegrate_fragmentedmolecule\pwiz_tools\Skyline\Model\Databinding\Entities\MzDistribution.cs pwiz_tools\Skyline\Model\Databinding\Entities\MzDistribution.cs
+copy c:\users\nicksh\svn\reintegrate_fragmentedmolecule\pwiz_tools\Skyline\Model\Databinding\Entities\Precursor.cs pwiz_tools\Skyline\Model\Databinding\Entities\Precursor.cs
+copy c:\users\nicksh\svn\reintegrate_fragmentedmolecule\pwiz_tools\Skyline\Model\Databinding\Entities\Transition.cs pwiz_tools\Skyline\Model\Databinding\Entities\Transition.cs
+copy c:\users\nicksh\svn\reintegrate_fragmentedmolecule\pwiz_tools\Skyline\Model\FragmentedMolecule.cs pwiz_tools\Skyline\Model\FragmentedMolecule.cs
+copy c:\users\nicksh\svn\reintegrate_fragmentedmolecule\pwiz_tools\Skyline\Model\MassShift.cs pwiz_tools\Skyline\Model\MassShift.cs
+copy c:\users\nicksh\svn\reintegrate_fragmentedmolecule\pwiz_tools\Skyline\Model\ModifiedSequence.cs pwiz_tools\Skyline\Model\ModifiedSequence.cs
+copy c:\users\nicksh\svn\reintegrate_fragmentedmolecule\pwiz_tools\Skyline\Skyline.csproj pwiz_tools\Skyline\Skyline.csproj
+copy c:\users\nicksh\svn\reintegrate_fragmentedmolecule\pwiz_tools\Skyline\Skyline.resx pwiz_tools\Skyline\Skyline.resx
+copy c:\users\nicksh\svn\reintegrate_fragmentedmolecule\pwiz_tools\Skyline\SkylineGraphs.cs pwiz_tools\Skyline\SkylineGraphs.cs
+copy c:\users\nicksh\svn\reintegrate_fragmentedmolecule\pwiz_tools\Skyline\TestA\FragmentedMoleculeTest.cs pwiz_tools\Skyline\TestA\FragmentedMoleculeTest.cs
+copy c:\users\nicksh\svn\reintegrate_fragmentedmolecule\pwiz_tools\Skyline\TestA\TestA.csproj pwiz_tools\Skyline\TestA\TestA.csproj

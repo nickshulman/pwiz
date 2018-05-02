@@ -24,6 +24,7 @@ namespace pwiz.Skyline.Model.Results
         {
             ScanType = new Type(msDataSpectrum.Level,
                 msDataSpectrum.Precursors.Select(precursor => new IsolationWindow(precursor)));
+            RetentionTime = msDataSpectrum.RetentionTime.GetValueOrDefault();
             int identifierInt;
             if (int.TryParse(msDataSpectrum.Id, 0, CultureInfo.InvariantCulture, out identifierInt) &&
                 identifierInt.ToString(CultureInfo.InvariantCulture) == msDataSpectrum.Id)
@@ -49,6 +50,34 @@ namespace pwiz.Skyline.Model.Results
         public string ScanIdentifier
         {
             get { return _scanIdentifierText ?? _scanIdentifierInt.ToString(CultureInfo.InvariantCulture); }
+        }
+
+        protected bool Equals(ScanInfo other)
+        {
+            return _scanIdentifierInt == other._scanIdentifierInt &&
+                   string.Equals(_scanIdentifierText, other._scanIdentifierText) && ScanIndex == other.ScanIndex &&
+                   RetentionTime.Equals(other.RetentionTime) && Equals(ScanType, other.ScanType);
+        }
+
+        public override bool Equals(object obj)
+        {
+            if (ReferenceEquals(null, obj)) return false;
+            if (ReferenceEquals(this, obj)) return true;
+            if (obj.GetType() != GetType()) return false;
+            return Equals((ScanInfo) obj);
+        }
+
+        public override int GetHashCode()
+        {
+            unchecked
+            {
+                var hashCode = _scanIdentifierInt;
+                hashCode = (hashCode * 397) ^ (_scanIdentifierText != null ? _scanIdentifierText.GetHashCode() : 0);
+                hashCode = (hashCode * 397) ^ ScanIndex;
+                hashCode = (hashCode * 397) ^ RetentionTime.GetHashCode();
+                hashCode = (hashCode * 397) ^ (ScanType != null ? ScanType.GetHashCode() : 0);
+                return hashCode;
+            }
         }
 
         public ResultFileDataProto.Types.ScanInfo ToScanInfoProto(
@@ -86,6 +115,13 @@ namespace pwiz.Skyline.Model.Results
                 TargetMz = msPrecursor.IsolationMz ?? msPrecursor.PrecursorMz.Value;
                 LowerOffset = msPrecursor.IsolationWindowLower.GetValueOrDefault();
                 UpperOffset = msPrecursor.IsolationWindowUpper.GetValueOrDefault();
+            }
+
+            public IsolationWindow(ResultFileDataProto.Types.ScanType.Types.IsolationWindow isolationWindowProto)
+            {
+                TargetMz = isolationWindowProto.TargetMz;
+                LowerOffset = isolationWindowProto.LowerOffset;
+                UpperOffset = isolationWindowProto.UpperOffset;
             }
             public double TargetMz { get; private set; }
             public double LowerOffset { get; private set; }
@@ -137,6 +173,7 @@ namespace pwiz.Skyline.Model.Results
             public Type(ResultFileDataProto.Types.ScanType typeProto)
             {
                 MsLevel = typeProto.MsLevel;
+                IsolationWindows = ImmutableList.ValueOfOrEmpty(typeProto.IsolationWindows.Select(w=>new IsolationWindow(w)));
             }
 
             public int MsLevel { get; private set; }

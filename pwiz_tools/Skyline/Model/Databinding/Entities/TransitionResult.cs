@@ -37,7 +37,7 @@ namespace pwiz.Skyline.Model.Databinding.Entities
         {
             _chromInfo = CachedValue.Create(DataSchema, () => GetResultFile().FindChromInfo(transition.DocNode.Results));
             _chromatogram = CachedValue.Create(DataSchema, 
-                () => new Chromatogram(new ChromatogramGroup(PrecursorResult), Transition));
+                () => new Chromatogram(new PrecursorChromatogramGroup(PrecursorResult), this));
         }
 
         [Browsable(false)]

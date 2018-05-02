@@ -18,67 +18,31 @@
  */
 using System;
 using System.ComponentModel;
-using System.Globalization;
 using pwiz.Common.DataBinding.Attributes;
-using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.Hibernate;
 using pwiz.Skyline.Model.Results;
-using pwiz.Skyline.Properties;
-using pwiz.Skyline.Util;
 using pwiz.Skyline.Util.Extensions;
 
 namespace pwiz.Skyline.Model.Databinding.Entities
 {
-    public class Chromatogram
+    public class Chromatogram : AbstractChromatogram
     {
         private Lazy<ChromatogramInfo> _chromatogramInfo;
-        public Chromatogram(ChromatogramGroup chromatogramGroup, Transition transition)
+        public Chromatogram(PrecursorChromatogramGroup chromatogramGroup, TransitionResult transitionResult) : base(chromatogramGroup.DataSchema)
         {
             ChromatogramGroup = chromatogramGroup;
-            Transition = transition;
+            TransitionResult = transitionResult;
             _chromatogramInfo = new Lazy<ChromatogramInfo>(GetChromatogramInfo);
         }
 
+        protected override ChromatogramInfo ChromatogramInfo {get { return _chromatogramInfo.Value; }}
+        
         [Browsable(false)]
-        public ChromatogramGroup ChromatogramGroup { get; private set; }
+        public PrecursorChromatogramGroup ChromatogramGroup { get; private set; }
         [Browsable(false)]
-        public Transition Transition { get; private set; }
-
-        [Format(Formats.Mz, NullValue = TextUtil.EXCEL_NA)]
-        public double? ChromatogramPrecursorMz
-        {
-            get { return _chromatogramInfo.Value == null ? (double?) null : _chromatogramInfo.Value.PrecursorMz; }
-        }
-
-        [Format(Formats.Mz, NullValue = TextUtil.EXCEL_NA)]
-        public double? ChromatogramProductMz 
-        {
-            get { return _chromatogramInfo.Value == null ? (double?) null : _chromatogramInfo.Value.ProductMz; } 
-        }
-
-        [Format(Formats.Mz, NullValue = TextUtil.EXCEL_NA)]
-        public double? ChromatogramExtractionWidth
-        {
-            get
-            {
-                return _chromatogramInfo.Value == null ? null : _chromatogramInfo.Value.ExtractionWidth;
-            } }
-        [Format(NullValue = TextUtil.EXCEL_NA)]
-        public double? ChromatogramIonMobility { get { return _chromatogramInfo.Value == null ? null : _chromatogramInfo.Value.IonMobility; } }
-        [Format(NullValue = TextUtil.EXCEL_NA)]
-        public double? ChromatogramIonMobilityExtractionWidth { get { return _chromatogramInfo.Value == null ? null : _chromatogramInfo.Value.IonMobilityExtractionWidth; } }
-        [Format(NullValue = TextUtil.EXCEL_NA)]
-        public string ChromatogramIonMobilityUnits
-        {
-            get
-            {
-                if (_chromatogramInfo.Value == null)
-                    return null;
-                return IonMobilityFilter.IonMobilityUnitsL10NString(_chromatogramInfo.Value.IonMobilityUnits);
-            }
-        }
-        [Format(NullValue = TextUtil.EXCEL_NA)]
-        public ChromSource? ChromatogramSource { get { return _chromatogramInfo.Value == null ? (ChromSource?)null : _chromatogramInfo.Value.Source; } }
+        public TransitionResult TransitionResult { get; private set; }
+        [Browsable(false)]
+        public Transition Transition { get { return TransitionResult.Transition; } }
 
         [Expensive]
         [ChildDisplayName("Raw{0}")]
@@ -118,6 +82,27 @@ namespace pwiz.Skyline.Model.Databinding.Entities
             }
         }
 
+        [Expensive]
+        [ChildDisplayName("Peak{0}")]
+        public Data PeakData
+        {
+            get
+            {
+                if (!TransitionResult.StartTime.HasValue || !TransitionResult.EndTime.HasValue)
+                {
+                    return null;
+                }
+                var baseData = RawData ?? InterpolatedData;
+                if (baseData == null)
+                {
+                    return null;
+                }
+                var timeIntensities = baseData.GetTimeIntensities()
+                    .Truncate(TransitionResult.StartTime.Value, TransitionResult.EndTime.Value);
+                return new Data(timeIntensities);
+            }
+        }
+
         private ChromatogramInfo GetChromatogramInfo()
         {
             var chromatogramGroupInfo = ChromatogramGroup.ChromatogramGroupInfo;
@@ -136,38 +121,10 @@ namespace pwiz.Skyline.Model.Databinding.Entities
             return chromatogramInfos[index];
         }
 
-        public class Data
+        [Format(Formats.Mz, NullValue = TextUtil.EXCEL_NA)]
+        public double? ChromatogramPrecursorMz
         {
-            private TimeIntensities _timeIntensities;
-            public Data(TimeIntensities timeIntensities)
-            {
-                _timeIntensities = timeIntensities;
-            }
-            [Format(NullValue = TextUtil.EXCEL_NA)]
-            public int NumberOfPoints { get { return _timeIntensities.NumPoints; } }
-            [Format(Formats.RETENTION_TIME)]
-            public FormattableList<float> Times { get { return new FormattableList<float>(_timeIntensities.Times); } }
-            [Format(Formats.PEAK_AREA)]
-            public FormattableList<float> Intensities { get { return new FormattableList<float>(_timeIntensities.Intensities); } }
-            [Format(Formats.MASS_ERROR)]
-            public FormattableList<float> MassErrors { get { return new FormattableList<float>(_timeIntensities.MassErrors); }}
-
-            public override string ToString()
-            {
-                return string.Format(Resources.Data_ToString__0__points, NumberOfPoints);
-            }
-        }
-
-        public override string ToString()
-        {
-            if (_chromatogramInfo.Value == null)
-            {
-                return TextUtil.EXCEL_NA;
-            }
-
-            return string.Format("{0}: {1}/{2}", ChromatogramSource, // Not L10N
-                ChromatogramPrecursorMz.Value.ToString(Formats.Mz, CultureInfo.CurrentCulture),
-                ChromatogramProductMz.Value.ToString(Formats.Mz, CultureInfo.CurrentCulture));
+            get { return ChromatogramInfo == null ? (double?)null : ChromatogramInfo.PrecursorMz; }
         }
 
 #if false         // TODO(nicksh): peaks
@@ -186,5 +143,6 @@ namespace pwiz.Skyline.Model.Databinding.Entities
             public PeakIdentification PeakIdentification { get; private set; }
         }
 #endif
+
     }
 }

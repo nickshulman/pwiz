@@ -242,7 +242,9 @@ namespace pwiz.Skyline.Model.Databinding
                 InitialDirectory = GetExportDirectory(),
                 OverwritePrompt = true,
                 DefaultExt = TextUtil.EXT_CSV,
-                Filter = TextUtil.FileDialogFiltersAll(TextUtil.FILTER_CSV, TextUtil.FILTER_TSV),
+                Filter = TextUtil.FileDialogFiltersAll(TextUtil.FILTER_CSV, TextUtil.FILTER_TSV, 
+                    TextUtil.FileDialogFilter("Invariant Language CSV", TextUtil.EXT_CSV),
+                    TextUtil.FileDialogFilter("Invariant Language Tab Delimited", TextUtil.EXT_TSV)),
                 FileName = GetDefaultExportFilename(viewInfo),
             })
             {

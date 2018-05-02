@@ -231,11 +231,12 @@ namespace pwiz.Skyline.Model.Results
                                 _isHighAccMsFilter, _isHighAccProductFilter);
                             dictPrecursorMzToFilter.Add(key, filter);
                         }
-
                         if (!EnabledMs)
                         {
-                            filterCount += filter.AddQ3FilterValues(from TransitionDocNode nodeTran in nodeGroup.Children
-                                                     select nodeTran.Mz, calcWindowsQ3);
+                            filterCount += filter.AddQ3FilterValues(
+                                nodeGroup.Transitions
+                                    .SelectMany(t => GetProductMzs(document.Settings, nodePep, nodeGroup, t)).ToArray(),
+                                calcWindowsQ3);
                         }
                         else if (!EnabledMsMs)
                         {
@@ -244,9 +245,10 @@ namespace pwiz.Skyline.Model.Results
                         else
                         {
                             filterCount += filter.AddQ1FilterValues(GetMS1MzValues(nodeGroup), calcWindowsQ1);
-                            filterCount += filter.AddQ3FilterValues(from TransitionDocNode nodeTran in nodeGroup.Children
-                                                     where !nodeTran.IsMs1
-                                                     select nodeTran.Mz, calcWindowsQ3);
+                            filterCount += filter.AddQ3FilterValues(nodeGroup.Transitions
+                                .Where(t=>!t.IsMs1)
+                                .SelectMany(t => GetProductMzs(document.Settings, nodePep, nodeGroup, t)).ToArray(), 
+                                calcWindowsQ3);
                         }
                     }
                 }
@@ -267,6 +269,16 @@ namespace pwiz.Skyline.Model.Results
             }
 
             InitRTLimits();
+        }
+
+        public IEnumerable<SignedMz> GetProductMzs(SrmSettings settings, PeptideDocNode peptideDocNode, TransitionGroupDocNode transitionGroupDocNode, TransitionDocNode transitionDocNode)
+        {
+            var fragmentedMolecule = FragmentedMolecule.GetFragmentedMolecule(settings,
+                peptideDocNode, transitionGroupDocNode, transitionDocNode);
+            var mzDistribution = fragmentedMolecule.GetFragmentDistribution(
+                FragmentedMolecule.Settings.FromSrmSettings(settings), null, null);
+            return mzDistribution.Where(kvp => kvp.Value >= .1)
+                .Select(kvp => new SignedMz(kvp.Key, transitionDocNode.Mz.IsNegative));
         }
 
         public bool ProvidesCollisionalCrossSectionConverter { get { return _ionMobilityFunctionsProvider != null;  } }

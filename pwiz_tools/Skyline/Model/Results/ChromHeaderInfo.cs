@@ -2029,6 +2029,7 @@ namespace pwiz.Skyline.Model.Results
         public MsDataFileUri FilePath { get { return _allFiles[_groupHeaderInfo.FileIndex].FilePath; } }
         public DateTime FileWriteTime { get { return _allFiles[_groupHeaderInfo.FileIndex].FileWriteTime; } }
         public DateTime? RunStartTime { get { return _allFiles[_groupHeaderInfo.FileIndex].RunStartTime; } }
+        public ImmutableList<ScanInfo> ScanInfos { get { return _allFiles[_groupHeaderInfo.FileIndex].ScanInfos; } }
         public virtual int NumTransitions { get { return _groupHeaderInfo.NumTransitions; } }
         public int NumPeaks { get { return _groupHeaderInfo.NumPeaks; } }
         public int MaxPeakIndex { get { return _groupHeaderInfo.MaxPeakIndex; } }

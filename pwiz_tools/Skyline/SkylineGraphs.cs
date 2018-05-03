@@ -2186,6 +2186,11 @@ namespace pwiz.Skyline
             SetDisplayTypeChrom(DisplayTypeChrom.tic);
         }
 
+        private void deconvoluteToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            SetDisplayTypeChrom(DisplayTypeChrom.deconvoluted);
+        }
+
         public void SetDisplayTypeChrom(DisplayTypeChrom displayType)
         {
             Settings.Default.ShowTransitionGraphs = displayType.ToString();

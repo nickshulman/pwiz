@@ -14,6 +14,7 @@ using pwiz.Skyline.Model;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.Hibernate;
 using pwiz.Skyline.Model.Lib;
+using pwiz.Skyline.Model.Results.Deconvolution;
 using pwiz.Skyline.Util;
 using ZedGraph;
 

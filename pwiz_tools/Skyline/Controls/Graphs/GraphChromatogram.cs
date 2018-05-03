@@ -34,6 +34,7 @@ using pwiz.Skyline.Controls.SeqNode;
 using pwiz.Skyline.Model;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.Results;
+using pwiz.Skyline.Model.Results.Deconvolution;
 using pwiz.Skyline.Model.Results.RemoteApi;
 using pwiz.Skyline.Model.Results.Scoring;
 using pwiz.Skyline.Model.Themes;
@@ -47,7 +48,7 @@ namespace pwiz.Skyline.Controls.Graphs
 
     public enum AutoZoomChrom { none, peak, window, both }
 
-    public enum DisplayTypeChrom { single, precursors, products, all, total, base_peak, tic }
+    public enum DisplayTypeChrom { single, precursors, products, all, total, deconvoluted, base_peak, tic }
 
     public partial class GraphChromatogram : DockableFormEx, IGraphContainer
     {
@@ -913,8 +914,12 @@ namespace pwiz.Skyline.Controls.Graphs
                         multipleGroupsPerPane = nodeGroups.Length > 1;
                     }
 
+                    if (DisplayType == DisplayTypeChrom.deconvoluted)
+                    {
+                        DisplayDeconvoluted(settings, chromatograms, nodePeps, ref bestStartTime, ref bestEndTime);
+                    }
                     // If displaying multiple groups or the total of a single group
-                    if (multipleGroupsPerPane || DisplayType == DisplayTypeChrom.total)
+                    else if (multipleGroupsPerPane || DisplayType == DisplayTypeChrom.total)
                     {
                         int countLabelTypes = settings.PeptideSettings.Modifications.CountLabelTypes;
                         DisplayTotals(timeRegressionFunction, chromatograms, mzMatchTolerance, 
@@ -2000,6 +2005,75 @@ namespace pwiz.Skyline.Controls.Graphs
                 }
             }
         }
+
+        private void DisplayDeconvoluted(SrmSettings settings, ChromatogramSet chromatogramSet,
+            PeptideDocNode[] peptideDocNodes,
+            ref double bestStartTime,
+            ref double bestEndTime)
+        {
+            foreach (var peptide in peptideDocNodes)
+            {
+                var chromatogramCollection =
+                    settings.MeasuredResults.GetChromatogramCollection(chromatogramSet, peptide);
+                var peptideFeatureSet =
+                    new PeptideFeatureSet(settings, peptide, chromatogramCollection.GetFeatureKeys());
+                var selectedTransitions = _stateProvider.SelectedNodes.OfType<TransitionTreeNode>()
+                    .Where(node => ReferenceEquals(peptide.Id, node.PepNode.Id)).ToArray();
+                var transitionKeys = selectedTransitions.Select(GetTransitionKey).Distinct().ToArray();
+                if (!transitionKeys.Any())
+                {
+                    transitionKeys = peptideFeatureSet.GetAllTransitionKeys().ToArray();
+                }
+                int iColor = 0;
+                foreach (var transitionKey in transitionKeys)
+                {
+                    var featureWeights = peptideFeatureSet.GetFeatureWeights(transitionKey);
+                    if (featureWeights.FeatureKeys.Count == 0)
+                    {
+                        continue;
+                    }
+                    var precursorChromatograms = featureWeights.DeconvoluteChromatograms(chromatogramCollection);
+                    if (precursorChromatograms != null)
+                    {
+                        for (int iPrecursor = 0; iPrecursor < featureWeights.PrecursorContributions.Count; iPrecursor++)
+                        {
+                            iColor++;
+                            var color = COLORS_GROUPS[iColor % COLORS_GROUPS.Count];
+                            var chromatogramGroup = chromatogramCollection.ChromatogramGroups.First();
+                            var chromatogramInfo = new ChromatogramInfo(chromatogramGroup, 0);
+                            chromatogramInfo.TimeIntensities = precursorChromatograms[iPrecursor];
+                            var graphItem = new ChromGraphItem(null,
+                                null,
+                                chromatogramInfo,
+                                null,
+                                null,
+                                new bool[0],
+                                null,
+                                0,
+                                true,
+                                false,
+                                null,
+                                0,
+                                color,
+                                FontSize,
+                                LineWidth);
+                            _graphHelper.AddChromatogram(PaneKey.DEFAULT, graphItem);
+                        }
+                        
+                    }
+                    break;
+                }
+            }
+        }
+
+        private PeptideDocNode.TransitionKey GetTransitionKey(TransitionTreeNode transitionTreeNode)
+        {
+            var transitionGroup = (TransitionGroupDocNode) transitionTreeNode.SrmParent.Model;
+            var transitionLossKey = new TransitionLossKey(transitionGroup, transitionTreeNode.DocNode,
+                transitionTreeNode.DocNode.Losses);
+            return new PeptideDocNode.TransitionKey(transitionGroup, transitionLossKey, IsotopeLabelType.light);
+        }
+
 
         private class DisplayPeptide
         {

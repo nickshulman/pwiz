@@ -28,6 +28,7 @@ using pwiz.Common.SystemUtil;
 using pwiz.ProteowizardWrapper;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.Lib;
+using pwiz.Skyline.Model.Results.Deconvolution;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
 
@@ -1519,6 +1520,16 @@ namespace pwiz.Skyline.Model.Results
             byte[] result = new byte[textIdLength];
             Array.Copy(_textIdBytes, textIdOffset, result, 0, textIdLength);
             return result;
+        }
+
+        public IEnumerable<ChromatogramGroupInfo> GetPeptideChromatograms(
+            ChromatogramSet chromatogramSet, PeptideDocNode peptideDocNode)
+        {
+            var precursorMzs = peptideDocNode.TransitionGroups.Select(tg => tg.PrecursorMz).Distinct().ToArray();
+            var chromIndexes = precursorMzs.SelectMany(mz =>
+                ChromatogramIndexesMatching(peptideDocNode, mz, .0001f, chromatogramSet)
+                    .Distinct()).ToArray();
+            return chromIndexes.Select(LoadChromatogramInfo);
         }
     }
 

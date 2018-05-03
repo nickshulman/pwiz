@@ -602,6 +602,12 @@
   <data name="totalTranContextMenuItem.Text" xml:space="preserve">
     <value>Total</value>
   </data>
+  <data name="deconvoluteToolStripMenuItem.Size" type="System.Drawing.Size, System.Drawing">
+    <value>167, 22</value>
+  </data>
+  <data name="deconvoluteToolStripMenuItem.Text" xml:space="preserve">
+    <value>Deconvolute</value>
+  </data>
   <data name="toolStripSeparatorTran.Size" type="System.Drawing.Size, System.Drawing">
     <value>164, 6</value>
   </data>
@@ -2931,9 +2937,6 @@
   <data name="documentGridMenuItem.Text" xml:space="preserve">
     <value>&amp;Document Grid</value>
   </data>
-  <data name="isotopeDistributionMenuItem.Text" xml:space="preserve">
-    <value>Isotope Distribution</value>
-  </data>
   <data name="chromatogramGridToolStripMenuItem.Size" type="System.Drawing.Size, System.Drawing">
     <value>191, 22</value>
   </data>
@@ -3341,9 +3344,6 @@
   </data>
   <data name="$this.ClientSize" type="System.Drawing.Size, System.Drawing">
     <value>734, 514</value>
-  </data>
-  <data name="$this.ImeMode" type="System.Windows.Forms.ImeMode, System.Windows.Forms">
-    <value>NoControl</value>
   </data>
   <data name="$this.Text" xml:space="preserve">
     <value>Skyline</value>
@@ -3826,6 +3826,12 @@
     <value>totalTranContextMenuItem</value>
   </data>
   <data name="&gt;&gt;totalTranContextMenuItem.Type" xml:space="preserve">
+    <value>System.Windows.Forms.ToolStripMenuItem, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="&gt;&gt;deconvoluteToolStripMenuItem.Name" xml:space="preserve">
+    <value>deconvoluteToolStripMenuItem</value>
+  </data>
+  <data name="&gt;&gt;deconvoluteToolStripMenuItem.Type" xml:space="preserve">
     <value>System.Windows.Forms.ToolStripMenuItem, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </data>
   <data name="&gt;&gt;toolStripSeparatorTran.Name" xml:space="preserve">
@@ -5862,10 +5868,10 @@
   <data name="&gt;&gt;documentGridMenuItem.Type" xml:space="preserve">
     <value>System.Windows.Forms.ToolStripMenuItem, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </data>
-  <data name="&gt;&gt;isotopeDistributionMenuItem.Name" xml:space="preserve">
-    <value>isotopeDistributionMenuItem</value>
+  <data name="&gt;&gt;chromatogramGridToolStripMenuItem.Name" xml:space="preserve">
+    <value>chromatogramGridToolStripMenuItem</value>
   </data>
-  <data name="&gt;&gt;isotopeDistributionMenuItem.Type" xml:space="preserve">
+  <data name="&gt;&gt;chromatogramGridToolStripMenuItem.Type" xml:space="preserve">
     <value>System.Windows.Forms.ToolStripMenuItem, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </data>
   <data name="&gt;&gt;toolStripSeparator36.Name" xml:space="preserve">
@@ -6238,12 +6244,6 @@
     <value>massErrorlogScaleContextMenuItem</value>
   </data>
   <data name="&gt;&gt;massErrorlogScaleContextMenuItem.Type" xml:space="preserve">
-    <value>System.Windows.Forms.ToolStripMenuItem, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
-  </data>
-  <data name="&gt;&gt;chromatogramGridToolStripMenuItem.Name" xml:space="preserve">
-    <value>chromatogramGridToolStripMenuItem</value>
-  </data>
-  <data name="&gt;&gt;chromatogramGridToolStripMenuItem.Type" xml:space="preserve">
     <value>System.Windows.Forms.ToolStripMenuItem, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </data>
   <data name="&gt;&gt;$this.Name" xml:space="preserve">

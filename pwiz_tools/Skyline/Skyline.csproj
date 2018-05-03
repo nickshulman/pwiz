@@ -325,7 +325,6 @@
     <Compile Include="Model\ElementLocators\ResultRef.cs" />
     <Compile Include="Model\DocSettings\AbsoluteQuantification\FiguresOfMerit.cs" />
     <Compile Include="Model\DocSettings\AbsoluteQuantification\LodCalculation.cs" />
-    <Compile Include="Model\FragmentedMolecule.cs" />
     <Compile Include="Model\Lib\BlibData\DbRefSpectraPeakAnnotations.cs" />
     <Compile Include="Model\Lib\LibKeyIndex.cs" />
     <Compile Include="Model\Lib\ViewLibraryPepInfoList.cs" />
@@ -334,6 +333,15 @@
     <Compile Include="Model\MassModification.cs" />
     <Compile Include="Model\MassShift.cs" />
     <Compile Include="Model\Optimization\OptimizationDictionary.cs" />
+    <Compile Include="Model\Results\Deconvolution\ChromatogramCollection.cs" />
+    <Compile Include="Model\Results\Deconvolution\FeatureKey.cs" />
+    <Compile Include="Model\Results\Deconvolution\FeatureWeights.cs" />
+    <Compile Include="Model\Results\Deconvolution\FragmentDistribution.cs" />
+    <Compile Include="Model\Results\Deconvolution\FragmentedMolecule.cs" />
+    <Compile Include="Model\Results\Deconvolution\PeptideFeatureSet.cs" />
+    <Compile Include="Model\Results\Deconvolution\PrecursorClass.cs" />
+    <Compile Include="Model\Results\Deconvolution\TransitionFeatureWeight.cs" />
+    <Compile Include="Model\Results\Deconvolution\TurnoverCalculator.cs" />
     <Compile Include="Model\Results\ScanInfo.cs" />
     <Compile Include="Model\Serialization\Pre372CustomIonTransitionGroupHandler.cs" />
     <Compile Include="Model\Serialization\XmlReadAhead.cs" />
@@ -3340,8 +3348,12 @@
     <Compile Include="Skyline.designer.cs">
       <DependentUpon>Skyline.cs</DependentUpon>
     </Compile>
-    <Compile Include="SkylineFiles.cs" />
-    <Compile Include="SkylineGraphs.cs" />
+    <Compile Include="SkylineFiles.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="SkylineGraphs.cs">
+      <SubType>Form</SubType>
+    </Compile>
     <Compile Include="Model\ToolService.cs" />
     <Compile Include="Controls\ToolStripNumericUpDown.cs">
       <SubType>Component</SubType>

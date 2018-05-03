@@ -3,6 +3,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 using pwiz.Common.Chemistry;
 using pwiz.Skyline.Model;
 using pwiz.Skyline.Model.DocSettings;
+using pwiz.Skyline.Model.Results.Deconvolution;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
 using pwiz.SkylineTestUtil;

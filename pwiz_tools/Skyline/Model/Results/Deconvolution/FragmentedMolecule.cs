@@ -7,7 +7,7 @@ using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Util;
 
-namespace pwiz.Skyline.Model
+namespace pwiz.Skyline.Model.Results.Deconvolution
 {
     public class FragmentedMolecule : Immutable
     {
@@ -154,20 +154,21 @@ namespace pwiz.Skyline.Model
             }
         }
 
-        public IDictionary<double, double> GetFragmentDistribution(Settings settings, double? precursorMinMz, double? precursorMaxMz)
+        public IDictionary<double, double> GetFragmentDistribution(DistributionCache distributionCache, double? precursorMinMz, double? precursorMaxMz)
         {
-            var fragmentDistribution = settings.GetMassDistribution(FragmentFormula, FragmentMassShift, FragmentCharge);
-            var otherFragmentFormula = GetComplementaryProductFormula();
-            var otherFragmentDistribution = settings.GetMassDistribution(otherFragmentFormula, PrecursorMassShift - FragmentMassShift, PrecursorCharge);
             var result = new Dictionary<double, double>();
-            foreach (var entry in fragmentDistribution)
+            var fragmentMzDistribution = distributionCache.GetMzDistribution(
+                FragmentFormula, FragmentMassShift, FragmentCharge);
+            var complementaryFragmentMzDistribution = distributionCache.GetMzDistribution(
+                GetComplementaryProductFormula(), 0, PrecursorCharge);
+            foreach (var entry in fragmentMzDistribution)
             {
                 var fragmentPrecursorMz = entry.Key * FragmentCharge / PrecursorCharge;
                 double? minOtherMz = precursorMinMz - fragmentPrecursorMz;
                 double? maxOtherMz = precursorMaxMz - fragmentPrecursorMz;
-                var otherFragmentAbundance = otherFragmentDistribution
-                    .Where(oFrag => !minOtherMz.HasValue || oFrag.Key >= minOtherMz 
-                        && !maxOtherMz.HasValue || oFrag.Key <= maxOtherMz).Sum(frag => frag.Value);
+                var otherFragmentAbundance = complementaryFragmentMzDistribution
+                    .Where(oFrag => !minOtherMz.HasValue || oFrag.Key >= minOtherMz
+                                    && !maxOtherMz.HasValue || oFrag.Key <= maxOtherMz).Sum(frag => frag.Value);
                 if (otherFragmentAbundance > 0)
                 {
                     result.Add(entry.Key, otherFragmentAbundance * entry.Value);
@@ -350,7 +351,6 @@ namespace pwiz.Skyline.Model
         public static FragmentedMolecule GetFragmentedMolecule(SrmSettings settings, PeptideDocNode peptideDocNode,
             TransitionGroupDocNode transitionGroupDocNode, TransitionDocNode transitionDocNode)
         {
-
             FragmentedMolecule fragmentedMolecule = EMPTY
                 .ChangePrecursorMassShift(0, settings.TransitionSettings.Prediction.PrecursorMassType)
                 .ChangeFragmentMassShift(0, settings.TransitionSettings.Prediction.FragmentMassType);

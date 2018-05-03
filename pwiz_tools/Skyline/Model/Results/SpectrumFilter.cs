@@ -25,6 +25,7 @@ using System.Xml.Serialization;
 using pwiz.Common.Chemistry;
 using pwiz.ProteowizardWrapper;
 using pwiz.Skyline.Model.DocSettings;
+using pwiz.Skyline.Model.Results.Deconvolution;
 using pwiz.Skyline.Model.Results.RemoteApi.GeneratedCode;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;

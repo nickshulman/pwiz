@@ -1,17 +1,19 @@
-﻿namespace pwiz.Skyline.Model.Results.Deconvolution
+﻿using System;
+
+namespace pwiz.Skyline.Model.Results.Deconvolution
 {
-    public class PrecursorClass
+    public class PrecursorClass : IComparable<PrecursorClass>
     {
-        public PrecursorClass(int labelCount)
+        public PrecursorClass(double neutralMass)
         {
-            LabelCount = labelCount;
+            NeutralMass = neutralMass;
         }
 
-        public int LabelCount { get; private set; }
+        public double NeutralMass { get; private set; }
 
         protected bool Equals(PrecursorClass other)
         {
-            return LabelCount == other.LabelCount;
+            return NeutralMass == other.NeutralMass;
         }
 
         public override bool Equals(object obj)
@@ -24,12 +26,21 @@
 
         public override int GetHashCode()
         {
-            return LabelCount;
+            return NeutralMass.GetHashCode();
         }
 
         public override string ToString()
         {
-            return "Label" + LabelCount;
+            return "Mass:" + NeutralMass;
+        }
+
+        public int CompareTo(PrecursorClass other)
+        {
+            if (other == null)
+            {
+                return 1;
+            }
+            return NeutralMass.CompareTo(other.NeutralMass);
         }
     }
 }

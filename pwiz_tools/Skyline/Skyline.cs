@@ -5099,6 +5099,7 @@ namespace pwiz.Skyline
                 NavigateToBookmark(bookmark);
             }
         }
+
     }
 }
 

@@ -117,6 +117,7 @@ namespace pwiz.Skyline
             this.productsTranContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.singleTranContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.totalTranContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.deconvoluteToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.toolStripSeparatorTran = new System.Windows.Forms.ToolStripSeparator();
             this.basePeakContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.ticContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
@@ -463,6 +464,7 @@ namespace pwiz.Skyline
             this.editGroupComparisonListMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.resultsGridMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.documentGridMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.chromatogramGridToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.toolStripSeparator36 = new System.Windows.Forms.ToolStripSeparator();
             this.toolBarToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.statusToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
@@ -526,7 +528,6 @@ namespace pwiz.Skyline
             this.massErorrRetentionTimeContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.massErrorMassToChargContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.massErrorlogScaleContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-            this.chromatogramGridToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.contextMenuTreeNode.SuspendLayout();
             this.contextMenuSpectrum.SuspendLayout();
             this.contextMenuChromatogram.SuspendLayout();
@@ -1115,6 +1116,7 @@ namespace pwiz.Skyline
             this.productsTranContextMenuItem,
             this.singleTranContextMenuItem,
             this.totalTranContextMenuItem,
+            this.deconvoluteToolStripMenuItem,
             this.toolStripSeparatorTran,
             this.basePeakContextMenuItem,
             this.ticContextMenuItem,
@@ -1155,6 +1157,12 @@ namespace pwiz.Skyline
             this.totalTranContextMenuItem.Name = "totalTranContextMenuItem";
             resources.ApplyResources(this.totalTranContextMenuItem, "totalTranContextMenuItem");
             this.totalTranContextMenuItem.Click += new System.EventHandler(this.totalTranMenuItem_Click);
+            // 
+            // deconvoluteToolStripMenuItem
+            // 
+            this.deconvoluteToolStripMenuItem.Name = "deconvoluteToolStripMenuItem";
+            resources.ApplyResources(this.deconvoluteToolStripMenuItem, "deconvoluteToolStripMenuItem");
+            this.deconvoluteToolStripMenuItem.Click += new System.EventHandler(this.deconvoluteToolStripMenuItem_Click);
             // 
             // toolStripSeparatorTran
             // 
@@ -3599,6 +3607,12 @@ namespace pwiz.Skyline
             resources.ApplyResources(this.documentGridMenuItem, "documentGridMenuItem");
             this.documentGridMenuItem.Click += new System.EventHandler(this.documentGridMenuItem_Click);
             // 
+            // chromatogramGridToolStripMenuItem
+            // 
+            this.chromatogramGridToolStripMenuItem.Name = "chromatogramGridToolStripMenuItem";
+            resources.ApplyResources(this.chromatogramGridToolStripMenuItem, "chromatogramGridToolStripMenuItem");
+            this.chromatogramGridToolStripMenuItem.Click += new System.EventHandler(this.chromatogramGridToolStripMenuItem_Click);
+            // 
             // toolStripSeparator36
             // 
             this.toolStripSeparator36.Name = "toolStripSeparator36";
@@ -4033,12 +4047,6 @@ namespace pwiz.Skyline
             this.massErrorlogScaleContextMenuItem.Name = "massErrorlogScaleContextMenuItem";
             resources.ApplyResources(this.massErrorlogScaleContextMenuItem, "massErrorlogScaleContextMenuItem");
             this.massErrorlogScaleContextMenuItem.Click += new System.EventHandler(this.massErrorlogScaleContextMenuItem_Click);
-            // 
-            // chromatogramGridToolStripMenuItem
-            // 
-            this.chromatogramGridToolStripMenuItem.Name = "chromatogramGridToolStripMenuItem";
-            resources.ApplyResources(this.chromatogramGridToolStripMenuItem, "chromatogramGridToolStripMenuItem");
-            this.chromatogramGridToolStripMenuItem.Click += new System.EventHandler(this.chromatogramGridToolStripMenuItem_Click);
             // 
             // SkylineWindow
             // 
@@ -4567,6 +4575,7 @@ namespace pwiz.Skyline
         private System.Windows.Forms.ToolStripMenuItem chromatogramGridToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem exportAnnotationsMenuItem;
         private System.Windows.Forms.ToolStripMenuItem importAnnotationsMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem deconvoluteToolStripMenuItem;
     }
 }
 

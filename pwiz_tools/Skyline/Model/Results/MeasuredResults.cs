@@ -25,6 +25,7 @@ using System.Xml.Schema;
 using System.Xml.Serialization;
 using pwiz.Common.Collections;
 using pwiz.Common.SystemUtil;
+using pwiz.Skyline.Model.Results.Deconvolution;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
 using pwiz.Skyline.Util.Extensions;
@@ -610,6 +611,26 @@ namespace pwiz.Skyline.Model.Results
                                         out ChromatogramGroupInfo[] infoSet)
         {
             return TryLoadChromatogram(_chromatograms[index], nodePep, nodeGroup, tolerance, loadPoints, out infoSet);
+        }
+
+        public ChromatogramCollection GetChromatogramCollection(
+            ChromatogramSet chromatogramSet,
+            PeptideDocNode peptideDocNode)
+        {
+            foreach (var cache in Caches)
+            {
+                var chromatograms = cache.GetPeptideChromatograms(chromatogramSet, peptideDocNode).ToArray();
+                if (chromatograms.Length == 0)
+                {
+                    continue;
+                }
+                foreach (var chrom in chromatograms)
+                {
+                    chrom.ReadChromatogram(cache);
+                }
+                return new ChromatogramCollection(chromatograms);
+            }
+            return null;
         }
 
         private static readonly ChromatogramGroupInfo[] EMPTY_GROUP_INFOS = new ChromatogramGroupInfo[0];

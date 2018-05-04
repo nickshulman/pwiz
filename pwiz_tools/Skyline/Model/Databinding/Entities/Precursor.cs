@@ -498,10 +498,9 @@ namespace pwiz.Skyline.Model.Databinding.Entities
             get
             {
                 var fragmentedMolecule = GetFragmentedMolecule();
-                var settings = FragmentedMolecule.Settings.FromSrmSettings(SrmDocument.Settings);
-                var mzDistribution = settings.GetMassDistribution(fragmentedMolecule.PrecursorFormula,
+                var mzDistribution = DataSchema.DistributionCache.GetMzDistribution(fragmentedMolecule.PrecursorFormula,
                     fragmentedMolecule.PrecursorMassShift, fragmentedMolecule.PrecursorCharge);
-                var monoMz = settings.GetMonoMass(fragmentedMolecule.PrecursorFormula,
+                var monoMz = DataSchema.DistributionCache.GetMonoMz(fragmentedMolecule.PrecursorFormula,
                     fragmentedMolecule.PrecursorMassShift, fragmentedMolecule.PrecursorCharge);
                 return new AbstractDistribution.MzDistribution(mzDistribution, monoMz);
             }

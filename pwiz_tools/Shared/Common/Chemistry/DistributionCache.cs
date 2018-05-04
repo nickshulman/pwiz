@@ -10,6 +10,9 @@ namespace pwiz.Common.Chemistry
         private readonly IDictionary<Molecule, double> _monoMasses 
             = new Dictionary<Molecule, double>();
 
+        private readonly IDictionary<Tuple<string, int>, MassDistribution> _elementDistributions 
+            = new Dictionary<Tuple<string, int>, MassDistribution>();
+
         private readonly DistributionSettings _monoDistributionSettings;
 
         public DistributionCache(DistributionSettings distributionSettings)
@@ -49,12 +52,50 @@ namespace pwiz.Common.Chemistry
                     return massDistribution;
                 }
             }
-            massDistribution = Settings.GetMassDistribution(formula);
+            massDistribution = Settings.EmptyDistribution;
+            foreach (var entry in formula)
+            {
+                massDistribution = massDistribution.Add(GetElementDistribution(entry.Key, entry.Value));
+            }
             lock (_massDistributions)
             {
                 _massDistributions[formula] = massDistribution;
             }
             return massDistribution;
+        }
+
+        private MassDistribution GetElementDistribution(string element, int count)
+        {
+            if (count == 0)
+            {
+                return Settings.EmptyDistribution;
+            }
+            var key = Tuple.Create(element, count);
+            MassDistribution result;
+            lock (_elementDistributions)
+            {
+                if (_elementDistributions.TryGetValue(key, out result))
+                {
+                    return result;
+                }
+            }
+            if (count == 1)
+            {
+                result = Settings.EmptyDistribution.Add(Settings.IsotopeAbundances[element]);
+            }
+            else
+            {
+                result = Settings.EmptyDistribution.Add(GetElementDistribution(element, count / 2)).Multiply(2);
+                if (count % 2 != 0)
+                {
+                    result = result.Add(GetElementDistribution(element, 1));
+                }
+            }
+            lock (_elementDistributions)
+            {
+                _elementDistributions[key] = result;
+            }
+            return result;
         }
 
         public double GetMonoMass(Molecule formula)
@@ -73,6 +114,18 @@ namespace pwiz.Common.Chemistry
                 _monoMasses[formula] = monoMass;
             }
             return monoMass;
+        }
+
+        public double GetMonoMz(Molecule formula, double massShift, int charge)
+        {
+            double mass = GetMonoMass(formula);
+            mass += massShift;
+            if (charge != 0)
+            {
+                mass -= charge * Settings.MassElectron;
+                mass /= Math.Abs(charge);
+            }
+            return mass;
         }
 
         private static IsotopeAbundances GetMonoisotopicAbundances(IsotopeAbundances isotopeAbundances)

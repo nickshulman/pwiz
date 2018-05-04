@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 using pwiz.Common.Chemistry;
 using pwiz.Common.Collections;
 using pwiz.Common.SystemUtil;
@@ -201,14 +202,12 @@ namespace pwiz.Skyline.Model.Results.Deconvolution
         private static Molecule GetSequenceFormula(ModifiedSequence modifiedSequence, MassType massType, out double unexplainedMassShift)
         {
             unexplainedMassShift = 0;
-            var molecule = new Dictionary<string, int>();
             string unmodifiedSequence = modifiedSequence.GetUnmodifiedSequence();
+            var molecule = new Dictionary<string, int>();
+            Add(molecule, GetPeptideFormula(unmodifiedSequence));
             var modifications = modifiedSequence.GetModifications().ToLookup(mod => mod.IndexAA);
             for (int i = 0; i < unmodifiedSequence.Length; i++)
             {
-                char aminoAcid = unmodifiedSequence[i];
-                var aminoAcidFormula = Molecule.Parse(AminoAcidFormulas.Default.Formulas[aminoAcid]);
-                Add(molecule, aminoAcidFormula);
                 foreach (var mod in modifications[i])
                 {
                     string formula = mod.Formula;
@@ -233,6 +232,20 @@ namespace pwiz.Skyline.Model.Results.Deconvolution
                 }
             }
             return Molecule.FromDict(molecule);
+        }
+
+        private static Molecule GetPeptideFormula(string peptideSequence)
+        {
+            var formula = new StringBuilder();
+            foreach (var ch in peptideSequence)
+            {
+                string aaFormula;
+                if (AminoAcidFormulas.Default.Formulas.TryGetValue(ch, out aaFormula))
+                {
+                    formula.Append(aaFormula);
+                }
+            }
+            return Molecule.Parse(formula.ToString());
         }
 
         private static void Add(Dictionary<string, int> dict, Molecule molecule)
@@ -370,19 +383,9 @@ namespace pwiz.Skyline.Model.Results.Deconvolution
                     fragmentedMolecule = fragmentedMolecule
                         .ChangePrecursorCharge(transitionGroupDocNode.PrecursorCharge);
                 }
-                if (transitionDocNode == null || transitionDocNode.IsMs1)
+                if (transitionDocNode != null)
                 {
-                    return fragmentedMolecule;
-                }
-                var transition = transitionDocNode.Transition;
-                fragmentedMolecule = fragmentedMolecule
-                    .ChangeFragmentIon(transition.IonType, transition.Ordinal)
-                    .ChangeFragmentCharge(transition.Charge);
-                var transitionLosses = transitionDocNode.Losses;
-                if (transitionLosses != null)
-                {
-                    var fragmentLosses = transitionLosses.Losses.Select(transitionLoss => transitionLoss.Loss);
-                    fragmentedMolecule = fragmentedMolecule.ChangeFragmentLosses(fragmentLosses);
+                    fragmentedMolecule = fragmentedMolecule.ChangeTransition(transitionDocNode);
                 }
                 return fragmentedMolecule;
             }
@@ -411,8 +414,28 @@ namespace pwiz.Skyline.Model.Results.Deconvolution
                         transitionGroupDocNode.PrecursorMz, transitionGroupDocNode.PrecursorMzMassType), 
                         transitionGroupDocNode.PrecursorMzMassType);
             }
+            return fragmentedMolecule.ChangeTransition(transitionDocNode);
+        }
+
+        public FragmentedMolecule ChangeTransition(TransitionDocNode transitionDocNode)
+        {
+            var fragmentedMolecule = this;
             if (transitionDocNode == null || transitionDocNode.IsMs1)
             {
+                return fragmentedMolecule.ChangeFragmentIon(IonType.precursor, 0);
+            }
+            if (ModifiedSequence != null)
+            {
+                var transition = transitionDocNode.Transition;
+                fragmentedMolecule = fragmentedMolecule
+                    .ChangeFragmentIon(transition.IonType, transition.Ordinal)
+                    .ChangeFragmentCharge(transition.Charge);
+                var transitionLosses = transitionDocNode.Losses;
+                if (transitionLosses != null)
+                {
+                    var fragmentLosses = transitionLosses.Losses.Select(transitionLoss => transitionLoss.Loss);
+                    fragmentedMolecule = fragmentedMolecule.ChangeFragmentLosses(fragmentLosses);
+                }
                 return fragmentedMolecule;
             }
             var customIon = transitionDocNode.Transition.CustomIon;
@@ -425,99 +448,17 @@ namespace pwiz.Skyline.Model.Results.Deconvolution
             {
                 fragmentedMolecule = fragmentedMolecule.ChangeFragmentMassShift(
                     transitionDocNode.Transition.Adduct.MassFromMz(
-                        transitionDocNode.Mz, transitionDocNode.MzMassType), 
-                        transitionDocNode.MzMassType);
+                        transitionDocNode.Mz, transitionDocNode.MzMassType),
+                    transitionDocNode.MzMassType);
             }
             fragmentedMolecule = fragmentedMolecule
                 .ChangeFragmentCharge(transitionDocNode.Transition.Charge);
             return fragmentedMolecule;
         }
 
-        public class Settings : Immutable
+        public static DistributionSettings GetDistributionSettings(SrmSettings srmSettings)
         {
-            public static readonly Settings DEFAULT = new Settings().ChangeMassResolution(.01).ChangeMinAbundance(.00001)
-                .ChangeIsotopeAbundances(IsotopeEnrichments.DEFAULT.IsotopeAbundances);
-
-            public static Settings FromSrmSettings(SrmSettings srmSettings)
-            {
-                return DEFAULT.ChangeIsotopeAbundances(srmSettings.TransitionSettings.FullScan.IsotopeAbundances);
-            }
-            public double MassResolution { get; private set; }
-
-            public Settings ChangeMassResolution(double massResolution)
-            {
-                return ChangeProp(ImClone(this), im => im.MassResolution = massResolution);
-            }
-            public double MinAbundance { get; private set; }
-
-            public Settings ChangeMinAbundance(double minAbundance)
-            {
-                return ChangeProp(ImClone(this), im => im.MinAbundance = minAbundance);
-            }
-            public IsotopeAbundances IsotopeAbundances { get; private set; }
-
-            public Settings ChangeIsotopeAbundances(IsotopeAbundances isotopeAbundances)
-            {
-                return ChangeProp(ImClone(this), im => im.IsotopeAbundances = isotopeAbundances ?? DEFAULT.IsotopeAbundances);
-            }
-
-            public MassDistribution GetMassDistribution(Molecule molecule, double massShift, int charge)
-            {
-                var massDistribution = new MassDistribution(MassResolution, MinAbundance);
-                foreach (var entry in molecule)
-                {
-                    massDistribution = massDistribution.Add(IsotopeAbundances[entry.Key].Multiply(entry.Value));
-                }
-                if (charge != 0)
-                {
-                    massDistribution = massDistribution.OffsetAndDivide(massShift - charge * BioMassCalc.MassElectron,
-                        Math.Abs(charge));
-                }
-                return massDistribution;
-            }
-
-            public double GetMonoMass(Molecule molecule, double massShift, int charge)
-            {
-                var massDistribution = ChangeIsotopeAbundances(GetMonoisotopicAbundances(IsotopeAbundances))
-                    .GetMassDistribution(molecule, massShift, charge);
-                return massDistribution.MostAbundanceMass;
-            }
-
-            protected bool Equals(Settings other)
-            {
-                return MassResolution.Equals(other.MassResolution) && MinAbundance.Equals(other.MinAbundance) &&
-                       Equals(IsotopeAbundances, other.IsotopeAbundances);
-            }
-
-            public override bool Equals(object obj)
-            {
-                if (ReferenceEquals(null, obj)) return false;
-                if (ReferenceEquals(this, obj)) return true;
-                if (obj.GetType() != GetType()) return false;
-                return Equals((Settings) obj);
-            }
-
-            public override int GetHashCode()
-            {
-                unchecked
-                {
-                    var hashCode = MassResolution.GetHashCode();
-                    hashCode = (hashCode * 397) ^ MinAbundance.GetHashCode();
-                    hashCode = (hashCode * 397) ^ (IsotopeAbundances != null ? IsotopeAbundances.GetHashCode() : 0);
-                    return hashCode;
-                }
-            }
-        }
-
-        private static IsotopeAbundances GetMonoisotopicAbundances(IsotopeAbundances isotopeAbundances)
-        {
-            var newAbundances = new Dictionary<string, MassDistribution>();
-            foreach (var entry in isotopeAbundances)
-            {
-                newAbundances.Add(entry.Key, new MassDistribution(entry.Value.MassResolution, entry.Value.MinimumAbundance)
-                    .SetAbundance(entry.Value.MostAbundanceMass, 1));
-            }
-            return isotopeAbundances.SetAbundances(newAbundances);
+            return DistributionSettings.DEFAULT.ChangeIsotopeAbundances(srmSettings.TransitionSettings.FullScan.IsotopeAbundances ?? IsotopeAbundances.Default);
         }
     }
 }

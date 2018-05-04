@@ -13,6 +13,7 @@ namespace pwiz.Skyline.Model.Results.Deconvolution
     {
         public const double MzMatchTolerance = 0.001;
         public const double ProductMassResolution = .1;
+        private ImmutableList<FragmentedMolecule> _precursorFragmentMolecules;
         
         public PeptideFeatureSet(SrmSettings settings, PeptideDocNode peptide, IEnumerable<FeatureKey> featureKeys)
         {
@@ -24,6 +25,7 @@ namespace pwiz.Skyline.Model.Results.Deconvolution
                 .ChangeMassResolution(0.001);
             DistributionCache = new DistributionCache(distributionSettings);
             Peptide = peptide;
+            _precursorFragmentMolecules = ImmutableList.ValueOf(Peptide.TransitionGroups.Select(tg=>FragmentedMolecule.GetFragmentedMolecule(Settings, Peptide, tg, null)));
             AllFeatureKeys = ImmutableSortedList.FromValues(featureKeys.Distinct()
                 .Select(key => new KeyValuePair<double, FeatureKey>(key.Mz, key)));
             AllIsolationWindows = ImmutableList.ValueOf(AllFeatureKeys.Values
@@ -43,7 +45,7 @@ namespace pwiz.Skyline.Model.Results.Deconvolution
         public ImmutableList<TransitionFeatureWeight> TransitionFeatureWeights { get; private set; }
         public PrecursorClass GetPrecursorClass(TransitionGroupDocNode transitionGroupDocNode)
         {
-            var fragmentedMolecule = GetFragmentedMolecule(transitionGroupDocNode, null);
+            var fragmentedMolecule = GetFragmentedMolecule(transitionGroupDocNode, null).ChangePrecursorCharge(0);
             double monoMass = DistributionCache.GetMonoMass(fragmentedMolecule.PrecursorFormula);
             return new PrecursorClass(monoMass);
         }
@@ -137,43 +139,46 @@ namespace pwiz.Skyline.Model.Results.Deconvolution
             }
         }
 
-        public FeatureWeights GetFeatureWeights(PeptideDocNode.TransitionKey transitionKey)
+        public FeatureWeights GetFeatureWeights(IEnumerable<PeptideDocNode.TransitionKey> transitionKeys)
         {
             var featureWeights = new FeatureWeights(PrecursorClasses);
-            var tfws = TransitionFeatureWeights.Where(tfw => Equals(transitionKey, tfw.TransitionKey)).ToArray();
-            var featureKeys = tfws.Select(tfw => tfw.FeatureKey).Distinct().ToArray();
-            var conflicts = featureKeys.SelectMany(EnumerateConflicts)
-                .Where(tfw => !Equals(transitionKey, tfw.TransitionKey));
-            if (conflicts.Any())
+            foreach (var transitionKey in transitionKeys)
             {
-                return featureWeights;
-            }
-            var byPrecursorClass = tfws.ToLookup(t => t.PrecursorClass);
-            foreach (var featureKey in featureKeys)
-            {
-                var labelContribs = new List<double>();
-                foreach (var precursorClass in featureWeights.PrecursorClasses)
+                var tfws = TransitionFeatureWeights.Where(tfw => Equals(transitionKey, tfw.TransitionKey)).ToArray();
+                var featureKeys = tfws.Select(tfw => tfw.FeatureKey).Distinct().ToArray();
+                var conflicts = featureKeys.SelectMany(EnumerateConflicts)
+                    .Where(tfw => !Equals(transitionKey, tfw.TransitionKey)).ToArray();
+                if (conflicts.Any())
                 {
-                    double contrib = 0;
-                    foreach (var tfw in byPrecursorClass[precursorClass])
-                    {
-                        if (Equals(featureKey, tfw.FeatureKey))
-                        {
-                            contrib += tfw.Weight;
-                        }
-                    }
-                    if (contrib <= 0)
-                    {
-                        labelContribs.Add(0);
-                        continue;
-                    }
-                    double transitionGroupCount = byPrecursorClass[precursorClass].Select(tfw => tfw.TransitionGroup)
-                        .Distinct().Count();
-                    labelContribs.Add(contrib / transitionGroupCount);
+                    return featureWeights;
                 }
-                if (labelContribs.Any(v => v != 0))
+                var byPrecursorClass = tfws.ToLookup(t => t.PrecursorClass);
+                foreach (var featureKey in featureKeys)
                 {
-                    featureWeights = featureWeights.AddFeatureWeights(featureKey, labelContribs);
+                    var labelContribs = new List<double>();
+                    foreach (var precursorClass in featureWeights.PrecursorClasses)
+                    {
+                        double contrib = 0;
+                        foreach (var tfw in byPrecursorClass[precursorClass])
+                        {
+                            if (Equals(featureKey, tfw.FeatureKey))
+                            {
+                                contrib += tfw.Weight;
+                            }
+                        }
+                        if (contrib <= 0)
+                        {
+                            labelContribs.Add(0);
+                            continue;
+                        }
+                        double transitionGroupCount = byPrecursorClass[precursorClass].Select(tfw => tfw.TransitionGroup)
+                            .Distinct().Count();
+                        labelContribs.Add(contrib / transitionGroupCount);
+                    }
+                    if (labelContribs.Any(v => v != 0))
+                    {
+                        featureWeights = featureWeights.AddFeatureWeights(transitionKey, featureKey, labelContribs);
+                    }
                 }
             }
             return featureWeights;
@@ -200,6 +205,16 @@ namespace pwiz.Skyline.Model.Results.Deconvolution
         public FragmentedMolecule GetFragmentedMolecule(TransitionGroupDocNode transitionGroupDocNode,
             TransitionDocNode transitionDocNode)
         {
+            var nodeIndex = Peptide.FindNodeIndex(transitionGroupDocNode.Id);
+            if (nodeIndex >= 0)
+            {
+                var fragmentedMolecule = _precursorFragmentMolecules[nodeIndex];
+                if (transitionDocNode != null)
+                {
+                    fragmentedMolecule = fragmentedMolecule.ChangeTransition(transitionDocNode);
+                }
+                return fragmentedMolecule;
+            }
             return FragmentedMolecule.GetFragmentedMolecule(Settings, Peptide, transitionGroupDocNode, transitionDocNode);
         }
     }

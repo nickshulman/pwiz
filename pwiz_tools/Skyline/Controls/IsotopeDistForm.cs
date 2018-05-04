@@ -27,11 +27,11 @@ namespace pwiz.Skyline.Controls
         private MessageBoxHelper _helper;
         private KeyValuePair<double?, double?> _isolationRange;
         private FragmentedMolecule _fragmentedMolecule = FragmentedMolecule.EMPTY;
-        private FragmentedMolecule.Settings _settings = FragmentedMolecule.Settings.DEFAULT;
+        private DistributionSettings _settings = DistributionSettings.DEFAULT;
         public IsotopeDistForm(SkylineWindow skylineWindow)
         {
             InitializeComponent();
-            Settings = FragmentedMolecule.Settings.FromSrmSettings(skylineWindow.Document.Settings);
+            Settings = FragmentedMolecule.GetDistributionSettings(skylineWindow.Document.Settings);
             SkylineWindow = skylineWindow;
             comboFragmentIonType.Items.AddRange(new object[]
             {
@@ -146,7 +146,7 @@ namespace pwiz.Skyline.Controls
             }
         }
 
-        public FragmentedMolecule.Settings Settings
+        public DistributionSettings Settings
         {
             get { return _settings; }
             set
@@ -249,9 +249,11 @@ namespace pwiz.Skyline.Controls
 
         private void UpdateGraph()
         {
-            var massInfoPrecursor = new MassInfo(Settings.GetMassDistribution(FragmentedMolecule.PrecursorFormula,
+            var distributionCache = new DistributionCache(Settings);
+            var massInfoPrecursor = new MassInfo(
+                distributionCache.GetMzDistribution(FragmentedMolecule.PrecursorFormula,
                     FragmentedMolecule.PrecursorMassShift, FragmentedMolecule.PrecursorCharge),
-                Settings.GetMonoMass(FragmentedMolecule.PrecursorFormula, FragmentedMolecule.PrecursorMassShift, FragmentedMolecule.PrecursorCharge),
+                distributionCache.GetMonoMz(FragmentedMolecule.PrecursorFormula, FragmentedMolecule.PrecursorMassShift, FragmentedMolecule.PrecursorCharge),
                 FragmentedMolecule.PrecursorCharge);
             var massInfoGrid = massInfoPrecursor;
             if (FragmentedMolecule.FragmentFormula.Count == 0)
@@ -263,9 +265,9 @@ namespace pwiz.Skyline.Controls
                 splitContainerGraph.Panel2Collapsed = false;
                 try
                 {
-                    var massDistribution = FragmentedMolecule.GetFragmentDistribution(Settings, IsolationRange.Key, IsolationRange.Value);
+                    var massDistribution = FragmentedMolecule.GetFragmentDistribution(distributionCache, IsolationRange.Key, IsolationRange.Value);
                     massInfoGrid = new MassInfo(massDistribution,
-                        Settings.GetMonoMass(FragmentedMolecule.FragmentFormula, FragmentedMolecule.FragmentMassShift, FragmentedMolecule.FragmentCharge),
+                        distributionCache.GetMonoMz(FragmentedMolecule.FragmentFormula, FragmentedMolecule.FragmentMassShift, FragmentedMolecule.FragmentCharge),
                         FragmentedMolecule.FragmentCharge);
                     var fragmentPoints = ToPointPairList(massDistribution);
                     msGraphControlFragment.GraphPane.CurveList.Clear();

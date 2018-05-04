@@ -22,6 +22,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Globalization;
 using System.Linq;
+using pwiz.Common.Chemistry;
 using pwiz.Common.Collections;
 using pwiz.Common.DataBinding;
 using pwiz.Skyline.Controls;
@@ -31,6 +32,7 @@ using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.DocSettings.AbsoluteQuantification;
 using pwiz.Skyline.Model.ElementLocators;
 using pwiz.Skyline.Model.GroupComparison;
+using pwiz.Skyline.Model.Results.Deconvolution;
 using pwiz.Skyline.Properties;
 using SkylineTool;
 
@@ -44,6 +46,7 @@ namespace pwiz.Skyline.Model.Databinding
         private readonly CachedValue<ImmutableSortedList<ResultKey, Replicate>> _replicates;
         private readonly CachedValue<IDictionary<ResultFileKey, ResultFile>> _resultFiles;
         private readonly CachedValue<ElementRefs> _elementRefCache;
+        private readonly CachedValue<DistributionCache> _distributionCache;
 
         private SrmDocument _batchChangesOriginalDocument;
 
@@ -57,6 +60,10 @@ namespace pwiz.Skyline.Model.Databinding
             _replicates = CachedValue.Create(this, CreateReplicateList);
             _resultFiles = CachedValue.Create(this, CreateResultFileList);
             _elementRefCache = CachedValue.Create(this, () => new ElementRefs(Document));
+            _distributionCache = CachedValue.Create(this, () =>
+            {
+                return new DistributionCache(FragmentedMolecule.GetDistributionSettings(Document.Settings));
+            });
         }
 
         protected override bool IsScalar(Type type)
@@ -202,6 +209,7 @@ namespace pwiz.Skyline.Model.Databinding
 
         public ChromDataCache ChromDataCache { get; private set; }
         public ElementRefs ElementRefs { get { return _elementRefCache.Value; } }
+        public DistributionCache DistributionCache { get { return _distributionCache.Value; } }
 
         public override PropertyDescriptor GetPropertyDescriptor(Type type, string name)
         {

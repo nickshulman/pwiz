@@ -40,12 +40,14 @@ namespace pwiz.Common.Chemistry
 
         public MassDistribution GetMassDistribution(Molecule molecule)
         {
-            var massDistribution = new MassDistribution(MassResolution, MinAbundance);
+            var massDistribution = EmptyDistribution;
             foreach (var entry in molecule)
             {
-                massDistribution = massDistribution.Add(IsotopeAbundances[entry.Key].Multiply(entry.Value));
+                massDistribution = massDistribution.Add(EmptyDistribution.Add(IsotopeAbundances[entry.Key]).Multiply(entry.Value));
             }
             return massDistribution;
         }
+
+        public MassDistribution EmptyDistribution { get { return new MassDistribution(MassResolution, MinAbundance);} }
     }
 }

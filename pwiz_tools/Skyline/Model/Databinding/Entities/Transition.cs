@@ -264,9 +264,8 @@ namespace pwiz.Skyline.Model.Databinding.Entities
             get
             {
                 var fragmentedMolecule = GetFragmentedMolecule();
-                var settings = FragmentedMolecule.Settings.FromSrmSettings(SrmDocument.Settings);
-                var mzDistribution = fragmentedMolecule.GetFragmentDistribution(settings, null, null);
-                var monoMass = settings.GetMonoMass(fragmentedMolecule.FragmentFormula,
+                var mzDistribution = fragmentedMolecule.GetFragmentDistribution(DataSchema.DistributionCache, null, null);
+                var monoMass = DataSchema.DistributionCache.GetMonoMz(fragmentedMolecule.FragmentFormula,
                     fragmentedMolecule.FragmentMassShift, fragmentedMolecule.FragmentCharge);
                 return new AbstractDistribution.MzDistribution(mzDistribution, monoMass);
             } 
@@ -288,10 +287,10 @@ namespace pwiz.Skyline.Model.Databinding.Entities
                 {
                     return null;
                 }
-                var settings = FragmentedMolecule.Settings.FromSrmSettings(SrmDocument.Settings);
+                var settings = DataSchema.DistributionCache;
                 double massShift = fragmentedMolecule.PrecursorMassShift - fragmentedMolecule.FragmentMassShift;
-                return new AbstractDistribution.MassDistribution(settings.GetMassDistribution(complementaryFormula, massShift, 0),
-                    settings.GetMonoMass(complementaryFormula, massShift, 0));
+                return new AbstractDistribution.MassDistribution(settings.GetMzDistribution(complementaryFormula, massShift, 0),
+                    settings.GetMonoMz(complementaryFormula, massShift, 0));
             }
         }
 

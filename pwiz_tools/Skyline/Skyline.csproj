@@ -336,7 +336,6 @@
     <Compile Include="Model\Results\Deconvolution\ChromatogramCollection.cs" />
     <Compile Include="Model\Results\Deconvolution\FeatureKey.cs" />
     <Compile Include="Model\Results\Deconvolution\FeatureWeights.cs" />
-    <Compile Include="Model\Results\Deconvolution\FragmentDistribution.cs" />
     <Compile Include="Model\Results\Deconvolution\FragmentedMolecule.cs" />
     <Compile Include="Model\Results\Deconvolution\PeptideFeatureSet.cs" />
     <Compile Include="Model\Results\Deconvolution\PrecursorClass.cs" />

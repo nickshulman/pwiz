@@ -77,6 +77,8 @@ namespace pwiz.Skyline.Model.Results
             double? maxObservedIonMobilityValue = null,
             IRetentionTimePredictor retentionTimePredictor = null, bool firstPass = false)
         {
+            var distributionCache =
+                new DistributionCache(FragmentedMolecule.GetDistributionSettings(document.Settings));
             _fullScan = document.Settings.TransitionSettings.FullScan;
             _instrument = document.Settings.TransitionSettings.Instrument;
             _acquisitionMethod = _fullScan.AcquisitionMethod;
@@ -236,7 +238,7 @@ namespace pwiz.Skyline.Model.Results
                         {
                             filterCount += filter.AddQ3FilterValues(
                                 nodeGroup.Transitions
-                                    .SelectMany(t => GetProductMzs(document.Settings, nodePep, nodeGroup, t)).ToArray(),
+                                    .SelectMany(t => GetProductMzs(distributionCache, document.Settings, nodePep, nodeGroup, t)).ToArray(),
                                 calcWindowsQ3);
                         }
                         else if (!EnabledMsMs)
@@ -248,7 +250,7 @@ namespace pwiz.Skyline.Model.Results
                             filterCount += filter.AddQ1FilterValues(GetMS1MzValues(nodeGroup), calcWindowsQ1);
                             filterCount += filter.AddQ3FilterValues(nodeGroup.Transitions
                                 .Where(t=>!t.IsMs1)
-                                .SelectMany(t => GetProductMzs(document.Settings, nodePep, nodeGroup, t)).ToArray(), 
+                                .SelectMany(t => GetProductMzs(distributionCache, document.Settings, nodePep, nodeGroup, t)).ToArray(), 
                                 calcWindowsQ3);
                         }
                     }
@@ -272,12 +274,11 @@ namespace pwiz.Skyline.Model.Results
             InitRTLimits();
         }
 
-        public IEnumerable<SignedMz> GetProductMzs(SrmSettings settings, PeptideDocNode peptideDocNode, TransitionGroupDocNode transitionGroupDocNode, TransitionDocNode transitionDocNode)
+        public IEnumerable<SignedMz> GetProductMzs(DistributionCache distributionCache, SrmSettings settings, PeptideDocNode peptideDocNode, TransitionGroupDocNode transitionGroupDocNode, TransitionDocNode transitionDocNode)
         {
             var fragmentedMolecule = FragmentedMolecule.GetFragmentedMolecule(settings,
                 peptideDocNode, transitionGroupDocNode, transitionDocNode);
-            var mzDistribution = fragmentedMolecule.GetFragmentDistribution(
-                FragmentedMolecule.Settings.FromSrmSettings(settings), null, null);
+            var mzDistribution = fragmentedMolecule.GetFragmentDistribution(distributionCache, null, null);
             return mzDistribution.Where(kvp => kvp.Value >= .1)
                 .Select(kvp => new SignedMz(kvp.Key, transitionDocNode.Mz.IsNegative));
         }

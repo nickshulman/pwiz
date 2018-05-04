@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using pwiz.Common.Collections;
 
@@ -28,7 +29,13 @@ namespace pwiz.Skyline.Model.Results.Deconvolution
                     }
                     var timeIntensities = chromatogramGroup.TimeIntensitiesGroup.TransitionTimeIntensities[iTransition];
                     var scanInfos = chromatogramGroup.ScanInfos;
-                    var isolationWindows = timeIntensities.ScanIds.SelectMany(id => scanInfos[id].ScanType.IsolationWindows).Distinct();
+                    if (scanInfos.Count == 0)
+                    {
+                        continue;
+                    }
+                    var isolationWindows = timeIntensities.ScanIds.Select(id => scanInfos[id].ScanType)
+                        .Where(scanType => 2 == scanType.MsLevel)
+                        .SelectMany(scanType => scanType.IsolationWindows).Distinct();
                     foreach (var window in isolationWindows)
                     {
                         featureKeys.Add(new FeatureKey(window, chromTransition.Product));
@@ -47,6 +54,10 @@ namespace pwiz.Skyline.Model.Results.Deconvolution
                 {
                     var chromTransition = chromatogramGroup.GetChromTransitionLocal(iTransition);
                     if (chromTransition.Source != chromSource)
+                    {
+                        continue;
+                    }
+                    if (Math.Abs(featureKey.Mz - chromTransition.Product) > .001)
                     {
                         continue;
                     }

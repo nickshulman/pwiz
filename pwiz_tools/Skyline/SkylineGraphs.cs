@@ -1620,6 +1620,7 @@ namespace pwiz.Skyline
                     productsTranContextMenuItem,
                     singleTranContextMenuItem,
                     totalTranContextMenuItem,
+                    deconvoluteToolStripMenuItem,
                     toolStripSeparatorTran,
                     basePeakContextMenuItem,
                     ticContextMenuItem,
@@ -1851,6 +1852,7 @@ namespace pwiz.Skyline
                 (displayType == DisplayTypeChrom.all);
             totalTranMenuItem.Checked = totalTranContextMenuItem.Checked =
                 (displayType == DisplayTypeChrom.total);
+            deconvoluteToolStripMenuItem.Checked = displayType == DisplayTypeChrom.deconvoluted;
             basePeakMenuItem.Checked = basePeakContextMenuItem.Checked =
                 (displayType == DisplayTypeChrom.base_peak);
             ticMenuItem.Checked = ticContextMenuItem.Checked =

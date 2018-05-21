@@ -150,7 +150,7 @@ namespace pwiz.Skyline.Model.Results.Deconvolution
                     .Where(tfw => !Equals(transitionKey, tfw.TransitionKey)).ToArray();
                 if (conflicts.Any())
                 {
-                    return featureWeights;
+                    continue;
                 }
                 var byPrecursorClass = tfws.ToLookup(t => t.PrecursorClass);
                 foreach (var featureKey in featureKeys)
@@ -217,5 +217,88 @@ namespace pwiz.Skyline.Model.Results.Deconvolution
             }
             return FragmentedMolecule.GetFragmentedMolecule(Settings, Peptide, transitionGroupDocNode, transitionDocNode);
         }
+
+        public ChromatogramGroupInfo DeconvoluteChromatogram(TransitionGroupDocNode transitionGroupDocNode,
+            ChromatogramCollection chromatogramCollection)
+        {
+            var chromatogramGroupInfo = chromatogramCollection.ChromatogramGroups.FirstOrDefault(
+                cg => Equals(cg.PrecursorMz, transitionGroupDocNode.PrecursorMz));
+            if (chromatogramGroupInfo == null)
+            {
+                return null;
+            }
+            IList<ChromTransition> chromTransitions = new List<ChromTransition>();
+            IList<TimeIntensities> deconvolutedChromatograms = new List<TimeIntensities>();
+            int precursorIndex = PrecursorClasses
+                .IndexOf(GetPrecursorClass(transitionGroupDocNode));
+            if (precursorIndex < 0)
+            {
+                return null;
+            }
+            foreach (var transitionDocNode in transitionGroupDocNode.Transitions)
+            {
+                var transitionKey = GetTransitionKey(transitionGroupDocNode, transitionDocNode);
+                var featureWeights = GetFeatureWeights(new[] { transitionKey });
+                var deconvoluted = featureWeights.DeconvoluteChromatograms(chromatogramCollection);
+                if (deconvoluted == null || deconvoluted[precursorIndex] == null)
+                {
+                    continue;
+                }
+                deconvolutedChromatograms.Add(deconvoluted[precursorIndex]);
+                var closestChromTransition = FindClosestChromTransition(chromatogramGroupInfo, transitionDocNode).GetValueOrDefault();
+                var chromTransition = new ChromTransition(transitionDocNode.Mz, closestChromTransition.ExtractionWidth, closestChromTransition.IonMobilityValue, closestChromTransition.IonMobilityExtractionWidth,
+                    transitionDocNode.IsMs1 ? ChromSource.ms1 : ChromSource.fragment);
+                chromTransitions.Add(chromTransition);
+            }
+            var oldHeader = chromatogramGroupInfo.Header;
+            var chromGroupHeaderInfo = new ChromGroupHeaderInfo(transitionGroupDocNode.PrecursorMz, oldHeader.FileIndex,
+                chromTransitions.Count, 0, oldHeader.NumPeaks, oldHeader.StartPeakIndex, oldHeader.StartScoreIndex, oldHeader.MaxPeakIndex, 0, 0, 0, 0, oldHeader.Flags, 0, 0, oldHeader.StartTime, oldHeader.EndTime, oldHeader.CollisionalCrossSection, oldHeader.IonMobilityUnits);
+            InterpolationParams interpolationParams;
+            if (chromatogramGroupInfo.TimeIntensitiesGroup is RawTimeIntensities)
+            {
+                interpolationParams = ((RawTimeIntensities) chromatogramGroupInfo.TimeIntensitiesGroup)
+                    .InterpolationParams;
+            }
+            else
+            {
+                float minTime = chromatogramGroupInfo.TimeIntensitiesGroup.MinTime;
+                float maxTime = chromatogramGroupInfo.TimeIntensitiesGroup.MaxTime;
+                int numPoints = chromatogramGroupInfo.TimeIntensitiesGroup.NumInterpolatedPoints;
+                interpolationParams = new InterpolationParams(minTime,
+                    maxTime,
+                    numPoints, (maxTime - minTime) / (numPoints - 1));                
+            }
+            var timeIntensitiesGroup = new RawTimeIntensities(deconvolutedChromatograms, interpolationParams);
+            return new ChromatogramGroupInfo(chromGroupHeaderInfo, chromatogramGroupInfo._scoreTypeIndices,
+                chromatogramGroupInfo._allFiles, chromTransitions.ToArray(), chromatogramGroupInfo._allPeaks,
+                chromatogramGroupInfo._allScores)
+            {
+                TimeIntensitiesGroup = timeIntensitiesGroup
+            };
+        }
+
+        private ChromTransition? FindClosestChromTransition(ChromatogramGroupInfo chromatogramGroupInfo,
+            TransitionDocNode transition)
+        {
+            double bestDistance = double.MaxValue;
+            ChromTransition? closest = null;
+            var source = transition.IsMs1 ? ChromSource.ms1 : ChromSource.fragment;
+            for (int i = 0; i < chromatogramGroupInfo.NumTransitions; i++)
+            {
+                var chromTransition = chromatogramGroupInfo.GetChromTransitionLocal(i);
+                if (chromTransition.Source != source)
+                {
+                    continue;
+                }
+                double distance = Math.Abs(transition.Mz - chromTransition.Product);
+                if (closest == null || distance < bestDistance)
+                {
+                    closest = chromTransition;
+                    bestDistance = distance;
+                }
+            }
+            return closest;
+        }
     }
 }
+

@@ -228,8 +228,13 @@ namespace pwiz.Skyline.Model.Results
             return caches.Any(cache => cache.CachedFilePaths.Contains(path));
         }
 
-        public MsDataFileScanIds LoadMSDataFileScanIds(int fileIndex)
+        public IMsDataFileScanIds LoadMSDataFileScanIds(int fileIndex)
         {
+            var file = _cachedFiles[fileIndex];
+            if (file.ScanInfos != null)
+            {
+                return new ScanInfoMsDataFileScanIds(file.ScanInfos);
+            }
             return MsDataFileScanIds.FromBytes(LoadMSDataFileScanIdBytes(fileIndex));
         }
 

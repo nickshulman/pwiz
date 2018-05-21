@@ -476,6 +476,7 @@ namespace pwiz.Skyline.Model.Results
         public float BackgroundArea { get; private set; }
         public float Height { get; private set; }
         public float Fwhm { get; private set; }
+        public float DeconvolutedArea { get; private set; }
         public bool IsFwhmDegenerate { get; private set; }
         public bool? IsTruncated { get; private set; }
         public bool IsIdentified { get { return Identified != PeakIdentification.FALSE; } }
@@ -648,6 +649,11 @@ namespace pwiz.Skyline.Model.Results
         public TransitionChromInfo ChangeUserSet(UserSet prop)
         {
             return ChangeProp(ImClone(this), im => im.UserSet = prop);
+        }
+
+        public TransitionChromInfo ChangeDeconvolutedArea(float deconvolutedArea)
+        {
+            return ChangeProp(ImClone(this), im => im.DeconvolutedArea = deconvolutedArea);
         }
 
         #endregion

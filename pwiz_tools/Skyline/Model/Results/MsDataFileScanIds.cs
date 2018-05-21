@@ -26,10 +26,15 @@ using pwiz.Skyline.Util.Extensions;
 
 namespace pwiz.Skyline.Model.Results
 {
+    public interface IMsDataFileScanIds
+    {
+        string GetMsDataFileSpectrumId(int index);
+    }
+    
     /// <summary>
     /// Handles storing and retrieving abbreviated scan ids from a <see cref="MsDataFileImpl"/>
     /// </summary>
-    public class MsDataFileScanIds
+    public class MsDataFileScanIds : IMsDataFileScanIds
     {
         private readonly int[] _startBytes;
         private readonly int[] _lengths;
@@ -118,6 +123,20 @@ namespace pwiz.Skyline.Model.Results
         private static int GetInt(int i, byte[] byteArray)
         {
             return BitConverter.ToInt32(byteArray, i * sizeof(int));
+        }
+    }
+
+    public class ScanInfoMsDataFileScanIds : IMsDataFileScanIds
+    {
+        private IList<ScanInfo> _scanInfos;
+        public ScanInfoMsDataFileScanIds(IList<ScanInfo> scanInfos)
+        {
+            _scanInfos = scanInfos;
+        }
+
+        public string GetMsDataFileSpectrumId(int index)
+        {
+            return _scanInfos[index].ScanIdentifier;
         }
     }
 }

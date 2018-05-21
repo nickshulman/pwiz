@@ -560,7 +560,7 @@ namespace pwiz.Skyline.Model.Results
             return index != -1;            
         }
 
-        public MsDataFileScanIds LoadMSDataFileScanIds(MsDataFileUri dataFilePath)
+        public IMsDataFileScanIds LoadMSDataFileScanIds(MsDataFileUri dataFilePath)
         {
             foreach (var cache in Caches)
             {

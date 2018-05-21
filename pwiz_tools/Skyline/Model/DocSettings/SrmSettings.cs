@@ -39,6 +39,7 @@ using pwiz.Skyline.Model.DocSettings.Extensions;
 using pwiz.Skyline.Util;
 using pwiz.Skyline.Model.Lib;
 using pwiz.Skyline.Model.Lib.Midas;
+using pwiz.Skyline.Model.Results.Deconvolution;
 
 namespace pwiz.Skyline.Model.DocSettings
 {
@@ -1710,6 +1711,26 @@ namespace pwiz.Skyline.Model.DocSettings
             return false;
         }
 
+//        public IEnumerable<ChromatogramGroupInfo> LoadChromatogram(
+//            ChromatogramSet chromatogram,
+//            PeptideDocNode nodePep,
+//            TransitionGroupDocNode nodeGroup)
+//        {
+//            if (MeasuredResults == null)
+//            {
+//                return new ChromatogramGroupInfo[0];
+//            }
+//            if (!TransitionSettings.FullScan.ExtractIsotopeEnvelope)
+//            {
+//                ChromatogramGroupInfo[] chromatograms;
+//                MeasuredResults.TryLoadChromatogram(chromatogram, nodePep, nodeGroup,
+//                    (float) TransitionSettings.Instrument.MzMatchTolerance, true, out chromatograms);
+//                return chromatograms;
+//            }
+//            var chromatogramCollection = MeasuredResults.GetChromatogramCollection(chromatogram, nodePep);
+//            var peptideFeatureSet = new PeptideFeatureSet(this, nodePep, chromatogramCollection.GetFeatureKeys());
+//            
+//        }
 
         #region Implementation of IXmlSerializable
 

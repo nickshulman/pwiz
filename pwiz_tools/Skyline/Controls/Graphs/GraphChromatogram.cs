@@ -2605,6 +2605,7 @@ namespace pwiz.Skyline.Controls.Graphs
                 return true;
 
             _extractor = null;
+            var newPeptideFeatureSets = new Dictionary<IdentityPath, Tuple<PeptideFeatureSet, ChromatogramCollection>>();
 
             bool success = false;
             try
@@ -2615,20 +2616,65 @@ namespace pwiz.Skyline.Controls.Graphs
                 var listFiles = new List<MsDataFileUri>();
                 for (int i = 0; i < nodeGroups.Length; i++)
                 {
-                    ChromatogramGroupInfo[] arrayChromInfo;
-                    if (!results.TryLoadChromatogram(
-                        chromatograms, 
-                        nodePeps[i], 
-                        nodeGroups[i], 
-                        mzMatchTolerance, 
-                        true,
-                        out arrayChromInfo))
+                    ChromatogramGroupInfo[] arrayChromInfo = null;
+                    var settings = DocumentUI.Settings;
+                    if (settings.TransitionSettings.FullScan.ExtractIsotopeEnvelope)
                     {
-                        listArrayChromInfo.Add(null);
+                        var peptide = nodePeps[i];
+                        Tuple<PeptideFeatureSet, ChromatogramCollection> tuple = null;
+                        if (_peptideFeatureSets != null && _peptideFeatureSets.TryGetValue(new IdentityPath(peptide.Peptide), out tuple))
+                        {
+                            if (!Equals(peptide, tuple.Item1.Peptide) || !Equals(settings, tuple.Item1.Settings))
+                            {
+                                tuple = null;
+                            }
+                        }
+                        PeptideFeatureSet peptideFeatureSet = null;
+                        ChromatogramCollection chromatogramCollection = null;
+                        if (tuple != null)
+                        {
+                            peptideFeatureSet = tuple.Item1;
+                            chromatogramCollection = tuple.Item2;
+                        }
+                        if (chromatogramCollection == null)
+                        {
+                            chromatogramCollection = settings.MeasuredResults.GetChromatogramCollection(chromatograms, peptide);
+                        }
+                        if (chromatogramCollection != null)
+                        {
+                            if (peptideFeatureSet == null)
+                            {
+                                peptideFeatureSet =
+                                    new PeptideFeatureSet(settings, peptide, chromatogramCollection.GetFeatureKeys());
+                            }
+                            newPeptideFeatureSets.Add(new IdentityPath(peptide.Peptide),
+                                Tuple.Create(peptideFeatureSet, chromatogramCollection));
+                            var chromatogramInfo =
+                                peptideFeatureSet.DeconvoluteChromatogram(nodeGroups[i], chromatogramCollection);
+                            if (chromatogramInfo != null)
+                            {
+                                arrayChromInfo = new[] {chromatogramInfo};
+                            }
+                        }
+                    }
+                    else
+                    {
+                        if (!results.TryLoadChromatogram(
+                            chromatograms,
+                            nodePeps[i],
+                            nodeGroups[i],
+                            mzMatchTolerance,
+                            true,
+                            out arrayChromInfo))
+                        {
+                            arrayChromInfo = null;
+                        }
+                    }
+                    listArrayChromInfo.Add(arrayChromInfo);
+                    if (arrayChromInfo == null)
+                    {
                         continue;
                     }
-
-                    listArrayChromInfo.Add(arrayChromInfo);
                     foreach (var chromInfo in arrayChromInfo)
                     {
                         var filePath = chromInfo.FilePath;

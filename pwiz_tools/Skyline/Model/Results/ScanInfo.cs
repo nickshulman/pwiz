@@ -7,6 +7,7 @@ using Google.Protobuf;
 using pwiz.Common.Collections;
 using pwiz.Common.SystemUtil;
 using pwiz.ProteowizardWrapper;
+using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.Results.ProtoBuf;
 
 namespace pwiz.Skyline.Model.Results
@@ -160,6 +161,34 @@ namespace pwiz.Skyline.Model.Results
                     return hashCode;
                 }
             }
+
+            public IsolationWindow ApplyIsolationScheme(IsolationScheme isolationScheme)
+            {
+                var myIsolationWidth = LowerOffset + UpperOffset;
+                var isolationTargetMz = TargetMz;
+                if (isolationScheme.PrecursorFilter.HasValue && !isolationScheme.UseMargin)
+                {
+                    // Use the user specified isolation width, unless it is larger than
+                    // the acquisition isolation width.  In this case the chromatograms
+                    // may be very confusing (spikey), because of incorrectly included
+                    // data points.
+                    var isolationWidthValue = isolationScheme.PrecursorFilter.Value +
+                                              (isolationScheme.PrecursorRightFilter ?? 0);
+
+                    if (myIsolationWidth > 0 && myIsolationWidth < isolationWidthValue)
+                        isolationWidthValue = myIsolationWidth;
+
+                    // Make sure the isolation target is centered in the desired window, even
+                    // if the window was specified as being asymetric
+                    if (isolationScheme.PrecursorRightFilter.HasValue)
+                    {
+                        isolationTargetMz += isolationScheme.PrecursorRightFilter.Value - isolationWidthValue / 2;
+                    }
+                    return new IsolationWindow(isolationTargetMz).ChangeLowerOffset(isolationWidthValue / 2)
+                        .ChangeUpperOffset(isolationWidthValue / 2);
+                }
+
+            }
         }
         public class Type : Immutable
         {
@@ -217,6 +246,59 @@ namespace pwiz.Skyline.Model.Results
                     return (MsLevel * 397) ^ (IsolationWindows != null ? IsolationWindows.GetHashCode() : 0);
                 }
             }
+
+            public Type ApplyIsolationScheme(IsolationScheme isolationScheme)
+            {
+                if (isolationScheme == null || isolationScheme.FromResults && !isolationScheme.UseMargin)
+                {
+                    return this;
+                }
+                if (MsLevel != 2)
+                {
+                    return this;
+                }
+                
+                if (isolationScheme.PrecursorFilter.HasValue && !isolationScheme.UseMargin)
+                {
+                    // Use the user specified isolation width, unless it is larger than
+                    // the acquisition isolation width.  In this case the chromatograms
+                    // may be very confusing (spikey), because of incorrectly included
+                    // data points.
+                    var isolationWidthValue = isolationScheme.PrecursorFilter.Value +
+                        (isolationScheme.PrecursorRightFilter ?? 0);
+
+                    if (isolationWidth.HasValue && isolationWidth.Value < isolationWidthValue)
+                        isolationWidthValue = isolationWidth.Value;
+
+                    // Make sure the isolation target is centered in the desired window, even
+                    // if the window was specified as being asymetric
+                    if (isolationScheme.PrecursorRightFilter.HasValue)
+                        isolationTargetMz += isolationScheme.PrecursorRightFilter.Value - isolationWidthValue / 2;
+                }
+
+    // Find isolation window.
+                else if (isolationScheme.PrespecifiedIsolationWindows.Count > 0)
+                {
+                    var isolationWindow = isolationScheme.GetIsolationWindow(isolationTargetMz, _instrument.MzMatchTolerance);
+                    if (isolationWindow == null)
+                    {
+                        _filterPairDictionary[new SpectrumFilter.IsolationWindowFilter(isolationTargetMz, isolationWidth)] = new List<SpectrumFilterPair>();
+                        isolationWidth = null;
+                        return;
+                    }
+
+                    isolationWidthValue = isolationWindow.End - isolationWindow.Start;
+                    isolationTargetMz = isolationTargetMz.ChangeMz(isolationWindow.Start + isolationWidthValue / 2);
+                }
+
+                    // Use the instrument isolation window
+                else if (isolationWidth.HasValue)
+                {
+                    isolationWidthValue = isolationWidth.Value - (isolationScheme.PrecursorFilter ?? 0) * 2;
+                }
+
+
+            }
         }
         public static ResultFileDataProto ToResultFileDataProto(IEnumerable<ScanInfo> scanInfos)
         {
@@ -249,6 +331,12 @@ namespace pwiz.Skyline.Model.Results
                 _scanIdentifierInt = scanInfo.ScanIdentifierInt,
                 RetentionTime = scanInfo.RetentionTime,
             });
+        }
+
+        public static IEnumerable<ScanInfo> ApplyIsolationScheme(IsolationScheme isolationScheme,
+            IEnumerable<ScanInfo> scanInfos)
+        {
+            
         }
     }
 }

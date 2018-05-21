@@ -1993,11 +1993,11 @@ namespace pwiz.Skyline.Model.Results
     public class ChromatogramGroupInfo
     {
         protected readonly ChromGroupHeaderInfo _groupHeaderInfo;
-        protected readonly IDictionary<Type, int> _scoreTypeIndices;
-        protected readonly IList<ChromCachedFile> _allFiles;
+        public readonly IDictionary<Type, int> _scoreTypeIndices;
+        public readonly IList<ChromCachedFile> _allFiles;
         protected readonly IReadOnlyList<ChromTransition> _allTransitions;
-        protected readonly IReadOnlyList<ChromPeak> _allPeaks;
-        protected readonly IReadOnlyList<float> _allScores;
+        public readonly IReadOnlyList<ChromPeak> _allPeaks;
+        public readonly IReadOnlyList<float> _allScores;
 
         public ChromatogramGroupInfo(ChromGroupHeaderInfo groupHeaderInfo,
                                      IDictionary<Type, int> scoreTypeIndices,

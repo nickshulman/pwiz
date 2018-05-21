@@ -43,6 +43,10 @@ namespace pwiz.Skyline.Model.Results.Deconvolution
 
         public IList<TimeIntensities> DeconvoluteChromatograms(ChromatogramCollection chromatogramCollection)
         {
+            if (FeatureKeys.Count == 0)
+            {
+                return null;
+            }
             IList<TimeIntensities> chromatograms = FeatureKeys.Select(chromatogramCollection.GetChromatogram).ToArray();
             var featureWeights = this;
             if (chromatograms.Contains(null))
@@ -95,7 +99,12 @@ namespace pwiz.Skyline.Model.Results.Deconvolution
                     resultIntensities[iPrecursor].Add((float) values[iPrecursor]);
                 }
             }
-            return resultIntensities.Select(intensities => new TimeIntensities(mergedTimes, intensities, null, null)).ToArray();
+            ImmutableList<int> mergedScanIds = null;
+            if (mergedTimes.Count == chromatograms[0].Times.Count)
+            {
+                mergedScanIds = chromatograms[0].ScanIds;
+            }
+            return resultIntensities.Select(intensities => new TimeIntensities(mergedTimes, intensities, null, mergedScanIds)).ToArray();
         }
 
         public IList<TimeIntensities> NormalizeChromatorams(IList<TimeIntensities> chromatograms)
@@ -114,7 +123,13 @@ namespace pwiz.Skyline.Model.Results.Deconvolution
                     }
                 }
             }
-            return resultIntensities.Select(intensities => new TimeIntensities(times, intensities, null, null)).ToArray();
+            var result = new TimeIntensities[chromatograms.Count];
+            for (int i = 0; i < result.Length; i++)
+            {
+                result[i] = new TimeIntensities(times, resultIntensities[i], chromatograms[i].MassErrors,
+                    chromatograms[i].ScanIds);
+            }
+            return result;
         }
     }
 }

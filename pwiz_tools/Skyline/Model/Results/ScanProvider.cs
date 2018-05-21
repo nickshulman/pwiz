@@ -58,12 +58,12 @@ namespace pwiz.Skyline.Model.Results
     public class ScanProvider : IScanProvider
     {
         private MsDataFileImpl _dataFile;
-        private MsDataFileScanIds _msDataFileScanIds; // Indexed container of MsDataFileImpl ids
-        private Func<MsDataFileScanIds> _getMsDataFileScanIds;
+        private IMsDataFileScanIds _msDataFileScanIds; // Indexed container of MsDataFileImpl ids
+        private Func<IMsDataFileScanIds> _getMsDataFileScanIds;
         private WeakReference<MeasuredResults> _measuredResultsReference;
 
         public ScanProvider(string docFilePath, MsDataFileUri dataFilePath, ChromSource source,
-            IList<float> times, TransitionFullScanInfo[] transitions, MeasuredResults measuredResults, Func<MsDataFileScanIds> getMsDataFileScanIds)
+            IList<float> times, TransitionFullScanInfo[] transitions, MeasuredResults measuredResults, Func<IMsDataFileScanIds> getMsDataFileScanIds)
         {
             DocFilePath = docFilePath;
             DataFilePath = dataFilePath;

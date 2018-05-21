@@ -5,6 +5,7 @@ using MathNet.Numerics.LinearAlgebra;
 using MathNet.Numerics.LinearAlgebra.Double;
 using pwiz.Common.Collections;
 using pwiz.Common.SystemUtil;
+using pwiz.Skyline.Model.DocSettings;
 
 namespace pwiz.Skyline.Model.Results.Deconvolution
 {
@@ -41,13 +42,13 @@ namespace pwiz.Skyline.Model.Results.Deconvolution
             });
         }
 
-        public IList<TimeIntensities> DeconvoluteChromatograms(ChromatogramCollection chromatogramCollection)
+        public IList<TimeIntensities> DeconvoluteChromatograms(TransitionSettings transitionSettings, ChromatogramCollection chromatogramCollection)
         {
             if (FeatureKeys.Count == 0)
             {
                 return null;
             }
-            IList<TimeIntensities> chromatograms = FeatureKeys.Select(chromatogramCollection.GetChromatogram).ToArray();
+            IList<TimeIntensities> chromatograms = FeatureKeys.Select(fk=>chromatogramCollection.GetChromatogram(transitionSettings, fk)).ToArray();
             var featureWeights = this;
             if (chromatograms.Contains(null))
             {

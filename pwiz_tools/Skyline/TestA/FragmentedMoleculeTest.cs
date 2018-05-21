@@ -47,8 +47,7 @@ namespace pwiz.SkylineTestA
                 {
                     var transition = new Transition(transitionGroup, ionType, Transition.OrdinalToOffset(ionType, ordinal, pepseq.Length), 0, Adduct.SINGLY_PROTONATED);
                     var fragment = precursor.ChangeFragmentIon(ionType, ordinal);
-                    var actualMassDistribution = FragmentedMolecule.Settings.DEFAULT.GetMassDistribution(
-                        fragment.FragmentFormula, 0, 0);
+                    var actualMassDistribution = DistributionSettings.DEFAULT.GetMassDistribution(fragment.FragmentFormula);
                     var expectedMz = sequenceMassCalc.GetFragmentMass(transition, transitionGroupDocNode.IsotopeDist);
                     var actualMz = actualMassDistribution.MostAbundanceMass;
                     if (Math.Abs(expectedMz - actualMz) > .001)

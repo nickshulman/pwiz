@@ -48,6 +48,11 @@ namespace pwiz.Skyline.Model.Results
         public double RetentionTime { get; private set; }
         public Type ScanType { get; private set; }
 
+        public ScanInfo ChangeScanType(Type type)
+        {
+            return ChangeProp(ImClone(this), im => ScanType = type);
+        }
+
         public string ScanIdentifier
         {
             get { return _scanIdentifierText ?? _scanIdentifierInt.ToString(CultureInfo.InvariantCulture); }
@@ -162,8 +167,9 @@ namespace pwiz.Skyline.Model.Results
                 }
             }
 
-            public IsolationWindow ApplyIsolationScheme(IsolationScheme isolationScheme)
+            public IsolationWindow ApplyIsolationScheme(TransitionSettings transitionSettings)
             {
+                var isolationScheme = transitionSettings.FullScan.IsolationScheme;
                 var myIsolationWidth = LowerOffset + UpperOffset;
                 var isolationTargetMz = TargetMz;
                 if (isolationScheme.PrecursorFilter.HasValue && !isolationScheme.UseMargin)
@@ -187,7 +193,17 @@ namespace pwiz.Skyline.Model.Results
                     return new IsolationWindow(isolationTargetMz).ChangeLowerOffset(isolationWidthValue / 2)
                         .ChangeUpperOffset(isolationWidthValue / 2);
                 }
-
+                if (isolationScheme.PrespecifiedIsolationWindows.Count > 0)
+                {
+                    var isolationWindow = isolationScheme.GetIsolationWindow(isolationTargetMz, transitionSettings.Instrument.MzMatchTolerance);
+                    if (isolationWindow != null)
+                    {
+                        var isolationHalfWidth = (isolationWindow.End - isolationWindow.Start)/2;
+                        return new IsolationWindow(isolationWindow.Start + isolationHalfWidth)
+                            .ChangeLowerOffset(isolationHalfWidth).ChangeUpperOffset(isolationHalfWidth);
+                    }
+                }
+                return this;
             }
         }
         public class Type : Immutable
@@ -247,8 +263,9 @@ namespace pwiz.Skyline.Model.Results
                 }
             }
 
-            public Type ApplyIsolationScheme(IsolationScheme isolationScheme)
+            public Type ApplyIsolationScheme(TransitionSettings transitionSettings)
             {
+                var isolationScheme = transitionSettings.FullScan.IsolationScheme;
                 if (isolationScheme == null || isolationScheme.FromResults && !isolationScheme.UseMargin)
                 {
                     return this;
@@ -257,47 +274,13 @@ namespace pwiz.Skyline.Model.Results
                 {
                     return this;
                 }
-                
-                if (isolationScheme.PrecursorFilter.HasValue && !isolationScheme.UseMargin)
+
+                var newWindows = ImmutableList.ValueOf(IsolationWindows.Select(w => w.ApplyIsolationScheme(transitionSettings)));
+                if (Equals(newWindows, IsolationWindows))
                 {
-                    // Use the user specified isolation width, unless it is larger than
-                    // the acquisition isolation width.  In this case the chromatograms
-                    // may be very confusing (spikey), because of incorrectly included
-                    // data points.
-                    var isolationWidthValue = isolationScheme.PrecursorFilter.Value +
-                        (isolationScheme.PrecursorRightFilter ?? 0);
-
-                    if (isolationWidth.HasValue && isolationWidth.Value < isolationWidthValue)
-                        isolationWidthValue = isolationWidth.Value;
-
-                    // Make sure the isolation target is centered in the desired window, even
-                    // if the window was specified as being asymetric
-                    if (isolationScheme.PrecursorRightFilter.HasValue)
-                        isolationTargetMz += isolationScheme.PrecursorRightFilter.Value - isolationWidthValue / 2;
+                    return this;
                 }
-
-    // Find isolation window.
-                else if (isolationScheme.PrespecifiedIsolationWindows.Count > 0)
-                {
-                    var isolationWindow = isolationScheme.GetIsolationWindow(isolationTargetMz, _instrument.MzMatchTolerance);
-                    if (isolationWindow == null)
-                    {
-                        _filterPairDictionary[new SpectrumFilter.IsolationWindowFilter(isolationTargetMz, isolationWidth)] = new List<SpectrumFilterPair>();
-                        isolationWidth = null;
-                        return;
-                    }
-
-                    isolationWidthValue = isolationWindow.End - isolationWindow.Start;
-                    isolationTargetMz = isolationTargetMz.ChangeMz(isolationWindow.Start + isolationWidthValue / 2);
-                }
-
-                    // Use the instrument isolation window
-                else if (isolationWidth.HasValue)
-                {
-                    isolationWidthValue = isolationWidth.Value - (isolationScheme.PrecursorFilter ?? 0) * 2;
-                }
-
-
+                return new Type(MsLevel, newWindows);
             }
         }
         public static ResultFileDataProto ToResultFileDataProto(IEnumerable<ScanInfo> scanInfos)
@@ -333,10 +316,31 @@ namespace pwiz.Skyline.Model.Results
             });
         }
 
-        public static IEnumerable<ScanInfo> ApplyIsolationScheme(IsolationScheme isolationScheme,
-            IEnumerable<ScanInfo> scanInfos)
+        public static IList<ScanInfo> ApplyIsolationScheme(TransitionSettings transitionSettings,
+            IList<ScanInfo> scanInfos)
         {
-            
+            var newTypes = new Dictionary<Type, Type>();
+            IList<ScanInfo> newScanInfos = null;
+            for (int iScan = 0; iScan < scanInfos.Count; iScan++)
+            {
+                var scanInfo = scanInfos[iScan];
+                Type newType;
+                if (!newTypes.TryGetValue(scanInfo.ScanType, out newType))
+                {
+                    newType = scanInfo.ScanType.ApplyIsolationScheme(transitionSettings);
+                    newTypes.Add(scanInfo.ScanType, newType);
+                    if (newScanInfos == null && !ReferenceEquals(newType, scanInfo.ScanType))
+                    {
+                        newScanInfos = new List<ScanInfo>(scanInfos.Count);
+                        newScanInfos.AddRange(scanInfos.Take(iScan));
+                    }
+                }
+                if (newScanInfos != null)
+                {
+                    newScanInfos.Add(scanInfo.ChangeScanType(newType));
+                }
+            }
+            return newScanInfos ?? scanInfos;
         }
     }
 }

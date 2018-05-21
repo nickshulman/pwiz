@@ -239,7 +239,7 @@ namespace pwiz.Skyline.Model.Results.Deconvolution
             {
                 var transitionKey = GetTransitionKey(transitionGroupDocNode, transitionDocNode);
                 var featureWeights = GetFeatureWeights(new[] { transitionKey });
-                var deconvoluted = featureWeights.DeconvoluteChromatograms(chromatogramCollection);
+                var deconvoluted = featureWeights.DeconvoluteChromatograms(Settings.TransitionSettings, chromatogramCollection);
                 if (deconvoluted == null || deconvoluted[precursorIndex] == null)
                 {
                     continue;

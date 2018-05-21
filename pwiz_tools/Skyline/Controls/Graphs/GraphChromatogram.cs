@@ -35,7 +35,7 @@ using pwiz.Skyline.Model;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.Results;
 using pwiz.Skyline.Model.Results.Deconvolution;
-using pwiz.Skyline.Model.Results.RemoteApi;
+using pwiz.Skyline.Model.Results.RemoteApi.Chorus;
 using pwiz.Skyline.Model.Results.Scoring;
 using pwiz.Skyline.Model.Themes;
 using pwiz.Skyline.Properties;
@@ -2045,7 +2045,7 @@ namespace pwiz.Skyline.Controls.Graphs
                 if (peptideFeatureSet == null)
                 {
                     peptideFeatureSet =
-                        new PeptideFeatureSet(settings, peptide, chromatogramCollection.GetFeatureKeys());
+                        new PeptideFeatureSet(settings, peptide, chromatogramCollection.GetFeatureKeys(settings.TransitionSettings));
                 }
                 newPeptideFeatureSets.Add(new IdentityPath(peptide.Peptide), Tuple.Create(peptideFeatureSet, chromatogramCollection));
                 var selectedTransitions = _stateProvider.SelectedNodes.OfType<TransitionTreeNode>()
@@ -2061,7 +2061,7 @@ namespace pwiz.Skyline.Controls.Graphs
                 {
                     continue;
                 }
-                var precursorChromatograms = featureWeights.DeconvoluteChromatograms(chromatogramCollection);
+                var precursorChromatograms = featureWeights.DeconvoluteChromatograms(settings.TransitionSettings, chromatogramCollection);
                 if (precursorChromatograms != null)
                 {
                     for (int iPrecursor = 0; iPrecursor < precursorChromatograms.Count; iPrecursor++)
@@ -2645,7 +2645,7 @@ namespace pwiz.Skyline.Controls.Graphs
                             if (peptideFeatureSet == null)
                             {
                                 peptideFeatureSet =
-                                    new PeptideFeatureSet(settings, peptide, chromatogramCollection.GetFeatureKeys());
+                                    new PeptideFeatureSet(settings, peptide, chromatogramCollection.GetFeatureKeys(settings.TransitionSettings));
                             }
                             newPeptideFeatureSets.Add(new IdentityPath(peptide.Peptide),
                                 Tuple.Create(peptideFeatureSet, chromatogramCollection));

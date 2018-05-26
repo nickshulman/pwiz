@@ -57,6 +57,8 @@ namespace pwiz.Skyline.Model.Results.Deconvolution
                 .Distinct();
         }
 
+        private static bool _alwaysSingleWeight = false;
+
         private IEnumerable<TransitionFeatureWeight> GetTransitionFeatureWeights(
             TransitionGroupDocNode transitionGroupDocNode)
         {
@@ -67,7 +69,7 @@ namespace pwiz.Skyline.Model.Results.Deconvolution
                 foreach (var feature in GetFeatures(transitionGroupDocNode, transition))
                 {
                     yield return new TransitionFeatureWeight(precursorClass, transitionKey, transitionGroupDocNode,
-                        transition, feature.Item1, feature.Item2);
+                        transition, feature.Item1, _alwaysSingleWeight ? 1 : feature.Item2);
                 }
             }
         }
@@ -97,10 +99,11 @@ namespace pwiz.Skyline.Model.Results.Deconvolution
             var fragmentedMolecule = GetFragmentedMolecule(transitionGroup, transition);
             foreach (var isolationWindow in AllIsolationWindows)
             {
+                var actualIsolationWindow = isolationWindow.ApplyIsolationScheme(Settings.TransitionSettings);
                 var distribution = fragmentedMolecule.GetFragmentDistribution(
                     DistributionCache,
-                    isolationWindow.TargetMz - isolationWindow.LowerOffset,
-                    isolationWindow.TargetMz + isolationWindow.UpperOffset);
+                    actualIsolationWindow.TargetMz - actualIsolationWindow.LowerOffset,
+                    actualIsolationWindow.TargetMz + actualIsolationWindow.UpperOffset);
                 foreach (var entry in distribution)
                 {
                     foreach (var featureKey in FeatureKeysWithMz(entry.Key)
@@ -269,7 +272,7 @@ namespace pwiz.Skyline.Model.Results.Deconvolution
                     numPoints, (maxTime - minTime) / (numPoints - 1));                
             }
             var timeIntensitiesGroup = new RawTimeIntensities(deconvolutedChromatograms, interpolationParams);
-            return new ChromatogramGroupInfo(chromGroupHeaderInfo, chromatogramGroupInfo._scoreTypeIndices,
+            return new DeconvolutedChromatogram(chromGroupHeaderInfo, chromatogramGroupInfo._scoreTypeIndices,
                 chromatogramGroupInfo._allFiles, chromTransitions.ToArray(), chromatogramGroupInfo._allPeaks,
                 chromatogramGroupInfo._allScores)
             {

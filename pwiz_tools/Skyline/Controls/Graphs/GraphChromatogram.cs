@@ -2647,8 +2647,8 @@ namespace pwiz.Skyline.Controls.Graphs
                                 peptideFeatureSet =
                                     new PeptideFeatureSet(settings, peptide, chromatogramCollection.GetFeatureKeys(settings.TransitionSettings));
                             }
-                            newPeptideFeatureSets.Add(new IdentityPath(peptide.Peptide),
-                                Tuple.Create(peptideFeatureSet, chromatogramCollection));
+                            newPeptideFeatureSets[new IdentityPath(peptide.Peptide)] 
+                                = Tuple.Create(peptideFeatureSet, chromatogramCollection);
                             var chromatogramInfo =
                                 peptideFeatureSet.DeconvoluteChromatogram(nodeGroups[i], chromatogramCollection);
                             if (chromatogramInfo != null)

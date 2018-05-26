@@ -92,7 +92,7 @@ namespace pwiz.Skyline.Controls
             AttachTextboxCommit(tbxPrecursorMassShift, () =>
             {
                 double massShift;
-                if (_helper.ValidateDecimalTextBox(tbxPrecursorCharge, out massShift))
+                if (_helper.ValidateDecimalTextBox(tbxPrecursorMassShift, out massShift))
                 {
                     FragmentedMolecule = FragmentedMolecule.ChangePrecursorMassShift(
                         massShift, FragmentedMolecule.PrecursorMassType);
@@ -446,13 +446,16 @@ namespace pwiz.Skyline.Controls
             {
                 return;
             }
-            int ordinal;
-            if (!_helper.ValidateNumberTextBox(tbxFragmentIonOrdinal, 1,
-                FragmentedMolecule.ModifiedSequence.GetUnmodifiedSequence().Length, out ordinal))
+            if (FragmentedMolecule.ModifiedSequence != null)
             {
-                return;
+                int ordinal;
+                if (!_helper.ValidateNumberTextBox(tbxFragmentIonOrdinal, 1,
+                    FragmentedMolecule.ModifiedSequence.GetUnmodifiedSequence().Length, out ordinal))
+                {
+                    return;
+                }
+                FragmentedMolecule = FragmentedMolecule.ChangeFragmentIon(FragmentedMolecule.FragmentIonType, ordinal);
             }
-            FragmentedMolecule = FragmentedMolecule.ChangeFragmentIon(FragmentedMolecule.FragmentIonType, ordinal);
         }
 
         private class GraphItem : IMSGraphItemInfo

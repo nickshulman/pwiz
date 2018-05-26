@@ -26,6 +26,7 @@ using pwiz.Skyline.Controls.SeqNode;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.Lib;
 using pwiz.Skyline.Model.Results;
+using pwiz.Skyline.Model.Results.Deconvolution;
 using pwiz.Skyline.Model.Results.Scoring;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
@@ -1189,9 +1190,32 @@ namespace pwiz.Skyline.Model
                     {
                         loadPoints = GetMatchingGroups(nodePep).Any();
                     }
-                    ChromatogramGroupInfo[] temp;   // Dummy variable, using list instead to avoid extra allocation
-                    if (!measuredResults.TryLoadChromatogram(chromatograms, nodePep, this, mzMatchTolerance,
-                            loadPoints, listChromGroupInfo, out temp))
+                    bool isotopeEnvelope = settingsNew.TransitionSettings.FullScan.ExtractIsotopeEnvelope;
+                    PeptideFeatureSet peptideFeatureSet = null;
+                    listChromGroupInfo.Clear();
+                    if (isotopeEnvelope)
+                    {
+                        var chromatogramCollection =
+                            settingsNew.MeasuredResults.GetChromatogramCollection(chromatograms, nodePep);
+                        if (chromatogramCollection != null)
+                        {
+                            peptideFeatureSet = new PeptideFeatureSet(settingsNew, nodePep,
+                                chromatogramCollection.GetFeatureKeys(settingsNew.TransitionSettings));
+                            var chromGroupInfo = peptideFeatureSet.DeconvoluteChromatogram(this, chromatogramCollection);
+                            if (chromGroupInfo != null)
+                            {
+                                listChromGroupInfo.Add(chromGroupInfo);
+                            }
+                        }
+                    }
+                    else
+                    {
+                        ChromatogramGroupInfo[] temp;   // Dummy variable, using list instead to avoid extra allocation
+                        measuredResults.TryLoadChromatogram(chromatograms, nodePep, this, mzMatchTolerance,
+                            loadPoints, listChromGroupInfo, out temp);
+                    }
+
+                    if (!listChromGroupInfo.Any())
                     {
                         bool useOldResults = iResultOld != -1 && !chromatograms.IsLoadedAndAvailable(measuredResults);
 

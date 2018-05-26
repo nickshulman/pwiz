@@ -389,7 +389,7 @@ namespace pwiz.Skyline.SettingsUI
                 bool filterMargin = Equals(comboIsolationWidth.SelectedItem, IsolationWidthType.RESULTS_WITH_MARGIN);
                 if (!Equals(comboIsolationWidth.SelectedItem, IsolationWidthType.RESULTS))
                 {
-                    double minFilt = filterMargin ? 0 : TransitionFullScan.MIN_PRECURSOR_MULTI_FILTER;
+                    double minFilt = filterMargin ? -TransitionFullScan.MAX_PRECURSOR_MULTI_FILTER_MARGIN : TransitionFullScan.MIN_PRECURSOR_MULTI_FILTER;
                     double maxFilt = filterMargin
                         ? TransitionFullScan.MAX_PRECURSOR_MULTI_FILTER_MARGIN
                         : TransitionFullScan.MAX_PRECURSOR_MULTI_FILTER;

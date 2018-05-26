@@ -168,8 +168,8 @@ namespace pwiz.Skyline.Model.Results.Deconvolution
                 double? minOtherMz = precursorMinMz - fragmentPrecursorMz;
                 double? maxOtherMz = precursorMaxMz - fragmentPrecursorMz;
                 var otherFragmentAbundance = complementaryFragmentMzDistribution
-                    .Where(oFrag => !minOtherMz.HasValue || oFrag.Key >= minOtherMz
-                                    && !maxOtherMz.HasValue || oFrag.Key <= maxOtherMz).Sum(frag => frag.Value);
+                    .Where(oFrag => (!minOtherMz.HasValue || oFrag.Key >= minOtherMz)
+                                    && (!maxOtherMz.HasValue || oFrag.Key <= maxOtherMz)).Sum(frag => frag.Value);
                 if (otherFragmentAbundance > 0)
                 {
                     result.Add(entry.Key, otherFragmentAbundance * entry.Value);

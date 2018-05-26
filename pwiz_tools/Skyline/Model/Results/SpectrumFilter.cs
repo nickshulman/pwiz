@@ -79,6 +79,7 @@ namespace pwiz.Skyline.Model.Results
         {
             var distributionCache =
                 new DistributionCache(FragmentedMolecule.GetDistributionSettings(document.Settings));
+            _extractIsotopeEnvelope = document.Settings.TransitionSettings.FullScan.ExtractIsotopeEnvelope;
             _fullScan = document.Settings.TransitionSettings.FullScan;
             _instrument = document.Settings.TransitionSettings.Instrument;
             _acquisitionMethod = _fullScan.AcquisitionMethod;
@@ -275,13 +276,20 @@ namespace pwiz.Skyline.Model.Results
             InitRTLimits();
         }
 
-        public IEnumerable<SignedMz> GetProductMzs(DistributionCache distributionCache, SrmSettings settings, PeptideDocNode peptideDocNode, TransitionGroupDocNode transitionGroupDocNode, TransitionDocNode transitionDocNode)
+        public static IEnumerable<SignedMz> GetProductMzs(DistributionCache distributionCache, SrmSettings settings, PeptideDocNode peptideDocNode, TransitionGroupDocNode transitionGroupDocNode, TransitionDocNode transitionDocNode)
         {
-            var fragmentedMolecule = FragmentedMolecule.GetFragmentedMolecule(settings,
-                peptideDocNode, transitionGroupDocNode, transitionDocNode);
-            var mzDistribution = fragmentedMolecule.GetFragmentDistribution(distributionCache, null, null);
-            return mzDistribution.Where(kvp => kvp.Value >= .1)
-                .Select(kvp => new SignedMz(kvp.Key, transitionDocNode.Mz.IsNegative));
+            if (settings.TransitionSettings.FullScan.ExtractIsotopeEnvelope)
+            {
+                var fragmentedMolecule = FragmentedMolecule.GetFragmentedMolecule(settings,
+                    peptideDocNode, transitionGroupDocNode, transitionDocNode);
+                var mzDistribution = fragmentedMolecule.GetFragmentDistribution(distributionCache, null, null);
+                return mzDistribution.Where(kvp => kvp.Value >= .1)
+                    .Select(kvp => new SignedMz(kvp.Key, transitionDocNode.Mz.IsNegative));
+            }
+            else
+            {
+                return new[] {transitionDocNode.Mz};
+            }
         }
 
         public bool ProvidesCollisionalCrossSectionConverter { get { return _ionMobilityFunctionsProvider != null;  } }
@@ -452,7 +460,7 @@ namespace pwiz.Skyline.Model.Results
             }
         }
 
-        public bool EnabledMs { get { return _fullScan.PrecursorIsotopes != FullScanPrecursorIsotopes.None; } }
+        public bool EnabledMs { get { return _fullScan.PrecursorIsotopes != FullScanPrecursorIsotopes.None || _fullScan.ExtractIsotopeEnvelope; } }
         public bool IsHighAccMsFilter { get { return _isHighAccMsFilter; } }
         public bool EnabledMsMs { get { return _acquisitionMethod != FullScanAcquisitionMethod.None; } }
         public bool IsHighAccProductFilter { get { return _isHighAccProductFilter; } }

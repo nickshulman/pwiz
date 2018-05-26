@@ -29,10 +29,14 @@ namespace pwiz.Common.Chemistry
         where T : AbstractFormula<T, TValue>, new()
         where TValue : IComparable<TValue>
     {
-// ReSharper disable InconsistentNaming
-        public static readonly T Empty = new T { Dictionary = ImmutableSortedList<string, TValue>.EMPTY };
-// ReSharper restore InconsistentNaming
-        public override abstract string ToString();
+        public static ImmutableSortedList<string, TValue> MakeList(IEnumerable<KeyValuePair<string, TValue>> keyValuePairs)
+        {
+            return new ImmutableSortedList<string, TValue>(keyValuePairs, StringComparer.Ordinal);
+        }
+        // ReSharper disable InconsistentNaming
+        public static readonly T Empty = new T { Dictionary = MakeList(new KeyValuePair<string, TValue>[0]) };
+        // ReSharper restore InconsistentNaming
+        public abstract override string ToString();
         private int _hashCode;
         private ImmutableSortedList<string, TValue> _dict;
         public virtual String ToDisplayString()
@@ -106,7 +110,7 @@ namespace pwiz.Common.Chemistry
         {
             get { return _dict; }
             protected set 
-            { 
+            {
                 _dict = value;
                 _hashCode = value.GetHashCode();
             }
@@ -193,7 +197,7 @@ namespace pwiz.Common.Chemistry
     {
         public static T Parse(String formula)
         {
-            return new T {Dictionary = ImmutableSortedList.FromValues(ParseToDictionary(formula))};
+            return new T {Dictionary = MakeList(ParseToDictionary(formula))};
         }
 
         public static Dictionary<string, int> ParseToDictionary(string formula)
@@ -251,7 +255,7 @@ namespace pwiz.Common.Chemistry
         // Handle formulae which may contain subtractions, as is deprotonation description ie C12H8O2-H (=C12H7O2) or even C12H8O2-H2O (=C12H6O)
         public static T ParseExpression(String formula)
         {
-            return new T { Dictionary = ImmutableSortedList.FromValues(ParseExpressionToDictionary(formula)) };
+            return new T { Dictionary = MakeList(ParseExpressionToDictionary(formula)) };
         }
 
         public static Dictionary<String, int> ParseExpressionToDictionary(string expression)
@@ -297,17 +301,12 @@ namespace pwiz.Common.Chemistry
                     resultDict.Add(kvp.Key, -kvp.Value);
                 }
             }
-            return new T { Dictionary = new ImmutableSortedList<string, int>(resultDict) };
+            return new T { Dictionary = MakeList(resultDict) };
         }
 
-        public static T FromDict(ImmutableSortedList<string, int> dict)
+        public static T FromDict(IEnumerable<KeyValuePair<string, int>> dict)
         {
-            return new T {Dictionary = dict};
-        }
-
-        public static T FromDict(IDictionary<string, int> dict)
-        {
-            return new T {Dictionary = ImmutableSortedList.FromValues(dict)};
+            return new T {Dictionary = MakeList(dict)};
         }
 
         public static string AdjustElementCount(string formula, string element, int delta)

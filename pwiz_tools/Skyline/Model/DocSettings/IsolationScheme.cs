@@ -249,14 +249,17 @@ namespace pwiz.Skyline.Model.DocSettings
                 {
                     throw new InvalidDataException(Resources.IsolationScheme_DoValidate_Isolation_scheme_cannot_have_a_filter_and_a_prespecifed_isolation_window);
                 }
+                double minFilter = FromResults
+                    ? -TransitionFullScan.MAX_PRECURSOR_MULTI_FILTER
+                    : TransitionFullScan.MIN_PRECURSOR_MULTI_FILTER;
                 TransitionFullScan.ValidateRange(PrecursorFilter,
-                                                 TransitionFullScan.MIN_PRECURSOR_MULTI_FILTER,
+                                                 minFilter,
                                                  TransitionFullScan.MAX_PRECURSOR_MULTI_FILTER,
                                                  Resources.IsolationScheme_DoValidate_The_precursor_m_z_filter_must_be_between__0__and__1_);
                 if (PrecursorRightFilter.HasValue)
                 {
                     TransitionFullScan.ValidateRange(PrecursorRightFilter,
-                                                     TransitionFullScan.MIN_PRECURSOR_MULTI_FILTER,
+                                                     minFilter,
                                                      TransitionFullScan.MAX_PRECURSOR_MULTI_FILTER,
                                                      Resources.IsolationScheme_DoValidate_The_precursor_m_z_filter_must_be_between__0__and__1_);
                 }

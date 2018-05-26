@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using pwiz.Common.Chemistry;
 using pwiz.Skyline.Model;
@@ -56,6 +57,34 @@ namespace pwiz.SkylineTestA
                     }
                 }
             }
+        }
+
+        [TestMethod]
+        public void TestFragmentDistribution()
+        {
+            var staticMod = UniMod.GetModification("Acetyl (N-term)", true);
+            var modifiedSequence = new ModifiedSequence("MQNDAGEFVDLYVPR",
+                new[]
+                {
+                    new ModifiedSequence.Modification(new ExplicitMod(0, staticMod), staticMod.MonoisotopicMass.Value,
+                        staticMod.AverageMass.Value)
+                }, MassType.Monoisotopic);
+            var fragmentedMolecule = FragmentedMolecule.EMPTY.ChangeModifiedSequence(modifiedSequence)
+                .ChangePrecursorCharge(2)
+                .ChangeFragmentIon(IonType.y, 10)
+                .ChangeFragmentCharge(1);
+            var distributionCache = new DistributionCache(DistributionSettings.DEFAULT);
+            const double isolationMax = 899.9;
+            var precursorDistribution = distributionCache.GetMzDistribution(fragmentedMolecule.PrecursorFormula, 0,
+                fragmentedMolecule.PrecursorCharge);
+            var fullFragmentDistribution = distributionCache.GetMzDistribution(fragmentedMolecule.FragmentFormula, 0,
+                fragmentedMolecule.FragmentCharge);
+            Assert.AreEqual(1, fullFragmentDistribution.Sum(kvp=>kvp.Value), .01);
+            var filteredFragmentDistribution =
+                fragmentedMolecule.GetFragmentDistribution(distributionCache, null, isolationMax);
+            double filteredPrecursorAbundance = precursorDistribution.Where(kvp => kvp.Key <= isolationMax).Sum(kvp => kvp.Value);
+            double filteredFragmentAbundance = filteredFragmentDistribution.Sum(kvp => kvp.Value);
+            Assert.AreEqual(filteredPrecursorAbundance, filteredFragmentAbundance, .01);
         }
     }
 }

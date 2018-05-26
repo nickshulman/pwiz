@@ -465,6 +465,7 @@ namespace pwiz.Skyline
             this.resultsGridMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.documentGridMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.chromatogramGridToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.isotopeDistributionsMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.toolStripSeparator36 = new System.Windows.Forms.ToolStripSeparator();
             this.toolBarToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.statusToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
@@ -2962,6 +2963,7 @@ namespace pwiz.Skyline
             this.resultsGridMenuItem,
             this.documentGridMenuItem,
             this.chromatogramGridToolStripMenuItem,
+            this.isotopeDistributionsMenuItem,
             this.toolStripSeparator36,
             this.toolBarToolStripMenuItem,
             this.statusToolStripMenuItem});
@@ -3612,6 +3614,12 @@ namespace pwiz.Skyline
             this.chromatogramGridToolStripMenuItem.Name = "chromatogramGridToolStripMenuItem";
             resources.ApplyResources(this.chromatogramGridToolStripMenuItem, "chromatogramGridToolStripMenuItem");
             this.chromatogramGridToolStripMenuItem.Click += new System.EventHandler(this.chromatogramGridToolStripMenuItem_Click);
+            // 
+            // isotopeDistributionsMenuItem
+            // 
+            this.isotopeDistributionsMenuItem.Name = "isotopeDistributionsMenuItem";
+            resources.ApplyResources(this.isotopeDistributionsMenuItem, "isotopeDistributionsMenuItem");
+            this.isotopeDistributionsMenuItem.Click += new System.EventHandler(this.isotopeDistributionMenuItem_Click);
             // 
             // toolStripSeparator36
             // 
@@ -4576,6 +4584,7 @@ namespace pwiz.Skyline
         private System.Windows.Forms.ToolStripMenuItem exportAnnotationsMenuItem;
         private System.Windows.Forms.ToolStripMenuItem importAnnotationsMenuItem;
         private System.Windows.Forms.ToolStripMenuItem deconvoluteToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem isotopeDistributionsMenuItem;
     }
 }
 

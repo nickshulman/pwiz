@@ -31,15 +31,17 @@ namespace pwiz.Skyline.Model.Results.Deconvolution
                     var timeIntensities = chromatogramGroup.TimeIntensitiesGroup.TransitionTimeIntensities[iTransition];
                     if (isolationWindows == null)
                     {
-                        var scanInfos = chromatogramGroup.GetScanInfos(transitionSettings);
+                        var scanInfos = chromatogramGroup.ScanInfos;
                         if (scanInfos.Count == 0)
                         {
                             continue;
                         }
                         isolationWindows = timeIntensities.ScanIds.Select(id => scanInfos[id].ScanType)
                             .Where(scanType => 2 == scanType.MsLevel)
-                            .SelectMany(scanType => scanType.IsolationWindows).Distinct().ToArray();
-                        
+                            .Distinct()
+                            .SelectMany(scanType =>
+                                scanType.IsolationWindows).Distinct().ToArray();
+
                     }
                     foreach (var window in isolationWindows)
                     {
@@ -69,7 +71,7 @@ namespace pwiz.Skyline.Model.Results.Deconvolution
                     var timeIntensities = chromatogramGroup.TimeIntensitiesGroup.TransitionTimeIntensities[iTransition];
                     if (featureKey.Window != null)
                     {
-                        timeIntensities = Filter(timeIntensities, featureKey.Window, chromatogramGroup.GetScanInfos(transitionSettings));
+                        timeIntensities = Filter(timeIntensities, featureKey.Window, chromatogramGroup.ScanInfos);
                     }
                     if (timeIntensities.NumPoints > 0)
                     {

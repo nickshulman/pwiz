@@ -70,10 +70,9 @@ namespace pwiz.Skyline.Model.Results.Deconvolution
 
         public IList<TimeIntensities> DeconvoluteChromatograms(IList<TimeIntensities> chromatograms)
         {
-            var mergedTimes = ImmutableList.ValueOf(
-                chromatograms.Where(c => c != null)
-                    .SelectMany(c => c.Times)
-                    .Distinct().OrderBy(t => t));
+            var scanIndexMap = GetMergedScanIdMap(chromatograms);
+            var mergedTimes = ImmutableList.ValueOf(scanIndexMap.Keys.OrderBy(t=>t));
+            var mergedScanIds = ImmutableList.ValueOf(mergedTimes.Select(t => scanIndexMap[t]));
             chromatograms = chromatograms.Select(c => c.Interpolate(mergedTimes, false)).ToArray();
             if (TransitionKeys.Distinct().Count() > 1)
             {
@@ -100,12 +99,20 @@ namespace pwiz.Skyline.Model.Results.Deconvolution
                     resultIntensities[iPrecursor].Add((float) values[iPrecursor]);
                 }
             }
-            ImmutableList<int> mergedScanIds = null;
-            if (mergedTimes.Count == chromatograms[0].Times.Count)
-            {
-                mergedScanIds = chromatograms[0].ScanIds;
-            }
             return resultIntensities.Select(intensities => new TimeIntensities(mergedTimes, intensities, null, mergedScanIds)).ToArray();
+        }
+
+        private IDictionary<float, int> GetMergedScanIdMap(IEnumerable<TimeIntensities> chromatograms)
+        {
+            var result = new Dictionary<float, int>();
+            foreach (var chromatogram in chromatograms)
+            {
+                for (int i = 0; i < chromatogram.NumPoints; i++)
+                {
+                    result[chromatogram.Times[i]] = chromatogram.ScanIds[i];
+                }
+            }
+            return result;
         }
 
         public IList<TimeIntensities> NormalizeChromatorams(IList<TimeIntensities> chromatograms)

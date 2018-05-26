@@ -25,6 +25,7 @@ using System.Xml.Schema;
 using System.Xml.Serialization;
 using pwiz.Common.Collections;
 using pwiz.Common.SystemUtil;
+using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.Results.Deconvolution;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;

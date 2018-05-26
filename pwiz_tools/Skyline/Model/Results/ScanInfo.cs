@@ -172,6 +172,17 @@ namespace pwiz.Skyline.Model.Results
                 var isolationScheme = transitionSettings.FullScan.IsolationScheme;
                 var myIsolationWidth = LowerOffset + UpperOffset;
                 var isolationTargetMz = TargetMz;
+                if (isolationScheme.FromResults)
+                {
+                    if (!isolationScheme.UseMargin)
+                    {
+                        return this;
+                    }
+                    return new IsolationWindow(TargetMz)
+                        .ChangeLowerOffset(LowerOffset - isolationScheme.PrecursorFilter.GetValueOrDefault())
+                        .ChangeUpperOffset(UpperOffset - isolationScheme.PrecursorRightFilter.GetValueOrDefault(
+                            isolationScheme.PrecursorFilter.GetValueOrDefault()));
+                }
                 if (isolationScheme.PrecursorFilter.HasValue && !isolationScheme.UseMargin)
                 {
                     // Use the user specified isolation width, unless it is larger than
@@ -209,10 +220,12 @@ namespace pwiz.Skyline.Model.Results
         public class Type : Immutable
         {
             public static readonly Type UNKNOWN = new Type(0, null);
+            private readonly int _hashCode;
             public Type(int msLevel, IEnumerable<IsolationWindow> isolationWindows)
             {
                 MsLevel = msLevel;
                 IsolationWindows = ImmutableList.ValueOfOrEmpty(isolationWindows);
+                _hashCode = MsLevel.GetHashCode() * 397 ^ IsolationWindows.GetHashCode();
             }
 
             public Type(ResultFileDataProto.Types.ScanType typeProto)
@@ -257,10 +270,7 @@ namespace pwiz.Skyline.Model.Results
 
             public override int GetHashCode()
             {
-                unchecked
-                {
-                    return (MsLevel * 397) ^ (IsolationWindows != null ? IsolationWindows.GetHashCode() : 0);
-                }
+                return _hashCode;
             }
 
             public Type ApplyIsolationScheme(TransitionSettings transitionSettings)
@@ -314,33 +324,6 @@ namespace pwiz.Skyline.Model.Results
                 _scanIdentifierInt = scanInfo.ScanIdentifierInt,
                 RetentionTime = scanInfo.RetentionTime,
             });
-        }
-
-        public static IList<ScanInfo> ApplyIsolationScheme(TransitionSettings transitionSettings,
-            IList<ScanInfo> scanInfos)
-        {
-            var newTypes = new Dictionary<Type, Type>();
-            IList<ScanInfo> newScanInfos = null;
-            for (int iScan = 0; iScan < scanInfos.Count; iScan++)
-            {
-                var scanInfo = scanInfos[iScan];
-                Type newType;
-                if (!newTypes.TryGetValue(scanInfo.ScanType, out newType))
-                {
-                    newType = scanInfo.ScanType.ApplyIsolationScheme(transitionSettings);
-                    newTypes.Add(scanInfo.ScanType, newType);
-                    if (newScanInfos == null && !ReferenceEquals(newType, scanInfo.ScanType))
-                    {
-                        newScanInfos = new List<ScanInfo>(scanInfos.Count);
-                        newScanInfos.AddRange(scanInfos.Take(iScan));
-                    }
-                }
-                if (newScanInfos != null)
-                {
-                    newScanInfos.Add(scanInfo.ChangeScanType(newType));
-                }
-            }
-            return newScanInfos ?? scanInfos;
         }
     }
 }

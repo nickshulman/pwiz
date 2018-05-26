@@ -22,9 +22,11 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
+using pwiz.Common.Chemistry;
 using pwiz.Common.Collections;
 using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Model.Lib;
+using pwiz.Skyline.Model.Results.Deconvolution;
 using pwiz.Skyline.Util;
 using pwiz.Skyline.Util.Extensions;
 
@@ -37,6 +39,7 @@ namespace pwiz.Skyline.Model.Results
     public class ChromCacheMinimizer
     {
         private readonly float _tolerance;
+        private DistributionCache _distributionCache;
 
         public ChromCacheMinimizer(SrmDocument document, ChromatogramCache chromatogramCache)
         {
@@ -46,6 +49,7 @@ namespace pwiz.Skyline.Model.Results
             Array.Sort(chromGroupHeaderInfos, CompareLocation);
             ChromGroupHeaderInfos = Array.AsReadOnly(chromGroupHeaderInfos);
             _tolerance = (float) Document.Settings.TransitionSettings.Instrument.MzMatchTolerance;
+            _distributionCache = new DistributionCache(FragmentedMolecule.GetDistributionSettings(Document.Settings));
         }
 
         /// <summary>
@@ -88,7 +92,7 @@ namespace pwiz.Skyline.Model.Results
                 chromGroupHeaderToIndex.Add(cghi.LocationPoints, i);
             }
             var chromGroups = new ChromatogramGroupInfo[ChromGroupHeaderInfos.Count];
-            var transitionGroups = new List<TransitionGroupDocNode>[ChromGroupHeaderInfos.Count];
+            var transitionGroups = new List<Tuple<PeptideDocNode, TransitionGroupDocNode>>[ChromGroupHeaderInfos.Count];
             foreach (var nodePep in Document.Molecules)
             {
                 foreach (var nodeGroup in nodePep.TransitionGroups)
@@ -99,9 +103,9 @@ namespace pwiz.Skyline.Model.Results
                         if (chromGroups[headerIndex] == null)
                         {
                             chromGroups[headerIndex] = chromGroupInfo;
-                            transitionGroups[headerIndex] = new List<TransitionGroupDocNode>();
+                            transitionGroups[headerIndex] = new List<Tuple<PeptideDocNode, TransitionGroupDocNode>>();
                         }
-                        transitionGroups[headerIndex].Add(nodeGroup);
+                        transitionGroups[headerIndex].Add(Tuple.Create(nodePep, nodeGroup));
                     }
                 }
             }
@@ -112,11 +116,11 @@ namespace pwiz.Skyline.Model.Results
             for (int iHeader = 0; iHeader < ChromGroupHeaderInfos.Count; iHeader++)
             {
                 var chromGroupInfo = chromGroups[iHeader];
-                IList<TransitionGroupDocNode> transitionGroupDocNodes;
+                IList<Tuple<PeptideDocNode, TransitionGroupDocNode>> transitionGroupDocNodes;
                 if (chromGroupInfo == null)
                 {
                     chromGroupInfo = ChromatogramCache.LoadChromatogramInfo(ChromGroupHeaderInfos[iHeader]);
-                    transitionGroupDocNodes = new TransitionGroupDocNode[0];
+                    transitionGroupDocNodes = new Tuple<PeptideDocNode, TransitionGroupDocNode>[0];
                 }
                 else
                 {
@@ -173,7 +177,7 @@ namespace pwiz.Skyline.Model.Results
         /// ChromatogramGroupInfo's can have the the retention time range shortened, and certain
         /// transitions discarded.
         /// </summary>
-        private MinimizedChromGroup MinimizeChromGroup(Settings settings, ChromatogramGroupInfo chromatogramGroupInfo, IList<TransitionGroupDocNode> transitionGroups)
+        private MinimizedChromGroup MinimizeChromGroup(Settings settings, ChromatogramGroupInfo chromatogramGroupInfo, IList<Tuple<PeptideDocNode, TransitionGroupDocNode>> transitionGroups)
         {
             chromatogramGroupInfo.EnsureDecompressed();
 
@@ -196,30 +200,36 @@ namespace pwiz.Skyline.Model.Results
             {
                 var chromatogram = chromatograms[i];
                 var matchingTransitions = new List<TransitionDocNode>();
-                foreach (var transitionDocNode in transitionGroups.SelectMany(tg => tg.Transitions))
+                foreach (var tuple in transitionGroups)
                 {
-                    if (0!=chromatogram.ProductMz.CompareTolerant(transitionDocNode.Mz, _tolerance))
+                    foreach (var transitionDocNode in tuple.Item2.Transitions)
                     {
-                        continue;
-                    }
-                    matchingTransitions.Add(transitionDocNode);
-                    foreach (var fileIndex in fileIndexes)
-                    {
-                        var chromatogramSet = transitionDocNode.Results[fileIndex];
-                        if (chromatogramSet.IsEmpty)
+                        var productMzs = SpectrumFilter.GetProductMzs(_distributionCache, Document.Settings,
+                            tuple.Item1, tuple.Item2, transitionDocNode);
+                        if (productMzs.All(mz => 0 != chromatogram.ProductMz.CompareTolerant(mz, _tolerance)))
                         {
                             continue;
                         }
-                        foreach (var transitionChromInfo in chromatogramSet)
+                        matchingTransitions.Add(transitionDocNode);
+                        foreach (var fileIndex in fileIndexes)
                         {
-                            if (transitionChromInfo.IsEmpty)
+                            var chromatogramSet = transitionDocNode.Results[fileIndex];
+                            if (chromatogramSet.IsEmpty)
                             {
                                 continue;
                             }
-                            minRetentionTime = Math.Min(minRetentionTime, transitionChromInfo.StartRetentionTime);
-                            maxRetentionTime = Math.Max(maxRetentionTime, transitionChromInfo.EndRetentionTime);
+                            foreach (var transitionChromInfo in chromatogramSet)
+                            {
+                                if (transitionChromInfo.IsEmpty)
+                                {
+                                    continue;
+                                }
+                                minRetentionTime = Math.Min(minRetentionTime, transitionChromInfo.StartRetentionTime);
+                                maxRetentionTime = Math.Max(maxRetentionTime, transitionChromInfo.EndRetentionTime);
+                            }
                         }
                     }
+                    
                 }
                 bool kept = !settings.DiscardUnmatchedChromatograms
                     || matchingTransitions.Count > 0;
@@ -244,7 +254,7 @@ namespace pwiz.Skyline.Model.Results
             public MinimizeParams(Writer writer,
                 Settings settings,
                 ChromatogramGroupInfo chromGroupInfo,
-                IList<TransitionGroupDocNode> transitionGroupDocNodes,
+                IList<Tuple<PeptideDocNode, TransitionGroupDocNode>> transitionGroupDocNodes,
                 ProgressCallback progressCallback,
                 MinStatisticsCollector statisticsCollector)
             {
@@ -259,7 +269,7 @@ namespace pwiz.Skyline.Model.Results
             public Writer Writer { get; private set; }
             public Settings Settings { get; private set; }
             public ChromatogramGroupInfo ChromGroupInfo { get; private set; }
-            public IList<TransitionGroupDocNode> TransitionGroupDocNodes { get; private set; }
+            public IList<Tuple<PeptideDocNode, TransitionGroupDocNode>> TransitionGroupDocNodes { get; private set; }
             private ProgressCallback ProgressCallback { get; set; }
             private MinStatisticsCollector StatisticsCollector { get; set; }
 

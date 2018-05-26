@@ -2029,10 +2029,8 @@ namespace pwiz.Skyline.Model.Results
         public MsDataFileUri FilePath { get { return _allFiles[_groupHeaderInfo.FileIndex].FilePath; } }
         public DateTime FileWriteTime { get { return _allFiles[_groupHeaderInfo.FileIndex].FileWriteTime; } }
         public DateTime? RunStartTime { get { return _allFiles[_groupHeaderInfo.FileIndex].RunStartTime; } }
-        public IList<ScanInfo> GetScanInfos(TransitionSettings transitionSettings)
-        {
-            var rawScanInfos = _allFiles[_groupHeaderInfo.FileIndex].ScanInfos;
-            return ScanInfo.ApplyIsolationScheme(transitionSettings, rawScanInfos);
+        public IList<ScanInfo> ScanInfos {
+            get { return _allFiles[_groupHeaderInfo.FileIndex].ScanInfos; }
         }
         public virtual int NumTransitions { get { return _groupHeaderInfo.NumTransitions; } }
         public int NumPeaks { get { return _groupHeaderInfo.NumPeaks; } }
@@ -2201,7 +2199,7 @@ namespace pwiz.Skyline.Model.Results
             endOptTran = i;
         }
 
-        public ChromPeak GetTransitionPeak(int transitionIndex, int peakIndex)
+        public virtual ChromPeak GetTransitionPeak(int transitionIndex, int peakIndex)
         {
             return _allPeaks[_groupHeaderInfo.StartPeakIndex + transitionIndex*_groupHeaderInfo.NumPeaks + peakIndex];
         }

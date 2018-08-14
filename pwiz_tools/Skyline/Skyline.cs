@@ -59,12 +59,8 @@ using pwiz.Skyline.Model.RetentionTimes;
 using pwiz.Skyline.Model.Tools;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.Controls;
-<<<<<<< .mine
 using pwiz.Skyline.Model.Databinding;
-||||||| .r11829
-=======
 using pwiz.Skyline.Model.ElementLocators;
->>>>>>> .r11906
 using pwiz.Skyline.Model.GroupComparison;
 using pwiz.Skyline.SettingsUI;
 using pwiz.Skyline.SettingsUI.Irt;
@@ -5044,7 +5040,6 @@ namespace pwiz.Skyline
                 collapsePeptidesMenuItem.Text = Resources.SkylineWindow_expandAllMenuItem_DropDownOpening__Molecules;
             }
         }
-<<<<<<< .mine
 
         private void chromatogramGridToolStripMenuItem_Click(object sender, EventArgs e)
         {
@@ -5052,8 +5047,6 @@ namespace pwiz.Skyline
                 new SkylineDataSchema(this, SkylineDataSchema.GetLocalizedSchemaLocalizer()));
             chromatogramGrid.Show(dockPanel, DockState.Floating);
         }
-||||||| .r11829
-=======
 
         public void SelectElement(ElementRef elementRef)
         {
@@ -5102,7 +5095,6 @@ namespace pwiz.Skyline
                 NavigateToBookmark(bookmark);
             }
         }
->>>>>>> .r11906
     }
 }
 

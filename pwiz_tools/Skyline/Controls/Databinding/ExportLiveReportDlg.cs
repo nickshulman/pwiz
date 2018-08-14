@@ -183,7 +183,8 @@ namespace pwiz.Skyline.Controls.Databinding
             {
                 dataSchema = new SkylineDataSchema(_documentUiContainer, GetDataSchemaLocalizer());
             }
-            return new DocumentGridViewContext(dataSchema) {EnablePreview = true};
+            var viewContext = new DocumentGridViewContext(dataSchema) {EnablePreview = true};
+            return viewContext;
         }
 
         public bool InvariantLanguage

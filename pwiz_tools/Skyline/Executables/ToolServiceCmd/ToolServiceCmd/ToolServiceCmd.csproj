@@ -79,8 +79,7 @@
   <ItemGroup>
     <Compile Include="BaseCommand.cs" />
     <Compile Include="DsvWriter.cs" />
-    <Compile Include="GetReportOptions.cs" />
-    <Compile Include="ImportAnnotations.cs" />
+    <Compile Include="GetReportCommand.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
@@ -95,4 +94,7 @@
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <PropertyGroup>
+    <PostBuildEvent>copy $(TargetDir)* $(SolutionDir)ExampleTool</PostBuildEvent>
+  </PropertyGroup>
 </Project>

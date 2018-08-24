@@ -1,32 +1,18 @@
-﻿using System;
-using CommandLine;
+﻿using CommandLine;
+using SkylineTool;
 
 namespace ToolServiceCmd
 {
-    public class BaseOptions
+    public abstract class BaseCommand
     {
         [Option(Required = true, HelpText = "Connection name from Skyline")]
         public string ConnectionName { get; set; }
-    }
 
-    public interface ICommand
-    {
-        Type OptionsType { get; }
-        int PerformCommand(object options);
-    }
- 
-    public abstract class BaseCommand<TOptions> : ICommand
-    {
-        Type ICommand.OptionsType
+        public abstract int PerformCommand();
+
+        protected SkylineToolClient GetSkylineToolClient()
         {
-            get { return typeof(TOptions); }
+            return new SkylineToolClient(ConnectionName, "ToolServiceCmd");
         }
-
-        int ICommand.PerformCommand(object options)
-        {
-            return PerformCommand((TOptions) options);
-        }
-
-        public abstract int PerformCommand(TOptions options);
     }
 }

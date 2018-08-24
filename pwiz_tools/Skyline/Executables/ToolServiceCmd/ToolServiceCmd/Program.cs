@@ -11,23 +11,41 @@ namespace ToolServiceCmd
     {
         static int Main(string[] args)
         {
-            var commands = new ICommand[]
-            {
-                new GetReportCommand(),
-                new ImportAnnotationsCommand(),
-            };
-            var parseResult = Parser.Default.ParseArguments(args, commands.Select(c=>c.OptionsType).ToArray());
+            var parseResult = Parser.Default.ParseArguments(args, 
+                typeof(GetVersionCommand),
+                typeof(GetReportCommand),
+                typeof(GetDocumentPath)
+            );
             Parsed<object> parsed = parseResult as Parsed<object>;
             if (parsed == null)
                 return 1;
-            foreach (var command in commands)
+            return ((BaseCommand) parsed.Value).PerformCommand();
+        }
+
+        [Verb("GetVersion")]
+        public class GetVersionCommand : BaseCommand
+        {
+            public override int PerformCommand()
             {
-                if (parsed.Value.GetType().IsAssignableFrom(command.OptionsType))
+                using (var client = GetSkylineToolClient())
                 {
-                    return command.PerformCommand(parsed.Value);
+                    Console.Out.WriteLine("{0}", client.GetSkylineVersion());
                 }
+                return 0;
             }
-            return 1;
+        }
+
+        [Verb("GetDocumentPath")]
+        public class GetDocumentPath : BaseCommand
+        {
+            public override int PerformCommand()
+            {
+                using (var client = GetSkylineToolClient())
+                {
+                    Console.Out.WriteLine("{0}", client.GetDocumentPath());
+                }
+                return 0;
+            }
         }
     }
 }

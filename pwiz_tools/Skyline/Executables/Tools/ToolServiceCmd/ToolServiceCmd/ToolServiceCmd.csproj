@@ -89,14 +89,14 @@
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\..\SkylineTool\SkylineTool.csproj">
+    <ProjectReference Include="..\..\..\..\SkylineTool\SkylineTool.csproj">
       <Project>{3fd4e167-8f9c-4116-8122-67c7ad143490}</Project>
       <Name>SkylineTool</Name>
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>
-    <PostBuildEvent>mkdir $(SolutionDir)ExampleTool\binaries
-copy $(TargetDir)* $(SolutionDir)ExampleTool\binaries</PostBuildEvent>
+    <PostBuildEvent>mkdir $(SolutionDir)ExampleTool\bin
+copy $(TargetDir)* $(SolutionDir)ExampleTool\bin</PostBuildEvent>
   </PropertyGroup>
 </Project>

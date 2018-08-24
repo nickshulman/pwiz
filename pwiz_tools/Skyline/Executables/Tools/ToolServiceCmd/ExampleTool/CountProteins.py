@@ -11,8 +11,7 @@ report_proteinlocators = """<?xml version="1.0"?>
 </views>"""
 
 connectionname = sys.argv[1]
-print "Using connectionname ", connectionname
-toolservicecmdexe = os.path.dirname(os.path.realpath(__file__)) + "/binaries/ToolServiceCmd.exe"
+toolservicecmdexe = os.path.dirname(os.path.realpath(__file__)) + "/bin/ToolServiceCmd.exe"
 
 args=[toolservicecmdexe, 'GetReport', '--connectionname', connectionname]
 print "Executing command ", args
@@ -21,4 +20,3 @@ p = subprocess.Popen([toolservicecmdexe, 'GetReport', '--connectionname', connec
 print "Result of command was", len(report_text), "characters long."
 
 print "There are", report_text.count('\n') - 1, "proteins"
-#input("Press Enter to continue")

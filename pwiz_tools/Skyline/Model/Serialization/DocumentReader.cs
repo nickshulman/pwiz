@@ -44,7 +44,6 @@ namespace pwiz.Skyline.Model.Serialization
         private readonly StringPool _stringPool = new StringPool();
         public DocumentFormat FormatVersion { get; private set; }
         public PeptideGroupDocNode[] Children { get; private set; }
-        public AuditLogList AuditLog { get; private set; }
 
         private readonly Dictionary<string, string> _uniqueSpecies = new Dictionary<string, string>();
 
@@ -533,8 +532,6 @@ namespace pwiz.Skyline.Model.Serialization
             reader.ReadStartElement();  // Start document element
             Settings = reader.DeserializeElement<SrmSettings>() ?? SrmSettingsList.GetDefault();
 
-            AuditLog = new AuditLogList();
-
             if (reader.IsStartElement())
             {
                 // Support v0.1 naming
@@ -550,7 +547,7 @@ namespace pwiz.Skyline.Model.Serialization
                 }
 
                 if (reader.IsStartElement(AuditLogList.XML_ROOT))
-                    AuditLog = reader.DeserializeElement<AuditLogList>();
+                    reader.Skip();
             }
 
             reader.ReadEndElement();    // End document element
@@ -1084,12 +1081,14 @@ namespace pwiz.Skyline.Model.Serialization
             var group = new TransitionGroup(peptide, precursorAdduct, typedMods.LabelType, false, decoyMassShift);
             var children = new TransitionDocNode[0];    // Empty until proven otherwise
             bool autoManageChildren = reader.GetBoolAttribute(ATTR.auto_manage_children, true);
+            double? precursorConcentration = reader.GetNullableDoubleAttribute(ATTR.precursor_concentration);
 
+            TransitionGroupDocNode nodeGroup;
             if (reader.IsEmptyElement)
             {
                 reader.Read();
 
-                return new TransitionGroupDocNode(group,
+                nodeGroup = new TransitionGroupDocNode(group,
                                                   Annotations.EMPTY,
                                                   Settings,
                                                   mods,
@@ -1106,7 +1105,7 @@ namespace pwiz.Skyline.Model.Serialization
                 var libInfo = ReadTransitionGroupLibInfo(reader);
                 var results = ReadTransitionGroupResults(reader);
 
-                var nodeGroup = new TransitionGroupDocNode(group,
+                nodeGroup = new TransitionGroupDocNode(group,
                                                   annotations,
                                                   Settings,
                                                   mods,
@@ -1119,8 +1118,10 @@ namespace pwiz.Skyline.Model.Serialization
 
                 reader.ReadEndElement();
 
-                return (TransitionGroupDocNode)nodeGroup.ChangeChildrenChecked(children);
+                nodeGroup = (TransitionGroupDocNode)nodeGroup.ChangeChildrenChecked(children);
             }
+            nodeGroup = nodeGroup.ChangePrecursorConcentration(precursorConcentration);
+            return nodeGroup;
         }
 
         private TypedModifications ReadLabelType(XmlReader reader, IsotopeLabelType labelTypeDefault)

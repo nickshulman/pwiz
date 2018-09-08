@@ -234,7 +234,20 @@ namespace pwiz.Skyline.Model.Results
                 _manager.EndProcessing(_document);
             }
 
+            private static readonly object _finishLock = new object();
+
             private void FinishLoad(string documentPath, MeasuredResults resultsLoad, MeasuredResults resultsPrevious)
+            {
+                // Only one finisher at a time, otherwise guaranteed wasted work
+                // CONSIDER: In thoery this should be a lock per document container, but in
+                //           practice we have only one document container per process
+                lock (_finishLock)
+                {
+                    FinishLoadSynch(documentPath, resultsLoad, resultsPrevious);
+                }
+            }
+
+            private void FinishLoadSynch(string documentPath, MeasuredResults resultsLoad, MeasuredResults resultsPrevious)
             {
                 if (resultsLoad == null)
                 {
@@ -821,7 +834,7 @@ namespace pwiz.Skyline.Model.Results
         private string GetOrdinalSaveId(int ordinalIndex)
         {
             if (ordinalIndex == -1)
-                throw new ArgumentOutOfRangeException("ordinalIndex", // Not L10N
+                throw new ArgumentOutOfRangeException(nameof(ordinalIndex),
                                                       Resources.ChromatogramSet_GetOrdinalSaveId_Attempting_to_save_results_info_for_a_file_that_cannot_be_found);
 
             return string.Format("{0}_f{1}", Helpers.MakeXmlId(Name), ordinalIndex); // Not L10N
@@ -1238,7 +1251,7 @@ namespace pwiz.Skyline.Model.Results
         private static string ParseParameter(string name, string url)
         {
             var parts = url.Split('?'); // Not L10N
-            if (parts.Count() > 1)
+            if (parts.Length > 1)
             {
                 var parameters = parts[1].Split('&'); // Not L10N
                 var parameter = parameters.FirstOrDefault(p => p.StartsWith(name));

@@ -1299,9 +1299,8 @@ namespace pwiz.ProteowizardWrapper
         {
             return value == Mobility  ?this : GetIonMobilityValue(value, Units);
         }
-        [DiffAttribute]
+        [Track]
         public double? Mobility { get; private set; }
-        [DiffAttribute]
         public MsDataFileImpl.eIonMobilityUnits Units { get; private set; }
         public bool HasValue { get { return Mobility.HasValue; } }
 
@@ -1498,7 +1497,7 @@ namespace pwiz.ProteowizardWrapper
 
         public void Add(int scanNum, MsDataSpectrum s)
         {
-            if (_scanStack.Count() >= _cacheSize)
+            if (_scanStack.Count >= _cacheSize)
             {
                 _cache.Remove(_scanStack.Dequeue());
             }

@@ -65,9 +65,6 @@ namespace pwiz.Skyline.Model.Serialization
                 WritePeptideGroupXml(writer, nodeGroup);
                 writer.WriteEndElement();
             }
-
-            if (SkylineVersion.SrmDocumentVersion >= DocumentFormat.VERSION_4_12 && Document.AuditLog.AuditLogEntries.Any())
-                writer.WriteElement(Document.AuditLog);
         }
         private void WriteProteinMetadataXML(XmlWriter writer, ProteinMetadata proteinMetadata, bool skipNameAndDescription) // Not L10N
         {
@@ -453,6 +450,7 @@ namespace pwiz.Skyline.Model.Serialization
 
             writer.WriteAttribute(ATTR.auto_manage_children, node.AutoManageChildren, true);
             writer.WriteAttributeNullable(ATTR.decoy_mass_shift, group.DecoyMassShift);
+            writer.WriteAttributeNullable(ATTR.precursor_concentration, node.PrecursorConcentration);
 
 
             TransitionPrediction predict = Settings.TransitionSettings.Prediction;

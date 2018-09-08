@@ -31,18 +31,29 @@ namespace SkylineTester
 {
     partial class SkylineTesterWindow
     {
-        private void Run(object sender, EventArgs e)
+        public void RunByTimer()
         {
+            RunUI(Run);
+        }
+
+        private void RunOrStopByUser()
+        {
+            // Used only in the nightly tab to invoke an immediate nightly run
             ShiftKeyPressed = (ModifierKeys == Keys.Shift);
 
             // Stop running task.
-            if (_runningTab != null)
+            if (_runningTab != null && (_runningTab.IsRunning() || _runningTab.IsWaiting()))
             {
-                Stop(null, null);
-                AcceptButton = DefaultButton;
+                if (StopByUser())
+                    AcceptButton = DefaultButton;   // Only change if the stop is successful
                 return;
             }
 
+            Run();
+        }
+
+        private void Run()
+        { 
             commandShell.ClearLog();
 
             // Prepare to start task.
@@ -76,6 +87,14 @@ namespace SkylineTester
         }
 
         /// <summary>
+        /// Can be either Run or Stop to the user, because the text is changed once something is running
+        /// </summary>
+        private void RunOrStop_Clicked(object sender, EventArgs e)
+        {
+            RunOrStopByUser();
+        }
+
+        /// <summary>
         /// Select failed tests from current run, deselecting others
         /// </summary>
         private void SelectFailedTests(object sender, EventArgs e)
@@ -95,19 +114,48 @@ namespace SkylineTester
             tabs.SelectTab(tabQuality);
         }
 
+        public TimeSpan RunElapsedTime
+        {
+            get { return DateTime.Now - _runStartTime; }
+        }
+
         public void ResetElapsedTime()
         {
             _runStartTime = DateTime.Now;
         }
 
-        public void Stop()
+        public void StopByTimer()
         {
-            RunUI(() => Stop(null, null));
+            // Make sure the stop happens on the UI thread
+            RunUI(Stop);
         }
 
-        private void Stop(object sender, EventArgs e)
+        public bool StopByUser()
+        {
+            if (IsNightlyRun()) // Ask for confirmation if user clicked Stop during a SkylineNightly run (sender is null for programatic shutdown)
+            {
+                var message =
+                    "The currently running tests are part of a SkylineNightly run. Are you sure you want to end all tests and close SkylineTester?  No report will be sent to the server if you do.";
+                if (MessageBox.Show(message, Text, MessageBoxButtons.OKCancel) != DialogResult.OK)
+                {
+                    return false;
+                }
+                Program.UserKilledTestRun = true;
+            }
+
+            Stop();
+
+            return true;
+        }
+
+        private void Stop()
         {
             _runningTab.Cancel();
+        }
+
+        private void Stop_Clicked(object sender, EventArgs e)
+        {
+            StopByUser();
         }
 
         public void Done()
@@ -131,7 +179,7 @@ namespace SkylineTester
             if (_restart)
             {
                 _restart = false;
-                Run(null, null);
+                Run();
             }
         }
 

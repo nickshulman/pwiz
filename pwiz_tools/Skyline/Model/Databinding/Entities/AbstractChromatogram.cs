@@ -28,7 +28,7 @@ namespace pwiz.Skyline.Model.Databinding.Entities
         [Format(Formats.Mz, NullValue = TextUtil.EXCEL_NA)]
         public double? ChromatogramProductMz
         {
-            get { return ChromatogramInfo == null ? (double?)null : ChromatogramInfo.ProductMz; }
+            get { return ChromatogramInfo == null ? (double?)null : ChromatogramInfo.ProductMz.RawValue; }
         }
 
         [Format(Formats.Mz, NullValue = TextUtil.EXCEL_NA)]

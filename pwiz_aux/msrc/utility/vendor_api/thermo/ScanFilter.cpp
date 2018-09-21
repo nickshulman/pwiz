@@ -448,7 +448,7 @@ const static boost::regex filterRegex("^(?<analyzer>FTMS|ITMS|TQMS|SQMS|TOFMS|SE
                          "(?<source>EI|CI|FAB|ESI|APCI|NSI|TSP|FD|MALDI|GD)?\\s*"
                          "(?<corona>!corona|corona)?\\s*"
                          "(?<photoIonization>!pi|pi)?\\s*"
-                         "(?<sourceCID>!sid|sid=\\d+(?:\\.\\d+))?\\s*"
+                         "(?<sourceCID>!sid|sid=-?\\d+(?:\\.\\d+))?\\s*"
                          "(?<detectorSet>!det|det=\\d+(?:\\.\\d+))?\\s*"
                          "(?:cv=(?<compensationVoltage>-?\\d+(?:\\.\\d+)?))?\\s*"
                          "(?<rapid>!r|r)?\\s*"
@@ -602,7 +602,7 @@ ScanFilter::parse(const string& filterLine)
 
                 // check for Lumos style supplemental activation filter format: it looks like multiple precursors
                 if (msLevel_ == 2 && saTypes.empty() &&
-                    precursorMZs_.size() == msLevel_ && precursorMZs_[0] == precursorMZs_[1] &&
+                    (int) precursorMZs_.size() == msLevel_ && precursorMZs_[0] == precursorMZs_[1] &&
                     activationTypes.size() > 1 && precursorEnergies_.size() > 1)
                 {
                     saTypes_.resize(1, parseActivationType(activationTypes[1]));

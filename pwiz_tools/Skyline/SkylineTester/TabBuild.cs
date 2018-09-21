@@ -21,6 +21,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Net;
 using System.Windows.Forms;
 using pwiz.Common.SystemUtil;
 
@@ -112,7 +113,7 @@ namespace SkylineTester
                 : MainWindow.BranchUrl.Text;
         }
 
-        public static void CreateBuildCommands(
+        public static bool CreateBuildCommands(
             string branchUrl, 
             string buildRoot, 
             IList<int> architectures, 
@@ -126,6 +127,49 @@ namespace SkylineTester
                 ? "Skyline (master)"
                 : "Skyline ({0}/{1})".With(branchParts[branchParts.Length - 2], branchParts[branchParts.Length - 1]);
             var git = MainWindow.Git;
+
+            // Determine toolset requirement based on .Net usage
+            // Pull a file like
+            // https://raw.githubusercontent.com/ProteoWizard/pwiz/master/pwiz_tools/Skyline/Skyline.csproj
+            // or
+            // https://raw.githubusercontent.com/ProteoWizard/pwiz/feature/VS2017-update/pwiz_tools/Skyline/Skyline.csproj
+            var toolset = "msvc-14.1"; // VS2017
+            for (var retry = 60; retry-- >0;)
+            {
+                var csProjFileUrl = GetMasterUrl().Equals(branchUrl)
+                    ? "https://raw.githubusercontent.com/ProteoWizard/pwiz/master/pwiz_tools/Skyline/Skyline.csproj"
+                    : "https://raw.githubusercontent.com/ProteoWizard/pwiz/" + branchUrl.Split(new[]{"/pwiz/tree/"}, StringSplitOptions.None)[1] + "/pwiz_tools/Skyline/Skyline.csproj";
+                try
+                {
+                    var csProjText = (new WebClient()).DownloadString(csProjFileUrl);
+                    var dotNetVersion = csProjText.Split(new[] {"TargetFrameworkVersion"}, StringSplitOptions.None)[1].Split('v')[1].Split(new []{'.'});
+                    if ((int.Parse(dotNetVersion[0]) >= 4) && (int.Parse(dotNetVersion[1]) >= 7))
+                    {
+                        toolset = "msvc-14.1"; // VS2017 for .Net 4.7.x or greater
+                    }
+                    break;
+                }
+                catch (Exception e)
+                {
+
+                    commandShell.AddImmediate("Trouble fetching {0} for .Net version inspection ({1})", csProjFileUrl, e.Message);
+                    if (retry == 0)
+                        throw;
+                    commandShell.AddImmediate("retrying...");
+                    commandShell.IsWaiting = true;
+                    // CONSIDER: Wait for up to 60 seconds while pumping messages for UI. Kind of a hack, but better than
+                    //           blocking the UI thread completely while trying.
+                    var watch = new Stopwatch();
+                    watch.Start();
+                    while (watch.Elapsed.TotalSeconds < 60)
+                    {
+                        if (!commandShell.IsWaiting)
+                            return false;   // Cancelled
+                        Application.DoEvents();
+                    }
+                    commandShell.IsWaiting = false;
+                }
+            }
 
             var architectureList = string.Join("- and ", architectures);
             commandShell.Add("# Build {0} {1}-bit...", branchName, architectureList);
@@ -175,13 +219,15 @@ namespace SkylineTester
             foreach (int architecture in architectures)
             {
                 commandShell.Add("#@ Building Skyline {0} bit...\n", architecture);
-                commandShell.Add("{0} {1} {2} --i-agree-to-the-vendor-licenses toolset=msvc-12.0 nolog",
+                commandShell.Add("{0} {1} {2} --i-agree-to-the-vendor-licenses toolset={3} nolog",
                     Path.Combine(buildRoot, @"pwiz_tools\build-apps.bat").Quote(),
                     architecture,
-                    runBuildTests ? "pwiz_tools/Skyline" : "pwiz_tools/Skyline//Skyline.exe");
+                    runBuildTests ? "pwiz_tools/Skyline" : "pwiz_tools/Skyline//Skyline.exe",
+                    toolset);
             }
 
             commandShell.Add("# Build done.");
+            return true;
         }
 
         public void DeleteBuild()

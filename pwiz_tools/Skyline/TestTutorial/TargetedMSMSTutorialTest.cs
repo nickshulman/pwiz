@@ -370,6 +370,8 @@ namespace pwiz.SkylineTestTutorial
             {
                 // Convert the document and just-created libraries to small molecules
                 ConvertDocumentToSmallMolecules(AsSmallMoleculesTestMode);
+                var originalDoc = doc;
+                RunUI(() => importPeptideSearchDlg.SetDocument(SkylineWindow.Document, originalDoc));
                 doc = SkylineWindow.Document;
                 documentFile = SkylineWindow.DocumentFilePath;
             }
@@ -394,7 +396,7 @@ namespace pwiz.SkylineTestTutorial
             {
                 WaitForConditionUI(1, // Immediate timeout - just want the richer error message that WaitForConditionUI provides
                     () => importPeptideSearchDlg.CurrentPage == ImportPeptideSearchDlg.Pages.chromatograms_page,
-                    string.Format("Expected to be on chromatograms_page, on {0} instead", currentPage));
+                    () => string.Format("Expected to be on chromatograms_page, on {0} instead", currentPage));
             }
             var importResultsNameDlg = ShowDialog<ImportResultsNameDlg>(() => importPeptideSearchDlg.ClickNextButton());
             RunUI(() =>

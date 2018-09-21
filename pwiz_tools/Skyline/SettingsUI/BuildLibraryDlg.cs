@@ -58,6 +58,7 @@ namespace pwiz.Skyline.SettingsUI
             BiblioSpecLiteBuilder.EXT_TSV,
             BiblioSpecLiteBuilder.EXT_MZTAB,
             BiblioSpecLiteBuilder.EXT_MZTAB_TXT,
+            BiblioSpecLiteBuilder.EXT_OPEN_SWATH,
        };
 
         private BiblioSpecLiteBuilder _builder;
@@ -125,7 +126,7 @@ namespace pwiz.Skyline.SettingsUI
                     bool checkFile;
                     if (!checkStates.TryGetValue(fileName, out checkFile))
                         checkFile = true;   // New files start out checked
-                    listInputFiles.Items.Add(fileName.Substring(_dirInputRoot.Length), checkFile);
+                    listInputFiles.Items.Add(PathEx.RemovePrefix(fileName, _dirInputRoot), checkFile);
                 }
                 int count = listInputFiles.CheckedItems.Count;
                 btnNext.Enabled = (panelProperties.Visible || count > 0);

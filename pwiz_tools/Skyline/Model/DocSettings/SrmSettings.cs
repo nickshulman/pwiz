@@ -73,13 +73,13 @@ namespace pwiz.Skyline.Model.DocSettings
             CreateFragmentMassCalcs();
         }
 
-        [DiffParent]
+        [TrackChildren]
         public PeptideSettings PeptideSettings { get; private set; }
 
-        [DiffParent]
+        [TrackChildren]
         public TransitionSettings TransitionSettings { get; private set; }
 
-        [DiffParent]
+        [TrackChildren]
         public DataSettings DataSettings { get; private set; }
 
         public MeasuredResults MeasuredResults { get; private set; }
@@ -606,7 +606,16 @@ namespace pwiz.Skyline.Model.DocSettings
                         listPeptideAndGroup = new List<PeptideDocNode>();
                         cachedPeptideStandards.Add(standardType, listPeptideAndGroup);
                     }
-                    listPeptideAndGroup.Add(nodePep);
+                    // Update the PeptideChromInfo before adding it to the list
+                    var nodeWithUpdatedResults = nodePep.ChangeSettings(this, new SrmSettingsDiff(this, true));
+                    if (nodePep.Equals(nodeWithUpdatedResults))
+                    {
+                        listPeptideAndGroup.Add(nodePep);
+                    }
+                    else
+                    {
+                        listPeptideAndGroup.Add(nodeWithUpdatedResults);
+                    }
                 }
             }
             // Create new read-only lists, if necessary
@@ -672,6 +681,14 @@ namespace pwiz.Skyline.Model.DocSettings
                         !ReferenceEquals(nodePep.Results, nodePepOrig.Results))
                     {
                         return true;
+                    }
+                    if (Equals(nodePep.GlobalStandardType, StandardType.GLOBAL_STANDARD) ||
+                        Equals(nodePep.GlobalStandardType, StandardType.SURROGATE_STANDARD))
+                    {
+                        if (!ReferenceEquals(nodePep, nodePepOrig))
+                        {
+                            return true;
+                        }
                     }
                 }
             }
@@ -1805,11 +1822,6 @@ namespace pwiz.Skyline.Model.DocSettings
             return reader.Deserialize(new SrmSettings());
         }
 
-        private enum EL
-        {
-            audit_log
-        }
-
         public override void ReadXml(XmlReader reader)
         {
             // Read tag attributes
@@ -2349,8 +2361,9 @@ namespace pwiz.Skyline.Model.DocSettings
                               // MS1 filtering changed select peaks
                               newTran.FullScan.PrecursorIsotopes != oldTran.FullScan.PrecursorIsotopes ||
                               newTran.FullScan.PrecursorIsotopeFilter != oldTran.FullScan.PrecursorIsotopeFilter ||
-                              (newTran.FullScan.PrecursorIsotopes != FullScanPrecursorIsotopes.None && enrichmentsChanged)
-                              ;
+                              (newTran.FullScan.PrecursorIsotopes != FullScanPrecursorIsotopes.None && enrichmentsChanged) ||
+                              !Equals(newTran.FullScan.PrecursorRes, oldTran.FullScan.PrecursorRes) ||
+                              !Equals(newTran.FullScan.PrecursorResMz, oldTran.FullScan.PrecursorResMz);
 
             // If the library loded state has changed, make sure the library properties are up to date,
             // but avoid changing the chosen transitions.
@@ -2418,9 +2431,9 @@ namespace pwiz.Skyline.Model.DocSettings
             for (int i = 0; i < measuredResultsNew.Chromatograms.Count; i++)
             {
                 var chromatogramSetNew = measuredResultsNew.Chromatograms[i].ChangeAnnotations(Annotations.EMPTY).ChangeUseForRetentionTimeFilter(false)
-                    .ChangeAnalyteConcentration(null).ChangeSampleType(SampleType.DEFAULT);
+                    .ChangeAnalyteConcentration(null).ChangeSampleType(SampleType.DEFAULT).ChangeName(string.Empty);
                 var chromatogramSetOld = measuredResultsOld.Chromatograms[i].ChangeAnnotations(Annotations.EMPTY).ChangeUseForRetentionTimeFilter(false)
-                    .ChangeAnalyteConcentration(null).ChangeSampleType(SampleType.DEFAULT);
+                    .ChangeAnalyteConcentration(null).ChangeSampleType(SampleType.DEFAULT).ChangeName(string.Empty);
                 if (!chromatogramSetNew.Equals(chromatogramSetOld))
                 {
                     return false;

@@ -25,15 +25,16 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Xml.Serialization;
-using NHibernate.Util;
+using pwiz.Common.Collections;
 using pwiz.Common.DataBinding;
 using pwiz.Common.SystemUtil;
 using pwiz.ProteowizardWrapper;
 using pwiz.Skyline.Model;
+using pwiz.Skyline.Model.AuditLog;
 using pwiz.Skyline.Model.Databinding;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.DocSettings.Extensions;
-using pwiz.Skyline.Model.ElementLocators;
+using pwiz.Skyline.Model.ElementLocators.ExportAnnotations;
 using pwiz.Skyline.Model.IonMobility;
 using pwiz.Skyline.Model.Irt;
 using pwiz.Skyline.Model.Lib;
@@ -157,8 +158,8 @@ namespace pwiz.Skyline
                     // Make sure no joining happens on open, if joining is disabled
                     if (commandArgs.ImportDisableJoining && _doc != null && _doc.Settings.HasResults)
                     {
-                        _doc = _doc.ChangeSettingsNoDiff(_doc.Settings.ChangeMeasuredResults(
-                            _doc.MeasuredResults.ChangeIsJoiningDisabled(true)));
+                        ModifyDocument(d => d.ChangeSettingsNoDiff(_doc.Settings.ChangeMeasuredResults(
+                            d.MeasuredResults.ChangeIsJoiningDisabled(true))));
                     }
                     DocContainer.SetDocument(_doc, null);
 
@@ -228,6 +229,12 @@ namespace pwiz.Skyline
                     return false;
             }
 
+            if (commandArgs.ImportingDocuments)
+            {
+                if (!ImportDocuments(commandArgs))
+                    return false;
+            }
+
             if (commandArgs.AddDecoys)
             {
                 if (!AddDecoys(commandArgs))
@@ -285,7 +292,7 @@ namespace pwiz.Skyline
             if (_doc != null && !_doc.IsLoaded)
             {
                 DocContainer.SetDocument(_doc, DocContainer.Document, true);
-                _doc = DocContainer.Document;
+                SetDocument(DocContainer.Document);
             }
         }
 
@@ -338,7 +345,9 @@ namespace pwiz.Skyline
             {
                 // If expected results are not imported successfully, terminate
                 if (!ImportResultsInDir(commandArgs.ImportSourceDirectory,
+                        commandArgs.ImportRecursive,
                         commandArgs.ImportNamingPattern,
+                        commandArgs.ReplicateName,
                         commandArgs.LockMassParameters,
                         commandArgs.ImportBeforeDate,
                         commandArgs.ImportOnOrAfterDate,
@@ -360,7 +369,7 @@ namespace pwiz.Skyline
             try
             {
                 var documentAnnotations = new DocumentAnnotations(_doc);
-                _doc = documentAnnotations.ReadAnnotationsFromFile(CancellationToken.None, commandArgs.ImportAnnotations);
+                ModifyDocument(d => documentAnnotations.ReadAnnotationsFromFile(CancellationToken.None, commandArgs.ImportAnnotations));
                 return true;
             }
             catch (Exception x)
@@ -414,7 +423,7 @@ namespace pwiz.Skyline
 
             if (Document != null && Document.Settings.HasResults)
             {
-                Document.Settings.MeasuredResults.ReadStreams.ForEach(s => s.CloseStream());
+                CollectionUtil.ForEach(Document.Settings.MeasuredResults.ReadStreams, s => s.CloseStream());
             }
             if (commandArgs.SharingZipFile)
             {
@@ -455,6 +464,26 @@ namespace pwiz.Skyline
             }
         }
 
+        public void SetDocument(SrmDocument doc)
+        {
+            ModifyDocument(d => doc);
+        }
+
+        public void ModifyDocument(Func<SrmDocument, SrmDocument> act)
+        {
+            ModifyDocument(act, null);
+        }
+
+        public void ModifyDocument(Func<SrmDocument, SrmDocument> act, Func<SrmDocumentPair, AuditLogEntry> logFunc)
+        {
+            var docOriginal = _doc;
+            _doc = act(_doc);
+            var docPair = SrmDocumentPair.Create(docOriginal, _doc);
+            var logEntry = logFunc?.Invoke(docPair);
+            if (logEntry != null)
+                _doc = AuditLogEntry.UpdateDocument(logEntry, docPair);
+        }
+
         private bool SetFullScanSettings(CommandArgs commandArgs)
         {
             try
@@ -471,8 +500,9 @@ namespace pwiz.Skyline
                         _out.WriteLine(Resources.CommandLine_SetFullScanSettings_Changing_full_scan_precursor_resolving_power_to__0__at__1__, res, resMz);
                     else
                         _out.WriteLine(Resources.CommandLine_SetFullScanSettings_Changing_full_scan_precursor_resolving_power_to__0__, res);
-                    _doc = _doc.ChangeSettings(_doc.Settings.ChangeTransitionFullScan(f =>
-                        f.ChangePrecursorResolution(f.PrecursorMassAnalyzer, res, resMz ?? f.PrecursorResMz)));
+
+                    ModifyDocument(d => d.ChangeSettings(_doc.Settings.ChangeTransitionFullScan(f =>
+                        f.ChangePrecursorResolution(f.PrecursorMassAnalyzer, res, resMz ?? f.PrecursorResMz))), AuditLogEntry.SettingsLogFunction);
                 }
                 if (commandArgs.FullScanProductRes.HasValue)
                 {
@@ -486,8 +516,8 @@ namespace pwiz.Skyline
                         _out.WriteLine(Resources.CommandLine_SetFullScanSettings_Changing_full_scan_product_resolving_power_to__0__at__1__, res, resMz);
                     else
                         _out.WriteLine(Resources.CommandLine_SetFullScanSettings_Changing_full_scan_product_resolving_power_to__0__, res);
-                    _doc = _doc.ChangeSettings(_doc.Settings.ChangeTransitionFullScan(f =>
-                        f.ChangeProductResolution(f.ProductMassAnalyzer, res, resMz ?? f.ProductResMz)));
+                    ModifyDocument(d => d.ChangeSettings(_doc.Settings.ChangeTransitionFullScan(f =>
+                        f.ChangeProductResolution(f.ProductMassAnalyzer, res, resMz ?? f.ProductResMz))), AuditLogEntry.SettingsLogFunction);
                 }
                 if (commandArgs.FullScanRetentionTimeFilterLength.HasValue)
                 {
@@ -496,8 +526,8 @@ namespace pwiz.Skyline
                         _out.WriteLine(Resources.CommandLine_SetFullScanSettings_Changing_full_scan_extraction_to______0__minutes_from_predicted_value_, rtLen);
                     else if (_doc.Settings.TransitionSettings.FullScan.RetentionTimeFilterType == RetentionTimeFilterType.ms2_ids)
                         _out.WriteLine(Resources.CommandLine_SetFullScanSettings_Changing_full_scan_extraction_to______0__minutes_from_MS_MS_IDs_, rtLen);
-                    _doc = _doc.ChangeSettings(_doc.Settings.ChangeTransitionFullScan(f =>
-                        f.ChangeRetentionTimeFilter(f.RetentionTimeFilterType, rtLen)));
+                    ModifyDocument(d => d.ChangeSettings(_doc.Settings.ChangeTransitionFullScan(f =>
+                        f.ChangeRetentionTimeFilter(f.RetentionTimeFilterType, rtLen))), AuditLogEntry.SettingsLogFunction);
                 }
                 return true;
             }
@@ -514,17 +544,21 @@ namespace pwiz.Skyline
             try
             {
                 var progressMonitor = new CommandProgressMonitor(_out, new ProgressStatus(string.Empty));
-                using (var stream = new StreamReaderWithProgress(skylineFile, progressMonitor))
+                string hash;
+                using (var reader = new HashingStreamReaderWithProgress(skylineFile, progressMonitor))
                 {
                     XmlSerializer xmlSerializer = new XmlSerializer(typeof(SrmDocument));
                     _out.WriteLine(Resources.CommandLine_OpenSkyFile_Opening_file___);
 
-                    _doc = ConnectDocument((SrmDocument)xmlSerializer.Deserialize(stream), skylineFile);
+                    SetDocument(ConnectDocument((SrmDocument)xmlSerializer.Deserialize(reader), skylineFile));
                     if (_doc == null)
                         return false;
 
                     _out.WriteLine(Resources.CommandLine_OpenSkyFile_File__0__opened_, Path.GetFileName(skylineFile));
+                    hash = reader.Stream.Done();
                 }
+
+                SetDocument(_doc.ReadAuditLog(skylineFile, hash, doc => null));
 
                 // Update settings for this file
                 _doc.Settings.UpdateLists(skylineFile);
@@ -772,17 +806,21 @@ namespace pwiz.Skyline
             return BackgroundProteomeList.GetDefault();
         }
 
-        public bool ImportResultsInDir(string sourceDir, Regex namingPattern, 
+        public bool ImportResultsInDir(string sourceDir, bool recursive, Regex namingPattern, string replicateName,
             LockMassParameters lockMassParameters,
             DateTime? importBefore, DateTime? importOnOrAfter,
             OptimizableRegression optimize, bool disableJoining, bool warnOnFailure)
         {
-            var listNamedPaths = GetDataSources(sourceDir, namingPattern, lockMassParameters);
+            var listNamedPaths = GetDataSources(sourceDir, recursive, namingPattern, lockMassParameters);
             if (listNamedPaths == null)
             {
                 return false;
             }
-
+            // If there is a single name for everything then it should override any naming from GetDataSources
+            if (!string.IsNullOrEmpty(replicateName))
+            {
+                listNamedPaths = new[] { new KeyValuePair<string, MsDataFileUri[]>(replicateName, listNamedPaths.SelectMany(s => s.Value).ToArray()) };
+            }
             return ImportDataFiles(listNamedPaths, lockMassParameters, importBefore, importOnOrAfter, optimize, disableJoining, warnOnFailure);
         }
 
@@ -794,7 +832,7 @@ namespace pwiz.Skyline
             if (hasMultiple || disableJoining)
             {
                 // Join at the end
-                _doc = _doc.ChangeSettingsNoDiff(_doc.Settings.ChangeIsResultsJoiningDisabled(true));
+                ModifyDocument(d => d.ChangeSettingsNoDiff(d.Settings.ChangeIsResultsJoiningDisabled(true)));
             }
 
             DocContainer.SetDocument(_doc, DocContainer.Document, true);
@@ -829,7 +867,8 @@ namespace pwiz.Skyline
                 isError = lastProgress != null && lastProgress.IsError;
                 multiStatus = lastProgress as MultiProgressStatus;
             }
-            _doc = DocContainer.Document;
+
+            SetDocument(DocContainer.Document);
             DocContainer.ResetProgress();
 
             if (_doc.Settings.HasResults)
@@ -861,8 +900,11 @@ namespace pwiz.Skyline
                             if (modifiedSet != null)
                                 chromatograms.Add(modifiedSet);
                         }
-                        _doc = _doc.ChangeMeasuredResults(chromatograms.Any() ? 
-                            _doc.Settings.MeasuredResults.ChangeChromatograms(chromatograms) : null);
+
+                        ModifyDocument(d =>
+                            d.ChangeMeasuredResults(chromatograms.Any()
+                                ? d.Settings.MeasuredResults.ChangeChromatograms(chromatograms)
+                                : null));
                     }
                 }
             }
@@ -870,11 +912,11 @@ namespace pwiz.Skyline
             if (hasMultiple && !disableJoining)
             {
                 // Allow joining to happen
-                _doc = _doc.ChangeSettingsNoDiff(_doc.Settings.ChangeIsResultsJoiningDisabled(false));
+                ModifyDocument(d => d.ChangeSettingsNoDiff(d.Settings.ChangeIsResultsJoiningDisabled(false)));
                 if (!_doc.IsLoaded)
                 {
                     DocContainer.SetDocument(_doc, DocContainer.Document, true);
-                    _doc = DocContainer.Document;
+                    SetDocument(DocContainer.Document);
                     DocContainer.ResetProgress();
                     // If not fully loaded now, there must have been an error.
                     if (!_doc.IsLoaded)
@@ -924,13 +966,13 @@ namespace pwiz.Skyline
             public MsDataFileUri FilePath { get; private set; }
         }
 
-        private IList<KeyValuePair<string, MsDataFileUri[]>> GetDataSources(string sourceDir, Regex namingPattern, LockMassParameters lockMassParameters)
+        private IList<KeyValuePair<string, MsDataFileUri[]>> GetDataSources(string sourceDir, bool recursive, Regex namingPattern, LockMassParameters lockMassParameters)
         {   
             // get all the valid data sources (files and sub directories) in this directory.
             IList<KeyValuePair<string, MsDataFileUri[]>> listNamedPaths;
             try
             {
-                listNamedPaths = DataSourceUtil.GetDataSources(sourceDir).ToArray();
+                listNamedPaths = DataSourceUtil.GetDataSources(sourceDir, recursive).ToArray();
             }
             catch(IOException e)
             {
@@ -1189,7 +1231,7 @@ namespace pwiz.Skyline
             } 
 
             if (disableJoining)
-                _doc = _doc.ChangeSettingsNoDiff(_doc.Settings.ChangeIsResultsJoiningDisabled(true));
+                ModifyDocument(d => d.ChangeSettingsNoDiff(d.Settings.ChangeIsResultsJoiningDisabled(true)));
 
             //This function will also detect whether the replicate exists in the document
             ImportResults(DocContainer, replicateName, replicateFile, optimize);
@@ -1232,7 +1274,7 @@ namespace pwiz.Skyline
                 MeasuredResults newMeasuredResults = filteredChroms.Any() ?
                     _doc.Settings.MeasuredResults.ChangeChromatograms(filteredChroms) : null;
 
-                _doc = _doc.ChangeMeasuredResults(newMeasuredResults);
+                ModifyDocument(d => d.ChangeMeasuredResults(newMeasuredResults));
             }
         }
 
@@ -1327,6 +1369,7 @@ namespace pwiz.Skyline
             // Import FASTA
             if (commandArgs.ImportingFasta)
             {
+
                 _out.WriteLine(Resources.CommandLine_ImportFasta_Importing_FASTA_file__0____, Path.GetFileName(commandArgs.FastaPath));
                 doc = ImportPeptideSearch.PrepareImportFasta(doc);
                 List<PeptideGroupDocNode> peptideGroupsNew;
@@ -1339,7 +1382,7 @@ namespace pwiz.Skyline
                 catch (Exception x)
                 {
                     _out.WriteLine(Resources.CommandLine_Run_Error__Failed_importing_the_file__0____1_, commandArgs.FastaPath, x.Message);
-                    _doc = doc;
+                    SetDocument(doc);
                     return true;  // So that document will be saved with the new library
                 }
 
@@ -1350,9 +1393,43 @@ namespace pwiz.Skyline
             }
 
             // Import results
-            _doc = doc;
+            SetDocument(doc);
             ImportFoundResultsFiles(commandArgs, import);
             return true;
+        }
+        
+
+        private bool ImportDocuments(CommandArgs commandArgs)
+        {
+            // Add files to the end in the order they were given.
+            foreach (var filePath in commandArgs.DocImportPaths)
+            {
+                _out.WriteLine(Resources.SkylineWindow_ImportFiles_Importing__0__, Path.GetFileName(filePath));
+
+                using (var reader = new StreamReader(filePath))
+                {
+                    IdentityPath firstAddedForFile, nextAdd;
+                    _doc = _doc.ImportDocumentXml(reader,
+                                                filePath,
+                                                commandArgs.DocImportResultsMerge.Value,
+                                                commandArgs.DocImportMergePeptides,
+                                                FindSpectralLibrary,
+                                                Settings.Default.StaticModList,
+                                                Settings.Default.HeavyModList,
+                                                null,   // Always add to the end
+                                                out firstAddedForFile,
+                                                out nextAdd,
+                                                false);
+                }
+            }
+            return true;
+        }
+
+        private string FindSpectralLibrary(string libraryName, string fileName)
+        {
+            // No ability to ask the user for the location of the library, so just warn
+            _out.WriteLine(Resources.CommandLine_ConnectLibrarySpecs_Warning__Could_not_find_the_spectral_library__0_, libraryName);
+            return null;
         }
 
         private bool AddDecoys(CommandArgs commandArgs)
@@ -1380,7 +1457,7 @@ namespace pwiz.Skyline
                 NumberOfDecoys = numDecoys
             };
             int peptidesBefore = _doc.PeptideCount;
-            _doc = refineAddDecoys.GenerateDecoys(_doc);
+            ModifyDocument(d => refineAddDecoys.GenerateDecoys(d));
             _out.WriteLine(Resources.CommandLine_AddDecoys_Added__0__decoy_peptides_using___1___method, _doc.PeptideCount - peptidesBefore, commandArgs.AddDecoysType);
             return true;
         }
@@ -1510,7 +1587,7 @@ namespace pwiz.Skyline
                 // Train the model.
                 string documentPath = log ? DocContainer.DocumentFilePath : null;
                 scoringModel = (MProphetPeakScoringModel)scoringModel.Train(targetTransitionGroups,
-                    decoyTransitionGroups, initialParams, modelIterationCount, secondBest, true, progressMonitor, documentPath);
+                    decoyTransitionGroups, targetDecoyGenerator, initialParams, modelIterationCount, secondBest, true, progressMonitor, documentPath);
 
                 Settings.Default.PeakScoringModelList.SetValue(scoringModel);
 
@@ -1559,7 +1636,7 @@ namespace pwiz.Skyline
                     _out.WriteLine(Resources.CommandLine_Reintegrate_Error__The_current_peak_scoring_model_is_incompatible_with_one_or_more_peptides_in_the_document__Please_train_a_new_model_);
                     return false;
                 }
-                _doc = resultsHandler.ChangePeaks(progressMonitor);
+                ModifyDocument(d => resultsHandler.ChangePeaks(progressMonitor));
 
                 return true;
             }
@@ -1580,12 +1657,13 @@ namespace pwiz.Skyline
                 IdentityPath selectPath;
                 long lines = Helpers.CountLinesInFile(path);
                 int emptiesIgnored;
-                _doc = _doc.ImportFasta(readerFasta, progressMonitor, lines, false, null, out selectPath, out emptiesIgnored);
+                ModifyDocument(d => d.ImportFasta(readerFasta, progressMonitor, lines, false, null, out selectPath, out emptiesIgnored));
             }
             
             // Remove all empty proteins unless otherwise specified
             if (!keepEmptyProteins)
-                _doc = new RefinementSettings { MinPeptidesPerProtein = 1 }.Refine(_doc);
+                ModifyDocument(d => new RefinementSettings { MinPeptidesPerProtein = 1 }.Refine(d));
+ 
         }
 
         private bool ImportTransitionList(CommandArgs commandArgs)
@@ -1623,7 +1701,7 @@ namespace pwiz.Skyline
             }
             if (!commandArgs.IsTransitionListAssayLibrary)
             {
-                _doc = docNew;
+                ModifyDocument(d => docNew);
                 return true;
             }
             if (irtPeptides.Count == 0 || librarySpectra.Count == 0)
@@ -1787,7 +1865,8 @@ namespace pwiz.Skyline
                     }
                 }
             }
-            _doc = docNew;
+
+            ModifyDocument(d => docNew);
             return true;
         }
 
@@ -1893,7 +1972,7 @@ namespace pwiz.Skyline
                 new List<LibrarySpec>{ librarySpec };
 
             SrmSettings newSettings = _doc.Settings.ChangePeptideLibraries(l => l.ChangeLibrarySpecs(librarySpecs));
-            _doc = _doc.ChangeSettings(newSettings);
+            ModifyDocument(d => d.ChangeSettings(newSettings));
 
             return true;
         }

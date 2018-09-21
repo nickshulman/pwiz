@@ -43,9 +43,16 @@ namespace TestRunner
     internal static class Program
     {
         private static readonly string[] TEST_DLLS = { "Test.dll", "TestA.dll", "TestConnected.dll", "TestFunctional.dll", "TestTutorial.dll", "CommonTest.dll", "TestPerf.dll" };
-        private const int LeakThreshold = 250000;
-        private const int CrtLeakThreshold = 1000;
-        private const int LeakCheckIterations = 20;
+        private const int LeakTrailingDeltas = 7;   // Number of trailing deltas to average and check against thresholds below
+        // CONSIDER: Ideally these thresholds would be zero, but memory and handle retention are not stable enough to support that
+        //           The problem is that we don't reliably return to exactly the same state during EndTest and these numbers go both up and down
+        // TODO: These thresholds are way too high, but I needed to raise them this much to get new tracking code in place
+        private const int LeakThreshold = 150*1024;  // 150 KB
+        private const double LeakHandleThreshold = 5; // 2 handle of any kind
+        private const double LeakGdiUserThreshold = 2;  // 2 handle gdi+user (not all included in the total handle count)
+        private const int CrtLeakThreshold = 1000;  // No longer used
+        private const int LeakCheckIterations = 24; // Maximum number of runs to try to achieve below thresholds for trailing deltas
+        private static bool IsFixedLeakIterations { get { return false; } } // CONSIDER: It would be nice to make this true to reduce test run count variance
 
         [STAThread]
         static int Main(string[] args)
@@ -192,14 +199,25 @@ namespace TestRunner
             }
             catch (Exception e)
             {
-                Console.WriteLine("\n\n" + e.Message);
-                Console.WriteLine(e.StackTrace);
+                Console.WriteLine("\nCaught exception in TestRunnner.Program.Main:\n" + e.Message);
+                if (string.IsNullOrEmpty(e.StackTrace))
+                    Console.WriteLine("No stacktrace");
+                else
+                    Console.WriteLine(e.StackTrace);
                 if (e.InnerException != null)
                 {
-                    Console.WriteLine("\nInner exception:");
+                    Console.WriteLine("Inner exception:");
                     Console.WriteLine(e.InnerException.Message);
-                    Console.WriteLine(e.InnerException.StackTrace);
+                    if (string.IsNullOrEmpty(e.InnerException.StackTrace))
+                        Console.WriteLine("No stacktrace");
+                    else
+                        Console.WriteLine(e.InnerException.StackTrace);
                 }
+                else
+                {
+                    Console.WriteLine("No inner exception.");
+                }
+                Console.Out.Flush(); // Get this info to TeamCity or SkylineTester ASAP
                 allTestsPassed = false;
             }
 
@@ -402,24 +420,16 @@ namespace TestRunner
                         continue;  
                     }
 
-                    // Warm up memory by running the test in each language.
-                    for (int i = 0; i < qualityLanguages.Length; i++)
-                    {
-                        runTests.Language =  new CultureInfo(qualityLanguages[i]);
-                        if (!runTests.Run(test, 1, testNumber))
-                        {
-                            failed = true;
-                            removeList.Add(test);
-                            break;
-                        }
-                    }
-
                     if (failed)
                         continue;
 
                     // Run test repeatedly until we can confidently assess the leak status.
-                    double slope = 0;
                     var memoryPoints = new List<double> {runTests.TotalMemoryBytes};
+                    var handlePoints = new List<int> {runTests.LastTotalHandleCount};
+                    var gdiPoints = new List<int> { runTests.LastGdiHandleCount };
+                    var userPoints = new List<int> { runTests.LastUserHandleCount };
+                    double lastMemoryDelta = 0, lastHandleDelta = 0, lastGdiUserDelta = 0;
+                    int? passedIndex = null;
                     for (int i = 0; i < LeakCheckIterations; i++)
                     {
                         // Run the test in the next language.
@@ -432,26 +442,70 @@ namespace TestRunner
                             break;
                         }
 
-                        // Run linear regression on memory size samples.
-                        var memoryBytes = runTests.TotalMemoryBytes;
-                        memoryPoints.Add(memoryBytes);
-                        if (memoryPoints.Count < 8)
+                        // If already passed, no need to collect more points, but continue
+                        // running tests to keep test count variance more predictable
+                        if (passedIndex.HasValue)
                             continue;
 
-                        // Stop if the leak magnitude is below our threshold.
-                        slope = CalculateSlope(memoryPoints); 
-                        if (slope < LeakThreshold)
-                            break;
-                        memoryPoints.RemoveAt(0);
+                        // Run linear regression on memory size samples.
+                        memoryPoints.Add(runTests.TotalMemoryBytes);
+                        handlePoints.Add(runTests.LastTotalHandleCount);
+                        gdiPoints.Add(runTests.LastGdiHandleCount);
+                        userPoints.Add(runTests.LastUserHandleCount);
+                        if (memoryPoints.Count <= LeakTrailingDeltas)
+                            continue;
+
+                        // Stop accumulating points if the leak magnitude is below our threshold.
+                        lastMemoryDelta = MeanDelta(memoryPoints);
+                        lastHandleDelta = MeanDelta(handlePoints);
+                        lastGdiUserDelta = MeanDelta(gdiPoints) + MeanDelta(userPoints);
+                        if (lastMemoryDelta < LeakThreshold &&
+                            lastHandleDelta < LeakHandleThreshold &&
+                            lastGdiUserDelta < LeakGdiUserThreshold)
+                        {
+                            passedIndex = i;
+
+                            if (!IsFixedLeakIterations)
+                                break;
+                        }
+
+                        // Remove the oldest point unless this is the last iteration
+                        // So that the report below will be based on the set that just
+                        // failed the leak check
+                        if (!passedIndex.HasValue && i < LeakCheckIterations - 1)
+                        {
+                            memoryPoints.RemoveAt(0);
+                            handlePoints.RemoveAt(0);
+                            gdiPoints.RemoveAt(0);
+                            userPoints.RemoveAt(0);
+                        }
                     }
 
                     if (failed)
                         continue;
 
-                    if (slope >= LeakThreshold)
+                    if (lastMemoryDelta >= LeakThreshold)
                     {
-                        runTests.Log("!!! {0} LEAKED {1} bytes\r\n", test.TestMethod.Name, Math.Floor(slope));
+                        runTests.Log("!!! {0} LEAKED {1:0.#} bytes\r\n", test.TestMethod.Name, lastMemoryDelta);
                         removeList.Add(test);
+                    }
+                    else if (lastHandleDelta >= LeakHandleThreshold || lastGdiUserDelta >= LeakGdiUserThreshold)
+                    {
+                        if (lastGdiUserDelta < LeakGdiUserThreshold)
+                            runTests.Log("!!! {0} HANDLE-LEAKED {1:0.#} Total\r\n", test.TestMethod.Name, lastHandleDelta);
+                        else if (MeanDelta(userPoints) >= LeakGdiUserThreshold)
+                            runTests.Log("!!! {0} HANDLE-LEAKED {1:0.#} User ({2:0.#} Total)\r\n", test.TestMethod.Name, MeanDelta(userPoints), lastHandleDelta);
+                        else if (MeanDelta(gdiPoints) >= LeakGdiUserThreshold)
+                            runTests.Log("!!! {0} HANDLE-LEAKED {1:0.#} GDI ({2:0.#} Total)\r\n", test.TestMethod.Name, MeanDelta(gdiPoints), lastHandleDelta);
+                        else
+                            runTests.Log("!!! {0} HANDLE-LEAKED {1:0.#} GDI+User ({2:0.#} Total)\r\n", test.TestMethod.Name, lastGdiUserDelta, lastHandleDelta);
+                        removeList.Add(test);
+                    }
+                    else
+                    {
+                        // Report the final mean average deltas over the passing or final 8 runs (7 deltas)
+                        runTests.Log("# {0} deltas ({1}): memory = {2:0.#} KB, user = {3:0.#}, gdi = {4:0.#}, total = {5:0.#}\r\n",
+                            test.TestMethod.Name, passedIndex+1 ?? LeakCheckIterations, lastMemoryDelta / 1024, MeanDelta(userPoints), MeanDelta(gdiPoints), lastHandleDelta);
                     }
                 }
 
@@ -482,9 +536,9 @@ namespace TestRunner
                 runTests.Log("# Pass 2+: Run tests in each selected language.\r\n");
             }
 
-            int perfPass = pass; // For nightly tests, we'll run perf tests just once per language, and only in one language (french) if english and french (along with any others) are both enabled
+            int perfPass = pass; // For nightly tests, we'll run perf tests just once per language, and only in one language (dynamically chosen for coverage) if english and french (along with any others) are both enabled
             bool needsPerfTestPass2Warning = asNightly && testList.Any(t => t.IsPerfTest); // No perf tests, no warning
-            var perfTestsFrenchOnly = asNightly && perftests && languages.Any(l => l.StartsWith("en")) && languages.Any(l => l.StartsWith("fr"));
+            var perfTestsOneLanguageOnly = asNightly && perftests && languages.Any(l => l.StartsWith("en")) && languages.Any(l => l.StartsWith("fr"));
             bool flip = true;
 
             for (; pass < passEnd; pass++)
@@ -498,12 +552,13 @@ namespace TestRunner
                 {
                     var test = testPass[testNumber];
 
-                    // Perf Tests are generally too lengthy to run multiple times (but non-english format check is useful)
-                    var languagesThisTest = (test.IsPerfTest && perfTestsFrenchOnly) ? new[] { "fr" } : languages;
-                    if (perfTestsFrenchOnly && needsPerfTestPass2Warning)
+                    // Perf Tests are generally too lengthy to run multiple times (but non-english format check is useful, so rotate through on a per-day basis)
+                    var perfTestLanguage = languages[DateTime.Now.DayOfYear % languages.Length];
+                    var languagesThisTest = (test.IsPerfTest && perfTestsOneLanguageOnly) ? new[] { perfTestLanguage } : languages;
+                    if (perfTestsOneLanguageOnly && needsPerfTestPass2Warning)
                     {
                         // NB the phrase "# Perf tests" in a log is a key for SkylineNightly to post to a different URL - so don't mess with this.
-                        runTests.Log("# Perf tests will be run only once, and only in French.  To run perf tests in other languages, enable all but English.\r\n");
+                        runTests.Log("# Perf tests will be run only once, and only in one language, dynamically chosen (by DayOfYear%NumberOfLanguages) for coverage.  To run perf tests in specific languages, enable all but English.\r\n");
                         needsPerfTestPass2Warning = false;
                     }
 
@@ -554,6 +609,22 @@ namespace TestRunner
             }
 
             return runTests.FailureCount == 0;
+        }
+
+        private static double MeanDelta(List<int> gdiPoints)
+        {
+            var listDelta = new List<int>();
+            for (int i = 1; i < gdiPoints.Count; i++)
+                listDelta.Add(gdiPoints[i] - gdiPoints[i - 1]);
+            return listDelta.Average();
+        }
+
+        private static double MeanDelta(List<double> gdiPoints)
+        {
+            var listDelta = new List<double>();
+            for (int i = 1; i < gdiPoints.Count; i++)
+                listDelta.Add(gdiPoints[i] - gdiPoints[i - 1]);
+            return listDelta.Average();
         }
 
         private static double CalculateSlope(IEnumerable<double> points)
@@ -701,7 +772,7 @@ namespace TestRunner
         private class LeakingTest
         {
             public string TestName;
-            public long LeakSize;
+            public double LeakSize;
         }
 
         // Generate a summary report of errors and memory leaks from a log file.
@@ -711,6 +782,7 @@ namespace TestRunner
 
             var errorList = new List<string>();
             var leakList = new List<LeakingTest>();
+            var handleLeakList = new List<LeakingTest>();
             var crtLeakList = new List<LeakingTest>();
 
             string error = null;
@@ -740,12 +812,17 @@ namespace TestRunner
                    
                     if (failureType == "LEAKED")
                     {
-                        var leakSize = long.Parse(parts[3]);
+                        var leakSize = double.Parse(parts[3]);
                         leakList.Add(new LeakingTest { TestName = test, LeakSize = leakSize });
                         continue;
                     }
-                   
-                    if (failureType == "CRT-LEAKED")
+                    else if (failureType == "HANDLE-LEAKED")
+                    {
+                        var leakSize = double.Parse(parts[3]);
+                        handleLeakList.Add(new LeakingTest { TestName = test, LeakSize = leakSize });
+                        continue;
+                    }
+                    else if (failureType == "CRT-LEAKED")
                     {
                         var leakSize = long.Parse(parts[3]);
                         crtLeakList.Add(new LeakingTest { TestName = test, LeakSize = leakSize });
@@ -770,6 +847,13 @@ namespace TestRunner
                 ReportLeaks(leakList);
             }
 
+            if (handleLeakList.Count > 0)
+            {
+                Console.WriteLine();
+                Console.WriteLine("# Leaking handles tests (handles per run):");
+                ReportLeaks(handleLeakList);
+            }
+
             if (crtLeakList.Count > 0)
             {
                 Console.WriteLine();
@@ -782,7 +866,7 @@ namespace TestRunner
         {
             foreach (var leakTest in leakList.OrderByDescending(test => test.LeakSize))
             {
-                Console.WriteLine("#    {0,-36} {1,10:N0}",
+                Console.WriteLine("#    {0,-36} {1,10:0.#}",
                     leakTest.TestName.Substring(0, Math.Min(36, leakTest.TestName.Length)),
                     leakTest.LeakSize);
             }
@@ -889,8 +973,26 @@ Here is a list of recognized arguments:
 
         private static void ThreadExceptionEventHandler(Object sender, ThreadExceptionEventArgs e)
         {
+            Console.WriteLine("Report from TestRunner.Program.ThreadExceptionEventHandler:");
             Console.WriteLine(e.Exception.Message);
-            Console.WriteLine(e.Exception.StackTrace);
+            if (string.IsNullOrEmpty(e.Exception.StackTrace))
+                Console.WriteLine("No stacktrace");
+            else
+                Console.WriteLine(e.Exception.StackTrace);
+            if (e.Exception.InnerException != null)
+            {
+                Console.WriteLine("Inner exception:");
+                Console.WriteLine(e.Exception.InnerException.Message);
+                if (string.IsNullOrEmpty(e.Exception.InnerException.StackTrace))
+                    Console.WriteLine("No stacktrace");
+                else
+                    Console.WriteLine(e.Exception.InnerException.StackTrace);
+            }
+            else
+            {
+                Console.WriteLine("No inner exception.");
+            }
+            Console.Out.Flush(); // Get this info to TeamCity or SkylineTester ASAP
         }
 
         public static IEnumerable<TItem> RandomOrder<TItem>(this IList<TItem> list)

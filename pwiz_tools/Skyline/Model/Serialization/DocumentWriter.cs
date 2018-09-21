@@ -65,9 +65,6 @@ namespace pwiz.Skyline.Model.Serialization
                 WritePeptideGroupXml(writer, nodeGroup);
                 writer.WriteEndElement();
             }
-
-            if (Document.AuditLog.AuditLogEntries.Any())
-                    writer.WriteElement(Document.AuditLog);
         }
         private void WriteProteinMetadataXML(XmlWriter writer, ProteinMetadata proteinMetadata, bool skipNameAndDescription) // Not L10N
         {
@@ -453,6 +450,7 @@ namespace pwiz.Skyline.Model.Serialization
 
             writer.WriteAttribute(ATTR.auto_manage_children, node.AutoManageChildren, true);
             writer.WriteAttributeNullable(ATTR.decoy_mass_shift, group.DecoyMassShift);
+            writer.WriteAttributeNullable(ATTR.precursor_concentration, node.PrecursorConcentration);
 
 
             TransitionPrediction predict = Settings.TransitionSettings.Prediction;
@@ -526,7 +524,7 @@ namespace pwiz.Skyline.Model.Serialization
             writer.WriteAttributeNullable(ATTR.start_time, chromInfo.StartRetentionTime);
             writer.WriteAttributeNullable(ATTR.end_time, chromInfo.EndRetentionTime);
             writer.WriteAttributeNullable(ATTR.ccs, chromInfo.IonMobilityInfo.CollisionalCrossSection);
-            if (chromInfo.IonMobilityInfo.IonMobilityUnits != MsDataFileImpl.eIonMobilityUnits.none)
+            if (chromInfo.IonMobilityInfo.IonMobilityUnits != eIonMobilityUnits.none)
             {
                 writer.WriteAttributeNullable(ATTR.ion_mobility_ms1, chromInfo.IonMobilityInfo.IonMobilityMS1);
                 writer.WriteAttributeNullable(ATTR.ion_mobility_fragment, chromInfo.IonMobilityInfo.IonMobilityFragment);
@@ -750,6 +748,7 @@ namespace pwiz.Skyline.Model.Serialization
                     writer.WriteAttribute(ATTR.rank_by_level, chromInfo.RankByLevel);
             }
             writer.WriteAttribute(ATTR.user_set, chromInfo.UserSet);
+            writer.WriteAttribute(ATTR.forced_integration, chromInfo.IsForcedIntegration, false);
             WriteAnnotations(writer, chromInfo.Annotations);
         }
 

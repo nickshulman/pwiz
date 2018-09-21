@@ -83,7 +83,7 @@ namespace TestPerf // Note: tests in the "TestPerf" namespace only run when the 
                 SkyZipUrl = CHORUS_DATASET_URL + "Waters/Hoofnagle_MSe_targeted.sky.zip",
             }
         });
-        [TestMethod]
+        //[TestMethod]
         public void TestGenerateChorusRequests()
         {
             List<string> testFilesZipPaths = new List<string>();
@@ -162,7 +162,9 @@ namespace TestPerf // Note: tests in the "TestPerf" namespace only run when the 
         {
             public string Name;
             public string SkyZipUrl;
+            // ReSharper disable NotAccessedField.Global
             public string MsDataZipUrl;
+            // ReSharper restore NotAccessedField.Global
         }
     }
 }

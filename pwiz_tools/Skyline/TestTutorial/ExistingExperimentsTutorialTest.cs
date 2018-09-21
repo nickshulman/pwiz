@@ -32,7 +32,6 @@ using pwiz.Skyline.FileUI;
 using pwiz.Skyline.Model;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.Lib;
-using pwiz.Skyline.Model.Proteome;
 using pwiz.Skyline.Model.Results;
 using pwiz.Skyline.Model.Results.Scoring;
 using pwiz.Skyline.Properties;
@@ -53,6 +52,7 @@ namespace pwiz.SkylineTestTutorial
         {
             // Set true to look at tutorial screenshots.
             //IsPauseForScreenShots = true;
+            //IsPauseForAuditLog = true;
 
             ForceMzml = false;
 
@@ -78,12 +78,9 @@ namespace pwiz.SkylineTestTutorial
             return TestFilesDirs[0].GetTestPath(folderExistQuant + "\\" + relativePath);
         }
 
-        private bool IsFullData
+        protected override bool UseRawFiles
         {
-            get
-            {
-                return IsPauseForScreenShots || IsDemoMode || IsPass0;
-            }
+            get { return !ForceMzml && ExtensionTestContext.CanImportThermoRaw && ExtensionTestContext.CanImportAbWiff; }
         }
 
         private bool UseRawFilesOrFullData
@@ -134,15 +131,9 @@ namespace pwiz.SkylineTestTutorial
                                           RelativeRT.Matching, null, null, null);
             AddHeavyMod(modHeavyR, peptideSettingsUI, "Edit Isotope Modification form", 6);
             RunUI(() => peptideSettingsUI.PickedHeavyMods = new[] { HEAVY_K, HEAVY_R });
+            var docBeforePeptideSettings = SkylineWindow.Document;
             OkDialog(peptideSettingsUI, peptideSettingsUI.OkDialog);
-            WaitForCondition(
-                60 * 1000 * (AllowInternetAccess ? 6 : 3), // Protein metadata lookup can take longer
-                () =>
-                SkylineWindow.Document.Settings.PeptideSettings.Libraries.Libraries.Count > 0
-                && SkylineWindow.Document.Settings.HasBackgroundProteome
-                && BackgroundProteomeManager.DocumentHasLoadedBackgroundProteomeOrNone(SkylineWindow.Document,true) // wait for protein metadata
-                && SkylineWindow.IsGraphSpectrumVisible);
-            WaitForDocumentLoaded();
+            WaitForDocumentChangeLoaded(docBeforePeptideSettings);
 
             // Inserting a Transition List With Associated Proteins, p. 6
             RunUI(() =>
@@ -204,11 +195,14 @@ namespace pwiz.SkylineTestTutorial
             FindNode(string.Format("{0:F04}", 504.2664));   // I18N
             RunUI(() =>
             {
-                TransitionTreeNode selNode = (TransitionTreeNode)SkylineWindow.SequenceTree.SelectedNode;
-                SkylineWindow.RemovePeak(SkylineWindow.SequenceTree.SelectedPath.GetPathTo((int)SrmDocument.Level.TransitionGroups),
-                ((TransitionGroupTreeNode)selNode.Parent).DocNode, selNode.DocNode);
+                TransitionTreeNode selNode = (TransitionTreeNode) SkylineWindow.SequenceTree.SelectedNode;
+                SkylineWindow.RemovePeak(
+                    SkylineWindow.SequenceTree.SelectedPath.GetPathTo((int) SrmDocument.Level.TransitionGroups),
+                    ((TransitionGroupTreeNode) selNode.Parent).DocNode, selNode.DocNode);
+                // Ensure that the Total Ratio is 0.62
+                // TODO(nicksh): Update tutorial Word Doc so that it has the right numbers.
                 Assert.IsTrue(Equals(SkylineWindow.SequenceTree.SelectedNode.StateImageIndex,
-                    (int)SequenceTree.StateImageId.no_peak) && SkylineWindow.SequenceTree.SelectedNode.Parent.Text.Contains((0.24).ToString(LocalizationHelper.CurrentCulture)));
+                    (int)SequenceTree.StateImageId.no_peak) && SkylineWindow.SequenceTree.SelectedNode.Parent.Text.Contains((0.62).ToString(LocalizationHelper.CurrentCulture)));
             });
 
             // Adjusting Peak Boundaries to Exclude Interference, p. 14.
@@ -241,6 +235,7 @@ namespace pwiz.SkylineTestTutorial
                 Assert.IsTrue(SkylineWindow.SequenceTree.SelectedNode.Nodes[0].Nodes[2].StateImageIndex
                     == (int)SequenceTree.StateImageId.peak_blank));
             RunUI(() => SkylineWindow.SaveDocument());
+            PauseForAuditLog();
         }
 
         private void DoStudy7Test()
@@ -304,7 +299,7 @@ namespace pwiz.SkylineTestTutorial
             RunUI(() =>
             {
                 openDataSourceDialog1.CurrentDirectory = new MsDataFilePath(GetTestPath("Study 7"));
-                openDataSourceDialog1.SelectAllFileType(IsFullData ? ".wiff" : ExtensionTestContext.ExtAbWiff); // Force true wiff for FullData
+                openDataSourceDialog1.SelectAllFileType(UseRawFilesOrFullData ? ".wiff" : ".mzML"); // Force true wiff for FullData
             });
             if (UseRawFilesOrFullData)
             {
@@ -512,7 +507,7 @@ namespace pwiz.SkylineTestTutorial
             RunUI(() => SkylineWindow.ShowCVValues(false));
             RunUI(() => SkylineWindow.SaveDocument());
             PauseForScreenShot<GraphSummary.AreaGraphView>("Peak Areas graph grouped by concentration metafile", 36);
-
+            PauseForAuditLog();
             // Further Exploration, p. 33.
             RunUI(() =>
             {

@@ -141,7 +141,8 @@ namespace pwiz.Skyline.Alerts
 
         public void CopyMessage()
         {
-            ClipboardHelper.SetClipboardText(this, GetTitleAndMessageDetail());
+            Clipboard.Clear();
+            Clipboard.SetText(GetTitleAndMessageDetail());
         }
 
         public override string DetailedMessage
@@ -326,9 +327,9 @@ namespace pwiz.Skyline.Alerts
             labelMessage.MaximumSize = new Size(newMaxWidth, 0);
         }
 
-        private const int MAX_MESSAGE_LENGTH = 100000;
+        private const int MAX_MESSAGE_LENGTH = 50000;
         /// <summary>
-        /// Labels have difficulty displaying text longer than 100,000 characters, and SetWindowText
+        /// Labels have difficulty displaying text longer than 50,000 characters, and SetWindowText
         /// replaces strings longer than 520,000 characters with the empty string.
         /// If the message is too long, and append a line saying it was truncated.
         /// </summary>

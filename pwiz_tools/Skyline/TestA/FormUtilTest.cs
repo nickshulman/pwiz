@@ -19,6 +19,7 @@
 using System;
 using System.Collections.Generic;
 using System.Threading;
+using System.Windows.Forms;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Alerts;
@@ -53,17 +54,21 @@ namespace pwiz.SkylineTestA
                         int formNumber = Interlocked.Increment(ref numberOfFormsCreated);
                         if (formNumber > numberOfFormsToCreate)
                         {
+                            Application.ExitThread();   // Necessary to shut down message pump for forms without leaking thread handles
                             return;
                         }
                         AlertDlg alertDlg;
                         lock (formConstructorLock)
                         {
-                            alertDlg = new AlertDlg("TestFormUtilOpenForms Form number " + formNumber);
+                            alertDlg = new AlertDlg("TestFormUtilOpenForms Form number " + formNumber)
+                            {
+                                ShowInTaskbar = true
+                            };
                         }
                         using (alertDlg)
                         {
                             alertDlg.Shown += (sender, args) => alertDlg.BeginInvoke(new Action(() => alertDlg.Close()));
-                            alertDlg.ShowDialog();
+                            alertDlg.ShowParentlessDialog();
                         }
                         Interlocked.Increment(ref numberOfFormsDestroyed);
                     }

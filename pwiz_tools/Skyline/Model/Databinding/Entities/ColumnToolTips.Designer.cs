@@ -19,7 +19,7 @@ namespace pwiz.Skyline.Model.Databinding.Entities {
     // class via a tool like ResGen or Visual Studio.
     // To add or remove a member, edit your .ResX file then rerun ResGen
     // with the /str option, or rebuild your VS project.
-    [global::System.CodeDom.Compiler.GeneratedCodeAttribute("System.Resources.Tools.StronglyTypedResourceBuilder", "4.0.0.0")]
+    [global::System.CodeDom.Compiler.GeneratedCodeAttribute("System.Resources.Tools.StronglyTypedResourceBuilder", "15.0.0.0")]
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
     [global::System.Runtime.CompilerServices.CompilerGeneratedAttribute()]
     public class ColumnToolTips {
@@ -155,13 +155,29 @@ namespace pwiz.Skyline.Model.Databinding.Entities {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to 
-        ///      Row of audit log information
-        ///    .
+        ///   Looks up a localized string similar to Id of the detailed message.
+        /// </summary>
+        public static string AuditLogDetailRowId {
+            get {
+                return ResourceManager.GetString("AuditLogDetailRowId", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Row of audit log information.
         /// </summary>
         public static string AuditLogRow {
             get {
                 return ResourceManager.GetString("AuditLogRow", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Id of the entry.
+        /// </summary>
+        public static string AuditLogRowId {
+            get {
+                return ResourceManager.GetString("AuditLogRowId", resourceCulture);
             }
         }
         
@@ -341,6 +357,15 @@ namespace pwiz.Skyline.Model.Databinding.Entities {
         public static string CleavageAa {
             get {
                 return ResourceManager.GetString("CleavageAa", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to True if this transition&apos;s peak has similar apex and extents as the other transitions within the peak group..
+        /// </summary>
+        public static string Coeluting {
+            get {
+                return ResourceManager.GetString("Coeluting", resourceCulture);
             }
         }
         
@@ -529,6 +554,15 @@ namespace pwiz.Skyline.Model.Databinding.Entities {
         public static string DegreesOfFreedom {
             get {
                 return ResourceManager.GetString("DegreesOfFreedom", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Detailed reason the user gave for making the change.
+        /// </summary>
+        public static string DetailReason {
+            get {
+                return ResourceManager.GetString("DetailReason", resourceCulture);
             }
         }
         
@@ -1945,6 +1979,17 @@ namespace pwiz.Skyline.Model.Databinding.Entities {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to 
+        ///      The concentration at which this precursor was spiked into the sample.
+        ///    .
+        /// </summary>
+        public static string PrecursorConcentration {
+            get {
+                return ResourceManager.GetString("PrecursorConcentration", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to The formula of the precursor ion..
         /// </summary>
         public static string PrecursorIonFormula {
@@ -2421,6 +2466,15 @@ namespace pwiz.Skyline.Model.Databinding.Entities {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to The calibration curve made using the Precursor Concentrations and a single replicate..
+        /// </summary>
+        public static string ReplicateCalibrationCurve {
+            get {
+                return ResourceManager.GetString("ReplicateCalibrationCurve", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Number of replicates that had valid intensities and contributed to the result..
         /// </summary>
         public static string ReplicateCount {
@@ -2430,11 +2484,29 @@ namespace pwiz.Skyline.Model.Databinding.Entities {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Text of the error message, if any, which occurred while trying to fit the Replicate Calibration Curve.
+        /// </summary>
+        public static string ReplicateErrorMessage {
+            get {
+                return ResourceManager.GetString("ReplicateErrorMessage", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Replicate Index.
         /// </summary>
         public static string ReplicateIndex {
             get {
                 return ResourceManager.GetString("ReplicateIndex", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The intercept of the Replicate Calibration Curve.
+        /// </summary>
+        public static string ReplicateIntercept {
+            get {
+                return ResourceManager.GetString("ReplicateIntercept", resourceCulture);
             }
         }
         
@@ -2466,11 +2538,56 @@ namespace pwiz.Skyline.Model.Databinding.Entities {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to The number of data points that were fitted on the Replicate Calibration Curve.
+        /// </summary>
+        public static string ReplicatePointCount {
+            get {
+                return ResourceManager.GetString("ReplicatePointCount", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The coefficient of the x-squared term on the Replicate Calibration Curve.
+        /// </summary>
+        public static string ReplicateQuadraticCoefficient {
+            get {
+                return ResourceManager.GetString("ReplicateQuadraticCoefficient", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The coefficient of determination on the Replicate Calibration Curve.
+        /// </summary>
+        public static string ReplicateRSquared {
+            get {
+                return ResourceManager.GetString("ReplicateRSquared", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Replicates.
         /// </summary>
         public static string Replicates {
             get {
                 return ResourceManager.GetString("Replicates", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The slope of the Replicate Calibration Curve.
+        /// </summary>
+        public static string ReplicateSlope {
+            get {
+                return ResourceManager.GetString("ReplicateSlope", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The bilinear turning point on the Replicate Calibration Curve.
+        /// </summary>
+        public static string ReplicateTurningPoint {
+            get {
+                return ResourceManager.GetString("ReplicateTurningPoint", resourceCulture);
             }
         }
         

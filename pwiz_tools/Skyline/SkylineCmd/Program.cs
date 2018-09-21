@@ -22,7 +22,7 @@ using System.Reflection;
 
 namespace pwiz.SkylineCmd
 {
-    class Program
+    static class Program
     {
         [STAThread]
         static int Main(string[] args)
@@ -47,6 +47,7 @@ namespace pwiz.SkylineCmd
             }
             var programClass = assembly.GetType("pwiz.Skyline.Program"); // Not L10N
             var mainFunction = programClass.GetMethod("Main"); // Not L10N
+            // ReSharper disable once PossibleNullReferenceException
             return (int) mainFunction.Invoke(null, new object[]{args});
         }
     }

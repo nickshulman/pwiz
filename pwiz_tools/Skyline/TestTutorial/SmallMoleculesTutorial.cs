@@ -38,6 +38,12 @@ namespace pwiz.SkylineTestTutorial
     public class SmallMoleculesTutorialTest : AbstractFunctionalTest
     {
         private bool _inferredLabels;
+
+        protected override bool UseRawFiles
+        {
+            get { return !ForceMzml && ExtensionTestContext.CanImportWatersRaw; }
+        }
+
         [TestMethod]
         public void TestSmallMoleculesTutorial()
         {
@@ -144,9 +150,7 @@ namespace pwiz.SkylineTestTutorial
                     RunUI(() =>
                     {
                         openDataSourceDialog1.CurrentDirectory = new MsDataFilePath(GetTestPath());
-                        openDataSourceDialog1.SelectAllFileType(UseRawFiles
-                            ? ExtensionTestContext.ExtWatersRaw
-                            : ExtensionTestContext.ExtMzml);
+                        openDataSourceDialog1.SelectAllFileType(ExtWatersRaw);
                     });
                     PauseForScreenShot<ImportResultsSamplesDlg>("Import Results Files form", 6);
                     OkDialog(openDataSourceDialog1, openDataSourceDialog1.Open);
@@ -173,7 +177,7 @@ namespace pwiz.SkylineTestTutorial
                     {"ID15664_01_WAA263_3976_020415", new[] {11, 6, 12, 7}},
                     {"ID15739_01_WAA263_3976_020415", new[] {10, 6, 10, 7}},
                     {"ID15740_01_WAA263_3976_020415", new[] {12, 6, 12, 7}},
-                    {"ID15740_02_WAA263_3976_020415", new[] {12, 5, 12, 6}},
+                    {"ID15740_02_WAA263_3976_020415", new[] {11, 5, 11, 6}},
                     {"ID15740_04_WAA263_3976_020415", new[] {12, 6, 12, 7}},
                     {"ID15741_01_WAA263_3976_020415", new[] {12, 7, 13, 8}},
                     {"ID15741_02_WAA263_3976_020415", new[] {12, 6, 13, 7}}

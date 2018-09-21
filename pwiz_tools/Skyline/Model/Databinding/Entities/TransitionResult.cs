@@ -84,12 +84,15 @@ namespace pwiz.Skyline.Model.Databinding.Entities
         [Format(NullValue = TextUtil.EXCEL_NA)]
         public int? PointsAcrossPeak { get { return ChromInfo.PointsAcrossPeak; } }
 
+        public bool Coeluting { get { return !ChromInfo.IsForcedIntegration; } }
+
         public Chromatogram Chromatogram
         {
             get { return _chromatogram.Value; }
         }
 
         [InvariantDisplayName("TransitionReplicateNote")]
+        [Importable]
         public string Note
         {
             get { return ChromInfo.Annotations.Note; }

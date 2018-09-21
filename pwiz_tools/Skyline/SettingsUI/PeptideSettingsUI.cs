@@ -1073,7 +1073,7 @@ namespace pwiz.Skyline.SettingsUI
                                   : (_driverLibrary.CheckedNames.Any() ? _driverLibrary.CheckedNames[0] : string.Empty);
                 }
                 var viewLibraryDlg = new ViewLibraryDlg(_libraryManager, libName, _parent) { Owner = Owner };
-                viewLibraryDlg.Show();
+                viewLibraryDlg.Show(Owner);
             }
         }
 
@@ -1556,7 +1556,7 @@ namespace pwiz.Skyline.SettingsUI
                     }
                     else
                     {
-                        _singleStandard = (heavyMods.Count() <= 1);
+                        _singleStandard = (heavyMods.Count <= 1);
                         if (_singleStandard)
                         {
                             LabelIS.Text = Resources.LabelTypeComboDriver_LoadList_Internal_standard_type;

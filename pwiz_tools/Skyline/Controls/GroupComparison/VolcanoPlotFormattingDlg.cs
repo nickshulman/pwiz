@@ -243,7 +243,7 @@ namespace pwiz.Skyline.Controls.GroupComparison
                 using (var createMatchExpression =
                     new CreateMatchExpressionDlg(this, _foldChangeRows, _bindingList[row]))
                 {
-                    if (createMatchExpression.ShowDialog() == DialogResult.OK)
+                    if (createMatchExpression.ShowDialog(this) == DialogResult.OK)
                     {
                         _bindingList[row].Expression = createMatchExpression.GetCurrentMatchExpression().ToString();
                         CommitCellChanges();
@@ -275,7 +275,7 @@ namespace pwiz.Skyline.Controls.GroupComparison
                 case ProteinMetadataManager.ProteinDisplayMode.ByGene:
                     return MatchOption.ProteinGene;
                 default:
-                    throw new ArgumentOutOfRangeException("displayMode", displayMode, null); // Not L10N
+                    throw new ArgumentOutOfRangeException(nameof(displayMode), displayMode, null); // Not L10N
             }
         }
 

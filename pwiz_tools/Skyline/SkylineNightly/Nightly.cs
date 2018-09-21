@@ -39,11 +39,17 @@ namespace SkylineNightly
     // ReSharper disable NonLocalizedString
     public class Nightly
     {
+
         private const string NIGHTLY_TASK_NAME = "Skyline nightly build";
 
         private const string TEAM_CITY_ZIP_URL = "https://teamcity.labkey.org/guestAuth/repository/download/{0}/.lastFinished/SkylineTester.zip{1}";
         private const string TEAM_CITY_BUILD_TYPE_64_MASTER = "bt209";
+
+        // N.B. choice of "release" and "integration" branches is made in TeamCity VCS Roots "pwiz Github Skyline_Integration_Only" and "pwiz Github Skyline_Release_Only"
+        // Thus TC admins can easily change the "release" and "integration" git branches at http://teamcity.labkey.org/admin/editProject.html?projectId=ProteoWizard&tab=projectVcsRoots
         private const string TEAM_CITY_BUILD_TYPE_64_RELEASE = "ProteoWizard_WindowsX8664SkylineReleaseBranchMsvcProfessional";
+        private const string TEAM_CITY_BUILD_TYPE_64_INTEGRATION = "ProteoWizard_SkylineIntegrationBranchX8664";
+
         private const string TEAM_CITY_USER_NAME = "guest";
         private const string TEAM_CITY_USER_PASSWORD = "guest";
         private const string LABKEY_URL = "https://skyline.ms/testresults/home/development/Nightly%20x64/post.view?";
@@ -55,9 +61,6 @@ namespace SkylineNightly
         
         private const string GIT_MASTER_URL = "https://github.com/ProteoWizard/pwiz";
         private const string GIT_BRANCHES_URL = GIT_MASTER_URL + "/tree/";
-
-        // Current integration branch - this gets appended to GIT_BRANCHES_URL for integration build
-        private const string INTEGRATION_BRANCH = "Skyline/work/20180125_FiguresOfMerit";
 
         private DateTime _startTime;
         public string LogFileName { get; private set; }
@@ -133,9 +136,16 @@ namespace SkylineNightly
 
         public enum RunMode { parse, post, trunk, perf, release, stress, integration, release_perf }
 
+        private string SkylineTesterStoppedByUser = "SkylineTester stopped by user";
+
         public string RunAndPost()
         {
             var runResult = Run() ?? string.Empty;
+            if (runResult.Equals(SkylineTesterStoppedByUser))
+            {
+                Log("No results posted");
+                return runResult;
+            }
             Parse();
             var postResult = Post(_runMode);
             if (!string.IsNullOrEmpty(postResult))
@@ -284,30 +294,22 @@ namespace SkylineNightly
                     Log("Delete zip file " + skylineTesterZip);
                     File.Delete(skylineTesterZip);
 
-                    // If we are running the integration build, then we use the trunk SkylineTester, but have it build the branch TestRunner.exe
-                    if (_runMode == RunMode.integration)
+                    // Figure out which branch we're working in - there's a file in the downloaded SkylineTester zip that tells us.
+                    var branchLine = File.ReadAllLines(Path.Combine(_skylineTesterDir, "SkylineTester Files", "Version.cpp")).FirstOrDefault(l => l.Contains("Version::Branch"));
+                    if (!string.IsNullOrEmpty(branchLine))
                     {
-                        branchUrl = GIT_BRANCHES_URL + INTEGRATION_BRANCH;
-                    }
-                    else
-                    {
-                        // Figure out which branch we're working in - there's a file in the downloaded SkylineTester zip that tells us.
-                        var branchLine = File.ReadAllLines(Path.Combine(_skylineTesterDir, "SkylineTester Files", "Version.cpp")).FirstOrDefault(l => l.Contains("Version::Branch"));
-                        if (!string.IsNullOrEmpty(branchLine))
+                        // Looks like std::string Version::Branch()   {return "Skyline/skyline_9_7";}
+                        var branch = branchLine.Split(new[] { "\"" }, StringSplitOptions.None)[1];
+                        if (branch.Equals("master"))
                         {
-                            // Looks like std::string Version::Branch()   {return "Skyline/skyline_9_7";}
-                            var branch = branchLine.Split(new[] { "\"" }, StringSplitOptions.None)[1];
-                            if (branch.Equals("master"))
-                            {
-                                branchUrl = GIT_MASTER_URL;
-                            }
-                            else
-                            {
-                                branchUrl = GIT_BRANCHES_URL + branch;
-                            }
+                            branchUrl = GIT_MASTER_URL;
                         }
-                        
+                        else
+                        {
+                            branchUrl = GIT_BRANCHES_URL + branch; // Looks like https://github.com/ProteoWizard/pwiz/tree/Skyline/skyline_9_7
+                        }
                     }
+                        
                     break;
                 }
                 catch (Exception ex)
@@ -387,6 +389,12 @@ namespace SkylineNightly
                     Log(result = "SkylineTester has exceeded its " + durationSeconds +
                                  " second WaitForExit timeout.  You should investigate.");
                 }
+                else if (skylineTesterProcess.ExitCode == 0xDEAD)
+                {
+                    // User killed, don't post
+                    Log(result = SkylineTesterStoppedByUser);
+                    return result;
+                }
                 else
                 {
                     Log("SkylineTester finished");
@@ -422,12 +430,15 @@ namespace SkylineNightly
 
         private void DownloadSkylineTester(string skylineTesterZip, RunMode mode)
         {
+            // Make sure we can negotiate with HTTPS servers that demand TLS 1.2 (default in dotNet 4.6, but has to be turned on in 4.5)
+            ServicePointManager.SecurityProtocol |= (SecurityProtocolType.Tls | SecurityProtocolType.Tls11 | SecurityProtocolType.Tls12);
             using (var client = new WebClient())
             {
                 client.Credentials = new NetworkCredential(TEAM_CITY_USER_NAME, TEAM_CITY_USER_PASSWORD);
                 var isRelease = ((mode == RunMode.release) || (mode == RunMode.release_perf));
-                var branchType = isRelease ? "" : "?branch=master"; // TC has a config just for release, but main config builds pull requests, other branches etc
-                var buildType = isRelease ? TEAM_CITY_BUILD_TYPE_64_RELEASE : TEAM_CITY_BUILD_TYPE_64_MASTER;
+                var isIntegration = mode == RunMode.integration;
+                var branchType = (isRelease||isIntegration) ? "" : "?branch=master"; // TC has a config just for release branch, and another for integration branch, but main config builds pull requests, other branches etc
+                var buildType = isIntegration ? TEAM_CITY_BUILD_TYPE_64_INTEGRATION : isRelease ? TEAM_CITY_BUILD_TYPE_64_RELEASE : TEAM_CITY_BUILD_TYPE_64_MASTER;
 
                 string zipFileLink = string.Format(TEAM_CITY_ZIP_URL, buildType, branchType);
                 Log("Download SkylineTester zip file as " + zipFileLink);
@@ -463,11 +474,20 @@ namespace SkylineNightly
 
             // Extract log start time from log contents
             var reStartTime = new Regex(@"\n\# Nightly started (.*)\r\n", RegexOptions.Compiled); // As in "# Nightly started Thursday, May 12, 2016 8:00 PM"
+            var reStoppedTime = new Regex(@"\n\# Stopped (.*)\r\n");
             var stMatch = reStartTime.Match(log);
             if (stMatch.Success)
             {
                 var dateTimeStr = stMatch.Groups[1].Value;
                 DateTime.TryParse(dateTimeStr, out _startTime);
+            }
+            var endMatch = reStoppedTime.Match(log);
+            if (endMatch.Success)
+            {
+                var dateTimeEnd = endMatch.Groups[1].Value;
+                DateTime endTime;
+                if (DateTime.TryParse(dateTimeEnd, out endTime))
+                    _duration = (endTime - _startTime).Duration();
             }
 
             // Extract all test lines.
@@ -521,7 +541,13 @@ namespace SkylineNightly
             _nightly["revision"] = revisionInfo ?? GetRevision(buildroot);
             _nightly["git_hash"] = gitHash ?? string.Empty;
             _nightly["start"] = _startTime;
-            _nightly["duration"] = (int)_duration.TotalMinutes;
+            int durationMinutes = (int)_duration.TotalMinutes;
+            // Round down or up by 1 minute to report even hours in this common case
+            if (durationMinutes % 60 == 1)
+                durationMinutes--;
+            else if (durationMinutes % 60 == 59)
+                durationMinutes++;
+            _nightly["duration"] = durationMinutes;
             _nightly["testsrun"] = testCount;
             _nightly["failures"] = _failures.Count;
             _nightly["leaks"] = _leaks.Count;
@@ -540,7 +566,8 @@ namespace SkylineNightly
         private int ParseTests(string log, bool storeXml = true)
         {
             var startTest = new Regex(@"\r\n\[(\d\d:\d\d)\] +(\d+).(\d+) +(\S+) +\((\w\w)\) ", RegexOptions.Compiled);
-            var endTest = new Regex(@" \d+ failures, ([\.\d]+)/([\.\d]+) MB, (\d+) sec\.\r\n", RegexOptions.Compiled);
+            var endTestOld = new Regex(@" \d+ failures, ([\.\d]+)/([\.\d]+) MB, (\d+) sec\.\r\n", RegexOptions.Compiled);
+            var endTest = new Regex(@" \d+ failures, ([\.\d]+)/([\.\d]+) MB, ([\.\d]+)/([\.\d]+) handles, (\d+) sec\.\r\n", RegexOptions.Compiled);
 
             string lastPass = null;
             int testCount = 0;
@@ -552,10 +579,19 @@ namespace SkylineNightly
                 var name = startMatch.Groups[4].Value;
                 var language = startMatch.Groups[5].Value;
 
-                var endMatch = endTest.Match(log, startMatch.Index);
+                string userGdi = null, handles = null;
+                var endMatch = endTestOld.Match(log, startMatch.Index);
+                int durationIndex = 3;
+                if (!endMatch.Success)
+                {
+                    endMatch = endTest.Match(log, startMatch.Index);
+                    userGdi = endMatch.Groups[3].Value;
+                    handles = endMatch.Groups[4].Value;
+                    durationIndex = 5;
+                }
                 var managed = endMatch.Groups[1].Value;
                 var total = endMatch.Groups[2].Value;
-                var duration = endMatch.Groups[3].Value;
+                var duration = endMatch.Groups[durationIndex].Value;
 
                 if (string.IsNullOrEmpty(managed) || string.IsNullOrEmpty(total) || string.IsNullOrEmpty(duration))
                     continue;
@@ -580,6 +616,10 @@ namespace SkylineNightly
                     test["duration"] = duration;
                     test["managed"] = managed;
                     test["total"] = total;
+                    if (!string.IsNullOrEmpty(userGdi))
+                        test["user_gdi"] = userGdi;
+                    if (!string.IsNullOrEmpty(handles))
+                        test["handles"] = handles;
                 }
 
                 testCount++;
@@ -625,6 +665,14 @@ namespace SkylineNightly
                 var leak = _leaks.Append("leak");
                 leak["name"] = match.Groups[1].Value;
                 leak["bytes"] = match.Groups[2].Value;
+            }
+            var leakHandlesPattern = new Regex(@"!!! (\S+) HANDLE-LEAKED ([.0-9]+) (\S+)", RegexOptions.Compiled);
+            for (var match = leakHandlesPattern.Match(log); match.Success; match = match.NextMatch())
+            {
+                var leak = _leaks.Append("leak");
+                leak["name"] = match.Groups[1].Value;
+                leak["handles"] = match.Groups[2].Value;
+                leak["type"] = match.Groups[3].Value;
             }
         }
 

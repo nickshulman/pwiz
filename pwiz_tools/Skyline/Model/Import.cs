@@ -281,6 +281,8 @@ namespace pwiz.Skyline.Model
         public string InputFilename { get { return _inputFilename; } }
 
         private readonly string _inputText;
+        public string InputText { get { return _inputText; } }
+
         private IList<string> _lines; 
 
         public MassListInputs(string initText, bool fullText = false)
@@ -417,7 +419,7 @@ namespace pwiz.Skyline.Model
             return Import(progressMonitor, sourceFile, indices, dictNameSeq, out irtPeptides, out librarySpectra, out errorList);
         }
 
-        public static IEnumerable<string> IrtColumnNames { get { return new[] { "tr_recalibrated", "irt" }; } } // Not L10N
+        public static IEnumerable<string> IrtColumnNames { get { return new[] { "irt", "normalizedretentiontime", "tr_recalibrated" }; } } // Not L10N
         public static IEnumerable<string> LibraryColumnNames { get { return new[] { "libraryintensity", "relativeintensity", "relative_intensity", "relativefragmentintensity", "library_intensity" }; } } // Not L10N
 
         public IEnumerable<PeptideGroupDocNode> Import(IProgressMonitor progressMonitor,
@@ -2286,7 +2288,7 @@ namespace pwiz.Skyline.Model
                 return null;
             }
             double weightedSum = groupTriplesNonNull.Select(triple => triple.Irt.Value).Sum();
-            double norm = groupTriplesNonNull.Count();
+            double norm = groupTriplesNonNull.Count;
             return weightedSum / norm;
         }
 

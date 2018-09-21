@@ -275,7 +275,7 @@ namespace pwiz.Skyline.Model.Results
                 finally
                 {
                     if (_chromDataSets != null)
-                        _chromDataSets.Abort();
+                        _chromDataSets.Dispose();
                     if (provider != null)
                         provider.Dispose();
                     else if (inFile != null)
@@ -605,7 +605,7 @@ namespace pwiz.Skyline.Model.Results
                     if (chromDataSet != null)
                         yield return chromDataSet;
 
-                    chromDataSet = new ChromDataSet(isTimeNormalArea, chromData);
+                    chromDataSet = new ChromDataSet(isTimeNormalArea, null, chromData);
                 }
                 lastKey = key;
             }
@@ -890,6 +890,7 @@ namespace pwiz.Skyline.Model.Results
                 {
                     // If the current chromDataSet has already been used, make a copy.
                     chromDataSet = new ChromDataSet(chromDataSet.IsTimeNormalArea,
+                        peptidePrecursorMz.NodePeptide.ModifiedTarget,
                         chromDataSet.Chromatograms.Select(c => c.CloneForWrite()).ToArray());
                 }
                 var groupData = GetMatchingData(nodeGroup, chromDataSet, explicitRetentionTimeInfo);
@@ -952,7 +953,7 @@ namespace pwiz.Skyline.Model.Results
                             arrayChromData[j] = chromData.CloneForWrite();
                         setChromData.Add(chromData);
                     }
-                    var chromDataPart = new ChromDataSet(isTimeNormalArea, arrayChromData);
+                    var chromDataPart = new ChromDataSet(isTimeNormalArea, match.Item1.NodePeptide.ModifiedTarget, arrayChromData);
                     yield return new KeyValuePair<PeptidePrecursorMz, ChromDataSet>(
                         match.Item1, chromDataPart);
                 }

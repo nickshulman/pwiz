@@ -192,6 +192,9 @@
   <data name="CleavageAa">
     <value>Cleavage Aa</value>
   </data>
+  <data name="Coeluting">
+    <value>Coeluting</value>
+  </data>
   <data name="CollisionEnergy">
     <value>Collision Energy</value>
   </data>
@@ -582,6 +585,9 @@
   <data name="PrecursorCharge">
     <value>Precursor Charge</value>
   </data>
+  <data name="PrecursorConcentration">
+    <value>Precursor Concentration</value>
+  </data>
   <data name="PrecursorLocator">
     <value>Precursor Locator</value>
   </data>
@@ -720,11 +726,20 @@
   <data name="Replicate">
     <value>Replicate</value>
   </data>
+  <data name="ReplicateCalibrationCurve">
+    <value>Replicate Calibration Curve</value>
+  </data>
   <data name="ReplicateCount">
     <value>Replicate Count</value>
   </data>
+  <data name="ReplicateErrorMessage">
+    <value>Replicate Error Message</value>
+  </data>
   <data name="ReplicateIndex">
     <value>Replicate Index</value>
+  </data>
+  <data name="ReplicateIntercept">
+    <value>Replicate Intercept</value>
   </data>
   <data name="ReplicateLocator">
     <value>Replicate Locator</value>
@@ -735,8 +750,23 @@
   <data name="ReplicatePath">
     <value>Replicate Path</value>
   </data>
+  <data name="ReplicatePointCount">
+    <value>Replicate Point Count</value>
+  </data>
+  <data name="ReplicateQuadraticCoefficient">
+    <value>Replicate Quadratic Coefficient</value>
+  </data>
+  <data name="ReplicateRSquared">
+    <value>Replicate R Squared</value>
+  </data>
+  <data name="ReplicateSlope">
+    <value>Replicate Slope</value>
+  </data>
   <data name="Replicates">
     <value>Replicates</value>
+  </data>
+  <data name="ReplicateTurningPoint">
+    <value>Replicate Turning Point</value>
   </data>
   <data name="ResultFile">
     <value>Result File</value>
@@ -1022,6 +1052,9 @@
   <data name="Reason">
     <value>Reason</value>
   </data>
+  <data name="DetailReason">
+    <value>Detailed Reason</value>
+  </data>
   <data name="SkylineVersion">
     <value>Skyline Version</value>
   </data>
@@ -1044,8 +1077,12 @@
     <value>Details</value>
   </data>
   <data name="AuditLogRow">
-    <value>
-      Audit Log Row
-    </value>
+    <value>Audit Log Row</value>
+  </data>
+  <data name="AuditLogRowId">
+    <value>Entry Id</value>
+  </data>
+  <data name="AuditLogDetailRowId">
+    <value>Detail Id</value>
   </data>
 </root>

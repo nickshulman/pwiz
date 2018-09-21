@@ -26,7 +26,6 @@ using System.Linq;
 using System.Reflection;
 using System.Runtime;
 using System.Runtime.InteropServices;
-using System.Text;
 using System.Threading;
 using log4net;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -69,6 +68,11 @@ namespace TestRunnerLib
         public readonly Dictionary<string, int> FailureCounts = new Dictionary<string, int>();
         public InvokeSkyline Skyline { get; private set; }
         public int LastTestDuration { get; private set; }
+        public int LastTotalHandleCount { get; private set; }
+        public int LastGdiHandleCount { get; private set; }
+        public int LastUserHandleCount { get; private set; }
+        public long TotalMemoryBytes { get; private set; }
+        public long ManagedMemoryBytes { get; private set; }
         public bool AccessInternet { get; set; }
         public bool RunPerfTests { get; set; }
         public bool AddSmallMoleculeNodes{ get; set; }
@@ -109,30 +113,6 @@ namespace TestRunnerLib
             Skyline.Set("UnitTestTimeoutMultiplier", timeoutMultiplier);
             Skyline.Set("PauseSeconds", pauseSeconds);
             Skyline.Set("PauseForms", pauseForms != null ? pauseForms.ToList() : null);
-            try
-            {
-                Skyline.Get<string>("Name");
-            }
-            catch (Exception getNameException)
-            {
-                // ReSharper disable NonLocalizedString
-                StringBuilder message = new StringBuilder();
-                message.AppendLine("Error initializing settings");
-                var exeConfig =
-                    System.Configuration.ConfigurationManager.OpenExeConfiguration(
-                        System.Configuration.ConfigurationUserLevel.None);
-                message.AppendLine("Exe Config:" + exeConfig.FilePath);
-                var localConfig =
-                    System.Configuration.ConfigurationManager.OpenExeConfiguration(
-                        System.Configuration.ConfigurationUserLevel.PerUserRoamingAndLocal);
-                message.AppendLine("Local Config:" + localConfig.FilePath);
-                var roamingConfig =
-                    System.Configuration.ConfigurationManager.OpenExeConfiguration(
-                        System.Configuration.ConfigurationUserLevel.PerUserRoaming);
-                message.AppendLine("Roaming Config:" + roamingConfig.FilePath);
-                throw new Exception(message.ToString(), getNameException);
-                // ReSharper restore NonLocalizedString
-            }
             Skyline.Run("Init");
 
             AccessInternet = internet;
@@ -217,6 +197,10 @@ namespace TestRunnerLib
                 TestContext.Properties["TestSmallMolecules"] = AddSmallMoleculeNodes.ToString(); // Add the magic small molecule test node to every document?
                 TestContext.Properties["RunSmallMoleculeTestVersions"] = RunsSmallMoleculeVersions.ToString(); // Run the AsSmallMolecule version of tests when available?
                 TestContext.Properties["LiveReports"] = LiveReports.ToString();
+                TestContext.Properties["TestName"] = test.TestMethod.Name;
+                TestContext.Properties["TestRunResultsDirectory"] =
+                    Path.Combine(TestContext.TestDir, test.TestClassType.Name);
+
                 if (test.SetTestContext != null)
                 {
                     var context = new object[] { TestContext };
@@ -259,21 +243,28 @@ namespace TestRunnerLib
             Thread.CurrentThread.CurrentUICulture = saveUICulture;
 
             MemoryManagement.FlushMemory();
-
-            const int mb = 1024*1024;
-            var managedMemory = (double) GC.GetTotalMemory(true) / mb;
+            _process.Refresh();
+//            long[] heapCounts = MemoryManagement.GetProcessHeapSizes();
+//            ManagedMemoryBytes = heapCounts[0]; // Process heap
+            ManagedMemoryBytes = GC.GetTotalMemory(true); // Managed heap
+            TotalMemoryBytes = _process.PrivateMemorySize64;
+            LastTotalHandleCount = GetHandleCount(HandleType.total);
+            LastUserHandleCount = GetHandleCount(HandleType.user);
+            LastGdiHandleCount = GetHandleCount(HandleType.gdi);
 
             if (exception == null)
             {
                 // Test succeeded.
-                Log(
-                    "{0,3} failures, {1:F2}/{2:F1} MB, {3} sec.\r\n", 
+                Log("{0,3} failures, {1:F2}/{2:F1} MB, {3}/{4} handles, {5} sec.\r\n",
                     FailureCount, 
-                    managedMemory, 
+                    ManagedMemory, 
                     TotalMemory,
+                    LastUserHandleCount + LastGdiHandleCount,
+                    LastTotalHandleCount,
                     LastTestDuration);
+//                Log("# Heaps " + string.Join("\t", heapCounts.Select(s => string.Format("{0:F2}", s / (double) MB))) + "\r\n");
                 if (crtLeakedBytes > CheckCrtLeaks)
-                    Log("!!! {0} CRT-LEAKED {1} bytes", test.TestMethod.Name, crtLeakedBytes);
+                    Log("!!! {0} CRT-LEAKED {1} bytes\r\n", test.TestMethod.Name, crtLeakedBytes);
 
                 using (var writer = new FileStream("TestRunnerMemory.log", FileMode.Append, FileAccess.Write, FileShare.Read))
                 using (var stringWriter = new StreamWriter(writer))
@@ -299,9 +290,14 @@ namespace TestRunnerLib
             else
                 ErrorCounts[failureInfo] = 1;
 
-            Log(
-                "{0,3} failures, {1:F2}/{2:F1} MB\r\n\r\n!!! {3} FAILED\r\n{4}\r\n{5}\r\n!!!\r\n\r\n",
-                FailureCount, managedMemory, TotalMemory, test.TestMethod.Name,
+            Log("{0,3} failures, {1:F2}/{2:F1} MB, {3}/{4} handles, {5} sec.\r\n\r\n!!! {6} FAILED\r\n{7}\r\n{8}\r\n!!!\r\n\r\n",
+                FailureCount,
+                ManagedMemory,
+                TotalMemory,
+                LastUserHandleCount + LastGdiHandleCount,
+                LastTotalHandleCount,
+                LastTestDuration,
+                test.TestMethod.Name,
                 message,
                 exception);
             return false;
@@ -311,20 +307,114 @@ namespace TestRunnerLib
         {
             [DllImportAttribute("kernel32.dll", EntryPoint = "SetProcessWorkingSetSize", ExactSpelling = true, CharSet =
                 CharSet.Ansi, SetLastError = true)]
-
             private static extern int SetProcessWorkingSetSize(IntPtr process, int minimumWorkingSetSize, int
                 maximumWorkingSetSize);
+
+            [DllImport("kernel32.dll", SetLastError = true)]
+            public static extern UInt32 GetProcessHeaps(
+                UInt32 NumberOfHeaps,
+                IntPtr[] ProcessHeaps);
+
+            [Flags]
+            public enum PROCESS_HEAP_ENTRY_WFLAGS : ushort
+            {
+                PROCESS_HEAP_ENTRY_BUSY = 0x0004,
+                PROCESS_HEAP_ENTRY_DDESHARE = 0x0020,
+                PROCESS_HEAP_ENTRY_MOVEABLE = 0x0010,
+                PROCESS_HEAP_REGION = 0x0001,
+                PROCESS_HEAP_UNCOMMITTED_RANGE = 0x0002,
+            }
+            [StructLayoutAttribute(LayoutKind.Explicit)]
+            public struct UNION_BLOCK
+            {
+                [FieldOffset(0)]
+                public STRUCT_BLOCK Block;
+
+                [FieldOffset(0)]
+                public STRUCT_REGION Region;
+            }
+            [StructLayoutAttribute(LayoutKind.Sequential)]
+            public struct STRUCT_BLOCK
+            {
+                public IntPtr hMem;
+                public uint dwReserved1_1;
+                public uint dwReserved1_2;
+                public uint dwReserved1_3;
+            }
+            [StructLayoutAttribute(LayoutKind.Sequential)]
+            public struct STRUCT_REGION
+            {
+                public uint dwCommittedSize;
+                public uint dwUnCommittedSize;
+                public IntPtr lpFirstBlock;
+                public IntPtr lpLastBlock;
+            }
+            [StructLayoutAttribute(LayoutKind.Sequential)]
+            public struct PROCESS_HEAP_ENTRY
+            {
+                public IntPtr lpData;
+                public uint cbData;
+                public byte cbOverhead;
+                public byte iRegionIndex;
+                public PROCESS_HEAP_ENTRY_WFLAGS wFlags;
+                public UNION_BLOCK UnionBlock;
+            }
+
+            [DllImport("kernel32.dll", SetLastError = true)]
+            static extern bool HeapWalk(IntPtr hHeap, ref PROCESS_HEAP_ENTRY lpEntry);
+
+            [DllImport("kernel32.dll", SetLastError = true)]
+            static extern bool HeapLock(IntPtr hHeap);
+
+            [DllImport("kernel32.dll", SetLastError = true)]
+            static extern bool HeapUnlock(IntPtr hHeap);
+
+            public static long[] GetProcessHeapSizes()
+            {
+                var count = GetProcessHeaps(0, null);
+                var buffer = new IntPtr[count];
+                GetProcessHeaps(count, buffer);
+                var sizes = new long[count];
+                for (int i = 0; i < count; i++)
+                {
+                    var h = buffer[i];
+                    HeapLock(h);
+                    var e = new PROCESS_HEAP_ENTRY();
+                    while (HeapWalk(h, ref e))
+                    {
+                        if (e.wFlags == PROCESS_HEAP_ENTRY_WFLAGS.PROCESS_HEAP_ENTRY_BUSY)
+                            sizes[i] += e.cbData + e.cbOverhead;
+                    }
+                    HeapUnlock(h);
+                }
+
+                return sizes;
+            }
 
             public static void FlushMemory()
             {
                 GCSettings.LargeObjectHeapCompactionMode = GCLargeObjectHeapCompactionMode.CompactOnce;
                 GC.Collect();
                 GC.WaitForPendingFinalizers();
+                GC.Collect();
                 if (Environment.OSVersion.Platform == PlatformID.Win32NT)
                 {
                     SetProcessWorkingSetSize(Process.GetCurrentProcess().Handle, -1, -1);
                 }
             }
+        }
+
+        [DllImport("User32")]
+        private static extern int GetGuiResources(IntPtr hProcess, int uiFlags);
+
+        private enum HandleType { total = -1, gdi = 0, user = 1 }
+
+        private int GetHandleCount(HandleType handleType)
+        {
+            if (handleType == HandleType.total)
+                return _process.HandleCount;
+
+            return GetGuiResources(_process.Handle, (int)handleType);
         }
 
         private static void Try<TEx>(Action action, int loopCount, bool throwOnFailure = true, int milliseconds = 500) 
@@ -348,24 +438,11 @@ namespace TestRunnerLib
                 action();
         }
 
-        public double TotalMemory
-        {
-            get
-            {
-                const int mb = 1024*1024;
-                return (double) TotalMemoryBytes / mb;
-            }
-        }
+        private const int MB = 1024 * 1024;
 
-        public long TotalMemoryBytes
-        {
-            get
-            {
-                MemoryManagement.FlushMemory();
-                _process.Refresh();
-                return _process.PrivateMemorySize64;
-            }
-        }
+        public double TotalMemory { get { return TotalMemoryBytes / (double) MB; } }
+
+        public double ManagedMemory { get { return ManagedMemoryBytes / (double) MB; } }
 
         public void Log(string info, params object[] args)
         {

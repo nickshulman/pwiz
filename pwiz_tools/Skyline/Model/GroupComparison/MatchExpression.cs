@@ -23,6 +23,7 @@ using System.Linq;
 using System.Text.RegularExpressions;
 using pwiz.Skyline.Model.Databinding.Entities;
 using pwiz.Skyline.Model.Proteome;
+using pwiz.Skyline.Util;
 
 namespace pwiz.Skyline.Model.GroupComparison
 {
@@ -48,36 +49,26 @@ namespace pwiz.Skyline.Model.GroupComparison
         AbovePValueCutoff
     }
 
-    public class CutoffSettings
+    public interface ICutoffSettings
     {
-        public CutoffSettings(double log2FoldChangeCutoff, double pValueCutoff)
+        double Log2FoldChangeCutoff { get; set; }
+        double PValueCutoff { get; set; }
+
+        bool FoldChangeCutoffValid { get; }
+
+        bool PValueCutoffValid { get; }
+    }
+
+    public static class CutoffSettings
+    {
+        public static bool IsFoldChangeCutoffValid(double cutoff)
         {
-            // ReSharper disable once VirtualMemberCallInConstructor
-            Log2FoldChangeCutoff = log2FoldChangeCutoff;
-            // ReSharper disable once VirtualMemberCallInConstructor
-            PValueCutoff = pValueCutoff;
+            return !double.IsNaN(cutoff) && cutoff != 0.0;
         }
 
-        public CutoffSettings()
+        public static bool IsPValueCutoffValid(double cutoff)
         {
-        }
-
-        public virtual double Log2FoldChangeCutoff { get; set; }
-        public virtual double PValueCutoff { get; set; }
-
-        public bool FoldChangeCutoffValid
-        {
-            get { return !double.IsNaN(Log2FoldChangeCutoff) && Log2FoldChangeCutoff != 0.0; }
-        }
-
-        public bool PValueCutoffValid
-        {
-            get { return !double.IsNaN(PValueCutoff) && PValueCutoff >= 0.0; }
-        }
-
-        public bool AnyValid
-        {
-            get { return FoldChangeCutoffValid || PValueCutoffValid; }
+            return !double.IsNaN(cutoff) && cutoff >= 0.0;
         }
     }
 
@@ -192,7 +183,7 @@ namespace pwiz.Skyline.Model.GroupComparison
                 case MatchOption.ProteinGene:
                     return ProteinMetadataManager.ProteinDisplayMode.ByGene;
                 default:
-                    throw new ArgumentOutOfRangeException("matchOption", matchOption, null); // Not L10N
+                    throw new ArgumentOutOfRangeException(nameof(matchOption), matchOption, null);
             }
         }
 
@@ -275,7 +266,7 @@ namespace pwiz.Skyline.Model.GroupComparison
             return GetRowString(document, protein, peptide, false);
         }
 
-        public bool Matches(SrmDocument document, Protein protein, Databinding.Entities.Peptide peptide, FoldChangeResult foldChangeResult, CutoffSettings cutoffSettings)
+        public bool Matches(SrmDocument document, Protein protein, Databinding.Entities.Peptide peptide, FoldChangeResult foldChangeResult, ICutoffSettings cutoffSettings)
         {
             foreach (var match in matchOptions)
             {
@@ -326,6 +317,27 @@ namespace pwiz.Skyline.Model.GroupComparison
             }
 
             return true;
+        }
+
+        protected bool Equals(MatchExpression other)
+        {
+            return ArrayUtil.EqualsDeep(matchOptions, other.matchOptions) && string.Equals(RegExpr, other.RegExpr);
+        }
+
+        public override bool Equals(object obj)
+        {
+            if (ReferenceEquals(null, obj)) return false;
+            if (ReferenceEquals(this, obj)) return true;
+            if (obj.GetType() != GetType()) return false;
+            return Equals((MatchExpression)obj);
+        }
+
+        public override int GetHashCode()
+        {
+            unchecked
+            {
+                return ((matchOptions != null ? matchOptions.GetHashCode() : 0) * 397) ^ (RegExpr != null ? RegExpr.GetHashCode() : 0);
+            }
         }
     }
 }

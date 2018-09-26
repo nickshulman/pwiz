@@ -49,7 +49,7 @@ namespace pwiz.Skyline.Util
         TKey GetKey();
     }
 
-    public interface IEquivalenceTestable<T>
+    public interface IEquivalenceTestable<in T>
     {
         bool IsEquivalent(T other);
     }
@@ -102,7 +102,7 @@ namespace pwiz.Skyline.Util
     /// editing.
     /// </summary>
     /// <typeparam name="TItem">The type of the items in the collection</typeparam>
-    public interface IListDefaults<out TItem>
+    public interface IListDefaults<TItem>
     {
         /// <summary>
         /// Gets the current revision index for this list
@@ -114,6 +114,14 @@ namespace pwiz.Skyline.Util
         /// </summary>
         /// <returns>The default collection</returns>
         IEnumerable<TItem> GetDefaults(int revisionIndex);
+
+        /// <summary>
+        /// Gets the localized display name for an item in this list
+        /// usually replacing names for the default items with localized text.
+        /// </summary>
+        /// <param name="item">The item for which to get the display text</param>
+        /// <returns>Localized display text for default items or user supplied text for other items</returns>
+        string GetDisplayName(TItem item);
     }
 
     /// <summary>
@@ -506,7 +514,7 @@ namespace pwiz.Skyline.Util
         public void CopyTo(T[] array, int arrayIndex)
         {
             if (array == null)
-                throw new ArgumentNullException("array");   // Not L10N
+                throw new ArgumentNullException(nameof(array));   // Not L10N
 
             array[arrayIndex] = _item;
         }
@@ -2160,7 +2168,7 @@ namespace pwiz.Skyline.Util
         }
     }
 
-    public class SecurityProtocolInitializer
+    public static class SecurityProtocolInitializer
     {
         // Make sure we can negotiate with HTTPS servers that demand TLS 1.2 (default in dotNet 4.6, but has to be turned on in 4.5)
         public static void Initialize()

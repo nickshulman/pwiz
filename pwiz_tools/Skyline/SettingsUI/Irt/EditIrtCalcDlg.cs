@@ -741,7 +741,7 @@ namespace pwiz.Skyline.SettingsUI.Irt
                     {
                         var message = TextUtil.LineSeparate(Resources.LibraryGridViewDriver_AddResults_An_error_occurred_attempting_to_add_results_from_current_document,
                                                             x.Message);
-                        MessageDlg.Show(MessageParent, message);
+                        MessageDlg.ShowWithException(MessageParent, message, x);
                         return;
                     }
                 }
@@ -757,24 +757,29 @@ namespace pwiz.Skyline.SettingsUI.Irt
 
             private sealed class DocumentRetentionTimeProvider : IRetentionTimeProvider
             {
-                private readonly Dictionary<Target, double> _dictPeptideRetentionTime;
+                private readonly TargetMap<double> _dictPeptideRetentionTime;
 
                 public DocumentRetentionTimeProvider(SrmDocument document, ChromFileInfo fileInfo)
                 {
                     Name = fileInfo.FilePath.ToString();
 
-                    _dictPeptideRetentionTime = new Dictionary<Target, double>();
-                    foreach (var nodePep in document.Peptides)
+                    _dictPeptideRetentionTime =
+                        new TargetMap<double>(GetRetentionTimesFromDocument(document, fileInfo));
+                }
+
+                private static IEnumerable<KeyValuePair<Target, double>> GetRetentionTimesFromDocument(SrmDocument document, ChromFileInfo fileInfo)
+                {
+                    var targets = new HashSet<Target>();
+                    foreach (var nodePep in document.Molecules)
                     {
                         var modSeq = document.Settings.GetModifiedSequence(nodePep);
-                        if (_dictPeptideRetentionTime.ContainsKey(modSeq))
+                        if (!targets.Add(modSeq))
                             continue;
                         float? centerTime = nodePep.GetSchedulingTime(fileInfo.FileId);
                         if (!centerTime.HasValue)
                             continue;
-                        _dictPeptideRetentionTime.Add(modSeq, centerTime.Value);
+                        yield return new KeyValuePair<Target, double>(modSeq, centerTime.Value);
                     }
-
                 }
 
                 public string Name { get; private set; }

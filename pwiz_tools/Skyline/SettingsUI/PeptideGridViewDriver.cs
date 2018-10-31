@@ -170,7 +170,7 @@ namespace pwiz.Skyline.SettingsUI
             string errorText = null;
             if (columnIndex == COLUMN_SEQUENCE && GridView.IsCurrentCellInEditMode)
             {
-                var sequence = new Target(value);
+                var sequence = Target.FromSerializableString(value);
                 errorText = MeasuredPeptide.ValidateSequence(sequence);
                 if (errorText == null)
                 {
@@ -204,9 +204,7 @@ namespace pwiz.Skyline.SettingsUI
             if (row.IsNewRow)
                 return true;
             var cell = row.Cells[COLUMN_SEQUENCE];
-            string errorText = MeasuredPeptide.ValidateSequence(new Target(cell.FormattedValue != null
-                                                                    ? cell.FormattedValue.ToString()
-                                                                    : null));
+            string errorText = MeasuredPeptide.ValidateSequence(Target.FromSerializableString(cell.FormattedValue?.ToString()));
             if (errorText == null)
             {
                 cell = row.Cells[COLUMN_TIME];

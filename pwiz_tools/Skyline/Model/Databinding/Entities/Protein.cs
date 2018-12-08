@@ -86,14 +86,14 @@ namespace pwiz.Skyline.Model.Databinding.Entities
         public string Name
         {
             get { return DocNode.Name; }
-            set { ChangeDocNode(EditDescription.SetColumn("ProteinName", value), // Not L10N
+            set { ChangeDocNode(EditDescription.SetColumn(@"ProteinName", value),
                 docNode=>docNode.ChangeName(value)); } // the user can overide this label
         }
         [InvariantDisplayName("ProteinDescription")]
         public string Description
         {
             get { return DocNode.Description; }
-            set { ChangeDocNode(EditDescription.SetColumn("ProteinDescription", value), // Not L10N
+            set { ChangeDocNode(EditDescription.SetColumn(@"ProteinDescription", value),
                 docNode => docNode.ChangeDescription(value));
             } // the user can ovveride this label
         }
@@ -134,10 +134,11 @@ namespace pwiz.Skyline.Model.Databinding.Entities
             get { return DocNode.PeptideGroup.Sequence; }
         }
         [InvariantDisplayName("ProteinNote")]
+        [Importable]
         public string Note
         {
             get { return DocNode.Note; }
-            set { ChangeDocNode(EditDescription.SetColumn("ProteinNote", value), // Not L10N
+            set { ChangeDocNode(EditDescription.SetColumn(@"ProteinNote", value),
                 docNode => (PeptideGroupDocNode) docNode.ChangeAnnotations(docNode.Annotations.ChangeNote(value)));
             }
         }

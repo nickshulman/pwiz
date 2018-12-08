@@ -40,7 +40,7 @@ namespace pwiz.Skyline.Controls.AuditLog
         //private readonly ToolStripButton _clearLogButton;
         private readonly CheckBox _enableAuditLogging;
 
-        public AuditLogForm(SkylineViewContext viewContext)
+        public AuditLogForm(SkylineViewContext viewContext, string defaultViewName)
             : base(viewContext, AuditLogStrings.AuditLogForm_AuditLogForm_Audit_Log)
         {
             InitializeComponent();
@@ -71,30 +71,34 @@ namespace pwiz.Skyline.Controls.AuditLog
                 if (viewName.HasValue)
                     DataboundGridControl.ChooseView(viewName.Value);
             }
+            else
+            {
+                DataboundGridControl.ChooseView(defaultViewName);
+            }
         }
 
-        public void EnableAuditLogging(bool enable, SkylineWindow window)
+        public void EnableAuditLogging(bool enable)
         {
-            if (!enable && !window.DocumentUI.AuditLog.AuditLogEntries.IsRoot)
+            if (!enable && !_skylineWindow.DocumentUI.AuditLog.AuditLogEntries.IsRoot)
             {
                 using (var dlg = new AlertDlg(
                         AuditLogStrings.AuditLogForm_EnableAuditLogging_This_will_clear_the_audit_log_and_delete_it_permanently_once_the_document_gets_saved__Do_you_want_to_proceed_,
                         MessageBoxButtons.YesNo))
                 {
-                    if (dlg.ShowDialog(this) == DialogResult.No)
+                    if (dlg.ShowDialog(this) != DialogResult.Yes)
                     {
                         return;
                     }
                 }
             }
 
-            window.ModifyDocumentNoUndo(oldDoc => AuditLogList.ToggleAuditLogging(oldDoc, enable));
+            _skylineWindow.ModifyDocumentNoUndo(oldDoc => AuditLogList.ToggleAuditLogging(oldDoc, enable));
             _enableAuditLogging.Checked = enable;
         }
 
         private void enableAuditLogging_Click(object sender, EventArgs e)
         {
-            EnableAuditLogging(!((CheckBox)sender).Checked, _skylineWindow);
+            EnableAuditLogging(!((CheckBox)sender).Checked);
         }
 
         private void _clearLogButton_Click(object sender, EventArgs e)
@@ -125,7 +129,7 @@ namespace pwiz.Skyline.Controls.AuditLog
                 return;
 
             var auditLogRow = rowItem.Value as AuditLogRow;
-            if (auditLogRow == null || rowItem.RowKey.Length == 0 || !rowItem.RowKey.Last.Key.Equals(PropertyPath.Root.Property("Details").LookupAllItems())) // Not L10N
+            if (auditLogRow == null || rowItem.RowKey.Length == 0 || !rowItem.RowKey.Last.Key.Equals(PropertyPath.Root.Property(@"Details").LookupAllItems()))
                 return;
 
             if ((int)rowItem.RowKey.Last.Value == 0)
@@ -155,7 +159,7 @@ namespace pwiz.Skyline.Controls.AuditLog
             var viewSpec = new ViewSpec().SetName(name).SetRowType(columnDescriptor.PropertyType);
             var columns = columnNames.Select(c => new ColumnSpec(PropertyPath.Parse(c)));
 
-            viewSpec = viewSpec.SetSublistId(PropertyPath.Root.Property("Details").LookupAllItems()); // Not L10N
+            viewSpec = viewSpec.SetSublistId(PropertyPath.Root.Property(@"Details").LookupAllItems());
             viewSpec = viewSpec.SetColumns(columns);
 
             return new ViewInfo(columnDescriptor, viewSpec).ChangeViewGroup(ViewGroup.BUILT_IN);
@@ -166,16 +170,16 @@ namespace pwiz.Skyline.Controls.AuditLog
             var dataSchema = new SkylineDataSchema(skylineWindow, SkylineDataSchema.GetLocalizedSchemaLocalizer());
             var viewInfos = new[]
             {
-                CreateAuditLogViewInfo(dataSchema, AuditLogStrings.AuditLogForm_MakeAuditLogForm_Undo_Redo, "TimeStamp", "UndoRedoMessage"), // Not L10N
-                CreateAuditLogViewInfo(dataSchema, AuditLogStrings.AuditLogForm_MakeAuditLogForm_Summary, "TimeStamp", "SummaryMessage"), // Not L10N
-                CreateAuditLogViewInfo(dataSchema, AuditLogStrings.AuditLogForm_MakeAuditLogForm_All_Info, "TimeStamp", "Details!*.AllInfoMessage") // Not L10N
+                CreateAuditLogViewInfo(dataSchema, AuditLogStrings.AuditLogForm_MakeAuditLogForm_Undo_Redo, @"TimeStamp", @"UndoRedoMessage"),
+                CreateAuditLogViewInfo(dataSchema, AuditLogStrings.AuditLogForm_MakeAuditLogForm_Summary, @"TimeStamp", @"SummaryMessage"),
+                CreateAuditLogViewInfo(dataSchema, AuditLogStrings.AuditLogForm_MakeAuditLogForm_All_Info, @"TimeStamp", @"Details!*.AllInfoMessage")
             };
 
             var rowSource = new AuditLogRowSource(dataSchema);
             var rowSourceInfo = new RowSourceInfo(typeof(AuditLogRow), rowSource, viewInfos);
             var viewContext = new SkylineViewContext(dataSchema, new[] { rowSourceInfo });
-            
-            return new AuditLogForm(viewContext);
+
+            return new AuditLogForm(viewContext, viewInfos[2].Name);
         }
 
         private class AuditLogRowSource : SkylineObjectList<object, AuditLogRow>

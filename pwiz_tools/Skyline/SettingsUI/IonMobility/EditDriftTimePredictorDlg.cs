@@ -22,8 +22,8 @@ using System.ComponentModel;
 using System.Drawing;
 using System.Linq;
 using System.Windows.Forms;
+using pwiz.Common.Chemistry;
 using pwiz.Common.SystemUtil;
-using pwiz.ProteowizardWrapper;
 using pwiz.Skyline.Alerts;
 using pwiz.Skyline.Controls;
 using pwiz.Skyline.Model;
@@ -57,9 +57,9 @@ namespace pwiz.Skyline.SettingsUI.IonMobility
             _showRegressions = true;
 
             InitializeComponent();
-            foreach (MsDataFileImpl.eIonMobilityUnits units in Enum.GetValues(typeof(MsDataFileImpl.eIonMobilityUnits)))
+            foreach (eIonMobilityUnits units in Enum.GetValues(typeof(eIonMobilityUnits)))
             {
-                if (units != MsDataFileImpl.eIonMobilityUnits.none) // Don't present "none" as an option
+                if (units != eIonMobilityUnits.none) // Don't present "none" as an option
                 {
                     comboBoxIonMobilityUnits.Items.Add(IonMobilityFilter.IonMobilityUnitsL10NString(units));
                 }
@@ -113,19 +113,19 @@ namespace pwiz.Skyline.SettingsUI.IonMobility
                                 r.Intercept.ToString(LocalizationHelper.CurrentCulture));
                         }
                     }
-                    textResolvingPower.Text = string.Format("{0:F04}", _predictor.WindowWidthCalculator.ResolvingPower); // Not L10N
-                    textWidthAtDt0.Text = string.Format("{0:F04}", _predictor.WindowWidthCalculator.PeakWidthAtIonMobilityValueZero); // Not L10N
-                    textWidthAtDtMax.Text = string.Format("{0:F04}", _predictor.WindowWidthCalculator.PeakWidthAtIonMobilityValueMax); // Not L10N
+                    textResolvingPower.Text = string.Format(@"{0:F04}", _predictor.WindowWidthCalculator.ResolvingPower);
+                    textWidthAtDt0.Text = string.Format(@"{0:F04}", _predictor.WindowWidthCalculator.PeakWidthAtIonMobilityValueZero);
+                    textWidthAtDtMax.Text = string.Format(@"{0:F04}", _predictor.WindowWidthCalculator.PeakWidthAtIonMobilityValueMax);
                     cbLinear.Checked = _predictor.WindowWidthCalculator.PeakWidthMode == IonMobilityWindowWidthCalculator.IonMobilityPeakWidthType.linear_range;
                 }
                 UpdateControls();
             }
         }
 
-        private MsDataFileImpl.eIonMobilityUnits Units
+        private eIonMobilityUnits Units
         {
             set { comboBoxIonMobilityUnits.SelectedIndex = (int)value - 1; } // We don't present "none" as an option
-            get { return (MsDataFileImpl.eIonMobilityUnits)comboBoxIonMobilityUnits.SelectedIndex + 1; }
+            get { return (eIonMobilityUnits)comboBoxIonMobilityUnits.SelectedIndex + 1; }
         }
 
         private void UpdateMeasuredDriftTimesControl(IonMobilityPredictor predictor)
@@ -149,7 +149,7 @@ namespace pwiz.Skyline.SettingsUI.IonMobility
                 foreach (var p in predictor.MeasuredMobilityIons)
                 {
                     var ccs = p.Value.CollisionalCrossSectionSqA.HasValue
-                        ? string.Format("{0:F04}",p.Value.CollisionalCrossSectionSqA.Value) // Not L10N
+                        ? string.Format(@"{0:F04}",p.Value.CollisionalCrossSectionSqA.Value)
                         : string.Empty;
                     var im = p.Value.IonMobility.Units == units ? p.Value.IonMobility.Mobility : null;
                     var imOffset = p.Value.IonMobility.Units == units ? p.Value.HighEnergyIonMobilityValueOffset : 0;
@@ -353,7 +353,7 @@ namespace pwiz.Skyline.SettingsUI.IonMobility
 
         #region Functional test support
 
-        public void SetIonMobilityUnits(MsDataFileImpl.eIonMobilityUnits units)
+        public void SetIonMobilityUnits(eIonMobilityUnits units)
         {
             Units = units;
         }
@@ -435,7 +435,8 @@ namespace pwiz.Skyline.SettingsUI.IonMobility
             try
             {
                 var driftTable = new MeasuredDriftTimeTable(gridMeasuredDriftTimes);
-                var tempDriftTimePredictor = new IonMobilityPredictor("tmp", driftTable.GetTableMeasuredIonMobility(cbOffsetHighEnergySpectra.Checked, Units), null, null, IonMobilityWindowWidthCalculator.IonMobilityPeakWidthType.resolving_power, 30, 0, 0); // Not L10N
+                bool useHighEnergyOffset = cbOffsetHighEnergySpectra.Checked;
+                var tempDriftTimePredictor = new IonMobilityPredictor(@"tmp", driftTable.GetTableMeasuredIonMobility(useHighEnergyOffset, Units), null, null, IonMobilityWindowWidthCalculator.IonMobilityPeakWidthType.resolving_power, 30, 0, 0);
                 using (var longWaitDlg = new LongWaitDlg
                 {
                     Text = Resources.EditDriftTimePredictorDlg_GetDriftTimesFromResults_Finding_ion_mobility_values_for_peaks,
@@ -445,7 +446,7 @@ namespace pwiz.Skyline.SettingsUI.IonMobility
                 {
                     longWaitDlg.PerformWork(this, 100, broker =>
                     {
-                        tempDriftTimePredictor = tempDriftTimePredictor.ChangeMeasuredIonMobilityValuesFromResults(Program.MainWindow.Document, Program.MainWindow.DocumentFilePath, broker);
+                        tempDriftTimePredictor = tempDriftTimePredictor.ChangeMeasuredIonMobilityValuesFromResults(Program.MainWindow.Document, Program.MainWindow.DocumentFilePath, useHighEnergyOffset, broker);
                     });
                     if (!longWaitDlg.IsCanceled && tempDriftTimePredictor != null)
                     {
@@ -518,7 +519,7 @@ namespace pwiz.Skyline.SettingsUI.IonMobility
             _gridMeasuredDriftTimePeptides = gridMeasuredDriftTimePeptides;
         }
 
-        public Dictionary<LibKey, IonMobilityAndCCS> GetTableMeasuredIonMobility(bool useHighEnergyOffsets, MsDataFileImpl.eIonMobilityUnits units)
+        public Dictionary<LibKey, IonMobilityAndCCS> GetTableMeasuredIonMobility(bool useHighEnergyOffsets, eIonMobilityUnits units)
         {
             var e = new CancelEventArgs();
             var dict = new Dictionary<LibKey, IonMobilityAndCCS>();
@@ -537,7 +538,7 @@ namespace pwiz.Skyline.SettingsUI.IonMobility
                 if (target == null || target.IsEmpty)
                 {
                     // Does seq evaluate as a peptide?
-                    target = !seq.All(c => char.IsUpper(c) || char.IsDigit(c) || "[+-,.]()".Contains(c)) // Not L10N
+                    target = !seq.All(c => char.IsUpper(c) || char.IsDigit(c) || @"[+-,.]()".Contains(c))
                         ? new Target(CustomMolecule.FromSerializableString(seq)) 
                         : Target.FromSerializableString(seq);
                 }

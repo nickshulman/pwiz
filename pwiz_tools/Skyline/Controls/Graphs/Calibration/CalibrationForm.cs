@@ -309,17 +309,20 @@ namespace pwiz.Skyline.Controls.Graphs.Calibration
                 if (CalibrationCurve.RSquared.HasValue)
                 {
                     labelLines.Add(QuantificationStrings.CalibrationForm_DisplayCalibrationCurve_ +
-                                   CalibrationCurve.RSquared.Value.ToString("0.####")); // Not L10N
+                                   CalibrationCurve.RSquared.Value.ToString(@"0.####"));
                 }
                 if (!Equals(curveFitter.QuantificationSettings.RegressionWeighting, RegressionWeighting.NONE))
                 {
-                    labelLines.Add(string.Format("{0}: {1}", // Not L10N
+                    labelLines.Add(string.Format(@"{0}: {1}",
                         QuantificationStrings.Weighting, curveFitter.QuantificationSettings.RegressionWeighting));
                 }
-                string strFiguresOfMerit = FiguresOfMerit.ToString();
-                if (!string.IsNullOrEmpty(strFiguresOfMerit))
+                if (options.ShowFiguresOfMerit)
                 {
-                    labelLines.Add(strFiguresOfMerit);
+                    string strFiguresOfMerit = FiguresOfMerit.ToString();
+                    if (!string.IsNullOrEmpty(strFiguresOfMerit))
+                    {
+                        labelLines.Add(strFiguresOfMerit);
+                    }
                 }
             }
 
@@ -357,7 +360,7 @@ namespace pwiz.Skyline.Controls.Graphs.Calibration
                             ySelected.Value) {Line = {Color = GraphSummary.ColorSelected}};
                         zedGraphControl.GraphPane.GraphObjList.Insert(0, arrow);
                         var verticalLine = new LineObj(xSelected.Value, ySelected.Value, xSelected.Value,
-                            options.LogYAxis ? double.MinValue : 0)
+                            options.LogYAxis ? minY / 10 : 0)
                         {
                             Line = {Color = selectedLineColor, Width = selectedLineWidth},
                             Location = {CoordinateFrame = CoordType.AxisXYScale},
@@ -406,7 +409,7 @@ namespace pwiz.Skyline.Controls.Graphs.Calibration
                 var quantificationResult = curveFitter.GetQuantificationResult(_skylineWindow.SelectedResultsIndex);
                 if (quantificationResult.CalculatedConcentration.HasValue)
                 {
-                    labelLines.Add(string.Format("{0} = {1}", // Not L10N
+                    labelLines.Add(string.Format(@"{0} = {1}",
                         QuantificationStrings.Calculated_Concentration, quantificationResult));
                 }
                 else if (!quantificationResult.NormalizedArea.HasValue)
@@ -418,7 +421,7 @@ namespace pwiz.Skyline.Controls.Graphs.Calibration
             {
                 if (IsNumber(FiguresOfMerit.LimitOfDetection))
                 {
-                    var lodLine = new LineObj(Color.Magenta, FiguresOfMerit.LimitOfDetection.Value, 0,
+                    var lodLine = new LineObj(Color.DarkMagenta, FiguresOfMerit.LimitOfDetection.Value, 0,
                         FiguresOfMerit.LimitOfDetection.Value, 1)
                     {
                         Location = { CoordinateFrame = CoordType.XScaleYChartFraction }
@@ -427,7 +430,7 @@ namespace pwiz.Skyline.Controls.Graphs.Calibration
                 }
                 if (IsNumber(FiguresOfMerit.LimitOfQuantification))
                 {
-                    var loqLine = new LineObj(Color.Cyan, FiguresOfMerit.LimitOfQuantification.Value, 0,
+                    var loqLine = new LineObj(Color.DarkCyan, FiguresOfMerit.LimitOfQuantification.Value, 0,
                         FiguresOfMerit.LimitOfQuantification.Value, 1)
                     {
                         Location = { CoordinateFrame = CoordType.XScaleYChartFraction }

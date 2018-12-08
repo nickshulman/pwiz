@@ -90,7 +90,7 @@ namespace pwiz.Skyline.Model
     }
         public string LabelTypeText
         {
-            get { return (!LabelType.IsLight ? " (" + LabelType + ")" : string.Empty); } // Not L10N
+            get { return (!LabelType.IsLight ? @" (" + LabelType + @")" : string.Empty); }
         }
 
         public static int CompareTransitions(TransitionDocNode node1, TransitionDocNode node2)
@@ -160,7 +160,7 @@ namespace pwiz.Skyline.Model
                 massH = calc.GetFragmentMass(tranNew, isotopeDist);
             }
             var isotopeDistInfo = TransitionDocNode.GetIsotopeDistInfo(tranNew, losses, isotopeDist);
-            var nodeTranMatching = new TransitionDocNode(tranNew, losses, massH, new TransitionDocNode.TransitionQuantInfo(isotopeDistInfo, libInfo, nodeTran.Quantitative));
+            var nodeTranMatching = new TransitionDocNode(tranNew, losses, massH, new TransitionDocNode.TransitionQuantInfo(isotopeDistInfo, libInfo, nodeTran.IsQuantitative(settings)));
             return nodeTranMatching;
         }
 
@@ -885,9 +885,9 @@ namespace pwiz.Skyline.Model
         public override string ToString()
         {
             return LabelType.IsLight
-                       ? string.Format("Charge {0} {1}", PrecursorAdduct,   // Not L10N : For debugging
+                       ? string.Format(@"Charge {0} {1}", PrecursorAdduct,   // For debugging
                                        Transition.GetDecoyText(DecoyMassShift)) 
-                       : string.Format("Charge {0} ({1}) {2}", PrecursorAdduct, LabelType, // Not L10N: For debugging
+                       : string.Format(@"Charge {0} ({1}) {2}", PrecursorAdduct, LabelType, // For debugging
                                        Transition.GetDecoyText(DecoyMassShift));
         }
 

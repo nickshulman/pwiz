@@ -43,10 +43,10 @@ namespace pwiz.Skyline.Model.AuditLog
     [XmlRoot(XML_ROOT)]
     public class AuditLogList : Immutable, IXmlSerializable
     {
-        public const string XML_ROOT = "audit_log"; // Not L10N
-        public const string EXT = ".skyl"; // Not L10N
+        public const string XML_ROOT = "audit_log";
+        public const string EXT = ".skyl";
 
-        public static bool CanStoreAuditLog = true;
+        public static bool IgnoreTestChecks { get; set; }
 
         public AuditLogList(AuditLogEntry entries)
         {
@@ -65,25 +65,6 @@ namespace pwiz.Skyline.Model.AuditLog
             var newDoc = doc.ChangeSettings(
                 doc.Settings.ChangeDataSettings(doc.Settings.DataSettings.ChangeAuditLogging(enable)));
 
-            if (enable)
-            {
-                var defaultDoc = new SrmDocument(SrmSettingsList.GetDefault());
-                var docPair = SrmDocumentPair.Create(defaultDoc, doc);
-
-                var changeFromDefaultSettings = AuditLogEntry.SettingsLogFunction(docPair);
-                var initialNodeCounts = doc.Children.Count > 0 ? new DocumentNodeCounts(doc).EntryCreator.Create(docPair) : null;
-
-                var entry = AuditLogEntry.CreateSimpleEntry(doc, MessageType.start_log_existing_doc)
-                    .Merge(initialNodeCounts).Merge(changeFromDefaultSettings);
-
-                if (changeFromDefaultSettings != null || initialNodeCounts != null)
-                    newDoc = newDoc.ChangeAuditLog(entry);
-            }
-            else
-            {
-                newDoc = newDoc.ChangeAuditLog(AuditLogEntry.ROOT);
-            }
-                
             return newDoc;
         }
 
@@ -178,7 +159,7 @@ namespace pwiz.Skyline.Model.AuditLog
         private void WriteToXmlWriter(XmlWriter writer, string documentHash = null)
         {
             writer.WriteStartDocument();
-            writer.WriteStartElement("audit_log_root"); // Not L10N
+            writer.WriteStartElement(@"audit_log_root");
             if (!string.IsNullOrEmpty(documentHash))
                 writer.WriteElementString(EL.document_hash, documentHash);
             writer.WriteElement(this);
@@ -232,7 +213,7 @@ namespace pwiz.Skyline.Model.AuditLog
 
             private string _smallMoleculeName
             {
-                get { return _propertyName + "_smallmol"; } // Not L10N
+                get { return _propertyName + @"_smallmol"; }
             }
 
             protected override string Localize(ObjectPair<object> objectPair)
@@ -304,8 +285,9 @@ namespace pwiz.Skyline.Model.AuditLog
 
     public class LogException : Exception
     {
-        public LogException(Exception innerException) : base(null, innerException)
+        public LogException(Exception innerException, string oldUndoRedoMessage = null) : base(null, innerException)
         {
+            OldUndoRedoMessage = oldUndoRedoMessage;
         }
 
         public override string Message
@@ -325,7 +307,7 @@ namespace pwiz.Skyline.Model.AuditLog
             }
         }
 
-        public string OldUndoRedoMessage { get; set; }
+        public string OldUndoRedoMessage { get; private set; }
     }
 
     public class MessageArgs
@@ -351,7 +333,7 @@ namespace pwiz.Skyline.Model.AuditLog
     [XmlRoot(XML_ROOT)]
     public class AuditLogEntry : Immutable, IXmlSerializable
     {
-        public const string XML_ROOT = "audit_log_entry"; // Not L10N
+        public const string XML_ROOT = "audit_log_entry";
 
         private ImmutableList<LogMessage> _allInfo;
         private Action<AuditLogEntry> _undoAction;
@@ -371,7 +353,7 @@ namespace pwiz.Skyline.Model.AuditLog
 
             SkylineVersion = Install.Version;
             if (Install.Is64Bit)
-                SkylineVersion += " (64-Bit)"; // Not L10N
+                SkylineVersion += @" (64-Bit)";
 
             FormatVersion = document.FormatVersion;
             TimeStamp = timeStamp;
@@ -452,13 +434,18 @@ namespace pwiz.Skyline.Model.AuditLog
 
         public int LogIndex { get; private set; }
 
+        public static string Hash(byte[] bytes)
+        {
+            using (var sha1 = new SHA1CryptoServiceProvider())
+            {
+                var hash = sha1.ComputeHash(bytes);
+                return string.Join(string.Empty, hash.Select(b => b.ToString(@"X2")));
+            }
+        }
+
         public static string Hash(string s)
         {
-            using (var sha1 = new SHA1Managed())
-            {
-                var hash = sha1.ComputeHash(Encoding.UTF8.GetBytes(s));
-                return string.Join(string.Empty, hash.Select(b => b.ToString("X2"))); // Not L10N
-            }
+            return Hash(Encoding.UTF8.GetBytes(s));
         }
 
         public AuditLogEntry this[int i]
@@ -583,6 +570,27 @@ namespace pwiz.Skyline.Model.AuditLog
                 .ChangeSummary(GetUnloggedMessages(int.Parse(countEntry.Summary.Names[0]) + 1))
                 .ChangeAllInfo(ImmutableList.Singleton(GetUnloggedMessages(
                     int.Parse(countEntry._allInfoNoUndoRedo.First().Names[0]) + _allInfoNoUndoRedo.Count())));
+        }
+
+        public static AuditLogEntry GetAuditLoggingStartExistingDocEntry(SrmDocument doc)
+        {
+            // Don't want to have these entries in tests (except for the AuditLogSaving test which actually tests this type of entry)
+            if (Program.FunctionalTest && !AuditLogList.IgnoreTestChecks)
+                return null;
+
+            var defaultDoc = new SrmDocument(SrmSettingsList.GetDefault());
+            var docPair = SrmDocumentPair.Create(defaultDoc, doc);
+
+            var changeFromDefaultSettings = SettingsLogFunction(docPair);
+            var initialNodeCounts = doc.Children.Count > 0 ? new DocumentNodeCounts(doc).EntryCreator.Create(docPair) : null;
+
+            var entry = CreateSimpleEntry(doc, MessageType.start_log_existing_doc)
+                .Merge(initialNodeCounts).Merge(changeFromDefaultSettings);
+
+            if (changeFromDefaultSettings != null || initialNodeCounts != null)
+                return entry;
+
+            return null;
         }
 
         public static AuditLogEntry GetUndocumentedChangeEntry(SrmDocument doc)
@@ -752,7 +760,7 @@ namespace pwiz.Skyline.Model.AuditLog
         /// <returns></returns>
         public static AuditLogEntry CreateSettingsChangeEntry(SrmDocument document, DiffTree tree, string extraInfo = null)
         {
-            if (tree.Root == null)
+            if (tree?.Root == null)
                 return null;
 
             var result = new AuditLogEntry(document, tree.TimeStamp, string.Empty, true, extraInfo);
@@ -765,7 +773,7 @@ namespace pwiz.Skyline.Model.AuditLog
                 while (name.Parent.Parent != PropertyName.ROOT)
                     name = name.Parent;
 
-                if (name.Parent.Name == "{0:Settings}") // Not L10N
+                if (name.Parent.Name == @"{0:Settings}")
                 {
                     name = RemoveTopmostParent(nodeNamePair.Name);
                     nodeNamePair = nodeNamePair.ChangeName(name);
@@ -781,13 +789,32 @@ namespace pwiz.Skyline.Model.AuditLog
             return result;
         }
 
-        public static AuditLogEntry DiffDocNodes(MessageType action, SrmDocumentPair documentPair, params object[] actionParameters)
+        private static bool IsTransitionDiff(Type type)
+        {
+            if (type == typeof(TransitionDocNode) || type == typeof(TransitionGroupDocNode))
+                return true;
+
+            if (type.GenericTypeArguments.Length == 1 &&
+                typeof(IEnumerable<>).MakeGenericType(type.GenericTypeArguments[0]).IsAssignableFrom(type))
+                type = type.GenericTypeArguments[0];
+            else
+                return false;
+            return IsTransitionDiff(type);
+        }
+
+        public static AuditLogEntry DiffDocNodes(MessageType action, SrmDocumentPair documentPair,
+            bool ignoreTransitions, params object[] actionParameters)
         {
             var property = RootProperty.Create(typeof(Targets));
             var objInfo = new ObjectInfo<object>(documentPair.OldDoc.Targets, documentPair.NewDoc.Targets,
                 documentPair.OldDoc, documentPair.NewDoc, documentPair.OldDoc, documentPair.NewDoc);
 
-            var diffTree = DiffTree.FromEnumerator(Reflector<Targets>.EnumerateDiffNodes(objInfo, property, false), DateTime.Now);
+            var diffTree = DiffTree.FromEnumerator(
+                Reflector<Targets>.EnumerateDiffNodes(objInfo, property, false,
+                    ignoreTransitions
+                        ? (Func<DiffNode, bool>) (node => !IsTransitionDiff(node.Property.PropertyType))
+                        : null),
+                DateTime.Now);
 
             if (diffTree.Root != null)
             {
@@ -798,6 +825,11 @@ namespace pwiz.Skyline.Model.AuditLog
             }
 
             return null;
+        }
+
+        public static AuditLogEntry DiffDocNodes(MessageType action, SrmDocumentPair documentPair, params object[] actionParameters)
+        {
+            return DiffDocNodes(action, documentPair, false, actionParameters);
         }
 
         /// <summary>
@@ -874,11 +906,15 @@ namespace pwiz.Skyline.Model.AuditLog
         }
 
         /// <summary>
-        /// Adds the current entry to the given document
+        /// Updates the document with the given AuditLogEntry. If the entry is non-null and logging is enabled,
+        /// it is added to the document. If audit logging changed from being disabled to enabled and the document is different
+        /// from the default document(no children, default settings) a "start from existing document" entry is added. If audit logging
+        /// changes from being enabled to disabled, the log is cleared.
         /// </summary>
+        /// <param name="entry">The entry to add</param>
         /// <param name="docPair">Document pair containing the new document the entry should get added to</param>
         /// <returns>A new document with this entry added</returns>
-        public SrmDocument AddToDocument(SrmDocumentPair docPair)
+        public static SrmDocument UpdateDocument(AuditLogEntry entry, SrmDocumentPair docPair)
         {
             var newDoc = docPair.NewDoc;
             /*if (Settings.Default.AuditLogging || CountEntryType == MessageType.log_cleared)
@@ -905,27 +941,29 @@ namespace pwiz.Skyline.Model.AuditLog
                 newDoc = document.ChangeAuditLog(newEntries);
             }*/
 
-            if (docPair.OldDoc.Settings.DataSettings.AuditLogging)
+            var oldLogging = docPair.OldDoc.Settings.DataSettings.AuditLogging;
+            var newLogging = docPair.NewDoc.Settings.DataSettings.AuditLogging;
+
+            if (oldLogging && !newLogging)
+                return newDoc.ChangeAuditLog(ROOT);
+            else if (!oldLogging && newLogging)
             {
-                newDoc = newDoc.ChangeAuditLog(ChangeParent(docPair.NewDoc.AuditLog.AuditLogEntries));
-                OnAuditLogEntryAdded?.Invoke(this, new AuditLogEntryAddedEventArgs(newDoc.AuditLog.AuditLogEntries));
+                var startEntry = GetAuditLoggingStartExistingDocEntry(newDoc);
+                if (startEntry != null && entry != null)
+                    startEntry = startEntry.ChangeParent(entry);
+                entry = startEntry ?? entry;
             }
-            
+
+            if (newLogging)
+                newDoc = entry?.AppendEntryToDocument(newDoc) ?? newDoc;
+
             return newDoc;
         }
 
-        // For testing
-        public class AuditLogEntryAddedEventArgs : EventArgs
+        public SrmDocument AppendEntryToDocument(SrmDocument doc)
         {
-            public AuditLogEntryAddedEventArgs(AuditLogEntry entry)
-            {
-                Entry = entry;
-            }
-
-            public AuditLogEntry Entry { get; private set; }
+            return doc.ChangeAuditLog(ChangeParent(doc.AuditLog.AuditLogEntries));
         }
-
-        public static event EventHandler<AuditLogEntryAddedEventArgs> OnAuditLogEntryAdded;
 
         public static bool ConvertPathsToFileNames { get; set; }
 
@@ -937,7 +975,7 @@ namespace pwiz.Skyline.Model.AuditLog
         /// <returns>A log entry containing the changes</returns>
         public static AuditLogEntry SettingsLogFunction(SrmDocumentPair documentPair)
         {
-            var property = RootProperty.Create(typeof(SrmSettings), "Settings"); // Not L10N
+            var property = RootProperty.Create(typeof(SrmSettings), @"Settings");
             var objInfo = new ObjectInfo<object>(documentPair.OldDoc.Settings, documentPair.NewDoc.Settings,
                 documentPair.OldDoc, documentPair.NewDoc, documentPair.OldDoc, documentPair.NewDoc);
 
@@ -1057,12 +1095,12 @@ namespace pwiz.Skyline.Model.AuditLog
             Reason = reader.IsStartElement(EL.reason) ? reader.ReadElementString() : string.Empty;
             ExtraInfo = reader.IsStartElement(EL.extra_info) ? reader.ReadElementString().UnescapeNonPrintableChars() : string.Empty;
 
-            UndoRedo = reader.DeserializeElement<LogMessage>();
-            Summary = reader.DeserializeElement<LogMessage>();
+            UndoRedo = reader.DeserializeElement<LogMessage>().ChangeLevel(LogLevel.undo_redo);
+            Summary = reader.DeserializeElement<LogMessage>().ChangeLevel(LogLevel.summary);
 
             var list = new List<LogMessage>();
             while (reader.IsStartElement(EL.message))
-                list.Add(reader.DeserializeElement<LogMessage>());
+                list.Add(reader.DeserializeElement<LogMessage>().ChangeLevel(LogLevel.all_info));
 
             AllInfo = list;
 

@@ -92,6 +92,11 @@ targets['SkylineRelease'] = \
 #targets['Skyline'] = merge(targets['SkylineRelease'], targets['SkylineDebug'])
 targets['Skyline'] = targets['SkylineRelease']
 
+targets['Container'] = \
+{
+    "ProteoWizardAndSkylineDockerContainerWineX8664": "ProteoWizard and Skyline Docker container (Wine x86_64)"
+}
+
 targets['BumbershootRelease'] = \
 {
     "Bumbershoot_Windows_X86_64": "Bumbershoot Windows x86_64"
@@ -101,7 +106,7 @@ targets['BumbershootLinux'] = {"ProteoWizard_Bumbershoot_Linux_x86_64": "Bumbers
 targets['Bumbershoot'] = merge(targets['BumbershootRelease'], targets['BumbershootLinux'])
 
 targets['Core'] = merge(targets['CoreWindows'], targets['CoreLinux'])
-targets['All'] = merge(targets['Core'], targets['Skyline'], targets['Bumbershoot'])
+targets['All'] = merge(targets['Core'], targets['Skyline'], targets['Bumbershoot'], targets['Container'])
 
 # Patterns are processed in order. If a path matches multiple patterns, only the first pattern will trigger. For example,
 # "pwiz_tools/Bumbershoot/Jamfile.jam" matches both "pwiz_tools/Bumbershoot/.*" and "pwiz_tools/.*", but will only trigger "Bumbershoot" targets
@@ -112,11 +117,11 @@ matchPaths = [
     ("pwiz_aux/.*", targets['All']),
     ("scripts/wix/.*", targets['CoreWindows']),
     ("scripts/.*", targets['All']),
-    ("pwiz_tools/BiblioSpec/.*", merge(targets['Core'], targets['Skyline'])),
+    ("pwiz_tools/BiblioSpec/.*", merge(targets['Core'], targets['Skyline'], targets['Container'])),
     ("pwiz_tools/Bumbershoot/.*", targets['Bumbershoot']),
-    ("pwiz_tools/Skyline/.*", targets['Skyline']),
+    ("pwiz_tools/Skyline/.*", merge(targets['Skyline'], targets['Container'])),
     ("pwiz_tools/Topograph/.*", targets['Skyline']),
-    ("pwiz_tools/Shared/.*", merge(targets['Skyline'], targets['BumbershootRelease'])),
+    ("pwiz_tools/Shared/.*", merge(targets['Skyline'], targets['BumbershootRelease'], targets['Container'])),
     ("pwiz_tools/.*", targets['All']),
     ("Jamroot.jam", targets['All'])
 ]
@@ -127,7 +132,7 @@ if current_branch == "master":
     changed_files = subprocess.check_output("git show --pretty="" --name-only", shell=True).decode(sys.stdout.encoding)
     current_commit = subprocess.check_output('git log -n1 --format="%H"', shell=True).decode(sys.stdout.encoding).strip()
 elif current_branch.startswith("pull/"):
-    print(subprocess.check_output('git checkout master && git pull origin master && git fetch origin %s' % (current_branch + "/head"), shell=True).decode(sys.stdout.encoding))
+    print(subprocess.check_output('git fetch origin master && git checkout master && git pull origin master && git fetch origin %s' % (current_branch + "/head"), shell=True).decode(sys.stdout.encoding))
     changed_files = subprocess.check_output("git diff --name-only master...FETCH_HEAD", shell=True).decode(sys.stdout.encoding)
     current_commit = subprocess.check_output('git log -n1 --format="%H" FETCH_HEAD', shell=True).decode(sys.stdout.encoding).strip()
 else:
@@ -141,18 +146,24 @@ changed_files = changed_files.splitlines()
 
 # match changed file paths to triggers
 triggers = {}
-for path in changed_files:
-    if os.path.basename(path) == "smartBuildTrigger.py":
-        continue
-    triggered = False # only trigger once per path
-    for tuple in matchPaths:
-        if re.match(tuple[0], path):
-            for target in tuple[1]:
-                if target not in triggers:
-                    triggers[target] = path
-                triggered = True
-        if triggered:
-            break
+if current_branch == "master" and len(changed_files) == 0:
+    print("Empty change list on master branch; this is some merge I don't know how to get a reliable change list for yet. Building everything!")
+    for target in targets['All']:
+        if target not in triggers:
+            triggers[target] = "merge to master"
+else:
+    for path in changed_files:
+        if os.path.basename(path) == "smartBuildTrigger.py":
+            continue
+        triggered = False # only trigger once per path
+        for tuple in matchPaths:
+            if re.match(tuple[0], path):
+                for target in tuple[1]:
+                    if target not in triggers:
+                        triggers[target] = path
+                    triggered = True
+            if triggered:
+                break
     
 notBuilding = {}
 building = {}

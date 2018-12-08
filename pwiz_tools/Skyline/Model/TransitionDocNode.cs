@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Original author: Brendan MacLean <brendanx .at. u.washington.edu>,
  *                  MacCoss Lab, Department of Genome Sciences, UW
  *
@@ -62,7 +62,7 @@ namespace pwiz.Skyline.Model
             IsotopeDistInfo = transitionQuantInfo.IsotopeDistInfo;
             LibInfo = transitionQuantInfo.LibInfo;
             Results = results;
-            Quantitative = transitionQuantInfo.Quantititative;
+            ExplicitQuantitative = transitionQuantInfo.Quantititative;
         }
 
         public override AnnotationDef.AnnotationTarget AnnotationTarget { get { return AnnotationDef.AnnotationTarget.transition; } }
@@ -102,9 +102,22 @@ namespace pwiz.Skyline.Model
 
         public double LostMass { get { return HasLoss ? Losses.Mass : 0; } }
 
-        public bool Quantitative { get; private set; }
+        public bool ExplicitQuantitative { get; private set; }
 
-        public TransitionQuantInfo QuantInfo { get { return new TransitionQuantInfo(IsotopeDistInfo, LibInfo, Quantitative);} }
+        public bool IsQuantitative(SrmSettings settings)
+        {
+            if (!ExplicitQuantitative)
+            {
+                return false;
+            }
+            if (!IsMs1 && FullScanAcquisitionMethod.DDA.Equals(settings.TransitionSettings.FullScan.AcquisitionMethod))
+            {
+                return false;
+            }
+            return true;
+        }
+
+        public TransitionQuantInfo QuantInfo { get { return new TransitionQuantInfo(IsotopeDistInfo, LibInfo, ExplicitQuantitative);} }
 
         public bool IsLossPossible(int maxLossMods, IList<StaticMod> modsLossAvailable)
         {
@@ -133,7 +146,7 @@ namespace pwiz.Skyline.Model
         public string GetFragmentIonName(CultureInfo cultureInfo, double? tolerance = null)
         {
             string ionName = Transition.GetFragmentIonName(cultureInfo, tolerance);
-            return (HasLoss ? string.Format("{0} -{1}", ionName, Math.Round(Losses.Mass, 1)) : ionName); // Not L10N
+            return (HasLoss ? string.Format(@"{0} -{1}", ionName, Math.Round(Losses.Mass, 1)) : ionName);
         }
 
         /// <summary>
@@ -219,6 +232,12 @@ namespace pwiz.Skyline.Model
                 }
             }
             return null;
+        }
+
+        public TransitionChromInfo GetChromInfo(int resultsIndex, ChromFileInfoId chromFileInfoId)
+        {
+            return GetSafeChromInfo(resultsIndex).FirstOrDefault(chromInfo =>
+                chromFileInfoId == null || ReferenceEquals(chromFileInfoId, chromInfo.FileId));
         }
 
         public float? GetPeakCountRatio(int i, bool integrateAll)
@@ -402,7 +421,7 @@ namespace pwiz.Skyline.Model
             var transitionProto = new SkylineDocumentProto.Types.Transition
             {
                 FragmentType = DataValues.ToIonType(Transition.IonType),
-                NotQuantitative = !Quantitative
+                NotQuantitative = !ExplicitQuantitative
             };
             if (Transition.IsCustom() && !Transition.IsPrecursor())
             {
@@ -642,7 +661,7 @@ namespace pwiz.Skyline.Model
 
         public TransitionDocNode ChangeQuantitative(bool prop)
         {
-            return ChangeProp(ImClone(this), im => im.Quantitative = prop);
+            return ChangeProp(ImClone(this), im => im.ExplicitQuantitative = prop);
         }
 
         public TransitionDocNode ChangeLibInfo(TransitionLibInfo prop)
@@ -816,7 +835,7 @@ namespace pwiz.Skyline.Model
                    Equals(obj.IsotopeDistInfo, IsotopeDistInfo) &&
                    Equals(obj.LibInfo, LibInfo) &&
                    Equals(obj.Results, Results) &&
-                   Equals(obj.Quantitative, Quantitative);
+                   Equals(obj.ExplicitQuantitative, ExplicitQuantitative);
             return equal;  // For debugging convenience
         }
 
@@ -836,7 +855,7 @@ namespace pwiz.Skyline.Model
                 result = (result*397) ^ (IsotopeDistInfo != null ? IsotopeDistInfo.GetHashCode() : 0);
                 result = (result*397) ^ (LibInfo != null ? LibInfo.GetHashCode() : 0);
                 result = (result*397) ^ (Results != null ? Results.GetHashCode() : 0);
-                result = (result*397) ^ Quantitative.GetHashCode();
+                result = (result*397) ^ ExplicitQuantitative.GetHashCode();
                 return result;
             }
         }

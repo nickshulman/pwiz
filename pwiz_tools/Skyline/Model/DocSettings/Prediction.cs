@@ -24,11 +24,11 @@ using System.Threading;
 using System.Xml;
 using System.Xml.Schema;
 using System.Xml.Serialization;
+using pwiz.Common.Chemistry;
 using pwiz.Common.Collections;
 using pwiz.Common.DataAnalysis;
 using pwiz.Common.DataBinding;
 using pwiz.Common.SystemUtil;
-using pwiz.ProteowizardWrapper;
 using pwiz.Skyline.Model.AuditLog;
 using pwiz.Skyline.Model.IonMobility;
 using pwiz.Skyline.Model.Irt;
@@ -470,7 +470,7 @@ namespace pwiz.Skyline.Model.DocSettings
             if (!string.IsNullOrEmpty(calculatorName))
                 _calculator = new RetentionScoreCalculator(calculatorName);
             // TODO: Fix this hacky way of dealing with the default value.
-            else if (reader.IsStartElement("irt_calculator")) // Not L10N
+            else if (reader.IsStartElement(@"irt_calculator"))
                 _calculator = RCalcIrt.Deserialize(reader);
 
             Conversion = reader.DeserializeElement<RegressionLineElement>(EL.regression_rt);
@@ -577,7 +577,7 @@ namespace pwiz.Skyline.Model.DocSettings
             CalculateRegressionSummary result = new CalculateRegressionSummary();
             new LongOperationRunner
             {
-                JobTitle = "Calculating best regression"
+                JobTitle = @"Calculating best regression"
             }.Run(longWaitBroker =>
             {
                 using (var linkedTokenSource =
@@ -626,7 +626,7 @@ namespace pwiz.Skyline.Model.DocSettings
 
             var maxThreads = Math.Max(1, Environment.ProcessorCount / 2);
             queueWorker.RunAsync(maxThreads,
-                "RetentionTimeRegression.CalcBestRegressionBackground"); // Not L10N
+                @"RetentionTimeRegression.CalcBestRegressionBackground");
             queueWorker.Add(calculators, true);
 
             // Pass on exception
@@ -996,8 +996,8 @@ namespace pwiz.Skyline.Model.DocSettings
             return Math.Round(value, precision ?? ThresholdPrecision) >= threshold;
         }
 
-        public const string SSRCALC_300_A = "SSRCalc 3.0 (300A)"; // Not L10N
-        public const string SSRCALC_100_A = "SSRCalc 3.0 (100A)"; // Not L10N
+        public const string SSRCALC_300_A = "SSRCalc 3.0 (300A)";
+        public const string SSRCALC_100_A = "SSRCalc 3.0 (100A)";
 
         public static IRetentionScoreCalculator GetCalculatorByName(string calcName)
         {
@@ -1398,8 +1398,8 @@ namespace pwiz.Skyline.Model.DocSettings
 
         public override string ToString()
         {
-            return string.Format("{0}: {1:F01}{2}", PeptideSequence, RetentionTime,   // Not L10N
-                IsStandard ? "*" : String.Empty);   // Not L10N
+            return string.Format(@"{0}: {1:F01}{2}", PeptideSequence, RetentionTime,
+                IsStandard ? @"*" : String.Empty);
         }
 
         #endregion
@@ -1699,7 +1699,7 @@ namespace pwiz.Skyline.Model.DocSettings
             if (ionMobilityValue.HasValue)
             {
                 IonMobilityInfo =  IonMobilityAndCCS.GetIonMobilityAndCCS(IonMobilityValue.GetIonMobilityValue(ionMobilityValue.Value,
-                    MsDataFileImpl.eIonMobilityUnits.drift_time_msec), 
+                    eIonMobilityUnits.drift_time_msec), 
                     reader.GetNullableDoubleAttribute(ATTR.ccs),
                     reader.GetDoubleAttribute(ATTR.high_energy_drift_time_offset, 0));
             }
@@ -1728,7 +1728,7 @@ namespace pwiz.Skyline.Model.DocSettings
             // Write tag attributes
             writer.WriteAttribute(ATTR.modified_sequence, Target.ToSerializableString()); // CONSIDER(bspratt): different attribute for small molecule?
             writer.WriteAttribute(ATTR.charge, Target.IsProteomic ? Charge.ToString() : Charge.AdductFormula);
-            if (IonMobilityInfo.IonMobility.Units != MsDataFileImpl.eIonMobilityUnits.none)
+            if (IonMobilityInfo.IonMobility.Units != eIonMobilityUnits.none)
             {
                 writer.WriteAttributeNullable(ATTR.ion_mobility, IonMobilityInfo.IonMobility.Mobility);
                 writer.WriteAttribute(ATTR.high_energy_ion_mobility_offset, IonMobilityInfo.HighEnergyIonMobilityValueOffset);
@@ -1881,7 +1881,7 @@ namespace pwiz.Skyline.Model.DocSettings
 
         public override string ToString()
         {
-            return string.Format("Charge: {0} Slope: {1} Intercept: {2}", Charge, RegressionLine.Slope, // Not L10N
+            return string.Format(@"Charge: {0} Slope: {1} Intercept: {2}", Charge, RegressionLine.Slope,
                 RegressionLine.Intercept);
         }
 
@@ -2646,11 +2646,13 @@ namespace pwiz.Skyline.Model.DocSettings
 
         public string GetRegressionDescription(double r, double window)
         {
-            return string.Format("{0} = {1}\n" + "rmsd =  {2}", // Not L10N
+            // ReSharper disable LocalizableElement
+            return string.Format("{0} = {1}\n" + "rmsd =  {2}",
                 Resources.PiecewiseLinearRegressionFunction_GetRegressionDescription_piecwise_linear_functions,
                 _xArr.Length - 1,
                 Math.Round(_rmsd, 4)
             );
+            // ReSharper restore LocalizableElement
 
         }
 
@@ -2754,7 +2756,8 @@ namespace pwiz.Skyline.Model.DocSettings
 
         public string GetRegressionDescription(double r, double window)
         {
-            return String.Format("{0} = {1:F02}, {2} = {3:F02}\n" + "{4} = {5:F01}\n" + "r = {6}",   // Not L10N
+            // ReSharper disable LocalizableElement
+            return String.Format("{0} = {1:F02}, {2} = {3:F02}\n" + "{4} = {5:F01}\n" + "r = {6}",
                                           Resources.Regression_slope,
                                           Slope,
                                           Resources.Regression_intercept,
@@ -2762,6 +2765,7 @@ namespace pwiz.Skyline.Model.DocSettings
                                           Resources.GraphData_AddRegressionLabel_window,
                                           window,
                                           Math.Round(r, RetentionTimeRegression.ThresholdPrecision));
+            // ReSharper restore LocalizableElement
         }
 
         public void GetCurve(RetentionTimeStatistics statistics, out double[] lineScores, out double[] lineTimes)
@@ -2990,7 +2994,7 @@ namespace pwiz.Skyline.Model.DocSettings
             return (IonMobility.CompareTo(value) == 0) ? this : GetIonMobilityFilter(value, IonMobilityExtractionWindowWidth, CollisionalCrossSectionSqA);
         }
 
-        public IonMobilityFilter ChangeIonMobilityValue(double? value, MsDataFileImpl.eIonMobilityUnits units)
+        public IonMobilityFilter ChangeIonMobilityValue(double? value, eIonMobilityUnits units)
         {
             var im = IonMobility.ChangeIonMobility(value, units);
             return (IonMobility.CompareTo(im) == 0) ? this : GetIonMobilityFilter(im, IonMobilityExtractionWindowWidth, CollisionalCrossSectionSqA);
@@ -3018,22 +3022,22 @@ namespace pwiz.Skyline.Model.DocSettings
         public IonMobilityValue IonMobility { get; private set; }
         public double? CollisionalCrossSectionSqA { get; private set; } // The CCS value used to get the ion mobility, if known
         public double? IonMobilityExtractionWindowWidth { get; private set; }
-        public MsDataFileImpl.eIonMobilityUnits IonMobilityUnits { get { return HasIonMobilityValue ? IonMobility.Units : MsDataFileImpl.eIonMobilityUnits.none; } }
+        public eIonMobilityUnits IonMobilityUnits { get { return HasIonMobilityValue ? IonMobility.Units : eIonMobilityUnits.none; } }
 
         public bool HasIonMobilityValue { get { return IonMobility.HasValue; } }
         public bool IsEmpty { get { return !HasIonMobilityValue; } }
 
-        public static string IonMobilityUnitsL10NString(MsDataFileImpl.eIonMobilityUnits units)
+        public static string IonMobilityUnitsL10NString(eIonMobilityUnits units)
         {
             switch (units)
             {
-                case MsDataFileImpl.eIonMobilityUnits.inverse_K0_Vsec_per_cm2:
+                case eIonMobilityUnits.inverse_K0_Vsec_per_cm2:
                     return Resources.IonMobilityFilter_IonMobilityUnitsString__1_K0__Vs_cm_2_;
-                case MsDataFileImpl.eIonMobilityUnits.drift_time_msec:
+                case eIonMobilityUnits.drift_time_msec:
                     return Resources.IonMobilityFilter_IonMobilityUnitsString_Drift_Time__ms_;
-                case MsDataFileImpl.eIonMobilityUnits.compensation_V:
+                case eIonMobilityUnits.compensation_V:
                     return Resources.IonMobilityFilter_IonMobilityUnitsString_Compensation_Voltage__V_;
-                case MsDataFileImpl.eIonMobilityUnits.none:
+                case eIonMobilityUnits.none:
                     return Resources.IonMobilityFilter_IonMobilityUnitsL10NString_None;
                 default:
                     return null;
@@ -3062,7 +3066,7 @@ namespace pwiz.Skyline.Model.DocSettings
             {
                 var driftTimeWindow = reader.GetNullableDoubleAttribute(DocumentSerializer.ATTR.drift_time_window);
                 ionMobilityFilter = GetIonMobilityFilter(IonMobilityValue.GetIonMobilityValue(driftTime.Value,
-                    MsDataFileImpl.eIonMobilityUnits.drift_time_msec), driftTimeWindow, ccs);
+                    eIonMobilityUnits.drift_time_msec), driftTimeWindow, ccs);
             }
             else
             {
@@ -3114,20 +3118,20 @@ namespace pwiz.Skyline.Model.DocSettings
 
         public override string ToString() // For debugging convenience, not user-facing
         {
-            string ionMobilityAbbrev = "im"; // Not L10N
+            string ionMobilityAbbrev = @"im";
             switch (IonMobility.Units)
             {
-                case MsDataFileImpl.eIonMobilityUnits.drift_time_msec:
-                    ionMobilityAbbrev = "dt"; // Not L10N
+                case eIonMobilityUnits.drift_time_msec:
+                    ionMobilityAbbrev = @"dt";
                     break;
-                case MsDataFileImpl.eIonMobilityUnits.inverse_K0_Vsec_per_cm2:
-                    ionMobilityAbbrev = "irim"; // Not L10N
+                case eIonMobilityUnits.inverse_K0_Vsec_per_cm2:
+                    ionMobilityAbbrev = @"irim";
                     break;
-                case MsDataFileImpl.eIonMobilityUnits.compensation_V:
-                    ionMobilityAbbrev = "cv"; // Not L10N
+                case eIonMobilityUnits.compensation_V:
+                    ionMobilityAbbrev = @"cv";
                     break;
             }
-            return string.Format("{2}{0:F04}/w{1:F04}", IonMobility.Mobility, IonMobilityExtractionWindowWidth, ionMobilityAbbrev); // Not L10N
+            return string.Format(@"{2}{0:F04}/w{1:F04}", IonMobility.Mobility, IonMobilityExtractionWindowWidth, ionMobilityAbbrev);
         }
     }
 
@@ -3203,7 +3207,9 @@ namespace pwiz.Skyline.Model.DocSettings
             PeakWidthAtIonMobilityValueMax = widthAtIonMobilityValueMax;
         }
 
-        public IonMobilityWindowWidthCalculator(XmlReader reader, string prefix = "") : this( // Not L10N
+        // ReSharper disable LocalizableElement
+        public IonMobilityWindowWidthCalculator(XmlReader reader, string prefix = "") : this(
+        // ReSharper restore LocalizableElement
             reader.GetEnumAttribute(prefix + ATTR.peak_width_calc_type, IonMobilityPeakWidthType.resolving_power),
             reader.GetDoubleAttribute(prefix + ATTR.resolving_power, 0),
             reader.GetDoubleAttribute(prefix + ATTR.width_at_dt_zero, 0),
@@ -3211,7 +3217,9 @@ namespace pwiz.Skyline.Model.DocSettings
         {
         }
 
-        public void WriteXML(XmlWriter writer, string prefix = "") // Not L10N
+        // ReSharper disable LocalizableElement
+        public void WriteXML(XmlWriter writer, string prefix = "")
+        // ReSharper restore LocalizableElement
         {
             writer.WriteAttribute(prefix + ATTR.peak_width_calc_type, PeakWidthMode);
             writer.WriteAttribute(prefix + ATTR.resolving_power, ResolvingPower);
@@ -3250,7 +3258,7 @@ namespace pwiz.Skyline.Model.DocSettings
             {
                 return Math.Abs((ResolvingPower > 0 ? 2.0 / ResolvingPower : double.MaxValue) * ionMobility); // 2.0*ionMobility/resolvingPower
             }
-            Assume.IsTrue(ionMobilityMax != 0, "Expected ionMobilityMax value != 0 for linear range ion mobility window calculation"); // Not L10N
+            Assume.IsTrue(ionMobilityMax != 0, @"Expected ionMobilityMax value != 0 for linear range ion mobility window calculation");
             return PeakWidthAtIonMobilityValueZero + Math.Abs(ionMobility * (PeakWidthAtIonMobilityValueMax - PeakWidthAtIonMobilityValueZero) / ionMobilityMax);
         }
 
@@ -3366,8 +3374,8 @@ namespace pwiz.Skyline.Model.DocSettings
 
         public class AdductLocalizer : CustomPropertyLocalizer
         {
-            private static readonly string CHARGE = "Charge"; // Not L10N
-            private static readonly string ADDUCT = "Adduct"; // Not L10N
+            private static readonly string CHARGE = @"Charge";
+            private static readonly string ADDUCT = @"Adduct";
             public override string[] PossibleResourceNames
             {
                 get { return new[] {CHARGE, ADDUCT}; }
@@ -3379,10 +3387,10 @@ namespace pwiz.Skyline.Model.DocSettings
 
                 return newAdduct.IsProteomic
                     ? CHARGE
-                    : ADDUCT; // Not L10N
+                    : ADDUCT;
             }
 
-            public AdductLocalizer() : base(PropertyPath.Parse("Adduct"), true) // Not L10N
+            public AdductLocalizer() : base(PropertyPath.Parse(@"Adduct"), true)
             {
             }
         }
@@ -3443,19 +3451,19 @@ namespace pwiz.Skyline.Model.DocSettings
             }
         }
 
-        public MsDataFileImpl.eIonMobilityUnits GetIonMobilityUnits()
+        public eIonMobilityUnits GetIonMobilityUnits()
         {
-            foreach (MsDataFileImpl.eIonMobilityUnits units in Enum.GetValues(typeof(MsDataFileImpl.eIonMobilityUnits)))
+            foreach (eIonMobilityUnits units in Enum.GetValues(typeof(eIonMobilityUnits)))
             {
-                if (units != MsDataFileImpl.eIonMobilityUnits.none && IsUsable(units))
+                if (units != eIonMobilityUnits.none && IsUsable(units))
                 {
                     return units;
                 }
             }
-            return MsDataFileImpl.eIonMobilityUnits.none;
+            return eIonMobilityUnits.none;
         }
 
-        public bool IsUsable(MsDataFileImpl.eIonMobilityUnits units)
+        public bool IsUsable(eIonMobilityUnits units)
         {
             // We're usable if we have measured ion mobility values, or a CCS library
             bool usable = (_measuredMobilityIons != null) && _measuredMobilityIons.Any(m => m.IonMobility.Units == units);
@@ -3474,11 +3482,11 @@ namespace pwiz.Skyline.Model.DocSettings
             return ChangeProp(ImClone(this), im => im.IonMobilityLibrary = prop);
         }
 
-        public IonMobilityPredictor ChangeMeasuredIonMobilityValuesFromResults(SrmDocument document, string documentFilePath, IProgressMonitor progressMonitor = null)
+        public IonMobilityPredictor ChangeMeasuredIonMobilityValuesFromResults(SrmDocument document, string documentFilePath, bool useHighEnergyOffset, IProgressMonitor progressMonitor = null)
         {
             // Overwrite any existing measurements with newly derived ones
             Dictionary<LibKey, IonMobilityAndCCS> measured;
-            using (var finder = new IonMobilityFinder(document, documentFilePath, progressMonitor))
+            using (var finder = new IonMobilityFinder(document, documentFilePath, progressMonitor) {UseHighEnergyOffset = useHighEnergyOffset})
             {
                 measured = finder.FindIonMobilityPeaks(); // Returns null on cancel
             }

@@ -257,7 +257,7 @@ D = 勾配 * C + 切片
     <value>1</value>
   </data>
   <data name="textName.ToolTip" xml:space="preserve">
-    <value>この予測するためのものを[Peptide Settings]フォームに表示するために使用される名前</value>
+    <value>この予測を[Peptide Settings]フォームに表示するために使用される名前</value>
   </data>
   <data name="&gt;&gt;textName.Name" xml:space="preserve">
     <value>textName</value>
@@ -893,6 +893,9 @@ W = (W0 + T*(Wmax-W0)/dtMax)
   </data>
   <data name="&gt;&gt;comboBoxIonMobilityUnits.ZOrder" xml:space="preserve">
     <value>0</value>
+  </data>
+  <data name="labelIonMobilityUnits.Anchor" type="System.Windows.Forms.AnchorStyles, System.Windows.Forms">
+    <value>Top, Right</value>
   </data>
   <data name="labelIonMobilityUnits.AutoSize" type="System.Boolean, mscorlib">
     <value>True</value>

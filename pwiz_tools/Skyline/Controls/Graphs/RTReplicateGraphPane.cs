@@ -247,7 +247,7 @@ namespace pwiz.Skyline.Controls.Graphs
                         if (barItem != null)
                         {
                             barItem.Bar.Border.IsVisible = false;
-                            barItem.Bar.Fill.Brush = GetBrushForNode(docNode, color);
+                            barItem.Bar.Fill.Brush = GetBrushForNode(document.Settings, docNode, color);
                             if (!isSelected)
                                 barItem.SortedOverlayPriority = 1;
                         }
@@ -357,13 +357,13 @@ namespace pwiz.Skyline.Controls.Graphs
 
             private bool IsMissingAlignment(ChromInfoData chromInfoData)
             {
-                Assume.IsNotNull(RetentionTimeTransform, "RetentionTimeTransform"); // Not L10N
+                Assume.IsNotNull(RetentionTimeTransform, @"RetentionTimeTransform");
                 if (null == RetentionTimeTransform.RtTransformOp)
                 {
                     return false;
                 }
-                Assume.IsNotNull(chromInfoData, "chromInfoData"); // Not L10N
-                Assume.IsNotNull(chromInfoData.ChromFileInfo, "chromInfoData.ChromFileInfo"); // Not L10N
+                Assume.IsNotNull(chromInfoData, @"chromInfoData");
+                Assume.IsNotNull(chromInfoData.ChromFileInfo, @"chromInfoData.ChromFileInfo");
                 IRegressionFunction regressionFunction;
                 return !RetentionTimeTransform.RtTransformOp.TryGetRegressionFunction(chromInfoData.ChromFileInfo.FileId, out regressionFunction);
             }

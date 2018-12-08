@@ -111,9 +111,9 @@ namespace pwiz.Skyline.Model
         [TrackChildren(ignoreName:true, defaultValues:typeof(DefaultValuesNullOrEmpty))]
         public IEnumerable<TransitionDocNode> Transitions { get { return Children.Cast<TransitionDocNode>(); } }
 
-        public IEnumerable<TransitionDocNode> QuantitativeTransitions
+        public IEnumerable<TransitionDocNode> GetQuantitativeTransitions(SrmSettings settings)
         {
-            get { return Transitions.Where(tran => tran.Quantitative); }
+            return Transitions.Where(tran => tran.IsQuantitative(settings));
         }
 
         protected override IList<DocNode> OrderedChildren(IList<DocNode> children)
@@ -138,13 +138,21 @@ namespace pwiz.Skyline.Model
             Assume.IsTrue(IsCustomIon);
             var children = new List<TransitionDocNode>();
             groupNew = groupNew ?? new TransitionGroup(parentNew ?? TransitionGroup.Peptide, TransitionGroup.PrecursorAdduct, TransitionGroup.LabelType, false, TransitionGroup.DecoyMassShift);
+            var nodeGroupTemp = new TransitionGroupDocNode(groupNew, Annotations, settings, null, LibInfo, ExplicitValues, Results, null, false); // Just need this for the revised isotope distribution
             foreach (var nodeTran in Transitions)
             {
                 var transition = nodeTran.Transition;
+                var adduct = transition.IonType == IonType.precursor
+                             ? groupNew.PrecursorAdduct : transition.Adduct;
+                var molecule = transition.IonType == IonType.precursor
+                             ? groupNew.CustomMolecule : transition.CustomIon;
                 var tranNew = new Transition(groupNew, transition.IonType, transition.CleavageOffset,
-                    transition.MassIndex, transition.Adduct, transition.DecoyMassShift, transition.CustomIon);
+                    transition.MassIndex, adduct, transition.DecoyMassShift, molecule);
+                var moleculeMass = transition.IonType == IonType.precursor
+                    ? nodeGroupTemp.IsotopeDist.GetMassI(transition.MassIndex) : nodeTran.GetMoleculeMass();
+
                 var nodeTranNew = new TransitionDocNode(tranNew, nodeTran.Annotations, nodeTran.Losses,
-                    nodeTran.GetMoleculeMass(), nodeTran.QuantInfo, nodeTran.Results);
+                    moleculeMass, nodeTran.QuantInfo, nodeTran.Results);
                 children.Add(nodeTranNew);
             }
             return new TransitionGroupDocNode(groupNew, Annotations, settings, null, LibInfo, ExplicitValues, Results, children.ToArray(), AutoManageChildren);
@@ -315,6 +323,13 @@ namespace pwiz.Skyline.Model
         {
             return (HasResults && Results.Count > i ? Results[i] : default(ChromInfoList<TransitionGroupChromInfo>));
         }
+
+        public TransitionGroupChromInfo GetChromInfo(int resultsIndex, ChromFileInfoId chromFileInfoId)
+        {
+            return GetSafeChromInfo(resultsIndex).FirstOrDefault(chromInfo =>
+                chromFileInfoId == null || ReferenceEquals(chromFileInfoId, chromInfo.FileId));
+        }
+
 
         private TransitionGroupChromInfo GetChromInfoEntry(int i)
         {
@@ -1066,6 +1081,11 @@ namespace pwiz.Skyline.Model
 
         private Dictionary<TransitionLossKey, DocNode> CreateTransitionLossToChildMap()
         {
+            // TODO: Solve issue where precursor gets many fragments with the same TransitionLossKey
+//            var keys = Children.Select(child => ((TransitionDocNode) child).Key(this)).ToList();
+//            if (keys.Count != keys.Distinct().Count())
+//                Console.WriteLine("Issue");
+
             return Children.ToDictionary(child => ((TransitionDocNode) child).Key(this));
         }
 
@@ -2300,7 +2320,7 @@ namespace pwiz.Skyline.Model
                 {
                     if (info.IsGoodPeak(Settings.TransitionSettings.Integration.IsIntegrateAll))
                         PeakCount++;
-                    if (nodeTran.Quantitative)
+                    if (nodeTran.ExplicitQuantitative)
                     {
                         Area = (Area ?? 0) + info.Area;
                         BackgroundArea = (BackgroundArea ?? 0) + info.BackgroundArea;
@@ -2526,7 +2546,7 @@ namespace pwiz.Skyline.Model
             {
                 if (tranId != null && !ReferenceEquals(tranId, nodeTran.Id))
                     continue;
-                var chromInfo = chromGroupInfo.GetTransitionInfo(nodeTran, (float)mzMatchTolerance);
+                var chromInfo = chromGroupInfo.GetTransitionInfo(nodeTran, (float)mzMatchTolerance, regression);
                 if (chromInfo == null)
                     continue;
                 int indexPeak = chromInfo.IndexOfPeak(retentionTime);
@@ -2546,7 +2566,7 @@ namespace pwiz.Skyline.Model
             double startMin = double.MaxValue, endMax = double.MinValue;
             foreach (TransitionDocNode nodeTran in Children)
             {
-                var chromInfo = chromGroupInfo.GetTransitionInfo(nodeTran, (float)mzMatchTolerance);
+                var chromInfo = chromGroupInfo.GetTransitionInfo(nodeTran, (float)mzMatchTolerance, regression);
                 if (chromInfo == null)
                     continue;
                 ChromPeak peakNew = chromInfo.GetPeak(indexPeakBest);

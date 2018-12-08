@@ -31,16 +31,13 @@ namespace SkylineTester
 {
     partial class SkylineTesterWindow
     {
-        public void RunByTimer()
+        public void RunByTimer(TabBase fromTab)
         {
-            RunUI(Run);
+            RunUI(() => Run(fromTab));
         }
 
         private void RunOrStopByUser()
         {
-            // Used only in the nightly tab to invoke an immediate nightly run
-            ShiftKeyPressed = (ModifierKeys == Keys.Shift);
-
             // Stop running task.
             if (_runningTab != null && (_runningTab.IsRunning() || _runningTab.IsWaiting()))
             {
@@ -53,11 +50,16 @@ namespace SkylineTester
         }
 
         private void Run()
+        {
+            Run(null);
+        }
+
+        private void Run(TabBase fromTab)
         { 
             commandShell.ClearLog();
 
             // Prepare to start task.
-            _runningTab = _tabs[tabs.SelectedIndex];
+            _runningTab = fromTab ?? _tabs[tabs.SelectedIndex];
             if (!_runningTab.Run())
                 _runningTab = null;
             if (_runningTab == null)    // note: may be cleared by Run() (e.g., Cancel in DeleteWindow)
@@ -91,7 +93,12 @@ namespace SkylineTester
         /// </summary>
         private void RunOrStop_Clicked(object sender, EventArgs e)
         {
+            // Used only in the nightly tab to invoke an immediate nightly run
+            ShiftKeyPressed = (ModifierKeys == Keys.Shift);
+
             RunOrStopByUser();
+
+            ShiftKeyPressed = false;
         }
 
         /// <summary>
@@ -207,6 +214,11 @@ namespace SkylineTester
             if (!string.IsNullOrEmpty(buildRoot.Text) && GetBuildRoot().StartsWith(nRoot) && GetBuildRoot().Contains("SkylineTesterForNightly"))
                 return GetBuildRoot();
             return nRoot;
+        }
+
+        public string GetMinidumpDir()
+        {
+            return Path.Combine(GetNightlyRoot(), "Minidumps");
         }
 
         public string GetLogsDir()
@@ -396,10 +408,20 @@ namespace SkylineTester
 
         public void AddRun(Summary.Run run, ComboBox combo)
         {
+            combo.Items.Insert(0, GetRunDisplayText(run));
+        }
+
+        public void UpdateRun(Summary.Run run, ComboBox combo)
+        {
+            combo.Items[0] = GetRunDisplayText(run);
+        }
+
+        private static string GetRunDisplayText(Summary.Run run)
+        {
             var text = run.Date.ToString("M/d  h:mm tt");
             if (!string.IsNullOrEmpty(run.Revision))
                 text += "    (rev. " + run.Revision + ")";
-            combo.Items.Insert(0, text);
+            return text;
         }
 
         public string GetSelectedLog(ComboBox combo)
@@ -426,8 +448,9 @@ namespace SkylineTester
 
         private ZedGraphControl CreateMemoryGraph()
         {
-            var graph = InitGraph("Memory used");
+            var graph = InitGraph(LABEL_TITLE_MEMORY);
             graph.IsShowPointValues = true;
+            graph.IsZoomOnMouseCenter = true;
             graph.PointValueEvent += GraphOnPointValueEvent;
             graph.MouseDownEvent += GraphOnMouseDownEvent;
             graph.MouseUpEvent += GraphOnMouseUpEvent;
@@ -447,7 +470,7 @@ namespace SkylineTester
             pane.YAxis.Scale.FontSpec.Size = 12;
             pane.YAxis.Scale.Align = AlignP.Inside;
             pane.YAxis.MinorTic.IsAllTics = false;
-            pane.YAxis.Title.Text = "MB";
+            pane.YAxis.Title.Text = LABEL_UNITS_MEMORY;
             pane.YAxis.Scale.Format = "#";
             pane.YAxis.Scale.Mag = 0;
             pane.Legend.IsVisible = true;
@@ -483,7 +506,7 @@ namespace SkylineTester
 
         private bool GraphOnMouseDownEvent(ZedGraphControl sender, MouseEventArgs mouseEventArgs)
         {
-            if (mouseEventArgs.Button == MouseButtons.Left)
+            if (mouseEventArgs.Button == MouseButtons.Left && sender.MasterPane.FindPane(mouseEventArgs.Location) != null)
                 _mouseDownLocation = mouseEventArgs.Location;
             return false;
         }
@@ -491,12 +514,14 @@ namespace SkylineTester
         private void InitQuality()
         {
             graphMemory = CreateMemoryGraph();
+            graphMemory.ContextMenuBuilder += (s, ms, m, o) => GraphControlOnContextMenuBuilder(_tabQuality, s, ms);
             panelMemoryGraph.Controls.Add(graphMemory);
         }
 
         public void InitNightly()
         {
             AssignGraph(ref nightlyGraphMemory, CreateMemoryGraph(), nightlyGraphPanel);
+            nightlyGraphMemory.ContextMenuBuilder += (s, ms, m, o) => GraphControlOnContextMenuBuilder(_tabNightly, s, ms);
             nightlyGraphPanel.Controls.Add(nightlyGraphMemory);
 
             nightlyTrendsTable.Controls.Clear();
@@ -569,7 +594,7 @@ namespace SkylineTester
 
                 if (Devenv == null)
                 {
-                    MessageBox.Show("Visual Studio 12.0 is required to build Skyline.");
+                    MessageBox.Show("Visual Studio 2017 is required to build Skyline.");
                     return false;
                 }
 
@@ -586,10 +611,26 @@ namespace SkylineTester
                 Git = null;
 
             // Find Visual Studio, if available.
-            programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
-            Devenv = Path.Combine(programFiles, @"Microsoft Visual Studio 12.0\Common7\IDE\devenv.exe");
-            if (!File.Exists(Devenv))
-                Devenv = null;
+            Devenv = GetExistingVsIdeFilePath("devenv.exe");
+        }
+
+        public static string GetExistingVsIdeFilePath(string relativePath)
+        {
+            string programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
+            string[] pathTrials = 
+            {
+                @"Microsoft Visual Studio\2017\Enterprise\Common7\IDE",  // Enterprise edition of VS 2017
+                @"Microsoft Visual Studio\2017\Community\Common7\IDE",  // Community edition of VS 2017
+                @"Microsoft Visual Studio 12.0\Common7\IDE" // Prior installation of VS 2013
+            };
+            foreach (var pathTrial in pathTrials)
+            {
+                string path = Path.Combine(Path.Combine(programFiles, pathTrial), relativePath);
+                if (File.Exists(path))
+                    return path;
+            }
+
+            return null;
         }
 
         public void RunUI(Action action, int delayMsec = 0)

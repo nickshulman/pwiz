@@ -26,7 +26,9 @@ using System.Xml.Serialization;
 using pwiz.Common.Collections;
 using pwiz.Common.DataBinding;
 using pwiz.Common.SystemUtil;
+using pwiz.Skyline.Model.AuditLog;
 using pwiz.Skyline.Model.GroupComparison;
+using pwiz.Skyline.Model.Lists;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
 
@@ -49,6 +51,8 @@ namespace pwiz.Skyline.Model.DocSettings
             _annotationDefs = MakeReadOnly(annotationDefs);
             _groupComparisonDefs = MakeReadOnly(new GroupComparisonDef[0]);
             ViewSpecList = ViewSpecList.EMPTY;
+            AuditLogging = true;
+            Lists = ImmutableList<ListData>.EMPTY;
         }
 
         [TrackChildren(true)]
@@ -63,15 +67,31 @@ namespace pwiz.Skyline.Model.DocSettings
             get { return _groupComparisonDefs;}
         }
 
+        [TrackChildren(true)]
+        public ImmutableList<ListData> Lists { get; private set; }
+
+        public ListData FindList(string name)
+        {
+            return Lists.FirstOrDefault(list => list.ListDef.Name == name);
+        }
+
         [TrackChildren(ignoreName:true)]
         public ViewSpecList ViewSpecList { get; private set; }
 
         [Track]
         public Uri PanoramaPublishUri { get; private set; }
 
+        /// <summary>
+        /// True if audit logging is enabled for this document. ModifyDocument calls will generate audit log entries that can be viewed in the
+        /// AuditLogForm and are written to a separate file (.skyl) when the document is saved. If audit logging is disabled, no entries are kept
+        /// (they are still created for descriptive undo-redo messages) and the audit log file is deleted (if existent) when the document is saved
+        ///
+        /// Generally AuditLogging will always be true in tests, even if it gets set to false.
+        /// (Unless IgnoreTestCheck is true, which is used by the AuditLogSaving test to actually disable the audit log.
+        /// </summary>
         public bool AuditLogging
         {
-            get { return Program.FunctionalTest || _auditLogging; }
+            get { return (Program.FunctionalTest && !AuditLogList.IgnoreTestChecks) || _auditLogging; }
 
             private set { _auditLogging = value; }
         }
@@ -110,7 +130,36 @@ namespace pwiz.Skyline.Model.DocSettings
         {
             return ChangeProp(ImClone(this), im => im.DocumentGuid = Guid.NewGuid().ToString());
         }
-        #endregion
+
+        public DataSettings ChangeListDefs(IEnumerable<ListData> lists)
+        {
+            return ChangeProp(ImClone(this), im => im.Lists = ImmutableList.ValueOfOrEmpty(lists));
+        }
+
+        public DataSettings ReplaceList(ListData listData)
+        {
+            int index = Lists.IndexOf(list => list.ListDef.Name == listData.ListDef.Name);
+            if (index < 0)
+            {
+                throw new ArgumentException();
+            }
+            return ChangeProp(ImClone(this), im => im.Lists = im.Lists.ReplaceAt(index, listData));
+        }
+
+        public DataSettings AddListDef(ListData listDef)
+        {
+            var listDatas = Lists.ToList();
+            int index = GroupComparisonDefs.IndexOf(def => def.Name == listDef.ListName);
+            if (index < 0)
+            {
+                listDatas.Add(listDef);
+            }
+            else
+            {
+                listDatas[index] = listDef; // CONSIDER: Preserve data?
+            }
+            return ChangeListDefs(listDatas);
+        }
 
         public DataSettings AddGroupComparisonDef(GroupComparisonDef groupComparisonDef)
         {
@@ -126,6 +175,8 @@ namespace pwiz.Skyline.Model.DocSettings
             }
             return ChangeGroupComparisonDefs(groupComparisonDefs);
         }
+
+        #endregion
 
         #region Serialization Methods
         /// <summary>
@@ -168,6 +219,7 @@ namespace pwiz.Skyline.Model.DocSettings
             _annotationDefs = MakeReadOnly(allElements.OfType<AnnotationDef>());
             _groupComparisonDefs = MakeReadOnly(allElements.OfType<GroupComparisonDef>());
             ViewSpecList = allElements.OfType<ViewSpecList>().FirstOrDefault() ?? ViewSpecList.EMPTY;
+            Lists= ImmutableList.ValueOf(allElements.OfType<ListData>());
         }
 
         private enum Attr
@@ -185,7 +237,7 @@ namespace pwiz.Skyline.Model.DocSettings
             if(!string.IsNullOrEmpty(DocumentGuid))
                 writer.WriteAttributeString(Attr.document_guid, DocumentGuid);
             writer.WriteAttribute(Attr.audit_logging, AuditLogging);
-            var elements = AnnotationDefs.Cast<IXmlSerializable>().Concat(GroupComparisonDefs);
+            var elements = AnnotationDefs.Cast<IXmlSerializable>().Concat(GroupComparisonDefs).Concat(Lists);
             if (ViewSpecList.ViewSpecs.Any())
             {
                 elements = elements.Concat(new[] {ViewSpecList});
@@ -200,6 +252,7 @@ namespace pwiz.Skyline.Model.DocSettings
                     new XmlElementHelperSuper<AnnotationDef, IXmlSerializable>(),
                     new XmlElementHelperSuper<GroupComparisonDef, IXmlSerializable>(), 
                     new XmlElementHelperSuper<ViewSpecList, IXmlSerializable>(),
+                    new XmlElementHelperSuper<ListData, IXmlSerializable>(),
                 };
         }
         #endregion
@@ -213,7 +266,8 @@ namespace pwiz.Skyline.Model.DocSettings
                    && ArrayUtil.EqualsDeep(other._groupComparisonDefs, _groupComparisonDefs)
                    && Equals(ViewSpecList, other.ViewSpecList)
                    && Equals(PanoramaPublishUri, other.PanoramaPublishUri)
-                   && Equals(DocumentGuid, other.DocumentGuid);
+                   && Equals(DocumentGuid, other.DocumentGuid)
+                   && Equals(Lists, other.Lists);
         }
 
         public override bool Equals(object obj)
@@ -233,15 +287,10 @@ namespace pwiz.Skyline.Model.DocSettings
                 result = result*397 + ViewSpecList.GetHashCode();
                 result = result*397 + (PanoramaPublishUri == null ? 0 : PanoramaPublishUri.GetHashCode());
                 result = result*397 + (DocumentGuid == null ? 0 : DocumentGuid.GetHashCode());
+                result = result * 397 + Lists.GetHashCode();
                 return result;
             }
         }
         #endregion
-
-        // Test Support
-        public bool AuditLoggingTestOnly
-        {
-            get { return _auditLogging; }
-        }
     }
 }

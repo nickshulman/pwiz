@@ -29,13 +29,13 @@ namespace pwiz.Skyline.Model.DocSettings.AbsoluteQuantification
 {
     public abstract class RegressionFit : LabeledValues<string>
     {
-        public static readonly RegressionFit NONE = new SimpleRegressionFit("none", // Not L10N
+        public static readonly RegressionFit NONE = new SimpleRegressionFit(@"none",
             ()=>QuantificationStrings.RegressionFit_NONE_None, NoExternalStandards);
 
-        public static readonly RegressionFit LINEAR = new SimpleRegressionFit("linear", // Not L10N
+        public static readonly RegressionFit LINEAR = new SimpleRegressionFit(@"linear",
             () => QuantificationStrings.RegressionFit_LINEAR_Linear, LinearFit);
 
-        public static readonly RegressionFit LINEAR_THROUGH_ZERO = new SimpleRegressionFit("linear_through_zero", // Not L10N
+        public static readonly RegressionFit LINEAR_THROUGH_ZERO = new SimpleRegressionFit(@"linear_through_zero",
             () => QuantificationStrings.RegressionFit_LINEAR_THROUGH_ZERO_Linear_through_zero, LinearFitThroughZero);
 
         public static readonly RegressionFit QUADRATIC = new QuadraticFit();
@@ -186,7 +186,7 @@ namespace pwiz.Skyline.Model.DocSettings.AbsoluteQuantification
 
         private class QuadraticFit : RegressionFit
         {
-            public QuadraticFit() : base("quadratic", () => QuantificationStrings.RegressionFit_QUADRATIC_Quadratic) // Not L10N
+            public QuadraticFit() : base(@"quadratic", () => QuantificationStrings.RegressionFit_QUADRATIC_Quadratic)
             {
                 
             }
@@ -227,13 +227,13 @@ namespace pwiz.Skyline.Model.DocSettings.AbsoluteQuantification
 
             public override double? GetY(CalibrationCurve calibrationCurve, double? x)
             {
-                return x * x * calibrationCurve.QuadraticCoefficient.Value + x * calibrationCurve.Slope + calibrationCurve.Intercept.GetValueOrDefault();
+                return x * x * calibrationCurve.QuadraticCoefficient + x * calibrationCurve.Slope + calibrationCurve.Intercept;
             }
         }
 
         private class BilinearFit : RegressionFit
         {
-            public BilinearFit() : base("bilinear", () => QuantificationStrings.RegressionFit_BILINEAR_Bilinear) // Not L10N
+            public BilinearFit() : base(@"bilinear", () => QuantificationStrings.RegressionFit_BILINEAR_Bilinear)
             {
                 
             }
@@ -319,13 +319,17 @@ namespace pwiz.Skyline.Model.DocSettings.AbsoluteQuantification
 
         private class LinearInLogSpace : RegressionFit
         {
-            public LinearInLogSpace() : base("linear_in_log_space", () => Resources.LinearInLogSpace_Label_Linear_in_Log_Space) // Not L10N
+            public LinearInLogSpace() : base(@"linear_in_log_space", () => Resources.LinearInLogSpace_Label_Linear_in_Log_Space)
             {
                 
             }
 
             protected override CalibrationCurve FitPoints(IList<WeightedPoint> points)
             {
+                if (points.Any(pt => pt.Y <= 0 || pt.X <= 0))
+                {
+                    return new CalibrationCurve(this).ChangeErrorMessage(Resources.LinearInLogSpace_FitPoints_Unable_to_do_a_regression_in_log_space_because_one_or_more_points_are_non_positive_);
+                }
                 var logPoints = points.Select(pt => new WeightedPoint(Math.Log(pt.X), Math.Log(pt.Y), pt.Weight)).ToArray();
                 var calibrationCurve = LinearFit(logPoints);
                 calibrationCurve.ChangeRegressionFit(this);

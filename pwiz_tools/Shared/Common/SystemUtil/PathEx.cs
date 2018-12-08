@@ -85,7 +85,7 @@ namespace pwiz.Common.SystemUtil
             if (parts.Count < 2)
                 return string.Empty;
 
-            int iElipsis = parts.IndexOf("..."); // Not L10N
+            int iElipsis = parts.IndexOf(@"...");
             int iStart = (iElipsis != -1 ? iElipsis : parts.Count - 2);
             int iRemove = iStart - 1;
             if (iRemove < 1)
@@ -120,12 +120,12 @@ namespace pwiz.Common.SystemUtil
             path = Path.GetDirectoryName(Environment.GetFolderPath(Environment.SpecialFolder.Personal));
             if (string.IsNullOrEmpty(path)) // Keep multiple versions of ReSharper happy
                 path = string.Empty;
-            path = Path.Combine(path, "Downloads"); // Not L10N
+            path = Path.Combine(path, @"Downloads");
             return path;
         }
 
-        private static Guid FolderDownloads = new Guid("374DE290-123F-4565-9164-39C4925E467B"); // Not L10N
-        [DllImport("shell32.dll", CharSet = CharSet.Auto)]  // Not L10N
+        private static Guid FolderDownloads = new Guid(@"374DE290-123F-4565-9164-39C4925E467B");
+        [DllImport(@"shell32.dll", CharSet = CharSet.Auto)]
         private static extern int SHGetKnownFolderPath(ref Guid id, int flags, IntPtr token, out IntPtr path);
 
         /// <summary>
@@ -176,6 +176,19 @@ namespace pwiz.Common.SystemUtil
                     break;
             }
             return null;
+        }
+
+        /// <summary>
+        /// If the path starts with the prefix, then skip over the prefix; 
+        /// otherwise, return the original path.
+        /// </summary>
+        public static string RemovePrefix(string path, string prefix)
+        {
+            if (path.StartsWith(prefix))
+            {
+                return path.Substring(prefix.Length);
+            }
+            return path;
         }
     }
 }

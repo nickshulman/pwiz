@@ -18,7 +18,7 @@
 # Compiled Dynamic libraries
 *.so
 *.dylib
-*.dll
+#*.dll
 
 # Fortran module files
 *.mod
@@ -55,8 +55,8 @@
 [Dd]ebugPublic/
 [Rr]elease/
 [Rr]eleases/
-x64/
-x86/
+#x64/
+#x86/
 bld/
 [Bb]in/
 [Oo]bj/
@@ -399,3 +399,9 @@ Reader*Test.data
 SkylineTester Results
 /b64.bat
 /b32.bat
+/BrowseOnly/pwiz.tlog/unsuccessfulbuild
+/BrowseOnly/pwiz.tlog/pwiz.lastbuildstate
+/BrowseOnly/pwiz.tlog/metagen.write.1.tlog
+/BrowseOnly/pwiz.tlog/CL.write.1.tlog
+/BrowseOnly/pwiz.tlog/CL.read.1.tlog
+/BrowseOnly/pwiz.tlog/CL.command.1.tlog

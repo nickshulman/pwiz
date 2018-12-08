@@ -271,7 +271,7 @@
     <value>8</value>
   </data>
   <data name="labelSLens.Text" xml:space="preserve">
-    <value>傾き(&amp;S)：</value>
+    <value>S-レンズ(&amp;S)：</value>
   </data>
   <data name="labelSLens.ToolTip" xml:space="preserve">
     <value>ThermoのS-レンズ値</value>
@@ -466,7 +466,7 @@
     <value>1</value>
   </data>
   <data name="textName.ToolTip" xml:space="preserve">
-    <value>デフォルト名は、イオン式から付加物の表記を除いたものです</value>
+    <value>デフォルト名は、イオン式から付加イオンの表記を除いたものです</value>
   </data>
   <data name="&gt;&gt;textName.Name" xml:space="preserve">
     <value>textName</value>

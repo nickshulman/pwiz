@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Original author: Brendan MacLean <brendanx .at. u.washington.edu>,
  *                  MacCoss Lab, Department of Genome Sciences, UW
  *
@@ -178,13 +178,13 @@ namespace pwiz.Skyline.Util
 
             while (reader.NodeType != XmlNodeType.EndElement)
             {
-                reader.ReadStartElement("item"); // Not L10N
+                reader.ReadStartElement(@"item");
 
-                reader.ReadStartElement("key"); // Not L10N
+                reader.ReadStartElement(@"key");
                 TKey key = (TKey)keySerializer.Deserialize(reader);
                 reader.ReadEndElement();
 
-                reader.ReadStartElement("value"); // Not L10N
+                reader.ReadStartElement(@"value");
                 TValue value = (TValue)valueSerializer.Deserialize(reader);
                 reader.ReadEndElement();
 
@@ -203,13 +203,13 @@ namespace pwiz.Skyline.Util
 
             foreach (TKey key in Keys)
             {
-                writer.WriteStartElement("item"); // Not L10N
+                writer.WriteStartElement(@"item");
 
-                writer.WriteStartElement("key"); // Not L10N
+                writer.WriteStartElement(@"key");
                 keySerializer.Serialize(writer, key);
                 writer.WriteEndElement();
 
-                writer.WriteStartElement("value"); // Not L10N
+                writer.WriteStartElement(@"value");
                 TValue value = this[key];
                 valueSerializer.Serialize(writer, value);
                 writer.WriteEndElement();
@@ -227,7 +227,7 @@ namespace pwiz.Skyline.Util
     /// </summary>
     public static class XmlUtil
     {
-        public const string XML_DIRECTIVE = "<?xml version=\"1.0\" encoding=\"utf-16\"?>\r\n";  // Not L10N
+        public const string XML_DIRECTIVE = "<?xml version=\"1.0\" encoding=\"utf-16\"?>\r\n";
 
         public static string ToAttr<TStruct>(TStruct? value)
             where TStruct : struct
@@ -899,15 +899,25 @@ namespace pwiz.Skyline.Util
         /// <returns>escaped string</returns>
         public static string EscapeNonPrintableChars(this string str)
         {
-            var result = string.Empty;
+            if (!str.Contains(IsUnprintable))
+                return str;
+
+            var sb = new StringBuilder();
             foreach (var c in str)
             {
-                if (c < 0x20 && c != '\r' && c != '\n' && c != '\t')
-                    result += "\\x" + ((int)c).ToString("X" + sizeof(char) * 2); // Not L10N
+                if (IsUnprintable(c))
+                    // ReSharper disable LocalizableElement
+                    sb.Append("\\x").Append(((int)c).ToString("X" + sizeof(char) * 2));
+                    // ReSharper restore LocalizableElement
                 else
-                    result += c;
+                    sb.Append(c);
             }
-            return result;
+            return sb.ToString();
+        }
+
+        private static bool IsUnprintable(char c)
+        {
+            return c < 0x20 && c != '\r' && c != '\n' && c != '\t';
         }
 
         /// <summary>
@@ -918,8 +928,12 @@ namespace pwiz.Skyline.Util
         /// <returns>unescaped string</returns>
         public static string UnescapeNonPrintableChars(this string str)
         {
+            // ReSharper disable LocalizableElement
+            if (str.IndexOf("\\x", StringComparison.Ordinal) == -1)
+                return str;
+            // ReSharper restore LocalizableElement
             const int charLen = sizeof(char) * 2;
-            var result = string.Empty;
+            var sb = new StringBuilder();
             for (var i = 0; i < str.Length; ++i)
             {
                 var index = i;
@@ -933,7 +947,7 @@ namespace pwiz.Skyline.Util
                             int characterValue;
                             if (int.TryParse(num, out characterValue))
                             {
-                                result += (char)characterValue;
+                                sb.Append((char)characterValue);
                                 i += index + charLen;
                                 continue;
                             }
@@ -941,9 +955,9 @@ namespace pwiz.Skyline.Util
                     }
                 }
 
-                result += str[i];
+                sb.Append(str[i]);
             }
-            return result;
+            return sb.ToString();
         }
 
         public static string GetInvalidDataMessage(string path, Exception x)
@@ -989,13 +1003,13 @@ namespace pwiz.Skyline.Util
             return sb.ToString();
         }
 
-        public static readonly Regex REGEX_XML_ERROR = new Regex(@"\((\d+), ?(\d+)\)"); // Not L10N
+        public static readonly Regex REGEX_XML_ERROR = new Regex(@"\((\d+), ?(\d+)\)");
 
         public static bool TryGetXmlLineColumn(string message, out int line, out int column)
         {
             line = column = 0;
 
-            if (!message.Contains("XML")) // Not L10N
+            if (!message.Contains(@"XML"))
                 return false;
 
             Match match = REGEX_XML_ERROR.Match(message);
@@ -1108,7 +1122,7 @@ namespace pwiz.Skyline.Util
             // Unit tests depend on exceptions being thrown.
 //            try
 //            {
-                return (TElem)typeof(TElem).InvokeMember("Deserialize", // Not L10N
+                return (TElem)typeof(TElem).InvokeMember(@"Deserialize",
                                                  BindingFlags.Public | BindingFlags.Static | BindingFlags.InvokeMethod,
                                                  null, null, new object[] { reader }, CultureInfo.InvariantCulture); 
 //            }

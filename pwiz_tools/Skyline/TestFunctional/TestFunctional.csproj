@@ -91,7 +91,7 @@
     <DefineConstants>TRACE</DefineConstants>
     <Optimize>true</Optimize>
     <DebugType>pdbonly</DebugType>
-    <PlatformTarget>AnyCPU</PlatformTarget>
+    <PlatformTarget>x64</PlatformTarget>
     <UseVSHostingProcess>false</UseVSHostingProcess>
     <ErrorReport>prompt</ErrorReport>
     <Prefer32Bit>false</Prefer32Bit>
@@ -152,6 +152,7 @@
     <Compile Include="AddLibraryTest.cs" />
     <Compile Include="AreaCVHistogramTest.cs" />
     <Compile Include="AssociateProteinsDlgTest.cs" />
+    <Compile Include="AuditLogSavingTest.cs" />
     <Compile Include="AuditLogTest.cs" />
     <Compile Include="BackgroundEventThreadsTest.cs" />
     <Compile Include="BlibIrtTest.cs" />
@@ -159,10 +160,15 @@
     <Compile Include="CalibrationTest.cs" />
     <Compile Include="CancelExportReportTest.cs" />
     <Compile Include="ChorusFunctionalTest.cs" />
+    <Compile Include="ChromDataSetMatchingTest.cs" />
     <Compile Include="ChromGraphTransformTest.cs" />
     <Compile Include="ChromUITest.cs" />
+    <Compile Include="DisplayLanguageTest.cs" />
+    <Compile Include="DuplicateTransitionGroupTest.cs" />
     <Compile Include="EncyclopeDiaScoreTest.cs" />
     <Compile Include="ExplicitPeakScoreTest.cs" />
+    <Compile Include="ExportAnnotationsTest.cs" />
+    <Compile Include="FormUtilTest.cs" />
     <Compile Include="ImportAnnotationsTest.cs" />
     <Compile Include="ClearAllSettingsTest.cs" />
     <Compile Include="DocumentGridClipboardOperationsTest.cs" />
@@ -217,6 +223,7 @@
     <Compile Include="LibraryBuildShareTest.cs" />
     <Compile Include="LibraryExplorerSpeedTest.cs" />
     <Compile Include="LibraryExplorerTest.cs" />
+    <Compile Include="ListDesignerTest.cs" />
     <Compile Include="LiveReportsErrorTest.cs" />
     <Compile Include="LiveReportsFilterTest.cs" />
     <Compile Include="LongWaitTest.cs" />
@@ -348,6 +355,7 @@
     <None Include="AnnotationTest.zip" />
     <None Include="AreaCVHistogramTest.zip" />
     <None Include="AssayLibraryImportTest.zip" />
+    <None Include="AuditLogSavingTest.zip" />
     <None Include="BackgroundProteomeTest.zip" />
     <None Include="CalibrationScenariosTest.zip" />
     <None Include="CalibrationTest.zip" />
@@ -359,6 +367,7 @@
     <None Include="CopyPasteTest.zip" />
     <None Include="DocumentGridTest.zip" />
     <None Include="DocumentSizeErrorTest.zip" />
+    <None Include="DuplicateTransitionGroupTest.zip" />
     <None Include="EditNoteTest.zip" />
     <None Include="EncyclopeDiaScoreTest.zip" />
     <None Include="EncyclopeDiaTest.zip" />

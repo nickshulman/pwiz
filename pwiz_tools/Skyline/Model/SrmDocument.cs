@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Original author: Brendan MacLean <brendanx .at. u.washington.edu>,
  *                  MacCoss Lab, Department of Genome Sciences, UW
  *
@@ -167,10 +167,11 @@ namespace pwiz.Skyline.Model
     /// </summary>
     public class DocumentChangedEventArgs : EventArgs
     {
-        public DocumentChangedEventArgs(SrmDocument documentPrevious, bool inSelUpdateLock = false)
+        public DocumentChangedEventArgs(SrmDocument documentPrevious, bool isOpeningFile = false, bool inSelUpdateLock = false)
         {
             DocumentPrevious = documentPrevious;
             IsInSelUpdateLock = inSelUpdateLock;
+            IsOpeningFile = isOpeningFile;
         }
 
         public SrmDocument DocumentPrevious { get; private set; }
@@ -180,6 +181,11 @@ namespace pwiz.Skyline.Model
         /// cannot be trusted as reflecting the current document.
         /// </summary>
         public bool IsInSelUpdateLock { get; private set; }
+
+        /// <summary>
+        /// True when the document change is caused by opening a file
+        /// </summary>
+        public bool IsOpeningFile { get; private set; }
     }
 
     /// <summary>
@@ -215,13 +221,13 @@ namespace pwiz.Skyline.Model
     /// rather than a record of actions taken to modify a mutable document.
     /// </para>
     /// </summary>
-    [XmlRoot("srm_settings")] // Not L10N
+    [XmlRoot(@"srm_settings")]
     public class SrmDocument : DocNodeParent, IXmlSerializable
     {
         /// <summary>
         /// Document extension on disk
         /// </summary>
-        public const string EXT = ".sky"; // Not L10N
+        public const string EXT = ".sky";
 
         public static string FILTER_DOC
         {
@@ -238,16 +244,24 @@ namespace pwiz.Skyline.Model
             }    
         }
 
-        public static readonly DocumentFormat FORMAT_VERSION = DocumentFormat.WRITE_VERSION;
+        public static readonly DocumentFormat FORMAT_VERSION = DocumentFormat.CURRENT;
 
         public const int MAX_PEPTIDE_COUNT = 200 * 1000;
         public const int MAX_TRANSITION_COUNT = 5 * 1000 * 1000;
 
-        public static readonly int _maxTransitionCount = Install.Is64Bit ? MAX_TRANSITION_COUNT : MAX_TRANSITION_COUNT/5;   // To keep from running out of memory on 32-bit
+        public static int _maxTransitionCount = Install.Is64Bit ? MAX_TRANSITION_COUNT : MAX_TRANSITION_COUNT/5;   // To keep from running out of memory on 32-bit
 
         public static int MaxTransitionCount
         {
             get { return _maxTransitionCount; }
+        }
+
+        /// <summary>
+        /// For testing to avoid needing to create 5,000,000 transitions to test transition count limits
+        /// </summary>
+        public static void SetTestMaxTransitonCount(int max)
+        {
+            _maxTransitionCount = max;
         }
 
         // Version of this document in deserialized XML
@@ -269,6 +283,7 @@ namespace pwiz.Skyline.Model
             UserRevisionIndex = doc.UserRevisionIndex;
             Settings = settings;
             AuditLog = doc.AuditLog;
+            DocumentHash = doc.DocumentHash;
             DeferSettingsChanges = doc.DeferSettingsChanges;
             DocumentType = doc.DocumentType;
 
@@ -338,6 +353,11 @@ namespace pwiz.Skyline.Model
         /// Document-wide settings information
         /// </summary>
         public SrmSettings Settings { get; private set; }
+
+        /// <summary>
+        /// Document hash that gets updated when the document is opened/saved
+        /// </summary>
+        public string DocumentHash { get; private set; }
 
         public AuditLogList AuditLog { get; private set; }
 
@@ -569,17 +589,17 @@ namespace pwiz.Skyline.Model
             {
                 string whyNot;
                 if (Settings.HasResults && (whyNot = Settings.MeasuredResults.IsNotLoadedExplained) != null)
-                    yield return "Settings.MeasuredResults " + whyNot; // Not L10N
+                    yield return @"Settings.MeasuredResults " + whyNot;
                 if (Settings.HasLibraries && (whyNot = Settings.PeptideSettings.Libraries.IsNotLoadedExplained)!=null)
-                    yield return "Settings.PeptideSettings.Libraries: " + whyNot; // Not L10N
+                    yield return @"Settings.PeptideSettings.Libraries: " + whyNot;
                 if ((whyNot = IrtDbManager.IsNotLoadedDocumentExplained(this)) != null)
-                    yield return whyNot; // Not L10N
+                    yield return whyNot;
                 if ((whyNot = OptimizationDbManager.IsNotLoadedDocumentExplained(this)) != null)
-                    yield return whyNot; // Not L10N
+                    yield return whyNot;
                 if ((whyNot = DocumentRetentionTimes.IsNotLoadedExplained(Settings)) != null)
-                    yield return whyNot; // Not L10N
+                    yield return whyNot;
                 if ((whyNot = IonMobilityLibraryManager.IsNotLoadedDocumentExplained(this)) != null)
-                    yield return whyNot; // Not L10N
+                    yield return whyNot;
                 // BackgroundProteome?
             }
         }
@@ -631,6 +651,11 @@ namespace pwiz.Skyline.Model
                 }
                 return path;
             }
+        }
+
+        public SrmDocument ChangeDocumentHash(string hash)
+        {
+            return ChangeProp(ImClone(this), im => im.DocumentHash = hash);
         }
 
         public SrmDocument ChangeAuditLog(AuditLogList log)
@@ -732,7 +757,7 @@ namespace pwiz.Skyline.Model
             docClone.SetDocumentType();
             // If this document has associated results, update the results
             // for any peptides that have changed.
-            if (!Settings.HasResults)
+            if (!Settings.HasResults || DeferSettingsChanges)
                 return docClone.Children;
 
             // Store indexes to previous results in a dictionary for lookup
@@ -1378,12 +1403,12 @@ namespace pwiz.Skyline.Model
         }
 
         // Note these lead with zzz in hopes of placing them last in any sorting tests
-        public static string TestingNonProteomicBaseName = "zzzTestingNonProteomic";  // Not L10N
-        public static string TestingNonProteomicMoleculeGroupName = TestingNonProteomicBaseName + "MoleculeGroup";  // Not L10N
-        public static string TestingNonProteomicMoleculeName = TestingNonProteomicBaseName + "Molecule";  // Not L10N
-        public static string TestingNonProteomicPrecursorName = TestingNonProteomicBaseName + "Precursor";  // Not L10N
-        public static string TestingNonProteomicFragmentName = TestingNonProteomicBaseName + "Fragment";  // Not L10N
-        public static string TestingNonProteomicFragment2Name = TestingNonProteomicBaseName + "Fragment2";  // Not L10N
+        public static string TestingNonProteomicBaseName = @"zzzTestingNonProteomic";
+        public static string TestingNonProteomicMoleculeGroupName = TestingNonProteomicBaseName + @"MoleculeGroup";
+        public static string TestingNonProteomicMoleculeName = TestingNonProteomicBaseName + @"Molecule";
+        public static string TestingNonProteomicPrecursorName = TestingNonProteomicBaseName + @"Precursor";
+        public static string TestingNonProteomicFragmentName = TestingNonProteomicBaseName + @"Fragment";
+        public static string TestingNonProteomicFragment2Name = TestingNonProteomicBaseName + @"Fragment2";
 
         public static bool IsConvertedFromProteomicTestDocNode(DocNode node)
         {
@@ -1443,7 +1468,7 @@ namespace pwiz.Skyline.Model
         {
             var pepGroup = new PeptideGroup();
             var note = Annotations.Merge(new Annotations(TestingNonProteomicBaseName, null, 0));  // Tag it as not needing/wanting canonical small molecule sort - these need to be at the doc end, always
-            var pep = new Peptide(new CustomMolecule("C16O4H4", TestingNonProteomicMoleculeName)); // Not L10N
+            var pep = new Peptide(new CustomMolecule(@"C16O4H4", TestingNonProteomicMoleculeName));
             var peptideGroupDocNodes = existingPeptideGroups as PeptideGroupDocNode[] ?? existingPeptideGroups.ToArray();
             var autoManageChildren = (!peptideGroupDocNodes.Any()) || peptideGroupDocNodes.First().AutoManageChildren; // Try to look like any existing
             var hasPrecursorTransitions = (!peptideGroupDocNodes.Any()) || peptideGroupDocNodes.Any(n => n.Molecules.Any(p => p.TransitionGroups.Any(t => t.Transitions.Any(r => r.Transition.IsPrecursor())))); // Try to look like any existing
@@ -1485,9 +1510,9 @@ namespace pwiz.Skyline.Model
             var tranGroup = new TransitionGroup(pep, charge, IsotopeLabelType.light);
             var tranPrecursor = new Transition(tranGroup, IonType.precursor, 0, 0, charge, null);
             // Specify formula
-            var tranFragment = new Transition(tranGroup, charge, 0, new CustomMolecule("C2H2O2", TestingNonProteomicFragmentName)); // Not L10N
+            var tranFragment = new Transition(tranGroup, charge, 0, new CustomMolecule(@"C2H2O2", TestingNonProteomicFragmentName));
             // Specify mass
-            var tranFragment2 = new Transition(tranGroup, charge, 0, new CustomMolecule(tranFragment.CustomIon.MonoisotopicMass, tranFragment.CustomIon.AverageMass, TestingNonProteomicFragment2Name)); // Not L10N
+            var tranFragment2 = new Transition(tranGroup, charge, 0, new CustomMolecule(tranFragment.CustomIon.MonoisotopicMass, tranFragment.CustomIon.AverageMass, TestingNonProteomicFragment2Name));
 
             // Use any existing isotope distribution info
             var transitionGroups =
@@ -1943,16 +1968,18 @@ namespace pwiz.Skyline.Model
             return ChangeProp(ImClone(this), im => im.DeferSettingsChanges = true);
         }
 
-        public SrmDocument EndDeferSettingsChanges(SrmSettings originalSettings, SrmSettingsChangeMonitor progressMonitor)
+        public SrmDocument EndDeferSettingsChanges(SrmDocument originalDocument, SrmSettingsChangeMonitor progressMonitor)
         {
-            var docWithOriginalSettings = ChangeProp(ImClone(this), im =>
+            var docWithOriginalSettings = (SrmDocument) ChangeProp(ImClone(this), im =>
             {
-                im.Settings = originalSettings;
+                im.Settings = originalDocument.Settings;
                 im.DeferSettingsChanges = false;
-            });
-            return docWithOriginalSettings
+            }).ChangeChildren(originalDocument.Children);
+            var doc = docWithOriginalSettings
                 .ChangeSettings(Settings, progressMonitor)
                 .ChangeMeasuredResults(Settings.MeasuredResults, progressMonitor);
+            doc = (SrmDocument) doc.ChangeChildren(Children.ToArray());
+            return doc;
         }
 
         private object _referenceId = new object();
@@ -2023,21 +2050,18 @@ namespace pwiz.Skyline.Model
         public SrmDocument ReadAuditLog(string documentPath, string expectedHash, Func<SrmDocument, AuditLogEntry> getDefaultEntry)
         {
             var auditLog = new AuditLogList();
-            if (AuditLogList.CanStoreAuditLog)
+            var auditLogPath = GetAuditLogPath(documentPath);
+            if (File.Exists(auditLogPath))
             {
-                var auditLogPath = GetAuditLogPath(documentPath);
-                if (File.Exists(auditLogPath))
+                auditLog = AuditLogList.ReadFromFile(auditLogPath, out var actualHash);
+                if (expectedHash != actualHash)
                 {
-                    auditLog = AuditLogList.ReadFromFile(auditLogPath, out var actualHash);
-                    if (expectedHash != actualHash)
-                    {
-                        var entry = getDefaultEntry(this) ?? AuditLogEntry.GetUndocumentedChangeEntry(this);
-                        auditLog = new AuditLogList(entry.ChangeParent(auditLog.AuditLogEntries));
-                    }
+                    var entry = getDefaultEntry(this) ?? AuditLogEntry.GetUndocumentedChangeEntry(this);
+                    auditLog = new AuditLogList(entry.ChangeParent(auditLog.AuditLogEntries));
                 }
             }
-            
-            return ChangeAuditLog(auditLog);
+
+            return ChangeDocumentHash(expectedHash).ChangeAuditLog(auditLog);
         }
 
         public void WriteXml(XmlWriter writer)
@@ -2086,7 +2110,7 @@ namespace pwiz.Skyline.Model
             })
             {
                 writer.WriteStartDocument();
-                writer.WriteStartElement("srm_settings"); // Not L10N
+                writer.WriteStartElement(@"srm_settings");
                 SerializeToXmlWriter(writer, skylineVersion, progressMonitor, new ProgressStatus(Path.GetFileName(displayName)));
                 writer.WriteEndElement();
                 writer.WriteEndDocument();
@@ -2095,16 +2119,12 @@ namespace pwiz.Skyline.Model
                 hash = hashingStream.Done();
             }
 
-            if (AuditLogList.CanStoreAuditLog)
-            {
-                var auditLogPath = GetAuditLogPath(displayName);
+            var auditLogPath = GetAuditLogPath(displayName);
 
-
-                if (Settings.DataSettings.AuditLogging)
-                    AuditLog?.WriteToFile(auditLogPath, hash);
-                else if (File.Exists(auditLogPath))
-                    Helpers.TryTwice(() => File.Delete(auditLogPath));
-            }
+            if (Settings.DataSettings.AuditLogging)
+                AuditLog?.WriteToFile(auditLogPath, hash);
+            else if (File.Exists(auditLogPath))
+                Helpers.TryTwice(() => File.Delete(auditLogPath));
         }
 
         public XmlSchema GetSchema()

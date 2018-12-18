@@ -32,7 +32,7 @@ using pwiz.Skyline.Util.Extensions;
 namespace pwiz.Skyline.Model.Databinding.Entities
 {
     [AnnotationTarget(AnnotationDef.AnnotationTarget.precursor_result)]
-    public class PrecursorResult : Result
+    public class PrecursorResult : Result, ILocatable
     {
         private readonly CachedValue<TransitionGroupChromInfo> _chromInfo;
         public PrecursorResult(Precursor precursor, ResultFile file) : base(precursor, file)
@@ -213,7 +213,7 @@ namespace pwiz.Skyline.Model.Databinding.Entities
         [InvariantDisplayName("PrecursorResultLocator")]
         public string Locator { get { return GetLocator(); } }
 
-        public override ElementRef GetElementRef()
+        public ElementRef GetElementRef()
         {
             return PrecursorResultRef.PROTOTYPE.ChangeChromInfo(GetResultFile().Replicate.ChromatogramSet, ChromInfo)
                 .ChangeParent(Precursor.GetElementRef());

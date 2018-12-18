@@ -40,14 +40,14 @@ namespace pwiz.Skyline.Model.Databinding.Entities
             get { return DataSchema.Document; }
         }
 
-        public virtual ElementRef GetElementRef()
-        {
-            return null;
-        }
-
         public string GetLocator()
         {
-            var elementRef = GetElementRef();
+            var elementRefObject = this as ILocatable;
+            if (elementRefObject == null)
+            {
+                return null;
+            }
+            var elementRef = elementRefObject.GetElementRef();
             if (elementRef == null)
             {
                 return null;

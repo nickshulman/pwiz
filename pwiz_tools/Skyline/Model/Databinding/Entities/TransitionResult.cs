@@ -29,7 +29,7 @@ using pwiz.Skyline.Util.Extensions;
 namespace pwiz.Skyline.Model.Databinding.Entities
 {
     [AnnotationTarget(AnnotationDef.AnnotationTarget.transition_result)]
-    public class TransitionResult : Result
+    public class TransitionResult : Result, ILocatable
     {
         private readonly CachedValue<TransitionChromInfo> _chromInfo;
         private readonly CachedValue<Chromatogram> _chromatogram;
@@ -133,7 +133,7 @@ namespace pwiz.Skyline.Model.Databinding.Entities
             get { return GetLocator(); }
         }
 
-        public override ElementRef GetElementRef()
+        public ElementRef GetElementRef()
         {
             return TransitionResultRef.PROTOTYPE.ChangeChromInfo(GetResultFile().Replicate.ChromatogramSet, ChromInfo)
                 .ChangeParent(Transition.GetElementRef());

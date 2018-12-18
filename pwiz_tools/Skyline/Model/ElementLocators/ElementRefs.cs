@@ -105,4 +105,9 @@ namespace pwiz.Skyline.Model.ElementLocators
             return prototype.ChangeElementLocator(objectReference);
         }
     }
+
+    public interface ILocatable
+    {
+        ElementRef GetElementRef();
+    }
 }

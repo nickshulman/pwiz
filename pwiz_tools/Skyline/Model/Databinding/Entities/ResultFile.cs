@@ -28,7 +28,7 @@ using pwiz.Skyline.Model.Results;
 
 namespace pwiz.Skyline.Model.Databinding.Entities
 {
-    public class ResultFile : SkylineObject, IComparable
+    public class ResultFile : SkylineObject, IComparable, ILocatable
     {
         private readonly CachedValue<ChromFileInfo> _chromFileInfo;
         public ResultFile(Replicate replicate, ChromFileInfoId chromFileInfoId, int optStep) : base(replicate.DataSchema)
@@ -161,7 +161,7 @@ namespace pwiz.Skyline.Model.Databinding.Entities
             get { return GetLocator(); }
         }
 
-        public override ElementRef GetElementRef()
+        public ElementRef GetElementRef()
         {
             var sibling = ResultFileRef.PROTOTYPE.ChangeParent(Replicate.GetElementRef());
             int fileIndex = Replicate.ChromatogramSet.IndexOfId(ChromFileInfoId);

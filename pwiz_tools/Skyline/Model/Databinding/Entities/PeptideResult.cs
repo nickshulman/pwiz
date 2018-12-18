@@ -32,7 +32,7 @@ using SkylineTool;
 
 namespace pwiz.Skyline.Model.Databinding.Entities
 {
-    public class PeptideResult : Result
+    public class PeptideResult : Result, ILocatable
     {
         private readonly CachedValue<PeptideChromInfo> _chromInfo;
         private readonly CachedValue<QuantificationResult> _quantificationResult;
@@ -145,7 +145,7 @@ namespace pwiz.Skyline.Model.Databinding.Entities
             return curveFitter.GetQuantificationResult(ResultFile.Replicate.ReplicateIndex);
         }
 
-        public override ElementRef GetElementRef()
+        ElementRef GetElementRef()
         {
             return MoleculeResultRef.PROTOTYPE.ChangeChromInfo(ResultFile.Replicate.ChromatogramSet, ChromInfo)
                 .ChangeParent(Peptide.GetElementRef());

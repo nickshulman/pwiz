@@ -31,7 +31,7 @@ using pwiz.Skyline.Properties;
 
 namespace pwiz.Skyline.Model.Databinding.Entities
 {
-    public abstract class SkylineDocNode : SkylineObject, ILinkValue
+    public abstract class SkylineDocNode : SkylineObject, ILinkValue, ILocatable
     {
         protected SkylineDocNode(SkylineDataSchema dataSchema, IdentityPath identityPath) : base(dataSchema)
         {
@@ -202,7 +202,7 @@ namespace pwiz.Skyline.Model.Databinding.Entities
             return DocNode.ToString();
         }
 
-        public sealed override ElementRef GetElementRef()
+        public ElementRef GetElementRef()
         {
             return DataSchema.ElementRefs.GetNodeRef(IdentityPath);
         }

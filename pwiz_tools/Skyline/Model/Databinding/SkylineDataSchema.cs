@@ -162,7 +162,7 @@ namespace pwiz.Skyline.Model.Databinding
                 bool firstListener = _documentChangedEventHandlers.Count == 0;
                 if (!_documentChangedEventHandlers.Add(listener))
                 {
-                    throw new ArgumentException("Listener already added"); // Not L10N
+                    throw new ArgumentException(@"Listener already added");
                 }
                 if (firstListener)
                 {
@@ -185,7 +185,7 @@ namespace pwiz.Skyline.Model.Databinding
             {
                 if (!_documentChangedEventHandlers.Remove(listener))
                 {
-                    throw new ArgumentException("Listener not added"); // Not L10N
+                    throw new ArgumentException(@"Listener not added");
                 }
                 if (_documentChangedEventHandlers.Count == 0)
                 {
@@ -285,7 +285,7 @@ namespace pwiz.Skyline.Model.Databinding
 
         public static DataSchemaLocalizer GetLocalizedSchemaLocalizer()
         {
-            return new DataSchemaLocalizer(CultureInfo.CurrentCulture, ColumnCaptions.ResourceManager);
+            return new DataSchemaLocalizer(CultureInfo.CurrentCulture, CultureInfo.CurrentUICulture, ColumnCaptions.ResourceManager);
         }
 
         public void BeginBatchModifyDocument()
@@ -319,7 +319,7 @@ namespace pwiz.Skyline.Model.Databinding
                         Message = message
                     })
                     {
-                        SrmDocument newDocument = null;
+                        SrmDocument newDocument = document;
                         longWaitDlg.PerformWork(SkylineWindow, 1000, progressMonitor =>
                         {
                             var srmSettingsChangeMonitor = new SrmSettingsChangeMonitor(progressMonitor,

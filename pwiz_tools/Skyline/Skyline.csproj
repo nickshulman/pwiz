@@ -403,6 +403,10 @@
     <Compile Include="Model\Lib\LibKeyMap.cs" />
     <Compile Include="Model\Lib\LibraryKey.cs" />
     <Compile Include="Model\Lists\ListExceptionDetail.cs" />
+    <Compile Include="Model\Lists\Panorama\GeneratedCode\lists.cs">
+      <DependentUpon>lists.xsd</DependentUpon>
+    </Compile>
+    <Compile Include="Model\Lists\Panorama\GeneratedCode\tableInfo_queryCustomView.cs" />
     <Compile Include="Model\MassModification.cs" />
     <Compile Include="Model\Optimization\OptimizationDictionary.cs" />
     <Compile Include="Model\Results\RemoteApi\RemoteAccountList.cs" />
@@ -2862,6 +2866,16 @@
     <None Include="Method\Bruker\BuildBrukerMethod.exe.config" />
     <None Include="Method\Thermo\BuildThermoMethod.exe.config" />
     <None Include="Method\Waters\BuildWatersMethod.exe.config" />
+    <None Include="Model\Lists\Panorama\GeneratedCode\gencodefromxsd.bat" />
+    <None Include="Model\Lists\Panorama\GeneratedCode\lists.xsd">
+      <SubType>Designer</SubType>
+    </None>
+    <None Include="Model\Lists\Panorama\GeneratedCode\queryCustomView.xsd">
+      <SubType>Designer</SubType>
+    </None>
+    <None Include="Model\Lists\Panorama\GeneratedCode\tableInfo.xsd">
+      <SubType>Designer</SubType>
+    </None>
     <None Include="ProtocolBuffers\ChromatogramGroupData.proto" />
     <None Include="ProtocolBuffers\SkylineDocument.proto" />
     <None Include="Resources\StartPage\GroupedStudies_thumb.jpg" />

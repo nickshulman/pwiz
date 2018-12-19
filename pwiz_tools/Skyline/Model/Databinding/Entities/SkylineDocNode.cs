@@ -146,6 +146,8 @@ namespace pwiz.Skyline.Model.Databinding.Entities
         }
 
         protected abstract NodeRef NodeRefPrototype { get; }
+
+        public abstract ElementRef GetElementRef();
     }
 
     public abstract class SkylineDocNode<TDocNode> : SkylineDocNode where TDocNode : DocNode
@@ -202,7 +204,7 @@ namespace pwiz.Skyline.Model.Databinding.Entities
             return DocNode.ToString();
         }
 
-        public ElementRef GetElementRef()
+        public override ElementRef GetElementRef()
         {
             return DataSchema.ElementRefs.GetNodeRef(IdentityPath);
         }

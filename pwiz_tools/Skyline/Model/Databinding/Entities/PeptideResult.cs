@@ -145,7 +145,7 @@ namespace pwiz.Skyline.Model.Databinding.Entities
             return curveFitter.GetQuantificationResult(ResultFile.Replicate.ReplicateIndex);
         }
 
-        ElementRef GetElementRef()
+        public ElementRef GetElementRef()
         {
             return MoleculeResultRef.PROTOTYPE.ChangeChromInfo(ResultFile.Replicate.ChromatogramSet, ChromInfo)
                 .ChangeParent(Peptide.GetElementRef());

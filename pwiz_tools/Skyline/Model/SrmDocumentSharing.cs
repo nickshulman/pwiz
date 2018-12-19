@@ -21,7 +21,10 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Ionic.Zip;
+using pwiz.Common.DataBinding;
+using pwiz.Common.DataBinding.Layout;
 using pwiz.Common.SystemUtil;
+using pwiz.Skyline.Model.Databinding;
 using pwiz.Skyline.Model.Lib;
 using pwiz.Skyline.Model.Lib.BlibData;
 using pwiz.Skyline.Model.Results;
@@ -250,6 +253,7 @@ namespace pwiz.Skyline.Model
                     tempDir = ShareDocument(zip, tempDir, out auditLogDocPath);
 
                 SafeAuditLog(zip, auditLogDocPath);
+                SaveDocumentReports(zip);
 
                 Save(zip);
             }
@@ -330,7 +334,7 @@ namespace pwiz.Skyline.Model
                     tempDir = ShareDocument(zip, tempDir, out auditLogDocPath);
 
                 SafeAuditLog(zip, auditLogDocPath);
-
+                SaveDocumentReports(zip);
                 Save(zip);
             }
             finally
@@ -525,6 +529,45 @@ namespace pwiz.Skyline.Model
             }
         }
 
+        private void SaveDocumentReports(ZipFileShare zipFile)
+        {
+            if (!ShareType.IncludeDocumentReports)
+            {
+                return;
+            }
+
+            var skylineDataSchema = SkylineDataSchema.MemoryDataSchema(Document, DataSchemaLocalizer.INVARIANT);
+            var documentReports = new DocumentReports(ProgressMonitor, skylineDataSchema);
+            var viewSpecList = Document.Settings.DataSettings.ViewSpecList;
+            foreach (var view in viewSpecList.ViewSpecs)
+            {
+                foreach (var subName in documentReports.GetSubNames(view))
+                {
+                    string pathInFile;
+                    if (string.IsNullOrEmpty(subName))
+                    {
+                        pathInFile = Path.Combine("Reports", view.Name + ".csv");
+                    }
+                    else
+                    {
+                        pathInFile = Path.Combine(Path.Combine("Reports", subName), view.Name + ".csv");
+                    }
+
+                    var layouts = viewSpecList.GetViewLayouts(view.Name);
+                    ViewLayout defaultLayout = null;
+                    if (!string.IsNullOrEmpty(layouts.DefaultLayoutName))
+                    {
+                        defaultLayout = layouts.FindLayout(layouts.DefaultLayoutName);
+                    }
+                    
+                    zipFile.AddEntry(pathInFile, (name, stream) =>
+                    {
+                        documentReports.WriteReport(view, defaultLayout, subName, new StreamWriter(stream));
+                    });
+                }
+            }
+        }
+
         private class ZipFileShare : IDisposable
         {
             private readonly ZipFile _zip;
@@ -569,6 +612,11 @@ namespace pwiz.Skyline.Model
             {
                 if (_zip != null) _zip.Dispose();
             }
+
+            public void AddEntry(string entryName, WriteDelegate writer)
+            {
+                _zip.AddEntry(entryName, writer);
+            }
         }
 
 
@@ -597,11 +645,12 @@ namespace pwiz.Skyline.Model
     {
         public static readonly ShareType COMPLETE = new ShareType(true, null);
         public static readonly ShareType MINIMAL = new ShareType(false, null);
-        public static readonly ShareType DEFAULT = MINIMAL;
+        public static readonly ShareType DEFAULT = COMPLETE.ChangeIncludeDocumentReports(true);
         public ShareType(bool complete, SkylineVersion skylineVersion)
         {
             Complete = complete;
             SkylineVersion = skylineVersion;
+            IncludeDocumentReports = true;
         }
         public bool Complete { get; private set; }
 
@@ -616,9 +665,17 @@ namespace pwiz.Skyline.Model
             return ChangeProp(ImClone(this), im => im.SkylineVersion = skylineVersion);
         }
 
+        public bool IncludeDocumentReports { get; private set; }
+
+        public ShareType ChangeIncludeDocumentReports(bool includeDocumentReports)
+        {
+            return ChangeProp(ImClone(this), im => im.IncludeDocumentReports = includeDocumentReports);
+        }
+
         protected bool Equals(ShareType other)
         {
-            return Complete == other.Complete && Equals(SkylineVersion, other.SkylineVersion);
+            return Complete == other.Complete && Equals(SkylineVersion, other.SkylineVersion) &&
+                   IncludeDocumentReports == other.IncludeDocumentReports;
         }
 
         public override bool Equals(object obj)
@@ -633,7 +690,10 @@ namespace pwiz.Skyline.Model
         {
             unchecked
             {
-                return (Complete.GetHashCode()*397) ^ (SkylineVersion != null ? SkylineVersion.GetHashCode() : 0);
+                var hashCode = Complete.GetHashCode();
+                hashCode = (hashCode * 397) ^ (SkylineVersion != null ? SkylineVersion.GetHashCode() : 0);
+                hashCode = (hashCode * 397) ^ IncludeDocumentReports.GetHashCode();
+                return hashCode;
             }
         }
     }

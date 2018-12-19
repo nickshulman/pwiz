@@ -67,7 +67,7 @@ namespace pwiz.Skyline.Model.ElementLocators.ExportAnnotations
         {
             if (_elementMap == null)
             {
-                _elementMap = ListElements().ToDictionary(e => e.GetElementRef());
+                _elementMap = ListElements().ToDictionary(e => ((ILocatable) e).GetElementRef());
             }
             _elementMap.TryGetValue(elementRef, out var element);
             return element;

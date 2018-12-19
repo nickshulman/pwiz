@@ -201,7 +201,7 @@ namespace pwiz.Common.DataBinding
         protected virtual void WriteDataWithStatus(IProgressMonitor progressMonitor, ref IProgressStatus status, TextWriter writer, BindingListSource bindingListSource, DsvWriter dsvWriter)
         {
             IList<RowItem> rows = Array.AsReadOnly(bindingListSource.Cast<RowItem>().ToArray());
-            IList<PropertyDescriptor> properties = bindingListSource.GetItemProperties(new PropertyDescriptor[0]).Cast<PropertyDescriptor>().ToArray();
+            IList<PropertyDescriptor> properties = GetItemProperties(bindingListSource).ToArray();
             dsvWriter.WriteHeaderRow(writer, properties);
             var rowCount = rows.Count;
             int startPercent = status.PercentComplete;
@@ -220,6 +220,11 @@ namespace pwiz.Common.DataBinding
                 }
                 dsvWriter.WriteDataRow(writer, rows[rowIndex], properties);
             }
+        }
+
+        protected virtual IEnumerable<PropertyDescriptor> GetItemProperties(BindingListSource bindingListSource)
+        {
+            return bindingListSource.GetItemProperties(new PropertyDescriptor[0]).Cast<PropertyDescriptor>();
         }
 
         public void Export(Control owner, BindingListSource bindingListSource)

@@ -353,6 +353,7 @@
     </Compile>
     <Compile Include="Model\AuditLog\ReflectorEnumerator.cs" />
     <Compile Include="Model\AuditLog\ReflectorToString.cs" />
+    <Compile Include="Model\Databinding\DocumentReports.cs" />
     <Compile Include="Model\Databinding\Entities\ColumnCaptions.Designer.cs">
       <AutoGen>True</AutoGen>
       <DesignTime>True</DesignTime>
@@ -367,6 +368,7 @@
     <Compile Include="Model\Databinding\ListLookupDataGridViewColumn.cs" />
     <Compile Include="Model\Databinding\ListLookupPropertyDescriptor.cs" />
     <Compile Include="Model\Databinding\BoundComboBoxColumn.cs" />
+    <Compile Include="Model\Databinding\LocatorPropertyDescriptor.cs" />
     <Compile Include="Model\Databinding\RowActions\DeleteNodesAction.cs" />
     <Compile Include="Model\Databinding\RowActions\RemovePeaksAction.cs" />
     <Compile Include="Model\Databinding\RowActions\RowAction.cs" />

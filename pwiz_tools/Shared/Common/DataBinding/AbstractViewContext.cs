@@ -665,7 +665,7 @@ namespace pwiz.Common.DataBinding
             }
         }
 
-        public ViewLayoutList GetViewLayoutList(ViewName viewName)
+        public virtual ViewLayoutList GetViewLayoutList(ViewName viewName)
         {
             return GetViewSpecList(viewName.GroupId).GetViewLayouts(viewName.Name);
         }

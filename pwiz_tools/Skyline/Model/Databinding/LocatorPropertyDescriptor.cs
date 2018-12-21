@@ -8,9 +8,9 @@ namespace pwiz.Skyline.Model.Databinding
     {
         private PropertyDescriptor _basePropertyDescriptor;
 
-        public LocatorPropertyDescriptor(PropertyDescriptor basePropertyDescriptor) : base(
-            basePropertyDescriptor.Name + "_Locator",
-            new[] {new DisplayNameAttribute(basePropertyDescriptor.DisplayName + "_Locator")})
+        public LocatorPropertyDescriptor(string name, PropertyDescriptor basePropertyDescriptor) : base(
+            name,
+            new[] {new DisplayNameAttribute(name)})
         {
             _basePropertyDescriptor = basePropertyDescriptor;
         }

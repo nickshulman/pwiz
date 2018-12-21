@@ -37,7 +37,6 @@ using pwiz.Skyline.Model.AuditLog;
 using pwiz.Skyline.Model.Databinding.Collections;
 using pwiz.Skyline.Model.Databinding.Entities;
 using pwiz.Skyline.Model.Databinding.RowActions;
-using pwiz.Skyline.Model.ElementLocators;
 using pwiz.Skyline.Model.Hibernate;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
@@ -322,23 +321,6 @@ namespace pwiz.Skyline.Model.Databinding
                 MessageDlg.ShowWithException(owner,
                     string.Format(Resources.ExportReportDlg_ExportReport_Failed_exporting_to, fileName, x.Message), x);
                 return false;
-            }
-        }
-
-        public void WriteToStream(IProgressMonitor progressMonitor, BindingListSource bindingListSource, DsvWriter dsvWriter, TextWriter textWriter)
-        {
-            WriteData(progressMonitor, textWriter, bindingListSource, dsvWriter);
-        }
-
-        protected override IEnumerable<PropertyDescriptor> GetItemProperties(BindingListSource bindingListSource)
-        {
-            foreach (var propertyDescriptor in base.GetItemProperties(bindingListSource))
-            {
-                yield return propertyDescriptor;
-                if (typeof(ILocatable).IsAssignableFrom(propertyDescriptor.PropertyType))
-                {
-                    yield return new LocatorPropertyDescriptor(propertyDescriptor);
-                }
             }
         }
 

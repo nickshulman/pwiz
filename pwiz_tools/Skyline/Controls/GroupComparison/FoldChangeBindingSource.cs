@@ -23,6 +23,7 @@ using System.Linq;
 using System.Threading;
 using pwiz.Common.DataAnalysis;
 using pwiz.Common.DataBinding;
+using pwiz.Common.DataBinding.Attributes;
 using pwiz.Common.DataBinding.Controls;
 using pwiz.Skyline.Model;
 using pwiz.Skyline.Model.Databinding;
@@ -119,7 +120,7 @@ namespace pwiz.Skyline.Controls.GroupComparison
                     }
                     FoldChangeResult foldChangeResult = new FoldChangeResult(groupComparisonDef.ConfidenceLevel,
                         adjustedPValues[iRow], resultRow.LinearFitResult, criticalValue);
-                    rows.Add(new FoldChangeRow(protein, peptide, resultRow.Selector.LabelType,
+                    rows.Add(new FoldChangeRow(GroupComparisonModel.GroupComparisonName, protein, peptide, resultRow.Selector.LabelType,
                         resultRow.Selector.MsLevel, resultRow.Selector.GroupIdentifier, resultRow.ReplicateCount, foldChangeResult));
                 }
             }
@@ -214,9 +215,10 @@ namespace pwiz.Skyline.Controls.GroupComparison
 
         public class FoldChangeRow
         {
-            public FoldChangeRow(Protein protein, Model.Databinding.Entities.Peptide peptide, IsotopeLabelType labelType,
+            public FoldChangeRow(string groupComparisonName, Protein protein, Model.Databinding.Entities.Peptide peptide, IsotopeLabelType labelType,
                 int? msLevel, GroupIdentifier group, int replicateCount, FoldChangeResult foldChangeResult)
             {
+                GroupComparisonName = groupComparisonName;
                 Protein = protein;
                 Peptide = peptide;
                 IsotopeLabelType = labelType;
@@ -233,6 +235,8 @@ namespace pwiz.Skyline.Controls.GroupComparison
             public GroupIdentifier Group { get; private set; }
             public int ReplicateCount { get; private set; }
             public FoldChangeResult FoldChangeResult { get; private set; }
+            [Advanced]
+            public string GroupComparisonName { get; private set; }
         }
     }
 }

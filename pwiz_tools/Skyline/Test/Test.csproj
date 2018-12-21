@@ -147,6 +147,7 @@
     <Compile Include="DecoysTest.cs" />
     <Compile Include="DigestionTest.cs" />
     <Compile Include="DocLoadLibraryTest.cs" />
+    <Compile Include="DocumentReportsTest.cs" />
     <Compile Include="DocumentSerializerTest.cs" />
     <Compile Include="ElementLocatorTest.cs" />
     <Compile Include="EspTest.cs" />

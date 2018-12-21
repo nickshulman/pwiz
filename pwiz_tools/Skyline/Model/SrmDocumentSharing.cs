@@ -20,19 +20,22 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Xml.Serialization;
 using Ionic.Zip;
 using pwiz.Common.DataBinding;
-using pwiz.Common.DataBinding.Layout;
 using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Model.Databinding;
 using pwiz.Skyline.Model.Lib;
 using pwiz.Skyline.Model.Lib.BlibData;
 using pwiz.Skyline.Model.Results;
 using pwiz.Skyline.Model.DocSettings.Extensions;
+using pwiz.Skyline.Model.ElementLocators;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
 using pwiz.Skyline.Model.Proteome;
 using pwiz.Skyline.Model.Serialization;
+using pwiz.Skyline.Model.Sharing;
+using pwiz.Skyline.Model.Sharing.GeneratedCode;
 using pwiz.Skyline.Util.Extensions;
 
 namespace pwiz.Skyline.Model
@@ -538,34 +541,35 @@ namespace pwiz.Skyline.Model
 
             var skylineDataSchema = SkylineDataSchema.MemoryDataSchema(Document, DataSchemaLocalizer.INVARIANT);
             var documentReports = new DocumentReports(ProgressMonitor, skylineDataSchema);
-            var viewSpecList = Document.Settings.DataSettings.ViewSpecList;
-            foreach (var view in viewSpecList.ViewSpecs)
+            var tableInfos = new List<TableType>();
+            foreach (var reportWriter in documentReports.GetReportExporters(Document.Settings.DataSettings.ViewSpecList)
+            )
             {
-                foreach (var subName in documentReports.GetSubNames(view))
+                string pathInFile = Path.Combine("Reports", reportWriter.Name + ".tsv");
+                tableInfos.Add(reportWriter.TableInfo);
+                zipFile.AddEntry(pathInFile, (name, stream) =>
                 {
-                    string pathInFile;
-                    if (string.IsNullOrEmpty(subName))
+                    using (var writer = new StreamWriter(stream))
                     {
-                        pathInFile = Path.Combine("Reports", view.Name + ".csv");
+                        reportWriter.WriteReport(ProgressMonitor, writer, TextUtil.SEPARATOR_TSV);
                     }
-                    else
-                    {
-                        pathInFile = Path.Combine(Path.Combine("Reports", subName), view.Name + ".csv");
-                    }
-
-                    var layouts = viewSpecList.GetViewLayouts(view.Name);
-                    ViewLayout defaultLayout = null;
-                    if (!string.IsNullOrEmpty(layouts.DefaultLayoutName))
-                    {
-                        defaultLayout = layouts.FindLayout(layouts.DefaultLayoutName);
-                    }
-                    
-                    zipFile.AddEntry(pathInFile, (name, stream) =>
-                    {
-                        documentReports.WriteReport(view, defaultLayout, subName, new StreamWriter(stream));
-                    });
-                }
+                });
             }
+            var tables = new TablesType1();
+            tables.Items = tableInfos.ToArray();
+            zipFile.AddEntry(Path.Combine("Reports", "reports.xml"), (name, stream) =>
+            {
+                var serializer = new XmlSerializer(tables.GetType());
+                serializer.Serialize(stream, tables);
+            });
+            zipFile.AddEntry(Path.Combine("Reports", "elementlocators.txt"), (name, stream) =>
+            {
+                var exporter = new ElementLocatorsExporter(skylineDataSchema.ElementRefs);
+                using (var writer = new StreamWriter(stream))
+                {
+                    exporter.WriteElementRefs(writer);
+                }
+            });
         }
 
         private class ZipFileShare : IDisposable

@@ -17,7 +17,6 @@
  * limitations under the License.
  */
 using System;
-using System.Drawing;
 using System.Linq;
 using System.Windows.Forms;
 using pwiz.Skyline.Model;
@@ -26,30 +25,18 @@ using pwiz.Skyline.Util;
 namespace pwiz.Skyline.Alerts
 {
     /// <summary>
-    /// Use for a <see cref="MessageBox"/> substitute that can be
-    /// detected and closed by automated functional tests.
+    /// Dialog which presents options for what information to include in a .sky.zip file.
     /// </summary>
     public partial class ShareTypeDlg : FormEx
     {
         public ShareTypeDlg(SrmDocument document)
         {
             InitializeComponent();
-            if (document.Settings.HasBackgroundProteome)
-            {
-                groupBoxShareType.Visible = lblBackgroundProteome.Visible = true;
-            }
-            if (document.Settings.HasRTCalcPersisted)
-            {
-                groupBoxShareType.Visible = lblRetentionTimeCalculator.Visible = true;
-            }
-            if (document.Settings.HasLibraries)
-            {
-                groupBoxShareType.Visible = lblLibraries.Visible = true;
-            }
+            cbxDocumentReports.Enabled = document.Settings.DataSettings.ViewSpecList.Views.Any();
+            cbxMinimizeLibraries.Enabled = document.Settings.HasLibraries || document.Settings.HasBackgroundProteome ||
+                                           document.Settings.HasRTCalcPersisted;
             comboSkylineVersion.Items.AddRange(SkylineVersion.SupportedForSharing().Cast<object>().ToArray());
             comboSkylineVersion.SelectedIndex = 0;
-            radioMinimal.Checked = true;
-            ClientSize = new Size(ClientSize.Width, panelFileFormat.Bottom + panelButtonBar.Height + 15);
         }
 
         public ShareType ShareType { get; set; }
@@ -64,7 +51,8 @@ namespace pwiz.Skyline.Alerts
         public void OkDialog()
         {
             DialogResult = DialogResult.OK;
-            ShareType = new ShareType(radioComplete.Checked, (SkylineVersion)comboSkylineVersion.SelectedItem);
+            ShareType = new ShareType(cbxMinimizeLibraries.Checked, (SkylineVersion) comboSkylineVersion.SelectedItem)
+                .ChangeIncludeDocumentReports(cbxDocumentReports.Checked);
             Close();
         }
 

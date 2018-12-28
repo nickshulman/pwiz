@@ -9,7 +9,7 @@ namespace pwiz.Skyline.Model.Sharing
 {
     public class SharingDsvWriter : DsvWriter
     {
-        public SharingDsvWriter(char separator) : base(CultureInfo.InvariantCulture, CultureInfo.InvariantCulture, separator)
+        public SharingDsvWriter(char separator, CultureInfo formatProvider, CultureInfo language) : base(formatProvider, language, separator)
         {
 
         }

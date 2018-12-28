@@ -1,4 +1,5 @@
 ﻿using System.IO;
+using System.Threading;
 using System.Xml.Serialization;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using pwiz.Common.DataBinding;
@@ -21,7 +22,7 @@ namespace pwiz.SkylineTest
             using (var documentReports = new DocumentReports(new SilentProgressMonitor(),
                 SkylineDataSchema.MemoryDataSchema(srmDocument, DataSchemaLocalizer.INVARIANT)))
             {
-                foreach (var exporter in documentReports.GetReportExporters(srmDocument.Settings.DataSettings
+                foreach (var exporter in documentReports.GetReportExporters(CancellationToken.None, srmDocument.Settings.DataSettings
                     .ViewSpecList))
                 {
                     Assert.IsNotNull(exporter.TableInfo);

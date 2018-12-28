@@ -2,6 +2,7 @@
 using pwiz.Common.Collections;
 using pwiz.Common.DataBinding.Controls;
 using System.ComponentModel;
+using System.Globalization;
 using System.IO;
 using pwiz.Common.DataBinding;
 using pwiz.Common.DataBinding.Attributes;
@@ -34,7 +35,7 @@ namespace pwiz.Skyline.Model.Sharing
                 columnInfos.Add(columnInfo);
                 if (typeof(ILocatable).IsAssignableFrom(propertyDescriptor.PropertyType))
                 {
-                    var locator = new LocatorPropertyDescriptor(columnName + "_locator", propertyDescriptor);
+                    var locator = new LocatorPropertyDescriptor(columnName + @"_locator", propertyDescriptor);
                     string fkColumnName = columnNameManager.MakeUniqueName(locator.Name);
                     columnCaptions.Add(fkColumnName);
                     propertyDescriptors.Add(locator);
@@ -61,6 +62,9 @@ namespace pwiz.Skyline.Model.Sharing
         public BindingListSource BindingListSource { get; private set; }
         public ImmutableList<PropertyDescriptor> PropertyDescriptors { get; private set; }
         public ImmutableList<string> ColumnNames { get; private set; }
+        public CultureInfo FormatProvider { get; set; }
+        public CultureInfo Language { get; set; }
+
         public TableType TableInfo 
         {
             get { return _tableInfo; }
@@ -68,7 +72,7 @@ namespace pwiz.Skyline.Model.Sharing
 
         public DsvWriter GetDsvWriter(char separator)
         {
-            return new SharingDsvWriter(separator)
+            return new SharingDsvWriter(separator, FormatProvider, Language)
             {
                 ColumnCaptions = ColumnNames,
                 PropertyDescriptors = PropertyDescriptors

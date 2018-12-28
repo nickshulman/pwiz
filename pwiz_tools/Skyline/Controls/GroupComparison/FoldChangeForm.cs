@@ -271,7 +271,7 @@ namespace pwiz.Skyline.Controls.GroupComparison
                 return form.FoldChangeBindingSource;
             }
 
-            return new FoldChangeBindingSource(new GroupComparisonModel(documentContainer, groupComparisonName));
+            return new FoldChangeBindingSource(new GroupComparisonModel(documentContainer, groupComparisonName, false));
         }
 
         public static FoldChangeForm RestoreFoldChangeForm(IDocumentUIContainer documentContainer, string persistentString)

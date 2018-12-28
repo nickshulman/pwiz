@@ -39,12 +39,15 @@ namespace pwiz.Skyline.Model.GroupComparison
         private readonly HashSet<EventHandler> _modelChangedListeners = new HashSet<EventHandler>();
         private readonly QrFactorizationCache _qrFactorizationCache = new QrFactorizationCache();
 
-        public GroupComparisonModel(IDocumentContainer documentContainer, string groupComparisonName)
+        public GroupComparisonModel(IDocumentContainer documentContainer, string groupComparisonName, bool asynchronous)
         {
+            Asynchronous = asynchronous;
             _documentContainer = documentContainer;
             GroupComparisonName = groupComparisonName;
             Document = documentContainer.Document;
         }
+
+        public bool Asynchronous { get; private set; }
 
         public GroupComparisonDef GroupComparisonDef
         {
@@ -272,7 +275,14 @@ namespace pwiz.Skyline.Model.GroupComparison
 
         private void RunAsync(Action action)
         {
-            ActionUtil.RunAsync(action, @"Group Comparison");
+            if (Asynchronous)
+            {
+                ActionUtil.RunAsync(action, @"Group Comparison");
+            }
+            else
+            {
+                action();
+            }
         }
 
         private void FireModelChanged()

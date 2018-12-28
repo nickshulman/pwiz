@@ -92,38 +92,7 @@ namespace pwiz.Skyline.Controls.GroupComparison
 
         private void UpdateResults()
         {
-            var results = GroupComparisonModel.Results;
-            var rows = new List<FoldChangeRow>();
-            if (null != results)
-            {
-                Dictionary<int, double> criticalValuesByDegreesOfFreedom = new Dictionary<int, double>();
-                var groupComparisonDef = results.GroupComparer.ComparisonDef;
-                var adjustedPValues = PValues.AdjustPValues(results.ResultRows.Select(
-                    row => row.LinearFitResult.PValue)).ToArray();
-                for (int iRow = 0; iRow < results.ResultRows.Count; iRow++)
-                {
-                    var resultRow = results.ResultRows[iRow];
-                    var protein = new Protein(_skylineDataSchema, new IdentityPath(resultRow.Selector.Protein.Id));
-                    Model.Databinding.Entities.Peptide peptide = null;
-                    if (null != resultRow.Selector.Peptide)
-                    {
-                        peptide = new Model.Databinding.Entities.Peptide(_skylineDataSchema,
-                            new IdentityPath(protein.IdentityPath, resultRow.Selector.Peptide.Id));
-                    }
-                    double criticalValue;
-                    if (!criticalValuesByDegreesOfFreedom.TryGetValue(resultRow.LinearFitResult.DegreesOfFreedom,
-                        out criticalValue))
-                    {
-                        criticalValue = FoldChangeResult.GetCriticalValue(groupComparisonDef.ConfidenceLevel,
-                            resultRow.LinearFitResult.DegreesOfFreedom);
-                        criticalValuesByDegreesOfFreedom.Add(resultRow.LinearFitResult.DegreesOfFreedom, criticalValue);
-                    }
-                    FoldChangeResult foldChangeResult = new FoldChangeResult(groupComparisonDef.ConfidenceLevel,
-                        adjustedPValues[iRow], resultRow.LinearFitResult, criticalValue);
-                    rows.Add(new FoldChangeRow(GroupComparisonModel.GroupComparisonName, protein, peptide, resultRow.Selector.LabelType,
-                        resultRow.Selector.MsLevel, resultRow.Selector.GroupIdentifier, resultRow.ReplicateCount, foldChangeResult));
-                }
-            }
+            var rows = new List<FoldChangeRow>(GetFoldChangeRows(_skylineDataSchema, GroupComparisonModel));
             var defaultViewSpec = GetDefaultViewSpec(rows);
             if (!Equals(defaultViewSpec, ViewContext.BuiltInViews.First()))
             {
@@ -139,6 +108,43 @@ namespace pwiz.Skyline.Controls.GroupComparison
                 }
             }
             _bindingListSource.RowSource = new StaticRowSource(rows);
+        }
+
+        public static IEnumerable<FoldChangeRow> GetFoldChangeRows(SkylineDataSchema dataSchema,
+            GroupComparisonModel groupComparisonModel)
+        {
+            var results = groupComparisonModel.Results;
+            if (results == null)
+            {
+                yield break;
+            }
+            Dictionary<int, double> criticalValuesByDegreesOfFreedom = new Dictionary<int, double>();
+            var groupComparisonDef = results.GroupComparer.ComparisonDef;
+            var adjustedPValues = PValues.AdjustPValues(results.ResultRows.Select(
+                row => row.LinearFitResult.PValue)).ToArray();
+            for (int iRow = 0; iRow < results.ResultRows.Count; iRow++)
+            {
+                var resultRow = results.ResultRows[iRow];
+                var protein = new Protein(dataSchema, new IdentityPath(resultRow.Selector.Protein.Id));
+                Model.Databinding.Entities.Peptide peptide = null;
+                if (null != resultRow.Selector.Peptide)
+                {
+                    peptide = new Model.Databinding.Entities.Peptide(dataSchema,
+                        new IdentityPath(protein.IdentityPath, resultRow.Selector.Peptide.Id));
+                }
+                double criticalValue;
+                if (!criticalValuesByDegreesOfFreedom.TryGetValue(resultRow.LinearFitResult.DegreesOfFreedom,
+                    out criticalValue))
+                {
+                    criticalValue = FoldChangeResult.GetCriticalValue(groupComparisonDef.ConfidenceLevel,
+                        resultRow.LinearFitResult.DegreesOfFreedom);
+                    criticalValuesByDegreesOfFreedom.Add(resultRow.LinearFitResult.DegreesOfFreedom, criticalValue);
+                }
+                FoldChangeResult foldChangeResult = new FoldChangeResult(groupComparisonDef.ConfidenceLevel,
+                    adjustedPValues[iRow], resultRow.LinearFitResult, criticalValue);
+                yield return new FoldChangeRow(groupComparisonModel.GroupComparisonName, protein, peptide, resultRow.Selector.LabelType,
+                    resultRow.Selector.MsLevel, resultRow.Selector.GroupIdentifier, resultRow.ReplicateCount, foldChangeResult);
+            }
         }
 
         private ViewSpec GetDefaultViewSpec(IList<FoldChangeRow> foldChangeRows)

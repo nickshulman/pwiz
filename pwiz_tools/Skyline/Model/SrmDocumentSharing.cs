@@ -20,6 +20,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Xml.Serialization;
 using Ionic.Zip;
 using pwiz.Common.DataBinding;
@@ -181,7 +182,15 @@ namespace pwiz.Skyline.Model
             return skylineFile;
         }
 
-        public void Share(IProgressMonitor progressMonitor)
+        public void Share(ILongWaitBroker longWaitBroker)
+        {
+            new ProgressWaitBroker(progressMonitor =>
+            {
+                Share(longWaitBroker.CancellationToken, progressMonitor);
+            });
+        }
+
+        public void Share(CancellationToken cancellationToken, IProgressMonitor progressMonitor)
         {
             ProgressMonitor = progressMonitor;
             ProgressMonitor.UpdateProgress(_progressStatus = new ProgressStatus(DefaultMessage));
@@ -189,10 +198,11 @@ namespace pwiz.Skyline.Model
             using (var zip = new ZipFileShare())
             {
                 if (ShareType.Complete)
-                    ShareComplete(zip);
+                    ShareComplete(cancellationToken, zip);
                 else
-                    ShareMinimal(zip);
+                    ShareMinimal(cancellationToken, zip);
             }
+
         }
 
         public static bool ShouldShareAuditLog(SrmDocument doc, ShareType shareType)
@@ -212,7 +222,7 @@ namespace pwiz.Skyline.Model
             }
         }
 
-        private void ShareComplete(ZipFileShare zip)
+        private void ShareComplete(CancellationToken cancellationToken, ZipFileShare zip)
         {
             TemporaryDirectory tempDir = null;
             try
@@ -256,7 +266,7 @@ namespace pwiz.Skyline.Model
                     tempDir = ShareDocument(zip, tempDir, out auditLogDocPath);
 
                 SafeAuditLog(zip, auditLogDocPath);
-                SaveDocumentReports(zip);
+                SaveDocumentReports(cancellationToken, zip);
 
                 Save(zip);
             }
@@ -266,7 +276,7 @@ namespace pwiz.Skyline.Model
             }
         }
 
-        private void ShareMinimal(ZipFileShare zip)
+        private void ShareMinimal(CancellationToken cancellationToken, ZipFileShare zip)
         {
             TemporaryDirectory tempDir = null;
             try
@@ -337,7 +347,7 @@ namespace pwiz.Skyline.Model
                     tempDir = ShareDocument(zip, tempDir, out auditLogDocPath);
 
                 SafeAuditLog(zip, auditLogDocPath);
-                SaveDocumentReports(zip);
+                SaveDocumentReports(cancellationToken, zip);
                 Save(zip);
             }
             finally
@@ -532,7 +542,7 @@ namespace pwiz.Skyline.Model
             }
         }
 
-        private void SaveDocumentReports(ZipFileShare zipFile)
+        private void SaveDocumentReports(CancellationToken token, ZipFileShare zipFile)
         {
             if (!ShareType.IncludeDocumentReports)
             {
@@ -542,7 +552,7 @@ namespace pwiz.Skyline.Model
             var skylineDataSchema = SkylineDataSchema.MemoryDataSchema(Document, DataSchemaLocalizer.INVARIANT);
             var documentReports = new DocumentReports(ProgressMonitor, skylineDataSchema);
             var tableInfos = new List<TableType>();
-            foreach (var reportWriter in documentReports.GetReportExporters(Document.Settings.DataSettings.ViewSpecList)
+            foreach (var reportWriter in documentReports.GetReportExporters(token, Document.Settings.DataSettings.ViewSpecList)
             )
             {
                 string pathInFile = Path.Combine("Reports", reportWriter.Name + ".tsv");

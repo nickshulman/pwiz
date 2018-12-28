@@ -2934,7 +2934,7 @@ namespace pwiz.Skyline
             var sharing = new SrmDocumentSharing(document, documentPath, fileDest, shareType);
             try
             {
-                sharing.Share(waitBroker);
+                sharing.Share(CancellationToken.None, waitBroker);
                 return true;
             }
             catch (Exception x)

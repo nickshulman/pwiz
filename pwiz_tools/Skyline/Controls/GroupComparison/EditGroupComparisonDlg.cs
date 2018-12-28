@@ -40,7 +40,7 @@ namespace pwiz.Skyline.Controls.GroupComparison
 
         public EditGroupComparisonDlg(IDocumentUIContainer documentContainer,
             GroupComparisonDef groupComparisonDef, IEnumerable<GroupComparisonDef> existingGroupComparisons)
-            : this(new GroupComparisonModel(documentContainer, null) { GroupComparisonDef = groupComparisonDef})
+            : this(new GroupComparisonModel(documentContainer, null, true) { GroupComparisonDef = groupComparisonDef})
         {
             _originalGroupComparisonDef = groupComparisonDef;
             _existingGroupComparisons = existingGroupComparisons;

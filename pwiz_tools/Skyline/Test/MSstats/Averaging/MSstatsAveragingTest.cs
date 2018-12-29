@@ -35,7 +35,7 @@ namespace pwiz.SkylineTest.MSstats.Averaging
             var srmDocument = LoadRatPlasmaDocument();
             var documentContainer = new MemoryDocumentContainer();
             documentContainer.SetDocument(documentContainer.Document, srmDocument);
-            GroupComparisonModel model = new GroupComparisonModel(documentContainer, null);
+            GroupComparisonModel model = new GroupComparisonModel(documentContainer, null, false);
             model.GroupComparisonDef = GroupComparisonDef.EMPTY.ChangeControlAnnotation("Condition")
                 .ChangeControlValue("Healthy")
                 .ChangeIdentityAnnotation("BioReplicate")

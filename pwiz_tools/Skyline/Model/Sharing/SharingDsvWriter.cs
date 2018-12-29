@@ -9,6 +9,7 @@ namespace pwiz.Skyline.Model.Sharing
 {
     public class SharingDsvWriter : DsvWriter
     {
+        private int _rowIndex;
         public SharingDsvWriter(char separator, CultureInfo formatProvider, CultureInfo language) : base(formatProvider, language, separator)
         {
 
@@ -16,6 +17,7 @@ namespace pwiz.Skyline.Model.Sharing
 
         public IList<PropertyDescriptor> PropertyDescriptors { get; set; }
         public IList<String> ColumnCaptions { get; set; }
+        public bool IncludeRowIndex { get; set; }
 
         public override void WriteHeaderRow(TextWriter writer, IEnumerable<PropertyDescriptor> propertyDescriptors)
         {
@@ -39,6 +41,11 @@ namespace pwiz.Skyline.Model.Sharing
 
         public override void WriteDataRow(TextWriter writer, RowItem rowItem, IEnumerable<PropertyDescriptor> propertyDescriptors)
         {
+            if (IncludeRowIndex)
+            {
+                writer.Write(ToDsvField(_rowIndex++.ToString(CultureInfo.InvariantCulture)));
+                writer.Write(Separator);
+            }
             base.WriteDataRow(writer, rowItem, PropertyDescriptors ?? propertyDescriptors);
         }
     }

@@ -21,7 +21,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading;
-using System.Xml.Serialization;
 using Ionic.Zip;
 using pwiz.Common.DataBinding;
 using pwiz.Common.SystemUtil;
@@ -30,13 +29,11 @@ using pwiz.Skyline.Model.Lib;
 using pwiz.Skyline.Model.Lib.BlibData;
 using pwiz.Skyline.Model.Results;
 using pwiz.Skyline.Model.DocSettings.Extensions;
-using pwiz.Skyline.Model.ElementLocators;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
 using pwiz.Skyline.Model.Proteome;
 using pwiz.Skyline.Model.Serialization;
 using pwiz.Skyline.Model.Sharing;
-using pwiz.Skyline.Model.Sharing.GeneratedCode;
 using pwiz.Skyline.Util.Extensions;
 
 namespace pwiz.Skyline.Model
@@ -187,7 +184,7 @@ namespace pwiz.Skyline.Model
             new ProgressWaitBroker(progressMonitor =>
             {
                 Share(longWaitBroker.CancellationToken, progressMonitor);
-            });
+            }).PerformWork(longWaitBroker);
         }
 
         public void Share(CancellationToken cancellationToken, IProgressMonitor progressMonitor)
@@ -266,7 +263,7 @@ namespace pwiz.Skyline.Model
                     tempDir = ShareDocument(zip, tempDir, out auditLogDocPath);
 
                 SafeAuditLog(zip, auditLogDocPath);
-                SaveDocumentReports(cancellationToken, zip);
+                tempDir = SaveDocumentReports(cancellationToken, zip, tempDir);
 
                 Save(zip);
             }
@@ -347,7 +344,7 @@ namespace pwiz.Skyline.Model
                     tempDir = ShareDocument(zip, tempDir, out auditLogDocPath);
 
                 SafeAuditLog(zip, auditLogDocPath);
-                SaveDocumentReports(cancellationToken, zip);
+                tempDir = SaveDocumentReports(cancellationToken, zip, tempDir);
                 Save(zip);
             }
             finally
@@ -542,44 +539,31 @@ namespace pwiz.Skyline.Model
             }
         }
 
-        private void SaveDocumentReports(CancellationToken token, ZipFileShare zipFile)
+        private TemporaryDirectory SaveDocumentReports(CancellationToken token, ZipFileShare zipFile,
+            TemporaryDirectory tempDir)
         {
             if (!ShareType.IncludeDocumentReports)
             {
-                return;
+                return tempDir;
             }
 
+            if (!Document.Settings.DataSettings.ViewSpecList.Views.Any())
+            {
+                return tempDir;
+            }
+
+            tempDir = tempDir ?? new TemporaryDirectory();
             var skylineDataSchema = SkylineDataSchema.MemoryDataSchema(Document, DataSchemaLocalizer.INVARIANT);
             var documentReports = new DocumentReports(ProgressMonitor, skylineDataSchema);
-            var tableInfos = new List<TableType>();
-            foreach (var reportWriter in documentReports.GetReportExporters(token, Document.Settings.DataSettings.ViewSpecList)
-            )
+            var listZipFile = Path.Combine(tempDir.DirPath, "DocumentReports.zip");
+            using (var fileSaver = new FileSaver(listZipFile, true))
             {
-                string pathInFile = Path.Combine("Reports", reportWriter.Name + ".tsv");
-                tableInfos.Add(reportWriter.TableInfo);
-                zipFile.AddEntry(pathInFile, (name, stream) =>
-                {
-                    using (var writer = new StreamWriter(stream))
-                    {
-                        reportWriter.WriteReport(ProgressMonitor, writer, TextUtil.SEPARATOR_TSV);
-                    }
-                });
+                documentReports.ExportToZipFile(Path.GetFileName(SharedPath), token, fileSaver.FileStream);
+                fileSaver.Commit();
             }
-            var tables = new TablesType1();
-            tables.Items = tableInfos.ToArray();
-            zipFile.AddEntry(Path.Combine("Reports", "reports.xml"), (name, stream) =>
-            {
-                var serializer = new XmlSerializer(tables.GetType());
-                serializer.Serialize(stream, tables);
-            });
-            zipFile.AddEntry(Path.Combine("Reports", "elementlocators.txt"), (name, stream) =>
-            {
-                var exporter = new ElementLocatorsExporter(skylineDataSchema.ElementRefs);
-                using (var writer = new StreamWriter(stream))
-                {
-                    exporter.WriteElementRefs(writer);
-                }
-            });
+
+            zipFile.AddFile(listZipFile);
+            return tempDir;
         }
 
         private class ZipFileShare : IDisposable

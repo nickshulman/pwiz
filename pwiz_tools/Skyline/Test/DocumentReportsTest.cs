@@ -22,13 +22,12 @@ namespace pwiz.SkylineTest
             using (var documentReports = new DocumentReports(new SilentProgressMonitor(),
                 SkylineDataSchema.MemoryDataSchema(srmDocument, DataSchemaLocalizer.INVARIANT)))
             {
-                foreach (var exporter in documentReports.GetReportExporters(CancellationToken.None, srmDocument.Settings.DataSettings
-                    .ViewSpecList))
+                var zipFilePath = Path.Combine(TestContext.TestDir, "lists.zip");
+                using (var outputStream = new FileStream(zipFilePath, FileMode.Create))
                 {
-                    Assert.IsNotNull(exporter.TableInfo);
+                    documentReports.ExportToZipFile("test.sky.zip", CancellationToken.None, outputStream);
                 }
             }
-
         }
 
         private const string DOCUMENT_XML = @"<srm_settings format_version='4.21' software_version='Skyline-daily (64-bit) 4.2.1.18334'>

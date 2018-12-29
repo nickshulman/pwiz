@@ -355,6 +355,7 @@
     <Compile Include="Model\AuditLog\ReflectorToString.cs" />
     <Compile Include="Model\ElementLocators\ElementLocatorsExporter.cs" />
     <Compile Include="Model\Sharing\ColumnNameManager.cs" />
+    <Compile Include="Model\Sharing\DataType.cs" />
     <Compile Include="Model\Sharing\DocumentReports.cs" />
     <Compile Include="Model\Databinding\Entities\ColumnCaptions.Designer.cs">
       <AutoGen>True</AutoGen>

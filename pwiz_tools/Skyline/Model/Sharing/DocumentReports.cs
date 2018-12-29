@@ -1,8 +1,11 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading;
+using System.Xml.Serialization;
+using Ionic.Zip;
 using pwiz.Common.Collections;
 using pwiz.Common.DataBinding;
 using pwiz.Common.DataBinding.Layout;
@@ -12,6 +15,8 @@ using pwiz.Skyline.Model.Databinding;
 using pwiz.Skyline.Model.Databinding.Collections;
 using pwiz.Skyline.Model.Databinding.Entities;
 using pwiz.Skyline.Model.GroupComparison;
+using pwiz.Skyline.Model.Sharing.GeneratedCode;
+using pwiz.Skyline.Util.Extensions;
 using BindingListSource = pwiz.Common.DataBinding.Controls.BindingListSource;
 
 namespace pwiz.Skyline.Model.Sharing
@@ -180,6 +185,36 @@ namespace pwiz.Skyline.Model.Sharing
             documentContainer.SetDocument(DataSchema.Document, documentContainer.Document);
             var groupComparisonModel = new GroupComparisonModel(documentContainer, groupComparisonDef.Name, false);
             return FoldChangeBindingSource.GetFoldChangeRows(DataSchema, groupComparisonModel);
+        }
+
+        public void ExportToZipFile(string runName, CancellationToken cancellationToken, Stream outputStream)
+        {
+            using (var zipFile = new ZipFile())
+            {
+                var tableInfos = new List<TableType>();
+                foreach (var reportExporter in GetReportExporters(cancellationToken,
+                    DataSchema.Document.Settings.DataSettings.ViewSpecList))
+                {
+                    var tableInfo = reportExporter.GetTableInfo(runName);
+                    tableInfos.Add(tableInfo);
+                    string tsvFileName = tableInfo.tableName + ".tsv";
+                    zipFile.AddEntry(tsvFileName, (name, stream) =>
+                    {
+                        using (var writer = new StreamWriter(stream))
+                        {
+                            reportExporter.WriteReport(ProgressMonitor, writer, TextUtil.SEPARATOR_TSV);
+                        }
+                    });
+                }
+                var tables = new TablesType1();
+                tables.Items = tableInfos.ToArray();
+                zipFile.AddEntry(@"lists.xml", (name, stream) =>
+                {
+                    var serializer = new XmlSerializer(tables.GetType());
+                    serializer.Serialize(stream, tables);
+                });
+                zipFile.Save(outputStream);
+            }
         }
     }
 }

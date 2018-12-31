@@ -74,6 +74,8 @@ namespace pwiz.Skyline.Model.Irt
         {
             return _peptideModSeq;
         }
+
+        public virtual string TargetText { get { return Target.DisplayName; } }
     }
 
     public class DbIrtPeptide : DbAbstractPeptide

@@ -203,6 +203,7 @@ namespace pwiz.Skyline.SettingsUI
             var row = GridView.Rows[rowIndex];
             if (row.IsNewRow)
                 return true;
+            return true;
             var cell = row.Cells[COLUMN_SEQUENCE];
             string errorText = MeasuredPeptide.ValidateSequence(Target.FromSerializableString(cell.FormattedValue?.ToString()));
             if (errorText == null)

@@ -88,6 +88,11 @@ namespace pwiz.Skyline.SettingsUI.Irt
 
                 OpenDatabase(databaseStartPath);
             }
+
+            var targetResolver = TargetResolver.MakeTargetResolver(Program.ActiveDocumentUI, 
+                _originalPeptides?.Select(p=>p.Target));
+            columnStandardSequence.TargetResolver = targetResolver;
+            columnLibrarySequence.TargetResolver = targetResolver;
         }
 
         private void OnLoad(object sender, EventArgs e)

@@ -76,6 +76,8 @@ namespace pwiz.Skyline.SettingsUI.IonMobility
 
                 OpenDatabase(databaseStartPath);
             }
+            var targetResolver = TargetResolver.MakeTargetResolver(null, _originalPeptides?.Select(p=>p.Target));
+            columnLibrarySequence.TargetResolver = targetResolver;
         }
 
         private void OnLoad(object sender, EventArgs e)

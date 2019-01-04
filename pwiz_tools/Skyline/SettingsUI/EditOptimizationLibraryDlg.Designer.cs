@@ -46,7 +46,7 @@
             this.textName = new System.Windows.Forms.TextBox();
             this.label1 = new System.Windows.Forms.Label();
             this.label4 = new System.Windows.Forms.Label();
-            this.gridViewLibrary = new pwiz.Skyline.Controls.DataGridViewEx();
+            this.gridViewLibrary = new pwiz.Skyline.Controls.TargetGrid();
             this.columnSequence = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.columnProductIon = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.columnValue = new System.Windows.Forms.DataGridViewTextBoxColumn();
@@ -283,7 +283,7 @@
         private System.Windows.Forms.Label label2;
         private System.Windows.Forms.TextBox textName;
         private System.Windows.Forms.Label label1;
-        private Controls.DataGridViewEx gridViewLibrary;
+        private Controls.TargetGrid gridViewLibrary;
         private System.Windows.Forms.Label label4;
         private System.Windows.Forms.BindingSource bindingSourceLibrary;
         private System.Windows.Forms.ContextMenuStrip contextMenuAdd;

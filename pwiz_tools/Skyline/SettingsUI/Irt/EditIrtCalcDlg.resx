@@ -328,7 +328,7 @@
     <value>Top, Right</value>
   </data>
   <data name="btnCalibrate.Location" type="System.Drawing.Point, System.Drawing">
-    <value>285, 16</value>
+    <value>285, 0</value>
   </data>
   <data name="btnCalibrate.Size" type="System.Drawing.Size, System.Drawing">
     <value>75, 23</value>
@@ -499,7 +499,7 @@
     <value>Top, Right</value>
   </data>
   <data name="btnPeptides.Location" type="System.Drawing.Point, System.Drawing">
-    <value>148, 16</value>
+    <value>148, 19</value>
   </data>
   <data name="btnPeptides.Size" type="System.Drawing.Size, System.Drawing">
     <value>131, 23</value>
@@ -562,7 +562,7 @@
     <value>gridViewStandard</value>
   </data>
   <data name="&gt;&gt;gridViewStandard.Type" xml:space="preserve">
-    <value>pwiz.Skyline.Controls.DataGridViewEx, Skyline-daily, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null</value>
+    <value>pwiz.Skyline.Controls.TargetGrid, Skyline-daily, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null</value>
   </data>
   <data name="&gt;&gt;gridViewStandard.Parent" xml:space="preserve">
     <value>splitContainer1.Panel1</value>
@@ -637,7 +637,7 @@
     <value>gridViewLibrary</value>
   </data>
   <data name="&gt;&gt;gridViewLibrary.Type" xml:space="preserve">
-    <value>pwiz.Skyline.Controls.DataGridViewEx, Skyline-daily, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null</value>
+    <value>pwiz.Skyline.Controls.TargetGrid, Skyline-daily, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null</value>
   </data>
   <data name="&gt;&gt;gridViewLibrary.Parent" xml:space="preserve">
     <value>splitContainer1.Panel2</value>

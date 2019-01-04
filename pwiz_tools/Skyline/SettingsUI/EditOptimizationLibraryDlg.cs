@@ -74,6 +74,7 @@ namespace pwiz.Skyline.SettingsUI
             comboType.Items.Add(ExportOptimize.CE);
             comboType.Items.Add(ExportOptimize.COV);
             comboType.SelectedIndex = 0;
+            gridViewLibrary.TargetResolver = TargetResolver.MakeTargetResolver(document, _original?.Select(p=>p.Target));
         }
 
         public string ViewType
@@ -537,7 +538,7 @@ namespace pwiz.Skyline.SettingsUI
                     const int max = TransitionGroup.MAX_PRECURSOR_CHARGE;
 
                     string seq = Transition.StripChargeIndicators(sequenceAndCharge, min, max);
-                    ModifiedSequence = SequenceMassCalc.NormalizeModifiedSequence(new Target(seq));
+                    ModifiedSequence = new Target(seq);
                     Charge = Transition.GetChargeFromIndicator(sequenceAndCharge, min, max, Adduct.SINGLY_PROTONATED);
                 }
 

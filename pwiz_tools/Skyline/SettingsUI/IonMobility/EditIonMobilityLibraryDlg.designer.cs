@@ -51,10 +51,10 @@
             this.addSpectralLibraryContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.addIRTDatabaseContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.label4 = new System.Windows.Forms.Label();
-            this.gridViewMeasuredPeptides = new pwiz.Skyline.Controls.DataGridViewEx();
+            this.gridViewMeasuredPeptides = new pwiz.Skyline.Controls.TargetGrid();
             this.toolTipImportBtn = new System.Windows.Forms.ToolTip(this.components);
             this.toolTipMeasuredPeptidesGrid = new System.Windows.Forms.ToolTip(this.components);
-            this.columnLibrarySequence = new System.Windows.Forms.DataGridViewTextBoxColumn();
+            this.columnLibrarySequence = new Controls.TargetColumn();
             this.columnLibraryCollisionalCrossSection = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.columnLibraryHighEnergyDriftTimeOffsetMsec = new System.Windows.Forms.DataGridViewTextBoxColumn();
             ((System.ComponentModel.ISupportInitialize)(this.bindingSourceLibrary)).BeginInit();
@@ -266,7 +266,7 @@
         private Controls.DataGridViewEx gridViewMeasuredPeptides;
         private System.Windows.Forms.ToolTip toolTipImportBtn;
         private System.Windows.Forms.ToolTip toolTipMeasuredPeptidesGrid;
-        private System.Windows.Forms.DataGridViewTextBoxColumn columnLibrarySequence;
+        private Controls.TargetColumn columnLibrarySequence;
         private System.Windows.Forms.DataGridViewTextBoxColumn columnLibraryCollisionalCrossSection;
         private System.Windows.Forms.DataGridViewTextBoxColumn columnLibraryHighEnergyDriftTimeOffsetMsec;
     }

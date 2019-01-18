@@ -472,14 +472,11 @@ namespace pwiz.Skyline
             this.groupComparisonsMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.addGroupComparisonMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.editGroupComparisonListMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-<<<<<<< HEAD
             this.resultsGridMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.documentGridMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.isotopeDistributionsToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-=======
             this.listsMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.defineNewListMenuItem = new System.Windows.Forms.ToolStripMenuItem();
->>>>>>> remotes/origin/master
             this.auditLogMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.toolStripSeparator36 = new System.Windows.Forms.ToolStripSeparator();
             this.toolBarToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
@@ -3021,12 +3018,8 @@ namespace pwiz.Skyline
             this.massErrorsMenuItem,
             this.calibrationCurveMenuItem,
             this.documentGridMenuItem,
-<<<<<<< HEAD
             this.isotopeDistributionsToolStripMenuItem,
-            this.auditLogMenuItem,
-=======
             this.otherGridsMenuItem,
->>>>>>> remotes/origin/master
             this.toolStripSeparator36,
             this.toolBarToolStripMenuItem,
             this.statusToolStripMenuItem});

@@ -5,6 +5,7 @@ using pwiz.Common.Chemistry;
 using pwiz.Common.Collections;
 using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Model.DocSettings;
+using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
 
 namespace pwiz.Skyline.Model
@@ -436,7 +437,7 @@ namespace pwiz.Skyline.Model
         public class Settings : Immutable
         {
             public static readonly Settings DEFAULT = new Settings().ChangeMassResolution(.01).ChangeMinAbundance(.00001)
-                .ChangeIsotopeAbundances(IsotopeEnrichments.DEFAULT.IsotopeAbundances);
+                .ChangeIsotopeAbundances(IsotopeEnrichmentsList.DEFAULT.IsotopeAbundances);
 
             public static Settings FromSrmSettings(SrmSettings srmSettings)
             {

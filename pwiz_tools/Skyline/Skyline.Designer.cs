@@ -472,8 +472,14 @@ namespace pwiz.Skyline
             this.groupComparisonsMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.addGroupComparisonMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.editGroupComparisonListMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+<<<<<<< HEAD
+            this.resultsGridMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.documentGridMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.isotopeDistributionsToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+=======
             this.listsMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.defineNewListMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+>>>>>>> remotes/origin/master
             this.auditLogMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.toolStripSeparator36 = new System.Windows.Forms.ToolStripSeparator();
             this.toolBarToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
@@ -3015,7 +3021,12 @@ namespace pwiz.Skyline
             this.massErrorsMenuItem,
             this.calibrationCurveMenuItem,
             this.documentGridMenuItem,
+<<<<<<< HEAD
+            this.isotopeDistributionsToolStripMenuItem,
+            this.auditLogMenuItem,
+=======
             this.otherGridsMenuItem,
+>>>>>>> remotes/origin/master
             this.toolStripSeparator36,
             this.toolBarToolStripMenuItem,
             this.statusToolStripMenuItem});
@@ -3684,6 +3695,12 @@ namespace pwiz.Skyline
             this.defineNewListMenuItem.Name = "defineNewListMenuItem";
             resources.ApplyResources(this.defineNewListMenuItem, "defineNewListMenuItem");
             this.defineNewListMenuItem.Click += new System.EventHandler(this.defineNewListMenuItem_Click);
+            // 
+            // isotopeDistributionsToolStripMenuItem
+            // 
+            this.isotopeDistributionsToolStripMenuItem.Name = "isotopeDistributionsToolStripMenuItem";
+            resources.ApplyResources(this.isotopeDistributionsToolStripMenuItem, "isotopeDistributionsToolStripMenuItem");
+            this.isotopeDistributionsToolStripMenuItem.Click += new System.EventHandler(this.isotopeDistributionMenuItem_Click);
             // 
             // auditLogMenuItem
             // 
@@ -4660,6 +4677,7 @@ namespace pwiz.Skyline
         private System.Windows.Forms.ToolStripSeparator toolStripSeparator58;
         private System.Windows.Forms.ToolStripMenuItem areaCVPrecursorsToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem areaCVProductsToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem isotopeDistributionsToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem targetsAt1FDRToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem otherGridsMenuItem;
         private System.Windows.Forms.ToolStripMenuItem auditLogMenuItem;

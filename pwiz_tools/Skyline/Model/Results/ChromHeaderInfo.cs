@@ -1361,6 +1361,7 @@ namespace pwiz.Skyline.Model.Results
             has_midas_spectra = 0x04,
             // One extra bit available
             ion_mobility_type_bitmask = 0x70, // 3 bits for ion mobility type drift, inverse_mobility, spares
+            scan_infos = 0x80,
         }
 
         public static DateTime GetLastWriteTime(MsDataFileUri filePath)
@@ -1413,6 +1414,7 @@ namespace pwiz.Skyline.Model.Results
             LocationScanIds = locationScanIds;
             TicArea = ticArea;
             InstrumentInfoList = ImmutableList.ValueOf(instrumentInfoList) ?? ImmutableList<MsInstrumentConfigInfo>.EMPTY;
+            ScanInfos = ImmutableList.Empty<ScanInfo>();
         }
 
         public MsDataFileUri FilePath { get; private set; }
@@ -1425,6 +1427,7 @@ namespace pwiz.Skyline.Model.Results
         public long LocationScanIds { get; private set; }
         public ImmutableList<MsInstrumentConfigInfo> InstrumentInfoList { get; private set; }
         public float? TicArea { get; private set; }
+        public ImmutableList<ScanInfo> ScanInfos { get; private set; }
         public eIonMobilityUnits IonMobilityUnits { get { return IonMobilityUnitsFromFlags(Flags); } }
 
         public bool IsCurrent
@@ -1455,6 +1458,11 @@ namespace pwiz.Skyline.Model.Results
         public ChromCachedFile ChangeFilePath(MsDataFileUri filePath)
         {
             return ChangeProp(ImClone(this), im => im.FilePath = filePath);
+        }
+
+        public ChromCachedFile ChangeScanInfos(ImmutableList<ScanInfo> scanInfos)
+        {
+            return ChangeProp(ImClone(this), im => im.ScanInfos = scanInfos);
         }
     }
 

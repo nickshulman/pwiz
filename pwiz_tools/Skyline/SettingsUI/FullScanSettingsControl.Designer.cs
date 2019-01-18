@@ -75,12 +75,15 @@
             this.textPrecursorCharges = new System.Windows.Forms.TextBox();
             this.toolTip = new System.Windows.Forms.ToolTip(this.components);
             this.cbHighSelectivity = new System.Windows.Forms.CheckBox();
+            this.groupBoxIsotopes = new System.Windows.Forms.GroupBox();
+            this.cbxExtractIsotopeEnvelope = new System.Windows.Forms.CheckBox();
             this.useSpectralLibraryIonMobilityValuesControl = new pwiz.Skyline.SettingsUI.IonMobility.UseSpectralLibraryIonMobilityValuesControl();
             this.groupBoxRetentionTimeToKeep.SuspendLayout();
             this.flowLayoutPanelUseSchedulingWindow.SuspendLayout();
             this.flowLayoutPanelTimeAroundMs2Ids.SuspendLayout();
             this.groupBoxMS1.SuspendLayout();
             this.groupBoxMS2.SuspendLayout();
+            this.groupBoxIsotopes.SuspendLayout();
             this.SuspendLayout();
             // 
             // groupBoxRetentionTimeToKeep
@@ -167,8 +170,6 @@
             // groupBoxMS1
             // 
             this.groupBoxMS1.Controls.Add(this.labelPrecursorPPM);
-            this.groupBoxMS1.Controls.Add(this.comboEnrichments);
-            this.groupBoxMS1.Controls.Add(this.labelEnrichments);
             this.groupBoxMS1.Controls.Add(this.labelPrecursorIsotopeFilterPercent);
             this.groupBoxMS1.Controls.Add(this.textPrecursorIsotopeFilter);
             this.groupBoxMS1.Controls.Add(this.labelPrecursorIsotopeFilter);
@@ -375,6 +376,20 @@
             this.toolTip.SetToolTip(this.cbHighSelectivity, resources.GetString("cbHighSelectivity.ToolTip"));
             this.cbHighSelectivity.UseVisualStyleBackColor = true;
             // 
+            // groupBoxIsotopes
+            // 
+            this.groupBoxIsotopes.Controls.Add(this.cbxExtractIsotopeEnvelope);
+            this.groupBoxIsotopes.Controls.Add(this.comboEnrichments);
+            this.groupBoxIsotopes.Controls.Add(this.labelEnrichments);
+            resources.ApplyResources(this.groupBoxIsotopes, "groupBoxIsotopes");
+            this.groupBoxIsotopes.Name = "groupBoxIsotopes";
+            this.groupBoxIsotopes.TabStop = false;
+            // 
+            // cbxExtractIsotopeEnvelope
+            // 
+            resources.ApplyResources(this.cbxExtractIsotopeEnvelope, "cbxExtractIsotopeEnvelope");
+            this.cbxExtractIsotopeEnvelope.Name = "cbxExtractIsotopeEnvelope";
+            this.cbxExtractIsotopeEnvelope.UseVisualStyleBackColor = true;
             // useSpectralLibraryIonMobilityValuesControl1
             // 
             resources.ApplyResources(this.useSpectralLibraryIonMobilityValuesControl, "useSpectralLibraryIonMobilityValuesControl");
@@ -385,6 +400,7 @@
             resources.ApplyResources(this, "$this");
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.BackColor = System.Drawing.Color.Transparent;
+            this.Controls.Add(this.groupBoxIsotopes);
             this.Controls.Add(this.useSpectralLibraryIonMobilityValuesControl);
             this.Controls.Add(this.cbHighSelectivity);
             this.Controls.Add(this.textPrecursorCharges);
@@ -403,6 +419,8 @@
             this.groupBoxMS1.PerformLayout();
             this.groupBoxMS2.ResumeLayout(false);
             this.groupBoxMS2.PerformLayout();
+            this.groupBoxIsotopes.ResumeLayout(false);
+            this.groupBoxIsotopes.PerformLayout();
             this.ResumeLayout(false);
             this.PerformLayout();
 
@@ -455,6 +473,8 @@
         private System.Windows.Forms.Label labelPrecursorPPM;
         private System.Windows.Forms.Label labelProductPPM;
         private System.Windows.Forms.CheckBox cbHighSelectivity;
+        private System.Windows.Forms.GroupBox groupBoxIsotopes;
+        private System.Windows.Forms.CheckBox cbxExtractIsotopeEnvelope;
         private IonMobility.UseSpectralLibraryIonMobilityValuesControl useSpectralLibraryIonMobilityValuesControl;
     }
 }

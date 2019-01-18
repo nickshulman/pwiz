@@ -2993,6 +2993,12 @@ first occurrence of any peptide.</value>
   <data name="listsMenuItem.Text" xml:space="preserve">
     <value>&amp;Lists</value>
   </data>
+  <data name="isotopeDistributionsToolStripMenuItem.Size" type="System.Drawing.Size, System.Drawing">
+    <value>191, 22</value>
+  </data>
+  <data name="isotopeDistributionsToolStripMenuItem.Text" xml:space="preserve">
+    <value>Isotope Distributions</value>
+  </data>
   <data name="auditLogMenuItem.ShortcutKeys" type="System.Windows.Forms.Keys, System.Windows.Forms">
     <value>Alt+4</value>
   </data>
@@ -5991,6 +5997,12 @@ first occurrence of any peptide.</value>
     <value>defineNewListMenuItem</value>
   </data>
   <data name="&gt;&gt;defineNewListMenuItem.Type" xml:space="preserve">
+    <value>System.Windows.Forms.ToolStripMenuItem, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="&gt;&gt;isotopeDistributionsToolStripMenuItem.Name" xml:space="preserve">
+    <value>isotopeDistributionsToolStripMenuItem</value>
+  </data>
+  <data name="&gt;&gt;isotopeDistributionsToolStripMenuItem.Type" xml:space="preserve">
     <value>System.Windows.Forms.ToolStripMenuItem, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </data>
   <data name="&gt;&gt;auditLogMenuItem.Name" xml:space="preserve">

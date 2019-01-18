@@ -466,6 +466,15 @@
     <Compile Include="Model\Results\RemoteApi\Unifi\UnifiSession.cs" />
     <Compile Include="Model\Results\RemoteApi\Unifi\UnifiUrl.cs" />
     <Compile Include="Model\TargetResolver.cs" />
+    <Compile Include="Model\XCorr\ArrayXCorrCalculator.cs" />
+    <Compile Include="Model\XCorr\Class1.cs" />
+    <Compile Include="Model\XCorr\FragmentationType.cs" />
+    <Compile Include="Model\XCorr\FragmentIon.cs" />
+    <Compile Include="Model\XCorr\MassConstants.cs" />
+    <Compile Include="Model\XCorr\MassTolerance.cs" />
+    <Compile Include="Model\XCorr\Peak.cs" />
+    <Compile Include="Model\XCorr\SearchParameters.cs" />
+    <Compile Include="Model\XCorr\Spectrum.cs" />
     <Compile Include="SettingsUI\IonMobility\UseSpectralLibraryIonMobilityValuesControl.cs">
       <SubType>UserControl</SubType>
     </Compile>

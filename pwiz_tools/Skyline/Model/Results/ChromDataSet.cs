@@ -74,7 +74,12 @@ namespace pwiz.Skyline.Model.Results
         public ChromData BestChromatogram { get { return _listChromData[0]; } }
 //        private ChromData BestNonFragmentChromatogram { get { return _listChromData.FirstOrDefault(t => t.Key.Source != ChromSource.fragment); } }
 //        private ChromData BestFragmentChromatogram { get { return _listChromData.FirstOrDefault(t => t.Key.Source == ChromSource.fragment); } }
-        public IList<ChromData> Chromatograms { get { return _listChromData; } }
+        public IEnumerable<ChromData> Chromatograms { get { return _listChromData.Where(chrom=>!chrom.Key.IsXCorr); } }
+
+        public ChromData XCorrChromatogram
+        {
+            get { return _listChromData.FirstOrDefault(chromData => chromData.Key.IsXCorr); }
+        }
 
         /// <summary>
         /// The number of transitions or chromatograms associated with this transition group
@@ -1282,11 +1287,29 @@ namespace pwiz.Skyline.Model.Results
         {
             if (useRawTimes)
             {
-                return new RawTimeIntensities(_listChromData.Select(chromData => chromData.RawTimeIntensities),
-                    InterpolationParams);
+                IEnumerable<TimeIntensities> timeIntensities =
+                    Chromatograms.Select(chromData => chromData.RawTimeIntensities);
+                if (XCorrChromatogram != null)
+                {
+                    timeIntensities = timeIntensities.Append(XCorrChromatogram.RawTimeIntensities);
+                }
+                return new RawTimeIntensities(timeIntensities, InterpolationParams);
             }
             return new InterpolatedTimeIntensities(_listChromData.Select(chromData=>chromData.TimeIntensities), 
                 _listChromData.Select(chromData=>chromData.PrimaryKey.Source));
+        }
+
+        public void FilterByRetentionTime(double explicitRT)
+        {
+            for (var j = _listChromData.Count - 1; j >= 0; j--)
+            {
+                var chrom = _listChromData[j];
+                if (explicitRT < chrom.Times.First() || chrom.Times.Last() < explicitRT)
+                {
+                    _listChromData.RemoveAt(j);
+                }
+            }
+
         }
     }
 }

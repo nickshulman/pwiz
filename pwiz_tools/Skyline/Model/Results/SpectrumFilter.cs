@@ -23,10 +23,12 @@ using System.IO;
 using System.Linq;
 using System.Xml.Serialization;
 using pwiz.Common.Chemistry;
+using pwiz.Common.Collections;
 using pwiz.ProteowizardWrapper;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.Lib;
 using pwiz.Skyline.Model.Results.RemoteApi.GeneratedCode;
+using pwiz.Skyline.Model.XCorr;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
 
@@ -83,6 +85,7 @@ namespace pwiz.Skyline.Model.Results
             double? maxObservedIonMobilityValue = null,
             IRetentionTimePredictor retentionTimePredictor = null, bool firstPass = false)
         {
+            SearchParameters xCorrParameters = SearchParameters.DEFAULT.ChangeFragmentationType(FragmentationType.CID);
             _fullScan = document.Settings.TransitionSettings.FullScan;
             _instrument = document.Settings.TransitionSettings.Instrument;
             _acquisitionMethod = _fullScan.AcquisitionMethod;
@@ -256,6 +259,11 @@ namespace pwiz.Skyline.Model.Results
                             filter = new SpectrumFilterPair(key, nodePep.Color, dictPrecursorMzToFilter.Count, minTime, maxTime,
                                 ionMobility.HighEnergyIonMobilityValueOffset,
                                 _isHighAccMsFilter, _isHighAccProductFilter);
+                            if (nodePep.IsProteomic)
+                            {
+                                filter.SetXCorrCalculator(new ArrayXCorrCalculator(nodePep, nodeGroup.PrecursorMz.RawValue,
+                                    (byte) nodeGroup.PrecursorCharge, xCorrParameters));
+                            }
                             dictPrecursorMzToFilter.Add(key, filter);
                         }
 
@@ -679,7 +687,7 @@ namespace pwiz.Skyline.Model.Results
             bool ignoreIso = handlingType == IsolationScheme.SpecialHandlingType.OVERLAP ||
                              handlingType == IsolationScheme.SpecialHandlingType.OVERLAP_MULTIPLEXED ||
                              handlingType == IsolationScheme.SpecialHandlingType.FAST_OVERLAP;
-            
+            Spectrum xCorrSpectrum = null;
             foreach (var isoWin in GetIsolationWindows(spectra[0].Precursors))
             {
                 foreach (var filterPair in FindFilterPairs(isoWin, _acquisitionMethod, ignoreIso))
@@ -687,10 +695,46 @@ namespace pwiz.Skyline.Model.Results
                     if (!filterPair.ContainsRetentionTime(retentionTime.Value))
                         continue;
                     var filteredSrmSpectrum = filterPair.FilterQ3SpectrumList(spectra, _isWatersMse && GetMseLevel() > 1);
-                    if (filteredSrmSpectrum != null)
-                        yield return filteredSrmSpectrum;
+                    if (filterPair.XCorrCalculator != null)
+                    {
+                        xCorrSpectrum = xCorrSpectrum ?? MakeXCorrSpectrum(spectra);
+                        filteredSrmSpectrum = filteredSrmSpectrum ?? new ExtractedSpectrum(filterPair.ModifiedSequence,
+                                                  filterPair.PeptideColor,
+                                                  filterPair.Q1,
+                                                  filterPair.GetIonMobilityWindow(true),
+                                                  filterPair.Extractor,
+                                                  filterPair.Id,
+                                                  new SpectrumProductFilter[0],
+                                                  new float[0],
+                                                  null);
+                        float xCorr = filterPair.XCorrCalculator.score(xCorrSpectrum);
+                        filteredSrmSpectrum = new ExtractedSpectrum(filteredSrmSpectrum.Target,
+                            filteredSrmSpectrum.PeptideColor,
+                            filteredSrmSpectrum.PrecursorMz,
+                            filteredSrmSpectrum.IonMobility,
+                            filteredSrmSpectrum.Extractor,
+                            filteredSrmSpectrum.FilterIndex,
+                            filteredSrmSpectrum.ProductFilters.Append(filterPair.XCorrProductFilter).ToArray(),
+                            filteredSrmSpectrum.Intensities.Append(xCorr).ToArray(),
+                            filteredSrmSpectrum.MassErrors == null
+                                ? null
+                                : filteredSrmSpectrum.MassErrors.Append(0).ToArray());
+                    }
                 }
             }
+        }
+
+        private Spectrum MakeXCorrSpectrum(MsDataSpectrum[] spectra)
+        {
+            var pairs = spectra.SelectMany(s =>
+                    Enumerable.Range(0, s.Mzs.Length).Select(i => Tuple.Create(s.Mzs[i], s.Intensities[i])))
+                .ToLookup(tuple => tuple.Item1, tuple => tuple.Item2)
+                .Select(grouping => Tuple.Create(grouping.Key, (float)grouping.Sum()))
+                .OrderBy(tuple => tuple.Item1)
+                .ToArray();
+            var spectrum = new Spectrum(ImmutableList.ValueOf(pairs.Select(tuple => tuple.Item1)),
+                ImmutableList.ValueOf(pairs.Select(tuple => tuple.Item2)));
+            return spectrum;
         }
 
         public bool HasProductFilterPairs(double? retentionTime, MsPrecursor[] precursors)

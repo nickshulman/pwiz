@@ -1,11 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using pwiz.Common.Chemistry;
 using pwiz.Common.Collections;
 using pwiz.Skyline.Model.DocSettings;
-using pwiz.Skyline.Model.Lib;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
 
@@ -31,7 +29,7 @@ namespace pwiz.Skyline.Model.XCorr
         // remove 10-u window around precursor, see pp 979 mid left
         static double precursorRemovalMargin = 5.0;
 
-        private readonly SearchParameters @params;
+        private readonly SearchParameters searchParameters;
         private readonly byte charge;
         private readonly double precursorMz;
         private readonly float[] preprocessedSpectrum;
@@ -43,20 +41,20 @@ namespace pwiz.Skyline.Model.XCorr
          * @param charge
          * @param params
          */
-        public ArrayXCorrCalculator(Spectrum s, double precursorMz, byte charge, SearchParameters @params)
+        public ArrayXCorrCalculator(Spectrum s, double precursorMz, byte charge, SearchParameters searchParameters)
         {
             this.precursorMz = precursorMz;
             this.charge = charge;
-            this.@params=@params;
-            preprocessedSpectrum = preprocessSpectrum(normalize(s, precursorMz, charge, false, @params));
+            this.searchParameters=searchParameters;
+            preprocessedSpectrum = preprocessSpectrum(normalize(s, precursorMz, charge, false, searchParameters));
         }
 
-        public ArrayXCorrCalculator(PeptideDocNode peptide, double precursorMz, byte charge, SearchParameters @params)
+        public ArrayXCorrCalculator(PeptideDocNode peptide, double precursorMz, byte charge, SearchParameters searchParameters)
         {
             this.precursorMz = precursorMz;
             this.charge = charge;
-            this.@params=@params;
-            preprocessedSpectrum = preprocessSpectrum(getTheoreticalSpectrum(peptide, precursorMz, charge, @params));
+            this.searchParameters=searchParameters;
+            preprocessedSpectrum = preprocessSpectrum(getTheoreticalSpectrum(peptide, precursorMz, charge, searchParameters));
         }
 
         /**
@@ -72,12 +70,12 @@ namespace pwiz.Skyline.Model.XCorr
 
         public float[] normalize(Spectrum s)
         {
-            return normalize(s, precursorMz, charge, false, @params);
+            return normalize(s, precursorMz, charge, false, searchParameters);
         }
 
         public float score(PeptideDocNode modifiedSequence)
         {
-            float[] intensityBins = getTheoreticalSpectrum(modifiedSequence, precursorMz, charge, @params);
+            float[] intensityBins = getTheoreticalSpectrum(modifiedSequence, precursorMz, charge, searchParameters);
             return score(intensityBins);
         }
 
@@ -150,26 +148,26 @@ namespace pwiz.Skyline.Model.XCorr
          * @param precursorMz
          * @return
          */
-        static float[] normalize(Spectrum s, double precursorMz, byte charge, bool addIntensityToNeighboringBins, SearchParameters @params)
+        static float[] normalize(Spectrum s, double precursorMz, byte charge, bool addIntensityToNeighboringBins, SearchParameters searchParameters)
         {
             double massPlusOne = precursorMz * charge - (charge - 1) * AminoAcidFormulas.ProtonMass;
 
-            double[] masses = s.getMassArray();
-            float[] intensities = s.getIntensityArray();
+            IList<double> masses = s.Masses;
+            IList<float> intensities = s.Intensities;
             List<Peak> allPeaks = new List<Peak>();
-            if (masses.Length == 0)
-                return getIntensityArray(@params, allPeaks, massPlusOne, addIntensityToNeighboringBins);
-            if (masses.Length == 1)
+            if (masses.Count == 0)
+                return getIntensityArray(searchParameters, allPeaks, massPlusOne, addIntensityToNeighboringBins);
+            if (masses.Count == 1)
             {
                 allPeaks.Add(new Peak(masses[0], primaryIonIntensity));
-                return getIntensityArray(@params, allPeaks, massPlusOne, addIntensityToNeighboringBins);
+                return getIntensityArray(searchParameters, allPeaks, massPlusOne, addIntensityToNeighboringBins);
             }
 
             double minimumPrecursorRemoved = precursorMz - precursorRemovalMargin;
             double maximumPrecursorRemoved = precursorMz + precursorRemovalMargin;
 
             double firstMass = masses[0];
-            double lastMass = masses[masses.Length - 1];
+            double lastMass = masses[masses.Count - 1];
 
             double increment = (lastMass - firstMass) / groups;
             double[] binMaxMass = new double[groups];
@@ -181,7 +179,7 @@ namespace pwiz.Skyline.Model.XCorr
 
             float[] binMaxIntensity = new float[groups];
             int currentIndex = 0;
-            for (int i = 0; i < intensities.Length; i++)
+            for (int i = 0; i < intensities.Count; i++)
             {
                 if (masses[i] > minimumPrecursorRemoved && masses[i] < maximumPrecursorRemoved)
                 {
@@ -202,7 +200,7 @@ namespace pwiz.Skyline.Model.XCorr
             binMaxIntensity = binMaxIntensity.Select(v => v / primaryIonIntensity).ToArray();
 
             currentIndex = 0;
-            for (int i = 0; i < intensities.Length; i++)
+            for (int i = 0; i < intensities.Count; i++)
             {
                 if (masses[i] > minimumPrecursorRemoved && masses[i] < maximumPrecursorRemoved)
                 {
@@ -216,14 +214,14 @@ namespace pwiz.Skyline.Model.XCorr
                 allPeaks.Add(new Peak(masses[i], intensities[i] / binMaxIntensity[currentIndex]));
             }
 
-            return getIntensityArray(@params, allPeaks, massPlusOne, addIntensityToNeighboringBins);
+            return getIntensityArray(searchParameters, allPeaks, massPlusOne, addIntensityToNeighboringBins);
         }
 
-        static float[] getTheoreticalSpectrum(PeptideDocNode peptide, double precursorMz, byte charge, SearchParameters @params)
+        public static float[] getTheoreticalSpectrum(PeptideDocNode peptide, double precursorMz, byte charge, SearchParameters searchParameters)
         {
             double massPlusOne = precursorMz * charge - (charge - 1) * AminoAcidFormulas.ProtonMass;
 
-            FragmentationType type =@params.FragmentationType;
+            FragmentationType type =searchParameters.FragmentationType;
 
             List<Peak> allPeaks = new List<Peak>();
             switch (type)
@@ -231,7 +229,7 @@ namespace pwiz.Skyline.Model.XCorr
                 case FragmentationType.HCD:
                     FragmentIon[] yIons = GetFragmentIons(peptide, IonType.y).ToArray();
                     allPeaks.AddRange(getPeaks(yIons, 0.0, primaryIonIntensity));
-                    if (@params.UseNLsForXCorr) {
+                    if (searchParameters.UseNLsForXCorr) {
                         allPeaks.AddRange(getPeaks(yIons, -MassConstants.nh3, neutralLossIntensity));
                         allPeaks.AddRange(getPeaks(yIons, -MassConstants.oh2, neutralLossIntensity));
                     }
@@ -240,14 +238,14 @@ namespace pwiz.Skyline.Model.XCorr
                 case FragmentationType.CID:
                     FragmentIon[] yIonsCID = GetFragmentIons(peptide, IonType.y).ToArray();
                     allPeaks.AddRange(getPeaks(yIonsCID, 0.0, primaryIonIntensity));
-                    if (@params.UseNLsForXCorr) {
+                    if (searchParameters.UseNLsForXCorr) {
                         allPeaks.AddRange(getPeaks(yIonsCID, -MassConstants.nh3, neutralLossIntensity));
                         allPeaks.AddRange(getPeaks(yIonsCID, -MassConstants.oh2, neutralLossIntensity));
                     }
 
                     FragmentIon[] bIonsCID = GetFragmentIons(peptide, IonType.b).ToArray();
                     allPeaks.AddRange(getPeaks(bIonsCID, 0.0, primaryIonIntensity));
-                    if (@params.UseNLsForXCorr) {
+                    if (searchParameters.UseNLsForXCorr) {
                         allPeaks.AddRange(getPeaks(bIonsCID, -MassConstants.nh3, neutralLossIntensity));
                         allPeaks.AddRange(getPeaks(bIonsCID, -MassConstants.oh2, neutralLossIntensity));
                         allPeaks.AddRange(getPeaks(bIonsCID, -MassConstants.co, neutralLossIntensity));
@@ -257,7 +255,7 @@ namespace pwiz.Skyline.Model.XCorr
                 case FragmentationType.ETD:
                     FragmentIon[] cIonsCID = GetFragmentIons(peptide, IonType.c).ToArray();
                     allPeaks.AddRange(getPeaks(cIonsCID, 0.0, primaryIonIntensity));
-                    if (@params.UseNLsForXCorr) {
+                    if (searchParameters.UseNLsForXCorr) {
                         allPeaks.AddRange(getPeaks(cIonsCID, -MassConstants.nh3, neutralLossIntensity));
                         allPeaks.AddRange(getPeaks(cIonsCID, -MassConstants.oh2, neutralLossIntensity));
                     }
@@ -265,7 +263,7 @@ namespace pwiz.Skyline.Model.XCorr
                     FragmentIon[] zIonsCID = GetFragmentIons(peptide, IonType.z).ToArray();
                     allPeaks.AddRange(getPeaks(zIonsCID, 0.0, primaryIonIntensity));
                     allPeaks.AddRange(getPeaks(zIonsCID, MassConstants.neutronMass, primaryIonIntensity)); // z+1
-                    if (@params.UseNLsForXCorr) {
+                    if (searchParameters.UseNLsForXCorr) {
                         allPeaks.AddRange(getPeaks(zIonsCID, -MassConstants.nh3, neutralLossIntensity));
                         allPeaks.AddRange(getPeaks(zIonsCID, -MassConstants.oh2, neutralLossIntensity));
                     }
@@ -275,7 +273,7 @@ namespace pwiz.Skyline.Model.XCorr
                     throw new ApplicationException("Unknown fragmentation type [" + type + "]");
             }
 
-            return getIntensityArray(@params, allPeaks, massPlusOne, true);
+            return getIntensityArray(searchParameters, allPeaks, massPlusOne, true);
         }
 
         private static List<Peak> getPeaks(FragmentIon[] ions, double delta, float intensity)
@@ -288,12 +286,12 @@ namespace pwiz.Skyline.Model.XCorr
             return peaks;
         }
 
-        private static float[] getIntensityArray(SearchParameters @params, List<Peak> allPeaks, double massPlusOne, bool addIntensityToNeighboringBins)
+        private static float[] getIntensityArray(SearchParameters searchParameters, IEnumerable<Peak> peaks, double massPlusOne, bool addIntensityToNeighboringBins)
         {
-            allPeaks.Sort();
+            var allPeaks = peaks.OrderBy(p=>p.Mass).ToArray();
 
             // set tolerance to 2x the fragment tolerance of the highest fragment
-            float fragmentBinSize = 2.0f * (float)@params.FragmentTolerance.GetTolerance(massPlusOne);
+            float fragmentBinSize = 2.0f * (float)searchParameters.FragmentTolerance.GetTolerance(massPlusOne);
             double offset;
 
             if (fragmentBinSize > 0.5f)
@@ -359,36 +357,17 @@ namespace pwiz.Skyline.Model.XCorr
                 IsotopeLabelType.light);
             var transitionGroupDocNode = new TransitionGroupDocNode(transitionGroup, Annotations.EMPTY, settings,
                 peptideDocNode.ExplicitMods, null, null, null, new TransitionDocNode[0], false);
-            foreach (var transition in transitionGroupDocNode.GetTransitions(settings, ExplicitMods.EMPTY,
-                transitionGroupDocNode.PrecursorMz, transitionGroupDocNode.IsotopeDist, null, null, true))
+            var precursor =
+                FragmentedMolecule.GetFragmentedMolecule(settings, peptideDocNode, transitionGroupDocNode, null)
+                    .ChangeFragmentCharge(1);
+            
+            var fragmentedMoleculeSettings = FragmentedMolecule.Settings.DEFAULT;
+            for (int ordinal = 1; ordinal <= peptideDocNode.Peptide.Sequence.Length; ordinal++)
             {
-                yield return new FragmentIon(transition.Mz, transition.Transition.Ordinal, transition.Transition.IonType);
+                var fragment = precursor.ChangeFragmentIon(ionType, ordinal).FragmentFormula;
+                var monoMass = fragmentedMoleculeSettings.GetMonoMass(fragment, 0, 1);
+                yield return new FragmentIon(monoMass, ordinal, ionType);
             }
-
         }
-
-        public static IEnumerable<FragmentIon> GetFragmentIons(TransitionGroupDocNode transitionGroupDocNode,
-            IonType ionType)
-        {
-            var settings = SrmSettingsList.GetDefault();
-            var transitionFilter =
-                settings.TransitionSettings.Filter
-                    .ChangePeptideProductCharges(ImmutableList.Singleton(Adduct.SINGLY_PROTONATED))
-                    .ChangePeptideIonTypes(ImmutableList.Singleton(ionType))
-                    .ChangeFragmentRangeFirstName(TransitionFilter.StartFragmentFinder.ION_1.Name)
-                    .ChangeFragmentRangeLastName(@"last ion");
-            settings = settings.ChangeTransitionSettings(settings.TransitionSettings.ChangeFilter(transitionFilter));
-            foreach (var transition in transitionGroupDocNode.GetTransitions(settings, ExplicitMods.EMPTY,
-                transitionGroupDocNode.PrecursorMz, transitionGroupDocNode.IsotopeDist, null, null, true))
-            {
-                yield return new FragmentIon(transition.Mz, transition.Transition.Ordinal, transition.Transition.IonType);
-            }
-
-            var singlyChargedPrecursor = new TransitionGroup(transitionGroupDocNode.Peptide, Adduct.SINGLY_PROTONATED,
-                IsotopeLabelType.light);
-            var singlyChargedTransitionGroup = new TransitionGroupDocNode(singlyChargedPrecursor, Annotations.EMPTY, settings, 
-                transitionGroupDocNode.)
-        }
-
     }
 }

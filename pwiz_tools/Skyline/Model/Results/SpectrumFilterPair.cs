@@ -27,6 +27,8 @@ using pwiz.Common.Collections;
 using pwiz.ProteowizardWrapper;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.Results.RemoteApi.GeneratedCode;
+using pwiz.Skyline.Model.XCorr;
+using pwiz.Skyline.Util;
 
 namespace pwiz.Skyline.Model.Results
 {
@@ -111,7 +113,16 @@ namespace pwiz.Skyline.Model.Results
         private IonMobilityFilter IonMobilityInfo { get; set; }
         private SpectrumProductFilter[] Ms1ProductFilters { get; set; }
         private SpectrumProductFilter[] SimProductFilters { get; set; }
-        public SpectrumProductFilter[] Ms2ProductFilters { get; set; }
+        public SpectrumProductFilter[] Ms2ProductFilters { get; private set; }
+        public SpectrumProductFilter XCorrProductFilter { get; private set; }
+        public ArrayXCorrCalculator XCorrCalculator { get; private set; }
+
+        public void SetXCorrCalculator(ArrayXCorrCalculator xCorrCalculator)
+        {
+            XCorrCalculator = xCorrCalculator;
+            XCorrProductFilter = new SpectrumProductFilter(0, 0);
+        }
+        public int? XCorrFilterId { get; set; }
 
         public int AddQ1FilterValues(IEnumerable<SignedMz> filterValues, Func<double, double> getFilterWindow)
         {
@@ -438,6 +449,11 @@ namespace pwiz.Skyline.Model.Results
             AddChromKeys(ChromSource.ms1, Ms1ProductFilters, false, listChromKeys);
             AddChromKeys(ChromSource.sim, SimProductFilters, false, listChromKeys);
             AddChromKeys(ChromSource.fragment, Ms2ProductFilters, true, listChromKeys);
+            if (XCorrCalculator != null)
+            {
+                XCorrProductFilter.FilterId = listChromKeys.Count;
+                listChromKeys.Add(ChromKey.ForXCorr(ModifiedSequence, Q1));
+            }
         }
 
         private void AddChromKeys(ChromSource source, SpectrumProductFilter[] productFilters, bool highEnergy,

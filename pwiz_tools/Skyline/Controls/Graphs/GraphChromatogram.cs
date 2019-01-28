@@ -46,7 +46,7 @@ namespace pwiz.Skyline.Controls.Graphs
 
     public enum AutoZoomChrom { none, peak, window, both }
 
-    public enum DisplayTypeChrom { single, precursors, products, all, total, base_peak, tic }
+    public enum DisplayTypeChrom { single, precursors, products, all, total, base_peak, tic, xcorr }
 
     public partial class GraphChromatogram : DockableFormEx, IGraphContainer
     {

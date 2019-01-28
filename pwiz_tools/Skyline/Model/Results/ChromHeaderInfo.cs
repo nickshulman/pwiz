@@ -1688,6 +1688,15 @@ namespace pwiz.Skyline.Model.Results
                 OptionalMidTime = (OptionalMaxTime.Value + OptionalMinTime.Value) / 2;
         }
 
+        public static ChromKey ForXCorr(Target target, SignedMz precursor)
+        {
+            return new ChromKey(target, precursor, null, SignedMz.ZERO, 0, 0, ChromSource.fragment,
+                ChromExtractor.summed, true, true, null, null, null);
+        }
+
+        public bool IsXCorr { get { return SignedMz.ZERO.Equals(Product) && ChromSource.fragment == Source; }
+        }
+
         public Target Target { get; private set; }  // Modified sequence or custom ion id
         public SignedMz Precursor { get; private set; }
         public double? CollisionalCrossSectionSqA { get { return IonMobilityFilter == null ? null : IonMobilityFilter.CollisionalCrossSectionSqA; }  }

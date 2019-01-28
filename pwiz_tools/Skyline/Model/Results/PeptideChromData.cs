@@ -910,14 +910,7 @@ namespace pwiz.Skyline.Model.Results
                     }
                     else
                     {
-                        for (var j = dataSet.Chromatograms.Count - 1; j >= 0; j--)
-                        {
-                            var chrom = dataSet.Chromatograms[j];
-                            if (explicitRT < chrom.Times.First() || chrom.Times.Last() < explicitRT)
-                            {
-                                dataSet.Chromatograms.RemoveAt(j);
-                            }
-                        }
+                        dataSet.FilterByRetentionTime(explicitRT);
                     }
                 }
             }

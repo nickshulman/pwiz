@@ -1496,6 +1496,7 @@ namespace pwiz.Skyline.Model.Results
                 GroupedTimesCollector = new SortedBlockedList<float>();
                 ScansCollector = new BlockedList<int>();
             }
+            XCorrCollector = new ChromCollector(StatusId, true, false);
         }
 
         public Target ModifiedSequence { get; private set; }
@@ -1505,6 +1506,7 @@ namespace pwiz.Skyline.Model.Results
         public Dictionary<SpectrumProductFilter, ChromCollector> ProductIntensityMap { get; private set; }
         public readonly SortedBlockedList<float> GroupedTimesCollector;
         public readonly BlockedList<int> ScansCollector;
+        public ChromCollector XCorrCollector { get; private set; }
 
         public void AddGroupedTime(float time)
         {

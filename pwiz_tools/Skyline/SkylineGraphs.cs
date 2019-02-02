@@ -2291,6 +2291,12 @@ namespace pwiz.Skyline
             SetDisplayTypeChrom(DisplayTypeChrom.xcorr);
         }
 
+        private void xCorrMenuItem_Click(object sender, EventArgs e)
+        {
+            ShowXCorr();
+        }
+
+
         public void SetDisplayTypeChrom(DisplayTypeChrom displayType)
         {
             Settings.Default.ShowTransitionGraphs = displayType.ToString();

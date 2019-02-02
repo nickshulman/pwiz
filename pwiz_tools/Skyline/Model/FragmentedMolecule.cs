@@ -508,6 +508,11 @@ namespace pwiz.Skyline.Model
                     return hashCode;
                 }
             }
+
+            public Settings MakeMonoisotopic()
+            {
+                return ChangeIsotopeAbundances(GetMonoisotopicAbundances(IsotopeAbundances));
+            }
         }
 
         private static IsotopeAbundances GetMonoisotopicAbundances(IsotopeAbundances isotopeAbundances)

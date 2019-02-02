@@ -89,7 +89,7 @@ namespace pwiz.Skyline.Model.Databinding.Entities
                 var timeIntensitiesGroup = ChromatogramGroup.ReadTimeIntensitiesGroup();
                 if (timeIntensitiesGroup is RawTimeIntensities)
                 {
-                    return new Data(timeIntensitiesGroup.TransitionTimeIntensities[_chromatogramInfo.Value.TransitionIndex]);
+                    return new Data(timeIntensitiesGroup.TransitionTimeIntensities[_chromatogramInfo.Value.TransitionIndex.Value]);
                 }
                 return null;
             }
@@ -110,11 +110,11 @@ namespace pwiz.Skyline.Model.Databinding.Entities
                 if (null != rawTimeIntensities)
                 {
                     var interpolatedTimeIntensities = rawTimeIntensities
-                        .TransitionTimeIntensities[_chromatogramInfo.Value.TransitionIndex]
+                        .TransitionTimeIntensities[_chromatogramInfo.Value.TransitionIndex.Value]
                         .Interpolate(rawTimeIntensities.GetInterpolatedTimes(), rawTimeIntensities.InferZeroes);
                     return new Data(interpolatedTimeIntensities);
                 }
-                return new Data(timeIntensitiesGroup.TransitionTimeIntensities[_chromatogramInfo.Value.TransitionIndex]);
+                return new Data(timeIntensitiesGroup.TransitionTimeIntensities[_chromatogramInfo.Value.TransitionIndex.Value]);
             }
         }
 

@@ -71,7 +71,7 @@ namespace pwiz.Skyline.Model.Results
                 chromData.DocNode = null;
         }
 
-        public ChromData BestChromatogram { get { return _listChromData[0]; } }
+        public ChromData BestChromatogram { get { return Chromatograms.First(); } }
 //        private ChromData BestNonFragmentChromatogram { get { return _listChromData.FirstOrDefault(t => t.Key.Source != ChromSource.fragment); } }
 //        private ChromData BestFragmentChromatogram { get { return _listChromData.FirstOrDefault(t => t.Key.Source == ChromSource.fragment); } }
         public IEnumerable<ChromData> Chromatograms { get { return _listChromData.Where(chrom=>!chrom.Key.IsXCorr); } }
@@ -84,7 +84,7 @@ namespace pwiz.Skyline.Model.Results
         /// <summary>
         /// The number of transitions or chromatograms associated with this transition group
         /// </summary>
-        public int Count { get { return _listChromData.Count; } }
+        public int Count { get { return Chromatograms.Count(); } }
 
         public int TranCount { get { return _listChromData.Count(d => d.DocNode != null); } }
 
@@ -156,68 +156,63 @@ namespace pwiz.Skyline.Model.Results
                 {
                     return _target;
                 }
-                return _listChromData.Count > 0 ? BestChromatogram.Key.Target : null;
+                return BestChromatogram?.Key.Target;
             }
         }
 
         public SignedMz PrecursorMz
         {
-            get { return _listChromData.Count > 0 ? BestChromatogram.Key.Precursor : SignedMz.ZERO; }
+            get { return BestChromatogram?.Key.Precursor ?? SignedMz.ZERO; }
         }
 
         public double? CollisionalCrossSectionSqA
         {
-            get { return _listChromData.Count > 0 ? BestChromatogram.Key.CollisionalCrossSectionSqA : null; }
+            get { return BestChromatogram?.Key.CollisionalCrossSectionSqA; }
         }
 
         public eIonMobilityUnits IonMobilityUnits
         {
-            get { return _listChromData.Count > 0 ? BestChromatogram.Key.IonMobilityUnits : eIonMobilityUnits.none; }
+            get { return BestChromatogram?.Key.IonMobilityUnits ?? eIonMobilityUnits.none; }
         }
 
         public ChromExtractor Extractor
         {
-            get { return _listChromData.Count > 0 ? BestChromatogram.Key.Extractor : ChromExtractor.summed; }
+            get { return BestChromatogram?.Key.Extractor ?? ChromExtractor.summed; }
         }
 
         public float ExtractionWidth
         {
-            get { return _listChromData.Count > 0 ? BestChromatogram.Key.ExtractionWidth : 0; }
+            get { return BestChromatogram?.Key.ExtractionWidth ?? 0; }
         }
 
         public bool HasCalculatedMzs
         {
-            get { return _listChromData.Count > 0 && BestChromatogram.Key.HasCalculatedMzs; }
+            get { return BestChromatogram?.Key.HasCalculatedMzs ?? false; }
         }
 
         public int StatusId
         {
-            get { return _listChromData.Count > 0 ? BestChromatogram.Extra.StatusId : -1; }
+            get { return BestChromatogram?.Extra.StatusId ?? -1; }
         }
 
         public int StatusRank
         {
-            get { return _listChromData.Count > 0 ? BestChromatogram.Extra.StatusRank : -1; }
+            get { return BestChromatogram?.Extra.StatusRank ?? -1; }
         }
 
         public int CountPeaks
         {
-            get { return _listChromData.Count > 0 ? BestChromatogram.Peaks.Count : 0; }
+            get { return BestChromatogram?.Peaks.Count ?? 0; }
         }
 
         public int MaxPeakIndex
         {
-            get { return _listChromData.Count > 0 ? BestChromatogram.MaxPeakIndex : -1; }
+            get { return BestChromatogram?.MaxPeakIndex ?? -1; }
         }
 
         public IList<float> Times
         {
-            get { return _listChromData.Count > 0 ? BestChromatogram.Times : new float[0]; }
-        }
-
-        public IList<float>[] Intensities
-        {
-            get { return _listChromData.ConvertAll(data => data.Intensities).ToArray(); }
+            get { return BestChromatogram?.Times ?? new float[0]; }
         }
 
         public IEnumerable<int> ProviderIds { get { return _listChromData.Select(c => c.ProviderId); } }
@@ -249,7 +244,7 @@ namespace pwiz.Skyline.Model.Results
             get
             {
                 float min = Single.MaxValue;
-                foreach (var chromData in _listChromData)
+                foreach (var chromData in Chromatograms)
                 {
                     if (chromData.RawTimes.Count > 0)
                         min = Math.Min(min, chromData.RawTimes[0]);
@@ -263,7 +258,7 @@ namespace pwiz.Skyline.Model.Results
             get
             {
                 float max = Single.MinValue;
-                foreach (var chromData in _listChromData)
+                foreach (var chromData in Chromatograms)
                 {
                     if (chromData.RawTimes.Count > 0)
                         max = Math.Max(max, chromData.RawTimes[0]);
@@ -277,7 +272,7 @@ namespace pwiz.Skyline.Model.Results
             get
             {
                 float max = Single.MinValue;
-                foreach (var chromData in _listChromData)
+                foreach (var chromData in Chromatograms)
                 {
                     if (chromData.RawTimes.Count > 0)
                         max = Math.Max(max, chromData.RawTimes[chromData.RawTimes.Count - 1]);
@@ -291,7 +286,7 @@ namespace pwiz.Skyline.Model.Results
             get
             {
                 float min = Single.MaxValue;
-                foreach (var chromData in _listChromData)
+                foreach (var chromData in Chromatograms)
                 {
                     if (chromData.RawTimes.Count > 0)
                         min = Math.Min(min, chromData.RawTimes[chromData.RawTimes.Count - 1]);
@@ -302,7 +297,7 @@ namespace pwiz.Skyline.Model.Results
 
         public ChromKey FirstKey
         {
-            get { return _listChromData.Count > 0 ? _listChromData[0].Key : ChromKey.EMPTY; }
+            get { return BestChromatogram?.Key ?? ChromKey.EMPTY; }
         }
 
         /// <summary>
@@ -428,14 +423,14 @@ namespace pwiz.Skyline.Model.Results
 
         public void SetExplicitPeakBounds(ExplicitPeakBounds peakBounds)
         {
-            foreach (var chromData in _listChromData)
+            foreach (var chromData in Chromatograms)
             {
                 chromData.SetExplicitPeakBounds(peakBounds);
 
             }
-            var firstChromData = _listChromData.First();
+            var firstChromData = Chromatograms.First();
             var firstPeak = new ChromDataPeak(firstChromData, firstChromData.RawPeaks.First());
-            ChromDataPeakList chromDataPeakList = new ChromDataPeakList(firstPeak, _listChromData);
+            ChromDataPeakList chromDataPeakList = new ChromDataPeakList(firstPeak, Chromatograms);
             _listPeakSets.Add(chromDataPeakList);
         }
         
@@ -458,8 +453,8 @@ namespace pwiz.Skyline.Model.Results
             // If any chromatograms have an associated transition, then only find peaks
             // in chromatograms with transitions.  It is too confusing to the user to
             // score peaks based on chromatograms for hidden transitions.
-            bool hasDocNode = _listChromData.Any(chromData => chromData.DocNode != null);
-            foreach (var chromData in _listChromData)
+            bool hasDocNode = Chromatograms.Any(chromData => chromData.DocNode != null);
+            foreach (var chromData in Chromatograms)
             {
                 // But only for fragment ions to allow hidden MS1 isotopes to participate
                 bool doFindPeaks;
@@ -744,10 +739,10 @@ namespace pwiz.Skyline.Model.Results
         private IList<ChromDataPeak> MergePeaks()
         {
             List<ChromDataPeak> allPeaks = new List<ChromDataPeak>();
-            var listEnumerators = _listChromData.ConvertAll(item => item.RawPeaks.GetEnumerator());
+            var listEnumerators = Chromatograms.Select(item => item.RawPeaks.GetEnumerator()).ToList();
             // Merge with list of chrom data that will match the enumerators
             // list, as completed enumerators are removed.
-            var listUnmerged = new List<ChromData>(_listChromData);
+            var listUnmerged = new List<ChromData>(Chromatograms);
             // Initialize an enumerator for each set of raw peaks, or remove
             // the set, if the list is found to be empty
             for (int i = listEnumerators.Count - 1; i >= 0; i--)
@@ -994,7 +989,7 @@ namespace pwiz.Skyline.Model.Results
                                         ? MIN_PERCENT_OF_MAX
                                         : MIN_PERCENT_OF_MAX_PRECURSOR);
 
-            foreach (var chromData in _listChromData)
+            foreach (var chromData in Chromatograms)
             {
                 if (ReferenceEquals(chromData, dataPeakMax.Data))
                     continue;
@@ -1119,7 +1114,7 @@ namespace pwiz.Skyline.Model.Results
                     else
                     {
                         var peakAdd = new ChromDataPeak(BestChromatogram, null);
-                        peakSetAdd = new ChromDataPeakList(peakAdd, _listChromData) { IsForcedIntegration = true };
+                        peakSetAdd = new ChromDataPeakList(peakAdd, Chromatograms) { IsForcedIntegration = true };
                     }
                 }
             }
@@ -1146,13 +1141,13 @@ namespace pwiz.Skyline.Model.Results
                     peakAdd = new ChromDataPeak(BestChromatogram, null);
                 }
 
-                peakSetAdd = new ChromDataPeakList(peakAdd, _listChromData) {IsForcedIntegration = true};
+                peakSetAdd = new ChromDataPeakList(peakAdd, Chromatograms) {IsForcedIntegration = true};
             }
             else
             {
                 // Otherwise, insert an empty peak
                 var peakAdd = new ChromDataPeak(BestChromatogram, null);
-                peakSetAdd = new ChromDataPeakList(peakAdd, _listChromData) { IsForcedIntegration = true };
+                peakSetAdd = new ChromDataPeakList(peakAdd, Chromatograms) { IsForcedIntegration = true };
             }
 
             if (peakSetAdd != null)
@@ -1220,7 +1215,7 @@ namespace pwiz.Skyline.Model.Results
 
         public override string ToString()
         {
-            return Count > 0 ? _listChromData[0].ToString() : Resources.ChromDataSet_ToString_empty;
+            return BestChromatogram?.ToString() ?? Resources.ChromDataSet_ToString_empty;
         }
 
         public void Truncate(double startTime, double endTime)
@@ -1283,20 +1278,31 @@ namespace pwiz.Skyline.Model.Results
             }
         }
 
+        private IEnumerable<ChromData> ChromatogramsToPersist
+        {
+            get
+            {
+                IEnumerable<ChromData> chromDatas = Chromatograms;
+                var xCorrChromatogram = XCorrChromatogram;
+                if (xCorrChromatogram != null)
+                {
+                    chromDatas = chromDatas.Append(xCorrChromatogram);
+                }
+
+                return chromDatas;
+            }
+        }
+
         public TimeIntensitiesGroup ToGroupOfTimeIntensities(bool useRawTimes)
         {
             if (useRawTimes)
             {
                 IEnumerable<TimeIntensities> timeIntensities =
-                    Chromatograms.Select(chromData => chromData.RawTimeIntensities);
-                if (XCorrChromatogram != null)
-                {
-                    timeIntensities = timeIntensities.Append(XCorrChromatogram.RawTimeIntensities);
-                }
+                    ChromatogramsToPersist.Select(chromData => chromData.RawTimeIntensities);
                 return new RawTimeIntensities(timeIntensities, InterpolationParams);
             }
-            return new InterpolatedTimeIntensities(_listChromData.Select(chromData=>chromData.TimeIntensities), 
-                _listChromData.Select(chromData=>chromData.PrimaryKey.Source));
+            return new InterpolatedTimeIntensities(ChromatogramsToPersist.Select(chromData=>chromData.TimeIntensities),
+                ChromatogramsToPersist.Select(chromData=>chromData.PrimaryKey.Source));
         }
 
         public void FilterByRetentionTime(double explicitRT)

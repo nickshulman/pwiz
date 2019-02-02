@@ -132,6 +132,7 @@
     <Compile Include="Collections\Range.cs" />
     <Compile Include="Collections\RangeList.cs" />
     <Compile Include="Collections\ReadOnlyList.cs" />
+    <Compile Include="Collections\RleList.cs" />
     <Compile Include="Collections\StructSerializer.cs" />
     <Compile Include="Collections\UniqueList.cs" />
     <Compile Include="SystemUtil\CenterWinDialog.cs" />

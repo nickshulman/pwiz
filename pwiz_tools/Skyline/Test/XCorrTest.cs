@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using pwiz.Common.Collections;
@@ -6,6 +7,7 @@ using pwiz.Skyline.Model;
 using pwiz.Skyline.Model.XCorr;
 using pwiz.Skyline.Properties;
 using pwiz.SkylineTestUtil;
+using Array = NHibernate.Mapping.Array;
 
 namespace pwiz.SkylineTest
 {
@@ -73,6 +75,19 @@ namespace pwiz.SkylineTest
             var peptideDocNode = new PeptideDocNode(new Peptide("SDFHLFGPPGKK"), SrmSettingsList.GetDefault(), null, null, null, new TransitionGroupDocNode[0],false);
             float spectrumFirst = preprocessedSpectrum.score(peptideDocNode);
             Assert.AreEqual(1.7485203, spectrumFirst, .001);
+        }
+
+        [TestMethod]
+        public void TestPreprocessSpectrum()
+        {
+            var spectrum = SPECTRUM_SDFHLFGPPGKK.Select(tuple => (float) tuple.Item2).ToArray();
+            var preproc1 = ArrayXCorrCalculator.preprocessSpectrumOld(spectrum);
+            var preproc2 = ArrayXCorrCalculator.preprocessSpectrum(spectrum);
+            Assert.AreEqual(preproc1.Length, preproc2.Length);
+            for (int i = 0; i < preproc1.Length; i++)
+            {
+                Assert.AreEqual(preproc1[i], preproc2[i], 1e-5);
+            }
         }
 
         private static readonly Tuple<double, double>[] SPECTRUM_SDFHLFGPPGKK = {

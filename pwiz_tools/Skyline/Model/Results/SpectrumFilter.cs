@@ -719,6 +719,7 @@ namespace pwiz.Skyline.Model.Results
                             filteredSrmSpectrum.MassErrors == null
                                 ? null
                                 : filteredSrmSpectrum.MassErrors.Append(0).ToArray());
+                        yield return filteredSrmSpectrum;
                     }
                 }
             }
@@ -729,7 +730,7 @@ namespace pwiz.Skyline.Model.Results
             var pairs = spectra.SelectMany(s =>
                     Enumerable.Range(0, s.Mzs.Length).Select(i => Tuple.Create(s.Mzs[i], s.Intensities[i])))
                 .ToLookup(tuple => tuple.Item1, tuple => tuple.Item2)
-                .Select(grouping => Tuple.Create(grouping.Key, (float)grouping.Sum()))
+                .Select(grouping => Tuple.Create(grouping.Key, (float)Math.Sqrt(grouping.Sum())))
                 .OrderBy(tuple => tuple.Item1)
                 .ToArray();
             var spectrum = new Spectrum(ImmutableList.ValueOf(pairs.Select(tuple => tuple.Item1)),

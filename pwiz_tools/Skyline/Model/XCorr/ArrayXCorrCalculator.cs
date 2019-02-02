@@ -32,7 +32,7 @@ namespace pwiz.Skyline.Model.XCorr
         private readonly SearchParameters searchParameters;
         private readonly byte charge;
         private readonly double precursorMz;
-        private readonly float[] preprocessedSpectrum;
+        private readonly IList<float> preprocessedSpectrum;
 
         /**
          * 
@@ -84,18 +84,21 @@ namespace pwiz.Skyline.Model.XCorr
          * @param spectrum
          * @return
          */
-        float score(float[] spectrum)
+        float score(IList<float> spectrum)
         {
             return dotProduct(preprocessedSpectrum, spectrum) / 1.0e4f;
         }
 
-        static float dotProduct(float[] preprocessedSpectrum, float[] spectrum)
+        static float dotProduct(IList<float> preprocessedSpectrum, IList<float> spectrum)
         {
             float sum = 0.0f;
-            for (int i = 0; i < spectrum.Length; i++)
+            using (var enLeft = preprocessedSpectrum.GetEnumerator())
+            using (var enRight = spectrum.GetEnumerator())
             {
-                if (i >= preprocessedSpectrum.Length) break;
-                sum += spectrum[i] * preprocessedSpectrum[i];
+                while (enLeft.MoveNext() && enRight.MoveNext())
+                {
+                    sum += enLeft.Current * enRight.Current;
+                }
             }
             return sum;
         }
@@ -112,7 +115,7 @@ namespace pwiz.Skyline.Model.XCorr
             return sum;
         }
 
-        static float[] preprocessSpectrum(float[] spectrum)
+        public static float[] preprocessSpectrumOld(float[] spectrum)
         {
             float[] preprocessedSpectrum = new float[spectrum.Length];
 
@@ -140,6 +143,67 @@ namespace pwiz.Skyline.Model.XCorr
                 preprocessedSpectrum[i] += spectrum[i];
             }
             return preprocessedSpectrum;
+        }
+
+        public static float[] preprocessSpectrum(float[] spectrum)
+        {
+            double sum = 0;
+            for (int i = 0; i < upperOffset && i < spectrum.Length; i++)
+            {
+                sum += spectrum[i];
+            }
+            double denominator = upperOffset - lowerOffset;
+            float[] preprocessedSpectrum = new float[spectrum.Length];
+            for (int i = 0; i < spectrum.Length; i++)
+            {
+                preprocessedSpectrum[i] = (float) (spectrum[i] - (sum - spectrum[i]) / denominator);
+                if (i + lowerOffset >= 0)
+                {
+                    sum -= spectrum[i + lowerOffset];
+                }
+
+                if (i + upperOffset < spectrum.Length)
+                {
+                    sum += spectrum[i + upperOffset];
+                }
+            }
+
+            return preprocessedSpectrum;
+//            for (int i = 1; i < spectrum.Length; i++)
+//            {
+//                var sum = sums[i - 1];
+//                if (i + lowerOffset >= 0)
+//                {
+//                    sum -= spectrum[i + lowerOffset];
+//                }
+//
+//                if (i + upperOffset - 1 <= spectrum.Length)
+//                {
+//                    sum += spectrum[i + upperOffset - 1];
+//                }
+//
+//                sums[i] = sum;
+//            }
+//
+//            float[] preprocessedSpectrum = new float[spectrum.Length];
+//            for (int i = 0; i < spectrum.Length; i++)
+//            {
+//                preprocessedSpectrum[i] = (float) (spectrum[i] - sums[i]);
+//            }
+//
+//            for (int i = 0; i < spectrum.Length; i++)
+//            {
+//                for (int offset = lowerOffset; offset < upperOffset; offset++)
+//                {
+//                    if (offset == 0) continue;
+//                    int index = i + offset;
+//                    if (index >= 0 && index < preprocessedSpectrum.Length)
+//                    {
+//                        preprocessedSpectrum[i] -= spectrum[index];
+//                    }
+//                }
+//            }
+
         }
 
         /**
@@ -343,6 +407,7 @@ namespace pwiz.Skyline.Model.XCorr
             return binnedIntensityArray;
         }
 
+        private static FragmentedMolecule.Settings _fragmentedMoleculeSettings = FragmentedMolecule.Settings.DEFAULT.MakeMonoisotopic();
         public static IEnumerable<FragmentIon> GetFragmentIons(PeptideDocNode peptideDocNode, IonType ionType)
         {
             var settings = SrmSettingsList.GetDefault();
@@ -361,11 +426,11 @@ namespace pwiz.Skyline.Model.XCorr
                 FragmentedMolecule.GetFragmentedMolecule(settings, peptideDocNode, transitionGroupDocNode, null)
                     .ChangeFragmentCharge(1);
             
-            var fragmentedMoleculeSettings = FragmentedMolecule.Settings.DEFAULT;
+            var fragmentedMoleculeSettings = _fragmentedMoleculeSettings;
             for (int ordinal = 1; ordinal <= peptideDocNode.Peptide.Sequence.Length; ordinal++)
             {
                 var fragment = precursor.ChangeFragmentIon(ionType, ordinal).FragmentFormula;
-                var monoMass = fragmentedMoleculeSettings.GetMonoMass(fragment, 0, 1);
+                var monoMass = fragmentedMoleculeSettings.GetMassDistribution(fragment, 0, 1).MostAbundanceMass;
                 yield return new FragmentIon(monoMass, ordinal, ionType);
             }
         }

@@ -913,11 +913,20 @@ namespace pwiz.Skyline.Controls.Graphs
                     }
 
                     // If displaying multiple groups or the total of a single group
-                    if (multipleGroupsPerPane || DisplayType == DisplayTypeChrom.total)
+                    if (multipleGroupsPerPane || DisplayType == DisplayTypeChrom.total || DisplayType == DisplayTypeChrom.xcorr)
                     {
                         int countLabelTypes = settings.PeptideSettings.Modifications.CountLabelTypes;
-                        DisplayTotals(timeRegressionFunction, chromatograms, mzMatchTolerance, 
-                                      countLabelTypes, ref bestStartTime, ref bestEndTime);
+                        bool displayed = false;
+                        if (DisplayType == DisplayTypeChrom.xcorr)
+                        {
+                            displayed = DisplayXCorr(timeRegressionFunction, countLabelTypes);
+                        }
+
+                        if (!displayed)
+                        {
+                            DisplayTotals(timeRegressionFunction, chromatograms, mzMatchTolerance,
+                                countLabelTypes, ref bestStartTime, ref bestEndTime);
+                        }
                     }
                         // Single group with optimization data, not a transition selected,
                         // and single display mode
@@ -2000,6 +2009,54 @@ namespace pwiz.Skyline.Controls.Graphs
             }
         }
 
+        private bool DisplayXCorr(IRegressionFunction timeRegressionFunction, int countLabelTypes)
+        {
+            bool result = false;
+            // Construct and add graph items for all relevant transition groups.
+            float fontSize = FontSize;
+            int lineWidth = LineWidth;
+            int iCharge = -1;
+            var charge = Adduct.EMPTY;
+            var chromGroupInfos = ChromGroupInfos;
+            for (int i = 0; i < _nodeGroups.Length; i++)
+            {
+                var nodeGroup = _nodeGroups[i];
+                var chromGroupInfo = chromGroupInfos[i];
+                if (chromGroupInfo == null)
+                    continue;
+
+                var chromatogram = chromGroupInfo.GetXCorrChromatogram();
+                if (chromatogram == null)
+                {
+                    continue;
+                }
+                int iColor = GetColorIndex(nodeGroup, countLabelTypes, ref charge, ref iCharge);
+                Color color = COLORS_GROUPS[iColor % COLORS_GROUPS.Count];
+                var graphItem = new ChromGraphItem(nodeGroup,
+                                                   null,
+                                                   chromatogram,
+                                                   null,
+                                                   timeRegressionFunction,
+                                                   new bool[0],
+                                                   null,
+                                                   0,
+                                                   false,
+                                                   false,
+                                                   null,
+                                                   0,
+                                                   color,
+                                                   fontSize,
+                                                   lineWidth)
+                {
+                    LineDashStyle = DashStyle.Solid
+                };
+                var graphPaneKey = new PaneKey(nodeGroup);
+                _graphHelper.AddChromatogram(graphPaneKey, graphItem);
+                result = true;
+            }
+
+            return result;
+        }
         private bool IsQuantitative(TransitionDocNode transitionDocNode)
         {
             return transitionDocNode.IsQuantitative(DocumentUI.Settings);

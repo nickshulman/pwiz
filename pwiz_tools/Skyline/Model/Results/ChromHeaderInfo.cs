@@ -2184,6 +2184,17 @@ namespace pwiz.Skyline.Model.Results
             return listChromInfo.ToArray();
         }
 
+        public ChromatogramInfo GetXCorrChromatogram()
+        {
+            if (TimeIntensitiesGroup.TransitionTimeIntensities.Count <= _groupHeaderInfo.NumTransitions)
+            {
+                return null;
+            }
+
+            var timeIntensities = TimeIntensitiesGroup.TransitionTimeIntensities[_groupHeaderInfo.NumTransitions];
+            return new ChromatogramInfo(this, timeIntensities);
+        }
+
         public void GetAllTransitionInfo(TransitionDocNode nodeTran, float tolerance, OptimizableRegression regression, List<ChromatogramInfo> listChromInfo, TransformChrom transform)
         {
             listChromInfo.Clear();
@@ -2399,7 +2410,7 @@ namespace pwiz.Skyline.Model.Results
         }
 
         private readonly ChromatogramGroupInfo _groupInfo;
-        protected readonly int _transitionIndex;
+        protected readonly int? _transitionIndex;
 
         public ChromatogramInfo(ChromatogramGroupInfo groupInfo, int transitionIndex)
         {
@@ -2414,7 +2425,7 @@ namespace pwiz.Skyline.Model.Results
             var timeIntensitiesGroup = _groupInfo.TimeIntensitiesGroup;
             if (timeIntensitiesGroup != null)
             {
-                TimeIntensities = timeIntensitiesGroup.TransitionTimeIntensities[_transitionIndex];
+                TimeIntensities = timeIntensitiesGroup.TransitionTimeIntensities[_transitionIndex.Value];
                 if (Header.HasRawTimes())
                 {
                     RawTimes = TimeIntensities.Times;
@@ -2422,7 +2433,13 @@ namespace pwiz.Skyline.Model.Results
             }
         }
 
-        public ChromatogramInfo(float[] times, float[] intensities)
+        public ChromatogramInfo(ChromatogramGroupInfo groupInfo, TimeIntensities timeIntensities)
+        {
+            _groupInfo = groupInfo;
+            TimeIntensities = timeIntensities;
+        }
+
+        public ChromatogramInfo(IList<float> times, IList<float> intensities)
         {
             TimeIntensities = new TimeIntensities(times, intensities, null, null);
         }
@@ -2431,7 +2448,7 @@ namespace pwiz.Skyline.Model.Results
 
         public ChromGroupHeaderInfo Header { get { return _groupInfo.Header; } }
 
-        public int NumPeaks { get { return _groupInfo != null ? _groupInfo.NumPeaks : 0; } }
+        public int NumPeaks { get { return _transitionIndex.HasValue ? _groupInfo.NumPeaks : 0; } }
 
         public int BestPeakIndex { get { return _groupInfo != null ? _groupInfo.BestPeakIndex : -1; } }
 
@@ -2444,7 +2461,7 @@ namespace pwiz.Skyline.Model.Results
 
         public SignedMz ProductMz
         {
-            get { return _groupInfo.GetProductLocal(_transitionIndex); }
+            get { return _transitionIndex.HasValue ? _groupInfo.GetProductLocal(_transitionIndex.Value) : SignedMz.ZERO; }
         }
 
         public ChromSource Source
@@ -2490,7 +2507,7 @@ namespace pwiz.Skyline.Model.Results
 
         private ChromTransition ChromTransition
         {
-            get { return _groupInfo.GetChromTransitionLocal(_transitionIndex); }
+            get { return _transitionIndex.HasValue ? _groupInfo.GetChromTransitionLocal(_transitionIndex.Value) : default(ChromTransition); }
         }
 
         public IList<float> RawTimes { get; set; }
@@ -2509,7 +2526,11 @@ namespace pwiz.Skyline.Model.Results
         {
             get
             {
-                return _groupInfo.GetPeaks(_transitionIndex);
+                if (_transitionIndex.HasValue)
+                {
+                    return new ChromPeak[0];
+                }
+                return _groupInfo.GetPeaks(_transitionIndex.Value);
             }
         }
 
@@ -2524,7 +2545,7 @@ namespace pwiz.Skyline.Model.Results
                     string.Format(Resources.ChromatogramInfo_ChromatogramInfo_The_index__0__must_be_between_0_and__1__,
                                   peakIndex, NumPeaks));
             }
-            return _groupInfo.GetTransitionPeak(_transitionIndex, peakIndex);
+            return _groupInfo.GetTransitionPeak(_transitionIndex.Value, peakIndex);
         }
 
         public ChromPeak CalcPeak(int startIndex, int endIndex, ChromPeak.FlagValues flags)
@@ -2673,7 +2694,7 @@ namespace pwiz.Skyline.Model.Results
             return TimeIntensities.IndexOfNearestTime(time);
         }
 
-        public int TransitionIndex { get { return _transitionIndex; } }
+        public int? TransitionIndex { get { return _transitionIndex; } }
     }
 
     public class BulkReadException : IOException

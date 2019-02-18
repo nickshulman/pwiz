@@ -176,5 +176,57 @@ namespace pwiz.Common.Collections
                 destinationList[destinationIndex + i] = sourceList[sourceIndex + i];
             }
         }
+
+        public static T[] EnsureSorted<T>(IEnumerable<T> items, IComparer<T> comparer)
+        {
+            var array = items.ToArray();
+            for (int i = 1; i < array.Length; i++)
+            {
+                if (comparer.Compare(array[i - 1], array[i]) > 0)
+                {
+                    Array.Sort(array, i, array.Length - i, comparer);
+                    var left = array.Take(i);
+                    var right = Enumerable.Range(0, array.Length - i).Select(index => array[i + index]);
+                    return SortedMerge(left, right, comparer).ToArray();
+                }
+            }
+
+            return array;
+        }
+
+        public static IEnumerable<T> SortedMerge<T>(IEnumerable<T> left, IEnumerable<T> right, IComparer<T> comparer)
+        {
+            using (var enLeft = left.GetEnumerator())
+            using (var enRight = right.GetEnumerator())
+            {
+                bool hasLeft = enLeft.MoveNext();
+                bool hasRight = enRight.MoveNext();
+                while (hasLeft && hasRight)
+                {
+                    if (comparer.Compare(enLeft.Current, enRight.Current) <= 0)
+                    {
+                        yield return enLeft.Current;
+                        hasLeft = enLeft.MoveNext();
+                    }
+                    else
+                    {
+                        yield return enRight.Current;
+                        hasRight = enRight.MoveNext();
+                    }
+                }
+
+                while (hasLeft)
+                {
+                    yield return enLeft.Current;
+                    hasLeft = enLeft.MoveNext();
+                }
+
+                while (hasRight)
+                {
+                    yield return enRight.Current;
+                    hasRight = enRight.MoveNext();
+                }
+            }
+        }
     }
 }

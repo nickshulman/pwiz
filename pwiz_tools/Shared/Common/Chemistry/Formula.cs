@@ -196,7 +196,7 @@ namespace pwiz.Common.Chemistry
             return new T {Dictionary = ImmutableSortedList.FromValues(ParseToDictionary(formula))};
         }
 
-        public static Dictionary<string, int> ParseToDictionary(string formula)
+        public static Dictionary<string, int> ParseToDictionary(IEnumerable<char> formula)
         {
             var result = new Dictionary<string, int>();
             string currentElement = null;

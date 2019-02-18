@@ -201,14 +201,13 @@ namespace pwiz.Skyline.Model
         private static Molecule GetSequenceFormula(ModifiedSequence modifiedSequence, MassType massType, out double unexplainedMassShift)
         {
             unexplainedMassShift = 0;
-            var molecule = new Dictionary<string, int>();
             string unmodifiedSequence = modifiedSequence.GetUnmodifiedSequence();
+            var molecule =
+                Molecule.ParseToDictionary(unmodifiedSequence.SelectMany(aa => AminoAcidFormulas.Default.Formulas[aa]));
+
             var modifications = modifiedSequence.GetModifications().ToLookup(mod => mod.IndexAA);
             for (int i = 0; i < unmodifiedSequence.Length; i++)
             {
-                char aminoAcid = unmodifiedSequence[i];
-                var aminoAcidFormula = Molecule.Parse(AminoAcidFormulas.Default.Formulas[aminoAcid]);
-                Add(molecule, aminoAcidFormula);
                 foreach (var mod in modifications[i])
                 {
                     string formula = mod.Formula;

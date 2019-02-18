@@ -733,7 +733,8 @@ namespace pwiz.Skyline.Model.Results
                 .Select(grouping => Tuple.Create(grouping.Key, (float)Math.Sqrt(grouping.Sum())))
                 .OrderBy(tuple => tuple.Item1)
                 .ToArray();
-            var spectrum = new Spectrum(ImmutableList.ValueOf(pairs.Select(tuple => tuple.Item1)),
+            var precursor = spectra.SelectMany(s => s.Precursors).FirstOrDefault().PrecursorMz??SignedMz.ZERO;
+            var spectrum = new Spectrum(precursor.RawValue, ImmutableList.ValueOf(pairs.Select(tuple => tuple.Item1)),
                 ImmutableList.ValueOf(pairs.Select(tuple => tuple.Item2)));
             return spectrum;
         }

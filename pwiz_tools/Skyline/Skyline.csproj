@@ -484,6 +484,9 @@
     <Compile Include="Model\XCorr\MassTolerance.cs" />
     <Compile Include="Model\XCorr\Peak.cs" />
     <Compile Include="Model\XCorr\SearchParameters.cs" />
+    <Compile Include="Model\XCorr\SparseIndexMap.cs" />
+    <Compile Include="Model\XCorr\SparseXCorrCalculator.cs" />
+    <Compile Include="Model\XCorr\SparseXCorrSpectrum.cs" />
     <Compile Include="Model\XCorr\Spectrum.cs" />
     <Compile Include="SettingsUI\IonMobility\UseSpectralLibraryIonMobilityValuesControl.cs">
       <SubType>UserControl</SubType>

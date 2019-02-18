@@ -12,19 +12,19 @@ namespace pwiz.Skyline.Model.XCorr
     public class ArrayXCorrCalculator
     {
         // values from personal communication with J. Egertson
-        const float lowResFragmentBinSize = 1.00045475f;
-        const float lowResFragmentBinOffset = 0.4f;
+        public const float lowResFragmentBinSize = 1.00045475f;
+        public const float lowResFragmentBinOffset = 0.4f;
 
         // set 50 to be the maximum value, see pp 982 bottom right
-        const float primaryIonIntensity = 50.0f;
-        const float neutralLossIntensity = primaryIonIntensity / 5;
+        public const float primaryIonIntensity = 50.0f;
+        public const float neutralLossIntensity = primaryIonIntensity / 5;
 
         // offset defined figure legend on pp 980
-        const int upperOffset = 75;
-        const int lowerOffset = -upperOffset;
+        public const int upperOffset = 75;
+        public const int lowerOffset = -upperOffset;
 
         // divide spectrum into 10 equal regions, see pp 982 bottom right
-        const int groups = 10;
+        public const int groups = 10;
 
         // remove 10-u window around precursor, see pp 979 mid left
         static double precursorRemovalMargin = 5.0;
@@ -32,7 +32,7 @@ namespace pwiz.Skyline.Model.XCorr
         private readonly SearchParameters searchParameters;
         private readonly byte charge;
         private readonly double precursorMz;
-        private readonly IList<float> preprocessedSpectrum;
+        private readonly float[] preprocessedSpectrum;
 
         /**
          * 
@@ -84,35 +84,21 @@ namespace pwiz.Skyline.Model.XCorr
          * @param spectrum
          * @return
          */
-        float score(IList<float> spectrum)
+        float score(float[] spectrum)
         {
             return dotProduct(preprocessedSpectrum, spectrum) / 1.0e4f;
         }
 
-        static float dotProduct(IList<float> preprocessedSpectrum, IList<float> spectrum)
+        static float dotProduct(float[] preprocessedSpectrum, float[] spectrum)
         {
-            float sum = 0.0f;
-            using (var enLeft = preprocessedSpectrum.GetEnumerator())
-            using (var enRight = spectrum.GetEnumerator())
+            double sum = 0.0;
+            int count = Math.Min(preprocessedSpectrum.Length, spectrum.Length);
+            for (int i = 0; i < count; i++)
             {
-                while (enLeft.MoveNext() && enRight.MoveNext())
-                {
-                    sum += enLeft.Current * enRight.Current;
-                }
+                sum += preprocessedSpectrum[i] * spectrum[i];
             }
-            return sum;
-        }
 
-        static float dotProduct(float[] preprocessedSpectrum, float[] spectrum, int offset)
-        {
-            float sum = 0.0f;
-            for (int i = 0; i < spectrum.Length; i++)
-            {
-                int index = i + offset;
-                if (index < 0 || index >= preprocessedSpectrum.Length) continue;
-                sum += spectrum[i] * preprocessedSpectrum[index];
-            }
-            return sum;
+            return (float) sum;
         }
 
         public static float[] preprocessSpectrumOld(float[] spectrum)
@@ -352,7 +338,7 @@ namespace pwiz.Skyline.Model.XCorr
 
         private static float[] getIntensityArray(SearchParameters searchParameters, IEnumerable<Peak> peaks, double massPlusOne, bool addIntensityToNeighboringBins)
         {
-            var allPeaks = peaks.OrderBy(p=>p.Mass).ToArray();
+            var allPeaks = CollectionUtil.EnsureSorted(peaks, Peak.MASS_COMPARER);
 
             // set tolerance to 2x the fragment tolerance of the highest fragment
             float fragmentBinSize = 2.0f * (float)searchParameters.FragmentTolerance.GetTolerance(massPlusOne);

@@ -115,9 +115,9 @@ namespace pwiz.Skyline.Model.Results
         private SpectrumProductFilter[] SimProductFilters { get; set; }
         public SpectrumProductFilter[] Ms2ProductFilters { get; private set; }
         public SpectrumProductFilter XCorrProductFilter { get; private set; }
-        public ArrayXCorrCalculator XCorrCalculator { get; private set; }
+        public SparseXCorrCalculator XCorrCalculator { get; private set; }
 
-        public void SetXCorrCalculator(ArrayXCorrCalculator xCorrCalculator)
+        public void SetXCorrCalculator(SparseXCorrCalculator xCorrCalculator)
         {
             XCorrCalculator = xCorrCalculator;
             XCorrProductFilter = new SpectrumProductFilter(0, 0);

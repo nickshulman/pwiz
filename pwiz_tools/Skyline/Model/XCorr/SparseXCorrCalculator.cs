@@ -90,7 +90,7 @@ namespace pwiz.Skyline.Model.XCorr
 
         static SparseXCorrSpectrum preprocessSpectrum(SparseXCorrSpectrum spectrum)
         {
-            SparseIndexMap preprocessedSpectrum = new SparseIndexMap();
+            RandomSparseIndexMap preprocessedSpectrum = new RandomSparseIndexMap();
 
             int length = spectrum.Length;
             int[] indicies = spectrum.getIndices();
@@ -117,7 +117,7 @@ namespace pwiz.Skyline.Model.XCorr
             }
 
             int denominator = ArrayXCorrCalculator.upperOffset - ArrayXCorrCalculator.lowerOffset;
-            preprocessedSpectrum.multiplyAllValues(1.0f / denominator);
+            preprocessedSpectrum.MultiplyAllValues(1.0f / denominator);
 
             for (int i = 0; i < indicies.Length; i++)
             {
@@ -139,12 +139,13 @@ namespace pwiz.Skyline.Model.XCorr
             var masses = s.Masses;
             var intensities = s.Intensities;
             List<Peak> allPeaks = new List<Peak>();
+            double avgPrecursorMz = (precursorMz.Item1 + precursorMz.Item2) / 2;
             if (masses.Count == 0)
-                return getIntensityArray(searchParameters, allPeaks, s.PrecursorMz, addIntensityToNeighboringBins);
+                return getIntensityArray(searchParameters, allPeaks, avgPrecursorMz, addIntensityToNeighboringBins);
             if (masses.Count == 1)
             {
                 allPeaks.Add(new Peak(masses[0], ArrayXCorrCalculator.primaryIonIntensity));
-                return getIntensityArray(searchParameters, allPeaks, s.PrecursorMz, addIntensityToNeighboringBins);
+                return getIntensityArray(searchParameters, allPeaks, avgPrecursorMz, addIntensityToNeighboringBins);
             }
 
             double minimumPrecursorRemoved = precursorMz.Item1;
@@ -198,7 +199,7 @@ namespace pwiz.Skyline.Model.XCorr
                 allPeaks.Add(new Peak(masses[i], intensities[i] / binMaxIntensity[currentIndex]));
             }
 
-            return getIntensityArray(searchParameters, allPeaks, s.PrecursorMz, addIntensityToNeighboringBins);
+            return getIntensityArray(searchParameters, allPeaks, avgPrecursorMz, addIntensityToNeighboringBins);
         }
 
         public static SparseXCorrSpectrum getTheoreticalSpectrum(PeptideDocNode modifiedSequence, double precursorMz, byte precursorCharge, SearchParameters searchParameters)
@@ -269,9 +270,9 @@ namespace pwiz.Skyline.Model.XCorr
             return peaks;
         }
 
-        private static SparseXCorrSpectrum getIntensityArray(SearchParameters searchParameters, IList<Peak> allPeaks, double precursorMz, bool addIntensityToNeighboringBins)
+        private static SparseXCorrSpectrum getIntensityArray(SearchParameters searchParameters, IEnumerable<Peak> peaks, double precursorMz, bool addIntensityToNeighboringBins)
         {
-            allPeaks.Sort();
+            var allPeaks = CollectionUtil.EnsureSorted(peaks, Peak.MASS_COMPARER);
 
             // set tolerance to 2x the fragment tolerance of the highest fragment
             float fragmentBinSize = 2.0f * (float)searchParameters.FragmentTolerance.GetTolerance(biggestFragmentMass);
@@ -295,7 +296,7 @@ namespace pwiz.Skyline.Model.XCorr
             float inverseBinWidth = 1.0f / fragmentBinSize;
             int arraySize = (int)((biggestFragmentMass + fragmentBinSize + 2.0) * inverseBinWidth);
 
-            SparseIndexMap binnedIntensityArray = new SparseIndexMap(allPeaks.Count);
+            OrderedSparseIndexMap binnedIntensityArray = new OrderedSparseIndexMap(allPeaks.Length);
             int arraySizeMinusOne = arraySize - 1;
             foreach (Peak peak in allPeaks)
             {

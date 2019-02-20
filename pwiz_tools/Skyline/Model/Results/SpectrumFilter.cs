@@ -261,7 +261,7 @@ namespace pwiz.Skyline.Model.Results
                                 _isHighAccMsFilter, _isHighAccProductFilter);
                             if (nodePep.IsProteomic)
                             {
-                                filter.SetXCorrCalculator(new ArrayXCorrCalculator(nodePep, nodeGroup.PrecursorMz.RawValue,
+                                filter.SetXCorrCalculator(new SparseXCorrCalculator(nodePep, nodeGroup.PrecursorMz.RawValue,
                                     (byte) nodeGroup.PrecursorCharge, xCorrParameters));
                             }
                             dictPrecursorMzToFilter.Add(key, filter);
@@ -707,7 +707,7 @@ namespace pwiz.Skyline.Model.Results
                                                   new SpectrumProductFilter[0],
                                                   new float[0],
                                                   null);
-                        float xCorr = filterPair.XCorrCalculator.score(xCorrSpectrum);
+                        float xCorr = filterPair.XCorrCalculator.score(xCorrSpectrum, Tuple.Create(filterPair.Q1.RawValue - 10, filterPair.Q1.RawValue + 10));
                         filteredSrmSpectrum = new ExtractedSpectrum(filteredSrmSpectrum.Target,
                             filteredSrmSpectrum.PeptideColor,
                             filteredSrmSpectrum.PrecursorMz,
@@ -733,8 +733,8 @@ namespace pwiz.Skyline.Model.Results
                 .Select(grouping => Tuple.Create(grouping.Key, (float)Math.Sqrt(grouping.Sum())))
                 .OrderBy(tuple => tuple.Item1)
                 .ToArray();
-            var precursor = spectra.SelectMany(s => s.Precursors).FirstOrDefault().PrecursorMz??SignedMz.ZERO;
-            var spectrum = new Spectrum(precursor.RawValue, ImmutableList.ValueOf(pairs.Select(tuple => tuple.Item1)),
+
+            var spectrum = new Spectrum(ImmutableList.ValueOf(pairs.Select(tuple => tuple.Item1)),
                 ImmutableList.ValueOf(pairs.Select(tuple => tuple.Item2)));
             return spectrum;
         }

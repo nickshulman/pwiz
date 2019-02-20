@@ -62,7 +62,7 @@ namespace pwiz.SkylineTest
         [TestMethod]
         public void TestXCorr()
         {
-            var spectrum = new Spectrum(0, ImmutableList.ValueOf(SPECTRUM_SDFHLFGPPGKK.Select(tuple => tuple.Item1)),
+            var spectrum = new Spectrum(ImmutableList.ValueOf(SPECTRUM_SDFHLFGPPGKK.Select(tuple => tuple.Item1)),
                 ImmutableList.ValueOf(SPECTRUM_SDFHLFGPPGKK.Select(tuple => (float) Math.Sqrt(tuple.Item2))));
             SearchParameters searchParameters = SearchParameters.DEFAULT
                 .ChangeFragmentTolerance(MassTolerance.WithAmu(0.5))
@@ -79,18 +79,17 @@ namespace pwiz.SkylineTest
         [TestMethod]
         public void TestSparseXCorrCalculator()
         {
-            var spectrum = new Spectrum(0, ImmutableList.ValueOf(SPECTRUM_SDFHLFGPPGKK.Select(tuple => tuple.Item1)),
+            var spectrum = new Spectrum(ImmutableList.ValueOf(SPECTRUM_SDFHLFGPPGKK.Select(tuple => tuple.Item1)),
                 ImmutableList.ValueOf(SPECTRUM_SDFHLFGPPGKK.Select(tuple => (float)Math.Sqrt(tuple.Item2))));
             SearchParameters searchParameters = SearchParameters.DEFAULT
-                .ChangeFragmentTolerance(MassTolerance.WithPpm(100))
+                .ChangeFragmentTolerance(MassTolerance.WithAmu(0.5))
                 .ChangeFragmentationType(FragmentationType.HCD);
             var peptideDocNode = new PeptideDocNode(new Peptide("SDFHLFGPPGKK"), SrmSettingsList.GetDefault(), null, null, null, new TransitionGroupDocNode[0], false);
-            SparseXCorrCalculator preprocessedmodel = new SparseXCorrCalculator(peptideDocNode, 2, searchParameters);
             const int charge = 2;
             const double chargedMz = (float)((1329.6335 + (charge - 1) * MassConstants.protonMass) / charge);
-
-            SparseXCorrSpectrum sparse = preprocessedmodel.normalize(spectrum, Tuple.Create(chargedMz - 10, chargedMz + 10));
-            Assert.IsNotNull(sparse);
+            SparseXCorrCalculator preprocessedSpectrum = new SparseXCorrCalculator(spectrum, Tuple.Create(chargedMz - 10.0, chargedMz + 10.0), searchParameters);
+            var spectrumFirst = preprocessedSpectrum.score(peptideDocNode, chargedMz, charge);
+            Assert.AreEqual(1.7484008, spectrumFirst, .001);
         }
 
         [TestMethod]

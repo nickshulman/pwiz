@@ -305,17 +305,19 @@ namespace pwiz.Skyline.Model.XCorr
                 if (massIndex < 0) massIndex = 0;
                 if (massIndex >= arraySize) massIndex = arraySize - 1;
 
-                binnedIntensityArray.PutIfGreater(massIndex, peak.Mass, peak.Intensity);
-
                 // don't do this for low res fragment ions bin boundaries aren't an issue with the 0.4 offset
-                if (fragmentBinSize <= 0.5f && addIntensityToNeighboringBins)
+                bool addToNeighbors = fragmentBinSize <= 0.5f && addIntensityToNeighboringBins;
+                float neighboringIntensity = (float)(peak.Intensity > ArrayXCorrCalculator.neutralLossIntensity ? peak.Intensity / 2.0f : peak.Intensity);
+                if (addToNeighbors)
                 {
-                    // neighboring intensities are 25 for b/y or 10 (the same) for neutral losses
-                    float neighboringIntensity = (float) (peak.Intensity > ArrayXCorrCalculator.neutralLossIntensity ? peak.Intensity / 2.0f : peak.Intensity);
                     if (massIndex > 0)
                     {
                         binnedIntensityArray.PutIfGreater(massIndex - 1, peak.Mass - fragmentBinSize, neighboringIntensity);
                     }
+                }
+                binnedIntensityArray.PutIfGreater(massIndex, peak.Mass, peak.Intensity);
+                if (addToNeighbors)
+                {
                     if (massIndex < arraySizeMinusOne)
                     {
                         binnedIntensityArray.PutIfGreater(massIndex + 1, peak.Mass + fragmentBinSize, neighboringIntensity);

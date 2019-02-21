@@ -90,6 +90,11 @@ namespace pwiz.Skyline.Model.XCorr
                 return _list.Count - 1;
             }
 
+            if (_list.Count >= 2 && key == _list[_list.Count - 2].Key)
+            {
+                return _list.Count - 2;
+            }
+
             var range = CollectionUtil.BinarySearch(_list, item => item.Key.CompareTo(key));
             if (range.Length == 0)
             {

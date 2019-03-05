@@ -228,7 +228,15 @@ namespace pwiz.Skyline.Model.Results
 
         public MsDataFileScanIds LoadMSDataFileScanIds(int fileIndex)
         {
-            return MsDataFileScanIds.FromBytes(LoadMSDataFileScanIdBytes(fileIndex));
+            var cachedFile = CachedFiles[fileIndex];
+            var bytes = LoadMSDataFileScanIdBytes(fileIndex);
+            if (0 != (cachedFile.Flags & ChromCachedFile.FlagValues.scan_infos))
+            {
+                var scanInfos = ScanInfo.FromBytes(bytes);
+                bytes = MsDataFileScanIds.ToBytes(scanInfos.Select(scanInfo => scanInfo.ScanIdentifier));
+            }
+
+            return MsDataFileScanIds.FromBytes(bytes);
         }
 
         public byte[] LoadMSDataFileScanIdBytes(int fileIndex)

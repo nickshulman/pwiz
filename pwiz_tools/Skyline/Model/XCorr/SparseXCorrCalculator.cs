@@ -14,17 +14,17 @@ namespace pwiz.Skyline.Model.XCorr
         private readonly SearchParameters searchParameters;
         private readonly SparseXCorrSpectrum preprocessedSpectrum;
 	
-	/**
-	 * 
-	 * @param s assumes sqrted intensities!
-	 * @param precursorMz
-	 * @param charge
-	 * @param searchParameters
-	 */
-	public SparseXCorrCalculator(Spectrum s, Tuple<double, double> precursorMz, SearchParameters searchParameters) 
-	    : this(normalize(s, precursorMz, false, searchParameters), searchParameters)
-    {
-    }
+	    /**
+	     * 
+	     * @param s assumes sqrted intensities!
+	     * @param precursorMz
+	     * @param charge
+	     * @param searchParameters
+	     */
+	    public SparseXCorrCalculator(Spectrum s, Tuple<double, double> precursorMz, SearchParameters searchParameters) 
+	        : this(normalize(s, precursorMz, false, searchParameters), searchParameters)
+        {
+        }
 
         public SparseXCorrCalculator(PeptideDocNode modifiedSequence, double precursorMz, byte precursorCharge, SearchParameters searchParameters)
             : this(getTheoreticalSpectrum(modifiedSequence, precursorMz, precursorCharge, searchParameters), searchParameters)

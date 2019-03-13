@@ -78,6 +78,7 @@ namespace pwiz.Skyline.Model.Results
         private MsDataSpectrum _mseLastSpectrum;
         private int _mseLastSpectrumLevel; // for averaging Agilent stepped CE spectra
         private bool _sourceHasDeclaredMS2Scans; // Used in all-ions mode to discern low and high energy scans for Bruker
+        private SearchParameters _xcorrSearchParamters;
 
         public IEnumerable<SpectrumFilterPair> FilterPairs { get { return _filterMzValues; } }
 
@@ -85,7 +86,7 @@ namespace pwiz.Skyline.Model.Results
             double? maxObservedIonMobilityValue = null,
             IRetentionTimePredictor retentionTimePredictor = null, bool firstPass = false)
         {
-            SearchParameters xCorrParameters = SearchParameters.DEFAULT.ChangeFragmentationType(FragmentationType.CID);
+            _xcorrSearchParamters = SearchParameters.DEFAULT.ChangeFragmentationType(FragmentationType.CID);
             _fullScan = document.Settings.TransitionSettings.FullScan;
             _instrument = document.Settings.TransitionSettings.Instrument;
             _acquisitionMethod = _fullScan.AcquisitionMethod;
@@ -262,7 +263,7 @@ namespace pwiz.Skyline.Model.Results
                             if (nodePep.IsProteomic)
                             {
                                 filter.SetXCorrCalculator(new SparseXCorrCalculator(nodePep, nodeGroup.PrecursorMz.RawValue,
-                                    (byte) nodeGroup.PrecursorCharge, xCorrParameters));
+                                    (byte) nodeGroup.PrecursorCharge, _xcorrSearchParamters));
                             }
                             dictPrecursorMzToFilter.Add(key, filter);
                         }
@@ -687,7 +688,7 @@ namespace pwiz.Skyline.Model.Results
             bool ignoreIso = handlingType == IsolationScheme.SpecialHandlingType.OVERLAP ||
                              handlingType == IsolationScheme.SpecialHandlingType.OVERLAP_MULTIPLEXED ||
                              handlingType == IsolationScheme.SpecialHandlingType.FAST_OVERLAP;
-            Spectrum xCorrSpectrum = null;
+            SparseXCorrSpectrum xCorrSpectrum = null;
             foreach (var isoWin in GetIsolationWindows(spectra[0].Precursors))
             {
                 foreach (var filterPair in FindFilterPairs(isoWin, _acquisitionMethod, ignoreIso))
@@ -707,7 +708,7 @@ namespace pwiz.Skyline.Model.Results
                                                   new SpectrumProductFilter[0],
                                                   new float[0],
                                                   null);
-                        float xCorr = filterPair.XCorrCalculator.score(xCorrSpectrum, Tuple.Create(filterPair.Q1.RawValue - 10, filterPair.Q1.RawValue + 10));
+                        float xCorr = filterPair.XCorrCalculator.score(xCorrSpectrum);
                         filteredSrmSpectrum = new ExtractedSpectrum(filteredSrmSpectrum.Target,
                             filteredSrmSpectrum.PeptideColor,
                             filteredSrmSpectrum.PrecursorMz,
@@ -725,7 +726,7 @@ namespace pwiz.Skyline.Model.Results
             }
         }
 
-        private Spectrum MakeXCorrSpectrum(MsDataSpectrum[] spectra)
+        private SparseXCorrSpectrum MakeXCorrSpectrum(MsDataSpectrum[] spectra)
         {
             var pairs = spectra.SelectMany(s =>
                     Enumerable.Range(0, s.Mzs.Length).Select(i => Tuple.Create(s.Mzs[i], s.Intensities[i])))
@@ -733,10 +734,13 @@ namespace pwiz.Skyline.Model.Results
                 .Select(grouping => Tuple.Create(grouping.Key, (float)Math.Sqrt(grouping.Sum())))
                 .OrderBy(tuple => tuple.Item1)
                 .ToArray();
+            var precursor = spectra.SelectMany(s => s.Precursors).FirstOrDefault();
+            var precursorMz = Tuple.Create(precursor.IsolationWindowLower.GetValueOrDefault(),
+                precursor.IsolationWindowUpper.GetValueOrDefault());
 
             var spectrum = new Spectrum(ImmutableList.ValueOf(pairs.Select(tuple => tuple.Item1)),
                 ImmutableList.ValueOf(pairs.Select(tuple => tuple.Item2)));
-            return spectrum;
+            return SparseXCorrCalculator.normalize(spectrum, precursorMz, false, _xcorrSearchParamters);
         }
 
         public bool HasProductFilterPairs(double? retentionTime, MsPrecursor[] precursors)

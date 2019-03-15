@@ -1,5 +1,6 @@
 
 using System;
+using pwiz.Skyline.Model;
 using pwiz.Skyline.Properties;
 
 namespace pwiz.Skyline
@@ -273,6 +274,8 @@ namespace pwiz.Skyline
             this.toolStripSeparator21 = new System.Windows.Forms.ToolStripSeparator();
             this.undoToolBarButton = new System.Windows.Forms.ToolStripSplitButton();
             this.redoToolBarButton = new System.Windows.Forms.ToolStripSplitButton();
+            this.toolStripSeparatorSelectUI = new System.Windows.Forms.ToolStripSeparator();
+            this.modeUIToolBarDropDownButton = new System.Windows.Forms.ToolStripDropDownButton();
             this.menuMain = new System.Windows.Forms.MenuStrip();
             this.fileToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.startPageMenuItem = new System.Windows.Forms.ToolStripMenuItem();
@@ -542,6 +545,7 @@ namespace pwiz.Skyline
             this.massErorrRetentionTimeContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.massErrorMassToChargContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.massErrorlogScaleContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            ((System.ComponentModel.ISupportInitialize)(this.modeUIHandler)).BeginInit();
             this.documentationToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.reportsHelpMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.commandLineHelpMenuItem = new System.Windows.Forms.ToolStripMenuItem();
@@ -2179,7 +2183,9 @@ namespace pwiz.Skyline
             this.pasteToolBarButton,
             this.toolStripSeparator21,
             this.undoToolBarButton,
-            this.redoToolBarButton});
+            this.redoToolBarButton,
+            this.toolStripSeparatorSelectUI,
+            this.modeUIToolBarDropDownButton});
             resources.ApplyResources(this.mainToolStrip, "mainToolStrip");
             this.mainToolStrip.Name = "mainToolStrip";
             // 
@@ -2262,6 +2268,19 @@ namespace pwiz.Skyline
             resources.ApplyResources(this.redoToolBarButton, "redoToolBarButton");
             this.redoToolBarButton.Image = global::pwiz.Skyline.Properties.Resources.Edit_Redo;
             this.redoToolBarButton.Name = "redoToolBarButton";
+            // 
+            // toolStripSeparatorSelectUI
+            // 
+            this.toolStripSeparatorSelectUI.Name = "toolStripSeparatorSelectUI";
+            resources.ApplyResources(this.toolStripSeparatorSelectUI, "toolStripSeparatorSelectUI");
+            // 
+            // modeUIToolBarDropDownButton
+            // 
+            this.modeUIToolBarDropDownButton.Alignment = System.Windows.Forms.ToolStripItemAlignment.Right;
+            this.modeUIToolBarDropDownButton.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Image;
+            this.modeUIToolBarDropDownButton.Image = global::pwiz.Skyline.Properties.Resources.UIModeProteomic;
+            resources.ApplyResources(this.modeUIToolBarDropDownButton, "modeUIToolBarDropDownButton");
+            this.modeUIToolBarDropDownButton.Name = "modeUIToolBarDropDownButton";
             // 
             // menuMain
             // 
@@ -2393,11 +2412,13 @@ namespace pwiz.Skyline
             // 
             this.toolStripSeparator51.Name = "toolStripSeparator51";
             resources.ApplyResources(this.toolStripSeparator51, "toolStripSeparator51");
+            this.modeUIHandler.SetUIMode(this.toolStripSeparator51, pwiz.Skyline.Util.Helpers.ModeUIExtender.MODE_UI_HANDLING_TYPE.proteomic);
             // 
             // importPeptideSearchMenuItem
             // 
             this.importPeptideSearchMenuItem.Name = "importPeptideSearchMenuItem";
             resources.ApplyResources(this.importPeptideSearchMenuItem, "importPeptideSearchMenuItem");
+            this.modeUIHandler.SetUIMode(this.importPeptideSearchMenuItem, pwiz.Skyline.Util.Helpers.ModeUIExtender.MODE_UI_HANDLING_TYPE.proteomic);
             this.importPeptideSearchMenuItem.Click += new System.EventHandler(this.importPeptideSearchMenuItem_Click);
             // 
             // toolStripSeparator52
@@ -2409,6 +2430,7 @@ namespace pwiz.Skyline
             // 
             this.importFASTAMenuItem.Name = "importFASTAMenuItem";
             resources.ApplyResources(this.importFASTAMenuItem, "importFASTAMenuItem");
+            this.modeUIHandler.SetUIMode(this.importFASTAMenuItem, pwiz.Skyline.Util.Helpers.ModeUIExtender.MODE_UI_HANDLING_TYPE.proteomic);
             this.importFASTAMenuItem.Click += new System.EventHandler(this.importFASTAMenuItem_Click);
             // 
             // importAssayLibraryMenuItem
@@ -2491,6 +2513,7 @@ namespace pwiz.Skyline
             // 
             this.eSPFeaturesMenuItem.Name = "eSPFeaturesMenuItem";
             resources.ApplyResources(this.eSPFeaturesMenuItem, "eSPFeaturesMenuItem");
+            this.modeUIHandler.SetUIMode(this.eSPFeaturesMenuItem, pwiz.Skyline.Util.Helpers.ModeUIExtender.MODE_UI_HANDLING_TYPE.proteomic);
             this.eSPFeaturesMenuItem.Click += new System.EventHandler(this.espFeaturesMenuItem_Click);
             // 
             // exportSpectralLibraryMenuItem
@@ -2697,18 +2720,21 @@ namespace pwiz.Skyline
             // 
             this.insertFASTAMenuItem.Name = "insertFASTAMenuItem";
             resources.ApplyResources(this.insertFASTAMenuItem, "insertFASTAMenuItem");
+            this.modeUIHandler.SetUIMode(this.insertFASTAMenuItem, pwiz.Skyline.Util.Helpers.ModeUIExtender.MODE_UI_HANDLING_TYPE.proteomic);
             this.insertFASTAMenuItem.Click += new System.EventHandler(this.insertFASTAToolStripMenuItem_Click);
             // 
             // insertProteinsMenuItem
             // 
             this.insertProteinsMenuItem.Name = "insertProteinsMenuItem";
             resources.ApplyResources(this.insertProteinsMenuItem, "insertProteinsMenuItem");
+            this.modeUIHandler.SetUIMode(this.insertProteinsMenuItem, pwiz.Skyline.Util.Helpers.ModeUIExtender.MODE_UI_HANDLING_TYPE.proteomic);
             this.insertProteinsMenuItem.Click += new System.EventHandler(this.insertProteinsToolStripMenuItem_Click);
             // 
             // insertPeptidesMenuItem
             // 
             this.insertPeptidesMenuItem.Name = "insertPeptidesMenuItem";
             resources.ApplyResources(this.insertPeptidesMenuItem, "insertPeptidesMenuItem");
+            this.modeUIHandler.SetUIMode(this.insertPeptidesMenuItem, pwiz.Skyline.Util.Helpers.ModeUIExtender.MODE_UI_HANDLING_TYPE.proteomic);
             this.insertPeptidesMenuItem.Click += new System.EventHandler(this.insertPeptidesToolStripMenuItem_Click);
             // 
             // insertTransitionListMenuItem
@@ -2730,7 +2756,6 @@ namespace pwiz.Skyline
             this.expandPrecursorsMenuItem});
             this.expandAllToolStripMenuItem.Name = "expandAllToolStripMenuItem";
             resources.ApplyResources(this.expandAllToolStripMenuItem, "expandAllToolStripMenuItem");
-            this.expandAllToolStripMenuItem.DropDownOpening += new System.EventHandler(this.expandAllMenuItem_DropDownOpening);
             // 
             // expandProteinsMenuItem
             // 
@@ -2758,7 +2783,6 @@ namespace pwiz.Skyline
             this.collapsePrecursorsMenuItem});
             this.collapseAllToolStripMenuItem.Name = "collapseAllToolStripMenuItem";
             resources.ApplyResources(this.collapseAllToolStripMenuItem, "collapseAllToolStripMenuItem");
-            this.collapseAllToolStripMenuItem.DropDownOpening += new System.EventHandler(this.collapseAllToolStripMenuItem_DropDownOpening);
             // 
             // collapseProteinsMenuItem
             // 
@@ -2883,6 +2907,7 @@ namespace pwiz.Skyline
             // 
             this.generateDecoysMenuItem.Name = "generateDecoysMenuItem";
             resources.ApplyResources(this.generateDecoysMenuItem, "generateDecoysMenuItem");
+            this.modeUIHandler.SetUIMode(this.generateDecoysMenuItem, pwiz.Skyline.Util.Helpers.ModeUIExtender.MODE_UI_HANDLING_TYPE.proteomic);
             this.generateDecoysMenuItem.Click += new System.EventHandler(this.generateDecoysMenuItem_Click);
             // 
             // compareModelsToolStripMenuItem
@@ -2911,6 +2936,7 @@ namespace pwiz.Skyline
             // 
             this.acceptProteinsMenuItem.Name = "acceptProteinsMenuItem";
             resources.ApplyResources(this.acceptProteinsMenuItem, "acceptProteinsMenuItem");
+            this.modeUIHandler.SetUIMode(this.acceptProteinsMenuItem, pwiz.Skyline.Util.Helpers.ModeUIExtender.MODE_UI_HANDLING_TYPE.proteomic);
             this.acceptProteinsMenuItem.Click += new System.EventHandler(this.acceptProteinsMenuItem_Click);
             // 
             // removeEmptyProteinsMenuItem
@@ -2923,12 +2949,14 @@ namespace pwiz.Skyline
             // 
             this.associateFASTAMenuItem.Name = "associateFASTAMenuItem";
             resources.ApplyResources(this.associateFASTAMenuItem, "associateFASTAMenuItem");
+            this.modeUIHandler.SetUIMode(this.associateFASTAMenuItem, pwiz.Skyline.Util.Helpers.ModeUIExtender.MODE_UI_HANDLING_TYPE.proteomic);
             this.associateFASTAMenuItem.Click += new System.EventHandler(this.associateFASTAMenuItem_Click);
             // 
             // renameProteinsMenuItem
             // 
             this.renameProteinsMenuItem.Name = "renameProteinsMenuItem";
             resources.ApplyResources(this.renameProteinsMenuItem, "renameProteinsMenuItem");
+            this.modeUIHandler.SetUIMode(this.renameProteinsMenuItem, pwiz.Skyline.Util.Helpers.ModeUIExtender.MODE_UI_HANDLING_TYPE.proteomic);
             this.renameProteinsMenuItem.Click += new System.EventHandler(this.renameProteinsToolStripMenuItem_Click);
             // 
             // sortProteinsMenuItem
@@ -2951,18 +2979,21 @@ namespace pwiz.Skyline
             // 
             this.sortProteinsByAccessionToolStripMenuItem.Name = "sortProteinsByAccessionToolStripMenuItem";
             resources.ApplyResources(this.sortProteinsByAccessionToolStripMenuItem, "sortProteinsByAccessionToolStripMenuItem");
+            this.modeUIHandler.SetUIMode(this.sortProteinsByAccessionToolStripMenuItem, pwiz.Skyline.Util.Helpers.ModeUIExtender.MODE_UI_HANDLING_TYPE.proteomic);
             this.sortProteinsByAccessionToolStripMenuItem.Click += new System.EventHandler(this.sortProteinsByAccessionToolStripMenuItem_Click);
             // 
             // sortProteinsByPreferredNameToolStripMenuItem
             // 
             this.sortProteinsByPreferredNameToolStripMenuItem.Name = "sortProteinsByPreferredNameToolStripMenuItem";
             resources.ApplyResources(this.sortProteinsByPreferredNameToolStripMenuItem, "sortProteinsByPreferredNameToolStripMenuItem");
+            this.modeUIHandler.SetUIMode(this.sortProteinsByPreferredNameToolStripMenuItem, pwiz.Skyline.Util.Helpers.ModeUIExtender.MODE_UI_HANDLING_TYPE.proteomic);
             this.sortProteinsByPreferredNameToolStripMenuItem.Click += new System.EventHandler(this.sortProteinsByPreferredNameToolStripMenuItem_Click);
             // 
             // sortProteinsByGeneToolStripMenuItem
             // 
             this.sortProteinsByGeneToolStripMenuItem.Name = "sortProteinsByGeneToolStripMenuItem";
             resources.ApplyResources(this.sortProteinsByGeneToolStripMenuItem, "sortProteinsByGeneToolStripMenuItem");
+            this.modeUIHandler.SetUIMode(this.sortProteinsByGeneToolStripMenuItem, pwiz.Skyline.Util.Helpers.ModeUIExtender.MODE_UI_HANDLING_TYPE.proteomic);
             this.sortProteinsByGeneToolStripMenuItem.Click += new System.EventHandler(this.sortProteinsByGeneToolStripMenuItem_Click);
             // 
             // toolStripSeparator43
@@ -2974,6 +3005,7 @@ namespace pwiz.Skyline
             // 
             this.acceptPeptidesMenuItem.Name = "acceptPeptidesMenuItem";
             resources.ApplyResources(this.acceptPeptidesMenuItem, "acceptPeptidesMenuItem");
+            this.modeUIHandler.SetUIMode(this.acceptPeptidesMenuItem, pwiz.Skyline.Util.Helpers.ModeUIExtender.MODE_UI_HANDLING_TYPE.proteomic);
             this.acceptPeptidesMenuItem.Click += new System.EventHandler(this.acceptPeptidesMenuItem_Click);
             // 
             // removeEmptyPeptidesMenuItem
@@ -3030,8 +3062,8 @@ namespace pwiz.Skyline
             this.massErrorsMenuItem,
             this.calibrationCurveMenuItem,
             this.documentGridMenuItem,
-            this.isotopeDistributionsToolStripMenuItem,
             this.otherGridsMenuItem,
+            this.isotopeDistributionsToolStripMenuItem,
             this.toolStripSeparator36,
             this.toolBarToolStripMenuItem,
             this.statusToolStripMenuItem});
@@ -3062,18 +3094,21 @@ namespace pwiz.Skyline
             // 
             this.showTargetsByAccessionToolStripMenuItem.Name = "showTargetsByAccessionToolStripMenuItem";
             resources.ApplyResources(this.showTargetsByAccessionToolStripMenuItem, "showTargetsByAccessionToolStripMenuItem");
+            this.modeUIHandler.SetUIMode(this.showTargetsByAccessionToolStripMenuItem, pwiz.Skyline.Util.Helpers.ModeUIExtender.MODE_UI_HANDLING_TYPE.proteomic);
             this.showTargetsByAccessionToolStripMenuItem.Click += new System.EventHandler(this.showTargetsByAccessionToolStripMenuItem_Click);
             // 
             // showTargetsByPreferredNameToolStripMenuItem
             // 
             this.showTargetsByPreferredNameToolStripMenuItem.Name = "showTargetsByPreferredNameToolStripMenuItem";
             resources.ApplyResources(this.showTargetsByPreferredNameToolStripMenuItem, "showTargetsByPreferredNameToolStripMenuItem");
+            this.modeUIHandler.SetUIMode(this.showTargetsByPreferredNameToolStripMenuItem, pwiz.Skyline.Util.Helpers.ModeUIExtender.MODE_UI_HANDLING_TYPE.proteomic);
             this.showTargetsByPreferredNameToolStripMenuItem.Click += new System.EventHandler(this.showTargetsByPreferredNameToolStripMenuItem_Click);
             // 
             // showTargetsByGeneToolStripMenuItem
             // 
             this.showTargetsByGeneToolStripMenuItem.Name = "showTargetsByGeneToolStripMenuItem";
             resources.ApplyResources(this.showTargetsByGeneToolStripMenuItem, "showTargetsByGeneToolStripMenuItem");
+            this.modeUIHandler.SetUIMode(this.showTargetsByGeneToolStripMenuItem, pwiz.Skyline.Util.Helpers.ModeUIExtender.MODE_UI_HANDLING_TYPE.proteomic);
             this.showTargetsByGeneToolStripMenuItem.Click += new System.EventHandler(this.showTargetsByGeneToolStripMenuItem_Click);
             // 
             // textZoomToolStripMenuItem
@@ -4204,6 +4239,7 @@ namespace pwiz.Skyline
             this.Activated += new System.EventHandler(this.SkylineWindow_Activated);
             this.Move += new System.EventHandler(this.SkylineWindow_Move);
             this.Resize += new System.EventHandler(this.SkylineWindow_Resize);
+            ((System.ComponentModel.ISupportInitialize)(this.modeUIHandler)).EndInit();
             this.contextMenuTreeNode.ResumeLayout(false);
             this.contextMenuSpectrum.ResumeLayout(false);
             this.contextMenuChromatogram.ResumeLayout(false);
@@ -4330,7 +4366,7 @@ namespace pwiz.Skyline
         private System.Windows.Forms.ToolStripMenuItem autoZoomNoneContextMenuItem;
         private System.Windows.Forms.ToolStripMenuItem autoZoomBestPeakContextMenuItem;
         private System.Windows.Forms.ToolStripMenuItem autoZoomRTWindowContextMenuItem;
-        private System.Windows.Forms.ToolStrip mainToolStrip;        
+        private System.Windows.Forms.ToolStrip mainToolStrip;
         private System.Windows.Forms.ToolStripButton newToolBarButton;        
         private System.Windows.Forms.ToolStripSplitButton undoToolBarButton;        
         private System.Windows.Forms.ToolStripSplitButton redoToolBarButton;        
@@ -4725,6 +4761,8 @@ namespace pwiz.Skyline
         private System.Windows.Forms.ToolStripMenuItem areaCVPrecursorsToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem areaCVProductsToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem isotopeDistributionsToolStripMenuItem;
+        private System.Windows.Forms.ToolStripSeparator toolStripSeparatorSelectUI;
+        private System.Windows.Forms.ToolStripDropDownButton modeUIToolBarDropDownButton;
         private System.Windows.Forms.ToolStripMenuItem targetsAt1FDRToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem otherGridsMenuItem;
         private System.Windows.Forms.ToolStripMenuItem auditLogMenuItem;

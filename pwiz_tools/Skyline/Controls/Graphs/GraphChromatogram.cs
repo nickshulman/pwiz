@@ -1064,7 +1064,7 @@ namespace pwiz.Skyline.Controls.Graphs
                             message = Resources.GraphChromatogram_UpdateUI_No_TIC_chromatogram_found;
                             break;
                     }
-                    SetGraphItem(new UnavailableChromGraphItem(message));
+                    SetGraphItem(new UnavailableChromGraphItem(Helpers.PeptideToMoleculeTextMapper.Translate(message, DocumentUI.DocumentType)));
                 }
             }
             else 

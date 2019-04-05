@@ -166,14 +166,14 @@ namespace pwiz.Skyline.Model
                         doc.Settings.PeptideSettings.Prediction.ChangeRetentionTime(predictor))));
         }
 
-        public List<string> VerifyRetentionTimes(IEnumerable<string> resultsFiles)
+        public bool VerifyRetentionTimes(IEnumerable<string> resultsFiles)
         {
             foreach (var resultsFile in resultsFiles)
             {
                 LibraryRetentionTimes retentionTimes;
                 if (DocLib.TryGetRetentionTimes(MsDataFileUri.Parse(resultsFile), out retentionTimes))
                 {
-                    if (retentionTimes.PeptideRetentionTimes.All(t => t.RetentionTime <= 0))
+                    if (retentionTimes.PeptideRetentionTimes.Any(t => t.RetentionTime <= 0))
                     {
                         return false;
                     }

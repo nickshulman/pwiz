@@ -33,6 +33,7 @@ using pwiz.Skyline.Util.Extensions;
 
 namespace pwiz.Skyline.Model.Databinding.Entities
 {
+    [InvariantDisplayName(nameof(Transition))]
     [AnnotationTarget(AnnotationDef.AnnotationTarget.transition)]
     public class Transition : SkylineDocNode<TransitionDocNode>
     {
@@ -54,7 +55,7 @@ namespace pwiz.Skyline.Model.Databinding.Entities
         }
 
         [InvariantDisplayName("TransitionResults")]
-        [OneToMany(ForeignKey = "Transition", ItemDisplayName = "TransitionResult")]
+        [OneToMany(ForeignKey = nameof(TransitionResult.Transition))]
         public IDictionary<ResultKey, TransitionResult> Results
         {
             get
@@ -75,7 +76,7 @@ namespace pwiz.Skyline.Model.Databinding.Entities
 
         protected override TransitionDocNode CreateEmptyNode()
         {
-            return new TransitionDocNode(new Model.Transition(new TransitionGroup(new Model.Peptide(null, @"X", null, null, 0), Adduct.SINGLY_PROTONATED, IsotopeLabelType.light), 0), Annotations.EMPTY, null, TypedMass.ZERO_MONO_MASSH, TransitionDocNode.TransitionQuantInfo.DEFAULT, null);
+            return new TransitionDocNode(new Model.Transition(new TransitionGroup(new Model.Peptide(null, @"X", null, null, 0), Adduct.SINGLY_PROTONATED, IsotopeLabelType.light), 0), Annotations.EMPTY, null, TypedMass.ZERO_MONO_MASSH, TransitionDocNode.TransitionQuantInfo.DEFAULT, ExplicitTransitionValues.EMPTY, null);
         }
 
         [InvariantDisplayName("TransitionResultsSummary")]
@@ -128,6 +129,7 @@ namespace pwiz.Skyline.Model.Databinding.Entities
                 : string.Empty;
             }
         }
+        [Hidden(InUiMode = UiModes.PROTEOMIC)]
         public string ProductAdduct
         {
             get
@@ -140,6 +142,7 @@ namespace pwiz.Skyline.Model.Databinding.Entities
             get { return DocNode.Transition.IonType; }
         }
         [Format(NullValue = TextUtil.EXCEL_NA)]
+        [Hidden(InUiMode = UiModes.SMALL_MOLECULES)]
         public int? FragmentIonOrdinal
         {
             get
@@ -149,6 +152,7 @@ namespace pwiz.Skyline.Model.Databinding.Entities
                 return DocNode.Transition.Ordinal;
             }
         }
+        [Hidden(InUiMode = UiModes.SMALL_MOLECULES)]
         public char? CleavageAa
         {
             get
@@ -159,6 +163,7 @@ namespace pwiz.Skyline.Model.Databinding.Entities
             }
         }
         [Format(NullValue = TextUtil.EXCEL_NA)]
+        [Hidden(InUiMode = UiModes.SMALL_MOLECULES)]
         public double? LossNeutralMass
         {
             get
@@ -168,6 +173,7 @@ namespace pwiz.Skyline.Model.Databinding.Entities
                 return DocNode.LostMass;
             }
         }
+        [Hidden(InUiMode = UiModes.SMALL_MOLECULES)]
         public string Losses
         {
             get
@@ -177,6 +183,7 @@ namespace pwiz.Skyline.Model.Databinding.Entities
                     : (DocNode.HasLoss ? string.Join(@", ", DocNode.Losses.ToStrings()) : string.Empty);
             }
         }
+        [Hidden(InUiMode = UiModes.SMALL_MOLECULES)]
         public string LossFormulas
         {
             get
@@ -195,16 +202,76 @@ namespace pwiz.Skyline.Model.Databinding.Entities
             get { return DocNode.ExplicitQuantitative; }
             set
             {
-                ChangeDocNode(EditDescription.SetColumn(@"Quantitative", value),
+                ChangeDocNode(EditColumnDescription(nameof(Quantitative), value),
                     docNode=>docNode.ChangeQuantitative(value));
             }
         }
+
+        [Format(Formats.OPT_PARAMETER, NullValue = TextUtil.EXCEL_NA)]
+        [Importable]
+        public double? ExplicitCollisionEnergy
+        {
+            get { return DocNode.ExplicitValues.CollisionEnergy; }
+            set
+            {
+                ChangeDocNode(EditDescription.SetColumn(@"ExplicitCollisionEnergy", value),
+                    docNode => DocNode.ChangeExplicitCollisionEnergy(value));
+            }
+        }
+
+        [Format(Formats.OPT_PARAMETER, NullValue = TextUtil.EXCEL_NA)]
+        [Importable]
+        public double? ExplicitSLens
+        {
+            get { return DocNode.ExplicitValues.SLens; }
+            set
+            {
+                ChangeDocNode(EditDescription.SetColumn(@"ExplicitSLens", value),
+                    docNode => docNode.ChangeExplicitSLens(value));
+            }
+        }
+
+        [Format(Formats.OPT_PARAMETER, NullValue = TextUtil.EXCEL_NA)]
+        [Importable]
+        public double? ExplicitConeVoltage
+        {
+            get { return DocNode.ExplicitValues.ConeVoltage; }
+            set
+            {
+                ChangeDocNode(EditDescription.SetColumn(@"ExplicitConeVoltage", value),
+                    docNode => docNode.ChangeExplicitConeVoltage(value));
+            }
+        }
+
+        [Format(Formats.OPT_PARAMETER, NullValue = TextUtil.EXCEL_NA)]
+        [Importable]
+        public double? ExplicitDeclusteringPotential
+        {
+            get { return DocNode.ExplicitValues.DeclusteringPotential; }
+            set
+            {
+                ChangeDocNode(EditDescription.SetColumn(@"ExplicitDeclusteringPotential", value),
+                    docNode => docNode.ChangeExplicitDeclusteringPotential(value));
+            }
+        }
+
+        [Importable]
+        public double? ExplicitIonMobilityHighEnergyOffset
+        {
+            get { return DocNode.ExplicitValues.IonMobilityHighEnergyOffset; }
+            set
+            {
+                ChangeDocNode(EditDescription.SetColumn(@"ExplicitIonMobilityHighEnergyOffset", value),
+                    docNode => docNode.ChangeExplicitIonMobilityHighEnergyOffset(value));
+            }
+        }
+
         [InvariantDisplayName("TransitionNote")]
         [Importable]
         public string Note
         {
             get { return DocNode.Note; }
-            set { ChangeDocNode(EditDescription.SetColumn(@"TransitionNote", value),
+            set { ChangeDocNode(EditColumnDescription(nameof(Note), value),
                 docNode=>(TransitionDocNode) docNode.ChangeAnnotations(docNode.Annotations.ChangeNote(value)));}
         }
         [Format(NullValue = TextUtil.EXCEL_NA)]

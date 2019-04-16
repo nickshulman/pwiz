@@ -18,6 +18,8 @@
  */
 using System;
 using System.ComponentModel;
+using System.Globalization;
+using System.Linq;
 using pwiz.Common.DataBinding.Attributes;
 using pwiz.Skyline.Model.Hibernate;
 using pwiz.Skyline.Model.Results;
@@ -52,7 +54,7 @@ namespace pwiz.Skyline.Model.Databinding.Entities
                 var timeIntensitiesGroup = ChromatogramGroup.ReadTimeIntensitiesGroup();
                 if (timeIntensitiesGroup is RawTimeIntensities)
                 {
-                    return new Data(timeIntensitiesGroup.TransitionTimeIntensities[_chromatogramInfo.Value.TransitionIndex]);
+                    return new Data(timeIntensitiesGroup.TransitionTimeIntensities[_chromatogramInfo.Value.TransitionIndex], GetLazyMsDataFileScanIds());
                 }
                 return null;
             }
@@ -75,9 +77,9 @@ namespace pwiz.Skyline.Model.Databinding.Entities
                     var interpolatedTimeIntensities = rawTimeIntensities
                         .TransitionTimeIntensities[_chromatogramInfo.Value.TransitionIndex]
                         .Interpolate(rawTimeIntensities.GetInterpolatedTimes(), rawTimeIntensities.InferZeroes);
-                    return new Data(interpolatedTimeIntensities);
+                    return new Data(interpolatedTimeIntensities, GetLazyMsDataFileScanIds());
                 }
-                return new Data(timeIntensitiesGroup.TransitionTimeIntensities[_chromatogramInfo.Value.TransitionIndex]);
+                return new Data(timeIntensitiesGroup.TransitionTimeIntensities[_chromatogramInfo.Value.TransitionIndex], GetLazyMsDataFileScanIds());
             }
         }
 
@@ -97,6 +99,55 @@ namespace pwiz.Skyline.Model.Databinding.Entities
                 return null;
             }
             return chromatogramInfos[index];
+        }
+
+        private Lazy<MsDataFileScanIds> GetLazyMsDataFileScanIds()
+        {
+            return new Lazy<MsDataFileScanIds>(ChromatogramGroup.ReadMsDataFileScanIds);
+        }
+
+        public class Data
+        {
+            private TimeIntensities _timeIntensities;
+            private Lazy<MsDataFileScanIds> _scanIds;
+            public Data(TimeIntensities timeIntensities, Lazy<MsDataFileScanIds> scanIds)
+            {
+                _timeIntensities = timeIntensities;
+                _scanIds = scanIds;
+            }
+            [Format(NullValue = TextUtil.EXCEL_NA)]
+            public int NumberOfPoints { get { return _timeIntensities.NumPoints; } }
+            [Format(Formats.RETENTION_TIME)]
+            public FormattableList<float> Times { get { return new FormattableList<float>(_timeIntensities.Times); } }
+            [Format(Formats.PEAK_AREA)]
+            public FormattableList<float> Intensities { get { return new FormattableList<float>(_timeIntensities.Intensities); } }
+            [Format(Formats.MASS_ERROR)]
+            public FormattableList<float> MassErrors { get { return new FormattableList<float>(_timeIntensities.MassErrors); }}
+
+            public FormattableList<string> SpectrumIds
+            {
+                get
+                {
+                    if (_timeIntensities.ScanIds == null || _scanIds == null)
+                    {
+                        return null;
+                    }
+
+                    var scanIds = _scanIds.Value;
+                    if (scanIds == null)
+                    {
+                        return null;
+                    }
+
+                    return new FormattableList<string>(_timeIntensities.ScanIds
+                        .Select(index => scanIds.GetMsDataFileSpectrumId(index)).ToArray());
+                }
+            }
+
+            public override string ToString()
+            {
+                return string.Format(Resources.Data_ToString__0__points, NumberOfPoints);
+            }
         }
 
         [Format(Formats.Mz, NullValue = TextUtil.EXCEL_NA)]

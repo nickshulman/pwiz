@@ -62,6 +62,9 @@ struct Config : public Reader::Config
     string contactFilename;
     bool merge;
     IntegerSet runIndexSet;
+    bool stripLocationFromSourceFiles;
+    bool stripVersionFromSoftware;
+    bool singleThreaded;
 
     Config()
         : outputPath("."), verbose(false), merge(false)
@@ -70,6 +73,9 @@ struct Config : public Reader::Config
         srmAsSpectra = false;
         combineIonMobilitySpectra = false;
         unknownInstrumentIsError = true;
+        stripLocationFromSourceFiles = false;
+        stripVersionFromSoftware = false;
+        singleThreaded = false;
     }
 
     string outputFilename(const string& inputFilename, const MSData& inputMSData) const;
@@ -332,7 +338,16 @@ Config parseCommandLine(int argc, char** argv)
             ": some vendor readers have an efficient way of filtering out empty spectra, but it takes more time to open the file")
         ("ignoreUnknownInstrumentError",
             po::value<bool>(&config.unknownInstrumentIsError)->zero_tokens()->default_value(!config.unknownInstrumentIsError),
-            ": if true, if an instrument cannot be determined from a vendor file, it will not be an error ")
+            ": if true, if an instrument cannot be determined from a vendor file, it will not be an error")
+        ("stripLocationFromSourceFiles",
+            po::value<bool>(&config.stripLocationFromSourceFiles)->zero_tokens(),
+            ": if true, sourceFile elements will be stripped of location information, so the same file converted from different locations will produce the same mzML")
+        ("stripVersionFromSoftware",
+            po::value<bool>(&config.stripVersionFromSoftware)->zero_tokens(),
+            ": if true, software elements will be stripped of version information, so the same file converted with different versions will produce the same mzML")
+        ("singleThreaded",
+            po::value<bool>(&config.singleThreaded)->zero_tokens(),
+            ": if true, reading and writing spectra will be done on a single thread")
         ("help",
             po::value<bool>(&detailedHelp)->zero_tokens(),
             ": show this message, with extra detail on filter options")
@@ -632,6 +647,8 @@ Config parseCommandLine(int argc, char** argv)
     if (zlib)
         config.writeConfig.binaryDataEncoderConfig.compression = BinaryDataEncoder::Compression_Zlib;
 
+    config.writeConfig.useWorkerThreads = !config.singleThreaded;
+
     if ((ms_numpress_slof>=0) && ms_numpress_pic)
         throw user_error("[msconvert] Incompatible compression flags 'numpressPic' and 'numpressSlof'.");
 
@@ -685,6 +702,20 @@ void addContactInfo(MSData& msd, const string& contactFilename)
     Contact contact;
     IO::read(is, contact);
     msd.fileDescription.contacts.push_back(contact);
+}
+
+
+void stripSourceFileLocation(MSData& msd)
+{
+    for (const auto& sourceFilePtr : msd.fileDescription.sourceFilePtrs)
+        sourceFilePtr->location = "file:///";
+}
+
+
+void stripSoftwareVersion(MSData& msd)
+{
+    for (const auto& softwarePtr : msd.softwarePtrs)
+        softwarePtr->version = "";
 }
 
 
@@ -787,6 +818,12 @@ int mergeFiles(const vector<string>& filenames, const Config& config, const Read
         string outputFilename = config.outputFilename("merged-spectra", msd);
         *os_ << "writing output file: " << outputFilename << endl;
 
+        if (config.stripLocationFromSourceFiles)
+            stripSourceFileLocation(msd);
+
+        if (config.stripVersionFromSoftware)
+            stripSoftwareVersion(msd);
+
         if (config.outputPath == "-")
             MSDataFile::write(msd, cout, config.writeConfig);
         else
@@ -841,7 +878,8 @@ void processFile(const string& filename, const Config& config, const ReaderList&
         MSData& msd = *msdList[i];
         try
         {
-            // calculate SHA1 checksums
+            *os_ << "calculating source file checksums" << endl;
+            os_->flush();
             calculateSHA1Checksums(msd);
 
             // process the data 
@@ -855,6 +893,12 @@ void processFile(const string& filename, const Config& config, const ReaderList&
             // write out the new data file
             string outputFilename = config.outputFilename(filename, msd);
             *os_ << "writing output file: " << outputFilename << endl;
+
+            if (config.stripLocationFromSourceFiles)
+                stripSourceFileLocation(msd);
+
+            if (config.stripVersionFromSoftware)
+                stripSoftwareVersion(msd);
 
             if (config.outputPath == "-")
                 MSDataFile::write(msd, cout, config.writeConfig, pILR);
@@ -884,7 +928,7 @@ int go(const Config& config)
 {
     *os_ << config;
 
-    if (!bfs::exists(config.outputPath))
+    if (config.outputPath != "-" && !bfs::exists(config.outputPath))
         boost::filesystem::create_directories(config.outputPath);
 
     FullReaderList readers;

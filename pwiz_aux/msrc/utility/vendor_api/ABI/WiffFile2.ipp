@@ -51,6 +51,9 @@ class WiffFile2Impl : public WiffFile
         delete dataReader;
     }
 
+    // prevent multiple Wiff2 files from opening at once, because it currently rewrites DataReader.config every time
+    static gcroot<System::Object^> mutex;
+
     msclr::auto_gcroot<IDataReader^> dataReader;
     mutable gcroot<IList<ISampleInformation^>^> allSamples;
     mutable gcroot<ISampleInformation^> msSample;
@@ -209,7 +212,7 @@ struct Spectrum2Impl : public Spectrum
 typedef boost::shared_ptr<Spectrum2Impl> Spectrum2ImplPtr;
 
 
-void ToStdVectorsFromXyData(IXyData<double>^ xyData, pwiz::util::BinaryData<double>& xVector, pwiz::util::BinaryData<double>& yVector)
+void ToStdVectorsFromXyData(IXyData<double>^ xyData, pwiz::util::BinaryData<double>& xVector, pwiz::util::BinaryData<double>& yVector, double yScaleFactor = 1.0)
 {
     xVector.clear();
     yVector.clear();
@@ -220,26 +223,31 @@ void ToStdVectorsFromXyData(IXyData<double>^ xyData, pwiz::util::BinaryData<doub
         for (size_t i = 0, end = xyData->Count; i < end; ++i)
         {
             xVector.push_back(xyData->GetXValue(i));
-            yVector.push_back(xyData->GetYValue(i));
+            yVector.push_back(xyData->GetYValue(i) * yScaleFactor);
         }
     }
 }
 
+
+gcroot<System::Object^> WiffFile2Impl::mutex = gcnew System::Object();
 
 WiffFile2Impl::WiffFile2Impl(const string& wiffpath)
 : currentSampleIndex(-1), currentPeriod(-1), currentExperiment(-1), currentCycle(-1), wiffpath_(wiffpath)
 {
     try
     {
+        System::Threading::Monitor::Enter(mutex);
         dataReader = DataReaderFactory::CreateReader();
         allSamples = dataReader->ExtractSampleInformation(ToSystemString(wiffpath));
+        System::Threading::Monitor::Exit(mutex);
 
         // This caused WIFF files where the first sample had been interrupted to
         // throw before they could be successfully constructed, which made investigators
         // unhappy when they were seeking access to later, successfully acquired samples.
         // setSample(1);
     }
-    CATCH_AND_FORWARD
+    catch (std::exception&) { System::Threading::Monitor::Exit(mutex); throw; }
+    catch (System::Exception^ e) { System::Threading::Monitor::Exit(mutex); throw std::runtime_error(trimFunctionMacro(__FUNCTION__, "") + pwiz::util::ToStdString(e->Message)); }
 }
 
 
@@ -779,7 +787,7 @@ void Spectrum2Impl::getData(bool doCentroid, pwiz::util::BinaryData<double>& mz,
             }
         }
 
-        ToStdVectorsFromXyData(spectrumData, mz, intensities);        
+        ToStdVectorsFromXyData(spectrumData, mz, intensities, doCentroid ? PEAK_AREA_SCALE_FACTOR : 1);        
     }
     CATCH_AND_FORWARD
 }

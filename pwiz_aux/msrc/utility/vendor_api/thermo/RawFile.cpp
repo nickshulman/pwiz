@@ -128,6 +128,7 @@ class RawFileImpl : public RawFile
     virtual const vector<MassAnalyzerType>& getMassAnalyzers() const;
     virtual const vector<DetectorType>& getDetectors() const;
 
+    virtual std::string getSampleID() const;
     virtual std::string getTrailerExtraValue(long scanNumber, const std::string& name) const;
     virtual double getTrailerExtraValueDouble(long scanNumber, const std::string& name) const;
     virtual long getTrailerExtraValueLong(long scanNumber, const std::string& name) const;
@@ -150,7 +151,6 @@ class RawFileImpl : public RawFile
     IXRawfile5Ptr raw_;
     int rawInterfaceVersion_; // IXRawfile=1, IXRawfile2=2, IXRawfile3=3, etc.
 #endif // WIN32
-    gcroot<System::Object^> mutex_;
 
     string filename_;
     bool isTemporary_;
@@ -179,9 +179,7 @@ RawFileImpl::RawFileImpl(const string& filename)
     currentControllerNumber_(-1)
 {
     try
-    {
-        mutex_ = gcnew System::Object();
-        
+    {        
         // if file is on a network drive, copy it to a temporary local file
         /*if (::PathIsNetworkPath(filename.c_str()))
         {
@@ -596,6 +594,16 @@ const vector<DetectorType>& RawFileImpl::getDetectors() const
     if (detectors_.empty())
         detectors_ = getDetectorsForInstrumentModel(getInstrumentModel());
     return detectors_;
+}
+
+
+std::string RawFileImpl::getSampleID() const
+{
+#ifndef _WIN64
+    return value(SeqRowSampleID);
+#else
+    return ToStdString(raw_->SampleInformation->SampleId);
+#endif
 }
 
 
@@ -1235,7 +1243,6 @@ void ScanInfoImpl::initStatusLog() const
     if (scanNumber_ == 0)
         return;
 
-    Lock lock(rawfile_->mutex_);
     if (!statusLogInitialized_)
         initStatusLogHelper();
 }
@@ -1276,7 +1283,6 @@ void ScanInfoImpl::initTrailerExtra() const
     if (scanNumber_ == 0)
         return;
 
-    Lock lock(rawfile_->mutex_);
     if (!trailerExtraInitialized_)
         initTrailerExtraHelper();
 }
@@ -1366,6 +1372,9 @@ namespace {
 void ScanInfoImpl::parseFilterString()
 {
 #ifndef _WIN64
+    if (filter_.empty())
+        return;
+
     ScanFilter filterParser;
     try
     {
@@ -1420,6 +1429,9 @@ void ScanInfoImpl::parseFilterString()
     for (size_t i=0; i < filterParser.scanRangeMin_.size(); ++i)
         scanRanges_.push_back(make_pair(filterParser.scanRangeMin_[i], filterParser.scanRangeMax_[i]));
 #else // is WIN64
+    if ((IScanFilter^) filter_ == nullptr)
+        return;
+
     try
     {
         auto msOrder = filter_->MSOrder;

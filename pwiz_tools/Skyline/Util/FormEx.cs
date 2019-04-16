@@ -19,6 +19,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Drawing;
 using System.Reflection;
@@ -29,7 +30,8 @@ using pwiz.Skyline.Util.Extensions;
 
 namespace pwiz.Skyline.Util
 {
-    public class FormEx : Form, IFormView
+    public class FormEx : Form, IFormView, 
+                     Helpers.IModeUIAwareForm // Can translate "peptide"=>"molecule" etc if desired
     {
         public static bool ShowFormNames { get; set; }
 
@@ -37,30 +39,48 @@ namespace pwiz.Skyline.Util
 
         private const int TIMEOUT_SECONDS = 10;
         private static readonly List<FormEx> _undisposedForms = new List<FormEx>();
+        private Helpers.ModeUIAwareFormHelper _modeUIHelper;
+        public Helpers.ModeUIExtender modeUIHandler; // Allows UI mode management in Designer
+        private Container _components; // For IExtender use
+
+
+        public FormEx()
+        {
+            InitializeComponent(); // Required for Windows Form Designer support
+        }
+
+        #region Windows Form Designer generated code
+
+        /// <summary>
+        /// Required method for Designer support - do not modify
+        /// the contents of this method with the code editor.
+        /// </summary>
+        private void InitializeComponent()
+        {
+            this._components = new System.ComponentModel.Container();
+            this.modeUIHandler = new Helpers.ModeUIExtender(_components);
+            this._modeUIHelper = new Helpers.ModeUIAwareFormHelper(modeUIHandler);
+            ((System.ComponentModel.ISupportInitialize)(this.modeUIHandler)).BeginInit();
+        }
+        #endregion
+
+        public Helpers.ModeUIAwareFormHelper GetModeUIHelper() // Method instead of property so it doesn't show up in Designer
+        {
+            return _modeUIHelper; 
+        }
+
+        public string ModeUIAwareStringFormat(string format, params object[] args)
+        {
+            return _modeUIHelper.Format(format, args);
+        }
 
         private bool IsCreatingHandle()
         {
-            var GetState = GetType().GetMethod("GetState", BindingFlags.NonPublic | BindingFlags.Instance);
+            var GetState = GetType().GetMethod(@"GetState", BindingFlags.NonPublic | BindingFlags.Instance);
             Assume.IsNotNull(GetState);
 
             // ReSharper disable once PossibleNullReferenceException
             return (bool) GetState.Invoke(this, new object[] { STATE_CREATINGHANDLE });
-        }
-
-        protected override void CreateHandle()
-        {
-            base.CreateHandle();
-
-            // If Control.CreateHandle really throws an unhandleable exception, which could cause the finally
-            // block in Control.CreateHandle to not get executed, this code will not be reachable and the exception
-            // is passed on, and as the stack unwinds this form will get disposed and throw the "Can't dispose
-            // while creating handle exception" since the STATE_CREATINGHANDLE flag is still set
-            if (Program.FunctionalTest && IsCreatingHandle())
-            {
-                const string formatHandleCreateInfo =
-                    "\r\n[WARNING] STATE_CREATINGHANDLE set after handle creation in form of type '{0}'. Stack Trace:\r\n{1}\r\n\r\n";
-                Program.Log?.Invoke(string.Format(formatHandleCreateInfo, GetType(), Environment.StackTrace));
-            }
         }
 
         /// <summary>
@@ -142,6 +162,9 @@ namespace pwiz.Skyline.Util
                 }
             }
 
+            // Potentially replace "peptide" with "molecule" etc in all controls on open, or possibly disable non-proteomic components etc
+            GetModeUIHelper().OnLoad(this);
+
             if (ShowFormNames)
             {
                 string textAppend = @"  (" + GetType().Name + @")";
@@ -154,6 +177,7 @@ namespace pwiz.Skyline.Util
             get { return Program.FunctionalTest || Program.SkylineOffscreen; }
         }
 
+        [Localizable(false)]
         protected override void Dispose(bool disposing)
         {
             if (Program.FunctionalTest && IsCreatingHandle())
@@ -161,9 +185,20 @@ namespace pwiz.Skyline.Util
                 // We might be in a stack unwind at this point, so we print out some information
                 // and return so that we don't call base.Dispose and maybe get to find out what
                 // the "current exception" is
-                const string formatDisposeInfo =
-                    "\r\n[WARNING] Attempting to dispose form of type '{0}' during handle creation. StackTrace:\r\n{1}\r\n\r\n";
-                Program.Log?.Invoke(string.Format(formatDisposeInfo, GetType(), Environment.StackTrace));
+                Program.Log?.Invoke(string.Format(
+                    "\r\n[WARNING] Attempting to dispose form of type '{0}' during handle creation. StackTrace:\r\n{1}\r\n",
+                    GetType(), Environment.StackTrace));
+
+                var exceptionPtrs = ExceptionPointers.Current;
+                if (exceptionPtrs == null)
+                {
+                    Program.Log?.Invoke("ExceptionPointers is null\r\n\r\n");
+                }
+                else
+                {
+                    Program.Log?.Invoke(string.Format("ExceptionPointers: {0}\r\nModule List:{1}\r\n\r\n",
+                        exceptionPtrs, ExceptionPointers.GetModuleList()));
+                }
 
                 return;
             }
@@ -183,9 +218,9 @@ namespace pwiz.Skyline.Util
             catch (InvalidOperationException x)
             {
                 var message = TextUtil.LineSeparate(
-                    string.Format(@"Exception thrown attempting to dispose {0}", GetType()),
+                    string.Format("Exception thrown attempting to dispose {0}", GetType()),
                     x.Message,
-                    @"Exception caught at: " + new StackTrace());
+                    "Exception caught at: " + new StackTrace());
                 throw new InvalidOperationException(message, x);
             }
         }
@@ -268,5 +303,6 @@ namespace pwiz.Skyline.Util
         }
 
         public virtual string DetailedMessage { get { return null; } }
+
     }
 }

@@ -63,7 +63,15 @@ namespace pwiz.Skyline.Model.Databinding.Entities
             return chromatogramGroupInfo.TimeIntensitiesGroup;
         }
 
+        public MsDataFileScanIds ReadMsDataFileScanIds()
         private IList<TransitionChromatogram> GetTransitionChromatograms()
+        {
+            return DataSchema.ChromDataCache.GetScanIds(DataSchema.Document,
+                PrecursorResult.GetResultFile().ChromFileInfo.FilePath);
+        }
+
+        private ChromatogramGroupInfo GetChromatogramGroup(bool loadPoints)
+        {
         {
             return Enumerable.Range(0, _chromatogramGroupInfo.NumTransitions)
                 .Select(i => new TransitionChromatogram(this, new ChromatogramInfo(_chromatogramGroupInfo, i)))

@@ -24,6 +24,8 @@
 #include "pwiz/utility/misc/Std.hpp"
 #include "pwiz/data/msdata/SpectrumWorkerThreads.hpp"
 #include "pwiz/data/msdata/SpectrumListWrapper.hpp"
+#include "pwiz/analysis/spectrum_processing/SpectrumList_Demux.hpp"
+#include "pwiz/analysis/demux/DemuxDataProcessingStrings.hpp"
 #include "pwiz/utility/misc/mru_list.hpp"
 #include <boost/thread.hpp>
 #include <deque>
@@ -31,7 +33,7 @@
 
 using std::deque;
 using namespace pwiz::util;
-
+using namespace pwiz::analysis;
 
 namespace pwiz {
 namespace msdata {
@@ -40,7 +42,7 @@ class SpectrumWorkerThreads::Impl
 {
     public:
 
-    Impl(const SpectrumList& sl)
+    Impl(const SpectrumList& sl, bool useWorkerThreads)
         : sl_(sl)
         , numThreads_(boost::thread::hardware_concurrency())
         , maxProcessedTaskCount_(numThreads_ * 4)
@@ -65,17 +67,17 @@ class SpectrumWorkerThreads::Impl
                 if (!pm.hasCVParam(MS_data_processing)) continue;
                 BOOST_FOREACH(const UserParam& up, pm.userParams)
                 {
-                    if (up.name.find("Demultiplexing") != std::string::npos)
+                    if (up.name.find(DemuxDataProcessingStrings::kDEMUX_NAME) != std::string::npos)
                     {
                         isDemultiplexed = true;
-                        break;
                     }
                 }
                 if (isDemultiplexed) break;
             }
         }
 
-        useThreads_ = !(isBruker || isDemultiplexed); // Bruker library is not thread-friendly
+        useThreads_ = useWorkerThreads && !(isBruker || (isDemultiplexed)); // Bruker library is not thread-friendly
+        //useThreads_ = !(isBruker); // Bruker library is not thread-friendly
 
         if (sl.size() > 0 && useThreads_)
         {
@@ -280,7 +282,7 @@ class SpectrumWorkerThreads::Impl
 };
 
 
-SpectrumWorkerThreads::SpectrumWorkerThreads(const SpectrumList& sl) : impl_(new Impl(sl)) {}
+SpectrumWorkerThreads::SpectrumWorkerThreads(const SpectrumList& sl, bool useWorkerThreads) : impl_(new Impl(sl, useWorkerThreads)) {}
 
 SpectrumWorkerThreads::~SpectrumWorkerThreads() {}
 

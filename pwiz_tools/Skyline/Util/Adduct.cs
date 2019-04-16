@@ -128,7 +128,7 @@ namespace pwiz.Skyline.Util
                 // Check for implied positive ion mode - we see "MH", "MH+", "MNH4+" etc in the wild
                 // Also watch for for label-only like  "[M2Cl37]"
                 var posNext = input.IndexOf('M') + 1;
-                if (posNext > 0)
+                if (posNext > 0 && posNext < input.Length)
                 {
                     if (input[posNext] != '+' && input[posNext] != '-') 
                     {
@@ -181,6 +181,10 @@ namespace pwiz.Skyline.Util
                 {
                     // No leading + or - : is it because description starts with a label, or because + mode is implied?
                     var limit = input.IndexOfAny(new[] { '+', '-', ']' });
+                    if (limit < 0)
+                    {
+                        return null;
+                    }
                     double test;
                     if (double.TryParse(input.Substring(posNext, limit - posNext),
                         NumberStyles.Float | NumberStyles.AllowThousands, NumberFormatInfo.InvariantInfo, out test))
@@ -213,7 +217,7 @@ namespace pwiz.Skyline.Util
             new Regex(
                 @"\[?(?<multM>\d*)M(?<label>(\(.*\)|[^\+\-]*))?(?<adduct>[\+\-][^\]]*)(\](?<declaredChargeCount>\d*)(?<declaredChargeSign>[+-]*)?)?$",
                 RegexOptions.ExplicitCapture | RegexOptions.Singleline | RegexOptions.CultureInvariant);
-        private static readonly Regex ADDUCT_INNER_REGEX = new Regex(@"(?<oper>\+|\-)(?<multM>\d+)?(?<ion>[^-+]*)",
+        private static readonly Regex ADDUCT_INNER_REGEX = new Regex(@"(?<oper>\+|\-)(?<multM>\d+)?\(?(?<ion>[^-+\)]*)\)?",
             RegexOptions.ExplicitCapture | RegexOptions.Singleline | RegexOptions.CultureInvariant);
         private static readonly Regex ADDUCT_ION_REGEX = new Regex(@"(?<multM>\d+)?(?<ion>[A-Z][a-z]?['\""]?)",
             RegexOptions.ExplicitCapture | RegexOptions.Singleline | RegexOptions.CultureInvariant);
@@ -316,10 +320,10 @@ namespace pwiz.Skyline.Util
                             {
                                 success = int.TryParse(multMstr, out multiplierM);
                             }
+
                             var isotope = m.Groups[@"ion"].Value;
-                            // ReSharper disable LocalizableElement
-                            var unlabel = isotope.Replace("'", "").Replace("\"", "");
-                            // ReSharper restore LocalizableElement
+                            var unlabel = BioMassCalc.DICT_HEAVYSYMBOL_TO_MONOSYMBOL.Aggregate(isotope, (current, kvp) => current.Replace(kvp.Key, kvp.Value));
+
                             isotopeLabels.Add(unlabel, new KeyValuePair<string, int>(isotope, multiplierM));
                         }
                         IsotopeLabels = new ImmutableDictionary<string, KeyValuePair<string, int>>(isotopeLabels);
@@ -993,7 +997,11 @@ namespace pwiz.Skyline.Util
                 {"S33", BioMassCalc.S33},
                 {"S34", BioMassCalc.S34},
                 {"H2", BioMassCalc.H2},
+                {"H3", BioMassCalc.H3},
+                {"D", BioMassCalc.H2},
+                {"T", BioMassCalc.H3},
                 {"C13", BioMassCalc.C13},
+                {"C14", BioMassCalc.C14},
                 {"N15", BioMassCalc.N15},
                 {"O17", BioMassCalc.O17},
                 {"O18", BioMassCalc.O18}
@@ -1465,7 +1473,7 @@ namespace pwiz.Skyline.Util
                 IsotopesIncrementalMonoMass = TypedMass.ZERO_MONO_MASSNEUTRAL;
             }
             Unlabeled = ChangeIsotopeLabels(string.Empty); // Useful for dealing with labels and mass-only small molecule declarations
-            IsProtonated = Composition.Any() && Composition.All(pair => pair.Key == BioMassCalc.H || pair.Key == BioMassCalc.H2);
+            IsProtonated = Composition.Any() && Composition.All(pair => pair.Key == BioMassCalc.H || pair.Key == BioMassCalc.H2 || pair.Key == BioMassCalc.H3);
             IsProteomic = IsProtonated && string.IsNullOrEmpty(Description); 
         }
 

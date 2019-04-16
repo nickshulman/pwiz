@@ -49,7 +49,7 @@ rule test-data
     {
         .extract-once = true ;
         import tar ;
-        tar.extract $(TEST_DATA_PATH).tar.bz2 : : : : check-last-file-only ;
+        tar.extract $(TEST_DATA_PATH).tar.bz2 : : : : <check-last-file-only>true <keep-old-files>true ;
     }
 
     local result ;
@@ -241,34 +241,32 @@ blib-test-build maxquant3 : -o -E -p@$(TEST_DATA_PATH)/test-mq3-mqpar.xml -x@$(T
 blib-test-build maxquant-yeast-wiff : -o -p@$(TEST_DATA_PATH)/yeast-wiff-mqpar.xml : output/maxquant-yeast-wiff.blib : maxquant-yeast-wiff.check zbuild.skip-lines : inputs/yeast-wiff-msms.txt ;
 
 # Test mzid format from scaffold
-
 blib-test-build scaffold : -o : output/scaffold.blib : scaffold.check : inputs/scaffold.mzid ;
 
 # Test mzid format from ByOnic
-
 blib-test-build byonic : -o : output/byonic.blib : byonic.check byonic.skip-lines : inputs/byonic-test.mzid ;
 
 # Test mzid format from MSGF+
-
 blib-test-build msgf-mzid : -o : output/msgf-mzid.blib : msgf-mzid.check : inputs/msgf-test.mzid ;
 blib-test-build msgf-mzid-nativeid : -o : output/msgf-mzid-nativeid.blib : msgf-mzid-nativeid.check : inputs/msgf-test-nativeid.mzid ;
+
+# Test mzid format from PeptideShaker
+blib-test-build peptideshaker-mzid : -o : output/MoTai_PeptideShaker.blib : MoTai_PeptideShaker.check : inputs/MoTai_PeptideShaker_subset.mzid ;
 
 # Test mzid format from MetaMorpheus and WIFF
 blib-test-build metamorpheus-mzid : -o : output/metamorpheus.blib : metamorpheus.check : inputs/metamorpheus.mzid ;
 
 # Test waters csv format
-
 blib-test-build mse : -o : output/mse.blib : mse.check : inputs/tiny_final_fragment.csv ;
 
 # Test waters csv format with precursor mobility
-
 blib-test-build mse-mobility : -o -P@0.068999 : output/mse-mobility.blib : mse-mobility.check : inputs/waters-mobility.final_fragment.csv : <vendor-api-support>on ;
 
 # Check backward compatibilty with previous notions of ion mobility
 blib-test-build mse-mobility-v12 : -o : output/mse-mobility-from-v12.blib : mse-mobility-from-v12.check mse-mobility.skip-lines : inputs/mse-mobility-v12.blib ;
-blib-test-build mse-mobility-v13 : -o : output/mse-mobility-from-v13.blib : mse-mobility.check mse-mobility.skip-lines : inputs/mse-mobility-v13.blib ;
-blib-test-build mse-mobility-v14 : -o : output/mse-mobility-from-v14.blib : mse-mobility.check mse-mobility.skip-lines : inputs/mse-mobility-v14.blib ;
-blib-test-build mse-mobility-v15 : -o : output/mse-mobility-from-v15.blib : mse-mobility.check mse-mobility.skip-lines : inputs/mse-mobility-v15.blib ;
+blib-test-build mse-mobility-v13 : -o : output/mse-mobility-from-v13.blib : mse-mobility-no-silac.check mse-mobility.skip-lines : inputs/mse-mobility-v13.blib ;
+blib-test-build mse-mobility-v14 : -o : output/mse-mobility-from-v14.blib : mse-mobility-no-silac.check mse-mobility.skip-lines : inputs/mse-mobility-v14.blib ;
+blib-test-build mse-mobility-v15 : -o : output/mse-mobility-from-v15.blib : mse-mobility-no-silac.check mse-mobility.skip-lines : inputs/mse-mobility-v15.blib ;
 
 # Test building with Mascot .dat files, contingent on Mascot support (FIXME: these tests are broken on Linux)
 
@@ -282,6 +280,7 @@ blib-test-build mascot_tims : -o : output/mascot_tims.blib : mascot_tims.check :
 
 blib-test-build openswath : -o : output/openswath.blib : openswath.check openswath.skip-lines : inputs/openswath_test.tsv ;
 blib-test-build openswath-osw : -o : output/openswath-osw.blib : openswath-osw.check openswath.skip-lines : inputs/test.osw ;
+blib-test-build openswath-invalid-tsv : -o -e@~Only_OpenSWATH~ : output/openswath-invalid-tsv.blib : openswath-invalid-tsv.check zbuild.skip-lines : inputs/ssl-small-mol.tsv ;
 
 # we expect this one to fail, with the error message 'ERROR: Failure reading TIMS ion mobility value ":0.78079097398941"', so args are "-e 0.78079097398941"
 blib-test-build mascot_tims_bad : -e@0.78079097398941 -o : output/mascot_tims_bad.blib : mascot_tims_bad.check : inputs/mascot_tims_bad.dat : <conditional>@mascot-installed <toolset>gcc:<build>no ;

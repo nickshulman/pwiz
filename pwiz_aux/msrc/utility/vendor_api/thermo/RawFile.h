@@ -62,11 +62,12 @@ enum PWIZ_API_DECL ControllerType
 #ifdef _WIN64
     Controller_UV,
     Controller_PDA,
-    Controller_Other
+    Controller_Other,
 #else
     Controller_PDA,
-    Controller_UV
+    Controller_UV,
 #endif
+    Controller_Count
 };
 
 
@@ -437,6 +438,7 @@ class PWIZ_API_DECL RawFile
     virtual const std::vector<MassAnalyzerType>& getMassAnalyzers() const = 0;
     virtual const std::vector<DetectorType>& getDetectors() const = 0;
 
+    virtual std::string getSampleID() const = 0;
     virtual std::string getTrailerExtraValue(long scanNumber, const std::string& name) const = 0;
     virtual double getTrailerExtraValueDouble(long scanNumber, const std::string& name) const = 0;
     virtual long getTrailerExtraValueLong(long scanNumber, const std::string& name) const = 0;

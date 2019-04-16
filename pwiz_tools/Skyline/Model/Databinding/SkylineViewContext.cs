@@ -36,6 +36,7 @@ using pwiz.Skyline.Controls;
 using pwiz.Skyline.Model.AuditLog;
 using pwiz.Skyline.Model.Databinding.Collections;
 using pwiz.Skyline.Model.Databinding.Entities;
+using pwiz.Skyline.Model.Databinding.RowActions;
 using pwiz.Skyline.Model.Hibernate;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
@@ -428,6 +429,7 @@ namespace pwiz.Skyline.Model.Databinding
                 if (columnDescriptor.PropertyType == typeof(Protein))
                 {
                     columnsToRemove.Add(PropertyPath.Root.Property("Name"));
+                    columnsToRemove.Add(PropertyPath.Root.Property(nameof(Protein.AutoSelectPeptides)));
                     if (docHasOnlyCustomIons)
                     {
                         // Peptide-oriented fields that make no sense in a small molecule context
@@ -441,6 +443,7 @@ namespace pwiz.Skyline.Model.Databinding
                 }
                 else if (columnDescriptor.PropertyType == typeof(Entities.Peptide))
                 {
+                    columnsToRemove.Add(PropertyPath.Root.Property(nameof(Entities.Peptide.AutoSelectPrecursors)));
                     columnsToRemove.Add(PropertyPath.Root.Property("Sequence"));
                     columnsToRemove.Add(PropertyPath.Root.Property("SequenceLength"));
                     columnsToRemove.Add(PropertyPath.Root.Property("PreviousAa"));
@@ -452,6 +455,7 @@ namespace pwiz.Skyline.Model.Databinding
                     columnsToRemove.Add(PropertyPath.Root.Property("CalibrationCurve"));
                     columnsToRemove.Add(PropertyPath.Root.Property("FiguresOfMerit"));
                     columnsToRemove.Add(PropertyPath.Root.Property("NormalizationMethod"));
+                    columnsToRemove.Add(PropertyPath.Root.Property(nameof(Entities.Peptide.AutoSelectPrecursors)));
                     foreach (var prop in MoleculeAccessionNumbers.PREFERRED_ACCESSION_TYPE_ORDER)
                         columnsToRemove.Add(PropertyPath.Root.Property(prop)); // By default don't show CAS, InChI etc
                     if (docHasOnlyCustomIons)
@@ -480,7 +484,6 @@ namespace pwiz.Skyline.Model.Databinding
                     }
                     if (!docHasCustomIons)
                     {
-                        columnsToRemove.Add(PropertyPath.Root.Property("ExplicitCollisionEnergy"));
                         columnsToRemove.Add(PropertyPath.Root.Property("IonName"));
                         columnsToRemove.Add(PropertyPath.Root.Property("IonFormula"));
                         columnsToRemove.Add(PropertyPath.Root.Property("NeutralFormula"));
@@ -497,20 +500,23 @@ namespace pwiz.Skyline.Model.Databinding
                     columnsToRemove.Add(PropertyPath.Root.Property("IsDecoy"));
                     columnsToRemove.Add(PropertyPath.Root.Property("DecoyMzShift"));
                     columnsToRemove.Add(PropertyPath.Root.Property("ExplicitDriftTimeMsec"));
-                    columnsToRemove.Add(PropertyPath.Root.Property("ExplicitDriftTimeHighEnergyOffsetMsec"));
                     columnsToRemove.Add(PropertyPath.Root.Property("ExplicitCollisionalCrossSection"));
                     columnsToRemove.Add(PropertyPath.Root.Property("ExplicitIonMobility"));
-                    columnsToRemove.Add(PropertyPath.Root.Property("ExplicitIonMobilityHighEnergyOffset"));
                     columnsToRemove.Add(PropertyPath.Root.Property("ExplicitIonMobilityUnits"));
                     columnsToRemove.Add(PropertyPath.Root.Property("ExplicitCompensationVoltage"));
-                    columnsToRemove.Add(PropertyPath.Root.Property("ExplicitDeclusteringPotential"));
-                    columnsToRemove.Add(PropertyPath.Root.Property("ExplicitSLens"));
-                    columnsToRemove.Add(PropertyPath.Root.Property("ExplicitConeVoltage"));
                     columnsToRemove.Add(PropertyPath.Root.Property("PrecursorConcentration"));
+                    columnsToRemove.Add(PropertyPath.Root.Property(nameof(Precursor.AutoSelectTransitions)));
                     addRoot = true;
                 }
                 else if (columnDescriptor.PropertyType == typeof(Entities.Transition))
                 {
+                    columnsToRemove.Add(PropertyPath.Root.Property("ExplicitCollisionEnergy"));
+                    columnsToRemove.Add(PropertyPath.Root.Property("ExplicitDriftTimeHighEnergyOffsetMsec"));
+                    columnsToRemove.Add(PropertyPath.Root.Property("ExplicitIonMobilityHighEnergyOffset"));
+                    columnsToRemove.Add(PropertyPath.Root.Property("ExplicitCompensationVoltage"));
+                    columnsToRemove.Add(PropertyPath.Root.Property("ExplicitDeclusteringPotential"));
+                    columnsToRemove.Add(PropertyPath.Root.Property("ExplicitSLens"));
+                    columnsToRemove.Add(PropertyPath.Root.Property("ExplicitConeVoltage"));
                     columnsToRemove.Add(PropertyPath.Root.Property("ResultSummary"));
                     columnsToRemove.Add(PropertyPath.Root.Property("ProductNeutralMass"));
                     columnsToRemove.Add(PropertyPath.Root.Property("FragmentIonType"));
@@ -545,6 +551,7 @@ namespace pwiz.Skyline.Model.Databinding
                 {
                     columnsToRemove.Add(PropertyPath.Root.Property("Name"));
                     columnsToRemove.Add(PropertyPath.Root.Property("SampleDilutionFactor"));
+                    columnsToRemove.Add(PropertyPath.Root.Property(nameof(Replicate.BatchName)));
                     addRoot = true;
                 }
                 viewSpec = viewSpec.SetSublistId(GetReplicateSublist(columnDescriptor.PropertyType));
@@ -665,9 +672,12 @@ namespace pwiz.Skyline.Model.Databinding
 
         public static IEnumerable<RowSourceInfo> GetDocumentGridRowSources(SkylineDataSchema dataSchema)
         {
-            yield return MakeRowSource<Protein>(dataSchema, Resources.SkylineViewContext_GetDocumentGridRowSources_Proteins,
+            bool proteomic = dataSchema.DefaultUiMode == UiModes.PROTEOMIC;
+            yield return MakeRowSource<Protein>(dataSchema, 
+                proteomic ? Resources.SkylineViewContext_GetDocumentGridRowSources_Proteins : Resources.SkylineViewContext_GetDocumentGridRowSources_Molecule_Lists,
                 () => new Proteins(dataSchema));
-            yield return MakeRowSource<Entities.Peptide>(dataSchema, Resources.SkylineViewContext_GetDocumentGridRowSources_Peptides,
+            yield return MakeRowSource<Entities.Peptide>(dataSchema, 
+                proteomic ? Resources.SkylineViewContext_GetDocumentGridRowSources_Peptides : Resources.SkylineViewContext_GetDocumentGridRowSources_Molecules,
                 () => new Peptides(dataSchema, new[] {IdentityPath.ROOT}));
             yield return MakeRowSource<Precursor>(dataSchema, Resources.SkylineViewContext_GetDocumentGridRowSources_Precursors, 
                 () => new Precursors(dataSchema, new[] { IdentityPath.ROOT }));
@@ -711,14 +721,14 @@ namespace pwiz.Skyline.Model.Databinding
             return column;
         }
 
-        private static readonly IDictionary<string, int> _imageIndexes = new Dictionary<string, int>
+        private static readonly IDictionary<string, Tuple<int, int>> _imageIndexes = new Dictionary<string, Tuple<int, int>>
         {
             // ReSharper disable RedundantNameQualifier
-            {typeof (Entities.Protein).FullName, 1},
-            {typeof (Entities.Peptide).FullName, 2},
-            {typeof (Entities.Precursor).FullName, 3},
-            {typeof (Entities.Transition).FullName, 4},
-            {typeof (Entities.Replicate).FullName, 5}
+            {typeof (Entities.Protein).FullName, Tuple.Create(1, 6)},
+            {typeof (Entities.Peptide).FullName, Tuple.Create(2, 7)},
+            {typeof (Entities.Precursor).FullName, Tuple.Create(3, 3)},
+            {typeof (Entities.Transition).FullName, Tuple.Create(4, 4)},
+            {typeof (Entities.Replicate).FullName, Tuple.Create(5, 5)}
             // ReSharper restore RedundantNameQualifier
         };
 
@@ -732,15 +742,21 @@ namespace pwiz.Skyline.Model.Databinding
                 Resources.TransitionGroup,
                 Resources.Fragment,
                 Resources.Replicate,
+                Resources.MoleculeList,
+                Resources.Molecule,
             };
         }
 
         public override int GetImageIndex(ViewSpec viewSpec)
         {
-            int imageIndex;
+            Tuple<int, int> imageIndex;
             if (_imageIndexes.TryGetValue(viewSpec.RowSource, out imageIndex))
             {
-                return imageIndex;
+                if (DataSchema.NormalizeUiMode(viewSpec.UiMode) == UiModes.PROTEOMIC)
+                {
+                    return imageIndex.Item1;
+                }
+                return imageIndex.Item2;
             }
             return -1;
         }
@@ -838,82 +854,23 @@ namespace pwiz.Skyline.Model.Databinding
             }
         }
 
-        protected void DeleteSkylineDocNodes(Control owner, ICollection<SkylineDocNode> docNodes)
+        protected void DeleteSkylineDocNodes(BoundDataGridView dataGridView, IEnumerable<SkylineDocNode> docNodes)
         {
-            if (docNodes.Count == 0)
-            {
-                return;
-            }
-            var confirmationMessages = docNodes.Select(node => node.GetDeleteConfirmation(docNodes.Count)).Distinct()
-                .ToArray();
-            string message = confirmationMessages.Length == 1
-                ? confirmationMessages[0]
-                : SkylineDocNode.GetGenericDeleteConfirmation(docNodes.Count);
-            if (MultiButtonMsgDlg.Show(owner, message, MultiButtonMsgDlg.BUTTON_OK) != DialogResult.OK)
-            {
-                return;
-            }
-            DeleteDocNodes(new HashSet<IdentityPath>(docNodes.Select(node=>node.IdentityPath)));
+            DeleteNodesAction.DeleteSkylineDocNodes(SkylineDataSchema.SkylineWindow, dataGridView, docNodes);
         }
 
-        protected void DeleteDocNodes(HashSet<IdentityPath> identityPaths)
+        public override IEnumerable<IUiModeInfo> AvailableUiModes
         {
-            var skylineWindow = ((SkylineDataSchema)DataSchema).SkylineWindow;
-            if (null != skylineWindow)
+            get
             {
-                List<IdentityPath> deletedNodePaths = null;
-                skylineWindow.ModifyDocument(Resources.SkylineViewContext_DeleteDocNodes_Delete_items,
-                    doc => DeleteNodes(doc, identityPaths, out deletedNodePaths),
-                    docPair => SkylineWindow.CreateDeleteNodesEntry(docPair,
-                        deletedNodePaths.Select(i => AuditLogEntry.GetNodeName(docPair.OldDoc, docPair.OldDoc.FindNode(i)).ToString()), deletedNodePaths.Count));
-            }
-        }
-
-        protected SrmDocument DeleteNodes(SrmDocument document, HashSet<IdentityPath> identityPathsToDelete, out List<IdentityPath> deletedPaths)
-        {
-            var newDocument = (SrmDocument)DeleteChildren(document, IdentityPath.ROOT, identityPathsToDelete, out deletedPaths);
-            if (newDocument != null)
-            {
-                return newDocument;
-            }
-            return (SrmDocument) document.ChangeChildren(new DocNode[0]);
-        }
-
-        protected DocNode DeleteChildren(DocNode parent, IdentityPath identityPath, HashSet<IdentityPath> pathsToDelete, out List<IdentityPath> deletedPaths)
-        {
-            deletedPaths = new List<IdentityPath>();
-            var docNodeParent = parent as DocNodeParent;
-            if (docNodeParent == null)
-            {
-                return parent;
-            }
-            if (docNodeParent.Children.Count == 0)
-            {
-                return parent;
-            }
-            var newChildren = new List<DocNode>();
-            foreach (var child in docNodeParent.Children)
-            {
-                var childPath = new IdentityPath(identityPath, child.Id);
-                if (pathsToDelete.Contains(childPath))
+                var skylineWindow = SkylineDataSchema.SkylineWindow;
+                if (skylineWindow == null)
                 {
-                    deletedPaths.Add(childPath);
-                    continue;
+                    return UiModes.AllModes;
                 }
 
-                List<IdentityPath> deletedChildPaths;
-                var newChild = DeleteChildren(child, childPath, pathsToDelete, out deletedChildPaths);
-                if (newChild != null)
-                    newChildren.Add(newChild); 
-                deletedPaths.AddRange(deletedChildPaths);
+                return UiModes.AvailableModes(SkylineDataSchema.SkylineWindow.ModeUI);
             }
-            if (newChildren.Count == 0)
-            {
-                deletedPaths.Clear();
-                deletedPaths.Add(identityPath);
-                return null;
-            }
-            return docNodeParent.ChangeChildren(newChildren);
         }
     }
 }

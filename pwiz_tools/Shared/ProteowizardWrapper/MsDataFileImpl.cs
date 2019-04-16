@@ -135,7 +135,8 @@ namespace pwiz.ProteowizardWrapper
                     srmAsSpectra = srmAsSpectra,
                     acceptZeroLengthSpectra = acceptZeroLengthSpectra,
                     ignoreZeroIntensityPoints = ignoreZeroIntensityPoints,
-                    preferOnlyMsLevel = preferOnlyMsLevel
+                    preferOnlyMsLevel = preferOnlyMsLevel,
+                    allowMsMsWithoutPrecursor = false
                 };
                 _lockmassParameters = lockmassParameters;
                 FULL_READER_LIST.read(path, _msDataFile, sampleIndex, _config);
@@ -533,6 +534,21 @@ namespace pwiz.ProteowizardWrapper
             return GetMaxIonMobilityInList();
         }
 
+        /// <summary>
+        /// Gets the value of the MS_sample_name CV param of first sample in the MSData object, or null if there is no sample information.
+        /// </summary>
+        public string GetSampleId()
+        {
+            var samples = _msDataFile.samples;
+            if (samples.Count > 0)
+            {
+                var sampleId = (string) samples[0].cvParam(CVID.MS_sample_name).value;
+                if (sampleId.Length > 0)
+                    return sampleId;
+            }
+            return null;
+        }
+
         public int ChromatogramCount
         {
             get { return ChromatogramList != null ? ChromatogramList.size() : 0; }
@@ -904,7 +920,7 @@ namespace pwiz.ProteowizardWrapper
 
         public bool GetIonMobilityIsInexpensive
         {
-            get { return _detailIonMobility == DetailLevel.InstantMetadata; }
+            get { return _detailIonMobility <= DetailLevel.FastMetadata; }
         }
 
         public IonMobilityValue GetIonMobility(int scanIndex)
@@ -912,7 +928,7 @@ namespace pwiz.ProteowizardWrapper
             using (var spectrum = SpectrumList.spectrum(scanIndex, _detailIonMobility))
             {
                 var ionMobility = GetIonMobility(spectrum);
-                if (ionMobility != null || _detailIonMobility >= DetailLevel.FullMetadata)
+                if ((ionMobility != null && ionMobility.HasValue) || _detailIonMobility >= DetailLevel.FullMetadata)
                     return ionMobility;
 
                 // If level is not found with faster metadata methods, try the slower ones.

@@ -32,5 +32,11 @@ namespace pwiz.Skyline.Model.Databinding.Entities
                 PrecursorResult.GetResultFile().ChromFileInfo.FilePath, PrecursorResult.Precursor.IdentityPath,
                 loadPoints);
         }
+
+        public MsDataFileScanIds ReadMsDataFileScanIds()
+        {
+            return DataSchema.ChromDataCache.GetScanIds(DataSchema.Document,
+                PrecursorResult.GetResultFile().ChromFileInfo.FilePath);
+        }
     }
 }

@@ -23,6 +23,8 @@ using System.Linq;
 using pwiz.Common.DataBinding.Attributes;
 using pwiz.Skyline.Model.Hibernate;
 using pwiz.Skyline.Model.Results;
+using pwiz.Skyline.Properties;
+using pwiz.Skyline.Util;
 using pwiz.Skyline.Util.Extensions;
 
 namespace pwiz.Skyline.Model.Databinding.Entities
@@ -101,7 +103,7 @@ namespace pwiz.Skyline.Model.Databinding.Entities
             return chromatogramInfos[index];
         }
 
-        private Lazy<MsDataFileScanIds> GetLazyMsDataFileScanIds()
+        protected Lazy<MsDataFileScanIds> GetLazyMsDataFileScanIds()
         {
             return new Lazy<MsDataFileScanIds>(ChromatogramGroup.ReadMsDataFileScanIds);
         }

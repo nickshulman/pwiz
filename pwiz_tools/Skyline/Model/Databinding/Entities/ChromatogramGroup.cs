@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using pwiz.Common.DataBinding.Attributes;
@@ -63,20 +64,13 @@ namespace pwiz.Skyline.Model.Databinding.Entities
             return chromatogramGroupInfo.TimeIntensitiesGroup;
         }
 
-        public MsDataFileScanIds ReadMsDataFileScanIds()
         private IList<TransitionChromatogram> GetTransitionChromatograms()
-        {
-            return DataSchema.ChromDataCache.GetScanIds(DataSchema.Document,
-                PrecursorResult.GetResultFile().ChromFileInfo.FilePath);
-        }
-
-        private ChromatogramGroupInfo GetChromatogramGroup(bool loadPoints)
-        {
         {
             return Enumerable.Range(0, _chromatogramGroupInfo.NumTransitions)
                 .Select(i => new TransitionChromatogram(this, new ChromatogramInfo(_chromatogramGroupInfo, i)))
                 .ToArray();
         }
+
         [OneToMany(ForeignKey = "ChromatogramGroup")]
         public IList<TransitionChromatogram> TransitionChromatograms
         {
@@ -86,5 +80,11 @@ namespace pwiz.Skyline.Model.Databinding.Entities
         public bool IsBasePeak { get { return _chromatogramGroupInfo.Header.Extractor == ChromExtractor.base_peak; } }
         public float? StartTime { get { return _chromatogramGroupInfo.Header.StartTime; } }
         public float? EndTime { get { return _chromatogramGroupInfo.Header.EndTime; } }
+
+        public MsDataFileScanIds ReadMsDataFileScanIds()
+        {
+            return DataSchema.ChromDataCache.GetScanIds(DataSchema.Document,
+                _chromatogramGroupInfo.FilePath);
+        }
     }
 }

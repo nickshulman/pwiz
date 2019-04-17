@@ -1,4 +1,5 @@
-﻿using pwiz.Common.DataBinding.Attributes;
+﻿using System;
+using pwiz.Common.DataBinding.Attributes;
 using pwiz.Skyline.Model.Results;
 
 namespace pwiz.Skyline.Model.Databinding.Entities
@@ -29,7 +30,7 @@ namespace pwiz.Skyline.Model.Databinding.Entities
                 var timeIntensitiesGroup = ChromatogramGroup.ReadTimeIntensitiesGroup();
                 if (timeIntensitiesGroup is RawTimeIntensities)
                 {
-                    return new Chromatogram.Data(timeIntensitiesGroup.TransitionTimeIntensities[_chromatogramInfo.TransitionIndex]);
+                    return new Data(timeIntensitiesGroup.TransitionTimeIntensities[_chromatogramInfo.TransitionIndex], GetLazyMsDataFileScanIds());
                 }
                 return null;
             }
@@ -52,10 +53,14 @@ namespace pwiz.Skyline.Model.Databinding.Entities
                     var interpolatedTimeIntensities = rawTimeIntensities
                         .TransitionTimeIntensities[_chromatogramInfo.TransitionIndex]
                         .Interpolate(rawTimeIntensities.GetInterpolatedTimes(), rawTimeIntensities.InferZeroes);
-                    return new Data(interpolatedTimeIntensities);
+                    return new Data(interpolatedTimeIntensities, GetLazyMsDataFileScanIds());
                 }
-                return new Data(timeIntensitiesGroup.TransitionTimeIntensities[_chromatogramInfo.TransitionIndex]);
+                return new Data(timeIntensitiesGroup.TransitionTimeIntensities[_chromatogramInfo.TransitionIndex], GetLazyMsDataFileScanIds());
             }
+        }
+        private Lazy<MsDataFileScanIds> GetLazyMsDataFileScanIds()
+        {
+            return new Lazy<MsDataFileScanIds>(ChromatogramGroup.ReadMsDataFileScanIds);
         }
     }
 }

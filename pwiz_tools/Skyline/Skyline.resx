@@ -6449,12 +6449,9 @@ first occurrence of any peptide.</value>
   <data name="&gt;&gt;massErrorlogScaleContextMenuItem.Type" xml:space="preserve">
     <value>System.Windows.Forms.ToolStripMenuItem, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </data>
-<<<<<<< HEAD
   <data name="&gt;&gt;chromatogramGridToolStripMenuItem.Name" xml:space="preserve">
     <value>chromatogramGridToolStripMenuItem</value>
   </data>
-  <data name="&gt;&gt;chromatogramGridToolStripMenuItem.Type" xml:space="preserve">
-=======
   <data name="&gt;&gt;documentationToolStripMenuItem.Name" xml:space="preserve">
     <value>documentationToolStripMenuItem</value>
   </data>
@@ -6477,7 +6474,6 @@ first occurrence of any peptide.</value>
     <value>otherDocsHelpMenuItem</value>
   </data>
   <data name="&gt;&gt;otherDocsHelpMenuItem.Type" xml:space="preserve">
->>>>>>> remotes/origin/master
     <value>System.Windows.Forms.ToolStripMenuItem, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </data>
   <data name="&gt;&gt;$this.Name" xml:space="preserve">

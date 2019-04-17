@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Globalization;
 using System.Linq;
@@ -68,9 +69,11 @@ namespace pwiz.Skyline.Model.Databinding.Entities
         public class Data
         {
             private TimeIntensities _timeIntensities;
-            public Data(TimeIntensities timeIntensities)
+            private Lazy<MsDataFileScanIds> _scanIds;
+            public Data(TimeIntensities timeIntensities, Lazy<MsDataFileScanIds> scanIds)
             {
                 _timeIntensities = timeIntensities;
+                _scanIds = scanIds;
             }
             [Format(NullValue = TextUtil.EXCEL_NA)]
             public int NumberOfPoints { get { return _timeIntensities.NumPoints; } }
@@ -80,6 +83,25 @@ namespace pwiz.Skyline.Model.Databinding.Entities
             public FormattableList<float> Intensities { get { return new FormattableList<float>(_timeIntensities.Intensities); } }
             [Format(Formats.MASS_ERROR)]
             public FormattableList<float> MassErrors { get { return new FormattableList<float>(_timeIntensities.MassErrors); } }
+            public FormattableList<string> SpectrumIds
+            {
+                get
+                {
+                    if (_timeIntensities.ScanIds == null || _scanIds == null)
+                    {
+                        return null;
+                    }
+
+                    var scanIds = _scanIds.Value;
+                    if (scanIds == null)
+                    {
+                        return null;
+                    }
+
+                    return new FormattableList<string>(_timeIntensities.ScanIds
+                        .Select(index => scanIds.GetMsDataFileSpectrumId(index)).ToArray());
+                }
+            }
 
             public override string ToString()
             {

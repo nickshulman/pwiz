@@ -413,9 +413,19 @@ namespace pwiz.Skyline.Model.XCorr
                     .ChangeFragmentCharge(1);
             
             var fragmentedMoleculeSettings = _fragmentedMoleculeSettings;
+            var fragmentedMolecule = precursor;
             for (int ordinal = 1; ordinal <= peptideDocNode.Peptide.Sequence.Length; ordinal++)
             {
-                var fragment = precursor.ChangeFragmentIon(ionType, ordinal).FragmentFormula;
+                if (ordinal == 1)
+                {
+                    fragmentedMolecule = precursor.ChangeFragmentIon(ionType, 1);
+                }
+                else
+                {
+                    fragmentedMolecule = fragmentedMolecule.IncrementFragmentOrdinal();
+                }
+                
+                var fragment = fragmentedMolecule.FragmentFormula;
                 var monoMass = fragmentedMoleculeSettings.GetMassDistribution(fragment, 0, 1).MostAbundanceMass;
                 yield return new FragmentIon(monoMass, ordinal, ionType);
             }

@@ -188,7 +188,7 @@ namespace pwiz.Skyline.Util
             var molecule = Molecule.Parse(formula.Trim());
             var resultDict = new Dictionary<string, int>();
             adduct.ApplyToMolecule(molecule,resultDict);
-            var resultMol = Molecule.FromDict(new ImmutableSortedList<string, int>(resultDict));
+            var resultMol = Molecule.FromDict(resultDict);
             if (!resultMol.Keys.All(k => BioMassCalc.MONOISOTOPIC.IsKnownSymbol(k)))
             {
                 throw new InvalidOperationException(string.Format(Resources.BioMassCalc_ApplyAdductToFormula_Unknown_symbol___0___in_adduct_description___1__, resultMol.Keys.First(k => !BioMassCalc.MONOISOTOPIC.IsKnownSymbol(k)), formula + adduct));

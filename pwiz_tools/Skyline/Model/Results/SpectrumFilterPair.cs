@@ -114,11 +114,11 @@ namespace pwiz.Skyline.Model.Results
         private SpectrumProductFilter[] SimProductFilters { get; set; }
         public SpectrumProductFilter[] Ms2ProductFilters { get; private set; }
         public SpectrumProductFilter XCorrProductFilter { get; private set; }
-        public SparseXCorrSpectrum XCorrSpectrum{ get; private set; }
+        public SparseXCorrCalculator XCorrCalculator { get; private set; }
 
-        public void SetXCorrSpectrum(SparseXCorrSpectrum xCorrSpectrum)
+        public void SetXCorrCalculator(SparseXCorrCalculator xCorrCalculator)
         {
-            XCorrSpectrum = xCorrSpectrum;
+            XCorrCalculator = xCorrCalculator;
             XCorrProductFilter = new SpectrumProductFilter(0, 0);
         }
 
@@ -447,7 +447,7 @@ namespace pwiz.Skyline.Model.Results
             AddChromKeys(ChromSource.ms1, Ms1ProductFilters, false, listChromKeys);
             AddChromKeys(ChromSource.sim, SimProductFilters, false, listChromKeys);
             AddChromKeys(ChromSource.fragment, Ms2ProductFilters, true, listChromKeys);
-            if (XCorrSpectrum != null)
+            if (XCorrCalculator != null)
             {
                 XCorrProductFilter.FilterId = listChromKeys.Count;
                 listChromKeys.Add(ChromKey.ForXCorr(ModifiedSequence, Q1));

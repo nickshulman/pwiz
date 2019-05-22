@@ -30,10 +30,9 @@ namespace pwiz.Common.Chemistry
         where TValue : IComparable<TValue>
     {
 // ReSharper disable InconsistentNaming
-        public static readonly T Empty = new T { Dictionary = ImmutableSortedList<string, TValue>.EMPTY };
+        public static readonly T Empty = new T { Dictionary = NewSortedList(new KeyValuePair<string, TValue>[0])};
 // ReSharper restore InconsistentNaming
         public abstract override string ToString();
-        private int _hashCode;
         private ImmutableSortedList<string, TValue> _dict;
         public virtual String ToDisplayString()
         {
@@ -58,9 +57,20 @@ namespace pwiz.Common.Chemistry
 
         public override int GetHashCode()
         {
-// ReSharper disable NonReadonlyFieldInGetHashCode
-            return _hashCode;
-// ReSharper restore NonReadonlyFieldInGetHashCode
+            unchecked
+            {
+                if (Dictionary.Count == 0)
+                {
+                    return 0;
+                }
+                int result = Dictionary.Count;
+                result = result * 397 ^ Dictionary.Keys[0].GetHashCode();
+                result = result * 397 ^ Dictionary.Values[0].GetHashCode();
+                result = result * 397 ^ Dictionary.Keys[Dictionary.Count].GetHashCode();
+                result = result * 397 ^ Dictionary.Values[Dictionary.Count].GetHashCode();
+                return result;
+            }
+
         }
 
         public override bool Equals(Object o)
@@ -108,7 +118,6 @@ namespace pwiz.Common.Chemistry
             protected set 
             { 
                 _dict = value;
-                _hashCode = value.GetHashCode();
             }
         }
 
@@ -186,6 +195,16 @@ namespace pwiz.Common.Chemistry
         {
             throw new InvalidOperationException();
         }
+
+        protected static ImmutableSortedList<string, TValue> NewSortedList(IEnumerable<KeyValuePair<string, TValue>> entries)
+        {
+            return ImmutableSortedList<string, TValue>.FromValues(entries, StringComparer.Ordinal);
+        }
+
+        public Dictionary<string, TValue> ToDictionary()
+        {
+            return _dict.ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
+        }
     }
 
     public class Formula<T> : AbstractFormula<T, int>
@@ -193,7 +212,7 @@ namespace pwiz.Common.Chemistry
     {
         public static T Parse(String formula)
         {
-            return new T {Dictionary = ImmutableSortedList.FromValues(ParseToDictionary(formula))};
+            return new T {Dictionary = NewSortedList(ParseToDictionary(formula))};
         }
 
         public static Dictionary<string, int> ParseToDictionary(IEnumerable<char> formula)
@@ -251,7 +270,7 @@ namespace pwiz.Common.Chemistry
         // Handle formulae which may contain subtractions, as is deprotonation description ie C12H8O2-H (=C12H7O2) or even C12H8O2-H2O (=C12H6O)
         public static T ParseExpression(String formula)
         {
-            return new T { Dictionary = ImmutableSortedList.FromValues(ParseExpressionToDictionary(formula)) };
+            return new T { Dictionary = NewSortedList(ParseExpressionToDictionary(formula)) };
         }
 
         public static Dictionary<String, int> ParseExpressionToDictionary(string expression)
@@ -297,17 +316,12 @@ namespace pwiz.Common.Chemistry
                     resultDict.Add(kvp.Key, -kvp.Value);
                 }
             }
-            return new T { Dictionary = new ImmutableSortedList<string, int>(resultDict) };
-        }
-
-        public static T FromDict(ImmutableSortedList<string, int> dict)
-        {
-            return new T {Dictionary = dict};
+            return new T { Dictionary = NewSortedList(resultDict) };
         }
 
         public static T FromDict(IDictionary<string, int> dict)
         {
-            return new T {Dictionary = ImmutableSortedList.FromValues(dict)};
+            return new T {Dictionary = NewSortedList(dict) };
         }
 
         public static string AdjustElementCount(string formula, string element, int delta)

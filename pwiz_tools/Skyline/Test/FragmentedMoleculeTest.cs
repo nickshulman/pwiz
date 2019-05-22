@@ -45,7 +45,8 @@ namespace pwiz.SkylineTestA
                 for (int ordinal = 1; ordinal < pepseq.Length; ordinal++)
                 {
                     var transition = new Transition(transitionGroup, ionType, Transition.OrdinalToOffset(ionType, ordinal, pepseq.Length), 0, Adduct.SINGLY_PROTONATED);
-                    var fragment = precursor.ChangeFragmentIon(ionType, ordinal);
+                    var fragment = precursor.ChangeFragmentIon(ionType, ordinal).ChangeFragmentCharge(1);
+                    var compare = fragment.ChangeModifiedSequence(fragment.ModifiedSequence);
                     var actualMassDistribution = FragmentedMolecule.Settings.DEFAULT.GetMassDistribution(
                         fragment.FragmentFormula, 0, 0);
                     var expectedMz = sequenceMassCalc.GetFragmentMass(transition, transitionGroupDocNode.IsotopeDist);
@@ -54,8 +55,32 @@ namespace pwiz.SkylineTestA
                     {
                         Assert.AreEqual(expectedMz, actualMz, .001);
                     }
+
+                    if (ordinal > 1)
+                    {
+                        var incremented = precursor.ChangeFragmentIon(ionType, ordinal - 1).ChangeFragmentCharge(1).IncrementFragmentOrdinal();
+                        VerifySame(fragment, incremented);
+                    }
                 }
             }
+        }
+
+        private void VerifySame(FragmentedMolecule mol1, FragmentedMolecule mol2)
+        {
+            Assert.AreEqual(mol1.FragmentOrdinal, mol2.FragmentOrdinal);
+            Assert.AreEqual(mol1.FragmentFormula, mol2.FragmentFormula);
+            Assert.AreEqual(mol1.FragmentMassShift, mol2.FragmentMassShift);
+            Assert.AreEqual(mol1.FragmentCharge, mol2.FragmentCharge);
+            Assert.AreEqual(mol1.FragmentIonType, mol2.FragmentIonType);
+            Assert.AreEqual(mol1.FragmentLosses, mol2.FragmentLosses);
+            Assert.AreEqual(mol1.FragmentMassShift, mol2.FragmentMassShift);
+            Assert.AreEqual(mol1.FragmentMassType, mol2.FragmentMassType);
+            Assert.AreEqual(mol1.ModifiedSequence, mol2.ModifiedSequence);
+            Assert.AreEqual(mol1.PrecursorCharge, mol2.PrecursorCharge);
+            Assert.AreEqual(mol1.PrecursorFormula, mol2.PrecursorFormula);
+            Assert.AreEqual(mol1.PrecursorMassShift, mol2.PrecursorMassShift);
+            Assert.AreEqual(mol1.PrecursorMassType, mol2.PrecursorMassType);
+
         }
     }
 }

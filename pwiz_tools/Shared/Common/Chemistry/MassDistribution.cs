@@ -32,13 +32,16 @@ namespace pwiz.Common.Chemistry
     /// </summary>
     public class MassDistribution : IReadOnlyList<KeyValuePair<double, double>>
     {
+        private static readonly ImmutableList<double> ZERO = ImmutableList.Singleton(0.0);
+        private static readonly ImmutableList<double> ONE = ImmutableList.Singleton(1.0);
+
         private readonly ImmutableList<double> _masses;
         private readonly ImmutableList<double> _frequencies;
         /// <summary>
         /// Constructs a MassDistribution consisting only of a mass of 0 with 100% probability.
         /// </summary>
         public MassDistribution(double massResolution, double minimumAbundance)
-            : this(ImmutableList.Singleton(0.0), ImmutableList.Singleton(1.0), massResolution, minimumAbundance)
+            : this(ZERO, ONE, massResolution, minimumAbundance)
         {
         }
 
@@ -69,6 +72,10 @@ namespace pwiz.Common.Chemistry
         /// </summary>
         public MassDistribution Add(MassDistribution rhs)
         {
+            if (Count == 1 && rhs.Count == 1)
+            {
+                return new MassDistribution(ImmutableList.Singleton(Keys[0] + rhs.Keys[0]), ONE, MassResolution, MinimumAbundance);
+            }
             var arrayCount = PartialAdd(0, Count, rhs);
             return ApplyBinning(arrayCount.Item1, arrayCount.Item2);
         }
@@ -168,11 +175,17 @@ namespace pwiz.Common.Chemistry
         /// </summary>
         public MassDistribution Multiply(int factor)
         {
-            if (factor == 0) {
+            if (factor == 0)
+            {
                 return new MassDistribution(MassResolution, MinimumAbundance);
             }
-            if (factor == 1) {
+            if (factor == 1)
+            {
                 return this;
+            }
+            if (Count == 1)
+            {
+                return new MassDistribution(ImmutableList.Singleton(Keys[0] * factor), ONE, MassResolution, MinimumAbundance);
             }
             // First calculate two times this
             var result = Add(this);

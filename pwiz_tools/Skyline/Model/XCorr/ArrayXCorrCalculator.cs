@@ -408,14 +408,26 @@ namespace pwiz.Skyline.Model.XCorr
                 IsotopeLabelType.light);
             var transitionGroupDocNode = new TransitionGroupDocNode(transitionGroup, Annotations.EMPTY, settings,
                 peptideDocNode.ExplicitMods, null, null, null, new TransitionDocNode[0], false);
-            for (int ordinal = 1; ordinal < peptideDocNode.Peptide.Sequence.Length; ordinal++)
+            var precursor =
+                FragmentedMolecule.GetFragmentedMolecule(settings, peptideDocNode, transitionGroupDocNode, null)
+                    .ChangeFragmentCharge(1);
+
+            var fragmentedMoleculeSettings = _fragmentedMoleculeSettings;
+            var fragmentedMolecule = precursor;
+            for (int ordinal = 1; ordinal <= peptideDocNode.Peptide.Sequence.Length; ordinal++)
             {
-                var transition = new Transition(transitionGroup, ionType, ordinal - 1, 0, Adduct.SINGLY_PROTONATED);
-                var mass = settings.GetFragmentMass(transitionGroup, peptideDocNode.ExplicitMods, transition,
-                    transitionGroupDocNode.IsotopeDist);
-                var transitionDocNode = new TransitionDocNode(transition, Annotations.EMPTY, null, mass,
-                    TransitionDocNode.TransitionQuantInfo.DEFAULT, ExplicitTransitionValues.EMPTY, null);
-                yield return new FragmentIon(transitionDocNode.Mz, ordinal, ionType);
+                if (ordinal == 1)
+                {
+                    fragmentedMolecule = precursor.ChangeFragmentIon(ionType, 1);
+                }
+                else
+                {
+                    fragmentedMolecule = fragmentedMolecule.IncrementFragmentOrdinal();
+                }
+
+                var fragment = fragmentedMolecule.FragmentFormula;
+                var monoMass = fragmentedMoleculeSettings.GetMassDistribution(fragment, 0, 1).MostAbundanceMass;
+                yield return new FragmentIon(monoMass, ordinal, ionType);
             }
         }
     }

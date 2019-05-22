@@ -428,7 +428,7 @@ namespace pwiz.Skyline.Util
             }
             AdductCharge = calculatedCharge ?? declaredCharge ?? 0;
             Composition = new ImmutableDictionary<string, int>(composition);
-            var resultMol = Molecule.FromDict(new ImmutableSortedList<string, int>(composition));
+            var resultMol = Molecule.FromDict(composition);
             if (!resultMol.Keys.All(k => BioMassCalc.MONOISOTOPIC.IsKnownSymbol(k)))
             {
                 throw new InvalidOperationException(

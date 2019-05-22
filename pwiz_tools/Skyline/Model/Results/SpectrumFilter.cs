@@ -262,8 +262,8 @@ namespace pwiz.Skyline.Model.Results
                                 _isHighAccMsFilter, _isHighAccProductFilter);
                             if (nodePep.IsProteomic)
                             {
-                                filter.SetXCorrSpectrum(SparseXCorrCalculator.getTheoreticalSpectrum(nodePep, nodeGroup.PrecursorMz.RawValue,
-                                    (byte) nodeGroup.PrecursorCharge, _xcorrSearchParamters));
+                                filter.SetXCorrCalculator(new SparseXCorrCalculator(nodePep, nodeGroup.PrecursorMz.RawValue,
+                                    (byte)nodeGroup.PrecursorCharge, _xcorrSearchParamters));
                             }
                             dictPrecursorMzToFilter.Add(key, filter);
                         }
@@ -688,7 +688,7 @@ namespace pwiz.Skyline.Model.Results
             bool ignoreIso = handlingType == IsolationScheme.SpecialHandlingType.OVERLAP ||
                              handlingType == IsolationScheme.SpecialHandlingType.OVERLAP_MULTIPLEXED ||
                              handlingType == IsolationScheme.SpecialHandlingType.FAST_OVERLAP;
-            SparseXCorrCalculator xCorrCalculator = null;
+            SparseXCorrSpectrum xCorrSpectrum = null;
             foreach (var isoWin in GetIsolationWindows(spectra[0].Precursors))
             {
                 foreach (var filterPair in FindFilterPairs(isoWin, _acquisitionMethod, ignoreIso))
@@ -696,9 +696,9 @@ namespace pwiz.Skyline.Model.Results
                     if (!filterPair.ContainsRetentionTime(retentionTime.Value))
                         continue;
                     var filteredSrmSpectrum = filterPair.FilterQ3SpectrumList(spectra, _isWatersMse && GetMseLevel() > 1);
-                    if (filterPair.XCorrSpectrum != null)
+                    if (filterPair.XCorrCalculator != null)
                     {
-                        xCorrCalculator = xCorrCalculator ?? MakeXCorrCalculator(spectra);
+                        xCorrSpectrum = xCorrSpectrum ?? MakeXCorrCalculator(spectra);
                         filteredSrmSpectrum = filteredSrmSpectrum ?? new ExtractedSpectrum(filterPair.ModifiedSequence,
                                                   filterPair.PeptideColor,
                                                   filterPair.Q1,
@@ -708,7 +708,7 @@ namespace pwiz.Skyline.Model.Results
                                                   new SpectrumProductFilter[0],
                                                   new float[0],
                                                   null);
-                        float xCorr = xCorrCalculator.score(filterPair.XCorrSpectrum);
+                        float xCorr = filterPair.XCorrCalculator.score(xCorrSpectrum);
                         filteredSrmSpectrum = new ExtractedSpectrum(filteredSrmSpectrum.Target,
                             filteredSrmSpectrum.PeptideColor,
                             filteredSrmSpectrum.PrecursorMz,
@@ -726,7 +726,7 @@ namespace pwiz.Skyline.Model.Results
             }
         }
 
-        private SparseXCorrCalculator MakeXCorrCalculator(MsDataSpectrum[] spectra)
+        private SparseXCorrSpectrum MakeXCorrCalculator(MsDataSpectrum[] spectra)
         {
             var pairs = spectra.SelectMany(s =>
                     Enumerable.Range(0, s.Mzs.Length).Select(i => Tuple.Create(s.Mzs[i], s.Intensities[i])))
@@ -740,7 +740,7 @@ namespace pwiz.Skyline.Model.Results
 
             var spectrum = new Spectrum(ImmutableList.ValueOf(pairs.Select(tuple => tuple.Item1)),
                 ImmutableList.ValueOf(pairs.Select(tuple => tuple.Item2)));
-            return new SparseXCorrCalculator(spectrum, precursorMz, _xcorrSearchParamters);
+            return SparseXCorrCalculator.normalize(spectrum, precursorMz, false, _xcorrSearchParamters);
         }
 
         public bool HasProductFilterPairs(double? retentionTime, MsPrecursor[] precursors)

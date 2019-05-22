@@ -17,10 +17,13 @@
  * limitations under the License.
  */
 
+using System;
 using System.ComponentModel;
 using System.Linq;
+using pwiz.Common.Chemistry;
 using pwiz.Common.DataBinding.Attributes;
 using pwiz.Skyline.Model.DocSettings;
+using pwiz.Skyline.Model.ElementLocators;
 using pwiz.Skyline.Model.Hibernate;
 using pwiz.Skyline.Model.Results;
 using pwiz.Skyline.Model.Results.Scoring;
@@ -28,6 +31,7 @@ using pwiz.Skyline.Util.Extensions;
 
 namespace pwiz.Skyline.Model.Databinding.Entities
 {
+    [InvariantDisplayName(nameof(PrecursorResult))]
     [AnnotationTarget(AnnotationDef.AnnotationTarget.precursor_result)]
     public class PrecursorResult : Result
     {
@@ -41,11 +45,15 @@ namespace pwiz.Skyline.Model.Databinding.Entities
         public Precursor Precursor { get { return SkylineDocNode as Precursor; } }
         [Browsable(false)]
         public TransitionGroupChromInfo ChromInfo { get { return _chromInfo.Value; } }
-        public void ChangeChromInfo(EditDescription editDescription, TransitionGroupChromInfo newChromInfo)
+        public void ChangeChromInfo(EditDescription editDescription, Func<TransitionGroupChromInfo, TransitionGroupChromInfo> newChromInfo)
         {
-            var newDocNode = Precursor.DocNode.ChangeResults(GetResultFile().ChangeChromInfo(Precursor.DocNode.Results, newChromInfo));
-            Precursor.ChangeDocNode(editDescription, newDocNode);
+            Precursor.ChangeDocNode(editDescription, docNode => docNode.ChangeResults(GetResultFile()
+                .ChangeChromInfo(docNode.Results, newChromInfo)));
         }
+        [Format(Formats.PValue, NullValue = TextUtil.EXCEL_NA)]
+        public double? DetectionQValue { get { return ChromInfo.QValue; } }
+        [Format(Formats.STANDARD_RATIO, NullValue = TextUtil.EXCEL_NA)]
+        public double? DetectionZScore { get { return ChromInfo.ZScore; } }
         [Format(Formats.PEAK_FOUND_RATIO, NullValue = TextUtil.EXCEL_NA)]
         public double PrecursorPeakFoundRatio { get { return ChromInfo.PeakCountRatio; } }
         [Format(Formats.RETENTION_TIME, NullValue = TextUtil.EXCEL_NA)]
@@ -98,7 +106,7 @@ namespace pwiz.Skyline.Model.Databinding.Entities
                 {
                     return null;
                 }
-                return ceRegression.GetCollisionEnergy(Precursor.Charge, Precursor.GetRegressionMz(), ChromInfo.OptimizationStep);
+                return ceRegression.GetCollisionEnergy(Precursor.DocNode.PrecursorAdduct, Precursor.GetRegressionMz(), ChromInfo.OptimizationStep);
             }
         }
         [Format(Formats.OPT_PARAMETER, NullValue = TextUtil.EXCEL_NA)]
@@ -125,35 +133,74 @@ namespace pwiz.Skyline.Model.Databinding.Entities
                 {
                     return null;
                 }
-                return SrmDocument.GetOptimizedCompensationVoltage(Precursor.Peptide.DocNode, Precursor.DocNode);
+                return SrmDocument.GetCompensationVoltage(Precursor.Peptide.DocNode, Precursor.DocNode, null, ChromInfo.OptimizationStep, covRegression.TuneLevel);
             }
         }
+
+        [Format(Formats.RETENTION_TIME, NullValue = TextUtil.EXCEL_NA)]
+        public double? CollisionalCrossSection { get { return ChromInfo.IonMobilityInfo.CollisionalCrossSection; } }
+
+        [Obsolete("use IonMobilityMS1 instead")] 
+        [Format(Formats.RETENTION_TIME, NullValue = TextUtil.EXCEL_NA)]
+        public double? DriftTimeMS1 { get { return ChromInfo.IonMobilityInfo.DriftTimeMS1; } }
+
+        [Obsolete("use IonMobilityFragment instead")] 
+        [Format(Formats.RETENTION_TIME, NullValue = TextUtil.EXCEL_NA)]
+        public double? DriftTimeFragment { get { return ChromInfo.IonMobilityInfo.DriftTimeFragment; } }
+
+        [Obsolete("use IonMobilityWindow instead")]
+        [Format(Formats.RETENTION_TIME, NullValue = TextUtil.EXCEL_NA)]
+        public double? DriftTimeWindow { get { return ChromInfo.IonMobilityInfo.DriftTimeWindow; } }
+
+        [Format(Formats.RETENTION_TIME, NullValue = TextUtil.EXCEL_NA)]
+        public double? IonMobilityMS1 { get { return ChromInfo.IonMobilityInfo.IonMobilityMS1; } }
+        [Format(Formats.RETENTION_TIME, NullValue = TextUtil.EXCEL_NA)]
+        public double? IonMobilityFragment { get { return ChromInfo.IonMobilityInfo.IonMobilityFragment; } }
+        [Format(Formats.RETENTION_TIME, NullValue = TextUtil.EXCEL_NA)]
+        public double? IonMobilityWindow { get { return ChromInfo.IonMobilityInfo.IonMobilityWindow; } }
+
+        [Format(NullValue = TextUtil.EXCEL_NA)]
+        public string IonMobilityUnits { get { return IonMobilityValue.GetUnitsString(ChromInfo.IonMobilityInfo.IonMobilityUnits); } }
+
+
         [InvariantDisplayName("PrecursorReplicateNote")]
+        [Importable]
         public string Note 
         { 
             get { return ChromInfo.Annotations.Note; } 
             set
             {
-                ChangeChromInfo(
-                    EditDescription.SetColumn("PrecursorReplicateNote", value), // Not L10N
-                    ChromInfo.ChangeAnnotations(ChromInfo.Annotations.ChangeNote(value)));
+                ChangeChromInfo(EditColumnDescription(nameof(Note), value),
+                    chromInfo=>chromInfo.ChangeAnnotations(chromInfo.Annotations.ChangeNote(value)));
             }
         }
 
         public override void SetAnnotation(AnnotationDef annotationDef, object value)
         {
+            // Ignore setting of the old q value and mProphet score annoations. They are
+            // displayed for backward compatibility. Setting them manually never made and sense.
+            if (Equals(annotationDef.Name, MProphetResultsHandler.AnnotationName) ||
+                Equals(annotationDef.Name, MProphetResultsHandler.MAnnotationName))
+                return;
+
             ChangeChromInfo(EditDescription.SetAnnotation(annotationDef, value), 
-                ChromInfo.ChangeAnnotations(ChromInfo.Annotations.ChangeAnnotation(annotationDef, value)));
+                chromInfo=>chromInfo.ChangeAnnotations(chromInfo.Annotations.ChangeAnnotation(annotationDef, value)));
         }
 
         public override object GetAnnotation(AnnotationDef annotationDef)
         {
+            // Return q value and mProphet scores from their new locations
+            if (Equals(annotationDef.Name, MProphetResultsHandler.AnnotationName))
+                return DetectionQValue;
+            else if (Equals(annotationDef.Name, MProphetResultsHandler.MAnnotationName))
+                return DetectionZScore;
+
             return ChromInfo.Annotations.GetAnnotation(annotationDef);
         }
 
         public override string ToString()
         {
-            return string.Format("{0:0}", ChromInfo.Area); // Not L10N
+            return string.Format(@"{0:0}", ChromInfo.Area);
         }
 
         private PeptideResult _peptideResult;
@@ -161,6 +208,20 @@ namespace pwiz.Skyline.Model.Databinding.Entities
         public PeptideResult PeptideResult 
         {
             get { return _peptideResult = _peptideResult ?? new PeptideResult(Precursor.Peptide, GetResultFile()); }
+        }
+
+        [InvariantDisplayName("PrecursorResultLocator")]
+        public string Locator { get { return GetLocator(); } }
+
+        public override ElementRef GetElementRef()
+        {
+            return PrecursorResultRef.PROTOTYPE.ChangeChromInfo(GetResultFile().Replicate.ChromatogramSet, ChromInfo)
+                .ChangeParent(Precursor.GetElementRef());
+        }
+
+        public override bool IsEmpty()
+        {
+            return !ChromInfo.RetentionTime.HasValue;
         }
     }
 }

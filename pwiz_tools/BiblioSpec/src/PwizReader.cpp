@@ -55,7 +55,7 @@ void PwizReader::openFile(const char* filename, bool mzSort){
     try {
         fileName_ = filename;
         delete fileReader_;
-        #if defined(VENDOR_READERS) && defined(_MSC_VER)
+        #ifdef VENDOR_READERS
         fileReader_ = new MSDataFile(fileName_, &allReaders_);
         #else
         fileReader_ = new MSDataFile(fileName_);
@@ -153,7 +153,7 @@ bool PwizReader::getSpectrum(int identifier,
     if( foundSpec == NULL ){
         return false;
     }
-    auto_ptr<SpectrumInfo> specInfo(new SpectrumInfo());
+    unique_ptr<SpectrumInfo> specInfo(new SpectrumInfo());
     specInfo->SpectrumInfo::update(*foundSpec, getPeaks);
     
     // confirm that it's an ms/ms spectrum
@@ -280,7 +280,7 @@ bool PwizReader::getSpectrum(int identifier,
     if( foundSpec == NULL ){
         return false;
     }
-    auto_ptr<SpectrumInfo> specInfo(new SpectrumInfo());
+    unique_ptr<SpectrumInfo> specInfo(new SpectrumInfo());
     specInfo->SpectrumInfo::update(*foundSpec, getPeaks);
     
     // confirm that it's an ms/ms spectrum
@@ -401,7 +401,7 @@ void PwizReader::addCharges(BiblioSpec::Spectrum& returnSpectrum,
  * SpecData.
  */
 void PwizReader::transferSpec(BiblioSpec::SpecData& returnData, 
-                              auto_ptr<SpectrumInfo>& specInfo){
+                              unique_ptr<SpectrumInfo>& specInfo){
     
     returnData.id = specInfo->scanNumber;
     returnData.retentionTime = specInfo->retentionTime/60;  // seconds to minutes
@@ -426,7 +426,7 @@ void PwizReader::transferSpec(BiblioSpec::SpecData& returnData,
  * Copy the information from the Pwiz spectrum to the BiblioSpec spectrum.
  */
 void PwizReader::transferSpectrum(BiblioSpec::Spectrum& returnSpectrum, 
-                                  auto_ptr<SpectrumInfo>& specInfo, 
+                                  unique_ptr<SpectrumInfo>& specInfo, 
                                   SpectrumPtr foundSpec){
     
     returnSpectrum.setScanNumber(specInfo->scanNumber);

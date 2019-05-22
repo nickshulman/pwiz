@@ -32,7 +32,6 @@ using pwiz.Skyline.FileUI;
 using pwiz.Skyline.Model;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.Lib;
-using pwiz.Skyline.Model.Proteome;
 using pwiz.Skyline.Model.Results;
 using pwiz.Skyline.Model.Results.Scoring;
 using pwiz.Skyline.Properties;
@@ -53,6 +52,7 @@ namespace pwiz.SkylineTestTutorial
         {
             // Set true to look at tutorial screenshots.
             //IsPauseForScreenShots = true;
+            //IsPauseForAuditLog = true;
 
             ForceMzml = false;
 
@@ -60,7 +60,7 @@ namespace pwiz.SkylineTestTutorial
 
             TestFilesZipPaths = new[]
                 {
-                    UseRawFiles
+                    UseRawFilesOrFullData
                         ? "https://skyline.gs.washington.edu/tutorials/ExistingQuant.zip"
                         : "https://skyline.gs.washington.edu/tutorials/ExistingQuantMzml.zip",
                     @"TestTutorial\ExistingExperimentsViews.zip"
@@ -74,11 +74,19 @@ namespace pwiz.SkylineTestTutorial
 
         private string GetTestPath(string relativePath)
         {
-            var folderExistQuant = UseRawFiles ? "ExistingQuant" : "ExistingQuantMzml"; // Not L10N
+            var folderExistQuant = UseRawFilesOrFullData ? "ExistingQuant" : "ExistingQuantMzml"; // Not L10N
             return TestFilesDirs[0].GetTestPath(folderExistQuant + "\\" + relativePath);
         }
 
-        private bool IsFullData { get { return IsPauseForScreenShots || IsDemoMode; } }
+        protected override bool UseRawFiles
+        {
+            get { return !ForceMzml && ExtensionTestContext.CanImportThermoRaw && ExtensionTestContext.CanImportAbWiff; }
+        }
+
+        private bool UseRawFilesOrFullData
+        {
+            get { return UseRawFiles || IsFullData; }
+        }
 
         protected override void DoTest()
         {
@@ -123,15 +131,9 @@ namespace pwiz.SkylineTestTutorial
                                           RelativeRT.Matching, null, null, null);
             AddHeavyMod(modHeavyR, peptideSettingsUI, "Edit Isotope Modification form", 6);
             RunUI(() => peptideSettingsUI.PickedHeavyMods = new[] { HEAVY_K, HEAVY_R });
+            var docBeforePeptideSettings = SkylineWindow.Document;
             OkDialog(peptideSettingsUI, peptideSettingsUI.OkDialog);
-            WaitForCondition(
-                60 * 1000 * (AllowInternetAccess ? 6 : 3), // Protein metadata lookup can take longer
-                () =>
-                SkylineWindow.Document.Settings.PeptideSettings.Libraries.Libraries.Count > 0
-                && SkylineWindow.Document.Settings.HasBackgroundProteome
-                && BackgroundProteomeManager.DocumentHasLoadedBackgroundProteomeOrNone(SkylineWindow.Document,true) // wait for protein metadata
-                && SkylineWindow.IsGraphSpectrumVisible);
-            WaitForDocumentLoaded();
+            WaitForDocumentChangeLoaded(docBeforePeptideSettings);
 
             // Inserting a Transition List With Associated Proteins, p. 6
             RunUI(() =>
@@ -193,11 +195,14 @@ namespace pwiz.SkylineTestTutorial
             FindNode(string.Format("{0:F04}", 504.2664));   // I18N
             RunUI(() =>
             {
-                TransitionTreeNode selNode = (TransitionTreeNode)SkylineWindow.SequenceTree.SelectedNode;
-                SkylineWindow.RemovePeak(SkylineWindow.SequenceTree.SelectedPath.GetPathTo((int)SrmDocument.Level.TransitionGroups),
-                ((TransitionGroupTreeNode)selNode.Parent).DocNode, selNode.DocNode);
+                TransitionTreeNode selNode = (TransitionTreeNode) SkylineWindow.SequenceTree.SelectedNode;
+                SkylineWindow.RemovePeak(
+                    SkylineWindow.SequenceTree.SelectedPath.GetPathTo((int) SrmDocument.Level.TransitionGroups),
+                    ((TransitionGroupTreeNode) selNode.Parent).DocNode, selNode.DocNode);
+                // Ensure that the Total Ratio is 0.62
+                // TODO(nicksh): Update tutorial Word Doc so that it has the right numbers.
                 Assert.IsTrue(Equals(SkylineWindow.SequenceTree.SelectedNode.StateImageIndex,
-                    (int)SequenceTree.StateImageId.no_peak) && SkylineWindow.SequenceTree.SelectedNode.Parent.Text.Contains((0.24).ToString(LocalizationHelper.CurrentCulture)));
+                    (int)SequenceTree.StateImageId.no_peak) && SkylineWindow.SequenceTree.SelectedNode.Parent.Text.Contains((0.62).ToString(LocalizationHelper.CurrentCulture)));
             });
 
             // Adjusting Peak Boundaries to Exclude Interference, p. 14.
@@ -230,6 +235,7 @@ namespace pwiz.SkylineTestTutorial
                 Assert.IsTrue(SkylineWindow.SequenceTree.SelectedNode.Nodes[0].Nodes[2].StateImageIndex
                     == (int)SequenceTree.StateImageId.peak_blank));
             RunUI(() => SkylineWindow.SaveDocument());
+            PauseForAuditLog();
         }
 
         private void DoStudy7Test()
@@ -293,9 +299,9 @@ namespace pwiz.SkylineTestTutorial
             RunUI(() =>
             {
                 openDataSourceDialog1.CurrentDirectory = new MsDataFilePath(GetTestPath("Study 7"));
-                openDataSourceDialog1.SelectAllFileType(ExtAbWiff);
+                openDataSourceDialog1.SelectAllFileType(UseRawFilesOrFullData ? ".wiff" : ".mzML"); // Force true wiff for FullData
             });
-            if (UseRawFiles)
+            if (UseRawFilesOrFullData)
             {
                 var importResultsSamplesDlg = ShowDialog<ImportResultsSamplesDlg>(openDataSourceDialog1.Open);
                 PauseForScreenShot<ImportResultsSamplesDlg>("Choose Samples form", 23);
@@ -356,7 +362,7 @@ namespace pwiz.SkylineTestTutorial
                 SkylineWindow.ShowGraphRetentionTime(true);
             });
 
-            if (!IsPauseForScreenShots)
+            if (!IsPauseForScreenShots && !IsFullData)
                 TestApplyToAll();
 
             PauseForScreenShot<GraphSummary.RTGraphView>("Main window with peaks and retention times showing", 25);
@@ -386,7 +392,7 @@ namespace pwiz.SkylineTestTutorial
                 {
                     string sequence = nodePep.Peptide.Sequence;
                     int imageIndex = PeptideTreeNode.GetPeakImageIndex(nodePep, SkylineWindow.SequenceTree);
-                    if ((sequence != null) && sequence.StartsWith("YLA")) // Not L10N
+                    if ((sequence != null) && (sequence.StartsWith("YLA") || sequence.StartsWith("YEV"))) // Not L10N
                     {
                         Assert.AreEqual((int)SequenceTree.StateImageId.keep, imageIndex,
                             string.Format("Expected keep icon for the peptide {0}, found {1}", sequence, imageIndex));
@@ -399,7 +405,7 @@ namespace pwiz.SkylineTestTutorial
                     else // Custom Ion
                     {
                         Assert.AreEqual((int)SequenceTree.StateImageId.peak_blank, imageIndex,
-                            string.Format("Expected peak_blank icon for the custom ion {0}, found {1}", nodePep.RawTextId, imageIndex));
+                            string.Format("Expected peak_blank icon for the custom ion {0}, found {1}", nodePep.ModifiedTarget, imageIndex));
                     }
                 }
             });
@@ -464,8 +470,7 @@ namespace pwiz.SkylineTestTutorial
             RunUI(() =>
             {
                 Settings.Default.ResultsGridSynchSelection = false;
-                DataGridView resultsGrid;
-                resultsGrid = FindOpenForm<LiveResultsGrid>().DataGridView;
+                var resultsGrid = FindOpenForm<LiveResultsGrid>().DataGridView;
                 var colConcentration =
 // ReSharper disable LocalizableElement
                     resultsGrid.Columns.Cast<DataGridViewColumn>().First(col => "Concentration" == col.HeaderText); // Not L10N
@@ -502,7 +507,7 @@ namespace pwiz.SkylineTestTutorial
             RunUI(() => SkylineWindow.ShowCVValues(false));
             RunUI(() => SkylineWindow.SaveDocument());
             PauseForScreenShot<GraphSummary.AreaGraphView>("Peak Areas graph grouped by concentration metafile", 36);
-
+            PauseForAuditLog();
             // Further Exploration, p. 33.
             RunUI(() =>
             {
@@ -551,14 +556,18 @@ namespace pwiz.SkylineTestTutorial
             FindNode(peptideSeq);
             var editPepModsDlg = ShowDialog<EditPepModsDlg>(SkylineWindow.ModifyPeptide);
             string sequence = string.Empty;
+            bool modsContainLabel13C = false;
             RunUI(() =>
             {
                 PeptideTreeNode selNode = ((PeptideTreeNode)SkylineWindow.SequenceTree.SelectedNode);
                 sequence = selNode.DocNode.Peptide.Sequence;
                 if(removeCTerminalMod)
                     editPepModsDlg.SelectModification(IsotopeLabelType.heavy, sequence.Length - 1, string.Empty);
+
+                // Only access Settings.Default on the UI thread
+                modsContainLabel13C = Settings.Default.HeavyModList.Contains(mod => Equals(mod.Name, "Label:13C"));
             });
-            if (Settings.Default.HeavyModList.Contains(mod => Equals(mod.Name, "Label:13C"))) // Not L10N
+            if (modsContainLabel13C) // Not L10N
                 RunUI(() => editPepModsDlg.SelectModification(IsotopeLabelType.heavy, sequence.IndexOf(aa13C), "Label:13C")); // Not L10N
             else
             {
@@ -577,7 +586,7 @@ namespace pwiz.SkylineTestTutorial
                 PeptideTreeNode selNode = ((PeptideTreeNode)SkylineWindow.SequenceTree.SelectedNode);
                 DocNode[] choices = selNode.GetChoices(true).ToArray();
                 Assert.IsTrue(choices.Contains(node =>
-                    ((TransitionGroupDocNode)node).PrecursorMz.ToString(LocalizationHelper.CurrentCulture)
+                    ((TransitionGroupDocNode)node).PrecursorMz.Value.ToString(LocalizationHelper.CurrentCulture)
                         .Contains(expectedPrecursorMz.ToString(LocalizationHelper.CurrentCulture))));
                 selNode.Pick(choices, false, false);
             });
@@ -600,8 +609,8 @@ namespace pwiz.SkylineTestTutorial
             });
             RunUI(() =>
             {
-                PeakMatcherTestUtil.SelectAndApplyPeak("ESDTSYVSLK", 564.7746, "A_02", false, 21.4320);
-                PeakMatcherTestUtil.VerifyPeaks(MakeVerificationDictionary(21.49805, 21.43202, 21.26673, 21.3659));
+                PeakMatcherTestUtil.SelectAndApplyPeak("ESDTSYVSLK", 564.7746, "A_02", false, 18.34195);
+                PeakMatcherTestUtil.VerifyPeaks(MakeVerificationDictionary(18.34, 18.34, 18.28, 18.28));
             });
             RunUI(() =>
             {

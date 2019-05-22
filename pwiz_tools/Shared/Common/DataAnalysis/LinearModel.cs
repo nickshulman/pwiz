@@ -31,7 +31,7 @@ namespace pwiz.Common.DataAnalysis
         {
             if (contrastValues.ColumnCount != designMatrix.ColumnCount)
             {
-                throw new ArgumentException("Wrong number of columns"); // Not L10N
+                throw new ArgumentException(@"Wrong number of columns");
             }
             var cacheEntry = cache.GetQrFactorization(designMatrix, tolerance);
             return new LinearModel(designMatrix, contrastValues, cacheEntry);
@@ -54,7 +54,7 @@ namespace pwiz.Common.DataAnalysis
         {
             if (observations.Length != DesignMatrix.RowCount)
             {
-                throw new ArgumentException("Wrong number of rows"); // Not L10N
+                throw new ArgumentException(@"Wrong number of rows");
             }
             var coefficients = QrFactorization.Solve(observations);
             var fittedValues = new double[observations.Length];
@@ -109,16 +109,18 @@ namespace pwiz.Common.DataAnalysis
         public static double DotProduct(IEnumerable<double> vector1, IEnumerable<double> vector2)
         {
             double total = 0;
-            var en1 = vector1.GetEnumerator();
-            var en2 = vector2.GetEnumerator();
-            while (en1.MoveNext())
+            using (var en1 = vector1.GetEnumerator())
+            using (var en2 = vector2.GetEnumerator())
             {
-                en2.MoveNext();
-                total += en1.Current * en2.Current;
-            }
-            if (en2.MoveNext())
-            {
-                throw new ArgumentException("vector2 was too long"); // Not L10N
+                while (en1.MoveNext())
+                {
+                    en2.MoveNext();
+                    total += en1.Current * en2.Current;
+                }
+                if (en2.MoveNext())
+                {
+                    throw new ArgumentException(@"vector2 was too long");
+                }
             }
             return total;
         }

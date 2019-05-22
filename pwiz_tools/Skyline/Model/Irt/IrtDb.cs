@@ -24,9 +24,8 @@ using System.Linq;
 using System.IO;
 using System.Threading;
 using NHibernate;
-using pwiz.Common.Collections;
+using pwiz.Common.Database.NHibernate;
 using pwiz.Common.SystemUtil;
-using pwiz.ProteomeDatabase.Util;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util.Extensions;
@@ -35,15 +34,18 @@ namespace pwiz.Skyline.Model.Irt
 {
     public class DatabaseOpeningException : CalculatorException
     {
-        public DatabaseOpeningException(string message)
-            : base(message)
+        public DatabaseOpeningException(string message) : base(message)
+        {
+        }
+
+        public DatabaseOpeningException(string message, Exception innerException) : base(message, innerException)
         {
         }
     }
 
     public class IrtDb : Immutable, IValidating
     {
-        public const string EXT = ".irtdb"; // Not L10N
+        public const string EXT = ".irtdb";
 
         public static string FILTER_IRTDB
         {
@@ -57,8 +59,8 @@ namespace pwiz.Skyline.Model.Irt
         private readonly ReaderWriterLock _databaseLock;
 
         private DateTime _modifiedTime;
-        private ImmutableDictionary<string, double> _dictStandards;
-        private ImmutableDictionary<string, double> _dictLibrary;
+        private TargetMap<double> _dictStandards;
+        private TargetMap<double> _dictLibrary;
 
         private IrtDb(String path, ISessionFactory sessionFactory)
         {
@@ -102,7 +104,7 @@ namespace pwiz.Skyline.Model.Irt
 
         public double UnknownScore { get; private set; }
 
-        public IEnumerable<KeyValuePair<string, double>> PeptideScores
+        public IEnumerable<KeyValuePair<Target, double>> PeptideScores
         {
             get { return new[] {DictStandards, DictLibrary}.SelectMany(dict => dict); }
         }
@@ -112,16 +114,16 @@ namespace pwiz.Skyline.Model.Irt
             get { return new[] {DictStandards, DictLibrary}.SelectMany(dict => dict.Values); }
         }
 
-        private IDictionary<string, double> DictStandards
+        private IDictionary<Target, double> DictStandards
         {
             get { return _dictStandards; }
-            set { _dictStandards = new ImmutableDictionary<string, double>(value); }
+            set { _dictStandards = new TargetMap<double>(value); }
         }
 
-        private IDictionary<string, double> DictLibrary
+        private IDictionary<Target, double> DictLibrary
         {
             get { return _dictLibrary; }
-            set { _dictLibrary = new ImmutableDictionary<string, double>(value);}
+            set { _dictLibrary = new TargetMap<double>(value); }
         }
 
         private ISession OpenWriteSession()
@@ -129,12 +131,12 @@ namespace pwiz.Skyline.Model.Irt
             return new SessionWithLock(_sessionFactory.OpenSession(), _databaseLock, true);
         }
 
-        public IEnumerable<string> StandardPeptides
+        public IEnumerable<Target> StandardPeptides
         {
             get { return DictStandards.Keys; }
         }
 
-        public bool IsStandard(string seq)
+        public bool IsStandard(Target seq)
         {
             return DictStandards.ContainsKey(seq);
         }
@@ -144,7 +146,7 @@ namespace pwiz.Skyline.Model.Irt
             get { return DictStandards.Count; }
         }
 
-        public IEnumerable<string> LibraryPeptides
+        public IEnumerable<Target> LibraryPeptides
         {
             get { return DictLibrary.Keys; }
         }
@@ -154,7 +156,7 @@ namespace pwiz.Skyline.Model.Irt
             get { return DictLibrary.Count; }
         }
 
-        public double? ScoreSequence(string seq)
+        public double? ScoreSequence(Target seq)
         {
             double irt;
             if (seq != null && (DictStandards.TryGetValue(seq, out irt) || DictLibrary.TryGetValue(seq, out irt)))
@@ -162,37 +164,55 @@ namespace pwiz.Skyline.Model.Irt
             return null;
         }
 
-        public IEnumerable<DbIrtPeptide> GetPeptides()
+        public IList<DbIrtPeptide> GetPeptides()
         {
-            using (var session = new SessionWithLock(_sessionFactory.OpenSession(), _databaseLock, false))
+            using (var session = new StatelessSessionWithLock(_sessionFactory.OpenStatelessSession(), _databaseLock,
+                    false, CancellationToken.None))
             {
-                return session.CreateCriteria(typeof (DbIrtPeptide)).List<DbIrtPeptide>();
+                return session.CreateCriteria(typeof(DbIrtPeptide)).List<DbIrtPeptide>();
             }
         }
 
         #region Property change methods
 
-        private IrtDb Load(IProgressMonitor loadMonitor, ProgressStatus status)
+        private IrtDb Load(IProgressMonitor loadMonitor, ProgressStatus status, out IList<DbIrtPeptide> dbPeptides)
         {
-            var result = ChangeProp(ImClone(this), im => im.LoadPeptides(im.GetPeptides()));
+            var rawPeptides = dbPeptides = GetPeptides();
+            var result = ChangeProp(ImClone(this), im => im.LoadPeptides(rawPeptides));
             // Not really possible to show progress, unless we switch to raw reading
             if (loadMonitor != null)
                 loadMonitor.UpdateProgress(status.ChangePercentComplete(100));
             return result;
         }
 
-        public IrtDb AddPeptides(IList<DbIrtPeptide> newPeptides)
+        public IrtDb AddPeptides(IProgressMonitor monitor, IList<DbIrtPeptide> newPeptides)
         {
+            IProgressStatus status = new ProgressStatus(Resources.IrtDb_AddPeptides_Adding_peptides);
+            return AddPeptides(monitor, newPeptides, ref status);
+        }
+
+        public IrtDb AddPeptides(IProgressMonitor monitor, IList<DbIrtPeptide> newPeptides, ref IProgressStatus status)
+        {
+            var total = newPeptides.Count;
+            var i = 0;
             using (var session = OpenWriteSession())
             using (var transaction = session.BeginTransaction())
             {
                 foreach (var peptideNewDisconnected in newPeptides.Select(peptideNew => new DbIrtPeptide(peptideNew) {Id = null}))
                 {
                     session.SaveOrUpdate(peptideNewDisconnected);
+                    if (monitor != null)
+                    {
+                        if (monitor.IsCanceled)
+                            return null;
+                        monitor.UpdateProgress(status = status.ChangePercentComplete(++i * 100 / total));
+                    }
                 }
 
                 transaction.Commit();
             }
+            if (monitor != null)
+                monitor.UpdateProgress(status.Complete());
 
             return ChangeProp(ImClone(this), im => im.LoadPeptides(newPeptides));
         }
@@ -200,7 +220,7 @@ namespace pwiz.Skyline.Model.Irt
         public IrtDb UpdatePeptides(IList<DbIrtPeptide> newPeptides, IList<DbIrtPeptide> oldPeptides)
         {
             var setNew = new HashSet<long>(newPeptides.Select(pep => pep.Id.HasValue ? pep.Id.Value : 0));
-            var dictOld = oldPeptides.ToDictionary(pep => pep.PeptideModSeq);
+            var dictOld = oldPeptides.ToDictionary(pep => pep.ModifiedTarget);
 
             using (var session = OpenWriteSession())
             using (var transaction = session.BeginTransaction())
@@ -219,7 +239,7 @@ namespace pwiz.Skyline.Model.Irt
                 foreach (var peptideNew in newPeptides)
                 {
                     DbIrtPeptide peptideOld;
-                    if (dictOld.TryGetValue(peptideNew.PeptideModSeq, out peptideOld) &&
+                    if (dictOld.TryGetValue(peptideNew.ModifiedTarget, out peptideOld) &&
                             Equals(peptideNew, peptideOld))
                         continue;
 
@@ -234,10 +254,10 @@ namespace pwiz.Skyline.Model.Irt
             return ChangeProp(ImClone(this), im => im.LoadPeptides(newPeptides));
         }
 
-        private void LoadPeptides(IEnumerable<DbIrtPeptide> peptides)
+        private void LoadPeptides(IList<DbIrtPeptide> peptides)
         {
-            var dictStandards = new Dictionary<string, double>();
-            var dictLibrary = new Dictionary<string, double>();
+            var dictStandards = new Dictionary<Target, double>();
+            var dictLibrary = new Dictionary<Target, double>(peptides.Count);
 
             foreach (var pep in peptides)
             {
@@ -248,7 +268,7 @@ namespace pwiz.Skyline.Model.Irt
                     // attempts to enforce only normalized modified sequences, but this extra protection
                     // handles irtdb files created before normalization was implemented, or edited outside
                     // Skyline.
-                    dict.Add(SequenceMassCalc.NormalizeModifiedSequence(pep.PeptideModSeq), pep.Irt);
+                    dict.Add(pep.GetNormalizedModifiedSequence(), pep.Irt);
                 }
                 catch (ArgumentException)
                 {
@@ -316,6 +336,12 @@ namespace pwiz.Skyline.Model.Irt
         //Throws DatabaseOpeningException
         public static IrtDb GetIrtDb(string path, IProgressMonitor loadMonitor)
         {
+            IList<DbIrtPeptide> dbPeptides;
+            return GetIrtDb(path, loadMonitor, out dbPeptides);
+        }
+
+        public static IrtDb GetIrtDb(string path, IProgressMonitor loadMonitor, out IList<DbIrtPeptide> dbPeptides)
+        {
             var status = new ProgressStatus(string.Format(Resources.IrtDb_GetIrtDb_Loading_iRT_database__0_, path));
             if (loadMonitor != null)
                 loadMonitor.UpdateProgress(status);
@@ -329,6 +355,7 @@ namespace pwiz.Skyline.Model.Irt
                     throw new DatabaseOpeningException(String.Format(Resources.IrtDb_GetIrtDb_The_file__0__does_not_exist_, path));
 
                 string message;
+                Exception xInner = null;
                 try
                 {
                     //Check for a valid SQLite file and that it has our schema
@@ -337,38 +364,44 @@ namespace pwiz.Skyline.Model.Irt
                     {
                         lock (sessionFactory)
                         {
-                            return new IrtDb(path, sessionFactory).Load(loadMonitor, status);
+                            return new IrtDb(path, sessionFactory).Load(loadMonitor, status, out dbPeptides);
                         }
                     }
                 }
-                catch (UnauthorizedAccessException)
+                catch (UnauthorizedAccessException x)
                 {
                     message = string.Format(Resources.IrtDb_GetIrtDb_You_do_not_have_privileges_to_access_the_file__0_, path);
+                    xInner = x;
                 }
-                catch (DirectoryNotFoundException)
+                catch (DirectoryNotFoundException x)
                 {
                     message = string.Format(Resources.IrtDb_GetIrtDb_The_path_containing__0__does_not_exist, path);
+                    xInner = x;
                 }
-                catch (FileNotFoundException)
+                catch (FileNotFoundException x)
                 {
                     message = string.Format(Resources.IrtDb_GetIrtDb_The_file__0__could_not_be_created_Perhaps_you_do_not_have_sufficient_privileges, path);
+                    xInner = x;
                 }
-                catch (SQLiteException)
+                catch (SQLiteException x)
                 {
                     message = string.Format(Resources.IrtDb_GetIrtDb_The_file__0__is_not_a_valid_iRT_database_file, path);
+                    xInner = x;
                 }
-                catch (Exception)
+                catch (Exception x)
                 {
                     message = string.Format(Resources.IrtDb_GetIrtDb_The_file__0__could_not_be_opened, path);
+                    xInner = x;
                 }
 
-                throw new DatabaseOpeningException(message);
+                throw new DatabaseOpeningException(message, xInner);
             }
             catch (DatabaseOpeningException x)
             {
                 if (loadMonitor == null)
                     throw;
                 loadMonitor.UpdateProgress(status.ChangeErrorException(x));
+                dbPeptides = new DbIrtPeptide[0];
                 return null;
             }
         }

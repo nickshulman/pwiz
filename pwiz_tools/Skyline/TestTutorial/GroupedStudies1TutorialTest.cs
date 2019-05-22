@@ -42,7 +42,7 @@ using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.Find;
 using pwiz.Skyline.Model.GroupComparison;
 using pwiz.Skyline.Model.Results;
-using pwiz.Skyline.Model.Results.Scoring;
+using pwiz.Skyline.Model.Serialization;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.SettingsUI;
 using pwiz.Skyline.ToolsUI;
@@ -56,6 +56,7 @@ namespace pwiz.SkylineTestTutorial
     public class GroupedStudies1TutorialTest : AbstractFunctionalTestEx
     {
         [TestMethod]
+        [Timeout(int.MaxValue)] // This can take a long time when checking code coverage
         public void TestGroupedStudies1Tutorial()
         {
             // Set true to look at tutorial screenshots.
@@ -88,8 +89,6 @@ namespace pwiz.SkylineTestTutorial
                 ? Path.Combine(dirPath, fileName)
                 : dirPath;
         }
-
-        private bool IsFullData { get { return IsPauseForScreenShots; } }
 
         private const string TRUNCATED_PRECURSORS_VIEW_NAME = "Truncated Precursors";
         private const string MISSING_PEAKS_VIEW_NAME = "Missing Peaks";
@@ -155,6 +154,9 @@ namespace pwiz.SkylineTestTutorial
                 Assert.AreEqual("Rat (GPM) (Rat_plasma2)", gridView.Rows[49].Cells[columnLibraryName.Index].Value);
                 Assert.AreEqual("Rat (GPM) (Rat_plasma2)", gridView.CurrentCell.Value);
                 SkylineWindow.ShowDocumentGrid(false);
+
+                // Adding this line tests importing without ever showing the all chromatograms graph.
+                Settings.Default.AutoShowAllChromatogramsGraph = IsPauseForScreenShots;
             });
 
             if (IsFullData)
@@ -189,13 +191,17 @@ namespace pwiz.SkylineTestTutorial
                     GetHfRawTestPath("H_162_REP3" + ExtThermoRaw));
             }
 
-            var allChrom = WaitForOpenForm<AllChromatogramsGraph>();
+            AllChromatogramsGraph allChrom = null;
+            if (Settings.Default.AutoShowAllChromatogramsGraph)
+            {
+                allChrom = WaitForOpenForm<AllChromatogramsGraph>();
 
-            PauseForScreenShot<AllChromatogramsGraph>("Loading Chromatograms form", 5);
+                PauseForScreenShot<AllChromatogramsGraph>("Loading Chromatograms form", 5);
+            }
 
             RunUI(() =>
             {
-                if (allChrom.Visible)
+                if (allChrom != null && allChrom.Visible)
                     allChrom.Hide();
                 // Keep all chromatograms graph from popping up on every RestoreViewOnScreen call below
                 Settings.Default.AutoShowAllChromatogramsGraph = false;
@@ -243,7 +249,7 @@ namespace pwiz.SkylineTestTutorial
 
             PauseForScreenShot("Skyline window maximized", 9);
 
-            if (!IsPauseForScreenShots)
+            if (!IsFullData)
                 TestApplyToAll();
 
             if (IsPauseForScreenShots)
@@ -309,7 +315,7 @@ namespace pwiz.SkylineTestTutorial
                 OkDialog(findDlg, findDlg.Close);
 
                 var findView = WaitForOpenForm<FindResultsForm>();
-                int expectedItems = IsFullData ? 457 : 290;
+                int expectedItems = IsFullData ? 454 : 290;
                 try
                 {
                     WaitForConditionUI(1000, () => findView.ItemCount == expectedItems);
@@ -541,7 +547,7 @@ namespace pwiz.SkylineTestTutorial
             var pathTruncated = PropertyPath.Parse("Results!*.Value.CountTruncated");
             int expectedItems = 148;
             if (IsFullData)
-                expectedItems = initialTestExecution ? 222 : 221;
+                expectedItems = 221; // initialTestExecution ? 223 : 221;
             try
             {
                 WaitForConditionUI(1000, () => documentGrid.RowCount == expectedItems &&
@@ -842,9 +848,18 @@ namespace pwiz.SkylineTestTutorial
 
                 PauseForScreenShot("Cromatogram graph (B) - no peak - Formate width 3.2", 45);
 
+                int count = IsFullData ? 15 : 10;
+                AssertUserSetCount(count);
+                if (IsPauseForScreenShots)
+                    RunUI(() => SkylineWindow.SaveDocument());
+                else
+                {
+                    AssertUserSetSaved(count, false);
+                    AssertUserSetSaved(count, true);
+                }
+
                 RunUI(() =>
                 {
-                    SkylineWindow.SaveDocument();
                     var filePathFinished = GetTestPath(@"Heart Failure\Rat_plasma.sky.zip");
                     SkylineWindow.OpenSharedFile(filePathFinished);
                 });
@@ -868,6 +883,28 @@ namespace pwiz.SkylineTestTutorial
                     SkylineWindow.OpenFile(filePathFinished);
                 });
             }
+        }
+
+        private static void AssertUserSetSaved(int count, bool compactFormat)
+        {
+            RunUI(() =>
+            {
+                Settings.Default.CompactFormatOption = compactFormat
+                    ? CompactFormatOption.ALWAYS.Name
+                    : CompactFormatOption.NEVER.Name;
+
+                SkylineWindow.SaveDocument();
+                SkylineWindow.NewDocument();
+                SkylineWindow.OpenFile(Settings.Default.MruList[0]);
+            });
+            WaitForDocumentLoaded();
+            AssertUserSetCount(count);
+        }
+
+        private static void AssertUserSetCount(int count)
+        {
+            Assert.AreEqual(count,
+                SkylineWindow.Document.MoleculeTransitionGroups.Sum(tg => tg.ChromInfos.Count(c => c.IsUserSetManual)));
         }
 
         private void PrepareForStatistics()
@@ -1001,7 +1038,7 @@ namespace pwiz.SkylineTestTutorial
 
                 PauseForScreenShot<DocumentGridForm>("Document Grid with MissingData field", 55);
 
-                int expectedRows = IsFullData ? 223 : 149;
+                int expectedRows = IsFullData ? 222 : 149;
                 const int expectedRowsAbbreviated = 221; // When not all of the tests are run
                 RunUI(() =>
                 {
@@ -1305,69 +1342,32 @@ namespace pwiz.SkylineTestTutorial
             });
         }
 
-        private void ChangePeakBounds(string chromName,
-                                       double startDisplayTime,
-                                       double endDisplayTime)
-        {
-            Assert.IsTrue(startDisplayTime < endDisplayTime,
-                string.Format("Start time {0} must be less than end time {1}.", startDisplayTime, endDisplayTime));
-
-            ActivateReplicate(chromName);
-
-            WaitForGraphs();
-
-            RunUIWithDocumentWait(() => // adjust integration
-            {
-                var graphChrom = SkylineWindow.GetGraphChrom(chromName);
-
-                var nodeGroupTree = SkylineWindow.SequenceTree.GetNodeOfType<TransitionGroupTreeNode>();
-                IdentityPath pathGroup;
-                if (nodeGroupTree != null)
-                    pathGroup = nodeGroupTree.Path;
-                else
-                {
-                    var nodePepTree = SkylineWindow.SequenceTree.GetNodeOfType<PeptideTreeNode>();
-                    pathGroup = new IdentityPath(nodePepTree.Path, nodePepTree.ChildDocNodes[0].Id);
-                }
-                var listChanges = new List<ChangedPeakBoundsEventArgs>
-                {
-                    new ChangedPeakBoundsEventArgs(pathGroup,
-                        null,
-                        graphChrom.NameSet,
-                        graphChrom.ChromGroupInfos[0].FilePath,
-                        graphChrom.GraphItems.First().GetNearestDisplayTime(startDisplayTime),
-                        graphChrom.GraphItems.First().GetNearestDisplayTime(endDisplayTime),
-                        PeakIdentification.ALIGNED,
-                        PeakBoundsChangeType.both)
-                };
-                graphChrom.SimulateChangedPeakBounds(listChanges);
-            });
-            WaitForGraphs();
-        }
-
-        private void RunUIWithDocumentWait(Action act)
-        {
-            var doc = SkylineWindow.Document;
-            RunUI(act);
-            WaitForDocumentChange(doc); // make sure the action changes the document
-        }
-
         private void SimpleGroupComparisons()
         {
             const string comparisonName = "Healthy v. Diseased";
+            const string controlAnnoation = "Condition";
+            const string controlValue = "Healthy";
+            const string caseValue = "Diseased";
+            const string idendityAnnotation = "SubjectId";
+
+            var docBeforeComparison = SkylineWindow.Document;
             var documentSettingsDlg = ShowDialog<DocumentSettingsDlg>(SkylineWindow.ShowDocumentSettingsDialog);
             RunUI(() => documentSettingsDlg.GetTabControl().SelectedIndex = 1);
             var editGroupComparisonDlg = ShowDialog <EditGroupComparisonDlg>(documentSettingsDlg.AddGroupComparison);
             RunUI(() =>
             {
                 editGroupComparisonDlg.TextBoxName.Text = comparisonName;
-                editGroupComparisonDlg.ComboControlAnnotation.SelectedItem = "Condition";
+                Assert.IsTrue(editGroupComparisonDlg.ComboControlAnnotation.Items.Contains(controlAnnoation));
+                editGroupComparisonDlg.ComboControlAnnotation.SelectedItem = controlAnnoation;
             });
+            WaitForConditionUI(2000, () => editGroupComparisonDlg.ComboControlValue.Items.Contains(controlValue));
             RunUI(() =>
             {
-                editGroupComparisonDlg.ComboControlValue.SelectedItem = "Healthy";
-                editGroupComparisonDlg.ComboCaseValue.SelectedItem = "Diseased";
-                editGroupComparisonDlg.ComboIdentityAnnotation.SelectedItem = "SubjectId";
+                editGroupComparisonDlg.ComboControlValue.SelectedItem = controlValue;
+                editGroupComparisonDlg.ComboCaseValue.SelectedItem = caseValue;
+                Assert.IsTrue(editGroupComparisonDlg.ComboCaseValue.Items.Contains(caseValue));
+                editGroupComparisonDlg.ComboIdentityAnnotation.SelectedItem = idendityAnnotation;
+                Assert.IsTrue(editGroupComparisonDlg.ComboIdentityAnnotation.Items.Contains(idendityAnnotation));
                 editGroupComparisonDlg.ComboNormalizationMethod.SelectedItem = NormalizationMethod.GLOBAL_STANDARDS;
                 editGroupComparisonDlg.TextBoxConfidenceLevel.Text = 99.ToString(CultureInfo.CurrentCulture);
                 editGroupComparisonDlg.RadioScopePerProtein.Checked = true;
@@ -1376,6 +1376,15 @@ namespace pwiz.SkylineTestTutorial
             OkDialog(editGroupComparisonDlg, editGroupComparisonDlg.OkDialog);
             PauseForScreenShot<DocumentSettingsDlg>("Document Settings", 65);
             OkDialog(documentSettingsDlg, documentSettingsDlg.OkDialog);
+            var docAfterComparison = WaitForDocumentChange(docBeforeComparison);
+            var groupComparisonDefs = docAfterComparison.Settings.DataSettings.GroupComparisonDefs;
+            Assert.AreEqual(1, groupComparisonDefs.Count);
+            var groupComparison = groupComparisonDefs[0];
+            Assert.AreEqual(comparisonName, groupComparison.Name);
+            Assert.AreEqual(controlAnnoation, groupComparison.ControlAnnotation);
+            Assert.AreEqual(controlValue, groupComparison.ControlValue);
+            Assert.AreEqual(caseValue, groupComparison.CaseValue);
+            Assert.AreEqual(idendityAnnotation, groupComparison.IdentityAnnotation);
             RunUI(() => SkylineWindow.ShowGroupComparisonWindow(comparisonName));
             var foldChangeGrid = FindOpenForm<FoldChangeGrid>();
             WaitForConditionUI(() => foldChangeGrid.DataboundGridControl.IsComplete &&
@@ -1426,11 +1435,11 @@ namespace pwiz.SkylineTestTutorial
                 OkDialog(quickFilterForm, quickFilterForm.OkDialog);
             }
             WaitForConditionUI(() => foldChangeGrid.DataboundGridControl.IsComplete);
-            WaitForConditionUI(() => 14 == foldChangeGrid.DataboundGridControl.RowCount);
-            RunUI(() => Assert.AreEqual(14, foldChangeGrid.DataboundGridControl.RowCount));
+            WaitForConditionUI(() => 11 == foldChangeGrid.DataboundGridControl.RowCount);
+            RunUI(() => Assert.AreEqual(11, foldChangeGrid.DataboundGridControl.RowCount));
             PauseForScreenShot<FoldChangeBarGraph>("Right click on the graph and choose Copy", 67);
             WaitForConditionUI(() => foldChangeGrid.DataboundGridControl.IsComplete);
-            var settingsForm = ShowDialog<GroupComparisonSettingsForm>(foldChangeGrid.ShowChangeSettings);
+            var settingsForm = ShowDialog<EditGroupComparisonDlg>(foldChangeGrid.ShowChangeSettings);
             RunUI(() => settingsForm.ComboIdentityAnnotation.SelectedIndex = 0);
             WaitForConditionUI(() => 37 == foldChangeGrid.DataboundGridControl.RowCount);
             RunUI(() => settingsForm.ComboIdentityAnnotation.SelectedItem = "SubjectId");
@@ -1472,7 +1481,13 @@ namespace pwiz.SkylineTestTutorial
             PauseForScreenShot<FoldChangeGrid>("Healthy v. Diseased:Grid", 69);
             var messageDlg = ShowDialog<MultiButtonMsgDlg>(foldChangeGrid.FoldChangeBindingSource.ViewContext.Delete);
             PauseForScreenShot<MultiButtonMsgDlg>("Are you sure you want to delete...", 69);
+            var docBefore = SkylineWindow.Document;
             OkDialog(messageDlg, messageDlg.BtnYesClick);
+            WaitForDocumentChange(docBefore);   // Avoid tearing down the test before the deletion is complete
+
+            OkDialog(settingsForm, () => settingsForm.Close());
+            OkDialog(foldChangeGrid, () => foldChangeGrid.Close());
+            OkDialog(foldChangeGraph, () => foldChangeGraph.Close());
         }
 
         private static void TestApplyToAll()
@@ -1543,7 +1558,7 @@ namespace pwiz.SkylineTestTutorial
                     14.30043, 13.79685, 13.79692, 13.79708, 14.33403, 14.90242,
                     13.83123, 14.03223, 13.66342, 13.76475, 13.83022, 13.73013,
                     14.33438, 13.83052, 14.70115, 13.66408, 13.63018, 13.69645,
-                    13.56330, 13.52982, 13.69677, 13.83090, 13.56257, 13.76500));
+                    13.73080, 13.52982, 13.69677, 13.83090, 13.56257, 13.76500));
             });
 
             // For each test, a peak was picked and applied - undo two actions per test

@@ -245,9 +245,6 @@ namespace directag
     int InitProcess( argList_t& args )
     {
        cout << "DirecTag " << Version::str() << " (" << Version::LastModified() << ")\n" <<
-               "FreiCore " << freicore::Version::str() << " (" << freicore::Version::LastModified() << ")\n" <<
-               "ProteoWizard MSData " << pwiz::msdata::Version::str() << " (" << pwiz::msdata::Version::LastModified() << ")\n" <<
-               "ProteoWizard Proteome " << pwiz::proteome::Version::str() << " (" << pwiz::proteome::Version::LastModified() << ")\n" <<
                DIRECTAG_LICENSE << endl;
 
         string usage = "Usage: " + lexical_cast<string>(bfs::path(args[0]).filename()) + " [optional arguments] <input spectra filemask 1> [input spectra filemask 2] ...\n"
@@ -347,10 +344,13 @@ namespace directag
         // Dump the parameters if the user opts for it
         for( size_t i=1; i < args.size(); ++i )
         {
-            if( args[i] == "-dump" )
+            if (args[i] == "-dump" || args[i] == "-help" || args[i] == "--help")
             {
                 rtConfig->dump();
-                args.erase( args.begin() + i );
+                if (args[i] == "-help" || args[i] == "--help")
+                    throw pwiz::util::usage_exception(usage);
+
+                args.erase(args.begin() + i);
                 --i;
             }
         }
@@ -560,7 +560,12 @@ int main( int argc, char* argv[] )
             return result;
         #endif
     }
-    catch( exception& e )
+    catch (pwiz::util::usage_exception& e)
+    {
+        cerr << e.what() << endl;
+        return 0;
+    }
+    catch (std::exception& e)
     {
         cerr << e.what() << endl;
     }

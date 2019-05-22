@@ -68,9 +68,11 @@ namespace pwiz.Skyline.EditUI
             this.panelError = new System.Windows.Forms.Panel();
             this.tbxError = new System.Windows.Forms.TextBox();
             this.panelButtons = new System.Windows.Forms.Panel();
+            this.btnTransitionListHelp = new System.Windows.Forms.Button();
             this.btnCustomMoleculeColumns = new System.Windows.Forms.Button();
             this.radioMolecule = new System.Windows.Forms.RadioButton();
             this.toolTip1 = new System.Windows.Forms.ToolTip(this.components);
+            ((System.ComponentModel.ISupportInitialize)(this.modeUIHandler)).BeginInit();
             this.tabControl1.SuspendLayout();
             this.tabPageFasta.SuspendLayout();
             this.tabPageProteinList.SuspendLayout();
@@ -129,6 +131,7 @@ namespace pwiz.Skyline.EditUI
             this.tabPageFasta.Controls.Add(this.label1);
             resources.ApplyResources(this.tabPageFasta, "tabPageFasta");
             this.tabPageFasta.Name = "tabPageFasta";
+            this.modeUIHandler.SetUIMode(this.tabPageFasta, pwiz.Skyline.Util.Helpers.ModeUIExtender.MODE_UI_HANDLING_TYPE.proteomic);
             this.tabPageFasta.UseVisualStyleBackColor = true;
             // 
             // label1
@@ -141,6 +144,7 @@ namespace pwiz.Skyline.EditUI
             this.tabPageProteinList.Controls.Add(this.gridViewProteins);
             resources.ApplyResources(this.tabPageProteinList, "tabPageProteinList");
             this.tabPageProteinList.Name = "tabPageProteinList";
+            this.modeUIHandler.SetUIMode(this.tabPageProteinList, pwiz.Skyline.Util.Helpers.ModeUIExtender.MODE_UI_HANDLING_TYPE.proteomic);
             this.tabPageProteinList.UseVisualStyleBackColor = true;
             // 
             // gridViewProteins
@@ -219,6 +223,7 @@ namespace pwiz.Skyline.EditUI
             this.tabPagePeptideList.Controls.Add(this.gridViewPeptides);
             resources.ApplyResources(this.tabPagePeptideList, "tabPagePeptideList");
             this.tabPagePeptideList.Name = "tabPagePeptideList";
+            this.modeUIHandler.SetUIMode(this.tabPagePeptideList, pwiz.Skyline.Util.Helpers.ModeUIExtender.MODE_UI_HANDLING_TYPE.proteomic);
             this.tabPagePeptideList.UseVisualStyleBackColor = true;
             // 
             // gridViewPeptides
@@ -325,6 +330,7 @@ namespace pwiz.Skyline.EditUI
             resources.ApplyResources(this.radioPeptide, "radioPeptide");
             this.radioPeptide.Name = "radioPeptide";
             this.radioPeptide.TabStop = true;
+            this.modeUIHandler.SetUIMode(this.radioPeptide, pwiz.Skyline.Util.Helpers.ModeUIExtender.MODE_UI_HANDLING_TYPE.mixed_only);
             this.radioPeptide.UseVisualStyleBackColor = true;
             this.radioPeptide.CheckedChanged += new System.EventHandler(this.radioPeptide_CheckedChanged);
             // 
@@ -342,6 +348,7 @@ namespace pwiz.Skyline.EditUI
             // 
             // panelButtons
             // 
+            this.panelButtons.Controls.Add(this.btnTransitionListHelp);
             this.panelButtons.Controls.Add(this.btnCustomMoleculeColumns);
             this.panelButtons.Controls.Add(this.radioMolecule);
             this.panelButtons.Controls.Add(this.btnValidate);
@@ -351,11 +358,19 @@ namespace pwiz.Skyline.EditUI
             resources.ApplyResources(this.panelButtons, "panelButtons");
             this.panelButtons.Name = "panelButtons";
             // 
+            // btnTransitionListHelp
+            // 
+            resources.ApplyResources(this.btnTransitionListHelp, "btnTransitionListHelp");
+            this.btnTransitionListHelp.Name = "btnTransitionListHelp";
+            this.btnTransitionListHelp.UseVisualStyleBackColor = true;
+            this.btnTransitionListHelp.Click += new System.EventHandler(this.btnTransitionListHelp_Click);
+            // 
             // btnCustomMoleculeColumns
             // 
             resources.ApplyResources(this.btnCustomMoleculeColumns, "btnCustomMoleculeColumns");
             this.btnCustomMoleculeColumns.Name = "btnCustomMoleculeColumns";
             this.toolTip1.SetToolTip(this.btnCustomMoleculeColumns, resources.GetString("btnCustomMoleculeColumns.ToolTip"));
+            this.modeUIHandler.SetUIMode(this.btnCustomMoleculeColumns, pwiz.Skyline.Util.Helpers.ModeUIExtender.MODE_UI_HANDLING_TYPE.small_mol);
             this.btnCustomMoleculeColumns.UseVisualStyleBackColor = true;
             this.btnCustomMoleculeColumns.Click += new System.EventHandler(this.btnCustomMoleculeColumns_Click);
             // 
@@ -364,14 +379,13 @@ namespace pwiz.Skyline.EditUI
             resources.ApplyResources(this.radioMolecule, "radioMolecule");
             this.radioMolecule.Name = "radioMolecule";
             this.radioMolecule.TabStop = true;
+            this.modeUIHandler.SetUIMode(this.radioMolecule, pwiz.Skyline.Util.Helpers.ModeUIExtender.MODE_UI_HANDLING_TYPE.mixed_only);
             this.radioMolecule.UseVisualStyleBackColor = true;
             // 
             // PasteDlg
             // 
-            this.AcceptButton = this.btnInsert;
             resources.ApplyResources(this, "$this");
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.CancelButton = this.btnCancel;
             this.Controls.Add(this.tabControl1);
             this.Controls.Add(this.panelButtons);
             this.Controls.Add(this.panelError);
@@ -381,6 +395,8 @@ namespace pwiz.Skyline.EditUI
             this.Name = "PasteDlg";
             this.ShowInTaskbar = false;
             this.Load += new System.EventHandler(this.OnLoad);
+            this.KeyDown += new System.Windows.Forms.KeyEventHandler(this.PasteDlg_KeyDown);
+            ((System.ComponentModel.ISupportInitialize)(this.modeUIHandler)).EndInit();
             this.tabControl1.ResumeLayout(false);
             this.tabPageFasta.ResumeLayout(false);
             this.tabPageFasta.PerformLayout();
@@ -435,5 +451,6 @@ namespace pwiz.Skyline.EditUI
         private System.Windows.Forms.Button btnCustomMoleculeColumns;
         private System.Windows.Forms.RadioButton radioMolecule;
         private System.Windows.Forms.ToolTip toolTip1;
+        private System.Windows.Forms.Button btnTransitionListHelp;
     }
 }

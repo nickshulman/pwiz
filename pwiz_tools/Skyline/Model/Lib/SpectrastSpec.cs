@@ -28,11 +28,21 @@ namespace pwiz.Skyline.Model.Lib
     [XmlRoot("spectrast_lib_spec")]
     public sealed class SpectrastSpec : NistLibSpecBase
     {
-        public const string EXT = ".sptxt"; // Not L10N
+        public const string EXT = ".sptxt";
+
+        public static string FILTER_SPTXT
+        {
+            get { return TextUtil.FileDialogFilterAll(Resources.SpectrastLibrary_SpecFilter_SpectraST_Library, EXT); }            
+        }
 
         public SpectrastSpec(string name, string path)
             : base(name, path)
         {
+        }
+
+        public override string Filter
+        {
+            get { return FILTER_SPTXT; }
         }
 
         public override Library LoadLibrary(ILoadMonitor loader)
@@ -81,8 +91,8 @@ namespace pwiz.Skyline.Model.Lib
     [XmlRoot("spectrast_spectrum_info")]
     public sealed class SpectrastSpectrumHeaderInfo : NistSpectrumHeaderInfoBase
     {
-        public SpectrastSpectrumHeaderInfo(string libraryName, float tfRatio, float totalIntensity, int spectrumCount)
-            : base(libraryName, tfRatio, totalIntensity, spectrumCount)
+        public SpectrastSpectrumHeaderInfo(string libraryName, float tfRatio, double? rt, double? irt, float totalIntensity, int spectrumCount)
+            : base(libraryName, tfRatio, rt, irt, totalIntensity, spectrumCount)
         {
         }
 
@@ -106,7 +116,7 @@ namespace pwiz.Skyline.Model.Lib
     [XmlRoot("spectrast_library")]
     public sealed class SpectrastLibrary : NistLibraryBase
     {
-        public const string EXT_CACHE = ".splc"; // Not L10N
+        public const string EXT_CACHE = ".splc";
 
         public static SpectrastLibrary Load(LibrarySpec spec, ILoadMonitor loader)
         {
@@ -126,7 +136,7 @@ namespace pwiz.Skyline.Model.Lib
         {
             get
             {
-                LibraryDetails details = new LibraryDetails { Format = "SpectraST", PeptideCount = SpectrumCount }; // Not L10N
+                LibraryDetails details = new LibraryDetails { Format = @"SpectraST", SpectrumCount = SpectrumCount };
 
                 if (!string.IsNullOrEmpty(Id))
                 {
@@ -144,19 +154,25 @@ namespace pwiz.Skyline.Model.Lib
             }
         }
 
-        protected override SpectrumHeaderInfo CreateSpectrumHeaderInfo(NistSpectrumInfo info)
+        public override LibraryFiles LibraryFiles
         {
-            return new SpectrastSpectrumHeaderInfo(Name, info.TFRatio, info.TotalIntensity, info.Copies);
+            // This library doesn't have source file information
+            get { return new LibraryFiles();}
         }
 
-        public override LibrarySpec CreateSpec(string path)
+        protected override SpectrumHeaderInfo CreateSpectrumHeaderInfo(NistSpectrumInfo info)
         {
-            return new SpectrastSpec(Name, path);
+            return new SpectrastSpectrumHeaderInfo(Name, info.TFRatio, info.RT, info.iRT, info.TotalIntensity, info.Copies);
+        }
+
+        protected override LibrarySpec CreateSpec()
+        {
+            return new SpectrastSpec(Name, FilePath);
         }
 
         public override string SpecFilter
         {
-            get { return TextUtil.FileDialogFilterAll(Resources.SpectrastLibrary_SpecFilter_SpectraST_Library, SpectrastSpec.EXT); }
+            get { return SpectrastSpec.FILTER_SPTXT; }
         }
 
         #region Implementation of IXmlSerializable

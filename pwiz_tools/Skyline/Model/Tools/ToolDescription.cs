@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Original author: Daniel Broudy <daniel.broudy .at. gmail.com>,
  *                  MacCoss Lab, Department of Genome Sciences, UW
  *
@@ -21,7 +21,6 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
-using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -58,11 +57,13 @@ namespace pwiz.Skyline.Model.Tools
     [XmlRoot("ToolDescription")]
     public class ToolDescription : IXmlSerializable, IKeyContainer<string>
     {
+        public const string EXT_INSTALL = ".zip";
+
         public static readonly ToolDescription EMPTY = new ToolDescription(string.Empty, string.Empty, string.Empty, string.Empty, false, string.Empty);
 
         public static bool IsWebPageCommand(string command)
         {
-            return command.StartsWith("http:") || command.StartsWith("https:"); // Not L10N
+            return command.StartsWith(@"http:") || command.StartsWith(@"https:");
         }
 
         public ToolDescription(ToolDescription t)
@@ -153,8 +154,8 @@ namespace pwiz.Skyline.Model.Tools
             if (!IsWebPage)
                 return null;
             string url = Command;
-            const string querySep = "?"; // Not L10N
-            const string paramSep = "&"; // Not L10N
+            const string querySep = "?";
+            const string paramSep = "&";
             if (!string.IsNullOrEmpty(Arguments))
             {
                 string query = GetArguments(doc, toolMacroProvider, progressMonitor);
@@ -238,7 +239,7 @@ namespace pwiz.Skyline.Model.Tools
             }
             else // Not a website. Needs its own thread.
             {
-                if (Arguments.Contains("$(SkylineConnection)")) // Not L10N
+                if (Arguments.Contains(@"$(SkylineConnection)"))
                 {
                     Program.StartToolService();
                 }
@@ -304,9 +305,9 @@ namespace pwiz.Skyline.Model.Tools
             }
         }
 
-        private Thread PostToLink(string url, SrmDocument doc, IProgressMonitor progressMonitor, IWebHelpers webHelpers)
+        private void PostToLink(string url, SrmDocument doc, IProgressMonitor progressMonitor, IWebHelpers webHelpers)
         {
-            var thread = new Thread(() =>
+            ActionUtil.RunAsync(() =>
             {
                 try
                 {
@@ -316,21 +317,19 @@ namespace pwiz.Skyline.Model.Tools
                 {
                     progressMonitor.UpdateProgress(new ProgressStatus(string.Empty).ChangeErrorException(exception));
                 }
-            });
-            thread.Start();
-            return thread;
+            }, @"Post To Link");
         }
 
         private void PostToLinkBackground(string url, SrmDocument doc, IProgressMonitor progressMonitor, IWebHelpers webHelpers)
         {
-            string report = ToolDescriptionHelpers.GetReport(doc, ReportTitle, Title, progressMonitor);
-            if (report != null)
-                webHelpers.PostToLink(url, report);
+            StringWriter report = new StringWriter();
+            ToolDescriptionHelpers.GetReport(doc, ReportTitle, Title, progressMonitor, report);
+            webHelpers.PostToLink(url, report.ToString());
         }
 
-        private Thread RunExecutable(SrmDocument document, IToolMacroProvider toolMacroProvider, TextWriter textWriter, IProgressMonitor progressMonitor, Control parent)
+        private void RunExecutable(SrmDocument document, IToolMacroProvider toolMacroProvider, TextWriter textWriter, IProgressMonitor progressMonitor, Control parent)
         {
-            var thread = new Thread(() =>
+            ActionUtil.RunAsync(() =>
             {
                 try
                 {
@@ -340,10 +339,7 @@ namespace pwiz.Skyline.Model.Tools
                 {
                     progressMonitor.UpdateProgress(new ProgressStatus(string.Empty).ChangeErrorException(e));
                 }
-            });
-            LocalizationHelper.InitThread(thread);
-            thread.Start();
-            return thread;
+            }, @"Run Executable");
         }
 
         /// <summary>
@@ -378,98 +374,115 @@ namespace pwiz.Skyline.Model.Tools
                 }
 
                 // if it has a selected report title and its doesn't have a InputReportTempPath macro then the report needs to be piped to stdin.
-                string reportCsv = null;
-                if (!string.IsNullOrEmpty(ReportTitle) && !containsInputReportTempPath) // Then pipe to stdin.
+                TextReader reportReader;
+                string reportCsvPath = null;
+                if (string.IsNullOrEmpty(ReportTitle))
                 {
-                    reportCsv = ToolDescriptionHelpers.GetReport(document, ReportTitle, Title, progressMonitor);
-                    startInfo.RedirectStandardInput = true;
+                    reportReader = null;
                 }
-
-                //Consider: Maybe throw an error if one is not null but the other is?
-                //If there is an IToolArgsCollector run it!
-                if (!string.IsNullOrEmpty(ArgsCollectorDllPath) && !string.IsNullOrEmpty(ArgsCollectorClassName))
+                else
                 {
-                    string pathReportCsv = !string.IsNullOrEmpty(ReportTitle) && containsInputReportTempPath
-                        ? ToolMacros.GetReportTempPath(ReportTitle, Title)
-                        : null;
-
-                    if (!CallArgsCollector(parent, args, reportCsv, pathReportCsv, startInfo))
-                        return;
-                }
-               
-                Process p = new Process {StartInfo = startInfo};
-                if (OutputToImmediateWindow)
-                {
-                    p.EnableRaisingEvents = true;
-                    TextBoxStreamWriterHelper boxStreamWriterHelper = textWriter as TextBoxStreamWriterHelper;
-                    if (boxStreamWriterHelper == null)
+                    if (containsInputReportTempPath)
                     {
-                        p.OutputDataReceived += (sender, dataReceivedEventArgs) => textWriter.WriteLine(p.Id + 
-                                                                                                        ">" + dataReceivedEventArgs.Data); // Not L10N
-                        p.ErrorDataReceived += (sender, dataReceivedEventArgs) => textWriter.WriteLine(p.Id +
-                                                                                                       ">" + dataReceivedEventArgs.Data); // Not L10N
-                    }                    
+                        reportCsvPath = ToolMacros.GetReportTempPath(ReportTitle, Title);
+                        reportReader = new StreamReader(reportCsvPath);
+                    }
                     else
                     {
-                        p.OutputDataReceived += (sender, dataReceivedEventArgs) => boxStreamWriterHelper.WriteLineWithIdentifier(p.Id, dataReceivedEventArgs.Data);
-                        p.ErrorDataReceived += (sender, dataReceivedEventArgs) => boxStreamWriterHelper.WriteLineWithIdentifier(p.Id, dataReceivedEventArgs.Data);
-                        //p.Refresh();
-                        p.Exited += (sender, processExitedEventArgs) => boxStreamWriterHelper.HandleProcessExit(p.Id);
+                        var stringWriter = new StringWriter();
+                        ToolDescriptionHelpers.GetReport(document, ReportTitle, Title, progressMonitor, stringWriter);
+                        startInfo.RedirectStandardInput = true;
+                        reportReader = new StringReader(stringWriter.ToString());
                     }
-                    
                 }
-//                else
-//                {
-//                    startInfo.RedirectStandardOutput = true;
-//                    startInfo.RedirectStandardError = true;
-//                    startInfo.CreateNoWindow = true;
-//                    startInfo.UseShellExecute = false;
-//                    p.EnableRaisingEvents = true;
-//                    p.OutputDataReceived +=
-//                        (sender, dataReceivedEventArgs) => Console.WriteLine(dataReceivedEventArgs.Data);
-//                    p.ErrorDataReceived +=
-//                        (sender, dataReceivedEventArgs) => Console.WriteLine(dataReceivedEventArgs.Data);
-//                }
-                try
+                using (reportReader)
                 {
-                    p.StartInfo.UseShellExecute = false;
-                    p.Start();
+                    //If there is an IToolArgsCollector run it!
+                    if (!string.IsNullOrEmpty(ArgsCollectorDllPath) && !string.IsNullOrEmpty(ArgsCollectorClassName))
+                    {
+                        if (!CallArgsCollector(parent, args, reportReader, startInfo))
+                            return;
+                    }
+
+
+                    Process p = new Process {StartInfo = startInfo};
                     if (OutputToImmediateWindow)
                     {
-                        p.BeginOutputReadLine();
-                        p.BeginErrorReadLine();
+                        p.EnableRaisingEvents = true;
+                        TextBoxStreamWriterHelper boxStreamWriterHelper = textWriter as TextBoxStreamWriterHelper;
+                        if (boxStreamWriterHelper == null)
+                        {
+                            p.OutputDataReceived += (sender, dataReceivedEventArgs)
+                                => textWriter.WriteLine(p.Id + @">" + dataReceivedEventArgs.Data);
+                            p.ErrorDataReceived += (sender, dataReceivedEventArgs)
+                                => textWriter.WriteLine(p.Id + @">" + dataReceivedEventArgs.Data);
+                        }
+                        else
+                        {
+                            p.OutputDataReceived += (sender, dataReceivedEventArgs) =>
+                                boxStreamWriterHelper.WriteLineWithIdentifier(p.Id, dataReceivedEventArgs.Data);
+                            p.ErrorDataReceived += (sender, dataReceivedEventArgs) =>
+                                boxStreamWriterHelper.WriteLineWithIdentifier(p.Id, dataReceivedEventArgs.Data);
+                            //p.Refresh();
+                            p.Exited += (sender, processExitedEventArgs) =>
+                                boxStreamWriterHelper.HandleProcessExit(p.Id);
+                        }
+                        // ReSharper disable LocalizableElement
+                        textWriter.WriteLine("\"" + p.StartInfo.FileName + "\" " + p.StartInfo.Arguments);
+                        // ReSharper restore LocalizableElement
                     }
-
-                    // write the reportCsv string to stdin.
-                    // need to only check one of these conditions.
-                    if (startInfo.RedirectStandardInput && (reportCsv != null))
+                    try
                     {
-                        StreamWriter streamWriter = p.StandardInput;
-                        streamWriter.Write(reportCsv);
-                        streamWriter.Flush();
-                        streamWriter.Close();
+                        p.StartInfo.UseShellExecute = false;
+                        p.Start();
+                        if (OutputToImmediateWindow)
+                        {
+                            p.BeginOutputReadLine();
+                            p.BeginErrorReadLine();
+                        }
+
+                        // write the reportCsv string to stdin.
+                        // need to only check one of these conditions.
+                        if (startInfo.RedirectStandardInput && reportReader != null)
+                        {
+                            StreamWriter streamWriter = p.StandardInput;
+                            if (reportCsvPath != null)
+                            {
+                                using (var newReader = new StreamReader(reportCsvPath))
+                                {
+                                    streamWriter.Write(newReader.ReadToEnd());
+                                }
+                            }
+                            else
+                            {
+                                streamWriter.Write(reportReader.ReadToEnd());
+                            }
+                            streamWriter.Flush();
+                            streamWriter.Close();
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        if (ex is Win32Exception)
+                        {
+                            throw new ToolExecutionException(
+                                TextUtil.LineSeparate(
+                                    Resources.ToolDescription_RunTool_File_not_found_,
+                                    Resources
+                                        .ToolDescription_RunTool_Please_check_the_command_location_is_correct_for_this_tool_),
+                                ex);
+                        }
+                        else
+                        {
+                            throw new ToolExecutionException(
+                                TextUtil.LineSeparate(
+                                    Resources
+                                        .ToolDescription_RunTool_Please_reconfigure_that_tool__it_failed_to_execute__,
+                                    ex.Message),
+                                ex);
+                        }
                     }
                 }
-                catch (Exception ex)
-                {
-                    if (ex is Win32Exception)
-                    {
-                        throw new ToolExecutionException(
-                            TextUtil.LineSeparate(
-                                Resources.ToolDescription_RunTool_File_not_found_,
-                                Resources.ToolDescription_RunTool_Please_check_the_command_location_is_correct_for_this_tool_),
-                            ex);
-                    }
-                    else
-                    {
-                        throw new ToolExecutionException(
-                            TextUtil.LineSeparate(
-                                Resources.ToolDescription_RunTool_Please_reconfigure_that_tool__it_failed_to_execute__,
-                                ex.Message),
-                            ex);
-                    }
-                }
-
                 // CONSIDER: We don't delete the temp path here, because the file may be open
                 //           in a long running application like Excel.
 //                if (ReportTempPath_toDelete != null)
@@ -480,25 +493,8 @@ namespace pwiz.Skyline.Model.Tools
             }      
         }
 
-        private bool CallArgsCollector(Control parent, string args, string reportCsv, string pathReportCsv, ProcessStartInfo startInfo)
+        private bool CallArgsCollector(Control parent, string args, TextReader reportReader, ProcessStartInfo startInfo)
         {
-            string csvToParse = reportCsv;
-            if (csvToParse == null && pathReportCsv != null)
-            {
-                try
-                {
-                    csvToParse = File.ReadAllText(pathReportCsv);
-                }
-                catch (Exception x)
-                {
-                    throw new ToolExecutionException(
-                        TextUtil.LineSeparate(
-                            string.Format(Resources.ToolDescription_CallArgsCollector_Error_loading_report_from_the_temporary_file__0_, pathReportCsv),
-                            x.Message),
-                        x);
-                }
-            }
-
             string oldArgs = PreviousCommandLineArgs;
             Assembly assembly;
             try
@@ -523,19 +519,43 @@ namespace pwiz.Skyline.Model.Tools
             }
 
 
-            object[] collectorArgs = {parent, csvToParse, (oldArgs != null) ? CommandLine.ParseArgs(oldArgs) : null};
+            var methodInfo = FindArgsCollectorMethod(type);
+            var parameterInfos = methodInfo.GetParameters();
+            if (parameterInfos.Length != 3)
+            {
+                throw new ToolExecutionException(
+                    string.Format(Resources.ToolDescription_CallArgsCollector_Error_running_the_installed_tool__0___The_method___1___has_the_wrong_signature_,
+                    Title, methodInfo.Name));
+            }
+            object reportArgument;
+            if (parameterInfos[1].ParameterType == typeof(string))
+            {
+                reportArgument = reportReader == null ? null : reportReader.ReadToEnd();
+            }
+            else
+            {
+                reportArgument = reportReader;
+            }
+            object[] collectorArgs =
+            {
+                parent,
+                reportArgument,
+                oldArgs != null ? CommandLine.ParseArgs(oldArgs) : null
+            };
             object answer;
 
             try
             {
-                // if there is a control given, use it to invoke the args collector form with that control as its parent. Otherwise just 
-                // invoke the form by itself
-                answer = parent != null
-                             ? parent.Invoke(
-                                 Delegate.CreateDelegate(
-                                     typeof (Func<IWin32Window, string, string[], string[]>),
-                                     type.GetMethod("CollectArgs")), collectorArgs) // Not L10N
-                             : type.GetMethod("CollectArgs").Invoke(null, collectorArgs); // Not L10N
+                if (parent == null)
+                {
+                    answer = methodInfo.Invoke(null, collectorArgs);
+                }
+                else
+                {
+                    // if there is a control given, use it to invoke the args collector form with that control as its parent. 
+                    // Otherwise just invoke the form by itself
+                    answer = parent.Invoke(new Func<string[]>(() => (string[]) methodInfo.Invoke(null, collectorArgs)));
+                }
             }
             catch (Exception x)
             {
@@ -567,7 +587,7 @@ namespace pwiz.Skyline.Model.Tools
                 }
                 else
                 {
-                    startInfo.Arguments = args + " " + argString; // Not L10N
+                    startInfo.Arguments = args + @" " + argString;
                 }
             }
             else
@@ -579,6 +599,53 @@ namespace pwiz.Skyline.Model.Tools
                 return false;
             }
             return true;
+        }
+
+        public MethodInfo FindArgsCollectorMethod(Type type)
+        {
+            // ReSharper disable LocalizableElement
+            var textReaderArgs = new[] { typeof(IWin32Window), typeof(TextReader), typeof(string[]) };
+            var stringArgs = new[] {typeof(IWin32Window), typeof(string), typeof(string[])};
+            MethodInfo methodInfo = SafeGetMethod(type, "CollectArgs", textReaderArgs)
+                   ?? SafeGetMethod(type, "CollectArgsReader", textReaderArgs)
+                   ?? SafeGetMethod(type, "CollectArgs", stringArgs);
+            if (methodInfo != null)
+            {
+                return methodInfo;
+            }
+            Exception innerException = null;
+            try
+            {
+                methodInfo = type.GetMethod("CollectArgs");
+            }
+            catch (Exception e)
+            {
+                innerException = e;
+            }
+            // ReSharper restore LocalizableElement
+            if (methodInfo != null)
+            {
+                return methodInfo;
+            }
+
+            throw new ToolExecutionException(
+                TextUtil.LineSeparate(
+                    string.Format(Resources.ToolDescription_RunExecutableBackground_The_tool__0__had_an_error__it_returned_the_message_,
+                        Title),
+                    Resources
+                        .ToolDescription_FindArgsCollectorMethod_Unable_to_find_any_CollectArgs_method_to_call_on_class___0___), innerException);
+        }
+
+        private static MethodInfo SafeGetMethod(Type type, string methodName, Type[] args)
+        {
+            try
+            {
+                return type.GetMethod(methodName, args);
+            }
+            catch
+            {
+                return null;
+            }
         }
 
         public IWebHelpers WebHelpers { get; set; }
@@ -788,8 +855,9 @@ namespace pwiz.Skyline.Model.Tools
         /// <param name="reportTitle">Title of the reportSpec to make a report from.</param>
         /// <param name="toolTitle">Title of tool for exception error message.</param>
         /// <param name="progressMonitor">Progress monitor.</param>
+        /// <param name="writer">TextWriter that the report should be written to.</param>
         /// <returns> Returns a string representation of the ReportTitle report, or throws an error that the reportSpec no longer exist. </returns>
-        public static string GetReport(SrmDocument doc, string reportTitle, string toolTitle, IProgressMonitor progressMonitor)
+        public static void GetReport(SrmDocument doc, string reportTitle, string toolTitle, IProgressMonitor progressMonitor, TextWriter writer)
         {
             var container = new MemoryDocumentContainer();
             container.SetDocument(doc, container.Document);
@@ -803,16 +871,15 @@ namespace pwiz.Skyline.Model.Tools
                         Resources.ToolDescriptionHelpers_GetReport_Error_0_requires_a_report_titled_1_which_no_longer_exists__Please_select_a_new_report_or_import_the_report_format,
                         toolTitle, reportTitle));
             }
-            var status =
+            IProgressStatus status =
                 new ProgressStatus(string.Format(Resources.ReportSpec_ReportToCsvString_Exporting__0__report,
                     reportTitle));
-            var writer = new StringWriter();
-            if (viewContext.Export(progressMonitor, ref status, viewInfo, writer, 
-                new DsvWriter(CultureInfo.InvariantCulture, TextUtil.SEPARATOR_CSV)))
+            progressMonitor.UpdateProgress(status);
+            if (!viewContext.Export(CancellationToken.None, progressMonitor, ref status, viewInfo, writer,
+                viewContext.GetCsvWriter()))
             {
-                return writer.ToString();
+                throw new OperationCanceledException();
             }
-            return null;
         }
 
         public static string GetToolsDirectory()
@@ -823,7 +890,7 @@ namespace pwiz.Skyline.Model.Tools
             string skylineDirPath = Path.GetDirectoryName(skylinePath);
             if (string.IsNullOrEmpty(skylineDirPath))
                 return null;
-            return Path.Combine(skylineDirPath, "Tools"); // Not L10N            
+            return Path.Combine(skylineDirPath, @"Tools");
         }
     }
 }

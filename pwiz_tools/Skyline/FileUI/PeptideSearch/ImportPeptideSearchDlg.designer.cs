@@ -1,6 +1,6 @@
 namespace pwiz.Skyline.FileUI.PeptideSearch
 {
-    partial class ImportPeptideSearchDlg
+    sealed partial class ImportPeptideSearchDlg
     {
         /// <summary>
         /// Required designer variable.
@@ -48,6 +48,7 @@ namespace pwiz.Skyline.FileUI.PeptideSearch
             this.btnEarlyFinish = new System.Windows.Forms.Button();
             this.wizardPagesImportPeptideSearch = new pwiz.Skyline.Controls.WizardPages();
             this.buildSearchSpecLibPage = new System.Windows.Forms.TabPage();
+            this.buildLibraryPanel = new System.Windows.Forms.Panel();
             this.buildSpectralLibraryTitlePanel = new System.Windows.Forms.Panel();
             this.label14 = new System.Windows.Forms.Label();
             this.getChromatogramsPage = new System.Windows.Forms.TabPage();
@@ -65,6 +66,8 @@ namespace pwiz.Skyline.FileUI.PeptideSearch
             this.importFastaPage = new System.Windows.Forms.TabPage();
             this.importFASTATitlePanel = new System.Windows.Forms.Panel();
             this.lblFasta = new System.Windows.Forms.Label();
+            this.btnBack = new System.Windows.Forms.Button();
+            ((System.ComponentModel.ISupportInitialize)(this.modeUIHandler)).BeginInit();
             this.wizardPagesImportPeptideSearch.SuspendLayout();
             this.buildSearchSpecLibPage.SuspendLayout();
             this.buildSpectralLibraryTitlePanel.SuspendLayout();
@@ -224,9 +227,15 @@ namespace pwiz.Skyline.FileUI.PeptideSearch
             // 
             this.buildSearchSpecLibPage.BackColor = System.Drawing.Color.Transparent;
             resources.ApplyResources(this.buildSearchSpecLibPage, "buildSearchSpecLibPage");
+            this.buildSearchSpecLibPage.Controls.Add(this.buildLibraryPanel);
             this.buildSearchSpecLibPage.Controls.Add(this.buildSpectralLibraryTitlePanel);
             this.buildSearchSpecLibPage.Name = "buildSearchSpecLibPage";
             this.buildSearchSpecLibPage.UseVisualStyleBackColor = true;
+            // 
+            // buildLibraryPanel
+            // 
+            resources.ApplyResources(this.buildLibraryPanel, "buildLibraryPanel");
+            this.buildLibraryPanel.Name = "buildLibraryPanel";
             // 
             // buildSpectralLibraryTitlePanel
             // 
@@ -269,6 +278,7 @@ namespace pwiz.Skyline.FileUI.PeptideSearch
             this.matchModificationsPage.Controls.Add(this.addModsTitlePanel);
             resources.ApplyResources(this.matchModificationsPage, "matchModificationsPage");
             this.matchModificationsPage.Name = "matchModificationsPage";
+            this.modeUIHandler.SetUIMode(this.matchModificationsPage, pwiz.Skyline.Util.Helpers.ModeUIExtender.MODE_UI_HANDLING_TYPE.proteomic);
             this.matchModificationsPage.UseVisualStyleBackColor = true;
             // 
             // addModsTitlePanel
@@ -290,6 +300,7 @@ namespace pwiz.Skyline.FileUI.PeptideSearch
             this.transitionSettingsUiPage.Controls.Add(this.panel1);
             resources.ApplyResources(this.transitionSettingsUiPage, "transitionSettingsUiPage");
             this.transitionSettingsUiPage.Name = "transitionSettingsUiPage";
+            this.modeUIHandler.SetUIMode(this.transitionSettingsUiPage, pwiz.Skyline.Util.Helpers.ModeUIExtender.MODE_UI_HANDLING_TYPE.proteomic);
             this.transitionSettingsUiPage.UseVisualStyleBackColor = true;
             // 
             // panel1
@@ -332,6 +343,7 @@ namespace pwiz.Skyline.FileUI.PeptideSearch
             this.importFastaPage.Controls.Add(this.importFASTATitlePanel);
             resources.ApplyResources(this.importFastaPage, "importFastaPage");
             this.importFastaPage.Name = "importFastaPage";
+            this.modeUIHandler.SetUIMode(this.importFastaPage, pwiz.Skyline.Util.Helpers.ModeUIExtender.MODE_UI_HANDLING_TYPE.proteomic);
             this.importFastaPage.UseVisualStyleBackColor = true;
             // 
             // importFASTATitlePanel
@@ -348,11 +360,19 @@ namespace pwiz.Skyline.FileUI.PeptideSearch
             this.lblFasta.ForeColor = System.Drawing.SystemColors.ControlText;
             this.lblFasta.Name = "lblFasta";
             // 
+            // btnBack
+            // 
+            resources.ApplyResources(this.btnBack, "btnBack");
+            this.btnBack.Name = "btnBack";
+            this.btnBack.UseVisualStyleBackColor = true;
+            this.btnBack.Click += new System.EventHandler(this.btnBack_Click);
+            // 
             // ImportPeptideSearchDlg
             // 
             resources.ApplyResources(this, "$this");
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.CancelButton = this.btnCancel;
+            this.Controls.Add(this.btnBack);
             this.Controls.Add(this.btnEarlyFinish);
             this.Controls.Add(this.wizardPagesImportPeptideSearch);
             this.Controls.Add(this.btnCancel);
@@ -361,6 +381,7 @@ namespace pwiz.Skyline.FileUI.PeptideSearch
             this.MinimizeBox = false;
             this.Name = "ImportPeptideSearchDlg";
             this.ShowInTaskbar = false;
+            ((System.ComponentModel.ISupportInitialize)(this.modeUIHandler)).EndInit();
             this.wizardPagesImportPeptideSearch.ResumeLayout(false);
             this.buildSearchSpecLibPage.ResumeLayout(false);
             this.buildSpectralLibraryTitlePanel.ResumeLayout(false);
@@ -420,6 +441,7 @@ namespace pwiz.Skyline.FileUI.PeptideSearch
         private System.Windows.Forms.TabPage transitionSettingsUiPage;
         private System.Windows.Forms.Panel panel1;
         private System.Windows.Forms.Label label1;
-
+        private System.Windows.Forms.Button btnBack;
+        private System.Windows.Forms.Panel buildLibraryPanel;
     }
 }

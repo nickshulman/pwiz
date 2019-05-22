@@ -33,6 +33,7 @@ namespace SkylineTester
             "testresults",
             "skylinetester.zip",
             "testrunner.log",
+            "microsoft.visualstudio.qualitytools.unittestframework.dll", // Ignore if this appears in a build dir - gets added explicitly
             "testrunnermemory.log"
         };
 
@@ -85,8 +86,8 @@ namespace SkylineTester
             while (!File.Exists(Path.Combine(solutionDirectory, "Skyline.sln")))
             {
                 solutionDirectory = Path.GetDirectoryName(solutionDirectory);
-                if (solutionDirectory == null)
-                    throw new ApplicationException("Can't find solution directory");
+                if (string.IsNullOrEmpty(solutionDirectory))
+                    throw new ApplicationException("Can't find solution directory");                    
             }
 
             using (var zipFile = new ZipFile(zipPath))
@@ -100,15 +101,53 @@ namespace SkylineTester
                     // Add files to top level of zip file.
                     var files = new[]
                     {
+                        "SkylineNightlyShim.exe",
                         "SkylineNightly.exe",
                         "SkylineNightly.pdb",
                         "Microsoft.Win32.TaskScheduler.dll",
-                        "Ionic.Zip.dll"
+                        "DotNetZip.dll"
                     };
                     foreach (var file in files)
                     {
                         Console.WriteLine(file);
                         zipFile.AddFile(file);
+                    }
+                }
+
+                else if ((String.Empty + Path.GetFileName(zipPath)).ToLower() == "bibliospec.zip")
+                {
+                    // Create a BiblioSpec distro
+                    var files = new List<string>
+                    {
+                        "BlibBuild.exe",
+                        "BlibFilter.exe",
+                        "MassLynxRaw.dll",
+                        "timsdata.dll",
+                        "baf2sql_c.dll",
+                        "cdt.dll",
+                        "modifications.xml",
+                        "quantitation_1.xsd",
+                        "quantitation_2.xsd",
+                        "unimod_2.xsd"
+                    };
+                    var dir = Directory.GetCurrentDirectory();
+                    files.Add(dir.Contains("Debug") ? "msparserD.dll" : "msparser.dll");
+
+                    // Locate BlibToMS2
+                    var parent = dir.IndexOf("Skyline\\", StringComparison.Ordinal);
+                    if (parent > 0)
+                    {
+                        dir = dir.Substring(0, parent);
+                        var blib2ms2 = dir + "Shared\\BiblioSpec\\obj\\x64\\BlibToMs2.exe";
+                        if (File.Exists(blib2ms2)) // Don't worry about this for a 32 bit build, we don't distribute that
+                        {
+                            files.Add(blib2ms2);
+                        }
+                    }
+                    foreach (var file in files)
+                    {
+                        Console.WriteLine(file);
+                        zipFile.AddFile(file, string.Empty);
                     }
                 }
 
@@ -148,17 +187,22 @@ namespace SkylineTester
                     foreach (var testZipFile in zipFilesList)
                     {
                         var testZipDirectory = Path.GetDirectoryName(testZipFile);
-                        if (testZipDirectory == null)
+                        if (string.IsNullOrEmpty(testZipDirectory))
                             continue;
                         testZipDirectory = Path.Combine(zipFilesDirectory,
                             testZipDirectory.Substring(solutionDirectory.Length + 1));
                         AddFile(testZipFile, zipFile, testZipDirectory);
                     }
 
+                    // Add the file that we use to determine which branch this is from
+                    AddFile(Path.Combine(solutionDirectory,"..\\..\\pwiz\\Version.cpp"), zipFile);
+
                     // Add unit testing DLL.
-                    var unitTestingDll = Path.Combine(
-                        Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86),
-                        @"Microsoft Visual Studio 12.0\Common7\IDE\PublicAssemblies\Microsoft.VisualStudio.QualityTools.UnitTestFramework.dll");
+                    const string relativeUnitTestingDll =
+                        @"PublicAssemblies\Microsoft.VisualStudio.QualityTools.UnitTestFramework.dll";
+                    var unitTestingDll = SkylineTesterWindow.GetExistingVsIdeFilePath(relativeUnitTestingDll);
+                    if (unitTestingDll == null)
+                        throw new ApplicationException(string.Format("Can't find {0}", relativeUnitTestingDll));
                     AddFile(unitTestingDll, zipFile);
                 }
 

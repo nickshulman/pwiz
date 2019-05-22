@@ -386,6 +386,10 @@ class PWIZ_API_DECL TextWriter
             ("defaultArrayLength: " + boost::lexical_cast<std::string>(chromatogram.defaultArrayLength))
             (chromatogram.dataProcessingPtr)
             (static_cast<const ParamContainer&>(chromatogram));
+        if (!chromatogram.precursor.empty())
+            child()(chromatogram.precursor);
+        if (!chromatogram.product.empty())
+            child()(chromatogram.product);
         for_each(chromatogram.binaryDataArrayPtrs.begin(), chromatogram.binaryDataArrayPtrs.end(), child()); 
         return *this;
     }
@@ -393,6 +397,9 @@ class PWIZ_API_DECL TextWriter
     TextWriter& operator()(const Scan& scan)
     {
         (*this)("scan:");
+        if (!scan.spectrumID.empty()) child()("spectrumID: " + scan.spectrumID);
+        if (!scan.externalSpectrumID.empty()) child()("externalSpectrumID: " + scan.externalSpectrumID);
+        if (scan.sourceFilePtr) child()(*scan.sourceFilePtr);
         if (scan.instrumentConfigurationPtr.get()) child()(*scan.instrumentConfigurationPtr);
         child()(static_cast<const ParamContainer&>(scan));
         if (!scan.scanWindows.empty())

@@ -49,7 +49,8 @@ namespace pwiz.SkylineTestTutorial
     [TestClass]
     public class Ms1FullScanFilteringTutorial : AbstractFunctionalTest
     {
-        [TestMethod]
+        [TestMethod, MinidumpLeakThreshold(15)]
+        [Timeout(36000000)]  // These can take a long time in code coverage mode
         public void TestMs1Tutorial()
         {
             // Set true to look at tutorial screenshots.
@@ -93,7 +94,7 @@ namespace pwiz.SkylineTestTutorial
                 "35.7;+19.8 ppm;(idotp 0.67)|38.4;+10.2 ppm;(idotp 0.54)", // Not L10N
                 "36.1;-6.3 ppm|36.0;-34.1 ppm|37.3;-29.4 ppm|38.2;-19.2 ppm|38.5;-19.2 ppm|39.1;-1.8 ppm|39.9;-3.6 ppm|32.2;-11.1 ppm|34.3;-9.3 ppm", // Not L10N
                 "41.9;+13.1 ppm|37.5;-12.8 ppm|34.7;+21.7 ppm|32.5;+0.1 ppm|42.4;-6.7 ppm", // Not L10N
-                "35.9;-19.5 ppm|33.0;-55.9 ppm|39.5;-54.1 ppm", // Not L10N
+                "35.9;-19.4 ppm|33.0;-55.9 ppm|39.5;-54.1 ppm|34.3;-50.2 ppm|37.3;-40.4 ppm", // Not L10N
             };
 
         private bool PreferWiff
@@ -161,7 +162,7 @@ namespace pwiz.SkylineTestTutorial
             PauseForScreenShot<ImportPeptideSearchDlg.SpectraPage>("Import Peptide Search - Build Spectral Library populated page", 4);
 
             var ambiguousDlg = ShowDialog<MessageDlg>(importPeptideSearchDlg.ClickNextButtonNoCheck);
-            RunUI(ambiguousDlg.OkDialog);
+            OkDialog(ambiguousDlg, ambiguousDlg.OkDialog);
 
             // Verify document library was built
             string docLibPath = BiblioSpecLiteSpec.GetLibraryFileName(documentFile);
@@ -174,7 +175,7 @@ namespace pwiz.SkylineTestTutorial
             // All the test results files are in the same directory as the 
             // document file, so all the files should be found, and we should
             // just be able to move to the next page.
-            RunUI(() => Assert.IsTrue(importPeptideSearchDlg.CurrentPage == ImportPeptideSearchDlg.Pages.chromatograms_page));
+            WaitForConditionUI(() => importPeptideSearchDlg.CurrentPage == ImportPeptideSearchDlg.Pages.chromatograms_page);
             PauseForScreenShot<ImportPeptideSearchDlg.ChromatogramsPage>("Import Peptide Search - Extract Chromatograms page", 5);
 
             var importResultsNameDlg = ShowDialog<ImportResultsNameDlg>(() => importPeptideSearchDlg.ClickNextButton());
@@ -191,21 +192,26 @@ namespace pwiz.SkylineTestTutorial
                 importPeptideSearchDlg.MatchModificationsControl.CheckedModifications = modsToCheck;
             });
             PauseForScreenShot<ImportPeptideSearchDlg.MatchModsPage>("Import Peptide Search - Add Modifications page", 7);
-            RunUIWithDocumentWait(() => Assert.IsTrue(importPeptideSearchDlg.ClickNextButton()));
+            RunUI(() => Assert.IsTrue(importPeptideSearchDlg.ClickNextButton()));
 
             // We're on the "Configure MS1 Full-Scan Settings" page of the wizard.
             RunUI(() =>
             {
                 Assert.IsTrue(importPeptideSearchDlg.CurrentPage == ImportPeptideSearchDlg.Pages.full_scan_settings_page);
                 importPeptideSearchDlg.FullScanSettingsControl.PrecursorCharges = new[] { 2, 3, 4 };
+                importPeptideSearchDlg.FullScanSettingsControl.PrecursorMassAnalyzer = FullScanMassAnalyzerType.tof;
+                importPeptideSearchDlg.FullScanSettingsControl.PrecursorRes = 10*1000;
+
                 Assert.AreEqual(importPeptideSearchDlg.FullScanSettingsControl.PrecursorIsotopesCurrent, FullScanPrecursorIsotopes.Count);
+                Assert.AreEqual(FullScanMassAnalyzerType.tof, importPeptideSearchDlg.FullScanSettingsControl.PrecursorMassAnalyzer);
+                Assert.AreEqual(10*1000, importPeptideSearchDlg.FullScanSettingsControl.PrecursorRes);
                 Assert.AreEqual(3, importPeptideSearchDlg.FullScanSettingsControl.Peaks);
                 Assert.AreEqual(RetentionTimeFilterType.ms2_ids, importPeptideSearchDlg.FullScanSettingsControl.RetentionTimeFilterType);
                 Assert.AreEqual(5, importPeptideSearchDlg.FullScanSettingsControl.TimeAroundMs2Ids);
             });
             PauseForScreenShot<ImportPeptideSearchDlg.Ms1FullScanPage>("Import Peptide Search - Configure MS1 Full-Scan Settings page", 8);
 
-            RunUIWithDocumentWait(() => Assert.IsTrue(importPeptideSearchDlg.ClickNextButton()));
+            RunUI(() => Assert.IsTrue(importPeptideSearchDlg.ClickNextButton()));
 
             // Last page of wizard - Import Fasta.
             string fastaPath = GetTestPath("12_proteins.062011.fasta");
@@ -215,21 +221,38 @@ namespace pwiz.SkylineTestTutorial
                 Assert.AreEqual("Trypsin [KR | P]", importPeptideSearchDlg.ImportFastaControl.Enzyme.GetKey());
                 importPeptideSearchDlg.ImportFastaControl.MaxMissedCleavages = 2;
                 importPeptideSearchDlg.ImportFastaControl.SetFastaContent(fastaPath);
+                Assert.IsFalse(importPeptideSearchDlg.ImportFastaControl.DecoyGenerationEnabled);
             });
             PauseForScreenShot<ImportPeptideSearchDlg.FastaPage>("Import Peptide Search - Import FASTA page", 10);
 
-            OkDialog(importPeptideSearchDlg, () => importPeptideSearchDlg.ClickNextButton());
+            var peptidesPerProteinDlg = ShowDialog<PeptidesPerProteinDlg>(() => importPeptideSearchDlg.ClickNextButton());
+            WaitForCondition(() => peptidesPerProteinDlg.DocumentFinalCalculated);
+            RunUI(() =>
+            {
+                int proteinCount, peptideCount, precursorCount, transitionCount;
+                peptidesPerProteinDlg.NewTargetsAll(out proteinCount, out peptideCount, out precursorCount, out transitionCount);
+                Assert.AreEqual(11, proteinCount);
+                Assert.AreEqual(51, peptideCount);
+                Assert.AreEqual(52, precursorCount);
+                Assert.AreEqual(156, transitionCount);
+                peptidesPerProteinDlg.NewTargetsFinal(out proteinCount, out peptideCount, out precursorCount, out transitionCount);
+                Assert.AreEqual(11, proteinCount);
+                Assert.AreEqual(51, peptideCount);
+                Assert.AreEqual(52, precursorCount);
+                Assert.AreEqual(156, transitionCount);
+            });
+            OkDialog(peptidesPerProteinDlg, peptidesPerProteinDlg.OkDialog);
             PauseForScreenShot<AllChromatogramsGraph>("Loading chromatograms window", 11);
             WaitForDocumentChangeLoaded(doc, 8 * 60 * 1000); // 10 minutes
 
             var libraryExplorer = ShowDialog<ViewLibraryDlg>(() => SkylineWindow.OpenLibraryExplorer(documentBaseName));
-            var matchedPepModsDlg = WaitForOpenForm<MultiButtonMsgDlg>();
+            var matchedPepModsDlg = WaitForOpenForm<AddModificationsDlg>();
             PauseForScreenShot<MultiButtonMsgDlg>("Add mods alert", 12);
             RunUI(() =>
                 {
-                    Assert.IsTrue(matchedPepModsDlg.Message.StartsWith(Resources.ViewLibraryDlg_MatchModifications_This_library_appears_to_contain_the_following_modifications));
-                    Assert.IsTrue(matchedPepModsDlg.Message.Split('\n').Length > 16);
-                    matchedPepModsDlg.BtnCancelClick();
+                    Assert.AreEqual(13, matchedPepModsDlg.NumMatched);
+                    Assert.AreEqual(0, matchedPepModsDlg.NumUnmatched);
+                    matchedPepModsDlg.CancelDialog();
                 });
             RunUI(() =>
                 {

@@ -104,6 +104,9 @@ PWIZ_API_DECL CVID translateAsInstrumentModel(InstrumentModelType instrumentMode
         case InstrumentModelType_Accela_PDA:                return MS_Accela_PDA;
         case InstrumentModelType_Orbitrap_Fusion:           return MS_Orbitrap_Fusion;
         case InstrumentModelType_Orbitrap_Fusion_ETD:       return MS_Orbitrap_Fusion_ETD;
+        case InstrumentModelType_TSQ_Quantiva:              return MS_TSQ_Quantiva;
+        case InstrumentModelType_TSQ_Endura:                return MS_TSQ_Endura;
+        case InstrumentModelType_TSQ_Altis:                 return MS_TSQ_Altis;
 
         default:
             throw std::runtime_error("[Reader_Thermo::translateAsInstrumentModel] Enumerated instrument model " + lexical_cast<string>(instrumentModelType) + " has no CV term mapping!");
@@ -132,7 +135,15 @@ vector<InstrumentConfiguration> createInstrumentConfigurations(RawFile& rawfile)
     if (firstInletType != CVID_Unknown)
         commonSource.set(firstInletType);
 
-    return createInstrumentConfigurations(commonSource, model);
+    auto configurations = createInstrumentConfigurations(commonSource, model);
+
+    if (rawfile.getNumberOfControllersOfType(Controller_PDA) > 0)
+    {
+        configurations.push_back(InstrumentConfiguration());
+        configurations.back().componentList.push_back(Component(MS_PDA, 1));
+    }
+
+    return configurations;
 }
 
 
@@ -253,6 +264,9 @@ vector<InstrumentConfiguration> createInstrumentConfigurations(const Component& 
         case InstrumentModelType_TSQ_Vantage_Standard:
         case InstrumentModelType_TSQ_Vantage_EMR:
         case InstrumentModelType_GC_Quantum:
+        case InstrumentModelType_TSQ_Quantiva:
+        case InstrumentModelType_TSQ_Endura:
+        case InstrumentModelType_TSQ_Altis:
             configurations.push_back(InstrumentConfiguration());
             configurations.back().componentList.push_back(commonSource);
             configurations.back().componentList.push_back(Component(MS_quadrupole, 2));
@@ -416,7 +430,7 @@ PWIZ_API_DECL CVID translate(PolarityType polarityType)
     }
 }
 
-PWIZ_API_DECL void SetActivationType(ActivationType activationType, Activation& activation)
+PWIZ_API_DECL void setActivationType(ActivationType activationType, ActivationType supplementalActivationType, Activation& activation)
 {
     if (activationType & ActivationType_CID)
         activation.set(MS_collision_induced_dissociation);
@@ -428,8 +442,18 @@ PWIZ_API_DECL void SetActivationType(ActivationType activationType, Activation& 
         activation.set(MS_pulsed_q_dissociation);
     if (activationType & ActivationType_HCD)
         activation.set(MS_HCD);
+
+    if (supplementalActivationType != ActivationType_Unknown)
+    {
+        if (supplementalActivationType & ActivationType_CID)
+            activation.set(MS_supplemental_collision_induced_dissociation);
+        else if (supplementalActivationType & ActivationType_HCD)
+            activation.set(MS_supplemental_beam_type_collision_induced_dissociation);
+    }
+    
     // ActivationType_PTR: // what does this map to?
-    // ActivationType_MPD: // what does this map to?
+    if (activationType & ActivationType_MPD)
+        activation.set(MS_multiphoton_dissociation);
     // ActivationType_Unknown:
 }
 

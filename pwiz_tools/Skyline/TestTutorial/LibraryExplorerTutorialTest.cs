@@ -20,7 +20,6 @@ using System;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using pwiz.Common.SystemUtil;
-using pwiz.Skyline;
 using pwiz.Skyline.Controls.Graphs;
 using pwiz.Skyline.Model;
 using pwiz.Skyline.Model.Lib;
@@ -90,8 +89,8 @@ namespace pwiz.SkylineTestTutorial
 
             // Go to view menu and click Spectral Libraries
             ViewLibraryDlg viewLibraryDlg = ShowDialog<ViewLibraryDlg>(SkylineWindow.ViewSpectralLibraries);
-            var matchedPepsDlg = WaitForOpenForm<MultiButtonMsgDlg>();
-            RunUI(matchedPepsDlg.BtnCancelClick);
+            var matchedPepsDlg = WaitForOpenForm<AddModificationsDlg>();
+            RunUI(matchedPepsDlg.CancelDialog);
             PauseForScreenShot<ViewLibraryDlg>("Library Explorer", 5);
 
             // Types text in Peptide textbox in the Spectral Library Explorer Window
@@ -163,7 +162,7 @@ namespace pwiz.SkylineTestTutorial
 
             Assert.IsTrue(WaitForCondition(() =>
                 SkylineWindow.Document.Settings.PeptideSettings.Modifications.StaticModifications.Count > 0 &&
-                SkylineWindow.Document.Settings.PeptideSettings.Modifications.HeavyModifications.Count > 0));
+                SkylineWindow.Document.Settings.PeptideSettings.Modifications.AllHeavyModifications.Any()));
             PauseForScreenShot("Peptide list clipped from Library Explorer", 11);
 
             // Adding Library Peptides to the Document p. 11
@@ -278,13 +277,13 @@ namespace pwiz.SkylineTestTutorial
 
             Assert.IsTrue(WaitForCondition(() =>
                 SkylineWindow.Document.Settings.PeptideSettings.Modifications.StaticModifications.Count == 1 &&
-                SkylineWindow.Document.Settings.PeptideSettings.Modifications.HeavyModifications.Count == 0 &&
+                !SkylineWindow.Document.Settings.PeptideSettings.Modifications.AllHeavyModifications.Any() &&
                 SkylineWindow.Document.Settings.PeptideSettings.Libraries.IsLoaded &&
                 SkylineWindow.Document.Settings.PeptideSettings.Libraries.Libraries.Count > 0));
 
             // Ignore modification matching form
-            var matchedPepModsDlg = WaitForOpenForm<MultiButtonMsgDlg>();
-            RunUI(matchedPepModsDlg.BtnCancelClick);
+            var matchedPepModsDlg = WaitForOpenForm<AddModificationsDlg>();
+            RunUI(matchedPepModsDlg.CancelDialog);
 
             var viewLibraryDlg1 = WaitForOpenForm<ViewLibraryDlg>();
             const int countLabels1 = 15;
@@ -336,7 +335,7 @@ namespace pwiz.SkylineTestTutorial
                 var labelsPhospho = viewLibraryDlg1.GraphItem.IonLabels.ToList();
                 Assert.AreEqual(countLossLabels1 + 1, labelsPhospho.Count(label => label.Contains(lossText)));
                 Assert.IsTrue(labelsPhospho.Contains(label => label.Contains(string.Format("{0} {1}", IonType.precursor.GetLocalizedString(), lossText)))); 
-                Assert.AreEqual(countLabels1 + countLossLabels1 + countPrecursors1, labelsPhospho.Count());
+                Assert.AreEqual(countLabels1 + countLossLabels1 + countPrecursors1, labelsPhospho.Count);
             });
             PauseForScreenShot<GraphSpectrum>("Spectrum graph metafile", 18);   // p. 18, figure 1a.
 
@@ -346,7 +345,7 @@ namespace pwiz.SkylineTestTutorial
                 var labelsPhospho = viewLibraryDlg1.GraphItem.IonLabels.ToList();
                 Assert.AreEqual(countLossLabels2 + 1, labelsPhospho.Count(label => label.Contains(lossText)));
                 Assert.IsTrue(labelsPhospho.Contains(label => label.Contains(string.Format("{0} {1}", IonType.precursor.GetLocalizedString(), lossText))));
-                Assert.AreEqual(countLabels2 + countLossLabels2 + countPrecursors2, labelsPhospho.Count());
+                Assert.AreEqual(countLabels2 + countLossLabels2 + countPrecursors2, labelsPhospho.Count);
             });
             PauseForScreenShot<GraphSpectrum>("Spectrum graph metafile", 18);   // p. 18, figure 1b.
 
@@ -371,13 +370,6 @@ namespace pwiz.SkylineTestTutorial
             });
             OkDialog(peptideSettingsUI3, peptideSettingsUI3.OkDialog);
             
-            Assert.IsTrue(WaitForCondition(() =>
-            {
-                var peptideSettings = Program.ActiveDocument.Settings.PeptideSettings;
-                var backgroundProteome = peptideSettings.BackgroundProteome;
-                return (backgroundProteome.HasDigestion(peptideSettings));
-            }));
-
             WaitForBackgroundProteomeLoaderCompleted(); // wait for protDB to populate protein metadata
 
             RunUI(() =>
@@ -394,9 +386,10 @@ namespace pwiz.SkylineTestTutorial
 
             docInitial = WaitForProteinMetadataBackgroundLoaderCompletedUI();
 
+            var confirmUpgrade = ShowDialog<AlertDlg>(viewLibraryDlg1.AddAllPeptides);
             // Add everything in the library to the document.
             var filterMatchedPeptidesDlg = 
-                ShowDialog<FilterMatchedPeptidesDlg>(viewLibraryDlg1.AddAllPeptides);
+                ShowDialog<FilterMatchedPeptidesDlg>(confirmUpgrade.ClickYes);
             
             RunUI(() =>
                       {
@@ -421,7 +414,7 @@ namespace pwiz.SkylineTestTutorial
 
             var docProteins = WaitForDocumentChange(docInitial);
 
-            AssertEx.IsDocumentState(docProteins, null, 250, 346, 347, 1034);
+            AssertEx.IsDocumentState(docProteins, null, 250, 346, 347, 1041);
 
             PauseForScreenShot("Main window", 21);
         }

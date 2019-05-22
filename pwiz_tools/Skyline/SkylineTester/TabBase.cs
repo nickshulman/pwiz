@@ -40,6 +40,16 @@ namespace SkylineTester
             return true;
         }
 
+        public virtual bool IsRunning()
+        {
+            return MainWindow.CommandShell.IsRunning;
+        }
+
+        public virtual bool IsWaiting()
+        {
+            return MainWindow.CommandShell.IsWaiting;
+        }
+
         public virtual void Cancel()
         {
             MainWindow.CommandShell.Stop();
@@ -48,6 +58,11 @@ namespace SkylineTester
         public virtual bool Stop(bool success)
         {
             return true;
+        }
+
+        public virtual void Stopped()
+        {
+            // Only Nightly tab uses this to close the window
         }
 
         public virtual int Find(string text, int position)

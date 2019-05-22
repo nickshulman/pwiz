@@ -17,6 +17,7 @@
  * limitations under the License.
  */
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Windows.Forms;
@@ -24,16 +25,21 @@ using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Alerts;
 using pwiz.Skyline.Controls;
 using pwiz.Skyline.Model;
+using pwiz.Skyline.Model.AuditLog;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Properties;
+using pwiz.Skyline.SettingsUI;
 using pwiz.Skyline.Util;
 
 namespace pwiz.Skyline.EditUI
 {
-    public partial class RefineDlg : FormEx
+    public partial class RefineDlg : FormEx, IAuditLogModifier<RefinementSettings>
     {
         private readonly SrmDocument _document;
         private readonly SrmSettings _settings;
+
+        private readonly string _removeLabelText;
+        private readonly string _removeTipText;
 
         public RefineDlg(SrmDocument document)
         {
@@ -44,7 +50,11 @@ namespace pwiz.Skyline.EditUI
 
             Icon = Resources.Skyline;
 
-            // Fill label type combo box
+            // Save text for later use
+            _removeLabelText = labelLabelType.Text;
+            _removeTipText = helpTip.GetToolTip(comboRefineLabelType);
+
+            // Fill label type comb_o box
             comboRefineLabelType.Items.Add(string.Empty);
             comboRefineLabelType.Items.Add(IsotopeLabelType.LIGHT_NAME);
             foreach (var typedMods in _settings.PeptideSettings.Modifications.GetHeavyModifications())
@@ -55,7 +65,20 @@ namespace pwiz.Skyline.EditUI
             var settings = document.Settings;
             if (!settings.HasResults)
             {
+                // For some reason we need to preserve and then restore all the tool tips
+                // to keep them working in this case. Not sure why.
+                var listTips = new List<string>();
+                foreach (Control control in tabControl1.TabPages[0].Controls)
+                    listTips.Add(helpTip.GetToolTip(control));
+
                 tabControl1.TabPages.Remove(tabResults);
+
+                helpTip.RemoveAll();
+                foreach (Control control in tabControl1.TabPages[0].Controls)
+                {
+                    helpTip.SetToolTip(control, listTips[0]);
+                    listTips.RemoveAt(0);
+                }
             }
 
             if (settings.PeptideSettings.Libraries.HasLibraries)
@@ -66,6 +89,11 @@ namespace pwiz.Skyline.EditUI
             {
                 labelMinIdotProduct.Enabled = textMinIdotProduct.Enabled = groupLibCorr.Enabled = true;
             }
+        }
+
+        protected override void OnShown(EventArgs e)
+        {
+            tabControl1.FocusFirstTabStop();
         }
 
         public RefinementSettings RefinementSettings { get; private set; }
@@ -128,7 +156,7 @@ namespace pwiz.Skyline.EditUI
             if (!string.IsNullOrEmpty(textMinPeptides.Text))
             {
                 int minVal;
-                if (!helper.ValidateNumberTextBox(tabControl1, 0, textMinPeptides, 0, 10, out minVal))
+                if (!helper.ValidateNumberTextBox(textMinPeptides, 0, 10, out minVal))
                     return;
                 minPeptidesPerProtein = minVal;
             }
@@ -136,12 +164,13 @@ namespace pwiz.Skyline.EditUI
             if (!string.IsNullOrEmpty(textMinTransitions.Text))
             {
                 int minVal;
-                if (!helper.ValidateNumberTextBox(tabControl1, 0, textMinTransitions, 0, 100, out minVal))
+                if (!helper.ValidateNumberTextBox(textMinTransitions, 0, 100, out minVal))
                     return;
                 minTransitionsPerPrecursor = minVal;
             }
             bool removeDuplicatePeptides = cbRemoveDuplicatePeptides.Checked;
             bool removeRepeatedPeptides = cbRemoveRepeatedPeptides.Checked;
+            bool removeMissingLibrary = cbRemovePeptidesMissingLibrary.Checked;
 
             IsotopeLabelType refineLabelType = RefineLabelType;
 
@@ -160,14 +189,14 @@ namespace pwiz.Skyline.EditUI
             if (!string.IsNullOrEmpty(textMinPeakFoundRatio.Text))
             {
                 double minVal;
-                if (!helper.ValidateDecimalTextBox(tabControl1, 1, textMinPeakFoundRatio, 0, 1, out minVal))
+                if (!helper.ValidateDecimalTextBox(textMinPeakFoundRatio, 0, 1, out minVal))
                     return;
                 minPeakFoundRatio = minVal;
             }
             if (!string.IsNullOrEmpty(textMaxPeakFoundRatio.Text))
             {
                 double maxVal;
-                if (!helper.ValidateDecimalTextBox(tabControl1, 1, textMaxPeakFoundRatio, 0, 1, out maxVal))
+                if (!helper.ValidateDecimalTextBox(textMaxPeakFoundRatio, 0, 1, out maxVal))
                     return;
                 maxPeakFoundRatio = maxVal;
             }
@@ -183,7 +212,7 @@ namespace pwiz.Skyline.EditUI
             if (!string.IsNullOrEmpty(textMaxPepPeakRank.Text))
             {
                 int maxVal;
-                if (!helper.ValidateNumberTextBox(tabControl1, 1, textMaxPepPeakRank, 1, 10, out maxVal))
+                if (!helper.ValidateNumberTextBox(textMaxPepPeakRank, 1, 10, out maxVal))
                     return;
                 maxPepPeakRank = maxVal;
             }
@@ -191,7 +220,7 @@ namespace pwiz.Skyline.EditUI
             if (!string.IsNullOrEmpty(textMaxPeakRank.Text))
             {
                 int maxVal;
-                if (!helper.ValidateNumberTextBox(tabControl1, 1, textMaxPeakRank, 1, 10, out maxVal))
+                if (!helper.ValidateNumberTextBox(textMaxPeakRank, 1, 10, out maxVal))
                     return;
                 maxPeakRank = maxVal;
             }
@@ -202,7 +231,7 @@ namespace pwiz.Skyline.EditUI
             if (!string.IsNullOrEmpty(textRTRegressionThreshold.Text))
             {
                 double minVal;
-                if (!helper.ValidateDecimalTextBox(tabControl1, 1, textRTRegressionThreshold, 0, 1, out minVal))
+                if (!helper.ValidateDecimalTextBox(textRTRegressionThreshold, 0, 1, out minVal))
                     return;
                 rtRegressionThreshold = minVal;
             }
@@ -211,7 +240,7 @@ namespace pwiz.Skyline.EditUI
             if (!string.IsNullOrEmpty(textMinDotProduct.Text))
             {
                 double minVal;
-                if (!helper.ValidateDecimalTextBox(tabControl1, 1, textMinDotProduct, 0, 1, out minVal))
+                if (!helper.ValidateDecimalTextBox(textMinDotProduct, 0, 1, out minVal))
                     return;
                 dotProductThreshold = minVal;
             }
@@ -220,7 +249,7 @@ namespace pwiz.Skyline.EditUI
             if (!string.IsNullOrEmpty(textMinIdotProduct.Text))
             {
                 double minVal;
-                if (!helper.ValidateDecimalTextBox(tabControl1, 1, textMinIdotProduct, 0, 1, out minVal))
+                if (!helper.ValidateDecimalTextBox(textMinIdotProduct, 0, 1, out minVal))
                     return;
                 idotProductThreshold = minVal;
             }
@@ -230,8 +259,9 @@ namespace pwiz.Skyline.EditUI
             RefinementSettings = new RefinementSettings
                                      {
                                          MinPeptidesPerProtein = minPeptidesPerProtein,
-                                         RemoveDuplicatePeptides = removeDuplicatePeptides,
                                          RemoveRepeatedPeptides = removeRepeatedPeptides,
+                                         RemoveDuplicatePeptides = removeDuplicatePeptides,
+                                         RemoveMissingLibrary = removeMissingLibrary,
                                          MinTransitionsPepPrecursor = minTransitionsPerPrecursor,
                                          RefineLabelType = refineLabelType,
                                          AddLabelType = addLabelType,
@@ -272,7 +302,10 @@ namespace pwiz.Skyline.EditUI
         {
             labelLabelType.Text = cbAdd.Checked
                                       ? Resources.RefineDlg_cbAdd_CheckedChanged_Add_label_type
-                                      : Resources.RefineDlg_cbAdd_CheckedChanged_Remove_label_type;
+                                      : _removeLabelText;
+            helpTip.SetToolTip(comboRefineLabelType, cbAdd.Checked
+                    ? Resources.RefineDlg_cbAdd_CheckedChanged_Precursors_of_the_chosen_isotope_label_type_will_be_added_if_they_are_missing
+                    : _removeTipText);
         }
 
         private void textMaxPeakRank_TextChanged(object sender, EventArgs e)
@@ -303,5 +336,10 @@ namespace pwiz.Skyline.EditUI
         }
 
         #endregion
+
+        public RefinementSettings FormSettings
+        {
+            get { return RefinementSettings; }
+        }
     }
 }

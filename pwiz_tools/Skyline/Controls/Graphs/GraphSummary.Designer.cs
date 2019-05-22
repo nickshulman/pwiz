@@ -31,6 +31,10 @@
             this.components = new System.ComponentModel.Container();
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(GraphSummary));
             this.graphControl = new ZedGraph.ZedGraphControl();
+            this.splitContainer = new System.Windows.Forms.SplitContainer();
+            ((System.ComponentModel.ISupportInitialize)(this.splitContainer)).BeginInit();
+            this.splitContainer.Panel2.SuspendLayout();
+            this.splitContainer.SuspendLayout();
             this.SuspendLayout();
             // 
             // graphControl
@@ -53,12 +57,24 @@
             this.graphControl.ZoomEvent += new ZedGraph.ZedGraphControl.ZoomEventHandler(this.graphControl_ZoomEvent);
             this.graphControl.MouseDownEvent += new ZedGraph.ZedGraphControl.ZedMouseEventHandler(this.graphControl_MouseDownEvent);
             this.graphControl.MouseMoveEvent += new ZedGraph.ZedGraphControl.ZedMouseEventHandler(this.graphControl_MouseMoveEvent);
+            this.graphControl.MouseClick += new System.Windows.Forms.MouseEventHandler(this.graphControl_MouseClick);
+            // 
+            // splitContainer
+            // 
+            resources.ApplyResources(this.splitContainer, "splitContainer");
+            this.splitContainer.FixedPanel = System.Windows.Forms.FixedPanel.Panel1;
+            this.splitContainer.Name = "splitContainer";
+            this.splitContainer.Panel1Collapsed = true;
+            // 
+            // splitContainer.Panel2
+            // 
+            this.splitContainer.Panel2.Controls.Add(this.graphControl);
             // 
             // GraphSummary
             // 
             resources.ApplyResources(this, "$this");
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.Controls.Add(this.graphControl);
+            this.Controls.Add(this.splitContainer);
             this.HideOnClose = true;
             this.KeyPreview = true;
             this.MaximizeBox = false;
@@ -68,6 +84,9 @@
             this.VisibleChanged += new System.EventHandler(this.GraphSummary_VisibleChanged);
             this.KeyDown += new System.Windows.Forms.KeyEventHandler(this.GraphSummary_KeyDown);
             this.Resize += new System.EventHandler(this.GraphSummary_Resize);
+            this.splitContainer.Panel2.ResumeLayout(false);
+            ((System.ComponentModel.ISupportInitialize)(this.splitContainer)).EndInit();
+            this.splitContainer.ResumeLayout(false);
             this.ResumeLayout(false);
 
         }
@@ -75,6 +94,7 @@
         #endregion
 
         private ZedGraph.ZedGraphControl graphControl;
+        private System.Windows.Forms.SplitContainer splitContainer;
 
     }
 }

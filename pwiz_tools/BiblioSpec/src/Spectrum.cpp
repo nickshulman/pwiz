@@ -25,9 +25,8 @@
 #include <cstdlib>
 #include <ctime>
 #include "Spectrum.h"
+#include "pwiz/utility/misc/Std.hpp"
 
-
-using namespace std;
 
 namespace BiblioSpec {
 
@@ -36,9 +35,12 @@ Spectrum::Spectrum() :
     type_(SPEC_UNDEF), 
     mz_(0),
     ionMobility_(0),
-    ionMobilityType_(0),
-    ionMobilityHighEnergyDriftTimeOffsetMsec_(0),
+    collisionalCrossSection_(0),
+    ionMobilityHighEnergyOffset_(0),
+    ionMobilityType_(IONMOBILITY_NONE),
     retentionTime_(0),
+    startTime_(0),
+    endTime_(0),
     totalIonCurrentRaw_(-1),
     totalIonCurrentProcessed_(-1), 
     basePeakIntensityRaw_(-1), 
@@ -52,8 +54,11 @@ Spectrum::Spectrum(const Spectrum& s)
     mz_ = s.mz_;
     ionMobility_ = s.ionMobility_;
     ionMobilityType_ = s.ionMobilityType_;
-    ionMobilityHighEnergyDriftTimeOffsetMsec_ = s.ionMobilityHighEnergyDriftTimeOffsetMsec_;
+    collisionalCrossSection_ = s.collisionalCrossSection_;
+    ionMobilityHighEnergyOffset_ = s.ionMobilityHighEnergyOffset_;
     retentionTime_ = s.retentionTime_;
+    startTime_ = s.startTime_;
+    endTime_ = s.endTime_;
     type_ = s.type_;
     totalIonCurrentRaw_ = s.totalIonCurrentRaw_;
     totalIonCurrentProcessed_ = s.totalIonCurrentProcessed_;
@@ -75,9 +80,12 @@ void Spectrum::clear() {
     scanNumber_ = 0;
     mz_ = 0;
     ionMobility_ = 0;
-    ionMobilityType_ = 0;
-    ionMobilityHighEnergyDriftTimeOffsetMsec_ = 0;
+    ionMobilityType_ = IONMOBILITY_NONE;
+    collisionalCrossSection_ = 0;
+    ionMobilityHighEnergyOffset_ = 0;
     retentionTime_ = 0;
+    startTime_ = 0;
+    endTime_ = 0;
     type_ = SPEC_UNDEF;
     possibleCharges_.clear();
     rawPeaks_.clear();
@@ -94,8 +102,11 @@ Spectrum& Spectrum::operator= (const Spectrum& right)
     mz_ = right.mz_;
     ionMobility_ = right.ionMobility_;
     ionMobilityType_ = right.ionMobilityType_;
-    ionMobilityHighEnergyDriftTimeOffsetMsec_ = right.ionMobilityHighEnergyDriftTimeOffsetMsec_;
+    collisionalCrossSection_ = right.collisionalCrossSection_;
+    ionMobilityHighEnergyOffset_ = right.ionMobilityHighEnergyOffset_;
     retentionTime_ = right.retentionTime_;
+    startTime_ = right.startTime_;
+    endTime_ = right.endTime_;
     possibleCharges_ = right.possibleCharges_;
     rawPeaks_ = right.rawPeaks_;
     processedPeaks_ = right.processedPeaks_;
@@ -123,14 +134,29 @@ double Spectrum::getIonMobility() const
     return ionMobility_;
 }
 
-int Spectrum::getIonMobilityType() const
+IONMOBILITY_TYPE Spectrum::getIonMobilityType() const
 {
     return ionMobilityType_;
+}
+
+double Spectrum::getCollisionalCrossSection() const
+{
+    return collisionalCrossSection_;
 }
 
 double Spectrum::getRetentionTime() const
 {
     return retentionTime_;
+}
+
+double Spectrum::getStartTime() const
+{
+    return startTime_;
+}
+
+double Spectrum::getEndTime() const
+{
+    return endTime_;
 }
 
 int Spectrum::getNumRawPeaks() const
@@ -156,18 +182,18 @@ double Spectrum::getTotalIonCurrentRaw() const
 }
 
 // In Waters Mse IMS, product ions have kinetic energy added post-drift tube and fly the last part of path to detector slightly faster
-double Spectrum::getIonMobilityHighEnergyDriftTimeOffsetMsec() const 
+double Spectrum::getIonMobilityHighEnergyOffset() const 
 {
-    if (ionMobilityHighEnergyDriftTimeOffsetMsec_ == 0)
+    if (ionMobilityHighEnergyOffset_ == 0)
     {
         double sum = 0;
         for(size_t i = 0; i < rawPeaks_.size(); i++){
-            sum += rawPeaks_[i].ionMobility;
+            sum += rawPeaks_[i].driftTime;
         }
         if (sum > 0)
             return (sum/rawPeaks_.size()) - getIonMobility();
     }
-    return ionMobilityHighEnergyDriftTimeOffsetMsec_;
+    return ionMobilityHighEnergyOffset_;
 }
 
 double Spectrum::getTotalIonCurrentProcessed() const
@@ -276,20 +302,29 @@ void Spectrum::setMz(double newmz){
     mz_ = newmz;
 }
 
-void Spectrum::setIonMobility(double mobility) {
-    ionMobility_ = mobility;
-}
-
-void Spectrum::setIonMobilityHighEnergyDriftTimeOffsetMsec(double offset) { // In Waters Mse IMS, ions are given extra kinetic energy post-drift to fragment them, and so product ions reach the detector a bit sooner
-    ionMobilityHighEnergyDriftTimeOffsetMsec_ = offset;
-}
-
-void Spectrum::setIonMobilityType(int type) {
+void Spectrum::setIonMobility(double im, IONMOBILITY_TYPE type) {
+    ionMobility_ = im;
     ionMobilityType_ = type;
+}
+
+void Spectrum::setIonMobilityHighEnergyOffset(double offset) { // In Waters Mse IMS, ions are given extra kinetic energy post-drift to fragment them, and so product ions reach the detector a bit sooner
+    ionMobilityHighEnergyOffset_ = offset;
+}
+
+void Spectrum::setCollisionalCrossSection(double ccs) {
+    collisionalCrossSection_ = ccs;
 }
 
 void Spectrum::setRetentionTime(double rt){
     retentionTime_ = rt;
+}
+
+void Spectrum::setStartTime(double rt){
+    startTime_ = rt;
+}
+
+void Spectrum::setEndTime(double rt){
+    endTime_ = rt;
 }
 
 /*

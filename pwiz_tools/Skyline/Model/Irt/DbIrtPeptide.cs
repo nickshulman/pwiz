@@ -23,15 +23,57 @@ using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.Lib.BlibData;
 using pwiz.Skyline.Properties;
+// ReSharper disable VirtualMemberCallInConstructor
 
 namespace pwiz.Skyline.Model.Irt
 {
     public interface IPeptideData
     {
-        string Sequence { get; }
+        Target Target { get; }
     }
 
-    public class DbIrtPeptide : DbEntity, IPeptideData
+    public abstract class DbAbstractPeptide : DbEntity, IPeptideData
+    {
+        private Target _peptideModSeq;
+
+        protected DbAbstractPeptide()
+        {
+        }
+
+        protected DbAbstractPeptide(DbAbstractPeptide other)
+        {
+            _peptideModSeq = other._peptideModSeq;
+        }
+
+        // For NHibernate use
+        public virtual string PeptideModSeq
+        {
+            get { return _peptideModSeq.ToSerializableString(); }
+            set
+            {
+                _peptideModSeq = Target.FromSerializableString(value);
+            }
+        }
+
+        public virtual Target ModifiedTarget
+        {
+            get { return _peptideModSeq; }
+            set
+            {
+                // Always round-trip the Target to its serialized form, which might truncate the masses for small molecules.
+                _peptideModSeq = Target.FromSerializableString(value.ToSerializableString());
+            }
+        }
+
+        public virtual Target Target { get { return ModifiedTarget; } }
+
+        public virtual Target GetNormalizedModifiedSequence()
+        {
+            return _peptideModSeq;
+        }
+    }
+
+    public class DbIrtPeptide : DbAbstractPeptide
     {
         public override Type EntityClass
         {
@@ -48,12 +90,10 @@ namespace pwiz.Skyline.Model.Irt
         )
         */
         // public virtual long? ID { get; set; } // in DbEntity
-        public virtual string PeptideModSeq { get; set; }
         public virtual double Irt { get; set; }
         public virtual bool Standard { get; set; }
         public virtual int? TimeSource { get; set; } // null = unknown, 0 = scan, 1 = peak
 
-        public virtual string Sequence { get { return PeptideModSeq; } }
 
         /// <summary>
         /// For NHibernate only
@@ -62,20 +102,22 @@ namespace pwiz.Skyline.Model.Irt
         {            
         }
 
-        public DbIrtPeptide(DbIrtPeptide other)
-            : this(other.PeptideModSeq, other.Irt, other.Standard, other.TimeSource)
+        public DbIrtPeptide(DbIrtPeptide other) : base(other)
         {
             Id = other.Id;
+            Irt = other.Irt;
+            Standard = other.Standard;
+            TimeSource = other.TimeSource;
         }
 
-        public DbIrtPeptide(string seq, double irt, bool standard, TimeSource timeSource)
+        public DbIrtPeptide(Target seq, double irt, bool standard, TimeSource timeSource)
             : this(seq, irt, standard, (int) timeSource)
         {            
         }
 
-        public DbIrtPeptide(string seq, double irt, bool standard, int? timeSource)
+        public DbIrtPeptide(Target seq, double irt, bool standard, int? timeSource)
         {
-            PeptideModSeq = seq;
+            ModifiedTarget = seq;
             Irt = irt;
             Standard = standard;
             TimeSource = timeSource;
@@ -83,42 +125,56 @@ namespace pwiz.Skyline.Model.Irt
 
         public static List<DbIrtPeptide> MakeUnique(List<DbIrtPeptide> irtPeptides)
         {
-            var uniqueIrtPeptidesDict = new Dictionary<string, DbIrtPeptide>();
+            var uniqueIrtPeptidesDict = new Dictionary<Target, DbIrtPeptide>();
             foreach (var irtPeptide in irtPeptides)
             {
                 DbIrtPeptide duplicateIrtPeptide;
-                if (irtPeptide.Standard || !uniqueIrtPeptidesDict.TryGetValue(irtPeptide.PeptideModSeq, out duplicateIrtPeptide))
+                if (irtPeptide.Standard || !uniqueIrtPeptidesDict.TryGetValue(irtPeptide.ModifiedTarget, out duplicateIrtPeptide))
                 {
-                    uniqueIrtPeptidesDict[irtPeptide.PeptideModSeq] = irtPeptide;
+                    uniqueIrtPeptidesDict[irtPeptide.ModifiedTarget] = irtPeptide;
                 }
             }
             return uniqueIrtPeptidesDict.Values.ToList();
         }
 
+        public struct Conflict
+        {
+            public Conflict(DbIrtPeptide newPeptide, DbIrtPeptide existingPeptide) : this()
+            {
+                ExistingPeptide = existingPeptide;
+                NewPeptide = newPeptide;
+            }
+
+            public DbIrtPeptide ExistingPeptide { get; private set; }
+            public DbIrtPeptide NewPeptide { get; private set; }
+        }
+
         public static List<DbIrtPeptide> FindNonConflicts(IList<DbIrtPeptide> oldPeptides, 
                                                           IList<DbIrtPeptide> newPeptides, 
                                                           IProgressMonitor progressMonitor,
-                                                          out IList<Tuple<DbIrtPeptide, DbIrtPeptide>> conflicts)
+                                                          out IList<Conflict> conflicts)
         {
             int progressPercent = 0;
             int i = 0;
-            var status = new ProgressStatus(Resources.DbIrtPeptide_FindNonConflicts_Adding_iRT_values_for_imported_peptides);
+            IProgressStatus status = new ProgressStatus(Resources.DbIrtPeptide_FindNonConflicts_Adding_iRT_values_for_imported_peptides);
+            if (progressMonitor != null)
+                progressMonitor.UpdateProgress(status);
             var peptidesNoConflict = new List<DbIrtPeptide>();
-            conflicts = new List<Tuple<DbIrtPeptide, DbIrtPeptide>>();
-            var dictOld = oldPeptides.ToDictionary(pep => pep.PeptideModSeq);
-            var dictNew = newPeptides.ToDictionary(pep => pep.PeptideModSeq);
+            conflicts = new List<Conflict>();
+            var dictOld = oldPeptides.ToDictionary(pep => pep.ModifiedTarget);
+            var dictNew = newPeptides.ToDictionary(pep => pep.ModifiedTarget);
             foreach (var newPeptide in newPeptides)
             {
                 ++i;
                 DbIrtPeptide oldPeptide;
                 // A conflict occurs only when there is another peptide of the same sequence, and different iRT
-                if (!dictOld.TryGetValue(newPeptide.PeptideModSeq, out oldPeptide) || Math.Abs(newPeptide.Irt - oldPeptide.Irt) < IRT_MIN_DIFF )
+                if (!dictOld.TryGetValue(newPeptide.ModifiedTarget, out oldPeptide) || Math.Abs(newPeptide.Irt - oldPeptide.Irt) < IRT_MIN_DIFF )
                 {
                     peptidesNoConflict.Add(newPeptide);
                 }
                 else
                 {
-                    conflicts.Add(new Tuple<DbIrtPeptide, DbIrtPeptide>(newPeptide, oldPeptide));
+                    conflicts.Add(new Conflict(newPeptide, oldPeptide));
                 }
                 if (progressMonitor != null)
                 {
@@ -135,7 +191,7 @@ namespace pwiz.Skyline.Model.Irt
             foreach (var oldPeptide in oldPeptides)
             {
                 DbIrtPeptide newPeptide;
-                if (!dictNew.TryGetValue(oldPeptide.PeptideModSeq, out newPeptide))
+                if (!dictNew.TryGetValue(oldPeptide.ModifiedTarget, out newPeptide))
                     peptidesNoConflict.Add(oldPeptide);
             }
             return peptidesNoConflict;
@@ -150,7 +206,7 @@ namespace pwiz.Skyline.Model.Irt
             if (ReferenceEquals(null, other)) return false;
             if (ReferenceEquals(this, other)) return true;
             return base.Equals(other) &&
-                   Equals(other.PeptideModSeq, PeptideModSeq) &&
+                   Equals(other.ModifiedTarget, ModifiedTarget) &&
                    other.Irt.Equals(Irt) &&
                    other.Standard.Equals(Standard) &&
                    other.TimeSource.Equals(TimeSource);
@@ -168,7 +224,7 @@ namespace pwiz.Skyline.Model.Irt
             unchecked
             {
                 int result = base.GetHashCode();
-                result = (result*397) ^ (PeptideModSeq != null ? PeptideModSeq.GetHashCode() : 0);
+                result = (result*397) ^ (ModifiedTarget != null ? ModifiedTarget.GetHashCode() : 0);
                 result = (result*397) ^ Irt.GetHashCode();
                 result = (result*397) ^ Standard.GetHashCode();
                 result = (result*397) ^ (TimeSource.HasValue ? TimeSource.Value : 0);

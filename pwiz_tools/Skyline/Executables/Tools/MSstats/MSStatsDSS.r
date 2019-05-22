@@ -31,27 +31,30 @@ runDSS <- function() {
 
 	raw <- read.csv(arguments[1])
 
+	colnames(raw)[colnames(raw) == 'Detection.Q.Value'] <- 'DetectionQValue'
+	if(!is.element(c('DetectionQValue'), colnames(raw)) || all(is.na(as.numeric(as.character(raw$DetectionQValue))))) {
+	    filter.qvalue <- FALSE
+	} else {
+	    filter.qvalue <- TRUE
+	}
+	
 	## remove the rows for iRT peptides
-	raw <- raw[is.na(raw$StandardType) | raw$StandardType != "iRT", ]
-
+	raw <- SkylinetoMSstatsFormat(raw,
+	                              removeProtein_with1Feature = TRUE,
+	                              filter_with_Qvalue = filter.qvalue)
+	
 	## get standard protein name from StandardType column
 	standardpepname <- ""
-	if (sum(unique(raw$StandardType) %in% "Normalization") != 0) {
-		standardpepname <- as.character(unique(raw[raw$StandardType == "Normalization", "PeptideModifiedSequence"]))
+	if(sum(unique(raw$StandardType) %in% c("Normalization", "Global Standard")) !=0 ){
+	    standardpepname <- as.character(unique(raw[raw$StandardType %in% c("Normalization", "Global Standard"), "PeptideSequence"]))
 	}
-
-	## change column name 'Area' as Intensity
-	colnames(raw)[colnames(raw) == "Area"] <- "Intensity"
-	raw$Intensity <- as.character(raw$Intensity)
-	raw$Intensity <- as.numeric(raw$Intensity)
-
-	## change column name 'FileName' as Run
-	colnames(raw)[colnames(raw) == "FileName"] <- "Run"
-
+	
 	## check result grid missing or not
 	countna <- apply(raw, 2, function(x) sum(is.na(x) | x == ""))
 	naname <- names(countna[countna != 0])
-	naname <- naname[-which(naname %in% c("StandardType", "Intensity", "Truncated"))]
+	naname <- naname[-which(naname %in% c("StandardType", "Intensity", "Truncated",
+	                                      "FragmentIon", "ProductCharge"))]
+	
 
 	if (length(naname) !=0 ) {
 		stop(message(paste("Some ", paste(naname,collapse=", "), " have no value. Please check \"Result Grid\" in View.", sep="")))
@@ -102,12 +105,24 @@ runDSS <- function() {
 	optionfeatureselection <- arguments[9]
 	
 	if (optionfeatureselection == "TRUE") { 
-		input_feature_selection <- "highQuality_Significance" 
+		input_feature_selection <- "highQuality" 
 	} else { 
 		input_feature_selection <- "all" 
 	}
 
-	quantData <- try(dataProcess(raw, normalization=inputnormalize, nameStandards=standardpepname,  fillIncompleteRows=(inputmissingpeaks=="TRUE"), featureSubset=input_feature_selection, summaryMethod = "TMP", censoredInt="0", skylineReport=TRUE))
+	## Nick, here for new option for 'allow...'
+	## remove proteins with interference cbox
+	
+	inputremoveproteins <- arguments[10]
+
+	quantData <- try(dataProcess(raw, 
+	                             normalization=inputnormalize, 
+	                             nameStandards=standardpepname,  
+	                             fillIncompleteRows=(inputmissingpeaks=="TRUE"), 
+	                             featureSubset=input_feature_selection, 
+	                             remove_noninformative_feature_outlier=(inputremoveproteins=="TRUE"), 
+	                             summaryMethod = "TMP", 
+	                             censoredInt="0"))
 
 	if (class(quantData) != "try-error") {
 

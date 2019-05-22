@@ -1,5 +1,5 @@
 //
-// $Id$
+// $Id: SpectrumList_ABI.cpp 11220 2017-08-15 03:24:49Z nickshulman $
 //
 //
 // Original author: Matt Chambers <matt.chambers .@. vanderbilt.edu>
@@ -140,6 +140,7 @@ PWIZ_API_DECL SpectrumPtr SpectrumList_ABI::spectrum(size_t index, DetailLevel d
     if (scanTime > 0)
         scan.set(MS_scan_start_time, scanTime, UO_minute);
     scan.set(MS_preset_scan_configuration, msExperiment->getExperimentNumber());
+    scan.instrumentConfigurationPtr = msd_.run.defaultInstrumentConfigurationPtr;
 
     ExperimentType experimentType = msExperiment->getExperimentType();
     int msLevel = spectrum->getMSLevel();
@@ -154,14 +155,10 @@ PWIZ_API_DECL SpectrumPtr SpectrumList_ABI::spectrum(size_t index, DetailLevel d
     // decide whether to use Points or Peaks to populate data arrays
     bool doCentroid = msLevelsToCentroid.contains(msLevel);
 
-    bool continuousData = spectrum->getDataIsContinuous();
-    if (continuousData && !doCentroid)
+    if (!doCentroid)
         result->set(MS_profile_spectrum);
     else
-    {
         result->set(MS_centroid_spectrum);
-        doCentroid = continuousData;
-    }
 
     /*if (experimentType == MRM)
     {
@@ -241,14 +238,14 @@ PWIZ_API_DECL SpectrumPtr SpectrumList_ABI::spectrum(size_t index, DetailLevel d
             BinaryDataArrayPtr mzArray = result->getMZArray();
             BinaryDataArrayPtr intensityArray = result->getIntensityArray();
 
-            spectrum->getData(doCentroid, mzArray->data, intensityArray->data);
+            spectrum->getData(doCentroid, mzArray->data, intensityArray->data, config_.ignoreZeroIntensityPoints);
             if (doCentroid)
                 result->set(MS_profile_spectrum); // let SpectrumList_PeakPicker know this was a profile spectrum
         }
 
         // This forces the WIFF reader to get the data, making full metadata
         // nearly equivalent in performance to getting binary.
-        result->defaultArrayLength = spectrum->getDataSize(doCentroid);
+        result->defaultArrayLength = spectrum->getDataSize(doCentroid, config_.ignoreZeroIntensityPoints);
     }
 
     return result;
@@ -281,7 +278,7 @@ PWIZ_API_DECL void SpectrumList_ABI::createIndex() const
                 msExperiment->getTIC(times, intensities);
 
                 for (int i = 0, end = (int) times.size(); i < end; ++i)
-                    if (intensities[i] > 0)
+                //    if (intensities[i] > 0)
                         experimentAndCycleByTime.insert(make_pair(times[i], make_pair(msExperiment, i + 1)));
             }
             else
@@ -289,13 +286,13 @@ PWIZ_API_DECL void SpectrumList_ABI::createIndex() const
                 msExperiment->getBPC(times, intensities);
 
                 for (int i = 0, end = (int)times.size(); i < end; ++i)
-                    if (intensities[i] > 0 && wifffile_->getSpectrum(msExperiment, i + 1)->getDataSize(false) > 0)
+                    if (intensities[i] > 0 && wifffile_->getSpectrum(msExperiment, i + 1)->getDataSize(false, true) > 0)
                         experimentAndCycleByTime.insert(make_pair(times[i], make_pair(msExperiment, i + 1)));
             }
         }
     }
 
-    BOOST_FOREACH(const ExperimentAndCycleByTime::value_type& itr, experimentAndCycleByTime)
+    for(const ExperimentAndCycleByTime::value_type& itr : experimentAndCycleByTime)
     {
         index_.push_back(IndexEntry());
         IndexEntry& ie = index_.back();

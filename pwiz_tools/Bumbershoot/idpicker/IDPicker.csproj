@@ -10,7 +10,7 @@
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>IDPicker</RootNamespace>
     <AssemblyName>IDPicker</AssemblyName>
-    <TargetFrameworkVersion>v4.5.1</TargetFrameworkVersion>
+    <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <IsWebBootstrapper>false</IsWebBootstrapper>
     <StartupObject>IDPicker.Program</StartupObject>
@@ -27,6 +27,8 @@
     <BuildPath>$(BaseIntermediateOutputPath)\..</BuildPath>
     <SolutionDir Condition="$(SolutionDir) == '' Or $(SolutionDir) == '*Undefined*'">.\</SolutionDir>
     <RestorePackages>true</RestorePackages>
+    <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
+    <NuGetPackageImportStamp>d9f09611</NuGetPackageImportStamp>
     <PublishUrl>publish\</PublishUrl>
     <Install>true</Install>
     <InstallFrom>Disk</InstallFrom>
@@ -41,11 +43,10 @@
     <ApplicationVersion>1.0.0.%2a</ApplicationVersion>
     <UseApplicationTrust>false</UseApplicationTrust>
     <BootstrapperEnabled>true</BootstrapperEnabled>
-    <AutoGenerateBindingRedirects>false</AutoGenerateBindingRedirects>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|x86' ">
     <DebugSymbols>true</DebugSymbols>
-    <OutputPath>build-nt-x86\msvc-debug\</OutputPath>
+    <OutputPath>..\..\..\build-nt-x86\msvc-debug\</OutputPath>
     <DefineConstants>DEBUG;TRACE</DefineConstants>
     <DebugType>full</DebugType>
     <PlatformTarget>x86</PlatformTarget>
@@ -55,7 +56,7 @@
     <Prefer32Bit>false</Prefer32Bit>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|x86' ">
-    <OutputPath>build-nt-x86\msvc-release\</OutputPath>
+    <OutputPath>..\..\..\build-nt-x86\msvc-release\</OutputPath>
     <DefineConstants>TRACE</DefineConstants>
     <Optimize>true</Optimize>
     <DebugType>pdbonly</DebugType>
@@ -68,7 +69,7 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'">
     <DebugSymbols>true</DebugSymbols>
-    <OutputPath>build-nt-x86\msvc-debug-x86_64\</OutputPath>
+    <OutputPath>..\..\..\build-nt-x86\msvc-debug-x86_64\</OutputPath>
     <DefineConstants>DEBUG;TRACE</DefineConstants>
     <DebugType>full</DebugType>
     <PlatformTarget>x64</PlatformTarget>
@@ -87,8 +88,8 @@
     <Prefer32Bit>false</Prefer32Bit>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'">
-    <OutputPath>build-nt-x86\msvc-release-x86_64\</OutputPath>
-    <DefineConstants>TRACE</DefineConstants>
+    <OutputPath>..\..\..\build-nt-x86\msvc-release-x86_64\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
     <Optimize>true</Optimize>
     <DebugType>pdbonly</DebugType>
     <PlatformTarget>x64</PlatformTarget>
@@ -133,7 +134,7 @@
     </Reference>
     <Reference Include="InteropQonverter, Version=3.0.511.0, Culture=neutral, processorArchitecture=$(Platform)">
       <SpecificVersion>False</SpecificVersion>
-      <HintPath>$(BuildPath)\obj\$(Platform)\$(Configuration)\InteropQonverter.dll</HintPath>
+      <HintPath>$(BuildPath)\IDPicker\obj\$(Platform)\$(Configuration)\InteropQonverter.dll</HintPath>
     </Reference>
     <Reference Include="MathNet.Numerics, Version=2011.4.17.0, Culture=neutral, PublicKeyToken=cd8b63ad3d691a37, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
@@ -263,6 +264,12 @@
     <Compile Include="Forms\FilterHistoryForm.Designer.cs">
       <DependentUpon>FilterHistoryForm.cs</DependentUpon>
     </Compile>
+    <Compile Include="Forms\IsobaricMappingForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Forms\IsobaricMappingForm.Designer.cs">
+      <DependentUpon>IsobaricMappingForm.cs</DependentUpon>
+    </Compile>
     <Compile Include="Forms\IPersistentForm.cs" />
     <Compile Include="Forms\NetGestaltTrackSampleInfoForm.cs">
       <SubType>Form</SubType>
@@ -387,11 +394,11 @@
     <Compile Include="Forms\UserErrorForm.Designer.cs">
       <DependentUpon>UserErrorForm.cs</DependentUpon>
     </Compile>
-    <Compile Include="Forms\XICForm.cs">
+    <Compile Include="Forms\QuantitationSettingsForm.cs">
       <SubType>Form</SubType>
     </Compile>
-    <Compile Include="Forms\XICForm.Designer.cs">
-      <DependentUpon>XICForm.cs</DependentUpon>
+    <Compile Include="Forms\QuantitationSettingsForm.Designer.cs">
+      <DependentUpon>QuantitationSettingsForm.cs</DependentUpon>
     </Compile>
     <Compile Include="LayoutManager.cs" />
     <Compile Include="Program.cs" />
@@ -411,6 +418,10 @@
     </EmbeddedResource>
     <EmbeddedResource Include="Forms\FilterHistoryForm.resx">
       <DependentUpon>FilterHistoryForm.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Forms\IsobaricMappingForm.resx">
+      <DependentUpon>IsobaricMappingForm.cs</DependentUpon>
+      <SubType>Designer</SubType>
     </EmbeddedResource>
     <EmbeddedResource Include="Forms\ModificationTableForm.resx">
       <DependentUpon>ModificationTableForm.cs</DependentUpon>
@@ -440,8 +451,8 @@
       <DependentUpon>IDPickerForm.cs</DependentUpon>
       <SubType>Designer</SubType>
     </EmbeddedResource>
-    <EmbeddedResource Include="Forms\XICForm.resx">
-      <DependentUpon>XICForm.cs</DependentUpon>
+    <EmbeddedResource Include="Forms\QuantitationSettingsForm.resx">
+      <DependentUpon>QuantitationSettingsForm.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="Properties\Resources.resx">
       <Generator>ResXFileCodeGenerator</Generator>
@@ -468,7 +479,6 @@
       <DesignTimeSharedInput>True</DesignTimeSharedInput>
       <DependentUpon>Settings.settings</DependentUpon>
     </Compile>
-    <Compile Include="SingleInstanceHandler.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\SeeMS\seems.csproj">
@@ -478,6 +488,10 @@
     <ProjectReference Include="..\..\Shared\Common\CommonUtil.csproj">
       <Project>{13bf2ffb-50a1-4ab1-83a4-5733e36905ce}</Project>
       <Name>CommonUtil</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\..\Shared\zedgraph\ZedGraph.csproj">
+      <Project>{b99650ee-af46-47b4-a4a9-212ade7809b7}</Project>
+      <Name>ZedGraph</Name>
     </ProjectReference>
     <ProjectReference Include="Controls\Controls.csproj">
       <Project>{8EFCC46A-7415-4BB5-AF34-5E71EF4BEEB0}</Project>
@@ -491,13 +505,17 @@
       <Project>{26CFD1FF-F4F7-4F66-B5B4-E686BDB9B34E}</Project>
       <Name>MSGraph</Name>
     </ProjectReference>
-    <ProjectReference Include="..\..\Shared\zedgraph\ZedGraph.csproj">
-      <Project>{B99650EE-AF46-47B4-A4A9-212ADE7809B7}</Project>
-      <Name>ZedGraph</Name>
+    <ProjectReference Include="DefaultAppDomainManager\DefaultAppDomainManager.csproj">
+      <Project>{fb041431-b3bf-4e5e-bbbf-0e436b9aa3a8}</Project>
+      <Name>DefaultAppDomainManager</Name>
     </ProjectReference>
     <ProjectReference Include="Model\Model.csproj">
       <Project>{723405E1-1EE4-4978-9470-0B1F28B1A215}</Project>
       <Name>Model</Name>
+    </ProjectReference>
+    <ProjectReference Include="PureControls\PureControls.csproj">
+      <Project>{4b39a2a4-fb21-418d-9226-7d18dae81180}</Project>
+      <Name>PureControls</Name>
     </ProjectReference>
     <ProjectReference Include="Util\STL_Containers\STL_Containers.csproj">
       <Project>{D6BD694C-FF6E-4962-A05D-59ACD6CBD6A3}</Project>
@@ -605,12 +623,14 @@
     <None Include="gene2protein.db3">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Include="packages.config" />
+    <None Include="packages.config">
+      <SubType>Designer</SubType>
+    </None>
     <None Include="Properties\app.manifest" />
     <None Include="Resources\idpicker-style.css" />
-    <None Include="scantime.r">
+    <Content Include="scantime.R">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
+    </Content>
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config">
@@ -658,7 +678,7 @@
   </ItemGroup>
   <ItemGroup>
     <Content Include="QuasiTel.R">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
     <None Include="Resources\Gene.png" />
     <None Include="Resources\ProteinViewIcon1.ico" />
@@ -668,11 +688,21 @@
   <ItemGroup>
     <NativeReference Include="Interop.EDAL.SxS, Version=1.0.0.0, Type=AnyCPU">
       <Name>Interop.EDAL.SxS.manifest</Name>
-      <HintPath>..\..\..\pwiz_aux\msrc\utility\vendor_api\Bruker\$(Platform)\Interop.EDAL.SxS.manifest</HintPath>
+      <HintPath>..\..\pwiz_aux\msrc\utility\vendor_api\Bruker\$(Platform)\Interop.EDAL.SxS.manifest</HintPath>
     </NativeReference>
-    <NativeReference Include="MSFileReader.XRawfile2.SxS, Version=3.0.23.0, Type=AnyCPU">
+  </ItemGroup>
+  <ItemGroup Condition=" '$(Platform)' == 'x64' ">
+    <Reference Include="ThermoFisher.CommonCore.Data">
+      <HintPath>..\..\pwiz_aux\msrc\utility\vendor_api\thermo\ThermoFisher.CommonCore.Data.dll</HintPath>
+    </Reference>
+    <Reference Include="ThermoFisher.CommonCore.RawFileReader">
+      <HintPath>..\..\pwiz_aux\msrc\utility\vendor_api\thermo\ThermoFisher.CommonCore.RawFileReader.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+  <ItemGroup Condition=" '$(Platform)' == 'x86' ">
+    <NativeReference Include="MSFileReader.XRawfile2.SxS, Version=3.0.13.0, Type=AnyCPU">
       <Name>MSFileReader.XRawfile2.SxS.manifest</Name>
-      <HintPath>..\..\..\pwiz_aux\msrc\utility\vendor_api\thermo\$(Platform)\MSFileReader.XRawfile2.SxS.manifest</HintPath>
+      <HintPath>..\..\pwiz_aux\msrc\utility\vendor_api\thermo\$(Platform)\MSFileReader.XRawfile2.SxS.manifest</HintPath>
     </NativeReference>
   </ItemGroup>
   <ItemGroup>
@@ -687,12 +717,12 @@
   </Target>
   -->
   <PropertyGroup>
-    <PostBuildEvent>call "$(VS120COMNTOOLS)vsvars32.bat" &gt;nul
-editbin.exe /nologo /LARGEADDRESSAWARE "$(TargetPath)"
+    <PostBuildEvent>call "$(ProjectDir)..\..\..\libraries\msvc_setup_script.bat" &gt;nul
+IF $(PlatformName) NEQ "x64" editbin.exe /nologo /LARGEADDRESSAWARE "$(TargetPath)"
 IF EXIST $(OutDir)setup.exe del $(OutDir)setup.exe
 IF EXIST $(OutDir)Test.passed del $(OutDir)Test.passed</PostBuildEvent>
-    <PreBuildEvent>call "$(VS120COMNTOOLS)vsvars32.bat" &gt;nul
-rc.exe $(ProjectDir)/Resources/Resources.rc &gt;nul</PreBuildEvent>
+    <PreBuildEvent>call "$(ProjectDir)..\..\..\libraries\msvc_setup_script.bat" &gt;nul
+rc.exe $(ProjectDir)Resources\Resources.rc &gt;nul</PreBuildEvent>
   </PropertyGroup>
   <Import Project="$(SolutionDir)\.nuget\NuGet.targets" Condition="Exists('$(SolutionDir)\.nuget\NuGet.targets')" />
   <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">

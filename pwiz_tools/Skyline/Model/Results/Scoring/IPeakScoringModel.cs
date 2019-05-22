@@ -19,17 +19,20 @@
 
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Xml.Serialization;
 using pwiz.Common.Collections;
 using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Properties;
+using pwiz.Skyline.Util;
 
 namespace pwiz.Skyline.Model.Results.Scoring
 {
-    public interface IPeakScoringModel : IXmlSerializable
+    public interface IPeakScoringModel : IXmlSerializable, IAuditLogObject
     {
         /// <summary>
         /// Name used in the UI for this Scoring model
@@ -54,17 +57,25 @@ namespace pwiz.Skyline.Model.Results.Scoring
         /// </summary>
         /// <param name="targets">Scores for positive targets</param>
         /// <param name="decoys">Scores for null distribution</param>
+        /// <param name="targetDecoyGenerator">Target decoy generator used to calculate contribution percentages</param>
         /// <param name="initParameters">Initial model parameters</param>
+        /// <param name="iterations">Number of iterations of LDA in model training</param>
         /// <param name="includeSecondBest"> Include the second best peaks in the targets as decoys?</param>
         /// <param name="preTrain">Use a pre-trained model to bootstrap the learning?</param>
         /// <param name="progressMonitor">Progress monitor for displaying progress to the user</param>
-        IPeakScoringModel Train(IList<IList<float[]>> targets, IList<IList<float[]>> decoys, LinearModelParams initParameters,
-            bool includeSecondBest = false, bool preTrain = true, IProgressMonitor progressMonitor = null);
+        /// <param name="documentPath">Path on disk of the document for writing diagnostic files</param>
+        IPeakScoringModel Train(IList<IList<float[]>> targets, IList<IList<float[]>> decoys, TargetDecoyGenerator targetDecoyGenerator, LinearModelParams initParameters,
+            int? iterations = null, bool includeSecondBest = false, bool preTrain = true, IProgressMonitor progressMonitor = null, string documentPath = null);
 
         /// <summary>
         /// Scoring function for the model
         /// </summary>
         double Score(IList<float> features);
+
+        /// <summary>
+        /// Scoring function for the model
+        /// </summary>
+        string ScoreText(IList<float> features);
 
         /// <summary>
         /// Was the model trained with a decoy set?
@@ -82,6 +93,24 @@ namespace pwiz.Skyline.Model.Results.Scoring
         LinearModelParams Parameters { get;  }
     }
 
+
+    public class EnabledFeatureScores
+    {
+        public EnabledFeatureScores(IPeakFeatureCalculator calculator, double weight, double percentageContribution)
+        {
+            Calculator = calculator;
+            Weight = weight;
+            PercentageContribution = percentageContribution;
+        }
+
+        [Track]
+        public IPeakFeatureCalculator Calculator { get; private set; }
+        [Track]
+        public double Weight { get; private set; }
+        [Track]
+        public double PercentageContribution { get; private set; }
+    }
+
     public abstract class PeakScoringModelSpec : XmlNamedElement, IPeakScoringModel, IValidating
     {
         protected PeakScoringModelSpec()
@@ -96,15 +125,40 @@ namespace pwiz.Skyline.Model.Results.Scoring
             UsesSecondBest = false;
         }
 
+        [TrackChildren]
+        public IList<EnabledFeatureScores> EnabledFeatureScores
+        {
+            get
+            {
+                var result = new List<EnabledFeatureScores>();
+                if (IsTrained)
+                {
+                    for (var i = 0; i < Parameters.Weights.Count; ++i)
+                    {
+                        if (!double.IsNaN(Parameters.Weights[i]))
+                            result.Add(new EnabledFeatureScores(PeakFeatureCalculators[i], Parameters.Weights[i],
+                                Parameters.PercentContributions[i]));
+                    }
+                }
+                return result;
+            }
+        }
+
         public bool IsTrained { get { return Parameters != null && Parameters.Weights != null; } }
         public abstract IList<IPeakFeatureCalculator> PeakFeatureCalculators { get; }
-        public abstract IPeakScoringModel Train(IList<IList<float[]>> targets, IList<IList<float[]>> decoys, LinearModelParams initParameters,
-            bool includeSecondBest = false, bool preTrain = true, IProgressMonitor progressMonitor = null);
-        public double Score(IList<float> features)
+        public abstract IPeakScoringModel Train(IList<IList<float[]>> targets, IList<IList<float[]>> decoys, TargetDecoyGenerator targetDecoyGenerator, LinearModelParams initParameters,
+            int? iterations = null, bool includeSecondBest = false, bool preTrain = true, IProgressMonitor progressMonitor = null, string documentPath = null);
+        public virtual double Score(IList<float> features)
         {
             return Parameters.Score(features);
         }
+        public virtual string ScoreText(IList<float> features)
+        {
+            return Parameters.ScoreText(features);
+        }
+        [Track]
         public bool UsesDecoys { get; protected set; }
+        [Track]
         public bool UsesSecondBest { get; protected set; }
         public LinearModelParams Parameters { get; protected set; }
 
@@ -166,16 +220,19 @@ namespace pwiz.Skyline.Model.Results.Scoring
     public class LinearModelParams : Immutable, IModelParams
     {
         private ImmutableList<double> _weights;
+        private ImmutableList<double> _percentContributions;
 
-        public LinearModelParams(int numWeights)
+        public LinearModelParams(int count)
         {
-            Weights = new double[numWeights];
+            Weights = new double[count];
+            PercentContributions = new double[count];
             Bias = 0;
         }
 
         public LinearModelParams(IList<double> weights, double bias = 0)
         {
             Weights = weights;
+            PercentContributions = new double[weights.Count];
             Bias = bias;
         }
 
@@ -183,6 +240,12 @@ namespace pwiz.Skyline.Model.Results.Scoring
         {
             get { return _weights; }
             protected set { _weights = MakeReadOnly(value); }
+        }
+
+        public IList<double> PercentContributions
+        {
+            get { return _percentContributions; }
+            protected set { _percentContributions = MakeReadOnly(value); }
         }
 
         public double Bias { get; set; }
@@ -211,6 +274,46 @@ namespace pwiz.Skyline.Model.Results.Scoring
         public double Score(IList<float> features)
         {
             return Score(features, Weights, Bias);
+        }
+
+        public static string ScoreText(IList<float> features, IList<double> weights, double bias)
+        {
+            if (features.Count != weights.Count)
+            {
+                throw new InvalidDataException(string.Format(Resources.LinearModelParams_Score_Attempted_to_score_a_peak_with__0__features_using_a_model_with__1__trained_scores_,
+                                               features.Count, weights.Count));
+            }
+            var scoreText = new StringBuilder();
+            if (bias > 0)
+                scoreText.Append(bias.ToString(CultureInfo.InvariantCulture));
+            for (int i = 0; i < features.Count; ++i)
+            {
+                if (!double.IsNaN(weights[i]))
+                {
+                    if (scoreText.Length > 0)
+                        scoreText.Append(@" + ");
+                    scoreText.Append(string.Format(@"{0}*{1}", weights[i], features[i]));
+                }
+            }
+            scoreText.Append(string.Format(@" = {0}", Score(features, weights, bias)));
+            return scoreText.ToString();
+        }
+
+        public LinearModelParams CalculatePercentContributions(IPeakScoringModel model, TargetDecoyGenerator targetDecoyGenerator)
+        {
+            var percentContributions = new double[_percentContributions.Count];
+            for (var i = 0; i < _percentContributions.Count; ++i)
+                percentContributions[i] = (targetDecoyGenerator != null ? targetDecoyGenerator.GetPercentContribution(model, i) : null) ?? double.NaN;
+
+            return ChangeProp(ImClone(this), im =>
+            {
+                im.PercentContributions = percentContributions;
+            });
+        }
+
+        public string ScoreText(IList<float> features)
+        {
+            return ScoreText(features, Weights, Bias);
         }
 
         /// <summary>
@@ -268,7 +371,7 @@ namespace pwiz.Skyline.Model.Results.Scoring
         #endregion
     }
 
-    public interface IPeakFeatureCalculator
+    public interface IPeakFeatureCalculator : IAuditLogObject
     {
         float Calculate(PeakScoringContext context, IPeptidePeakData peakGroupData);
         string Name { get; }
@@ -282,6 +385,16 @@ namespace pwiz.Skyline.Model.Results.Scoring
         /// True if low scores are better for this calculator, false if high scores are better
         /// </summary>
         bool IsReversedScore { get; }
+
+        /// <summary>
+        /// True if this score applies only to documents with labeled reference standards
+        /// </summary>
+        bool IsReferenceScore { get; }
+
+        /// <summary>
+        /// True if this score applies only to documents with MS1 filtering enabled
+        /// </summary>
+        bool IsMs1Score { get; }
     }
 
     /// <summary>
@@ -305,7 +418,14 @@ namespace pwiz.Skyline.Model.Results.Scoring
             return Calculate(context, (IPeptidePeakData<ISummaryPeakData>) peakGroupData);
         }
 
+        public virtual bool IsReferenceScore { get { return false; } }
+        
+        public virtual bool IsMs1Score { get { return false; } }
+
         protected abstract float Calculate(PeakScoringContext context, IPeptidePeakData<ISummaryPeakData> summaryPeakData);
+
+        public string AuditLogText { get { return Name; } }
+        public bool IsName { get { return true; }}
     }
 
     /// <summary>
@@ -329,7 +449,14 @@ namespace pwiz.Skyline.Model.Results.Scoring
             return Calculate(context, (IPeptidePeakData<IDetailedPeakData>)peakGroupData);
         }
 
+        public virtual bool IsReferenceScore { get { return false; } }
+
+        public virtual bool IsMs1Score { get { return false; } }
+
         protected abstract float Calculate(PeakScoringContext context, IPeptidePeakData<IDetailedPeakData> summaryPeakData);
+
+        public string AuditLogText { get { return Name; } }
+        public bool IsName { get { return true; } }
     }
 
     /// <summary>
@@ -470,18 +597,24 @@ namespace pwiz.Skyline.Model.Results.Scoring
         /// Time array shared by all transitions of a precursor, and on the
         /// same scale as all other precursors of a peptide.
         /// </summary>
-        float[] Times { get; }
+        IList<float> Times { get; }
 
         /// <summary>
         /// Intensity array linear-interpolated to the shared time scale.
         /// </summary>
-        float[] Intensities { get; }
+        IList<float> Intensities { get; }
         // ReSharper restore UnusedMemberInSuper.Global
     }
 
     // ReSharper disable InconsistentNaming
     public enum PeakIdentification { FALSE, TRUE, ALIGNED }
     // ReSharper restore InconsistentNaming
+
+    public static class PeakIdentificationFastLookup
+    {
+        public static readonly Dictionary<string, PeakIdentification> Dict = XmlUtil.GetEnumLookupDictionary(
+            PeakIdentification.FALSE, PeakIdentification.TRUE, PeakIdentification.ALIGNED);
+    }
 
     public interface ISummaryPeakData
     {
@@ -500,19 +633,6 @@ namespace pwiz.Skyline.Model.Results.Scoring
         PeakIdentification Identified { get; }
         bool? IsTruncated { get; }
         // ReSharper restore UnusedMemberInSuper.Global
-    }
-
-    public static class PeakScoringModel
-    {
-        private static readonly IPeakScoringModel[] MODELS =
-        {
-            new LegacyScoringModel(LegacyScoringModel.DEFAULT_NAME)
-        };
-
-        public static IEnumerable<IPeakScoringModel> Models
-        {
-            get { return MODELS; }
-        }
     }
 
     public static class PeakFeatureCalculator

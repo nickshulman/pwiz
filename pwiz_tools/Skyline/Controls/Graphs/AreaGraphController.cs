@@ -20,26 +20,41 @@
 using System;
 using System.Linq;
 using System.Windows.Forms;
+using pwiz.Common.Collections;
 using pwiz.Common.Controls;
-using pwiz.Skyline.Controls.SeqNode;
 using pwiz.Skyline.Model;
+using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
 
 namespace pwiz.Skyline.Controls.Graphs
 {
-    public enum GraphTypeArea { replicate, peptide }
-
     public enum AreaNormalizeToView{ area_percent_view, area_maximum_view, area_ratio_view, area_global_standard_view, none }
 
     public enum AreaScope{ document, protein }
 
-    public sealed class AreaGraphController : GraphSummary.IController
+    public enum PointsTypePeakArea { targets, decoys }
+
+    public enum AreaCVNormalizationMethod { global_standards, medians, none, ratio }
+
+    public enum AreaCVTransitions { all, best }
+
+    public enum AreaCVMsLevel { precursors, products }
+
+    public enum AreaGraphDisplayType { bars, lines }
+
+    public sealed class AreaGraphController : GraphSummary.IControllerSplit
     {
-        public static GraphTypeArea GraphType
+        public static GraphTypeSummary GraphType
         {
-            get { return Helpers.ParseEnum(Settings.Default.AreaGraphType, GraphTypeArea.replicate); }
+            get { return Helpers.ParseEnum(Settings.Default.AreaGraphType, GraphTypeSummary.replicate); }
             set { Settings.Default.AreaGraphType = value.ToString(); }
+        }
+
+        public static AreaGraphDisplayType GraphDisplayType
+        {
+            get { return Helpers.ParseEnum(Settings.Default.AreaGraphDisplayType, AreaGraphDisplayType.bars); }
+            set { Settings.Default.AreaGraphDisplayType = value.ToString(); }
         }
 
         public static AreaNormalizeToView AreaView
@@ -54,9 +69,101 @@ namespace pwiz.Skyline.Controls.Graphs
             set { Settings.Default.PeakAreaScope = value.ToString(); }
         }
 
+        public static PointsTypePeakArea PointsType
+        {
+            get { return Helpers.ParseEnum(Settings.Default.AreaCVPointsType, PointsTypePeakArea.targets); }
+            set { Settings.Default.AreaCVPointsType = value.ToString(); }
+        }
+
+        public static AreaCVNormalizationMethod NormalizationMethod
+        {
+            get { return Helpers.ParseEnum(Settings.Default.AreaCVNormalizationMethod, AreaCVNormalizationMethod.none); }
+            set { Settings.Default.AreaCVNormalizationMethod = value.ToString(); }
+        }
+
+        public static AreaCVTransitions AreaCVTransitions
+        {
+            get { return Helpers.ParseEnum(Settings.Default.AreaCVTransitions, AreaCVTransitions.all); }
+            set { Settings.Default.AreaCVTransitions = value.ToString(); }
+        }
+
+        public static AreaCVMsLevel AreaCVMsLevel
+        {
+            get { return Helpers.ParseEnum(Settings.Default.AreaCVMsLevel, AreaCVMsLevel.products); }
+            set { Settings.Default.AreaCVMsLevel = value.ToString(); }
+        }
+
+        public static int AreaCVRatioIndex
+        {
+            get { return Settings.Default.AreaCVRatioIndex; }
+            set { Settings.Default.AreaCVRatioIndex = value; }
+        }
+
+        public static string GroupByGroup { get; set; }
+        public static string GroupByAnnotation { get; set; }
+
+        public static int MinimumDetections = 2;
+
         public GraphSummary GraphSummary { get; set; }
 
+        UniqueList<GraphTypeSummary> GraphSummary.IController.GraphTypes
+        {
+            get { return Settings.Default.AreaGraphTypes; }
+            set { Settings.Default.AreaGraphTypes = value; }
+        }
+
         public IFormView FormView { get { return new GraphSummary.AreaGraphView(); } }
+
+        public static double GetAreaCVFactorToDecimal()
+        {
+            return Settings.Default.AreaCVShowDecimals ? 1.0 : 100.0;
+        }
+
+        public static double GetAreaCVFactorToPercentage()
+        {
+            return Settings.Default.AreaCVShowDecimals ? 100.0 : 1.0;
+        }
+
+        public static bool ShouldUseQValues(SrmDocument document)
+        {
+            return PointsType == PointsTypePeakArea.targets &&
+                document.Settings.PeptideSettings.Integration.PeakScoringModel.IsTrained &&
+                !double.IsNaN(Settings.Default.AreaCVQValueCutoff) &&
+                Settings.Default.AreaCVQValueCutoff < 1.0;
+        }
+
+        public void OnDocumentChanged(SrmDocument oldDocument, SrmDocument newDocument)
+        {
+            var settingsNew = newDocument.Settings;
+            var settingsOld = oldDocument.Settings;
+
+            if (GraphSummary.Type == GraphTypeSummary.histogram || GraphSummary.Type == GraphTypeSummary.histogram2d)
+            {
+                if (GroupByGroup != null && !ReferenceEquals(settingsNew.DataSettings.AnnotationDefs, settingsOld.DataSettings.AnnotationDefs))
+                {
+                    var groups = AnnotationHelper.FindGroupsByTarget(settingsNew, AnnotationDef.AnnotationTarget.replicate);
+                    // The group we were grouping by has been removed
+                    if (!groups.Contains(GroupByGroup))
+                    {
+                        GroupByGroup = GroupByAnnotation = null;
+                    }
+                }
+
+                if (GroupByAnnotation != null && settingsNew.HasResults && settingsOld.HasResults &&
+                    !ReferenceEquals(settingsNew.MeasuredResults.Chromatograms, settingsOld.MeasuredResults.Chromatograms))
+                {
+                    var annotations = AnnotationHelper.GetPossibleAnnotations(settingsNew, GroupByGroup, AnnotationDef.AnnotationTarget.replicate);
+
+                    // The annotation we were grouping by has been removed
+                    if (!annotations.Contains(GroupByAnnotation))
+                        GroupByAnnotation = null;
+
+                    var paneInfo = GraphSummary.GraphPanes.FirstOrDefault() as IAreaCVHistogramInfo;
+                    if(paneInfo != null)
+                        paneInfo.Cache.Cancel();
+                }
+            }
+        }
 
         public void OnActiveLibraryChanged()
         {
@@ -79,93 +186,74 @@ namespace pwiz.Skyline.Controls.Graphs
 
         public void OnUpdateGraph()
         {
-            PaneKey[] paneKeys = null;
-            if (Settings.Default.SplitChromatogramGraph)
-            {
-                if (GraphType == GraphTypeArea.replicate)
-                {
-                    var selectedTreeNode = GraphSummary.StateProvider.SelectedNode as SrmTreeNode;
-                    if (null != selectedTreeNode)
-                    {
-                        TransitionGroupDocNode[] transitionGroups;
-                        bool transitionSelected = false;
-                        // ReSharper disable once CanBeReplacedWithTryCastAndCheckForNull
-                        if (selectedTreeNode.Model is PeptideDocNode)
-                        {
-                            transitionGroups = ((PeptideDocNode) selectedTreeNode.Model).TransitionGroups.ToArray();
-                        }
-                        // ReSharper disable once CanBeReplacedWithTryCastAndCheckForNull
-                        else if (selectedTreeNode.Model is TransitionGroupDocNode)
-                        {
-                            transitionGroups = new[] {(TransitionGroupDocNode) selectedTreeNode.Model};
-                        }
-                        else if (selectedTreeNode.Model is TransitionDocNode)
-                        {
-                            transitionGroups = new[]
-                                {(TransitionGroupDocNode) ((SrmTreeNode) selectedTreeNode.Parent).Model};
-                            transitionSelected = true;
-                        }
-                        else
-                        {
-                            transitionGroups = new TransitionGroupDocNode[0];
-                        }
-                        if (transitionGroups.Length == 1)
-                        {
-                            if (GraphChromatogram.DisplayType == DisplayTypeChrom.all 
-                                || (GraphChromatogram.DisplayType == DisplayTypeChrom.single && !transitionSelected))
-                            {
-                                var transitionGroup = transitionGroups[0];
-                                bool hasPrecursors = transitionGroup.Transitions.Any(transition => transition.IsMs1);
-                                bool hasProducts = transitionGroup.Transitions.Any(transition => !transition.IsMs1);
-                                if (hasPrecursors && hasProducts)
-                                {
-                                    paneKeys = new[] { PaneKey.PRECURSORS, PaneKey.PRODUCTS };
-                                }
-                            }
-                        }
-                        else if (transitionGroups.Length > 1)
-                        {
-                            paneKeys = transitionGroups.Select(group => new PaneKey(group))
-                                .Distinct().ToArray();
-                        }
-                    }
-                }
-                else
-                {
-                    paneKeys = GraphSummary.StateProvider.SelectionDocument.MoleculeTransitionGroups.Select(
-                            group => new PaneKey(group.TransitionGroup.LabelType)).Distinct().ToArray();
-                }
-            }
-            paneKeys = paneKeys ?? new[] {PaneKey.DEFAULT};
-            Array.Sort(paneKeys);
+            // CONSIDER: Need a better guarantee that this ratio index matches the
+            //           one in the sequence tree, but at least this will keep the UI
+            //           from crashing with IndexOutOfBoundsException.
+            var settings = GraphSummary.DocumentUIContainer.DocumentUI.Settings;
+            var mods = settings.PeptideSettings.Modifications;
+            GraphSummary.RatioIndex = Math.Min(GraphSummary.RatioIndex, mods.RatioInternalStandardTypes.Count - 1);
 
-            bool panesValid = paneKeys.SequenceEqual(GraphSummary.GraphPanes.Select(pane => pane.PaneKey));
-            if (panesValid)
+            // Only show ratios if document changes to have valid ratios
+            if (AreaView == AreaNormalizeToView.area_ratio_view && !mods.HasHeavyModifications)
+                AreaView = AreaNormalizeToView.none;
+
+            // Only show ratios if type and info match
+            if (NormalizationMethod == AreaCVNormalizationMethod.ratio && !mods.HasHeavyModifications ||
+                NormalizationMethod == AreaCVNormalizationMethod.global_standards && !settings.HasGlobalStandardArea)
             {
-                switch (GraphType)
-                {
-                    case GraphTypeArea.replicate:
-                        panesValid = GraphSummary.GraphPanes.All(pane => pane is AreaReplicateGraphPane);
-                        break;
-                    case GraphTypeArea.peptide:
-                        panesValid = GraphSummary.GraphPanes.All(pane => pane is AreaPeptideGraphPane);
-                        break;
-                }
-            }
-            if (panesValid)
-            {
-                return;
+                NormalizationMethod = AreaCVNormalizationMethod.none;
             }
 
-            switch (GraphType)
+            AreaCVRatioIndex = Math.Min(AreaCVRatioIndex, mods.RatioInternalStandardTypes.Count - 1);
+
+            var globalStandards = NormalizationMethod == AreaCVNormalizationMethod.global_standards;
+            if (globalStandards && !GraphSummary.DocumentUIContainer.DocumentUI.Settings.HasGlobalStandardArea)
+                NormalizationMethod = AreaCVNormalizationMethod.none;
+
+            var pane = GraphSummary.GraphPanes.FirstOrDefault();
+
+            switch (GraphSummary.Type)
             {
-                case GraphTypeArea.replicate:
-                    GraphSummary.GraphPanes = paneKeys.Select(key => new AreaReplicateGraphPane(GraphSummary, key));
+                case GraphTypeSummary.replicate:
+                case GraphTypeSummary.peptide:
+                    GraphSummary.DoUpdateGraph(this, GraphSummary.Type);
                     break;
-                case GraphTypeArea.peptide:
-                    GraphSummary.GraphPanes = paneKeys.Select(key => new AreaPeptideGraphPane(GraphSummary, key));
+                case GraphTypeSummary.histogram:
+                    if (!(pane is AreaCVHistogramGraphPane))
+                        GraphSummary.GraphPanes = new[] { new AreaCVHistogramGraphPane(GraphSummary) };
+                    break;
+                case GraphTypeSummary.histogram2d:
+                    if (!(pane is AreaCVHistogram2DGraphPane))
+                        GraphSummary.GraphPanes = new[] { new AreaCVHistogram2DGraphPane(GraphSummary)  };
                     break;
             }
+
+            if (!ReferenceEquals(GraphSummary.GraphPanes.FirstOrDefault(), pane))
+            {
+                var disposable = pane as IDisposable;
+                if (disposable != null)
+                    disposable.Dispose();
+            }
+        }
+
+        public bool IsReplicatePane(SummaryGraphPane pane)
+        {
+            return pane is AreaReplicateGraphPane;
+        }
+
+        public bool IsPeptidePane(SummaryGraphPane pane)
+        {
+            return pane is AreaPeptideGraphPane;
+        }
+
+        public SummaryGraphPane CreateReplicatePane(PaneKey key)
+        {
+            return new AreaReplicateGraphPane(GraphSummary, key);
+        }
+
+        public SummaryGraphPane CreatePeptidePane(PaneKey key)
+        {
+            return new AreaPeptideGraphPane(GraphSummary, key);
         }
 
         public bool HandleKeyDownEvent(object sender, KeyEventArgs e)
@@ -179,15 +267,23 @@ namespace pwiz.Skyline.Controls.Graphs
                 case Keys.F7:
                     if (!e.Alt && !(e.Shift && e.Control))
                     {
-                        if (e.Control)
-                            Settings.Default.AreaGraphType = GraphTypeArea.peptide.ToString();
-                        else
-                            Settings.Default.AreaGraphType = GraphTypeArea.replicate.ToString();
-                        GraphSummary.UpdateUI();
+                        var type = e.Control
+                            ? GraphTypeSummary.peptide
+                            : GraphTypeSummary.replicate;
+                        Settings.Default.AreaGraphTypes.Insert(0, type);
+
+                        Program.MainWindow.ShowGraphPeakArea(true, type);
+                        return true;
                     }
                     break;
             }
             return false;
         }
+
+        public string Text
+        {
+            get { return Resources.SkylineWindow_CreateGraphPeakArea_Peak_Areas; }
+        }
     }
 }
+

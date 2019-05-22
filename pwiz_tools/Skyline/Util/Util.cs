@@ -19,22 +19,24 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Data;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
 using System.Collections.ObjectModel;
+using System.Net;
 using System.Reflection;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using pwiz.Common.Collections;
 using pwiz.Common.SystemUtil;
 using pwiz.Skyline.FileUI;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.SettingsUI;
+using pwiz.Skyline.Util.Extensions;
 
 namespace pwiz.Skyline.Util
 {
@@ -45,6 +47,11 @@ namespace pwiz.Skyline.Util
     public interface IKeyContainer<out TKey>
     {
         TKey GetKey();
+    }
+
+    public interface IEquivalenceTestable<in T>
+    {
+        bool IsEquivalent(T other);
     }
 
     /// <summary>
@@ -95,7 +102,7 @@ namespace pwiz.Skyline.Util
     /// editing.
     /// </summary>
     /// <typeparam name="TItem">The type of the items in the collection</typeparam>
-    public interface IListDefaults<out TItem>
+    public interface IListDefaults<TItem>
     {
         /// <summary>
         /// Gets the current revision index for this list
@@ -107,6 +114,14 @@ namespace pwiz.Skyline.Util
         /// </summary>
         /// <returns>The default collection</returns>
         IEnumerable<TItem> GetDefaults(int revisionIndex);
+
+        /// <summary>
+        /// Gets the localized display name for an item in this list
+        /// usually replacing names for the default items with localized text.
+        /// </summary>
+        /// <param name="item">The item for which to get the display text</param>
+        /// <returns>Localized display text for default items or user supplied text for other items</returns>
+        string GetDisplayName(TItem item);
     }
 
     /// <summary>
@@ -399,158 +414,36 @@ namespace pwiz.Skyline.Util
     /// be empty, thought it may contain a single null element.
     /// </summary>
     /// <typeparam name="TItem">Type of the elements in the list</typeparam>
-    public class OneOrManyList<TItem> : IList<TItem>
-//        VS Issue: https://connect.microsoft.com/VisualStudio/feedback/ViewFeedback.aspx?FeedbackID=324473
-//        where T : class
+    public class OneOrManyList<TItem> : AbstractReadOnlyList<TItem>
     {
-        private TItem _one;
-        private TItem[] _many;
+        private ImmutableList<TItem> _list;
 
         public OneOrManyList(params TItem[] elements)
         {
-            if (elements.Length > 1)
-                _many = elements;
-            else if (elements.Length == 1)
-                _one = elements[0];            
+            _list = ImmutableList.ValueOf(elements);
         }
 
         public OneOrManyList(IList<TItem> elements)
         {
-            if (elements.Count > 1)
-                _many = elements.ToArray();
-            else if (elements.Count == 1)
-                _one = elements[0];
+            _list = ImmutableList.ValueOf(elements);
         }
 
-        public IEnumerator<TItem> GetEnumerator()
+        public override int Count
         {
-            return GetEnumerable().GetEnumerator();
+            get { return _list.Count; }
         }
 
-        private IEnumerable<TItem> GetEnumerable()
-        {
-            if (Equals(_many, null))
-            {
-                yield return _one;
-            }
-            else
-            {
-                foreach (var item in _many)
-                    yield return item;
-            }
-        }
-
-        IEnumerator IEnumerable.GetEnumerator()
-        {
-            return GetEnumerator();
-        }
-
-        public void Add(TItem item)
-        {
-            throw new ReadOnlyException(Resources.OneOrManyList_Add_Attempted_modification_of_a_read_only_collection);
-        }
-
-        public void Clear()
-        {
-            throw new ReadOnlyException(Resources.OneOrManyList_Add_Attempted_modification_of_a_read_only_collection);
-        }
-
-        public bool Contains(TItem item)
-        {
-            if (Equals(_many, null))
-                return Equals(_one, item);
-            return _many.Contains(item);
-        }
-
-        public void CopyTo(TItem[] array, int arrayIndex)
-        {
-            if (Equals(_many, null))
-                array[arrayIndex] = _one;
-            else
-                _many.CopyTo(array, arrayIndex);            
-        }
-
-        public bool Remove(TItem item)
-        {
-            throw new ReadOnlyException(Resources.OneOrManyList_Add_Attempted_modification_of_a_read_only_collection);
-        }
-
-        public int Count
+        public override TItem this[int index]
         {
             get
             {
-                if (Equals(_many, null))
-                    return 1;
-                return _many.Length;
-            }
-        }
-
-        public bool IsReadOnly
-        {
-            get { return true; }
-        }
-
-        public int IndexOf(TItem item)
-        {
-            if (Equals(_many, null))
-                return Equals(_one, item) ? 0 : -1;
-            return _many.IndexOf(v => Equals(v, item));
-        }
-
-        public void Insert(int index, TItem item)
-        {
-            throw new ReadOnlyException(Resources.OneOrManyList_Add_Attempted_modification_of_a_read_only_collection);
-        }
-
-        public void RemoveAt(int index)
-        {
-            throw new ReadOnlyException(Resources.OneOrManyList_Add_Attempted_modification_of_a_read_only_collection);
-        }
-
-        public TItem this[int index]
-        {
-            get
-            {
-                ValidateIndex(index);
-                if (Equals(_many, null))
-                    return _one;
-                return _many[index];
-            }
-
-            set
-            {
-                throw new ReadOnlyException(Resources.OneOrManyList_Add_Attempted_modification_of_a_read_only_collection);
+                return _list[index];
             }
         }
 
         public OneOrManyList<TItem> ChangeAt(int index, TItem item)
         {
-            ValidateIndex(index);
-            var cloneNew = (OneOrManyList<TItem>) MemberwiseClone();
-            if (Equals(_many, null))
-                cloneNew._one = item;
-            else
-            {
-                cloneNew._many = new TItem[_many.Length];
-                Array.Copy(_many, cloneNew._many, _many.Length);
-                cloneNew._many[index] = item;
-            }
-            return cloneNew;
-        }
-
-        private void ValidateIndex(int index)
-        {
-            if (Equals(_many, null))
-            {
-                if (index != 0)
-                    throw new IndexOutOfRangeException(
-                        string.Format(
-                            Resources.OneOrManyList_ValidateIndex_The_index__0__must_be_0_for_a_single_entry_list, index));
-            }
-            else if (0 > index || index > _many.Length)
-                throw new IndexOutOfRangeException(
-                    string.Format(Resources.OneOrManyList_ValidateIndex_The_index__0__must_be_between_0_and__1__, index,
-                                  _many.Length));
+            return new OneOrManyList<TItem>(_list.ReplaceAt(index, item));
         }
 
         #region object overrides
@@ -559,8 +452,7 @@ namespace pwiz.Skyline.Util
         {
             if (ReferenceEquals(null, obj)) return false;
             if (ReferenceEquals(this, obj)) return true;
-            return Equals(obj._one, _one) &&
-                ArrayUtil.EqualsDeep(obj._many, _many);
+            return _list.Equals(obj._list);
         }
 
         public override bool Equals(object obj)
@@ -573,18 +465,108 @@ namespace pwiz.Skyline.Util
 
         public override int GetHashCode()
         {
-            unchecked
-            {
-// ReSharper disable NonReadonlyFieldInGetHashCode
-                return ((!Equals(_one, default(TItem)) ? _one.GetHashCode() : 0)*397) ^
-                    (_many != null ? _many.GetHashCodeDeep() : 0);
-// ReSharper restore NonReadonlyFieldInGetHashCode
-            }
+            return _list.GetHashCode();
         }
 
         #endregion
     }
-    
+
+    /// <summary>
+    /// A singleton list that allows its one value to be changed
+    /// </summary>
+    public class SingletonList<T> : IList<T>
+    {
+        private T _item;
+
+        public SingletonList(T item)
+        {
+            _item = item;
+        }
+
+        public IEnumerator<T> GetEnumerator()
+        {
+            yield return _item;
+        }
+
+        IEnumerator IEnumerable.GetEnumerator()
+        {
+            return GetEnumerator();
+        }
+
+        public void Add(T item)
+        {
+            throw new NotSupportedException();
+        }
+
+        public void Clear()
+        {
+            throw new NotSupportedException();
+        }
+
+        public bool Contains(T item)
+        {
+            if (item == null)
+                return _item == null;
+
+            return item.Equals(_item);
+        }
+
+        public void CopyTo(T[] array, int arrayIndex)
+        {
+            if (array == null)
+                throw new ArgumentNullException(nameof(array));
+
+            array[arrayIndex] = _item;
+        }
+
+        public bool Remove(T item)
+        {
+            throw new NotSupportedException();
+        }
+
+        public int Count
+        {
+            get { return 1; }
+        }
+
+        public bool IsReadOnly
+        {
+            get { return false; }
+        }
+
+        public int IndexOf(T item)
+        {
+            return Contains(item) ? 0 : -1;
+        }
+
+        public void Insert(int index, T item)
+        {
+            throw new NotSupportedException();
+        }
+
+        public void RemoveAt(int index)
+        {
+            throw new NotSupportedException();
+        }
+
+        public T this[int index]
+        {
+            get
+            {
+                if (index != 0)
+                    throw new IndexOutOfRangeException();
+                return _item;
+            }
+            set
+            {
+                if (index != 0)
+                    throw new IndexOutOfRangeException();
+                _item = value;
+            }
+        }
+    }
+
+
     /// <summary>
     /// Exposes a set of generic Array extension utility functions.
     /// </summary>
@@ -684,17 +666,19 @@ namespace pwiz.Skyline.Util
             }
         }
 
+        public const int RANDOM_SEED = 7 * 7 * 7 * 7 * 7; // 7^5 recommended by Brian S.
+
         /// <summary>
         /// Creates a random order of indexes into an array for a random linear walk
         /// through an array.
         /// </summary>
-        public static IEnumerable<TItem> RandomOrder<TItem>(this IList<TItem> list)
+        public static IEnumerable<TItem> RandomOrder<TItem>(this IList<TItem> list, int? seed = null)
         {
             int count = list.Count;
             var indexOrder = new int[count];
             for (int i = 0; i < count; i++)
                 indexOrder[i] = i;
-            Random r = new Random();
+            Random r = seed.HasValue ? new Random(seed.Value) : new Random();
             for (int i = 0; i < count; i++)
                 Helpers.Swap(ref indexOrder[0], ref indexOrder[r.Next(count)]);
             foreach (int i in indexOrder)
@@ -758,7 +742,7 @@ namespace pwiz.Skyline.Util
         /// <returns>The index in the Array of the last match, or -1 if not found</returns>
         public static int LastIndexOf<TItem>(this IList<TItem> values, Predicate<TItem> found)
         {
-            for (int i = values.Count -1; i >= 0; i--)
+            for (int i = values.Count - 1; i >= 0; i--)
             {
                 if (found(values[i]))
                     return i;
@@ -782,6 +766,20 @@ namespace pwiz.Skyline.Util
                     return true;
             }
             return false;
+        }
+
+        /// <summary>
+        /// Checks for equality of all items in an IEnumerable without regard for order.
+        /// </summary>
+        /// <typeparam name="TItem">Type of items in the IEnumerable</typeparam>
+        /// <param name="values1">First IEnumerable in the comparison</param>
+        /// <param name="values2">Second IEnumerable in the comparison</param>
+        /// <returns>True if all items in one IEnumerable are found in the other, and IEnumerables are same length</returns>
+        public static bool ContainsAll<TItem>(this IEnumerable<TItem> values1, IEnumerable<TItem> values2)
+        {
+            var set1 = values1.ToHashSet();
+            var set2 = values2.ToHashSet();
+            return set1.Count == set2.Count && set1.IsSubsetOf(set2);
         }
 
         /// <summary>
@@ -815,7 +813,8 @@ namespace pwiz.Skyline.Util
         /// <param name="values1">First array in the comparison</param>
         /// <param name="values2">Second array in the comparison</param>
         /// <returns>True if all items in both arrays in identical positions are Equal</returns>
-        public static bool EqualsDeep<TItemKey, TItemValue>(IDictionary<TItemKey, TItemValue> values1, IDictionary<TItemKey, TItemValue> values2)
+        public static bool EqualsDeep<TItemKey, TItemValue>(IDictionary<TItemKey, TItemValue> values1,
+            IDictionary<TItemKey, TItemValue> values2)
         {
             if (values1 == null && values2 == null)
                 return true;
@@ -823,7 +822,7 @@ namespace pwiz.Skyline.Util
                 return false;
             if (values1.Count != values2.Count)
                 return false;
-            foreach(var keyValuePair1 in values1)
+            foreach (var keyValuePair1 in values1)
             {
                 TItemValue value2;
                 if (!values2.TryGetValue(keyValuePair1.Key, out value2))
@@ -881,7 +880,25 @@ namespace pwiz.Skyline.Util
             return true;
         }
 
-        /// <summary>
+        public static bool InnerReferencesEqual<TItem, TItemList>(IList<TItemList> values1, IList<TItemList> values2)
+            where TItemList : IList<TItem>
+        {
+            if (values1 == null && values2 == null)
+                return true;
+            if (values1 == null || values2 == null)
+                return false;
+            if (values1.Count != values2.Count)
+                return false;
+            for (int i = 0; i < values1.Count; i++)
+            {
+                if (!ReferencesEqual(values1[i], values2[i]))
+                    return false;
+            }
+            return true;
+            
+        }
+
+    /// <summary>
         /// Enumerates two lists assigning references from the second list to
         /// entries in the first list, where they are equal.  Useful for maintaining
         /// reference equality when recalculating values. Similar to <see cref="Helpers.AssignIfEquals{T}"/>.
@@ -972,8 +989,10 @@ namespace pwiz.Skyline.Util
         /// <param name="progressMonitor">Optional progress monitor for reporting progress over long periods</param>
         /// <param name="status">Optional progress status object for reporting progress</param>
         public BlockedArray(Func<int, TItem[]> readItems, int itemCount, int itemSize, int bytesPerBlock,
-            IProgressMonitor progressMonitor = null, ProgressStatus status = null)
+            IProgressMonitor progressMonitor = null, IProgressStatus status = null)
         {
+            Assume.IsTrue(itemSize < bytesPerBlock);    // Make sure these values aren't flipped
+
             _itemCount = itemCount;
             _blocks = new List<TItem[]>();
 
@@ -986,7 +1005,7 @@ namespace pwiz.Skyline.Util
 
                 if (progressMonitor != null && status != null)
                 {
-                    int currentPercent = (int) (startPercent + 100 - (itemCount*100.0)/_itemCount);
+                    int currentPercent = (int)(100 - ((100.0 - startPercent) * itemCount) / _itemCount);
                     if (currentPercent != status.PercentComplete)
                         progressMonitor.UpdateProgress(status = status.ChangePercentComplete(currentPercent));
                 }
@@ -1020,12 +1039,35 @@ namespace pwiz.Skyline.Util
             }
         }
 
+        public BlockedArray(BlockedArrayList<TItem> items)
+        {
+            _itemCount = items.Count;
+            _blocks = items.GetBlocks().ToList();
+        }
+
+        public static BlockedArray<TItem> Convert<TItemSrc>(BlockedArrayList<TItemSrc> blockedArrayList,
+            Func<TItemSrc, TItem> converter)
+        {
+            return new BlockedArray<TItem>(blockedArrayList.GetBlocks()
+                .Select(block => block.Select(converter).ToArray())
+                .ToList(),
+                blockedArrayList.Count);
+        }
+
+        private BlockedArray(List<TItem[]> blocks, int itemCount)
+        {
+            _itemCount = itemCount;
+            _blocks = blocks;
+        }
+
         /// <summary>
         /// Number of items in this array.
         /// </summary>
         public int Length { get { return _itemCount; } }
 
         public int Count { get { return Length; } }
+
+        public IEnumerable<TItem[]> Blocks { get { return _blocks; } }
 
         /// <summary>
         /// Return the item corresponding to the given index.
@@ -1088,12 +1130,246 @@ namespace pwiz.Skyline.Util
                 count -= writeCount;
             }
         }
+
+        public BlockedArray<TItem> ChangeAll(Func<TItem, TItem> changeElement)
+        {
+            var newBlocks = new List<TItem[]>();
+            foreach (var block in _blocks)
+            {
+                var newBlock = new TItem[block.Length];
+                newBlocks.Add(newBlock);
+
+                for (int i = 0; i < block.Length; i++)
+                    newBlock[i] = changeElement(block[i]);
+            }
+            return new BlockedArray<TItem>(newBlocks, _itemCount);
+        }
+    }
+
+    public class BlockedArrayList<TItem> : IList<TItem>
+    {
+        private List<List<TItem>> _blocks = new List<List<TItem>>{new List<TItem>()};
+        private int _itemCount;
+        private readonly int _itemsPerBlock;
+
+        public BlockedArrayList(int itemSize, int bytesPerBlock)
+        {
+            _itemsPerBlock = bytesPerBlock/itemSize;
+        }
+
+        public IEnumerator<TItem> GetEnumerator()
+        {
+            return _blocks.SelectMany(block => block).GetEnumerator();
+        }
+
+        IEnumerator IEnumerable.GetEnumerator()
+        {
+            return GetEnumerator();
+        }
+
+        public void Add(TItem item)
+        {
+            var block = _blocks.Last();
+            if (block.Count >= _itemsPerBlock)
+            {
+                block = new List<TItem>();
+                _blocks.Add(block);
+            }
+            block.Add(item);
+            _itemCount++;
+        }
+
+        public void AddRange(IList<TItem> chromTransitions)
+        {
+            // CONSIDER: Make this faster than adding one at a time?
+            foreach (var t in chromTransitions)
+            {
+                Add(t);
+            }
+        }
+
+        public void AddRange(BlockedArray<TItem> chromTransitions)
+        {
+            int transferCount = chromTransitions.Count;
+            int blockIndex = 0;
+            int itemIndex = 0;
+            var chromTransitionBlocks = chromTransitions.Blocks.ToArray();
+
+            while (transferCount > 0)
+            {
+                var blockSrc = chromTransitionBlocks[blockIndex];
+                int copyCount = blockSrc.Length - itemIndex;
+
+                var blockDest = _blocks.Last();
+                if (blockDest.Count >= _itemsPerBlock)
+                {
+                    // Pre-allocate a new list to the smaller of the number of items
+                    // to copy or the total items per block
+                    blockDest = new List<TItem>(Math.Min(copyCount, _itemsPerBlock));
+                    _blocks.Add(blockDest);
+                }
+                // Copy everything remaining in current source block or the maximum left in the destination block
+                int remainder = _itemsPerBlock - blockDest.Count;
+                if (copyCount <= remainder)
+                {
+                    blockDest.AddRange(blockSrc.Skip(itemIndex).Take(copyCount));
+                    blockIndex++;
+                    itemIndex = 0;
+                }
+                else
+                {
+                    copyCount = remainder;
+                    blockDest.AddRange(blockSrc.Skip(itemIndex).Take(copyCount));
+                    itemIndex += copyCount;
+                }
+                transferCount -= copyCount;
+                _itemCount += copyCount;
+            }
+        }
+
+        public void Clear()
+        {
+            _blocks = new List<List<TItem>> { new List<TItem>() };
+            _itemCount = 0;
+        }
+
+        public bool Contains(TItem item)
+        {
+            return _blocks.Contains(l => l.Contains(item));
+        }
+
+        public void CopyTo(TItem[] array, int arrayIndex)
+        {
+            throw new NotSupportedException();
+        }
+
+        public bool Remove(TItem item)
+        {
+            throw new NotSupportedException();
+        }
+
+        public int Count { get { return _itemCount; } }
+        public bool IsReadOnly { get { return false; } }
+
+        public IEnumerable<TItem[]> GetBlocks()
+        {
+            return _blocks.Select(b => b.ToArray());
+        }
+
+        public int IndexOf(TItem item)
+        {
+            int index = 0;
+            foreach (var block in _blocks)
+            {
+                foreach (var itemTest in block)
+                {
+                    if (Equals(item, itemTest))
+                        return index;
+                    index++;
+                }
+            }
+            return -1;
+        }
+
+        public TItem this[int index]
+        {
+            get
+            {
+                if (index >= _itemCount)
+                    throw new IndexOutOfRangeException();
+                var blockIndex = index / _itemsPerBlock;
+                var itemIndex = index % _itemsPerBlock;
+                return _blocks[blockIndex][itemIndex];
+            }
+            set
+            {
+                throw new NotSupportedException();
+            }
+        }
+
+        public void Insert(int index, TItem item)
+        {
+            throw new NotSupportedException();
+        }
+
+        public void RemoveAt(int index)
+        {
+            throw new NotSupportedException();
+        }
+
+        public BlockedArray<TItem> ToBlockedArray()
+        {
+            return new BlockedArray<TItem>(this);
+        }
+
+        public void Reorder(IEnumerable<int> newOrder)
+        {
+            var blockNext = new List<TItem>(_blocks[0].Count);
+            var blocksNew = new List<List<TItem>>(_blocks.Count) { blockNext };
+            foreach (var i in newOrder)
+            {
+                if (blockNext.Count == _itemsPerBlock)
+                {
+                    blockNext = new List<TItem>(_blocks[blocksNew.Count].Count);
+                    blocksNew.Add(blockNext);
+                }
+                blockNext.Add(this[i]);
+            }
+            _blocks = blocksNew;
+        }
+
+        public void Sort()
+        {
+            Sort(Comparer<TItem>.Default.Compare);
+        }
+
+        public void Sort(Comparison<TItem> compare)
+        {
+            foreach (var block in _blocks)
+                block.Sort(compare);
+            if (_blocks.Count < 2)
+                return;
+
+            try
+            {
+                // Merge sort the blocks into new list
+                var nextIndexes = new int[_blocks.Count];
+                var blockNext = new List<TItem>(_blocks[0].Count);
+                var blocksNew = new List<List<TItem>>(_blocks.Count) { blockNext };
+                for (int i = 0; i < _itemCount; i++)
+                {
+                    if (blockNext.Count == _itemsPerBlock)
+                    {
+                        blockNext = new List<TItem>(_blocks[blocksNew.Count].Count);
+                        blocksNew.Add(blockNext);
+                    }
+                    int iBlockMin = 0;
+                    for (int iBlock = 1; iBlock < _blocks.Count; iBlock++)
+                    {
+                        int iNext = nextIndexes[iBlock];
+                        int iMin = nextIndexes[iBlockMin];
+                        if (iNext >= _blocks[iBlock].Count)
+                            continue;
+                        if (iMin >= _blocks[iBlockMin].Count || compare(_blocks[iBlock][iNext], _blocks[iBlockMin][iMin]) < 1)
+                            iBlockMin = iBlock;
+                    }
+                    blockNext.Add(_blocks[iBlockMin][nextIndexes[iBlockMin]]);
+                    nextIndexes[iBlockMin]++;
+                }
+                _blocks = blocksNew;
+            }
+            catch (Exception e)
+            {
+                Trace.WriteLine(e);
+                throw;
+            }
+        }
     }
 
     /// <summary>
     /// A set of generic, static helper functions.
     /// </summary>
-    public static class Helpers
+    public static partial class Helpers
     {
         /// <summary>
         /// Swaps two reference values in memory, making each contain
@@ -1201,7 +1477,7 @@ namespace pwiz.Skyline.Util
         {
             int i = localizedStrings.IndexOf(v => Equals(v, value));
             if (i == -1)
-                throw new ArgumentException(string.Format("The string '{0}' does not match an enum value", value)); // Not L10N
+                throw new ArgumentException(string.Format(@"The string '{0}' does not match an enum value ({1})", value, string.Join(@", ", localizedStrings)));
             return (TEnum) (object) i;            
         }
 
@@ -1232,13 +1508,13 @@ namespace pwiz.Skyline.Util
         public static string MakeId(IEnumerable<char> name, bool capitalize)
         {
             StringBuilder sb = new StringBuilder();
-            char lastC = '\0'; // Not L10N
+            char lastC = '\0'; 
             foreach (var c in name)
             {
                 if (char.IsLetterOrDigit(c))
                 {
-                    if (lastC == ' ') // Not L10N
-                        sb.Append('_'); // Not L10N
+                    if (lastC == ' ')
+                        sb.Append('_');
                     lastC = c;
                     if (capitalize && sb.Length == 0)
                         sb.Append(c.ToString(CultureInfo.InvariantCulture).ToUpperInvariant());
@@ -1246,7 +1522,7 @@ namespace pwiz.Skyline.Util
                         sb.Append(c);
                 }
                 // Must start with a letter or digit
-                else if (lastC != '\0') // Not L10N
+                else if (lastC != '\0')
                 {
                     // After the start _ okay (dashes turned out to be problematic)
                     if (c == '_' /* || c == '-'*/)
@@ -1254,19 +1530,19 @@ namespace pwiz.Skyline.Util
                     // All other characters are replaced with _, but once the next
                     // letter or number is seen.
                     else if (char.IsLetterOrDigit(lastC))
-                        lastC = ' '; // Not L10N
+                        lastC = ' ';
                 }
             }
             return sb.ToString();
         }
 
-        // ReSharper disable NonLocalizedString
+        // ReSharper disable LocalizableElement
         private static readonly Regex REGEX_XML_ID = new Regex("/^[:_A-Za-z][-.:_A-Za-z0-9]*$/");
         private const string XML_ID_FIRST_CHARS = ":_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
         private const string XML_ID_FOLLOW_CHARS = "-.:_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
         private const string XML_NON_ID_SEPARATOR_CHARS = ";[]{}()!|\\/\"'<>";
         private const string XML_NON_ID_PUNCTUATION_CHARS = ",?";
-        // ReSharper restore NonLocalizedString
+        // ReSharper restore LocalizableElement
 
         public static string MakeXmlId(string name)
         {
@@ -1282,7 +1558,7 @@ namespace pwiz.Skyline.Util
                 sb.Append(name[i++]);
             else
             {
-                sb.Append('_'); // Not L10N
+                sb.Append('_');
                 // If the first character is not allowable, advance past it.
                 // Otherwise, keep it in the ID.
                 if (!XML_ID_FOLLOW_CHARS.Contains(name[i]))
@@ -1294,13 +1570,13 @@ namespace pwiz.Skyline.Util
                 if (XML_ID_FOLLOW_CHARS.Contains(c))
                     sb.Append(c);
                 else if (char.IsWhiteSpace(c))
-                    sb.Append('_'); // Not L10N
+                    sb.Append('_');
                 else if (XML_NON_ID_SEPARATOR_CHARS.Contains(c))
-                    sb.Append(':'); // Not L10N
+                    sb.Append(':');
                 else if (XML_NON_ID_PUNCTUATION_CHARS.Contains(c))
-                    sb.Append('.'); // Not L10N
+                    sb.Append('.');
                 else
-                    sb.Append('-'); // Not L10N
+                    sb.Append('-');
             }
             return sb.ToString();
         }
@@ -1387,9 +1663,9 @@ namespace pwiz.Skyline.Util
             return count;
         }
 
-        private const char LABEL_SEP_CHAR = '_'; // Not L10N
-        private const string ELIPSIS = "..."; // Not L10N
-        private static readonly char[] SPACE_CHARS = { '_', '-', ' ', '.', ',' }; // Not L10N
+        private const char LABEL_SEP_CHAR = '_';
+        private const string ELIPSIS = "...";
+        private static readonly char[] SPACE_CHARS = { '_', '-', ' ', '.', ',' };
 
         /// <summary>
         /// Finds repetitive text in labels and removes the text to save space.
@@ -1564,8 +1840,9 @@ namespace pwiz.Skyline.Util
                     action();
                     return;
                 }
-                catch (TEx)
+                catch (TEx x)
                 {
+                    Trace.WriteLine(x.Message);
                     Thread.Sleep(milliseconds);
                 }
             }
@@ -1608,31 +1885,49 @@ namespace pwiz.Skyline.Util
     /// </summary>
     public static class Assume
     {
-        public static void IsTrue(bool condition, string error = "") // Not L10N
+        public static void IsTrue(bool condition, string error = "")
         {
             if (!condition)
                 Fail(error);
         }
 
-        public static void IsFalse(bool condition, string error = "") // Not L10N
+        public static void IsFalse(bool condition, string error = "")
         {
             if (condition)
                 Fail(error);
         }
 
-        public static void IsNotNull(object o, string parameterName = "") // Not L10N
+        public static void IsNotNull(object o, string parameterName = "")
         {
             if (o == null)
-                Fail(string.IsNullOrEmpty(parameterName) ? "null object" : parameterName + " is null"); // Not L10N
+                Fail(string.IsNullOrEmpty(parameterName) ? @"null object" : parameterName + @" is null");
         }
 
-        public static void IsNull(object o, string parameterName = "") // Not L10N
+        public static void IsNull(object o, string parameterName = "")
         {
             if (o != null)
-                Fail(string.IsNullOrEmpty(parameterName) ? "non-null object" : parameterName + " is not null"); // Not L10N
+                Fail(string.IsNullOrEmpty(parameterName) ? @"non-null object" : parameterName + @" is not null");
         }
 
-        public static void Fail(string error = "") // Not L10N
+        public static void AreEqual(object left, object right, string error = "")
+        {
+            if (!Equals(left, right))
+                Fail(error);
+        }
+
+        public static void AreNotEqual(object left, object right, string error = "")
+        {
+            if (Equals(left, right))
+                Fail(error);
+        }
+
+        public static void AreEqual(double expected, double actual, double delta, string error = "")
+        {
+            if (Math.Abs(expected-actual) > delta)
+                Fail(error);
+        }
+
+        public static void Fail(string error = "")
         {
             throw new AssumptionException(error);
         }
@@ -1646,7 +1941,7 @@ namespace pwiz.Skyline.Util
         public static T Value<T>(T? value) where T : struct
         {
             if (!value.HasValue)
-                Fail("Nullable_was_expected_to_have_a_value");  // Not L10N
+                Fail(@"Nullable_was_expected_to_have_a_value"); 
             return value.Value;
         }
     }
@@ -1673,26 +1968,134 @@ namespace pwiz.Skyline.Util
         }
     }
 
+    public static class ExceptionUtil
+    {
+        public static string GetMessage(Exception ex)
+        {
+            // Drill down to see if the innermost exception was an out-of-memory exception.
+            var innerException = ex;
+            while (innerException.InnerException != null)
+                innerException = innerException.InnerException;
+            if (innerException is OutOfMemoryException)
+            {
+                string memoryMessage = String.Format(Resources.SkylineWindow_CompleteProgressUI_Ran_Out_Of_Memory, Program.Name);
+                if (!Install.Is64Bit && Environment.Is64BitOperatingSystem)
+                {
+                    memoryMessage += String.Format(Resources.SkylineWindow_CompleteProgressUI_version_issue, Program.Name);
+                }
+                return TextUtil.LineSeparate(ex.Message, memoryMessage);
+            }
+            return ex.Message;
+        }
+
+        public static string GetStackTraceText(Exception exception, StackTrace stackTraceExceptionCaughtAt = null, bool showMessage = true)
+        {
+            StringBuilder stackTrace = new StringBuilder();
+            if (showMessage)
+                stackTrace.AppendLine(@"Stack trace:").AppendLine();
+
+            stackTrace.AppendLine(exception.StackTrace).AppendLine();
+
+            for (var x = exception.InnerException; x != null; x = x.InnerException)
+            {
+                if (ReferenceEquals(x, exception.InnerException))
+                    stackTrace.AppendLine(@"Inner exceptions:");
+                else
+                    stackTrace.AppendLine(@"---------------------------------------------------------------");
+                stackTrace.Append(@"Exception type: ").Append(x.GetType().FullName).AppendLine();
+                stackTrace.Append(@"Error message: ").AppendLine(x.Message);
+                stackTrace.AppendLine(x.Message).AppendLine(x.StackTrace);
+            }
+            if (null != stackTraceExceptionCaughtAt)
+            {
+                stackTrace.AppendLine(@"Exception caught at: ");
+                stackTrace.AppendLine(stackTraceExceptionCaughtAt.ToString());
+            }
+            return stackTrace.ToString();
+        }
+    }
+
     public static class ParallelEx
     {
-        public static void For(int fromInclusive, int toExclusive, Action<int> body, Action<AggregateException> catchClause = null)
+        // This can be set to true to make debugging easier.
+        public static readonly bool SINGLE_THREADED = false;
+
+        private static readonly ParallelOptions PARALLEL_OPTIONS = new ParallelOptions
+        {
+            MaxDegreeOfParallelism = SINGLE_THREADED ? 1 : -1
+        };
+
+        private class IntHolder
+        {
+            public IntHolder(int theInt)
+            {
+                TheInt = theInt;
+            }
+
+            public int TheInt { get; private set; }
+        }
+
+        public static int GetThreadCount(int? maxThreads = null)
+        {
+            if (SINGLE_THREADED)
+                return 1;
+            int threadCount = Environment.ProcessorCount;
+            int maxThreadCount = maxThreads ?? 8; // Trial with maximum of 8
+            if (threadCount > maxThreadCount)
+                threadCount = maxThreadCount;
+            return threadCount;
+        }
+
+        public static void For(int fromInclusive, int toExclusive, Action<int> body, Action<AggregateException> catchClause = null, int? maxThreads = null)
         {
             Action<int> localBody = i =>
             {
                 LocalizationHelper.InitThread(); // Ensure appropriate culture
                 body(i);
             };
-            LoopWithExceptionHandling(() => Parallel.For(fromInclusive, toExclusive, localBody), catchClause);
+            LoopWithExceptionHandling(() =>
+            {
+                using (var worker = new QueueWorker<IntHolder>(null, (h, i) => localBody(h.TheInt)))
+                {
+                    worker.RunAsync(GetThreadCount(maxThreads), typeof(ParallelEx).Name);
+                    for (int i = fromInclusive; i < toExclusive; i++)
+                    {
+                        if (worker.Exception != null)
+                            break;
+                        worker.Add(new IntHolder(i));
+                    }
+                    worker.DoneAdding(true);
+                    if (worker.Exception != null)
+                        throw new AggregateException(@"Exception in Parallel.For", worker.Exception);   
+                }
+            }, catchClause);
+//            LoopWithExceptionHandling(() => Parallel.For(fromInclusive, toExclusive, PARALLEL_OPTIONS, localBody), catchClause);
         }
 
-        public static void ForEach<TSource>(IEnumerable<TSource> source, Action<TSource> body, Action<AggregateException> catchClause = null)
+        public static void ForEach<TSource>(IEnumerable<TSource> source, Action<TSource> body, Action<AggregateException> catchClause = null, int? maxThreads = null) where TSource : class
         {
             Action<TSource> localBody = o =>
             {
                 LocalizationHelper.InitThread(); // Ensure appropriate culture
                 body(o);
             };
-            LoopWithExceptionHandling(() => Parallel.ForEach(source, localBody), catchClause);
+            LoopWithExceptionHandling(() =>
+            {
+                using (var worker = new QueueWorker<TSource>(null, (s, i) => localBody(s)))
+                {
+                    worker.RunAsync(GetThreadCount(maxThreads), typeof(ParallelEx).Name);
+                    foreach (TSource s in source)
+                    {
+                        if (worker.Exception != null)
+                            break;
+                        worker.Add(s);
+                    }
+                    worker.DoneAdding(true);
+                    if (worker.Exception != null)
+                        throw new AggregateException(@"Exception in Parallel.ForEx", worker.Exception); 
+                }
+            }, catchClause);
+//            LoopWithExceptionHandling(() => Parallel.ForEach(source, PARALLEL_OPTIONS, localBody), catchClause);
         }
 
         private static void LoopWithExceptionHandling(Action loop, Action<AggregateException> catchClause)
@@ -1728,4 +2131,64 @@ namespace pwiz.Skyline.Util
             }
         }
     }
+
+    public class Alarms
+    {
+        private readonly Dictionary<object, AlarmInfo> _timers =
+            new Dictionary<object, AlarmInfo>();
+
+        private class AlarmInfo
+        {
+            public System.Windows.Forms.Timer Timer;
+            public long Ticks;
+        }
+
+        public void Run(Control control, int milliseconds, object id, Action action)
+        {
+            try
+            {
+                control.Invoke(new Action(() =>
+                {
+                    lock (_timers)
+                    {
+                        var alarmTicks = DateTime.Now.Ticks + milliseconds*TimeSpan.TicksPerMillisecond;
+                        if (_timers.ContainsKey(id))
+                        {
+                            if (_timers[id].Ticks <= alarmTicks)
+                                return;
+                            _timers[id].Timer.Dispose();
+                        }
+                        var timer = new System.Windows.Forms.Timer {Interval = milliseconds};
+                        timer.Tick += (sender, args) => TimerTick(id, action);
+                        _timers[id] = new AlarmInfo {Timer = timer, Ticks = alarmTicks};
+                        timer.Start();
+                    }
+                }));
+            }
+            catch (InvalidOperationException)
+            {
+            }
+        }
+
+        private void TimerTick(object id, Action action)
+        {
+            lock (_timers)
+            {
+                var alarmInfo = _timers[id];
+                _timers.Remove(id);
+                alarmInfo.Timer.Dispose();
+            }
+            action();
+        }
+    }
+
+    public static class SecurityProtocolInitializer
+    {
+        // Make sure we can negotiate with HTTPS servers that demand TLS 1.2 (default in dotNet 4.6, but has to be turned on in 4.5)
+        public static void Initialize()
+        {
+            ServicePointManager.SecurityProtocol |= (SecurityProtocolType.Tls | SecurityProtocolType.Tls11 | SecurityProtocolType.Tls12);
+        }
+    }
+
 }

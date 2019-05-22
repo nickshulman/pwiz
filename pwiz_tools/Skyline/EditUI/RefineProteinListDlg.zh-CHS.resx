@@ -286,7 +286,7 @@
     <value>0</value>
   </data>
   <data name="label1.Text" xml:space="preserve">
-    <value>保持的蛋白质(&amp;P):</value>
+    <value>保留的蛋白质(&amp;P)：</value>
   </data>
   <data name="&gt;&gt;label1.Name" xml:space="preserve">
     <value>label1</value>
@@ -307,7 +307,7 @@
     <value>13, 33</value>
   </data>
   <data name="textProteins.MaxLength" type="System.Int32, mscorlib">
-    <value>1000000</value>
+    <value>10000000</value>
   </data>
   <data name="textProteins.Multiline" type="System.Boolean, mscorlib">
     <value>True</value>

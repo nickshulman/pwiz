@@ -23,27 +23,29 @@ runComparison <- function() {
 
 	raw <- read.csv(arguments[1])
 
+	colnames(raw)[colnames(raw) == 'Detection.Q.Value'] <- 'DetectionQValue'
+	if(!is.element(c('DetectionQValue'), colnames(raw)) || all(is.na(as.numeric(as.character(raw$DetectionQValue))))) {
+	    filter.qvalue <- FALSE
+	} else {
+	    filter.qvalue <- TRUE
+	}
+	
 	## remove the rows for iRT peptides
-	raw <- raw[is.na(raw$StandardType) | raw$StandardType != "iRT", ]
-
+	raw <- SkylinetoMSstatsFormat(raw,
+	                              removeProtein_with1Feature = TRUE,
+	                              filter_with_Qvalue = filter.qvalue)
+	
 	## get standard protein name from StandardType column
 	standardpepname <- ""
-	if(sum(unique(raw$StandardType) %in% "Normalization") !=0 ){
-		standardpepname <- as.character(unique(raw[raw$StandardType == "Normalization", "PeptideModifiedSequence"]))
+	if(sum(unique(raw$StandardType) %in% c("Normalization", "Global Standard")) !=0 ){
+	    standardpepname <- as.character(unique(raw[raw$StandardType %in% c("Normalization", "Global Standard"), "PeptideSequence"]))
 	}
-
-	## change column name as Intensity
-	colnames(raw)[colnames(raw) == "Area"] <- "Intensity"
-	raw$Intensity <- as.character(raw$Intensity)
-	raw$Intensity <- as.numeric(raw$Intensity)
-
-	## change column name 'FileName' as Run
-	colnames(raw)[colnames(raw) == "FileName"] <- "Run"
 
 	## check result grid missing or not
 	countna<-apply(raw, 2, function(x) sum(is.na(x) | x == ""))
 	naname<-names(countna[countna != 0])
-	naname<-naname[-which(naname %in% c("StandardType", "Intensity", "Truncated"))]
+	naname<-naname[-which(naname %in% c("StandardType", "Intensity", "Truncated",
+	                                    "FragmentIon", "ProductCharge"))]
 
 	if(length(naname) != 0){
 		stop(message(paste("Some ", paste(naname, collapse=", "), " have no value. Please check \"Result Grid\" in View. \n", sep="")))
@@ -82,19 +84,32 @@ runComparison <- function() {
 	## missing peaks cbox
 	inputmissingpeaks <- arguments[4]
 
-	## Nick, here for new option for feature selection
+
 	## feature selection input
 	
 	optionfeatureselection <- arguments[5]
-        lastFixedArgument <- 5
+    lastFixedArgument <- 6
 	
 	if (optionfeatureselection == "TRUE") { 
-		input_feature_selection <- "highQuality_Significance" 
+		input_feature_selection <- "highQuality" 
 	} else { 
 		input_feature_selection <- "all" 
 	}
+
+	## Nick, here for new option for 'allow...'
+	## remove proteins with interference cbox
 	
-	quantData <- try(dataProcess(raw, normalization=inputnormalize, nameStandards=standardpepname, fillIncompleteRows=(inputmissingpeaks=="TRUE"), featureSubset=input_feature_selection, summaryMethod = "TMP", censoredInt="0", skylineReport=TRUE))
+	inputremoveproteins <- arguments[6]
+		
+
+	quantData <- try(dataProcess(raw, 
+	                             normalization=inputnormalize, 
+	                             nameStandards=standardpepname, 
+	                             fillIncompleteRows=(inputmissingpeaks=="TRUE"), 
+	                             featureSubset=input_feature_selection, 
+	                             remove_noninformative_feature_outlier=(inputremoveproteins=="TRUE"), 
+	                             summaryMethod = "TMP", 
+	                             censoredInt="0"))
 
 	if (class(quantData) != "try-error") {
 
@@ -135,10 +150,30 @@ runComparison <- function() {
 			inputtemp <- arguments[i + lastFixedArgument]
 			temp <- c(temp, as.numeric(inputtemp))
 		}
-
+		
 		comparison <- rbind(comparison, matrix(temp, nrow=1))
 
-		inputrowname <- arguments[2]
+		#inputrowname <- arguments[2]
+		
+		namepos <- alllevel[temp > 0]
+		
+		if(length(namepos) != 1){
+			
+			namepos <- paste(temp[temp >0][1], "(", paste(namepos, collapse = "+"), ")", sep="")
+		
+		}
+		
+		
+		nameneg <- alllevel[temp < 0]
+		
+		if(length(namepos) != 1){
+			
+			nameneg <- paste(temp[temp >0][1], "(", paste(nameneg, collapse = "+"), ")", sep="")
+		
+		}
+
+		
+		inputrowname <- paste(namepos, nameneg, sep='-')
 
 		row.names(comparison)[k] <- inputrowname 
 	}

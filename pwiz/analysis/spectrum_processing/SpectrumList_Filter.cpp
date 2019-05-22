@@ -50,12 +50,12 @@ struct SpectrumList_Filter::Impl
     std::vector<size_t> indexMap; // maps index -> original index
     DetailLevel detailLevel; // the detail level needed for a non-indeterminate result
 
-    Impl(SpectrumListPtr original, const Predicate& predicate);
+    Impl(SpectrumListPtr original, const Predicate& predicate, IterationListenerRegistry* ilr);
     void pushSpectrum(const SpectrumIdentity& spectrumIdentity);
 };
 
 
-SpectrumList_Filter::Impl::Impl(SpectrumListPtr _original, const Predicate& predicate)
+SpectrumList_Filter::Impl::Impl(SpectrumListPtr _original, const Predicate& predicate, IterationListenerRegistry* ilr)
 :   original(_original), detailLevel(predicate.suggestedDetailLevel())
 {
     if (!original.get()) throw runtime_error("[SpectrumList_Filter] Null pointer");
@@ -63,6 +63,12 @@ SpectrumList_Filter::Impl::Impl(SpectrumListPtr _original, const Predicate& pred
     // iterate through the spectra, using predicate to build the sub-list
     for (size_t i=0, end=original->size(); i<end; i++)
     {
+        if (ilr)
+        {
+            if (IterationListener::Status_Cancel == ilr->broadcastUpdateMessage(IterationListener::UpdateMessage(i, original->size(), "filtering spectra (by " + predicate.describe() + ")")))
+                break;
+        }
+
         if (predicate.done()) break;
 
         // first try to determine acceptance based on SpectrumIdentity alone
@@ -113,8 +119,8 @@ void SpectrumList_Filter::Impl::pushSpectrum(const SpectrumIdentity& spectrumIde
 //
 
 
-PWIZ_API_DECL SpectrumList_Filter::SpectrumList_Filter(const SpectrumListPtr original, const Predicate& predicate)
-:   SpectrumListWrapper(original), impl_(new Impl(original, predicate))
+PWIZ_API_DECL SpectrumList_Filter::SpectrumList_Filter(const SpectrumListPtr original, const Predicate& predicate, IterationListenerRegistry* ilr)
+:   SpectrumListWrapper(original), impl_(new Impl(original, predicate, ilr))
 {}
 
 
@@ -145,6 +151,30 @@ PWIZ_API_DECL SpectrumPtr SpectrumList_Filter::spectrum(size_t index, DetailLeve
     newSpectrum->index = index;
 
     return newSpectrum;
+}
+
+
+PWIZ_API_DECL std::ostream& operator<<(std::ostream& os, const SpectrumList_Filter::Predicate::FilterMode& mode)
+{
+    if (mode == SpectrumList_Filter::Predicate::FilterMode_Include)
+        os << "include";
+    else
+        os << "exclude";
+    return os;
+}
+
+
+PWIZ_API_DECL std::istream& operator>>(std::istream& is, SpectrumList_Filter::Predicate::FilterMode& mode)
+{
+    string modeStr;
+    is >> modeStr;
+    if (bal::iequals(modeStr, "include"))
+        mode = SpectrumList_Filter::Predicate::FilterMode_Include;
+    else if (bal::iequals(modeStr, "exclude"))
+        mode = SpectrumList_Filter::Predicate::FilterMode_Exclude;
+    else
+        is.setstate(std::ios_base::failbit);
+    return is;
 }
 
 
@@ -194,6 +224,23 @@ PWIZ_API_DECL tribool SpectrumList_FilterPredicate_ScanNumberSet::accept(const S
 PWIZ_API_DECL bool SpectrumList_FilterPredicate_ScanNumberSet::done() const
 {
     return eos_; // end of set
+}
+
+
+PWIZ_API_DECL SpectrumList_FilterPredicate_IdSet::SpectrumList_FilterPredicate_IdSet(const set<string>& idSet)
+    : idSet_(idSet)
+{}
+
+
+PWIZ_API_DECL tribool SpectrumList_FilterPredicate_IdSet::accept(const SpectrumIdentity& spectrumIdentity) const
+{
+    return idSet_.count(spectrumIdentity.id) > 0;
+}
+
+
+PWIZ_API_DECL bool SpectrumList_FilterPredicate_IdSet::done() const
+{
+    return false;
 }
 
 
@@ -263,7 +310,7 @@ PWIZ_API_DECL boost::logic::tribool SpectrumList_FilterPredicate_MSLevelSet::acc
     CVParam param = spectrum.cvParamChild(MS_spectrum_type);
     if (param.cvid == CVID_Unknown) return boost::logic::indeterminate;
     if (!cvIsA(param.cvid, MS_mass_spectrum))
-        return true; // MS level filter doesn't affect non-MS spectra
+        return msLevelSet_.contains(0); // non-MS spectra are considered ms level 0
     param = spectrum.cvParam(MS_ms_level);
     if (param.cvid == CVID_Unknown) return boost::logic::indeterminate;
     int msLevel = param.valueAs<int>();
@@ -328,8 +375,8 @@ PWIZ_API_DECL boost::logic::tribool SpectrumList_FilterPredicate_ChargeStateSet:
 //
 
 
-PWIZ_API_DECL SpectrumList_FilterPredicate_PrecursorMzSet::SpectrumList_FilterPredicate_PrecursorMzSet(const std::set<double>& precursorMzSet)
-:   precursorMzSet_(precursorMzSet)
+PWIZ_API_DECL SpectrumList_FilterPredicate_PrecursorMzSet::SpectrumList_FilterPredicate_PrecursorMzSet(const std::set<double>& precursorMzSet, chemistry::MZTolerance tolerance, FilterMode mode, TargetMode target)
+:   precursorMzSet_(precursorMzSet), tolerance_(tolerance), mode_(mode), target_(target)
 {}
 
 
@@ -344,22 +391,40 @@ PWIZ_API_DECL boost::logic::tribool SpectrumList_FilterPredicate_PrecursorMzSet:
         // If not level 1, then it should have a precursor, so request more meta data.
         if (msLevel != 1) return boost::logic::indeterminate;
     }
-    bool result = precursorMzSet_.count(precursorMz)>0;
-    return result;
+
+    auto lb = precursorMzSet_.lower_bound(precursorMz - tolerance_);
+    auto ub = precursorMzSet_.lower_bound(precursorMz + tolerance_);
+    bool found = (lb != ub) || (lb != precursorMzSet_.end() && *lb == precursorMz);
+    if (mode_ == FilterMode_Include)
+        return found;
+    else
+        return !found;
 }
 
 PWIZ_API_DECL double SpectrumList_FilterPredicate_PrecursorMzSet::getPrecursorMz(const msdata::Spectrum& spectrum) const
 {
-    for (size_t i=0; i<spectrum.precursors.size(); i++)
+    for (size_t i = 0; i < spectrum.precursors.size(); i++)
     {
-		for (size_t j=0; j<spectrum.precursors[i].selectedIons.size(); j++)
-		{
-			CVParam param = spectrum.precursors[i].selectedIons[j].cvParam(MS_selected_ion_m_z);
-			if (param.cvid != CVID_Unknown)
-				return lexical_cast<double>(param.value);
+        switch (target_)
+        {
+            case TargetMode_Selected:
+            {
+                for (size_t j = 0; j < spectrum.precursors[i].selectedIons.size(); j++)
+                {
+                    CVParam param = spectrum.precursors[i].selectedIons[j].cvParam(MS_selected_ion_m_z);
+                    if (param.cvid != CVID_Unknown)
+                        return lexical_cast<double>(param.value);
+                }
+            }
+            case TargetMode_Isolated:
+            {
+                CVParam param = spectrum.precursors[i].isolationWindow.cvParam(MS_isolation_window_target_m_z);
+                if (param.cvid != CVID_Unknown)
+                    return lexical_cast<double>(param.value);
+            }
         }
-	}
-	return 0;
+    }
+    return 0;
 }
 
 
@@ -460,24 +525,22 @@ PWIZ_API_DECL boost::logic::tribool SpectrumList_FilterPredicate_AnalyzerType::a
     Scan dummy;
     const Scan& scan = spectrum.scanList.scans.empty() ? dummy : spectrum.scanList.scans[0];
 
-    CVID massAnalyzerType = CVID_Unknown;
+    vector<CVID> massAnalyzerTypes;
     if (scan.instrumentConfigurationPtr.get())
-        try
+        for (auto& component : scan.instrumentConfigurationPtr->componentList)
         {
-            massAnalyzerType = scan.instrumentConfigurationPtr->componentList.analyzer(0)
-                                        .cvParamChild(MS_mass_analyzer_type).cvid;
-        }
-        catch (out_of_range&)
-        {
-            // ignore out-of-range exception
+            CVID massAnalyzerType = component.cvParamChild(MS_mass_analyzer_type).cvid;
+            if (massAnalyzerType != CVID_Unknown)
+                massAnalyzerTypes.push_back(massAnalyzerType);
         }
 
-    if (massAnalyzerType == CVID_Unknown)
+    if (massAnalyzerTypes.empty())
         return boost::logic::indeterminate;
 
-    BOOST_FOREACH(const CVID cvid, cvFilterItems)
-        if (cvIsA(massAnalyzerType, cvid))
-        {
+    for(CVID cvid : cvFilterItems)
+        for (CVID massAnalyzerType : massAnalyzerTypes)
+            if (cvIsA(massAnalyzerType, cvid))
+            {
             res = true;
             break;
         }
@@ -506,7 +569,7 @@ PWIZ_API_DECL boost::logic::tribool SpectrumList_FilterPredicate_Polarity::accep
 // SpectrumList_FilterPredicate_MzPresent
 //
 
-SpectrumList_FilterPredicate_MzPresent::SpectrumList_FilterPredicate_MzPresent(chemistry::MZTolerance mzt, std::set<double> mzSet, ThresholdFilter tf, bool inverse) : mzt_(mzt), mzSet_(mzSet), tf_(tf), inverse_(inverse) {}
+SpectrumList_FilterPredicate_MzPresent::SpectrumList_FilterPredicate_MzPresent(chemistry::MZTolerance mzt, std::set<double> mzSet, ThresholdFilter tf, FilterMode mode) : mzt_(mzt), mzSet_(mzSet), tf_(tf), mode_(mode) {}
 
 boost::logic::tribool SpectrumList_FilterPredicate_MzPresent::accept(const msdata::Spectrum& spectrum) const
 {
@@ -517,12 +580,12 @@ boost::logic::tribool SpectrumList_FilterPredicate_MzPresent::accept(const msdat
     SpectrumPtr sptr(new Spectrum(spectrum));
     tf_(sptr);
 
-    for (std::vector<double>::iterator iterMZ = sptr->getMZArray()->data.begin(); iterMZ != sptr->getMZArray()->data.end(); ++iterMZ)
+    for (auto iterMZ = sptr->getMZArray()->data.begin(); iterMZ != sptr->getMZArray()->data.end(); ++iterMZ)
     {
-        for (std::set<double>::const_iterator mzSetIter = mzSet_.begin(); mzSetIter != mzSet_.end(); ++mzSetIter) {
+        for (auto mzSetIter = mzSet_.begin(); mzSetIter != mzSet_.end(); ++mzSetIter) {
             if (isWithinTolerance(*mzSetIter, *iterMZ, mzt_))
             {
-                if (inverse_)
+                if (mode_ == FilterMode_Exclude)
                     return false;
                 else
                     return true;
@@ -530,9 +593,35 @@ boost::logic::tribool SpectrumList_FilterPredicate_MzPresent::accept(const msdat
         }
     }
 
-    if (inverse_)
+    if (mode_ == FilterMode_Exclude)
         return true;
     return false;
+}
+
+//
+// SpectrumList_FilterPredicate_ThermoScanFilter
+//
+
+SpectrumList_FilterPredicate_ThermoScanFilter::SpectrumList_FilterPredicate_ThermoScanFilter(const string& matchString, bool matchExact, bool inverse) : matchString_(matchString), matchExact_(matchExact), inverse_(inverse) {}
+
+boost::logic::tribool SpectrumList_FilterPredicate_ThermoScanFilter::accept(const msdata::Spectrum& spectrum) const
+{
+    Scan dummy;
+    const Scan& scan = spectrum.scanList.scans.empty() ? dummy : spectrum.scanList.scans[0];
+    CVParam param = scan.cvParam(MS_filter_string);
+    if (param.cvid == CVID_Unknown) return boost::logic::indeterminate;
+    string scanFilter = param.value;
+    bool filterPass;
+    if (matchExact_)
+    {
+        filterPass = scanFilter == matchString_;
+    }
+    else
+    {
+        filterPass = scanFilter.find(matchString_) != string::npos;
+    }
+    if (inverse_) {filterPass = !filterPass;}
+    return filterPass;
 }
 
 } // namespace analysis

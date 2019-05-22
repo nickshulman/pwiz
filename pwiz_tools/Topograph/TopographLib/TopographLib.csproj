@@ -10,7 +10,7 @@
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>pwiz.Topograph</RootNamespace>
     <AssemblyName>TopographLib</AssemblyName>
-    <TargetFrameworkVersion>v4.5.1</TargetFrameworkVersion>
+    <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <FileUpgradeFlags>
     </FileUpgradeFlags>
@@ -235,10 +235,6 @@
     <ProjectReference Include="..\..\Shared\Common\CommonUtil.csproj">
       <Project>{13BF2FFB-50A1-4AB1-83A4-5733E36905CE}</Project>
       <Name>CommonUtil</Name>
-    </ProjectReference>
-    <ProjectReference Include="..\..\Shared\Crawdad\Crawdad.vcxproj">
-      <Project>{5C81BB57-E46C-4B3B-9764-82F835E643B8}</Project>
-      <Name>Crawdad</Name>
     </ProjectReference>
     <ProjectReference Include="..\..\Shared\ProteomeDb\ProteomeDb.csproj">
       <Project>{09FC3CB3-FCCD-4906-A370-160B28725936}</Project>

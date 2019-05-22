@@ -34,11 +34,27 @@ using ZedGraph;
 namespace pwiz.SkylineTestFunctional
 {
     [TestClass]
-    public class GroupComparisonTest : AbstractFunctionalTest
+    public class GroupComparisonTest : AbstractFunctionalTestEx
     {
+        private bool _asSmallMolecules;
+
         [TestMethod]
         public void TestGroupComparison()
         {
+            TestFilesZip = @"TestFunctional\GroupComparisonTest.zip";
+            RunFunctionalTest();
+        }
+
+      [TestMethod]
+        public void TestGroupComparisonAsSmallMolecules()
+        {
+            if (!RunSmallMoleculeTestVersions)
+            {
+                Console.Write(MSG_SKIPPING_SMALLMOLECULE_TEST_VERSION);
+                return;
+            }
+
+            _asSmallMolecules = true;
             TestFilesZip = @"TestFunctional\GroupComparisonTest.zip";
             RunFunctionalTest();
         }
@@ -47,8 +63,9 @@ namespace pwiz.SkylineTestFunctional
         {
             RunUI(() =>
             {
-                SkylineWindow.OpenFile(TestFilesDir.GetTestPath("msstatstest.sky"));
+                SkylineWindow.OpenFile(TestFilesDir.GetTestPath(_asSmallMolecules ? "msstatstest.converted_to_small_molecules.sky" : "msstatstest.sky"));
             });
+            WaitForDocumentLoaded();
             DefineOneTwoGroupComparison();
             CopyOneTwoGroupComparison();
         }
@@ -72,13 +89,16 @@ namespace pwiz.SkylineTestFunctional
                 editGroupComparisonDlg.RadioScopePerProtein.Checked = true;
             });
             var foldChangeGrid = ShowDialog<FoldChangeGrid>(editGroupComparisonDlg.ShowPreview);
-            WaitForConditionUI(() => foldChangeGrid.DataboundGridControl.RowCount == 3);
+            TryWaitForConditionUI(() => foldChangeGrid.DataboundGridControl.RowCount == 3);
             RunUI(() =>
             {
+                Assert.AreEqual(3, foldChangeGrid.DataboundGridControl.RowCount);
                 editGroupComparisonDlg.RadioScopePerPeptide.Checked = true;
             });
-            WaitForCondition(() => foldChangeGrid.DataboundGridControl.RowCount == 4);
+            TryWaitForCondition(() => foldChangeGrid.DataboundGridControl.RowCount == 4);
+            RunUI(() => Assert.AreEqual(4, foldChangeGrid.DataboundGridControl.RowCount));
             OkDialog(editGroupComparisonDlg, editGroupComparisonDlg.OkDialog);
+            WaitForClosedForm<FoldChangeGrid>();
         }
 
         /// <summary>
@@ -98,7 +118,8 @@ namespace pwiz.SkylineTestFunctional
             });
             // Show the preview window
             var foldChangeGrid = ShowDialog<FoldChangeGrid>(editGroupComparisonDlg.ShowPreview);
-            WaitForCondition(() => foldChangeGrid.DataboundGridControl.RowCount == 4);
+            TryWaitForCondition(() => foldChangeGrid.DataboundGridControl.RowCount == 4);
+            RunUI(() => Assert.AreEqual(4, foldChangeGrid.DataboundGridControl.RowCount));
             // Show the graph window
             var foldChangeGraph = ShowDialog<FoldChangeBarGraph>(foldChangeGrid.ShowGraph);
             WaitForConditionUI(() => foldChangeGraph.ZedGraphControl.GraphPane.CurveList.Any());
@@ -113,7 +134,7 @@ namespace pwiz.SkylineTestFunctional
             {
                 foldChangeGridControl.SetSortDirection(foldChangeGridControl.GetPropertyDescriptor(foldChangeResultColumn), ListSortDirection.Ascending);
             });
-            WaitForConditionUI(() => foldChangeGridControl.IsComplete);
+            WaitForConditionUI(() => foldChangeGridControl.IsComplete && !foldChangeGraph.IsUpdatePending);
             var values = GetYValues(foldChangeGraph.ZedGraphControl.GraphPane.CurveList.First().Points);
             var sortedValues = (double[]) values.Clone();
             Array.Sort(sortedValues);
@@ -122,7 +143,7 @@ namespace pwiz.SkylineTestFunctional
             {
                 foldChangeGridControl.SetSortDirection(foldChangeGridControl.GetPropertyDescriptor(foldChangeResultColumn), ListSortDirection.Descending);
             });
-            WaitForConditionUI(() => foldChangeGridControl.IsComplete);
+            WaitForConditionUI(() => foldChangeGridControl.IsComplete && !foldChangeGraph.IsUpdatePending);
             values = GetYValues(foldChangeGraph.ZedGraphControl.GraphPane.CurveList.First().Points);
             CollectionAssert.AreNotEqual(sortedValues, values);
             Array.Reverse(sortedValues);

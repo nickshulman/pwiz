@@ -23,8 +23,8 @@
 
 #include "Reportfile.h"
 #include <time.h>
+#include "pwiz/utility/misc/Std.hpp"
 
-using namespace std;
 
 namespace BiblioSpec {
 
@@ -161,7 +161,9 @@ string Reportfile::optionsHeaderString(const ops::variables_map& options_table){
 void Reportfile::writeMatches(const vector<Match>& results)
 {
 #ifdef _MSC_VER
-    _set_output_format(_TWO_DIGIT_EXPONENT);
+#ifdef _TWO_DIGIT_EXPONENT // VS2015 got rid of this function
+        _set_output_format(_TWO_DIGIT_EXPONENT);
+#endif        
 #endif
 
     if(! file_.is_open()){

@@ -17,7 +17,7 @@
  * limitations under the License.
  */
 using System.Collections.Generic;
-using pwiz.Skyline.Controls.GroupComparison;
+using System.Linq;
 
 namespace pwiz.Skyline.Model.GroupComparison
 {
@@ -42,7 +42,7 @@ namespace pwiz.Skyline.Model.GroupComparison
         {
             if (null == Peptide)
             {
-                return Protein.Peptides;
+                return Protein.Molecules.Where(molecule=>null == molecule.GlobalStandardType);
             }
             return new[] {Peptide};
         }

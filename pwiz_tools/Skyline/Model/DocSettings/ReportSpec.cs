@@ -28,7 +28,6 @@ using pwiz.Skyline.Model.Hibernate;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
 using pwiz.Skyline.Model.Hibernate.Query;
-using pwiz.Skyline.Util.Extensions;
 
 namespace pwiz.Skyline.Model.DocSettings
 {
@@ -73,57 +72,6 @@ namespace pwiz.Skyline.Model.DocSettings
 
         public IList<ReportColumn> CrossTabValues { get; private set; }
 
-        /// <summary>
-        /// Returns a string representation of the report based on the document.         
-        /// </summary>       
-        public string ReportToCsvString(SrmDocument doc, IProgressMonitor progressMonitor)
-        {
-            return ReportToCsvString(doc, TextUtil.CsvSeparator, progressMonitor);
-        }
-
-        /// <summary>
-        /// Returns a string representation of the report based on the document.         
-        /// </summary>       
-        private string ReportToCsvString(SrmDocument doc, char separator, IProgressMonitor progressMonitor)
-        {
-            var status = new ProgressStatus(string.Format(Resources.ReportSpec_ReportToCsvString_Exporting__0__report, Name));
-            progressMonitor.UpdateProgress(status);
-
-            Report report = Report.Load(this);
-            StringWriter writer = new StringWriter();
-            using (Database database = new Database(doc.Settings)
-                {
-                    ProgressMonitor = progressMonitor,
-                    Status = status,
-                    PercentOfWait = 80
-                })
-            {
-                database.AddSrmDocument(doc);
-                status = database.Status;
-
-                ResultSet resultSet;
-                try
-                {
-                    resultSet = report.Execute(database);
-                }
-                catch (Exception)
-                {
-                    progressMonitor.UpdateProgress(status.Cancel());
-                    throw;
-                }
-
-                progressMonitor.UpdateProgress(status = status.ChangePercentComplete(95));
-
-                ResultSet.WriteReportHelper(resultSet, separator, writer, LocalizationHelper.CurrentCulture);
-            }
-            writer.Flush();
-            string csv = writer.ToString();
-            writer.Close();
-            progressMonitor.UpdateProgress(status.Complete());
-
-            return csv;
-        }
-
         private enum ATTR
         {
             table,
@@ -152,8 +100,8 @@ namespace pwiz.Skyline.Model.DocSettings
             return reader.Deserialize(new ReportSpec());
         }
 
-        public const string TABLE_ALIAS_ELEMENT = "Element"; // Not L10N
-        public const string TABLE_ALIAS_RESULT = "Result"; // Not L10N
+        public const string TABLE_ALIAS_ELEMENT = "Element";
+        public const string TABLE_ALIAS_RESULT = "Result";
 
         public override void ReadXml(XmlReader reader)
         {
@@ -168,7 +116,7 @@ namespace pwiz.Skyline.Model.DocSettings
 
                 Type table = GetTable(tableTypeName);
 
-                const string resultSuffix = "Result"; // Not L10N
+                const string resultSuffix = "Result";
                 if (!tableTypeName.EndsWith(resultSuffix))
                     dictAliasTable.Add(TABLE_ALIAS_ELEMENT, table);
                 else
@@ -209,13 +157,13 @@ namespace pwiz.Skyline.Model.DocSettings
 
         private static Type GetTable(string tableTypeName)
         {
-            tableTypeName = typeof(DbProtein).Namespace + '.' + tableTypeName; // Not L10N  
+            tableTypeName = typeof(DbProtein).Namespace + '.' + tableTypeName;
 
             Type table = Type.GetType(tableTypeName);
             if (table == null)
             {
                 throw new InvalidDataException(String.Format(Resources.ReportSpec_GetTable_The_name__0__is_not_a_valid_table_name,
-                    tableTypeName.Substring(tableTypeName.LastIndexOf('.') + 1))); // Not L10N         
+                    tableTypeName.Substring(tableTypeName.LastIndexOf('.') + 1)));
             }
 
             return table;
@@ -341,7 +289,7 @@ namespace pwiz.Skyline.Model.DocSettings
                     // Support for v0.5 format when only a single table was used
                     if (dictAliasTable.Count == 1)
                         alias = TABLE_ALIAS_ELEMENT;
-                    else if (colId.Parts.Count < 2 || colId.Parts[0].Contains("Result")) // Not L10N
+                    else if (colId.Parts.Count < 2 || colId.Parts[0].Contains(@"Result"))
                         alias = TABLE_ALIAS_RESULT;
                     else
                     {
@@ -403,7 +351,7 @@ namespace pwiz.Skyline.Model.DocSettings
         {
             EnsureAlias(tableAliases);
 
-            return tableAliases[Table] + "." + Column; // Not L10N
+            return tableAliases[Table] + @"." + Column;
         }
 
         public void EnsureAlias(IDictionary<Type, string> tableAliases)
@@ -414,7 +362,7 @@ namespace pwiz.Skyline.Model.DocSettings
         public static void EnsureAlias(Type table, IDictionary<Type, string> tableAliases)
         {
             if (!tableAliases.ContainsKey(table))
-                tableAliases.Add(table, "T" + (tableAliases.Count + 1)); // Not L10N
+                tableAliases.Add(table, @"T" + (tableAliases.Count + 1));
         }
 
         public static IEnumerable<KeyValuePair<Type, string>> Order(IDictionary<Type, string> tableAliases)
@@ -460,7 +408,7 @@ namespace pwiz.Skyline.Model.DocSettings
 
         public override string ToString()
         {
-            return Table.Name + "." + Column; // Not L10N
+            return Table.Name + @"." + Column;
         }
 
         #endregion

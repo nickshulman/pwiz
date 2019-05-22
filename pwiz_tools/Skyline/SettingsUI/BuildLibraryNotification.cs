@@ -20,13 +20,22 @@
 using System;
 using System.ComponentModel;
 using System.Drawing;
+using System.Linq;
 using System.Threading;
 using System.Windows.Forms;
+using pwiz.Common.Collections;
 using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Alerts;
+using pwiz.Skyline.Controls;
+using pwiz.Skyline.Model;
+using pwiz.Skyline.Model.AuditLog;
+using pwiz.Skyline.Model.DocSettings.Extensions;
+using pwiz.Skyline.Model.Irt;
 using pwiz.Skyline.Model.Lib;
 using pwiz.Skyline.Properties;
+using pwiz.Skyline.SettingsUI.Irt;
 using pwiz.Skyline.Util;
+using pwiz.Skyline.Util.Extensions;
 using Timer=System.Windows.Forms.Timer;
 
 namespace pwiz.Skyline.SettingsUI
@@ -36,6 +45,8 @@ namespace pwiz.Skyline.SettingsUI
         private const int ANIMATION_DURATION = 1000;
         private const int DISPLAY_DURATION = 10000;
 
+        private readonly Thread _thread;
+        private readonly ManualResetEvent _windowCreatedEvent;
         private readonly FormAnimator _animator;
         private readonly Timer _displayTimer;
         private readonly String _libraryName;
@@ -46,6 +57,9 @@ namespace pwiz.Skyline.SettingsUI
         public BuildLibraryNotification(String libraryName)
         {
             InitializeComponent();
+
+            // WINDOWS 10 UPDATE HACK: Because Windows 10 update version 1803 causes unparented non-ShowInTaskbar windows to leak GDI and User handles
+            ShowInTaskbar = Program.FunctionalTest;
 
             _libraryName = libraryName;
             LibraryNameLabel.Text = string.Format(Resources.BuildLibraryNotification_BuildLibraryNotification_Library__0__, _libraryName);
@@ -65,9 +79,21 @@ namespace pwiz.Skyline.SettingsUI
             // appear without it.
             Opacity = 1;
 
+            _thread = BackgroundEventThreads.CreateThreadForAction(Notify);
+            _thread.Name = @"BuildLibraryNotification";
+            _thread.IsBackground = true;
+
+            _windowCreatedEvent = new ManualResetEvent(false);
+            HandleCreated += Notification_HandleCreated;
+
             _displayTimer = new Timer();
             _displayTimer.Tick += OnDisplayTimerEvent;
             _displayTimer.Interval = DISPLAY_DURATION;
+        }
+
+        private void Notification_HandleCreated(object sender, EventArgs e)
+        {
+            _windowCreatedEvent.Set();
         }
 
         /// <summary>
@@ -77,6 +103,13 @@ namespace pwiz.Skyline.SettingsUI
         protected override bool ShowWithoutActivation
         {
             get { return true; }
+        }
+
+        public void Start()
+        {
+            Assume.IsFalse(_thread.IsAlive);    // Called only once
+
+            _thread.Start();
         }
 
         public void Notify()
@@ -93,12 +126,22 @@ namespace pwiz.Skyline.SettingsUI
 
         public void Remove()
         {
+            _windowCreatedEvent.WaitOne();
+
             if (IsHandleCreated)
             {
                 try
                 {
                     // Make sure this happens on the right thread.
-                    BeginInvoke((Action) OnRemove);
+                    if (InvokeRequired)
+                    {
+                        BeginInvoke((Action)OnRemove);
+                        _thread.Join(); // Wait for the thread to complete
+                    }
+                    else
+                    {
+                        OnRemove();
+                    }
                 }
                 catch
                 {
@@ -109,10 +152,19 @@ namespace pwiz.Skyline.SettingsUI
 
         public void OnRemove()
         {
-            _displayTimer.Stop();
-            _animator.Release();
-            Close();
-            Dispose();
+            try
+            {
+                _displayTimer.Stop();
+                _displayTimer.Dispose();
+                _animator.Release();
+                _windowCreatedEvent.Dispose();
+                Close();
+                Dispose();
+            }
+            finally 
+            {
+                Application.ExitThread();
+            }
         }
 
         private void CloseNotification(bool animate)
@@ -161,6 +213,7 @@ namespace pwiz.Skyline.SettingsUI
     public interface ILibraryBuildNotificationContainer : INotificationContainer
     {
         LibraryManager LibraryManager { get; }
+        void ModifyDocument(string description, Func<SrmDocument, SrmDocument> act, Func<SrmDocumentPair, AuditLogEntry> logFunc);
     }
 
     public sealed class LibraryBuildNotificationHandler
@@ -178,7 +231,7 @@ namespace pwiz.Skyline.SettingsUI
         private Form NotificationContainerForm { get; set; }
         private ILibraryBuildNotificationContainer NotificationContainer { get; set; }
 
-        private BuildLibraryNotification Notification { get; set; }
+        private BuildLibraryNotification _notification;
 
         private Point NotificationAnchor
         {
@@ -228,7 +281,7 @@ namespace pwiz.Skyline.SettingsUI
             {
                 var dlg = new ViewLibraryDlg(NotificationContainer.LibraryManager, libName, Program.MainWindow)
                               {Owner = Program.MainWindow};
-                dlg.Show();
+                dlg.Show(Program.MainWindow);
             }
             else
             {
@@ -262,16 +315,8 @@ namespace pwiz.Skyline.SettingsUI
         {
             get
             {
-                for (int i = Application.OpenForms.Count - 1; i >= 0; i--)
-                {
-                    Form form = Application.OpenForms[i];
-                    if (form is BuildLibraryNotification)
-                        continue;
-                    return form;
-                }
-                // Should never happen, but to be safe at least return this
-                // Skyline window.
-                return NotificationContainerForm;
+                return FormUtil.FindTopLevelOpenForm(f => f is BuildLibraryNotification) ??
+                    NotificationContainerForm;
             }
         }
 
@@ -292,47 +337,157 @@ namespace pwiz.Skyline.SettingsUI
 
         public void RemoveLibraryBuildNotification()
         {
-            lock (this)
+            // Avoid blocking here, because notification.Remove() requires the form's
+            // event thread, which can result in a deadlock if the test thread tries to
+            // remove the form just before the event thread begins removing it.
+            // Unfortunately, this means the function cannot guarantee the form is
+            // actually removed when it returns. Just that the process of removing it
+            // has started.
+            var notification = Interlocked.Exchange(ref _notification, null);
+            if (notification != null)
             {
-                if (Notification != null)
-                {
-                    Notification.Shown -= notification_Shown;
-                    Notification.Activated -= notification_Activated;
-                    Notification.Remove();
-                    Notification = null;
-                }
+                notification.Shown -= notification_Shown;
+                notification.Activated -= notification_Activated;
+                notification.Remove();
             }
         }
 
-        public void LibraryBuildCompleteCallback(IAsyncResult ar)
+        public void LibraryBuildCompleteCallback(LibraryManager.BuildState buildState, bool success)
         {
-            var buildState = (LibraryManager.BuildState)ar.AsyncState;
-            bool success = buildState.BuildFunc.EndInvoke(ar);
-
-            if (success)
+            // Completion needs to happen on a separate thread because of the access to UI elements
+            // In order to make sure the thread handle is released, it needs to call Application.ThreadExit()
+            var threadComplete = BackgroundEventThreads.CreateThreadForAction(() =>
             {
-                lock (this)
+                if (success && NotificationContainerForm.IsHandleCreated)
                 {
-                    RemoveLibraryBuildNotification();
-
-                    var frm = new BuildLibraryNotification(buildState.LibrarySpec.Name);
-                    frm.Activated += notification_Activated;
-                    frm.Shown += notification_Shown;
-                    frm.ExploreLibrary += notification_ExploreLibrary;
-                    frm.NotificationComplete += notification_NotificationComplete;
-                    Point anchor = NotificationAnchor;
-                    frm.Left = anchor.X;
-                    frm.Top = anchor.Y - frm.Height;
-                    if (!string.IsNullOrEmpty(buildState.ExtraMessage))
+                    // Only one form showing at a time
+                    lock (this)
                     {
-                        NotificationContainerForm.BeginInvoke(new Action(() => MessageDlg.Show(NotificationContainerForm, buildState.ExtraMessage)));
+                        RemoveLibraryBuildNotification();
+
+                        var frm = new BuildLibraryNotification(buildState.LibrarySpec.Name);
+                        frm.Activated += notification_Activated;
+                        frm.Shown += notification_Shown;
+                        frm.ExploreLibrary += notification_ExploreLibrary;
+                        frm.NotificationComplete += notification_NotificationComplete;
+                        Point anchor = NotificationAnchor;
+                        frm.Left = anchor.X;
+                        frm.Top = anchor.Y - frm.Height;
+                        NotificationContainerForm.BeginInvoke(new Action(() =>
+                        {
+                            if (!string.IsNullOrEmpty(buildState.ExtraMessage))
+                            {
+                                MessageDlg.Show(TopMostApplicationForm, buildState.ExtraMessage);
+                            }
+                            if (buildState.IrtStandard != null && buildState.IrtStandard != IrtStandard.EMPTY && AddIrts(buildState))
+                            {
+                                AddRetentionTimePredictor(buildState);
+                            }
+                        }));
+                        frm.Start();
+                        Assume.IsNull(Interlocked.Exchange(ref _notification, frm));
                     }
+                }
+            });
+            threadComplete.Name = @"Library Build Completion";
+            threadComplete.Start();
+        }
 
-                    Thread th = new Thread(frm.Notify) { Name = "BuildLibraryNotification", IsBackground = true }; // Not L10N
-                    th.SetApartmentState(ApartmentState.STA);
-                    th.Start();
+        private bool AddIrts(LibraryManager.BuildState buildState)
+        {
+            try
+            {
+                Library lib;
+                ProcessedIrtAverages processed = null;
+                var initialMessage = Resources.LibraryBuildNotificationHandler_LibraryBuildCompleteCallback_Adding_iRTs_to_library;
+                using (var longWait = new LongWaitDlg { Text = Resources.LibraryBuildNotificationHandler_LibraryBuildCompleteCallback_Adding_iRTs_to_library })
+                {
+                    var status = longWait.PerformWork(TopMostApplicationForm, 800, monitor =>
+                    {
+                        var initStatus = new ProgressStatus(initialMessage).ChangeSegments(0, 2);
+                        monitor.UpdateProgress(initStatus);
+                        lib = NotificationContainer.LibraryManager.TryGetLibrary(buildState.LibrarySpec) ??
+                              NotificationContainer.LibraryManager.LoadLibrary(buildState.LibrarySpec, () => new DefaultFileLoadMonitor(monitor));
+                        foreach (var stream in lib.ReadStreams)
+                            stream.CloseStream();
+                        if (longWait.IsCanceled)
+                            return;
+                        var irtProviders = lib.RetentionTimeProvidersIrt.ToArray();
+                        if (!irtProviders.Any())
+                            irtProviders = lib.RetentionTimeProviders.ToArray();
+                        processed = RCalcIrt.ProcessRetentionTimes(monitor, irtProviders, irtProviders.Length,
+                                                                   buildState.IrtStandard.Peptides.ToArray(), new DbIrtPeptide[0]);
+                    });
+                    if (status.IsCanceled)
+                        return false;
+                    if (status.IsError)
+                        throw status.ErrorException;
+                }
 
-                    Notification = frm;
+                using (var resultsDlg = new AddIrtPeptidesDlg(AddIrtPeptidesLocation.spectral_library, processed))
+                {
+                    if (resultsDlg.ShowDialog(TopMostApplicationForm) != DialogResult.OK)
+                        return false;
+                }
+
+                var recalibrate = false;
+                if (processed.CanRecalibrateStandards(buildState.IrtStandard.Peptides))
+                {
+                    using (var dlg = new MultiButtonMsgDlg(
+                        TextUtil.LineSeparate(Resources.LibraryGridViewDriver_AddToLibrary_Do_you_want_to_recalibrate_the_iRT_standard_values_relative_to_the_peptides_being_added_,
+                            Resources.LibraryGridViewDriver_AddToLibrary_This_can_improve_retention_time_alignment_under_stable_chromatographic_conditions_),
+                        MultiButtonMsgDlg.BUTTON_YES, MultiButtonMsgDlg.BUTTON_NO, false))
+                    {
+                        if (dlg.ShowDialog(TopMostApplicationForm) == DialogResult.Yes)
+                            recalibrate = true;
+                    }
+                }
+
+                var processedDbIrtPeptides = processed.DbIrtPeptides.ToArray();
+                if (!processedDbIrtPeptides.Any())
+                    return false;
+
+                using (var longWait = new LongWaitDlg {Text = Resources.LibraryBuildNotificationHandler_LibraryBuildCompleteCallback_Adding_iRTs_to_library})
+                {
+                    ImmutableList<DbIrtPeptide> newStandards = null;
+                    var status = longWait.PerformWork(TopMostApplicationForm, 800, monitor =>
+                    {
+                        if (recalibrate)
+                        {
+                            monitor.UpdateProgress(new ProgressStatus().ChangeSegments(0, 2));
+                            newStandards = ImmutableList.ValueOf(processed.RecalibrateStandards(buildState.IrtStandard.Peptides));
+                            processed = RCalcIrt.ProcessRetentionTimes(
+                                monitor, processed.ProviderData.Select(data => data.Value.RetentionTimeProvider),
+                                processed.ProviderData.Count, newStandards.ToArray(), new DbIrtPeptide[0]);
+                        }
+                        var irtDb = IrtDb.CreateIrtDb(buildState.LibrarySpec.FilePath);
+                        irtDb.AddPeptides(monitor, (newStandards ?? buildState.IrtStandard.Peptides).Concat(processedDbIrtPeptides).ToList());
+                    });
+                    if (status.IsError)
+                        throw status.ErrorException;
+                }
+            }
+            catch (Exception x)
+            {
+                MessageDlg.ShowWithException(TopMostApplicationForm,
+                    TextUtil.LineSeparate(Resources.LibraryBuildNotificationHandler_LibraryBuildCompleteCallback_An_error_occurred_trying_to_add_iRTs_to_the_library_, x.Message), x);
+                return false;
+            }
+            return true;
+        }
+
+        private void AddRetentionTimePredictor(LibraryManager.BuildState buildState)
+        {
+            var predictorName = Helpers.GetUniqueName(buildState.LibrarySpec.Name, Settings.Default.RetentionTimeList.Select(rt => rt.Name).ToArray());
+            using (var addPredictorDlg = new AddRetentionTimePredictorDlg(predictorName, buildState.LibrarySpec.FilePath, false))
+            {
+                if (addPredictorDlg.ShowDialog(TopMostApplicationForm) == DialogResult.OK)
+                {
+                    Settings.Default.RTScoreCalculatorList.Add(addPredictorDlg.Calculator);
+                    Settings.Default.RetentionTimeList.Add(addPredictorDlg.Regression);
+                    NotificationContainer.ModifyDocument(Resources.LibraryBuildNotificationHandler_AddRetentionTimePredictor_Add_retention_time_predictor,
+                        doc => doc.ChangeSettings(doc.Settings.ChangePeptidePrediction(predict =>
+                            predict.ChangeRetentionTime(addPredictorDlg.Regression))), AuditLogEntry.SettingsLogFunction);
                 }
             }
         }

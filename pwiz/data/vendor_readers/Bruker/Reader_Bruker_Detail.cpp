@@ -57,9 +57,17 @@ Reader_Bruker_Format format(const string& path)
             return Reader_Bruker_Format_YEP;
         else if(leaf == "analysis.baf")
             return Reader_Bruker_Format_BAF;
+        else if(leaf == "analysis.tdf" ||
+                leaf == "analysis.tdf_bin")
+            return Reader_Bruker_Format_TDF;
         else
             return Reader_Bruker_Format_Unknown;
     }
+
+    // Check for tdf-based data;
+    // The directory should have a file named "Analysis.tdf"
+    if (bfs::exists(sourcePath / "Analysis.tdf") || bfs::exists(sourcePath / "analysis.tdf"))
+        return Reader_Bruker_Format_TDF;
 
     // TODO: 1SRef is not the only possible substring below, get more examples!
 
@@ -123,14 +131,17 @@ Reader_Bruker_Format format(const string& path)
 std::vector<InstrumentConfiguration> createInstrumentConfigurations(CompassDataPtr rawfile)
 {
     vector<InstrumentConfiguration> configurations;
-    
-    MSSpectrumPtr firstSpectrum = rawfile->getMSSpectrum(1);
-    MSSpectrumParameterListPtr parametersPtr = firstSpectrum->parameters();
-    const MSSpectrumParameterList& parameters = *parametersPtr;
-
     map<string, string> parameterMap;
-    BOOST_FOREACH(const MSSpectrumParameter& p, parameters)
-        parameterMap[p.name] = p.value;
+    
+    if (rawfile->getMSSpectrumCount() > 0)
+    {
+        MSSpectrumPtr firstSpectrum = rawfile->getMSSpectrum(1);
+        MSSpectrumParameterListPtr parametersPtr = firstSpectrum->parameters();
+        const MSSpectrumParameterList& parameters = *parametersPtr;
+
+        BOOST_FOREACH(const MSSpectrumParameter& p, parameters)
+            parameterMap[p.name] = p.value;
+    }
 
     switch (rawfile->getInstrumentSource())
     {
@@ -186,6 +197,8 @@ std::vector<InstrumentConfiguration> createInstrumentConfigurations(CompassDataP
                 case InstrumentFamily_OTOF:
                 case InstrumentFamily_OTOFQ:
                 case InstrumentFamily_maXis:
+                case InstrumentFamily_compact:
+                case InstrumentFamily_impact:
                     configurations.push_back(InstrumentConfiguration());
                     configurations.back().componentList.push_back(Component(MS_ESI, 1));
                     configurations.back().componentList.back().set(MS_electrospray_inlet);
@@ -240,11 +253,13 @@ std::vector<InstrumentConfiguration> createInstrumentConfigurations(CompassDataP
         case InstrumentFamily_OTOFQ:
         case InstrumentFamily_BioTOFQ:
         case InstrumentFamily_maXis:
+        case InstrumentFamily_impact:
+        case InstrumentFamily_compact:
+        case InstrumentFamily_timsTOF:
             configurations.back().componentList.push_back(Component(MS_quadrupole, 2));
-            configurations.back().componentList.push_back(Component(MS_quadrupole, 3));
-            configurations.back().componentList.push_back(Component(MS_time_of_flight, 4));
-            configurations.back().componentList.push_back(Component(MS_multichannel_plate, 5));
-            configurations.back().componentList.push_back(Component(MS_photomultiplier, 6));
+            configurations.back().componentList.push_back(Component(MS_time_of_flight, 3));
+            configurations.back().componentList.push_back(Component(MS_multichannel_plate, 4));
+            configurations.back().componentList.push_back(Component(MS_photomultiplier, 5));
             break;
 
         case InstrumentFamily_FTMS:
@@ -271,8 +286,14 @@ PWIZ_API_DECL cv::CVID translateAsInstrumentSeries(CompassDataPtr rawfile)
         case InstrumentFamily_BioTOF: return MS_Bruker_Daltonics_BioTOF_series;
         case InstrumentFamily_BioTOFQ: return MS_Bruker_Daltonics_BioTOF_series;
         case InstrumentFamily_MaldiTOF: return MS_Bruker_Daltonics_flex_series;
-        case InstrumentFamily_FTMS: return MS_Bruker_Daltonics_apex_series; // or solarix
-        case InstrumentFamily_maXis: return MS_Bruker_Daltonics_maXis_series;
+        case InstrumentFamily_FTMS: return MS_Bruker_Daltonics_apex_series;
+        case InstrumentFamily_solariX: return MS_Bruker_Daltonics_solarix_series;
+        //case InstrumentFamily_timsTOF: return MS_Bruker_Daltonics_timsTOF;
+
+        case InstrumentFamily_maXis:
+        case InstrumentFamily_compact:
+        case InstrumentFamily_impact:
+            return MS_Bruker_Daltonics_maXis_series;
 
         default:
         case InstrumentFamily_Unknown:
@@ -293,8 +314,15 @@ PWIZ_API_DECL cv::CVID translateAsAcquisitionSoftware(CompassDataPtr rawfile)
             case InstrumentFamily_BioTOF: return MS_Compass;
             case InstrumentFamily_BioTOFQ: return MS_Compass;
             case InstrumentFamily_MaldiTOF: return MS_FlexControl;
-            case InstrumentFamily_FTMS: return MS_apexControl;
-            case InstrumentFamily_maXis: return MS_Compass;
+
+            case InstrumentFamily_FTMS:
+            case InstrumentFamily_solariX:
+                return MS_apexControl;
+
+            case InstrumentFamily_maXis:
+            case InstrumentFamily_compact:
+            case InstrumentFamily_impact:
+                return MS_Compass;
 
             default:
             case InstrumentFamily_Unknown:

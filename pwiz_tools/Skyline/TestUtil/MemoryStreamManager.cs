@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Original author: Brendan MacLean <brendanx .at. u.washington.edu>,
  *                  MacCoss Lab, Department of Genome Sciences, UW
  *
@@ -19,6 +19,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Text;
 using pwiz.Skyline.Util;
 
 namespace pwiz.SkylineTestUtil
@@ -77,6 +78,17 @@ namespace pwiz.SkylineTestUtil
         public IPooledStream CreatePooledStream(string path, bool buffer)
         {
             return new MemoryPooledStream(CreateStream(path, FileMode.Open, buffer));
+        }
+
+        public bool HasPooledStreams { get { return _cachedFiles.Count > 0; } }
+        public string ReportPooledStreams()
+        {
+            var sb = new StringBuilder();
+            foreach (var cachedFile in _cachedFiles)
+            {
+                sb.AppendLine(string.Format(@"{0}. {1}", cachedFile.Key, cachedFile.Value));
+            }
+            return sb.ToString();
         }
 
         // CONSIDER: No stream connections are stored in this pool, as is the case
@@ -211,7 +223,7 @@ namespace pwiz.SkylineTestUtil
 
         public string ModifiedExplanation
         {
-            get { return "Unmodified"; }    // Not L10N
+            get { return @"Unmodified"; }
         }
 
         public bool IsOpen { get; private set; }

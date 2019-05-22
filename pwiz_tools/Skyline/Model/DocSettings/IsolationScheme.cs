@@ -38,12 +38,13 @@ namespace pwiz.Skyline.Model.DocSettings
 
         public static class SpecialHandlingType
         {
-            public static string NONE { get { return "None"; } }    // Not L10N : Used only in XML and in memory
-            public const string MULTIPLEXED = "Multiplexed";  // Not L10N : Used only in XML and in memory
-            public const string MS_E = "MSe"; // Not L10N : This is a Waters trademark, and probably not localizable
-            public const string ALL_IONS = "All Ions";    // Not L10N?
-            public const string OVERLAP = "Overlap"; // Not L10N?
-            public const string OVERLAP_MULTIPLEXED = "Overlap Multiplexed"; // Not L10N?
+            public static string NONE { get { return @"None"; } }    // : Used only in XML and in memory
+            public const string MULTIPLEXED = "Multiplexed";  // : Used only in XML and in memory
+            public const string MS_E = "MSe"; // : This is a Waters trademark, and probably not localizable
+            public const string ALL_IONS = "All Ions";    // CONSIDER: localize?
+            public const string OVERLAP = "Overlap"; // CONSIDER: localize?
+            public const string OVERLAP_MULTIPLEXED = "Overlap Multiplexed"; // CONSIDER: localize?
+            public const string FAST_OVERLAP = "Fast Overlap";
 
             public static void Validate(string specialHandling)
             {
@@ -52,7 +53,8 @@ namespace pwiz.Skyline.Model.DocSettings
                     !Equals(specialHandling, MS_E) &&
                     !Equals(specialHandling, ALL_IONS) &&
                     !Equals(specialHandling, OVERLAP) &&
-                    !Equals(specialHandling, OVERLAP_MULTIPLEXED))
+                    !Equals(specialHandling, OVERLAP_MULTIPLEXED) &&
+                    !Equals(specialHandling, FAST_OVERLAP))
                 {
                     throw new InvalidDataException(string.Format(
                         Resources.SpecialHandlingType_Validate___0___is_not_a_valid_setting_for_full_scan_special_handling, specialHandling));
@@ -65,8 +67,32 @@ namespace pwiz.Skyline.Model.DocSettings
             }
         };
 
+        [Track]
         public double? PrecursorFilter { get; private set; }
         public double? PrecursorRightFilter { get; private set; }
+        public bool UseMargin { get; private set; }
+
+        public enum IsolationWidthType
+        {
+            fixed_width,
+            results,
+            results_with_margin
+        }
+
+        [Track]
+        public IsolationWidthType IsolationWidth
+        {
+            get
+            {
+                if (UseMargin)
+                    return IsolationWidthType.results_with_margin;
+                else if (PrecursorFilter.HasValue)
+                    return IsolationWidthType.fixed_width;
+                else
+                    return IsolationWidthType.results;
+            }
+        }
+
         private ImmutableList<IsolationWindow> _prespecifiedIsolationWindows;
 
         /// <summary>
@@ -75,21 +101,24 @@ namespace pwiz.Skyline.Model.DocSettings
         /// </summary>
         private ImmutableList<IsolationWindow> _prespecifiedDisjointWindows;
 
+        [Track]
         public string SpecialHandling { get; private set; }
+        [Track]
         public int? WindowsPerScan { get; private set; }
 
-        public IsolationScheme(string name, string specialHandling, double? precursorFilter, double? precursorRightFilter = null)
+        public IsolationScheme(string name, string specialHandling, double? precursorFilter, double? precursorRightFilter = null, bool useMargin = false)
             : base(name)
         {
             PrecursorFilter = precursorFilter;
             PrecursorRightFilter = precursorRightFilter;
+            UseMargin = useMargin;
             SpecialHandling = specialHandling;
             PrespecifiedIsolationWindows = ImmutableList<IsolationWindow>.EMPTY;
             DoValidate();
         }
 
-        public IsolationScheme(string name, double? precursorFilter, double? precursorRightFilter = null)
-            : this(name,SpecialHandlingType.NONE,precursorFilter, precursorRightFilter)
+        public IsolationScheme(string name, double? precursorFilter = null, double? precursorRightFilter = null, bool useMargin = false)
+            : this(name, SpecialHandlingType.NONE, precursorFilter, precursorRightFilter, useMargin)
         {
         }
 
@@ -137,6 +166,7 @@ namespace pwiz.Skyline.Model.DocSettings
             get { return SpecialHandlingType.IsAllIons(SpecialHandling); }
         }
 
+        [TrackChildren]
         public IList<IsolationWindow> PrespecifiedIsolationWindows
         {
             get { return _prespecifiedIsolationWindows; }
@@ -269,14 +299,7 @@ namespace pwiz.Skyline.Model.DocSettings
 
             else
             {
-                if (PrespecifiedIsolationWindows.Count == 0)
-                {
-                    if (!IsAllIons)
-                    {
-                        throw new InvalidDataException(Resources.IsolationScheme_DoValidate_Isolation_scheme_must_have_a_filter_or_a_prespecifed_isolation_window);
-                    }
-                }
-                else if (IsAllIons)
+                if (PrespecifiedIsolationWindows.Count != 0 && IsAllIons)
                 {
                     throw new InvalidDataException(Resources.IsolationScheme_DoValidate_Isolation_scheme_for_all_ions_cannot_contain_isolation_windows);
                 }
@@ -307,6 +330,7 @@ namespace pwiz.Skyline.Model.DocSettings
             precursor_filter,
             precursor_left_filter,
             precursor_right_filter,
+            precursor_filter_margin,
             special_handling,
             windows_per_scan
         }
@@ -330,6 +354,11 @@ namespace pwiz.Skyline.Model.DocSettings
             }
 
             PrecursorFilter = reader.GetNullableDoubleAttribute(ATTR.precursor_filter);
+            if (!PrecursorFilter.HasValue)
+            {
+                PrecursorFilter = reader.GetNullableDoubleAttribute(ATTR.precursor_filter_margin);
+                UseMargin = PrecursorFilter.HasValue;
+            }
             if (!PrecursorFilter.HasValue)
             {
                 PrecursorFilter = reader.GetNullableDoubleAttribute(ATTR.precursor_left_filter);
@@ -364,6 +393,10 @@ namespace pwiz.Skyline.Model.DocSettings
                 writer.WriteAttributeNullable(ATTR.precursor_left_filter, PrecursorFilter);
                 writer.WriteAttributeNullable(ATTR.precursor_right_filter, PrecursorRightFilter);
             }
+            else if (UseMargin)
+            {
+                writer.WriteAttributeNullable(ATTR.precursor_filter_margin, PrecursorFilter);
+            }
             else
             {
                 writer.WriteAttributeNullable(ATTR.precursor_filter, PrecursorFilter);
@@ -389,7 +422,8 @@ namespace pwiz.Skyline.Model.DocSettings
                    other.PrecursorFilter.Equals(PrecursorFilter) &&
                    other.PrecursorRightFilter.Equals(PrecursorRightFilter) &&
                    other.SpecialHandling.Equals(SpecialHandling) &&
-                   other.WindowsPerScan.Equals(WindowsPerScan);
+                   other.WindowsPerScan.Equals(WindowsPerScan) &&
+                   other.UseMargin == UseMargin;
         }
 
         public override bool Equals(object obj)
@@ -409,6 +443,7 @@ namespace pwiz.Skyline.Model.DocSettings
                 result = (result*397) ^ (PrecursorRightFilter.HasValue ? PrecursorRightFilter.Value.GetHashCode() : 0);
                 result = (result*397) ^ (SpecialHandling.GetHashCode());
                 result = (result*397) ^ (WindowsPerScan.HasValue ? WindowsPerScan.Value.GetHashCode() : 0);
+                result = (result*397) ^ (UseMargin.GetHashCode());
                 return result;
             }
         }

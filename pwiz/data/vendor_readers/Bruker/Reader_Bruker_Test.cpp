@@ -34,6 +34,24 @@ struct IsDirectory : public pwiz::util::TestPathPredicate
     }
 };
 
+struct IsTDF : public pwiz::util::TestPathPredicate
+{
+    bool operator() (const string& rawpath) const
+    {
+        if (bfs::exists(bfs::path(rawpath) / "analysis.tdf"))
+            return true;
+        return false;
+    }
+};
+
+struct IsPASEF : public pwiz::util::TestPathPredicate
+{
+    bool operator() (const string& rawpath) const
+    {
+        return IsTDF()(rawpath) && bal::icontains(rawpath, "pasef");
+    }
+};
+
 int main(int argc, char* argv[])
 {
     TEST_PROLOG(argc, argv)
@@ -47,7 +65,29 @@ int main(int argc, char* argv[])
     try
     {
         bool requireUnicodeSupport = false;
-        pwiz::util::testReader(pwiz::msdata::Reader_Bruker(), testArgs, testAcceptOnly, requireUnicodeSupport, IsDirectory());
+
+        pwiz::util::ReaderTestConfig config;
+        pwiz::msdata::Reader_Bruker_BAF reader; // actually handles all file types
+        pwiz::util::testReader(reader, testArgs, testAcceptOnly, requireUnicodeSupport, IsDirectory(), config);
+
+        config.preferOnlyMsLevel = 1;
+        pwiz::util::testReader(reader, testArgs, testAcceptOnly, requireUnicodeSupport, IsTDF(), config);
+
+        config.preferOnlyMsLevel = 2;
+        pwiz::util::testReader(reader, testArgs, testAcceptOnly, requireUnicodeSupport, IsTDF(), config);
+
+        config.allowMsMsWithoutPrecursor = false;
+        pwiz::util::testReader(reader, testArgs, testAcceptOnly, requireUnicodeSupport, IsPASEF(), config);
+
+        config.allowMsMsWithoutPrecursor = true; // has no effect in combined mode
+        config.combineIonMobilitySpectra = true;
+        pwiz::util::testReader(reader, testArgs, testAcceptOnly, requireUnicodeSupport, IsTDF(), config);
+
+        config.preferOnlyMsLevel = 1;
+        pwiz::util::testReader(reader, testArgs, testAcceptOnly, requireUnicodeSupport, IsTDF(), config);
+
+        config.preferOnlyMsLevel = 0;
+        pwiz::util::testReader(reader, testArgs, testAcceptOnly, requireUnicodeSupport, IsTDF(), config);
     }
     catch (exception& e)
     {

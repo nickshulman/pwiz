@@ -22,7 +22,7 @@ using System.Reflection;
 
 namespace pwiz.Skyline.Util
 {
-    class Install
+    static class Install
     {
         public enum InstallType { release, daily, developer }
 
@@ -51,7 +51,9 @@ namespace pwiz.Skyline.Util
         {
             get
             {
-                var myAssemblyName = AssemblyName.GetAssemblyName(Assembly.GetExecutingAssembly().Location);
+                var myAssemplyLocation = Assembly.GetExecutingAssembly().Location;
+                // ReSharper disable once AssignNullToNotNullAttribute
+                var myAssemblyName = AssemblyName.GetAssemblyName(myAssemplyLocation);
                 return ProcessorArchitecture.MSIL == myAssemblyName.ProcessorArchitecture;
             }
         }
@@ -76,23 +78,27 @@ namespace pwiz.Skyline.Util
             get { return VersionPart(3); }
         }
 
+        private static string _version;
+
+        private static string GetVersion()
+        {
+            try
+            {
+                if (!string.IsNullOrEmpty(Properties.Settings.Default.InstalledVersion))
+                {
+                    return Properties.Settings.Default.InstalledVersion;
+                }
+                return ApplicationDeployment.CurrentDeployment.CurrentVersion.ToString();
+            }
+            catch (Exception)
+            {
+                return string.Empty;
+            }
+        }
+
         public static string Version
         {
-            get
-            {
-                try
-                {
-                    if (!string.IsNullOrEmpty(Properties.Settings.Default.InstalledVersion))
-                    {
-                        return Properties.Settings.Default.InstalledVersion;
-                    }
-                    return ApplicationDeployment.CurrentDeployment.CurrentVersion.ToString();
-                }
-                catch (Exception)
-                {
-                    return string.Empty;
-                }
-            }
+            get { return _version ?? (_version = GetVersion()); }
         }
 
         private static int VersionPart(int index)
@@ -107,9 +113,9 @@ namespace pwiz.Skyline.Util
             {
                 return
                     (Type == InstallType.release)
-                        ? string.Format("http://proteome.gs.washington.edu/software/Skyline/install.html?majorVer={0}&minorVer={1}", MajorVersion, MinorVersion) // Not L10N
+                        ? string.Format(@"http://proteome.gs.washington.edu/software/Skyline/install.html?majorVer={0}&minorVer={1}", MajorVersion, MinorVersion)
                         : (Type == InstallType.daily)
-                              ? "http://proteome.gs.washington.edu/software/Skyline/install-daily.html" // Not L10N
+                              ? @"http://proteome.gs.washington.edu/software/Skyline/install-daily.html"
                               : string.Empty;
             }
         }
@@ -118,9 +124,9 @@ namespace pwiz.Skyline.Util
         {
             get
             {
-                return string.Format("{0}{1} {2}", // Not L10N
+                return string.Format(@"{0}{1} {2}",
                                      Program.Name,
-                                     (Is64Bit ? " (64-bit)" : string.Empty), // Not L10N
+                                     (Is64Bit ? @" (64-bit)" : string.Empty),
                                     (IsDeveloperInstall ? string.Empty : Version));
             } 
         }

@@ -20,12 +20,15 @@
 using System;
 using System.ComponentModel;
 using System.Linq;
+using pwiz.Common.Chemistry;
 using pwiz.Common.DataBinding.Attributes;
 using pwiz.Skyline.Model.Databinding.Collections;
+using pwiz.Skyline.Model.ElementLocators;
 using pwiz.Skyline.Model.Results;
 
 namespace pwiz.Skyline.Model.Databinding.Entities
 {
+    [InvariantDisplayName(nameof(ResultFile))]
     public class ResultFile : SkylineObject, IComparable
     {
         private readonly CachedValue<ChromFileInfo> _chromFileInfo;
@@ -59,6 +62,35 @@ namespace pwiz.Skyline.Model.Databinding.Entities
         public DateTime? ModifiedTime { get { return ChromFileInfo.FileWriteTime; } }
         public DateTime? AcquiredTime { get { return ChromFileInfo.RunStartTime; } }
 
+        [Importable]
+        public double? ExplicitGlobalStandardArea
+        {
+            get { return ChromFileInfo.ExplicitGlobalStandardArea; }
+            set
+            {
+                if (Equals(ExplicitGlobalStandardArea, value))
+                {
+                    return;
+                }
+                var newFileInfos = Replicate.ChromatogramSet.MSDataFileInfos.ToArray();
+                for (int iFile = 0; iFile < newFileInfos.Length; iFile++)
+                {
+                    if (ReferenceEquals(newFileInfos[iFile].FileId, ChromFileInfoId))
+                    {
+                        newFileInfos[iFile] = newFileInfos[iFile].ChangeExplicitGlobalStandardArea(value);
+                    }
+                }
+
+                Replicate.ChangeChromatogramSet(
+                    EditColumnDescription(nameof(ExplicitGlobalStandardArea), value), 
+                    Replicate.ChromatogramSet.ChangeMSDataFileInfos(newFileInfos));
+            }
+        }
+
+        public double? TicArea { get { return ChromFileInfo.TicArea; } }
+
+        public eIonMobilityUnits IonMobilityUnits { get { return ChromFileInfo.IonMobilityUnits; } }
+
         public TChromInfo FindChromInfo<TChromInfo>(Results<TChromInfo> chromInfos) where TChromInfo : ChromInfo
         {
             if (null == chromInfos || chromInfos.Count <= Replicate.ReplicateIndex)
@@ -84,7 +116,7 @@ namespace pwiz.Skyline.Model.Databinding.Entities
             return 0;
         }
 
-        public Results<TChromInfo> ChangeChromInfo<TChromInfo>(Results<TChromInfo> chromInfos, TChromInfo value)
+        public Results<TChromInfo> ChangeChromInfo<TChromInfo>(Results<TChromInfo> chromInfos, Func<TChromInfo, TChromInfo> changeFunc)
             where TChromInfo : ChromInfo
         {
             var chromInfoList = chromInfos[Replicate.ReplicateIndex];
@@ -92,8 +124,8 @@ namespace pwiz.Skyline.Model.Databinding.Entities
             {
                 if (ReferenceEquals(chromInfoList[i].FileId, ChromFileInfoId) && GetOptStep(chromInfoList[i]) == OptimizationStep)
                 {
-                    return (Results<TChromInfo>) chromInfos.ChangeAt(Replicate.ReplicateIndex, 
-                        (ChromInfoList<TChromInfo>) chromInfoList.ChangeAt(i, value));
+                    return chromInfos.ChangeAt(Replicate.ReplicateIndex, 
+                        chromInfoList.ChangeAt(i, changeFunc(chromInfoList[i])));
                 }
             }
             throw new InvalidOperationException();
@@ -122,6 +154,19 @@ namespace pwiz.Skyline.Model.Databinding.Entities
         public ResultFileKey ToFileKey()
         {
             return new ResultFileKey(Replicate.ReplicateIndex, ChromFileInfoId, OptimizationStep);
+        }
+
+        [InvariantDisplayName("ResultFileLocator")]
+        public string Locator
+        {
+            get { return GetLocator(); }
+        }
+
+        public override ElementRef GetElementRef()
+        {
+            var sibling = ResultFileRef.PROTOTYPE.ChangeParent(Replicate.GetElementRef());
+            int fileIndex = Replicate.ChromatogramSet.IndexOfId(ChromFileInfoId);
+            return sibling.ListChildrenOfParent(SrmDocument).Skip(fileIndex).FirstOrDefault();
         }
     }
 }

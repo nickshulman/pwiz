@@ -31,7 +31,6 @@
 
 #include "BuildParser.h"
 #include "AminoAcidMasses.h"
-using namespace std;
 
 class BlibMaker;
 
@@ -68,11 +67,13 @@ class PepXMLreader : public BuildParser{
                   MSGF_ANALYSIS,
                   PEAKS_ANALYSIS,
                   PROTEOME_DISCOVERER_ANALYSIS,
-                  XTANDEM_ANALYSIS};
+                  XTANDEM_ANALYSIS,
+                  CRUX_ANALYSIS};
 
   vector<SeqMod> mods;      ///< mods for the current spectrum being parsed
   vector<std::string> dirs;       ///< directories where spec files might be
   vector<std::string> extensions; ///< possible extensions of spec files (.mzXML)
+  map<char,map<double,double> > aminoAcidModificationMasses;
 
   char mzXMLFile[1024];
   
@@ -82,6 +83,7 @@ class PepXMLreader : public BuildParser{
   ANALYSIS analysisType_;  ///< e.g. Peptide Prophet
   PSM_SCORE_TYPE scoreType_;
   int lastFilePosition_;
+  map<PSM*, double> precursorMap_;
 
   //for each spectrum
   

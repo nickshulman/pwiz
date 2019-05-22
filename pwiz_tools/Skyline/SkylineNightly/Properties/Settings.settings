@@ -8,8 +8,11 @@
     <Setting Name="NightlyFolder" Type="System.String" Scope="User">
       <Value Profile="(Default)" />
     </Setting>
-    <Setting Name="PerfTests" Type="System.Boolean" Scope="User">
-      <Value Profile="(Default)">False</Value>
+    <Setting Name="mode1" Type="System.String" Scope="User">
+      <Value Profile="(Default)">trunk</Value>
+    </Setting>
+    <Setting Name="mode2" Type="System.String" Scope="User">
+      <Value Profile="(Default)" />
     </Setting>
   </Settings>
 </SettingsFile>

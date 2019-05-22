@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Original author: Brendan MacLean <brendanx .at. u.washington.edu>,
  *                  MacCoss Lab, Department of Genome Sciences, UW
  *
@@ -30,11 +30,11 @@ using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Model.DocSettings.AbsoluteQuantification;
 using pwiz.Skyline.Model.Lib;
 using pwiz.Skyline.Model.Lib.ChromLib;
+using pwiz.Skyline.Model.Lib.Midas;
 using pwiz.Skyline.Model.Proteome;
 using pwiz.Skyline.Model.Results;
 using pwiz.Skyline.Model.Results.Scoring;
 using pwiz.Skyline.Properties;
-using pwiz.Skyline.SettingsUI.IonMobility;
 using pwiz.Skyline.Util;
 
 namespace pwiz.Skyline.Model.DocSettings
@@ -60,25 +60,39 @@ namespace pwiz.Skyline.Model.DocSettings
             Modifications = modifications;
             Integration = integration;
             BackgroundProteome = backgroundProteome;
+            if ((BackgroundProteome == null || BackgroundProteome.IsNone) &&
+                Filter.PeptideUniqueness != PeptideFilter.PeptideUniquenessConstraint.none)
+            {
+                // No peptide uniqueness filtering without a background proteome
+                Filter = Filter.ChangePeptideUniqueness(PeptideFilter.PeptideUniquenessConstraint.none);
+            }
             Quantification = QuantificationSettings.DEFAULT;
         }
 
+        [TrackChildren]
         public Enzyme Enzyme { get; private set; }
 
+        [TrackChildren(true)]
         public DigestSettings DigestSettings { get; private set; }
 
+        [TrackChildren]
         public BackgroundProteome BackgroundProteome { get; private set; }
 
+        [TrackChildren(true)]
         public PeptidePrediction Prediction { get; private set; }
 
+        [TrackChildren(true)]
         public PeptideFilter Filter { get; private set; }
 
+        [TrackChildren(true)]
         public PeptideLibraries Libraries { get; private set; }
 
+        [TrackChildren(true)]
         public PeptideModifications Modifications { get; private set; }
 
         public PeptideIntegration Integration { get; private set; }
 
+        [TrackChildren(true)]
         public QuantificationSettings Quantification { get; private set; }
 
         #region Property change methods
@@ -95,7 +109,13 @@ namespace pwiz.Skyline.Model.DocSettings
 
         public PeptideSettings ChangeBackgroundProteome(BackgroundProteome prop)
         {
-            return ChangeProp(ImClone(this), im => im.BackgroundProteome = prop);
+            var result =  ChangeProp(ImClone(this), im => im.BackgroundProteome = prop);
+            if (prop == null || prop.IsNone)
+            {
+                // Can't do peptide uniqueness checks without a background proteome
+                result = result.ChangeFilter(result.Filter.ChangePeptideUniqueness(PeptideFilter.PeptideUniquenessConstraint.none));
+            }
+            return result;
         }
 
         public PeptideSettings ChangePrediction(PeptidePrediction prop)
@@ -148,6 +168,14 @@ namespace pwiz.Skyline.Model.DocSettings
         }
 
         #endregion
+
+        public bool NeedsBackgroundProteomeUniquenessCheckProcessing
+        {
+            get
+            {
+                return BackgroundProteome != null && !BackgroundProteome.IsReadyForUniquenessFilter(Filter.PeptideUniqueness);
+            }
+        }
 
         #region Implementation of IXmlSerializable
 
@@ -259,42 +287,58 @@ namespace pwiz.Skyline.Model.DocSettings
     }
 
     [XmlRoot("peptide_prediction")]
-    public class PeptidePrediction : Immutable, IValidating, IXmlSerializable
+    public class PeptidePrediction : Immutable, IValidating, IXmlSerializable, IAuditLogComparable
     {
         public const int MAX_TREND_PREDICTION_REPLICATES = 20;
         public const double MIN_MEASURED_RT_WINDOW = 0.1;
         public const double MAX_MEASURED_RT_WINDOW = 300.0;
         public const double DEFAULT_MEASURED_RT_WINDOW = 2.0;
 
-        public PeptidePrediction(RetentionTimeRegression retentionTime, DriftTimePredictor driftTimePredictor = null)
-            : this(retentionTime, driftTimePredictor, true, DEFAULT_MEASURED_RT_WINDOW, false, null)
+        public PeptidePrediction(RetentionTimeRegression retentionTime, IonMobilityPredictor ionMobilityPredictor = null)
+            : this(retentionTime, ionMobilityPredictor, true, DEFAULT_MEASURED_RT_WINDOW, false, IonMobilityWindowWidthCalculator.EMPTY)
         {            
         }
 
-        public PeptidePrediction(RetentionTimeRegression retentionTime, DriftTimePredictor driftTimePredictor, bool useMeasuredRTs, double? measuredRTWindow,
-            bool useLibraryDriftTimes, double? libraryDriftTimesResolvingPower)
+        public PeptidePrediction(RetentionTimeRegression retentionTime, IonMobilityPredictor ionMobilityPredictor, bool useMeasuredRTs, double? measuredRTWindow,
+            bool useLibraryIonMobilityValues, IonMobilityWindowWidthCalculator libraryIonMobilityWindowWidthCalculator)
         {
             RetentionTime = retentionTime;
-            DriftTimePredictor = driftTimePredictor;
+            IonMobilityPredictor = ionMobilityPredictor;
             UseMeasuredRTs = useMeasuredRTs;
             MeasuredRTWindow = measuredRTWindow;
-            UseLibraryDriftTimes = useLibraryDriftTimes;
-            LibraryDriftTimesResolvingPower = libraryDriftTimesResolvingPower;
+            UseLibraryIonMobilityValues = useLibraryIonMobilityValues;
+            LibraryIonMobilityWindowWidthCalculator = libraryIonMobilityWindowWidthCalculator;
 
             DoValidate();
         }
 
+        [TrackChildren]
+        public RetentionTimeRegression NonNullRetentionTime
+        {
+            get { return RetentionTime ?? RetentionTimeList.GetDefault(); }
+        }
+
         public RetentionTimeRegression RetentionTime { get; private set; }
 
-        public DriftTimePredictor DriftTimePredictor { get; private set; }
+        [TrackChildren]
+        public IonMobilityPredictor NonNullIonMobilityPredictor
+        {
+            get { return IonMobilityPredictor ?? DriftTimePredictorList.GetDefault(); }
+        }
 
+        public IonMobilityPredictor IonMobilityPredictor { get; private set; }
+
+        [Track]
         public bool UseMeasuredRTs { get; private set; }
 
-        public double? MeasuredRTWindow { get; private set; }
+        [Track]
+        public double? MeasuredRTWindow { get; set; }
 
-        public bool UseLibraryDriftTimes { get; private set; }
+        [Track]
+        public bool UseLibraryIonMobilityValues { get; private set; }
 
-        public double? LibraryDriftTimesResolvingPower { get; private set; }
+        [TrackChildren(ignoreName:true)]
+        public IonMobilityWindowWidthCalculator LibraryIonMobilityWindowWidthCalculator { get; private set; }
 
         public LibraryIonMobilityInfo LibraryIonMobilityInfo { get; private set; }
 
@@ -403,7 +447,7 @@ namespace pwiz.Skyline.Model.DocSettings
                 // variable scheduling windows
                 if (!useMeasured || !singleWindow || MeasuredRTWindow == RetentionTime.TimeWindow)
                 {
-                    string modifiedSequence = document.Settings.GetSourceTextId(nodePep);
+                    var modifiedSequence = document.Settings.GetSourceTarget(nodePep);
                     if (null != replicateFilter && document.Settings.HasResults)
                     {
                         var retentionTimes = new List<double>();
@@ -440,70 +484,6 @@ namespace pwiz.Skyline.Model.DocSettings
                 }
             }
             return predictedRT;
-        }
-
-        /// <summary>
-        /// Get drift time for the charged peptide from explicitly set values, or our drift time predictor, or,
-        /// failing that, from the provided spectral library if it has bare drift times.
-        /// If no drift info is available, returns a new zero'd out drift time info object.
-        /// </summary>
-        public DriftTimeInfo GetDriftTime(PeptideDocNode  nodePep,
-            TransitionGroupDocNode nodeGroup,
-            LibraryIonMobilityInfo libraryIonMobilityInfo, out double windowDtMsec)
-        {
-            if (nodeGroup.ExplicitValues.DriftTimeMsec.HasValue)
-            {
-                // Use the explicitly specified value
-                var result = new DriftTimeInfo(nodeGroup.ExplicitValues.DriftTimeMsec,
-                    nodeGroup.ExplicitValues.DriftTimeHighEnergyOffsetMsec ?? 0);
-                // Now get the resolving power
-                if (DriftTimePredictor != null)
-                {
-                    windowDtMsec = DriftTimePredictor.InverseResolvingPowerTimesTwo*result.DriftTimeMsec(false).Value;
-                }
-                else if (LibraryDriftTimesResolvingPower.HasValue)
-                {
-                    windowDtMsec = 2.0 * result.DriftTimeMsec(false).Value / LibraryDriftTimesResolvingPower.Value;
-                }
-                else
-                {
-                    windowDtMsec = 0;
-                }
-                return result;
-            }
-            else
-            {
-                return GetDriftTimeHelper(
-                    new LibKey(nodePep.RawTextId, nodeGroup.TransitionGroup.PrecursorCharge), libraryIonMobilityInfo,
-                    out windowDtMsec);
-            }
-        }
-
-        /// <summary>
-        /// Made public for testing purposes only: exercises library and predictor but doesn't handle explicitly set drift times.
-        /// Use GetDriftTime() instead.
-        /// </summary>
-        public DriftTimeInfo GetDriftTimeHelper(LibKey chargedPeptide,
-            LibraryIonMobilityInfo libraryIonMobilityInfo, out  double windowDtMsec)
-        {
-            if (DriftTimePredictor != null)
-            {
-                var result = DriftTimePredictor.GetDriftTimeInfo(chargedPeptide, out windowDtMsec);
-                if (result != null && result.DriftTimeMsec(false).HasValue)
-                    return result;
-            }
-
-            if (libraryIonMobilityInfo != null)
-            {
-                var dt = libraryIonMobilityInfo.GetLibraryMeasuredDriftTimeAndHighEnergyOffset(chargedPeptide);
-                if ((dt != null) && dt.DriftTimeMsec(false).HasValue && (LibraryDriftTimesResolvingPower ?? 0) > 0)
-                {
-                    windowDtMsec = 2.0 * dt.DriftTimeMsec(false).Value / LibraryDriftTimesResolvingPower.Value;
-                    return dt;
-                }
-            }
-            windowDtMsec = 0;
-            return new DriftTimeInfo(null, 0);
         }
 
         /// <summary>
@@ -592,19 +572,19 @@ namespace pwiz.Skyline.Model.DocSettings
             return ChangeProp(ImClone(this), im => im.MeasuredRTWindow = prop);
         }
 
-        public PeptidePrediction ChangeUseLibraryDriftTimes(bool prop)
+        public PeptidePrediction ChangeUseLibraryIonMobilityValues(bool prop)
         {
-            return ChangeProp(ImClone(this), im => im.UseLibraryDriftTimes = prop);
+            return ChangeProp(ImClone(this), im => im.UseLibraryIonMobilityValues = prop);
         }
 
-        public PeptidePrediction ChangeLibraryDriftTimesResolvingPower(double? prop)
+        public PeptidePrediction ChangeLibraryDriftTimesWindowWidthCalculator(IonMobilityWindowWidthCalculator prop)
         {
-            return ChangeProp(ImClone(this), im => im.LibraryDriftTimesResolvingPower = prop);
+            return ChangeProp(ImClone(this), im => im.LibraryIonMobilityWindowWidthCalculator = prop);
         }
 
-        public PeptidePrediction ChangeDriftTimePredictor(DriftTimePredictor prop)
+        public PeptidePrediction ChangeDriftTimePredictor(IonMobilityPredictor prop)
         {
-            return ChangeProp(ImClone(this), im => im.DriftTimePredictor = prop);
+            return ChangeProp(ImClone(this), im => im.IonMobilityPredictor = prop);
         }
 
         #endregion
@@ -645,11 +625,11 @@ namespace pwiz.Skyline.Model.DocSettings
                 }
             }
 
-            if (UseLibraryDriftTimes)
+            if (UseLibraryIonMobilityValues)
             {
-                if (!LibraryDriftTimesResolvingPower.HasValue)
-                    LibraryDriftTimesResolvingPower = 0;
-                string errmsg = EditDriftTimePredictorDlg.ValidateResolvingPower(LibraryDriftTimesResolvingPower.Value);
+                if (LibraryIonMobilityWindowWidthCalculator == null)
+                    LibraryIonMobilityWindowWidthCalculator = IonMobilityWindowWidthCalculator.EMPTY;
+                string errmsg = LibraryIonMobilityWindowWidthCalculator.Validate();
                 if (errmsg != null)
                 {
                     throw new InvalidDataException(errmsg);
@@ -669,12 +649,15 @@ namespace pwiz.Skyline.Model.DocSettings
             return null;
         }
 
+        private const string PREFIX_SPECTRAL_LIBRARY_DRIFT_TIMES = "spectral_library_drift_times_";
+
         public void ReadXml(XmlReader reader)
         {
             bool? useMeasuredRTs = reader.GetNullableBoolAttribute(ATTR.use_measured_rts);
             MeasuredRTWindow = reader.GetNullableDoubleAttribute(ATTR.measured_rt_window);
             bool? useLibraryDriftTimes = reader.GetNullableBoolAttribute(ATTR.use_spectral_library_drift_times);
-            LibraryDriftTimesResolvingPower = reader.GetNullableDoubleAttribute(ATTR.spectral_library_drift_times_resolving_power);
+
+            LibraryIonMobilityWindowWidthCalculator = new IonMobilityWindowWidthCalculator(reader, PREFIX_SPECTRAL_LIBRARY_DRIFT_TIMES);
             // Keep XML values, if written by v0.5 or later 
             if (useMeasuredRTs.HasValue)
                 UseMeasuredRTs = useMeasuredRTs.Value;
@@ -687,11 +670,10 @@ namespace pwiz.Skyline.Model.DocSettings
             }
 
             if (useLibraryDriftTimes.HasValue)
-                UseLibraryDriftTimes = useLibraryDriftTimes.Value;
+                UseLibraryIonMobilityValues = useLibraryDriftTimes.Value;
             else
             {
-                UseLibraryDriftTimes = false;
-                LibraryDriftTimesResolvingPower = null;
+                UseLibraryIonMobilityValues = false;
             }
 
             // Consume tag
@@ -702,7 +684,7 @@ namespace pwiz.Skyline.Model.DocSettings
                 reader.ReadStartElement();
                 // Read child elements
                 RetentionTime = reader.DeserializeElement<RetentionTimeRegression>();
-                DriftTimePredictor = reader.DeserializeElement<DriftTimePredictor>();
+                IonMobilityPredictor = reader.DeserializeElement<IonMobilityPredictor>();
                 reader.ReadEndElement();                
             }
 
@@ -716,14 +698,15 @@ namespace pwiz.Skyline.Model.DocSettings
             writer.WriteAttribute(ATTR.use_measured_rts, UseMeasuredRTs, !UseMeasuredRTs);
             writer.WriteAttributeNullable(ATTR.measured_rt_window, MeasuredRTWindow);
 
-            writer.WriteAttribute(ATTR.use_spectral_library_drift_times, UseLibraryDriftTimes, !UseLibraryDriftTimes);
-            writer.WriteAttributeNullable(ATTR.spectral_library_drift_times_resolving_power, LibraryDriftTimesResolvingPower);
+            writer.WriteAttribute(ATTR.use_spectral_library_drift_times, UseLibraryIonMobilityValues, !UseLibraryIonMobilityValues);
+            if (LibraryIonMobilityWindowWidthCalculator != null)
+                LibraryIonMobilityWindowWidthCalculator.WriteXML(writer, PREFIX_SPECTRAL_LIBRARY_DRIFT_TIMES);
 
             // Write child elements
             if (RetentionTime != null)
                 writer.WriteElement(RetentionTime);
-            if (DriftTimePredictor != null)
-                writer.WriteElement(DriftTimePredictor);
+            if (IonMobilityPredictor != null)
+                writer.WriteElement(IonMobilityPredictor);
         }
 
         #endregion
@@ -735,9 +718,9 @@ namespace pwiz.Skyline.Model.DocSettings
             if (ReferenceEquals(null, other)) return false;
             if (ReferenceEquals(this, other)) return true;
             return Equals(other.RetentionTime, RetentionTime) &&
-                Equals(other.DriftTimePredictor, DriftTimePredictor) &&
-                Equals(other.UseLibraryDriftTimes, UseLibraryDriftTimes) &&
-                Equals(other.LibraryDriftTimesResolvingPower, LibraryDriftTimesResolvingPower) &&
+                Equals(other.IonMobilityPredictor, IonMobilityPredictor) &&
+                Equals(other.UseLibraryIonMobilityValues, UseLibraryIonMobilityValues) &&
+                Equals(other.LibraryIonMobilityWindowWidthCalculator, LibraryIonMobilityWindowWidthCalculator) &&
                 other.UseMeasuredRTs.Equals(UseMeasuredRTs) &&
                 other.MeasuredRTWindow.Equals(MeasuredRTWindow);
         }
@@ -755,13 +738,18 @@ namespace pwiz.Skyline.Model.DocSettings
             unchecked
             {
                 int result = (RetentionTime != null ? RetentionTime.GetHashCode() : 0);
-                result = (result * 397) ^ (DriftTimePredictor != null ? DriftTimePredictor.GetHashCode() : 0);
-                result = (result * 397) ^ UseLibraryDriftTimes.GetHashCode();
-                result = (result * 397) ^ (LibraryDriftTimesResolvingPower.HasValue ? LibraryDriftTimesResolvingPower.Value.GetHashCode() : 0);
+                result = (result * 397) ^ (IonMobilityPredictor != null ? IonMobilityPredictor.GetHashCode() : 0);
+                result = (result * 397) ^ UseLibraryIonMobilityValues.GetHashCode();
+                result = (result * 397) ^ (LibraryIonMobilityWindowWidthCalculator != null ? LibraryIonMobilityWindowWidthCalculator.GetHashCode() : 0);
                 result = (result * 397) ^ UseMeasuredRTs.GetHashCode();
                 result = (result * 397) ^ (MeasuredRTWindow.HasValue ? MeasuredRTWindow.Value.GetHashCode() : 0);
                 return result;
             }
+        }
+
+        public object GetDefaultObject(ObjectInfo<object> info)
+        {
+            return RetentionTimeList.GetDefault();
         }
 
         #endregion
@@ -791,6 +779,25 @@ namespace pwiz.Skyline.Model.DocSettings
         int? MaxVariableMods { get; }
     }
 
+    /// <summary>
+    /// Filtering of variable modifications by location and mass to avoid
+    /// enumerating all globally possible peptide modifications when attempting
+    /// to match library spectra.
+    /// </summary>
+    public interface IVariableModFilter
+    {
+        /// <summary>
+        /// Returns true if any modification is possible at the given index.
+        /// </summary>
+        bool IsModIndex(int index);
+
+        /// <summary>
+        /// Returns true if the given modification mass is possible at the
+        /// given index.
+        /// </summary>
+        bool IsModMass(int index, double mass);
+    }
+
     [XmlRoot("peptide_filter")]
     public class PeptideFilter : Immutable, IValidating, IPeptideFilter, IXmlSerializable
     {
@@ -800,6 +807,14 @@ namespace pwiz.Skyline.Model.DocSettings
         public const int MAX_MIN_LENGTH = 100;
         public const int MIN_MAX_LENGTH = 5;
         public const int MAX_MAX_LENGTH = 200;
+
+        public enum PeptideUniquenessConstraint
+        {
+            none,
+            protein,
+            gene,
+            species
+        };
 
         public static readonly IPeptideFilter UNFILTERED = new AllPeptidesFilter();
 
@@ -812,24 +827,31 @@ namespace pwiz.Skyline.Model.DocSettings
         private Regex _regexIncludeMod;
 
         public PeptideFilter(int excludeNTermAAs, int minPeptideLength,
-                             int maxPeptideLength, IList<PeptideExcludeRegex> exclusions, bool autoSelect)
+                             int maxPeptideLength, IList<PeptideExcludeRegex> exclusions, bool autoSelect,
+                             PeptideUniquenessConstraint peptideUniquenessConstraint)
         {
             Exclusions = exclusions;
             ExcludeNTermAAs = excludeNTermAAs;
             MinPeptideLength = minPeptideLength;
             MaxPeptideLength = maxPeptideLength;
             AutoSelect = autoSelect;
+            PeptideUniqueness = peptideUniquenessConstraint;
             DoValidate();
         }
 
+        [Track]
         public int ExcludeNTermAAs { get; private set; }
 
+        [Track]
         public int MinPeptideLength { get; private set; }
 
+        [Track]
         public int MaxPeptideLength { get; private set; }
 
+        [Track]
         public bool AutoSelect { get; private set; }
 
+        [TrackChildren]
         public IList<PeptideExcludeRegex> Exclusions
         {
             get { return _exclusions; }
@@ -841,6 +863,8 @@ namespace pwiz.Skyline.Model.DocSettings
                     _regexInclude = _regexIncludeMod = null;
             }
         }
+
+        public PeptideUniquenessConstraint PeptideUniqueness { get; private set; }
 
         #region Property change methods
 
@@ -868,13 +892,18 @@ namespace pwiz.Skyline.Model.DocSettings
         {
             return ChangeProp(ImClone(this), im => im.Exclusions = prop);
         }
+
+        public PeptideFilter ChangePeptideUniqueness(PeptideUniquenessConstraint prop)
+        {
+            return ChangeProp(ImClone(this), im => im.PeptideUniqueness = prop);
+        }
         #endregion
 
         public bool Accept(SrmSettings settings, Peptide peptide, ExplicitMods explicitMods, out bool allowVariableMods)
         {
             allowVariableMods = false;
 
-            if (peptide.IsCustomIon)
+            if (peptide.IsCustomMolecule)
                 return false;
 
             // Must begin after excluded C-terminal AAs
@@ -882,7 +911,7 @@ namespace pwiz.Skyline.Model.DocSettings
                 return false;
 
             // Must be within acceptable length range
-            string sequence = peptide.Sequence;
+            string sequence = peptide.Target.Sequence;
             int len = sequence.Length;
             if (MinPeptideLength > len || len > MaxPeptideLength)
                 return false;
@@ -902,14 +931,47 @@ namespace pwiz.Skyline.Model.DocSettings
                 var calcMod = settings.GetPrecursorCalc(IsotopeLabelType.light, explicitMods);
                 // Use narrow format, since this is mostly what is presented to
                 // the user creating the exclusion expressions.
-                string sequenceMod = calcMod.GetModifiedSequence(sequence, true);
+                var sequenceMod = calcMod.GetModifiedSequenceDisplay(peptide.Target).ToString();
                 if (_regexExcludeMod != null && _regexExcludeMod.Match(sequenceMod).Success)
                     return false;
                 if (_regexIncludeMod != null && !_regexIncludeMod.Match(sequenceMod).Success)
                     return false;
             }
 
+            // Peptide uniqueness checks can be expensive, so do this last
+            if ((settings.PeptideSettings.Filter.PeptideUniqueness != PeptideUniquenessConstraint.none)
+                && !CheckPeptideUniqueness(settings, peptide.Target)) 
+                return false;
+
             return true;
+        }
+
+        //
+        // Background proteome uniqueness constraints
+        //
+        public bool CheckPeptideUniqueness(SrmSettings settings, Target sequence)
+        {
+            return CheckPeptideUniqueness(settings, new List<Target> { sequence }, null)[sequence];
+        }
+
+        public Dictionary<Target, bool> CheckPeptideUniqueness(SrmSettings settings, List<Target> sequences, SrmSettingsChangeMonitor progressMonitor)
+        {
+            var result = new Dictionary<Target, bool>();
+            foreach (var s in sequences)
+            {
+                if (!string.IsNullOrEmpty(s.Sequence) && !result.ContainsKey(s)) // Watch out for non-peptide molecules
+                {
+                    result.Add(s, true);
+                }
+            }
+            if (settings.PeptideSettings.Filter.PeptideUniqueness == PeptideUniquenessConstraint.none)
+            {
+                return result; // Everything passes
+            }
+
+            var needsBackgroundProteomeUniquenessCheckProcessing = settings.PeptideSettings.NeedsBackgroundProteomeUniquenessCheckProcessing;
+            Assume.IsFalse(needsBackgroundProteomeUniquenessCheckProcessing); // Should be handled in ChangeSettings
+            return settings.PeptideSettings.BackgroundProteome.PeptidesUniquenessFilter(result, settings.PeptideSettings, progressMonitor);
         }
 
         public int? MaxVariableMods
@@ -932,6 +994,7 @@ namespace pwiz.Skyline.Model.DocSettings
             min_length,
             max_length,
             auto_select,
+            unique_by
         }
 
         private enum EL
@@ -1000,7 +1063,7 @@ namespace pwiz.Skyline.Model.DocSettings
         private static void AddRegEx(StringBuilder sb, string regex)
         {
             if (sb.Length > 0)
-                sb.Append('|'); // Not L10N
+                sb.Append('|');
             sb.Append(regex);
         }
 
@@ -1045,6 +1108,7 @@ namespace pwiz.Skyline.Model.DocSettings
             MinPeptideLength = reader.GetIntAttribute(ATTR.min_length);
             MaxPeptideLength = reader.GetIntAttribute(ATTR.max_length);
             AutoSelect = reader.GetBoolAttribute(ATTR.auto_select);
+            PeptideUniqueness = reader.GetEnumAttribute(ATTR.unique_by, PeptideUniquenessConstraint.none);
 
             var list = new List<PeptideExcludeRegex>();
 
@@ -1071,6 +1135,10 @@ namespace pwiz.Skyline.Model.DocSettings
             writer.WriteAttribute(ATTR.min_length, MinPeptideLength);
             writer.WriteAttribute(ATTR.max_length, MaxPeptideLength);
             writer.WriteAttribute(ATTR.auto_select, AutoSelect);
+            if (PeptideUniqueness != PeptideUniquenessConstraint.none)
+            {
+                writer.WriteAttribute(ATTR.unique_by, PeptideUniqueness);
+            }
             // Write child elements
             writer.WriteElementList(EL.peptide_exclusions, Exclusions);
         }
@@ -1087,6 +1155,7 @@ namespace pwiz.Skyline.Model.DocSettings
                    obj.MinPeptideLength == MinPeptideLength &&
                    obj.MaxPeptideLength == MaxPeptideLength &&
                    obj.AutoSelect.Equals(AutoSelect) &&
+                   obj.PeptideUniqueness.Equals(PeptideUniqueness) &&
                    ArrayUtil.EqualsDeep(obj._exclusions, _exclusions);
         }
 
@@ -1107,6 +1176,7 @@ namespace pwiz.Skyline.Model.DocSettings
                 result = (result*397) ^ MaxPeptideLength;
                 result = (result*397) ^ AutoSelect.GetHashCode();
                 result = (result*397) ^ _exclusions.GetHashCodeDeep();
+                result = (result*397) ^ PeptideUniqueness.GetHashCode();
                 return result;
             }
         }
@@ -1164,9 +1234,9 @@ namespace pwiz.Skyline.Model.DocSettings
         {
             // Make sure the internal standard type is reference equal with
             // the first heavy type.
-            var enumHeavy = heavyMods.GetEnumerator();
-            if (enumHeavy.MoveNext() && enumHeavy.Current != null)
-                InternalStandardTypes = new[] {enumHeavy.Current.LabelType};
+            var firstHeavy = heavyMods.FirstOrDefault();
+            if (firstHeavy != null)
+                InternalStandardTypes = new[] {firstHeavy.LabelType};
         }
 
         public PeptideModifications(IList<StaticMod> staticMods,
@@ -1187,10 +1257,13 @@ namespace pwiz.Skyline.Model.DocSettings
             DoValidate();
         }
 
+        [Track]
         public int MaxVariableMods { get; private set; }
+        [Track]
         public int MaxNeutralLosses { get; private set; }
         public int CountLabelTypes { get { return _modifications.Count; } }
 
+        [Track]
         public IList<IsotopeLabelType> InternalStandardTypes
         {
             get { return _internalStandardTypes; }
@@ -1206,6 +1279,7 @@ namespace pwiz.Skyline.Model.DocSettings
             get { return InternalStandardTypes.Count > 0 ? InternalStandardTypes : GetHeavyModificationTypes().ToList() ; }
         }
 
+        [TrackChildren]
         public IList<StaticMod> StaticModifications
         {
             get { return _modifications[0].Modifications; }
@@ -1241,9 +1315,9 @@ namespace pwiz.Skyline.Model.DocSettings
             }
         }
 
-        public IList<StaticMod> HeavyModifications
+        public IEnumerable<StaticMod> AllHeavyModifications
         {
-            get { return GetModifications(IsotopeLabelType.heavy); }
+            get { return GetHeavyModifications().SelectMany(typedMods => typedMods.Modifications); }
         }
 
         public IList<StaticMod> GetModifications(IsotopeLabelType labelType)
@@ -1272,6 +1346,12 @@ namespace pwiz.Skyline.Model.DocSettings
             return _modifications.IndexOf(mod => Equals(typeName, mod.LabelType.Name));
         }
 
+        [TrackChildren]
+        public TypedModifications[] HeavyModifications
+        {
+            get { return GetHeavyModifications().ToArray(); }
+        }
+
         public IEnumerable<TypedModifications> GetHeavyModifications()
         {
             for (int i = 1; i < _modifications.Count; i++)
@@ -1290,10 +1370,7 @@ namespace pwiz.Skyline.Model.DocSettings
                    select typedMod.LabelType;
         }
 
-        public bool HasHeavyModifications
-        {
-            get { return GetHeavyModifications().Contains(mods => mods.Modifications.Count > 0); }
-        }
+        public bool HasHeavyModifications { get; private set; }
 
         public bool HasHeavyImplicitModifications
         {
@@ -1372,9 +1449,42 @@ namespace pwiz.Skyline.Model.DocSettings
             return ChangeModifications(IsotopeLabelType.light, prop);
         }
 
-        public PeptideModifications ChangeHeavyModifications(IList<StaticMod> prop)
+        /// <summary>
+        /// Adds isotope modifications. This method skips any modifications which are already
+        /// associated with a heavy isotope label type. If there is more than one heavy TypedModification,
+        /// the new modifications get added to the first heavy TypedModification.
+        /// If there are no heavy modification types (which should never happen), then 
+        /// IsotopeLabelType.heavy is added.
+        /// </summary>
+        public PeptideModifications AddHeavyModifications(IEnumerable<StaticMod> modificationsToAdd)
         {
-            return ChangeModifications(IsotopeLabelType.heavy, prop);
+            var newMods = modificationsToAdd.Except(AllHeavyModifications).ToArray();
+            if (!newMods.Any())
+            {
+                return this;
+            }
+            var heavyModifications = GetHeavyModifications().FirstOrDefault();
+            if (heavyModifications != null)
+            {
+                return ChangeModifications(heavyModifications.LabelType, MakeReadOnly(heavyModifications.Modifications.Concat(newMods)));
+            }
+            return ChangeProp(ImClone(this),
+                im => im._modifications = MakeReadOnly(
+                    im._modifications.Concat(new[] {new TypedModifications(IsotopeLabelType.heavy, newMods)})));
+        }
+
+        /// <summary>
+        /// Removes the specified modifications from all of the heavy TypedModifications.
+        /// </summary>
+        public PeptideModifications RemoveHeavyModifications(IEnumerable<StaticMod> modificationsToRemove)
+        {
+            return ChangeProp(ImClone(this), im =>
+            {
+                var newModifications = im._modifications.Select(typedMods =>
+                    new TypedModifications(typedMods.LabelType,
+                        MakeReadOnly(typedMods.Modifications.Except(modificationsToRemove))));
+                im._modifications = MakeReadOnly(newModifications);
+            });
         }
 
         public PeptideModifications ChangeModifications(IsotopeLabelType labelType, IList<StaticMod> prop)
@@ -1400,6 +1510,11 @@ namespace pwiz.Skyline.Model.DocSettings
                 return this;
 
             return ChangeProp(ImClone(this), im => im._modifications = MakeReadOnly(modifications));
+        }
+
+        public PeptideModifications ChangeHasHeavyModifications(bool hasHeavyModifications)
+        {
+            return ChangeProp(ImClone(this), im => im.HasHeavyModifications = hasHeavyModifications);
         }
 
         private static TypedModifications DeclareExplicitMods(SrmDocument doc,
@@ -1701,7 +1816,8 @@ namespace pwiz.Skyline.Model.DocSettings
             return obj.MaxVariableMods == MaxVariableMods &&
                    obj.MaxNeutralLosses == MaxNeutralLosses &&
                    ArrayUtil.EqualsDeep(obj.InternalStandardTypes, InternalStandardTypes) &&
-                   ArrayUtil.EqualsDeep(obj._modifications, _modifications);
+                   ArrayUtil.EqualsDeep(obj._modifications, _modifications) &&
+                   HasHeavyModifications == obj.HasHeavyModifications;
         }
 
         public override bool Equals(object obj)
@@ -1720,6 +1836,7 @@ namespace pwiz.Skyline.Model.DocSettings
                 result = (result * 397) ^ MaxNeutralLosses.GetHashCode();
                 result = (result * 397) ^ InternalStandardTypes.GetHashCodeDeep();
                 result = (result * 397) ^ _modifications.GetHashCodeDeep();
+                result = (result * 397) ^ HasHeavyModifications.GetHashCode();
                 return result;
             }
         }
@@ -1754,13 +1871,24 @@ namespace pwiz.Skyline.Model.DocSettings
             DoValidate();
         }
 
+        [Track]
         public PeptidePick Pick { get; private set; }
+        [Track]
         public PeptideRankId RankId { get; private set; }
+
+        [Track]
+        public bool LimitPeptidesPerProtein
+        {
+            get { return PeptideCount.HasValue; }
+        }
+        [Track]
         public int? PeptideCount { get; private set; }
         public bool HasDocumentLibrary { get; private set; }
 
         public bool HasLibraries { get { return _librarySpecs.Count > 0; } }
+        public bool HasMidasLibrary { get { return _librarySpecs.Any(libSpec => libSpec is MidasLibSpec); } }
 
+        [TrackChildren]
         public IList<LibrarySpec> LibrarySpecs
         {
             get { return _librarySpecs; }
@@ -1780,10 +1908,20 @@ namespace pwiz.Skyline.Model.DocSettings
             }
         }
 
+        public IEnumerable<MidasLibSpec> MidasLibrarySpecs
+        {
+            get { return _librarySpecs.Where(libSpec => libSpec is MidasLibSpec).Cast<MidasLibSpec>(); }
+        }
+
         public IList<Library> Libraries
         {
             get { return _libraries; }
             private set { _libraries = MakeReadOnly(value); }
+        }
+
+        public IEnumerable<MidasLibrary> MidasLibraries
+        {
+            get { return _libraries.Where(lib => lib is MidasLibrary).Cast<MidasLibrary>(); }
         }
 
         public IList<Library> DisconnectedLibraries
@@ -1823,7 +1961,7 @@ namespace pwiz.Skyline.Model.DocSettings
                 {
                     if (lib == null)
                     {
-                        return "null library"; // Not L10N
+                        return @"null library";
                     }
                     string whyNot;
                     if ((whyNot = lib.IsNotLoadedExplained) != null)
@@ -1847,13 +1985,13 @@ namespace pwiz.Skyline.Model.DocSettings
             return false;
         }
 
-        public bool ContainsAny(LibSeqKey key)
+        public bool ContainsAny(Target target)
         {
             Assume.IsTrue(IsLoaded);
 
             foreach (Library lib in _libraries)
             {
-                if (lib != null && lib.ContainsAny(key))
+                if (lib != null && lib.ContainsAny(target))
                     return true;
             }
             return false;
@@ -1891,7 +2029,7 @@ namespace pwiz.Skyline.Model.DocSettings
 
             foreach (Library lib in _libraries)
             {
-                if (lib != null && lib.TryGetRetentionTimes(key, filePath, out retentionTimes))
+                if (lib != null && !(lib is MidasLibrary) && lib.TryGetRetentionTimes(key, filePath, out retentionTimes))
                     return true;
             }
             retentionTimes = null;
@@ -1914,61 +2052,98 @@ namespace pwiz.Skyline.Model.DocSettings
         }
 
         /// <summary>
-        /// Get all ion mobilities associated with this filepath.  Then look at all the others
-        /// and get any that don't appear in the inital set, setting them up to be averaged.
+        /// Retrieve library ion mobility info for this particular file, if any
         /// </summary>
-        public bool TryGetIonMobilities(MsDataFileUri filePath, out LibraryIonMobilityInfo ionMobilities)
+        private LibraryIonMobilityInfo GetLibraryDriftTimesForFilePath(MsDataFileUri filePath)
         {
-            Assume.IsTrue(IsLoaded);
-
-            foreach (Library lib in _libraries)
+            foreach (var lib in _libraries)
             {
                 // Only one of the available libraries may claim ownership of the file
                 // in question.
-                if (lib != null && lib.TryGetIonMobilities(filePath, out ionMobilities))
+                LibraryIonMobilityInfo ionMobilities;
+                if (lib != null && lib.TryGetIonMobilityInfos(filePath, out ionMobilities))
                 {
-                    // TODO - or HACK, IF YOU PREFER: something better than this:
-                    // Look at all available sublibraries, use them to backfill
-                    // any missing drift time info in this one
-                    var ionMobilitiesList = new List<LibraryIonMobilityInfo>();
-                    LibraryIonMobilityInfo ionMobilitiesOther;
-                    int i = 0;
-                    while (lib.TryGetIonMobilities(i++, out ionMobilitiesOther)) // Returns false when i> internal list length
-                    {
-                        ionMobilitiesList.Add(ionMobilitiesOther);
-                    }
-
-                    for (i = 0; i < ionMobilitiesList.Count; i++)
-                    {
-                        var thisDict = ionMobilitiesList[i].GetIonMobilityDict();
-                        foreach (var im in thisDict) // For each entry this sublibrary
-                        {
-                            // If this key is not in the source file in question
-                            if (!ionMobilities.GetIonMobilityDict().ContainsKey(im.Key))
-                            {
-                                // Aggregate with any others (averaging happens elsewhere)
-                                var info = new List<IonMobilityInfo>();
-                                for (int j = i; j < ionMobilitiesList.Count; j++)
-                                {
-                                    var thatDict = ionMobilitiesList[j].GetIonMobilityDict();
-                                    if (thatDict.ContainsKey(im.Key))
-                                    {
-                                        info.AddRange(thatDict[im.Key]);
-                                    }
-                                }
-                                if (info.Any())
-                                {
-                                    ionMobilities.GetIonMobilityDict().Add(im.Key,info.ToArray());
-                                }
-                            }
-                        }
-                    }
-
-                    return true;
+                    return ionMobilities; // Found a library for this file in particular
                 }
             }
-            ionMobilities = null;
+            return null;
+        }
+
+        /// <summary>
+        /// Combine ion mobility info from all lib and sub-libs into a single dict
+        /// </summary>
+        private Dictionary<LibKey, List<IonMobilityAndCCS>> GetAllLibraryIonMobilities()
+        {
+            var ionMobilitiesDict = new Dictionary<LibKey, List<IonMobilityAndCCS>>();
+            foreach (var lib in _libraries.Where(l => l != null))
+            {
+                // Get drift times for all files in each library
+                LibraryIonMobilityInfo ionMobilities;
+                for (int i = 0; lib.TryGetIonMobilityInfos(i, out ionMobilities); i++) // Returns false when i> internal list length
+                {
+                    if (ionMobilities == null)
+                        continue;
+
+                    foreach (var dt in ionMobilities.GetIonMobilityDict())
+                    {
+                        List<IonMobilityAndCCS> listTimes;
+                        if (!ionMobilitiesDict.TryGetValue(dt.Key, out listTimes))
+                        {
+                            listTimes = new List<IonMobilityAndCCS>();
+                            ionMobilitiesDict.Add(dt.Key, listTimes);
+                        }
+                        listTimes.AddRange(dt.Value);
+                    }
+                }
+            }
+            return ionMobilitiesDict;
+        }
+
+        public bool HasAnyLibraryIonMobilities()
+        {
+            foreach (var lib in _libraries.Where(l => l != null))
+            {
+                // Get ION MOBILITIES for all files in each library
+                for (int i = 0; lib.TryGetIonMobilityInfos(i, out var ionMobilities); i++) // Returns false when i> internal list length
+                {
+                    if (ionMobilities != null  && ionMobilities.GetIonMobilityDict().Any())
+                    {
+                        return true;
+                    }
+                }
+            }
+
             return false;
+        }
+
+        /// <summary>
+        /// Get all ion mobilities from libs associated with this filepath.  Then look at all the others
+        /// and get any values that don't appear in the inital set (how that list is used - averaged etc - is determined elsewhere).
+        /// TODO(bspratt): It would be more maintainable if this and other things we get from libraries (like RT)
+        /// shared some kind of common interface so there is guaranteed consistent behavior around how we pick from
+        /// other libraries when the ostensibly correct library doesn't have values we need
+        /// </summary>
+        public bool TryGetDriftTimeInfos(MsDataFileUri filePath, out LibraryIonMobilityInfo ionMobilities)
+        {
+            Assume.IsTrue(IsLoaded);
+            // Get driftimes from library for this file, if any
+            ionMobilities = GetLibraryDriftTimesForFilePath(filePath);
+            var resultDict = ionMobilities == null ?
+                new Dictionary<LibKey, IonMobilityAndCCS[]>() :
+                new Dictionary<LibKey, IonMobilityAndCCS[]>(ionMobilities.GetIonMobilityDict());
+            // Note initial findings
+            var foundDictKeys = new HashSet<LibKey>(resultDict.Keys); 
+            // Look at all available libraries and sublibraries, use them to backfill any potentially missing drift time info 
+            foreach (var im in GetAllLibraryIonMobilities().Where(kvp => !foundDictKeys.Contains(kvp.Key)))
+            {
+                resultDict.Add(im.Key, im.Value.ToArray());
+            }
+            if (resultDict.Count > foundDictKeys.Count)
+            {
+                // Other libraries contributed some drift info
+                ionMobilities = new LibraryIonMobilityInfo(filePath.GetFilePath(), resultDict);
+            }
+            return ionMobilities != null;
         }
 
 
@@ -2059,7 +2234,9 @@ namespace pwiz.Skyline.Model.DocSettings
                                       // Keep the libraries array in synch, reloading all libraries, if necessary.
                                       // CONSIDER: Loop checking name matching?
                                       if (im.Libraries.Count != prop.Count)
+                                      {
                                           im.Libraries = new Library[prop.Count];
+                                      }
                                   });
         }        
 
@@ -2092,11 +2269,12 @@ namespace pwiz.Skyline.Model.DocSettings
 
         public PeptideLibraries Disconnect()
         {
-            var libClone = ImClone(this);
-            libClone._disconnectedLibraries = _libraries;
-            libClone.Libraries = new Library[0];
-            libClone.LibrarySpecs = new LibrarySpec[0];
-            return libClone;
+            return ChangeProp(ImClone(this), im =>
+            {
+                im._disconnectedLibraries = _libraries;
+                im.Libraries = new Library[0];
+                im.LibrarySpecs = new LibrarySpec[0];
+            });
         }
 
         public delegate string FindLibrary(string libraryName, string fileName);
@@ -2206,6 +2384,10 @@ namespace pwiz.Skyline.Model.DocSettings
                 return;
             }
 
+            // In case library specs got disconnected
+            if (!LibrarySpecs.Any())
+                return;
+
             // Look for the rank ID in the specified LibrarySpecs.
             // They should all have it, or this is not a valid ranking.
             PeptideRankId idFound = null;
@@ -2293,22 +2475,26 @@ namespace pwiz.Skyline.Model.DocSettings
         // Support for serializing multiple library types
         private static readonly IXmlElementHelper<Library>[] LIBRARY_HELPERS =
         {
-            new XmlElementHelperSuper<BiblioSpecLibrary, Library>(),                 
+            new XmlElementHelperSuper<BiblioSpecLibrary, Library>(),
             new XmlElementHelperSuper<BiblioSpecLiteLibrary, Library>(),
             new XmlElementHelperSuper<ChromatogramLibrary, Library>(),
-            new XmlElementHelperSuper<XHunterLibrary, Library>(),                 
+            new XmlElementHelperSuper<XHunterLibrary, Library>(),
             new XmlElementHelperSuper<NistLibrary, Library>(),
             new XmlElementHelperSuper<SpectrastLibrary, Library>(),
+            new XmlElementHelperSuper<MidasLibrary, Library>(),
+            new XmlElementHelperSuper<EncyclopeDiaLibrary,Library>()
         };
 
         private static readonly IXmlElementHelper<LibrarySpec>[] LIBRARY_SPEC_HELPERS =
         {
-            new XmlElementHelperSuper<BiblioSpecLibSpec, LibrarySpec>(),                 
-            new XmlElementHelperSuper<BiblioSpecLiteSpec, LibrarySpec>(),                 
-            new XmlElementHelperSuper<ChromatogramLibrarySpec, LibrarySpec>(), 
-            new XmlElementHelperSuper<XHunterLibSpec, LibrarySpec>(),                 
-            new XmlElementHelperSuper<NistLibSpec, LibrarySpec>(),                 
-            new XmlElementHelperSuper<SpectrastSpec, LibrarySpec>(),                 
+            new XmlElementHelperSuper<BiblioSpecLibSpec, LibrarySpec>(),
+            new XmlElementHelperSuper<BiblioSpecLiteSpec, LibrarySpec>(),
+            new XmlElementHelperSuper<ChromatogramLibrarySpec, LibrarySpec>(),
+            new XmlElementHelperSuper<XHunterLibSpec, LibrarySpec>(),
+            new XmlElementHelperSuper<NistLibSpec, LibrarySpec>(),
+            new XmlElementHelperSuper<SpectrastSpec, LibrarySpec>(),
+            new XmlElementHelperSuper<MidasLibSpec, LibrarySpec>(), 
+            new XmlElementHelperSuper<EncyclopeDiaSpec,LibrarySpec>()
         };
 
         public static IXmlElementHelper<LibrarySpec>[] LibrarySpecXmlHelpers
@@ -2319,10 +2505,10 @@ namespace pwiz.Skyline.Model.DocSettings
         private static readonly IXmlElementHelper<SpectrumHeaderInfo>[] LIBRARY_HEADER_HELPERS =
         {
             new XmlElementHelperSuper<BiblioSpecSpectrumHeaderInfo, SpectrumHeaderInfo>(),
-            new XmlElementHelperSuper<ChromLibSpectrumHeaderInfo, SpectrumHeaderInfo>(), 
-            new XmlElementHelperSuper<XHunterSpectrumHeaderInfo, SpectrumHeaderInfo>(),                 
-            new XmlElementHelperSuper<NistSpectrumHeaderInfo, SpectrumHeaderInfo>(),                 
-            new XmlElementHelperSuper<SpectrastSpectrumHeaderInfo, SpectrumHeaderInfo>(),                 
+            new XmlElementHelperSuper<ChromLibSpectrumHeaderInfo, SpectrumHeaderInfo>(),
+            new XmlElementHelperSuper<XHunterSpectrumHeaderInfo, SpectrumHeaderInfo>(),
+            new XmlElementHelperSuper<NistSpectrumHeaderInfo, SpectrumHeaderInfo>(),
+            new XmlElementHelperSuper<SpectrastSpectrumHeaderInfo, SpectrumHeaderInfo>(),
         };
 
         public static IXmlElementHelper<SpectrumHeaderInfo>[] SpectrumHeaderXmlHelpers
@@ -2489,18 +2675,35 @@ namespace pwiz.Skyline.Model.DocSettings
     {
         public PeptideIntegration(PeakScoringModelSpec peakScoringModel)
         {
-            PeakScoringModel = peakScoringModel ?? new LegacyScoringModel(LegacyScoringModel.DEFAULT_NAME);
+            PeakScoringModel = peakScoringModel ?? LegacyScoringModel.DEFAULT_UNTRAINED_MODEL;
         }
 
+        public bool AutoTrain { get; private set; }
         public PeakScoringModelSpec PeakScoringModel { get; private set; }
         public bool IsSerializable { get { return PeakScoringModel.IsTrained; } }
         public MProphetResultsHandler ResultsHandler { get; private set; }
+
+        public static bool AutoTrainCompleted(SrmDocument current, SrmDocument previous)
+        {
+            if (current == null || previous == null)
+                return false;
+                    
+            var curIntegration = current.Settings.PeptideSettings.Integration;
+            var prevIntegration = previous.Settings.PeptideSettings.Integration;
+        
+            return !curIntegration.AutoTrain && !Equals(curIntegration.PeakScoringModel, LegacyScoringModel.DEFAULT_UNTRAINED_MODEL) && prevIntegration.AutoTrain;
+        }
 
         #region Property change methods
 
         public PeptideIntegration ChangePeakScoringModel(PeakScoringModelSpec prop)
         {
             return ChangeProp(ImClone(this), im => im.PeakScoringModel = prop);
+        }
+
+        public PeptideIntegration ChangeAutoTrain(bool prop)
+        {
+            return ChangeProp(ImClone(this), im => im.AutoTrain = prop);
         }
 
         /// <summary>
@@ -2519,6 +2722,11 @@ namespace pwiz.Skyline.Model.DocSettings
         #endregion
 
         #region Implementation of IXmlSerializable
+
+        private enum ATTR
+        {
+            auto_train
+        }
 
         void IValidating.Validate()
         {
@@ -2543,6 +2751,8 @@ namespace pwiz.Skyline.Model.DocSettings
 
         public void ReadXml(XmlReader reader)
         {
+            AutoTrain = reader.GetBoolAttribute(ATTR.auto_train);
+
             // Consume tag
             if (reader.IsEmptyElement)
                 reader.Read();
@@ -2560,6 +2770,7 @@ namespace pwiz.Skyline.Model.DocSettings
         public void WriteXml(XmlWriter writer)
         {
             // Write child elements
+            writer.WriteAttribute(ATTR.auto_train, AutoTrain);
             if (IsSerializable)
             {
                 var helper = XmlUtil.FindHelper(PeakScoringModel, PEAK_SCORING_MODEL_SPEC_HELPERS);
@@ -2573,24 +2784,25 @@ namespace pwiz.Skyline.Model.DocSettings
 
         #region object overrides
 
-        public bool Equals(PeptideIntegration other)
+        private bool Equals(PeptideIntegration other)
         {
-            if (ReferenceEquals(null, other)) return false;
-            if (ReferenceEquals(this, other)) return true;
-            return Equals(other.PeakScoringModel, PeakScoringModel);
+            return AutoTrain == other.AutoTrain && Equals(PeakScoringModel, other.PeakScoringModel);
         }
 
         public override bool Equals(object obj)
         {
             if (ReferenceEquals(null, obj)) return false;
             if (ReferenceEquals(this, obj)) return true;
-            if (obj.GetType() != typeof (PeptideIntegration)) return false;
-            return Equals((PeptideIntegration) obj);
+            var other = obj as PeptideIntegration;
+            return other != null && Equals(other);
         }
 
         public override int GetHashCode()
         {
-            return PeakScoringModel.GetHashCode();
+            unchecked
+            {
+                return (AutoTrain.GetHashCode() * 397) ^ (PeakScoringModel != null ? PeakScoringModel.GetHashCode() : 0);
+            }
         }
 
         #endregion

@@ -21,7 +21,9 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
+using pwiz.Common.Chemistry;
 using pwiz.ProteowizardWrapper;
+using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Properties;
 
 namespace pwiz.Skyline.Model.Results
@@ -30,13 +32,12 @@ namespace pwiz.Skyline.Model.Results
     {
         public string Name;
         public ChromSource Source;
-        public int[][] ScanIndexes;
+        public TimeIntensities TimeIntensities;
         public Color Color;
-        public double PrecursorMz;
-        public double ProductMz;
+        public SignedMz PrecursorMz;
+        public SignedMz ProductMz;
         public double? ExtractionWidth;
-        public double? IonMobilityValue;
-        public double? IonMobilityExtractionWidth;
+        public IonMobilityFilter _ionMobilityInfo;
         public Identity Id;  // ID of the associated TransitionDocNode
     }
 
@@ -45,9 +46,12 @@ namespace pwiz.Skyline.Model.Results
         string DocFilePath { get; }
         MsDataFileUri DataFilePath { get; }
         ChromSource Source { get; }
-        float[] Times { get; }
+        IList<float> Times { get; }
         TransitionFullScanInfo[] Transitions { get; }
-        MsDataSpectrum[] GetMsDataFileSpectraWithCommonRetentionTime(int dataFileSpectrumStartIndex); // Return a collection of consecutive scans with common retention time and increasing drift times (or a single scan if no drift info in file)
+        MsDataSpectrum[] GetMsDataFileSpectraWithCommonRetentionTime(int dataFileSpectrumStartIndex); // Return a collection of consecutive scans with common retention time and changing ion mobility (or a single scan if no drift info in file)
+        bool ProvidesCollisionalCrossSectionConverter { get; }
+        double? CCSFromIonMobility(IonMobilityValue ionMobilityValue, double mz, int charge); // Return a collisional cross section for this ion mobility value at this mz and charge, if reader supports this
+        eIonMobilityUnits IonMobilityUnits { get; } 
         bool Adopt(IScanProvider scanProvider);
     }
 
@@ -56,17 +60,37 @@ namespace pwiz.Skyline.Model.Results
         private MsDataFileImpl _dataFile;
         private MsDataFileScanIds _msDataFileScanIds; // Indexed container of MsDataFileImpl ids
         private Func<MsDataFileScanIds> _getMsDataFileScanIds;
+        private WeakReference<MeasuredResults> _measuredResultsReference;
 
         public ScanProvider(string docFilePath, MsDataFileUri dataFilePath, ChromSource source,
-            float[] times, TransitionFullScanInfo[] transitions, Func<MsDataFileScanIds> getMsDataFileScanIds)
+            IList<float> times, TransitionFullScanInfo[] transitions, MeasuredResults measuredResults, Func<MsDataFileScanIds> getMsDataFileScanIds)
         {
             DocFilePath = docFilePath;
             DataFilePath = dataFilePath;
             Source = source;
             Times = times;
             Transitions = transitions;
-
+            _measuredResultsReference = new WeakReference<MeasuredResults>(measuredResults);
             _getMsDataFileScanIds = getMsDataFileScanIds;
+        }
+
+        public bool ProvidesCollisionalCrossSectionConverter { get { return _dataFile != null && _dataFile.ProvidesCollisionalCrossSectionConverter; } }
+
+        public double? CCSFromIonMobility(IonMobilityValue ionMobilityValue, double mz, int charge)
+        {
+            if (_dataFile == null)
+                return null;
+            return _dataFile.CCSFromIonMobilityValue(ionMobilityValue, mz, charge);
+        }
+
+        public eIonMobilityUnits IonMobilityUnits
+        {
+            get
+            {
+                if (_dataFile == null)
+                    return eIonMobilityUnits.none;
+                return _dataFile.IonMobilityUnits;
+            }
         }
 
         public bool Adopt(IScanProvider other)
@@ -76,6 +100,16 @@ namespace pwiz.Skyline.Model.Results
             var scanProvider = other as ScanProvider;
             if (scanProvider == null)
                 return false;
+            MeasuredResults thisMeasuredResults, otherMeasuredResults;
+            if (!_measuredResultsReference.TryGetTarget(out thisMeasuredResults) ||
+                !scanProvider._measuredResultsReference.TryGetTarget(out otherMeasuredResults))
+            {
+                return false;
+            }
+            if (!ReferenceEquals(thisMeasuredResults, otherMeasuredResults))
+            {
+                return false;
+            }
             _dataFile = scanProvider._dataFile;
             _msDataFileScanIds = scanProvider._msDataFileScanIds;
             _getMsDataFileScanIds = scanProvider._getMsDataFileScanIds;
@@ -86,14 +120,14 @@ namespace pwiz.Skyline.Model.Results
         public string DocFilePath { get; private set; }
         public MsDataFileUri DataFilePath { get; private set; }
         public ChromSource Source { get; private set; }
-        public float[] Times { get; private set; }
+        public IList<float> Times { get; private set; }
         public TransitionFullScanInfo[] Transitions { get; private set; }
 
         /// <summary>
-        /// Retrieve a run of raw spectra with common retention time and increasing drift times, or a single raw spectrum if no drift info
+        /// Retrieve a run of raw spectra with common retention time and changing ion mobility, or a single raw spectrum if no drift info
         /// </summary>
         /// <param name="internalScanIndex">an index in pwiz.Skyline.Model.Results space</param>
-        /// <returns>Array of spectra with the same retention time (potentially different drift times for IMS, or just one spectrum)</returns>
+        /// <returns>Array of spectra with the same retention time (potentially different ion mobility values for IMS, or just one spectrum)</returns>
         public MsDataSpectrum[] GetMsDataFileSpectraWithCommonRetentionTime(int internalScanIndex)
         {
             var spectra = new List<MsDataSpectrum>();
@@ -113,14 +147,14 @@ namespace pwiz.Skyline.Model.Results
             }
             var currentSpectrum = GetDataFile().GetSpectrum(dataFileSpectrumStartIndex);
             spectra.Add(currentSpectrum);
-            if (currentSpectrum.DriftTimeMsec.HasValue)
+            if (currentSpectrum.IonMobility.HasValue)
             {
-                // Look for spectra with identical retention time and increasing drift time
+                // Look for spectra with identical retention time and changing ion mobility values
                 while (true)
                 {
                     dataFileSpectrumStartIndex++;
                     var nextSpectrum = GetDataFile().GetSpectrum(dataFileSpectrumStartIndex);
-                    if (!nextSpectrum.DriftTimeMsec.HasValue ||
+                    if (!nextSpectrum.IonMobility.HasValue ||
                         nextSpectrum.RetentionTime != currentSpectrum.RetentionTime)
                     {
                         break;
@@ -136,16 +170,27 @@ namespace pwiz.Skyline.Model.Results
         {
             if (_dataFile == null)
             {
-                string dataFilePath = FindDataFilePath();
-                var lockMassParameters = DataFilePath.GetLockMassParameters();
-                if (dataFilePath == null)
-                    throw new FileNotFoundException(string.Format(Resources.ScanProvider_GetScans_The_data_file__0__could_not_be_found__either_at_its_original_location_or_in_the_document_or_document_parent_folder_, DataFilePath));
-                int sampleIndex = SampleHelp.GetPathSampleIndexPart(dataFilePath);
-                if (sampleIndex == -1)
-                    sampleIndex = 0;
-                // Full-scan extraction always uses SIM as spectra
-                _dataFile = new MsDataFileImpl(dataFilePath, sampleIndex, lockMassParameters, true, 
-                    requireVendorCentroidedMS1: DataFilePath.GetCentroidMs1(), requireVendorCentroidedMS2: DataFilePath.GetCentroidMs2());
+                if (DataFilePath is MsDataFilePath)
+                {
+                    string dataFilePath = FindDataFilePath();
+                    var lockMassParameters = DataFilePath.GetLockMassParameters();
+                    if (dataFilePath == null)
+                        throw new FileNotFoundException(string.Format(
+                            Resources
+                                .ScanProvider_GetScans_The_data_file__0__could_not_be_found__either_at_its_original_location_or_in_the_document_or_document_parent_folder_,
+                            DataFilePath));
+                    int sampleIndex = SampleHelp.GetPathSampleIndexPart(dataFilePath);
+                    if (sampleIndex == -1)
+                        sampleIndex = 0;
+                    // Full-scan extraction always uses SIM as spectra
+                    _dataFile = new MsDataFileImpl(dataFilePath, sampleIndex, lockMassParameters, true,
+                        requireVendorCentroidedMS1: DataFilePath.GetCentroidMs1(),
+                        requireVendorCentroidedMS2: DataFilePath.GetCentroidMs2());
+                }
+                else
+                {
+                    _dataFile = DataFilePath.OpenMsDataFile(true, 0);
+                }
             }
             return _dataFile;
         }
@@ -161,6 +206,7 @@ namespace pwiz.Skyline.Model.Results
             
             if (File.Exists(dataFilePath) || Directory.Exists(dataFilePath))
                 return dataFilePath;
+            // ReSharper disable ConstantNullCoalescingCondition
             string fileName = Path.GetFileName(dataFilePath) ?? string.Empty;
             string docDir = Path.GetDirectoryName(DocFilePath) ?? Directory.GetCurrentDirectory();
             dataFilePath = Path.Combine(docDir,  fileName);
@@ -168,6 +214,7 @@ namespace pwiz.Skyline.Model.Results
                 return dataFilePath;
             string docParentDir = Path.GetDirectoryName(docDir) ?? Directory.GetCurrentDirectory();
             dataFilePath = Path.Combine(docParentDir, fileName);
+            // ReSharper restore ConstantNullCoalescingCondition
             if (File.Exists(dataFilePath) || Directory.Exists(dataFilePath))
                 return dataFilePath;
             if (!string.IsNullOrEmpty(Program.ExtraRawFileSearchFolder))

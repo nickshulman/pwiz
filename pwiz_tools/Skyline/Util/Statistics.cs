@@ -46,7 +46,7 @@ namespace pwiz.Skyline.Util
             return ordered;
         }
 
-        private double[] CopyList()
+        public double[] CopyList()
         {
             var listCopy = new double[_list.Length];
             _list.CopyTo(listCopy, 0);
@@ -366,7 +366,7 @@ namespace pwiz.Skyline.Util
         }
 
         /// <summary>
-        /// Calculates the stadard deviation (sqrt(variance)) of the set
+        /// Calculates the standard deviation (sqrt(variance)) of the set
         /// of numbers.
         /// </summary>
         /// <returns>Standard deviation</returns>
@@ -376,7 +376,7 @@ namespace pwiz.Skyline.Util
         }
 
         /// <summary>
-        /// Calculates the stadard deviation (sqrt(variance)) of the set
+        /// Calculates the standard deviation (sqrt(variance)) of the set
         /// of numbers as a sample of an entire population.  Variance uses n-1.
         /// </summary>
         /// <returns>Standard deviation</returns>
@@ -386,7 +386,7 @@ namespace pwiz.Skyline.Util
         }
 
         /// <summary>
-        /// Calculates the stadard deviation (sqrt(variance)) of the set
+        /// Calculates the standard deviation (sqrt(variance)) of the set
         /// of numbers as an entire population.  Variance uses n.
         /// </summary>
         /// <returns>Standard deviation</returns>
@@ -396,7 +396,7 @@ namespace pwiz.Skyline.Util
         }
 
         /// <summary>
-        /// Calculates the stadard deviation (sqrt(variance)) of the set
+        /// Calculates the standard deviation (sqrt(variance)) of the set
         /// of numbers from a weighted mean.
         /// </summary>
         /// <param name="weights">The weights</param>
@@ -418,7 +418,7 @@ namespace pwiz.Skyline.Util
         /// The standard error of the set of numbers around a weighted mean.
         /// </summary>
         /// <param name="weights">The weights</param>
-        /// <returns>Stadard error around weighted mean</returns>
+        /// <returns>standard error around weighted mean</returns>
         public double StdErr(Statistics weights)
         {
             return StdDev(weights)/Math.Sqrt(_list.Length);
@@ -636,9 +636,15 @@ namespace pwiz.Skyline.Util
         {
             int i = Array.BinarySearch(ordered, value);
             if (i < 0)
-                i = ~i;
+                i = ~i; // First element larger or length if no element is larger
+            else
+            {
+                // Find the first matching element
+                while (i > 0 && ordered[i - 1] >= value)
+                    i--;
+            }
             int n = ordered.Length;
-            return ((double) i)/n;
+            return ((double) n - i)/n;
         }
 
         /// <summary>
@@ -1012,7 +1018,7 @@ namespace pwiz.Skyline.Util
         public static double ATerm3(Statistics y, Statistics x)
         {
             if (x.Length < 3)
-                throw new InvalidOperationException("Insufficient pairs of co-ordinates"); // Not L10N
+                throw new InvalidOperationException(@"Insufficient pairs of co-ordinates");
 
             //notation sjk to mean the sum of x_i^j*y_i^k. 
             double s40 = x._list.Sum(v => v*v*v*v); //sum of x^4
@@ -1058,7 +1064,7 @@ namespace pwiz.Skyline.Util
         public static double BTerm3(Statistics y, Statistics x)
         {
             if (x.Length < 3)
-                throw new InvalidOperationException("Insufficient pairs of co-ordinates"); // Not L10N
+                throw new InvalidOperationException(@"Insufficient pairs of co-ordinates");
 
             //notation sjk to mean the sum of x_i^j*y_i^k.
             double s40 = x._list.Sum(v => v*v*v*v); //sum of x^4
@@ -1104,7 +1110,7 @@ namespace pwiz.Skyline.Util
         public static double CTerm3(Statistics y, Statistics x)
         {
             if (x.Length < 3)
-                throw new InvalidOperationException("Insufficient pairs of co-ordinates"); // Not L10N
+                throw new InvalidOperationException(@"Insufficient pairs of co-ordinates");
 
             //notation sjk to mean the sum of x_i^j*y_i^k.
             double s40 = x._list.Sum(v => v*v*v*v); //sum of x^4
@@ -1292,11 +1298,15 @@ namespace pwiz.Skyline.Util
                 var list = CopyList();
                 double pos = (list.Length - 1) * p;
                 int j = (int)pos;
+                if (j >= list.Length)
+                    return double.NaN;
                 double value = QNthItem(list, j);
                 double g = pos - j;
                 if (g == 0)
                     return value;
                 double value2 = QNthItem(list, j + 1);
+                if (j + 1 >= list.Length)
+                    return double.NaN;
                 return (1 - g) * value + g * value2;
             }
             catch (Exception)
@@ -1353,20 +1363,6 @@ namespace pwiz.Skyline.Util
         }
 
         /// <summary>
-        /// Calculates the dot-product or cos(angle) between two vectors,
-        /// using the square roots of the values in the vectors.
-        /// </summary>
-        /// <param name="s">The other vector</param>
-        /// <returns>Dot-Product of square roots of values in vectors</returns>
-        public double AngleSqrt(Statistics s)
-        {
-            var stat1 = new Statistics(_list.Select(Math.Sqrt));
-            var stat2 = new Statistics(s._list.Select(Math.Sqrt));
-
-            return stat1.Angle(stat2);
-        }
-
-        /// <summary>
         /// Calculates the normalized contrast angle dot-product or 1 - angle/90 between two vectors,
         /// using the square roots of the values in the vectors.
         /// </summary>
@@ -1374,10 +1370,8 @@ namespace pwiz.Skyline.Util
         /// <returns>Normalized contrast angle dot-product of square roots of values in vectors</returns>
         public double NormalizedContrastAngleSqrt(Statistics s)
         {
-            var stat1 = new Statistics(_list.Select(Math.Sqrt));
-            var stat2 = new Statistics(s._list.Select(Math.Sqrt));
-
-            return stat1.NormalizedContrastAngle(stat2);
+            // Acos returns the angle in radians, where Pi == 180 degrees
+            return AngleToNormalizedContrastAngle(AngleSqrt(s));
         }
 
         /// <summary>
@@ -1440,6 +1434,42 @@ namespace pwiz.Skyline.Util
 
             // Rounding error can cause values slightly larger than 1.
             return Math.Min(1.0, sumCross/Math.Sqrt(sumLeft*sumRight));
+        }
+
+        /// <summary>
+        /// Calculates the dot-product or cos(angle) between the square roots of two vectors.
+        /// This was added because using new statistics objects to calculate the square roots
+        /// separately was showing up under a profiler in performance critical processing.
+        /// See:
+        /// http://en.wikipedia.org/wiki/Dot_product
+        /// </summary>
+        /// <param name="s">The other vector</param>
+        /// <returns>Dot-Product</returns>
+        public double AngleSqrt(Statistics s)
+        {
+            if (Length != s.Length)
+                return double.NaN;
+
+            double sumCross = 0;
+            double sumLeft = 0;
+            double sumRight = 0;
+
+            for (int i = 0, len = Length; i < len; i++)
+            {
+                double left = Math.Sqrt(_list[i]);
+                double right = Math.Sqrt(s._list[i]);
+
+                sumCross += left * right;
+                sumLeft += left * left;
+                sumRight += right * right;
+            }
+
+            // Avoid dividing by zero
+            if (sumLeft == 0 || sumRight == 0)
+                return sumLeft == 0 && sumRight == 0 ? 1 : 0;
+
+            // Rounding error can cause values slightly larger than 1.
+            return Math.Min(1.0, sumCross / Math.Sqrt(sumLeft * sumRight));
         }
 
         /// <summary>

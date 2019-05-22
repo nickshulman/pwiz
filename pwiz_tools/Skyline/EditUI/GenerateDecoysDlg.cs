@@ -22,13 +22,12 @@ using System.Windows.Forms;
 using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Controls;
 using pwiz.Skyline.Model;
-using pwiz.Skyline.Model.Results.Scoring;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
 
 namespace pwiz.Skyline.EditUI
 {
-    public partial class GenerateDecoysDlg : FormEx
+    public partial class GenerateDecoysDlg : ModeUIInvariantFormEx // This dialog is inherently proteomic, never wants the "peptide"->"molecule" translation
     {
         private readonly SrmDocument _document;
 
@@ -75,17 +74,17 @@ namespace pwiz.Skyline.EditUI
             if (!helper.ValidateNumberTextBox(textNumberOfDecoys, 0, null, out numDecoys))
                 return;
 
-            int numComparableGroups = _document.Peptides.SelectMany(PeakFeatureEnumerator.ComparableGroups).Count();
+            int numComparableGroups = RefinementSettings.SuggestDecoyCount(_document);
             if (numComparableGroups == 0)
             {
-                helper.ShowTextBoxError(textNumberOfDecoys, Resources.GenerateDecoysDlg_OkDialog_No_precursor_models_for_decoys_were_found_, null);
+                helper.ShowTextBoxError(textNumberOfDecoys, Resources.GenerateDecoysError_No_peptide_precursor_models_for_decoys_were_found_);
                 return;
             }
             if (!Equals(DecoysMethod, DecoyGeneration.SHUFFLE_SEQUENCE) && numComparableGroups < numDecoys)
             {
                 helper.ShowTextBoxError(textNumberOfDecoys,
-                                        Resources.GenerateDecoysDlg_OkDialog__0__must_be_less_than_the_number_of_precursor_models_for_decoys__or_use_the___1___decoy_generation_method_,
-                                        null, DecoyGeneration.SHUFFLE_SEQUENCE);
+                                        Resources.GenerateDecoysDlg_OkDialog_The_number_of_peptides__0__must_be_less_than_the_number_of_peptide_precursor_models_for_decoys__1___or_use_the___2___decoy_generation_method_,
+                                        null, numComparableGroups, DecoyGeneration.SHUFFLE_SEQUENCE);
                 return;
             }
 

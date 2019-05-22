@@ -21,8 +21,9 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
+using pwiz.Common.Chemistry;
 using pwiz.Common.SystemUtil;
-using pwiz.Skyline.Model.Results.RemoteApi;
+using pwiz.Skyline.Model.Results.RemoteApi.Chorus;
 using pwiz.Skyline.Properties;
 
 namespace pwiz.Skyline.Model.Results
@@ -34,13 +35,16 @@ namespace pwiz.Skyline.Model.Results
         private ChromatogramRequestProvider[] _chromatogramRequestProviders;
         private ChromTaskList[] _chromTaskLists;
 
-        public RemoteChromDataProvider(SrmDocument document, IRetentionTimePredictor retentionTimePredictor, ChromFileInfo chromFileInfo, ProgressStatus progressStatus, int startPercent,
+        private bool _sourceHasPositivePolarityData;
+        private bool _sourceHasNegativePolarityData;
+
+        public RemoteChromDataProvider(SrmDocument document, IRetentionTimePredictor retentionTimePredictor, ChromFileInfo chromFileInfo, IProgressStatus progressStatus, int startPercent,
             int endPercent, ILoadMonitor loader)
             : base(chromFileInfo, progressStatus, startPercent, endPercent, loader)
         {
             _document = document;
             ChorusUrl chorusUrl = (ChorusUrl)chromFileInfo.FilePath;
-            _chorusAccount = chorusUrl.FindChorusAccount(Settings.Default.ChorusAccountList);
+            _chorusAccount = chorusUrl.FindChorusAccount(Settings.Default.RemoteAccountList);
             var chromatogramRequestProviders = new List<ChromatogramRequestProvider>();
             foreach (bool firstPass in new[] {true, false})
             {
@@ -60,31 +64,25 @@ namespace pwiz.Skyline.Model.Results
             _chromTaskLists = new ChromTaskList[_chromatogramRequestProviders.Length];
         }
 
-        public override IEnumerable<KeyValuePair<ChromKey, int>> ChromIds
+        public override IEnumerable<ChromKeyProviderIdPair> ChromIds
         {
             get
             {
                 return _chromatogramRequestProviders.SelectMany(chromRequestProvider => chromRequestProvider.ChromKeys)
-                    .Select((key, index) => new KeyValuePair<ChromKey, int>(key, index));
+                    .Select((key, index) => new ChromKeyProviderIdPair(key, index));
             }
         }
 
         public override bool GetChromatogram(
             int id, 
-            string modifiedSequence,
+            Target modifiedSequence,
             Color peptideColor,
             out ChromExtra extra,
-            out float[] times, 
-            out int[] scanIndexes, 
-            out float[] intensities,
-            out float[] massErrors)
+            out TimeIntensities timeIntensities)
         {
             bool loaded = false;
             extra = null;
-            times = null;
-            scanIndexes = null;
-            intensities = null;
-            massErrors = null;
+            timeIntensities = null;
             int idRemain = id;
             for (int iTaskList = 0; iTaskList < _chromatogramRequestProviders.Length; iTaskList++)
             {
@@ -97,22 +95,31 @@ namespace pwiz.Skyline.Model.Results
                 ChromTaskList chromTaskList = _chromTaskLists[iTaskList];
                 if (null == chromTaskList)
                 {
-                    chromTaskList = _chromTaskLists[iTaskList] = new ChromTaskList(CheckCancelled, _document, _chorusAccount, requestProvider.ChorusUrl, ChromTaskList.ChunkChromatogramRequest(requestProvider.GetChromatogramRequest(), 100));
+                    chromTaskList = _chromTaskLists[iTaskList] = new ChromTaskList(CheckCancelled, _document, _chorusAccount, requestProvider.ChorusUrl, ChromTaskList.ChunkChromatogramRequest(requestProvider.GetChromatogramRequest(), 1000));
+                    chromTaskList.SetMinimumSimultaneousTasks(3);
                 }
                 ChromKey chromKey = requestProvider.ChromKeys[idRemain];
-                loaded = chromTaskList.GetChromatogram(chromKey, out times, out scanIndexes, out intensities, out massErrors);
+                loaded = chromTaskList.GetChromatogram(chromKey, out timeIntensities);
                 if (loaded)
                 {
                     extra = new ChromExtra(id, chromKey.Precursor == 0 ? 0 : -1);
-                    if (times.Length > 0)
+                    if (chromKey.Precursor.IsNegative)
                     {
-                        LoadingStatus.Transitions.AddTransition(
+                        _sourceHasNegativePolarityData = true;
+                    }
+                    else
+                    {
+                        _sourceHasPositivePolarityData = true;
+                    }
+                    if (timeIntensities.NumPoints > 0 && Status is ChromatogramLoadingStatus)
+                    {
+                        ((ChromatogramLoadingStatus)Status).Transitions.AddTransition(
                                 modifiedSequence,
                                 peptideColor,
                                 extra.StatusId,
                                 extra.StatusRank,
-                                times,
-                                intensities);
+                                timeIntensities.Times,
+                                timeIntensities.Intensities);
                     }
                 }
                 break;
@@ -130,6 +137,8 @@ namespace pwiz.Skyline.Model.Results
             get { return null; }
         }
 
+        public override eIonMobilityUnits IonMobilityUnits { get { return eIonMobilityUnits.none; } }
+
         public override double? MaxIntensity
         {
             get { return null; }
@@ -143,6 +152,16 @@ namespace pwiz.Skyline.Model.Results
         public override bool IsSingleMzMatch
         {
             get { return true; }
+        }
+
+        public override bool SourceHasPositivePolarityData
+        {
+            get { return _sourceHasPositivePolarityData; }
+        }
+
+        public override bool SourceHasNegativePolarityData
+        {
+            get { return _sourceHasNegativePolarityData; }
         }
 
         public override void ReleaseMemory()

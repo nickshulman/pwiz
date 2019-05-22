@@ -85,7 +85,7 @@ namespace pwiz.Common.SystemUtil
             if (parts.Count < 2)
                 return string.Empty;
 
-            int iElipsis = parts.IndexOf("..."); // Not L10N
+            int iElipsis = parts.IndexOf(@"...");
             int iStart = (iElipsis != -1 ? iElipsis : parts.Count - 2);
             int iRemove = iStart - 1;
             if (iRemove < 1)
@@ -105,8 +105,12 @@ namespace pwiz.Common.SystemUtil
         // user's personal directory (it's possible to relocate it under newer versions of Windows)
         public static string GetDownloadsPath()
         {
-            string path = null;
-            if (Environment.OSVersion.Version.Major >= 6)
+            string path = Environment.GetEnvironmentVariable(@"SKYLINE_DOWNLOAD_PATH");
+            if (path != null)
+            {
+                return path;
+            }
+            else if (Environment.OSVersion.Version.Major >= 6)
             {
                 IntPtr pathPtr;
                 int hr = SHGetKnownFolderPath(ref FolderDownloads, 0, IntPtr.Zero, out pathPtr);
@@ -118,14 +122,77 @@ namespace pwiz.Common.SystemUtil
                 }
             }
             path = Path.GetDirectoryName(Environment.GetFolderPath(Environment.SpecialFolder.Personal));
-            path = Path.Combine(path ?? String.Empty, "Downloads"); // Not L10N
+            if (string.IsNullOrEmpty(path)) // Keep multiple versions of ReSharper happy
+                path = string.Empty;
+            path = Path.Combine(path, @"Downloads");
             return path;
         }
 
-        private static Guid FolderDownloads = new Guid("374DE290-123F-4565-9164-39C4925E467B"); // Not L10N
-        [DllImport("shell32.dll", CharSet = CharSet.Auto)]  // Not L10N
+        private static Guid FolderDownloads = new Guid(@"374DE290-123F-4565-9164-39C4925E467B");
+        [DllImport(@"shell32.dll", CharSet = CharSet.Auto)]
         private static extern int SHGetKnownFolderPath(ref Guid id, int flags, IntPtr token, out IntPtr path);
 
+        /// <summary>
+        /// Wrapper around <see cref="Path.GetDirectoryName"/> which, if an error occurs, adds
+        /// the path to the exception message.
+        /// Eventually, this method might catch the exception and try to return something reasonable,
+        /// but, for now, we are trying to figure out the source of invalid paths.
+        /// </summary>
+        public static String GetDirectoryName(String path)
+        {
+            try
+            {
+                return Path.GetDirectoryName(path);
+            }
+            catch (ArgumentException e)
+            {
+                throw AddPathToArgumentException(e, path);
+            }
+        }
 
+        private static ArgumentException AddPathToArgumentException(ArgumentException argumentException, string path)
+        {
+            string messageWithPath = string.Join(Environment.NewLine, argumentException.Message, path);
+            return new ArgumentException(messageWithPath, argumentException);
+        }
+
+        /// <summary>
+        /// Given a path to an anchor file and a path where another file used to exist, the function
+        /// tests for existence of the file in the same folder as the anchor and two parent folders up.
+        /// </summary>
+        /// <param name="relativeFilePath">Path to the anchor file</param>
+        /// <param name="findFilePath">Outdated path to the file to find</param>
+        /// <returns>The path to the file, if it exists, or null if it is not found</returns>
+        public static string FindExistingRelativeFile(string relativeFilePath, string findFilePath)
+        {
+            string fileName = Path.GetFileName(findFilePath);
+            string searchDir = Path.GetDirectoryName(relativeFilePath);
+            // Look in document directory and two parent directories up
+            for (int i = 0; i <= 2; i++)
+            {
+                string filePath = Path.Combine(searchDir ?? string.Empty, fileName ?? string.Empty);
+                if (File.Exists(filePath))
+                    return filePath;
+                // Look in parent directory
+                searchDir = Path.GetDirectoryName(searchDir);
+                // Stop if the root directory was checked last
+                if (searchDir == null)
+                    break;
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// If the path starts with the prefix, then skip over the prefix; 
+        /// otherwise, return the original path.
+        /// </summary>
+        public static string RemovePrefix(string path, string prefix)
+        {
+            if (path.StartsWith(prefix))
+            {
+                return path.Substring(prefix.Length);
+            }
+            return path;
+        }
     }
 }

@@ -21,11 +21,9 @@ using System;
 using System.Data.Common;
 using System.IO;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using pwiz.Common.SystemUtil;
 using pwiz.ProteomeDatabase.API;
 using pwiz.ProteomeDatabase.Fasta;
-using pwiz.Skyline.Model.DocSettings;
-using pwiz.Skyline.Model.Proteome;
-using pwiz.Skyline.Properties;
 using pwiz.SkylineTestUtil;
 
 namespace pwiz.SkylineTest.Proteome
@@ -51,23 +49,17 @@ namespace pwiz.SkylineTest.Proteome
 
                 using (ProteomeDb proteomeDb = ProteomeDb.CreateProteomeDb(protDbPath))
                 {
-                    Enzyme trypsin = EnzymeList.GetDefault();
+                    IProgressStatus status = new ProgressStatus(string.Empty);
                     using (var reader = new StreamReader(fastaPath))
                     {
-                        proteomeDb.AddFastaFile(reader, (msg, progress) => true);
+                        proteomeDb.AddFastaFile(reader, new SilentProgressMonitor(), ref status, true); // Delay indexing
                     }
                     // perform digestion
-                    proteomeDb.Digest(new ProteaseImpl(trypsin), (msg, progress) => true); 
-                    Digestion digestion = proteomeDb.GetDigestion(trypsin.Name);
-                    var digestedProteins0 = digestion.GetProteinsWithSequencePrefix("EDGWVK", 100);
+                    Digestion digestion = proteomeDb.GetDigestion();
+                    var digestedProteins0 = digestion.GetProteinsWithSequence("EDGWVK");
                     Assert.IsTrue(digestedProteins0.Count >= 1);
                 }
             }
-        }
-
-        private bool Progress(string taskname, int progress)
-        {
-            return true;
         }
 
         /// <summary>
@@ -113,7 +105,10 @@ namespace pwiz.SkylineTest.Proteome
                     Assert.IsTrue(String.IsNullOrEmpty(protein.Accession)); // old db won't have this populated
 
                     WebEnabledFastaImporter searcher = new WebEnabledFastaImporter(doActualWebAccess ? null :new WebEnabledFastaImporter.FakeWebSearchProvider());
-                    Assert.IsTrue(proteomeDb.LookupProteinMetadata(Progress, searcher)); // add any missing protein metadata
+                    bool searchComplete;
+                    IProgressStatus status = new ProgressStatus(string.Empty);
+                    Assert.IsTrue(proteomeDb.LookupProteinMetadata(new SilentProgressMonitor(), ref status, searcher, false, out searchComplete)); // add any missing protein metadata
+                    Assert.IsTrue(searchComplete);
 
                     protein = proteomeDb.GetProteinByName("Y18D10A.20");
                     Assert.IsNotNull(protein);
@@ -122,7 +117,7 @@ namespace pwiz.SkylineTest.Proteome
 
                     using (var reader = new StreamReader(fastaPath))
                     {
-                        proteomeDb.AddFastaFile(reader, (msg, progress) => true);
+                        proteomeDb.AddFastaFile(reader, new SilentProgressMonitor(), ref status, false);
                     }
                     // the act of writing should update to the current version
                     Assert.AreEqual(ProteomeDb.SCHEMA_VERSION_MAJOR_CURRENT, proteomeDb.GetSchemaVersionMajor());
@@ -130,20 +125,22 @@ namespace pwiz.SkylineTest.Proteome
                     Assert.AreEqual(19, proteomeDb.GetProteinCount());
 
                     // check for propery processed protein metadata
-                    Assert.IsTrue(proteomeDb.LookupProteinMetadata(Progress,searcher));
+                    Assert.IsTrue(proteomeDb.LookupProteinMetadata(new SilentProgressMonitor(), ref status, searcher, false, out searchComplete));
+                    Assert.IsTrue(searchComplete);
                     protein = proteomeDb.GetProteinByName("IPI00000044");
                     Assert.IsNotNull(protein);
                     Assert.AreEqual("P01127", protein.Accession); // We get this offline with our ipi->uniprot mapper
                     if (doActualWebAccess) 
                         Assert.AreEqual("PDGFB_HUMAN", protein.PreferredName); // But this we get only with web access
 
-
-                    // TODO: bspratt fix this - GetDigestion has no notion of a Db that has been added to, doesn't digest the new proteins and returns immediately (issue #304)
-                    // Enzyme trypsin = EnzymeList.GetDefault();
-                    //proteomeDb.Digest(new ProteaseImpl(trypsin), (msg, progress) => true);
-                    //Digestion digestion = proteomeDb.GetDigestion(trypsin.Name);
-                    //var digestedProteins0 = digestion.GetProteinsWithSequencePrefix("EDGWVK", 100);
-                    //Assert.IsTrue(digestedProteins0.Count >= 1);
+/*
+                    // TODO(bspratt): fix  "GetDigestion has no notion of a Db that has been added to, doesn't digest the new proteins and returns immediately (issue #304)"
+                    Enzyme trypsin = EnzymeList.GetDefault();
+                    proteomeDb.Digest(trypsin,  new SilentProgressMonitor());
+                    Digestion digestion = proteomeDb.GetDigestion(trypsin.Name);
+                    var digestedProteins0 = digestion.GetProteinsWithSequencePrefix("EDGWVK", 100);
+                    Assert.IsTrue(digestedProteins0.Count >= 1);
+ * */
                 }
             }
         }

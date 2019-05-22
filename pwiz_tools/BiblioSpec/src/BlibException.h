@@ -27,13 +27,16 @@
  * decide what to add to the string.
  */
 
+#include <cstdarg>
+#include <cstdio>
 #include <exception>
+#include <string>
 
 namespace BiblioSpec{
 
-    class BlibException : public exception{
+    class BlibException : public std::exception{
     protected:
-        string msgStr_;
+        std::string msgStr_;
         bool hasFilename_;
         
     public:

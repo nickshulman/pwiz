@@ -24,6 +24,7 @@ using System.Xml;
 using System.Xml.Schema;
 using System.Xml.Serialization;
 using pwiz.Common.SystemUtil;
+using pwiz.Skyline.Model.Serialization;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
 
@@ -88,6 +89,7 @@ namespace pwiz.Skyline.Model.DocSettings
             Validate();
         }
 
+        [Track]
         public string Formula
         {
             get { return _formula; }
@@ -96,20 +98,23 @@ namespace pwiz.Skyline.Model.DocSettings
                 _formula = value;
                 if (_formula != null)
                 {
-                    MonoisotopicMass = SequenceMassCalc.ParseModMass(BioMassCalc.MONOISOTOPIC, Formula);
-                    AverageMass = SequenceMassCalc.ParseModMass(BioMassCalc.AVERAGE, Formula);
+                    MonoisotopicMass = SequenceMassCalc.FormulaMass(BioMassCalc.MONOISOTOPIC, Formula, SequenceMassCalc.MassPrecision);
+                    AverageMass = SequenceMassCalc.FormulaMass(BioMassCalc.AVERAGE, Formula, SequenceMassCalc.MassPrecision);
                 }
             }
         }
 
+        [Track]
         public double MonoisotopicMass { get; private set; }
+        [Track]
         public double AverageMass { get; private set; }
 
         public double GetMass(MassType massType)
         {
-            return massType == MassType.Monoisotopic ? MonoisotopicMass : AverageMass;
+            return massType.IsMonoisotopic() ? MonoisotopicMass : AverageMass;
         }
 
+        [Track]
         public LossInclusion Inclusion { get; private set; }
 
         /// <summary>
@@ -156,7 +161,7 @@ namespace pwiz.Skyline.Model.DocSettings
         {
             if (MonoisotopicMass == 0 || AverageMass == 0)
                 throw new InvalidDataException(Resources.FragmentLoss_Validate_Neutral_losses_must_specify_a_formula_or_valid_monoisotopic_and_average_masses);
-            if (MonoisotopicMass <= MIN_LOSS_MASS || AverageMass <= MIN_LOSS_MASS)
+            if (MonoisotopicMass < MIN_LOSS_MASS || AverageMass < MIN_LOSS_MASS)
                 throw new InvalidDataException(string.Format(Resources.FragmentLoss_Validate_Neutral_losses_must_be_greater_than_or_equal_to__0__,MIN_LOSS_MASS));
             if (MonoisotopicMass > MAX_LOSS_MASS || AverageMass > MAX_LOSS_MASS)
                 throw new InvalidDataException(string.Format(Resources.FragmentLoss_Validate_Neutral_losses_must_be_less_than_or_equal_to__0__, MAX_LOSS_MASS));
@@ -196,6 +201,17 @@ namespace pwiz.Skyline.Model.DocSettings
         }
 
         #endregion
+
+        public SkylineDocumentProto.Types.TransitionLoss ToLossProto()
+        {
+            return new SkylineDocumentProto.Types.TransitionLoss()
+            {
+                Formula = Formula,
+                MonoisotopicMass = MonoisotopicMass,
+                AverageMass = AverageMass,
+                LossInclusion = DataValues.ToLossInclusion(Inclusion)
+            };
+        }
 
         #region object overrides
 
@@ -237,8 +253,8 @@ namespace pwiz.Skyline.Model.DocSettings
         public string ToString(MassType massType)
         {
             return Formula != null ?
-                string.Format("{0:F04} - {1}", GetMass(massType), Formula) : // Not L10N
-                string.Format("{0:F04}", GetMass(massType)); // Not L10N
+                string.Format(@"{0:F04} - {1}", GetMass(massType), Formula) :
+                string.Format(@"{0:F04}", GetMass(massType));
         }
 
         #endregion
@@ -321,6 +337,50 @@ namespace pwiz.Skyline.Model.DocSettings
         {
             return (from loss in Losses
                     select loss.Loss.ToString(MassType)).ToArray();
+        }
+
+        public static TransitionLosses FromLossProtos(SrmSettings settings,
+            IEnumerable<SkylineDocumentProto.Types.TransitionLoss> lossProtos)
+        {
+            var staticMods = settings.PeptideSettings.Modifications.StaticModifications;
+            MassType massType = settings.TransitionSettings.Prediction.FragmentMassType;
+
+            var listLosses = new List<TransitionLoss>();
+            foreach (var loss in lossProtos)
+            {
+                String nameMod = loss.ModificationName;
+                if (string.IsNullOrEmpty(nameMod))
+                {
+                    listLosses.Add(new TransitionLoss(null,
+                        new FragmentLoss(loss.Formula, loss.MonoisotopicMass,
+                            loss.AverageMass, DataValues.FromLossInclusion(loss.LossInclusion)),
+                        massType));
+                }
+                else
+                {
+                    int indexLoss = loss.LossIndex;
+                    int indexMod = staticMods.IndexOf(mod => Equals(nameMod, mod.Name));
+                    if (indexMod == -1)
+                    {
+                        throw new InvalidDataException(
+                            string.Format(Resources.TransitionInfo_ReadTransitionLosses_No_modification_named__0__was_found_in_this_document,
+                                          nameMod));
+                    }
+                    StaticMod modLoss = staticMods[indexMod];
+                    if (!modLoss.HasLoss || indexLoss >= modLoss.Losses.Count)
+                    {
+                        throw new InvalidDataException(
+                            string.Format(Resources.TransitionInfo_ReadTransitionLosses_Invalid_loss_index__0__for_modification__1__,
+                                          indexLoss, nameMod));
+                    }
+                    listLosses.Add(new TransitionLoss(modLoss, modLoss.Losses[indexLoss], massType));
+                }
+            }
+            if (listLosses.Any())
+            {
+                return new TransitionLosses(listLosses, massType);
+            }
+            return null;
         }
     }
 

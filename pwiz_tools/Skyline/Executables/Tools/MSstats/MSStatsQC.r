@@ -27,28 +27,31 @@ runQC <- function() {
 	cat("\n ** Reading the data for MSstats..... \n")
 
 	raw <- read.csv(arguments[1])
-
-	## remove the rows for iRT peptides
-	raw <- raw[is.na(raw$StandardType) | raw$StandardType != "iRT", ]
-
-	## get standard protein name from StandardType column
-	standardpepname <- ""
-	if(sum(unique(raw$StandardType) %in% "Normalization") !=0 ){
-		standardpepname <- as.character(unique(raw[raw$StandardType == "Normalization", "PeptideModifiedSequence"]))
+	
+	colnames(raw)[colnames(raw) == 'Detection.Q.Value'] <- 'DetectionQValue'
+	if(!is.element(c('DetectionQValue'), colnames(raw)) || all(is.na(as.numeric(as.character(raw$DetectionQValue))))) {
+	    filter.qvalue <- FALSE
+	} else {
+	    filter.qvalue <- TRUE
 	}
 
-	## change column name as Intensity
-	colnames(raw)[colnames(raw) == "Area"] <- "Intensity"
-	raw$Intensity <- as.character(raw$Intensity)
-	raw$Intensity <- as.numeric(raw$Intensity)
+	## remove the rows for iRT peptides
+	raw <- SkylinetoMSstatsFormat(raw,
+	                              removeProtein_with1Feature = TRUE,
+	                              filter_with_Qvalue = filter.qvalue)
 
-	## change column name 'FileName' as Run
-	colnames(raw)[colnames(raw) == "FileName"] <- "Run"
-
+	## get standard protein name from StandardType column
+	## select 'global standard' but, after process, it becomes Normalization??
+	standardpepname <- ""
+	if(sum(unique(raw$StandardType) %in% c("Normalization", "Global Standard")) !=0 ){
+		standardpepname <- as.character(unique(raw[raw$StandardType %in% c("Normalization", "Global Standard"), "PeptideSequence"]))
+	}
+  
 	## check result grid missing or not
 	countna<-apply(raw, 2, function(x) sum(is.na(x) | x == ""))
 	naname<-names(countna[countna != 0])
-	naname<-naname[-which(naname %in% c("StandardType", "Intensity", "Truncated"))]
+	naname<-naname[-which(naname %in% c("StandardType", "Intensity", "Truncated",
+	                                    "FragmentIon", "ProductCharge"))]
 
 	if(length(naname) != 0){
 		stop(message(paste("Some ", paste(naname, collapse=", "), " have no value. Please check \"Result Grid\" in View. \n", sep="")))
@@ -94,12 +97,25 @@ runQC <- function() {
 	
 	
 	if (optionfeatureselection == "TRUE") { 
-		input_feature_selection <- "highQuality_Significance" 
+		input_feature_selection <- "highQuality" 
 	} else { 
 		input_feature_selection <- "all" 
 	}
 
-	quantData <- try(dataProcess(raw, normalization=inputnormalize, nameStandards=standardpepname,  fillIncompleteRows=(inputmissingpeaks=="TRUE"), featureSubset=input_feature_selection, summaryMethod = "TMP", censoredInt="0", skylineReport=TRUE))
+	## Nick, here for new option for 'allow...'
+	## remove proteins with interference cbox
+	
+	inputremoveproteins <- arguments[5]
+
+
+	quantData <- try(dataProcess(raw, 
+	                             normalization=inputnormalize, 
+	                             nameStandards=standardpepname,  
+	                             fillIncompleteRows=(inputmissingpeaks=="TRUE"), 
+	                             featureSubset=input_feature_selection, 
+	                             remove_noninformative_feature_outlier=(inputremoveproteins=="TRUE"), 
+	                             summaryMethod = "TMP", 
+	                             censoredInt="0"))
 
 	if (class(quantData) != "try-error") {
 
@@ -128,13 +144,17 @@ runQC <- function() {
 		cat("\n\n =======================================")
 		cat("\n ** Generating dataProcess Plots..... \n \n")
 
-		dataProcessPlots(data=quantData, type="ProfilePlot", address="", width=as.numeric(arguments[5]), height=as.numeric(arguments[6]))
+		dataProcessPlots(data=quantData, type="ProfilePlot", 
+		                 address="", width=as.numeric(arguments[6]), height=as.numeric(arguments[7]))
 		cat("\n Saved ProfilePlot.pdf \n \n")
 
-		dataProcessPlots(data=quantData, type="QCPlot", address="", width=as.numeric(arguments[5]), height=as.numeric(arguments[6]))
+		dataProcessPlots(data=quantData, type="QCPlot",
+		                 which.Protein = 'allonly',
+		                 address="", width=as.numeric(arguments[6]), height=as.numeric(arguments[7]))
 		cat("\n Saved QCPlot.pdf \n \n")
 
-		dataProcessPlots(data=quantData, type="ConditionPlot", address="")
+		dataProcessPlots(data=quantData, type="ConditionPlot", 
+		                 address="")
 		cat("\n Saved ConditionPlot.pdf \n ")
 	}
 }

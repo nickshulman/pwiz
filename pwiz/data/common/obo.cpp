@@ -226,7 +226,11 @@ void parse_xref(const string& line, Term& term)
 
     bxp::smatch what;
     if (!bxp::regex_match(line, what, e))
-        throw runtime_error("Error matching term xref on line: \"" + line + "\"");
+    {
+        static const bxp::sregex e2 = bxp::sregex::compile("xref:\\s*(\\S+?)\\s*");
+        if (!bxp::regex_match(line, what, e2))
+            throw runtime_error("Error matching term xref on line: \"" + line + "\"");
+    }
 
     term.propertyValues.insert(make_pair(unescape_copy(what[1]), unescape_copy(what[2])));
 }
@@ -300,15 +304,15 @@ void parseStanza(istream& is, OBO& obo)
         Term term = parseTerm(is);
 
         // validate prefix
-        if (obo.prefix.empty())
+        if (obo.prefixes.empty())
         {
-            obo.prefix = term.prefix;
+            obo.prefixes.insert(term.prefix);
         }
         else
         {
-            if (term.prefix != obo.prefix)
+            if (obo.prefixes.count(term.prefix) == 0)
                 throw runtime_error("[obo] Prefix mismatch: " +
-                                    obo.prefix + ", " + 
+                                    lexical_cast<string>(obo.prefixes) + ", " + 
                                     term.prefix + ":" + lexical_cast<string>(term.id));
         }
 
@@ -329,9 +333,16 @@ void parse(const string& filename, OBO& obo)
     if (!is)
         throw runtime_error(("[obo] Unable to open file " + filename).c_str());
 
+    auto namespaceRegex = bxp::sregex::compile("remark: namespace:\\s*(\\w+).*");
+    bxp::smatch what;
+
     // read header lines until blank line
-    for (string buffer; getcleanline(is,buffer) && !buffer.empty();)
-        obo.header.push_back(buffer);      
+    for (string buffer; getcleanline(is, buffer) && !buffer.empty();)
+    {
+        if (bxp::regex_match(buffer, what, namespaceRegex))
+            obo.prefixes.insert(what[1]);
+        obo.header.push_back(buffer);
+    }
 
     // parse stanzas to end of file
     while (is)

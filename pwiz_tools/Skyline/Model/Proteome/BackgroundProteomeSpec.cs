@@ -19,10 +19,12 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading;
 using System.Xml;
 using System.Xml.Serialization;
 using pwiz.Common.SystemUtil;
 using pwiz.ProteomeDatabase.API;
+using pwiz.Skyline.Model.AuditLog;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
 using pwiz.Skyline.Model.DocSettings;
@@ -51,6 +53,12 @@ namespace pwiz.Skyline.Model.Proteome
             database_path,
         }
 
+        [Track(defaultValues: typeof(DefaultValuesNull))]
+        public AuditLogPath DatabasePathAuditLog
+        {
+            get { return AuditLogPath.Create(DatabasePath); }
+        }
+        
         public string DatabasePath { get; private set; }
 
         public bool IsNone
@@ -61,6 +69,11 @@ namespace pwiz.Skyline.Model.Proteome
         public ProteomeDb OpenProteomeDb()
         {
             return ProteomeDb.OpenProteomeDb(DatabasePath);
+        }
+
+        public ProteomeDb OpenProteomeDb(CancellationToken cancellationToken)
+        {
+            return ProteomeDb.OpenProteomeDb(DatabasePath, cancellationToken);
         }
 
         public override void ReadXml(XmlReader reader)
@@ -92,20 +105,6 @@ namespace pwiz.Skyline.Model.Proteome
             return reader.Deserialize(new BackgroundProteomeSpec());
         }
 
-        public Digestion Digest(Enzyme enzyme, DigestSettings digestSettings, ILoadMonitor loader)
-        {
-            ProgressStatus progressStatus = new ProgressStatus(string.Format(Resources.BackgroundProteomeSpec_Digest_Digesting__0__, enzyme.Name));
-            using (var proteomeDb = OpenProteomeDb())
-            {
-                return proteomeDb.Digest(new ProteaseImpl(enzyme),
-                                            (s, i) =>
-                                            {
-                                                loader.UpdateProgress(progressStatus.ChangePercentComplete(i));
-                                                return !loader.IsCanceled;
-                                            });
-            }
-        }
-
         public FastaSequence GetFastaSequence(String proteinName)
         {
             ProteinMetadata metadata;
@@ -125,14 +124,19 @@ namespace pwiz.Skyline.Model.Proteome
                 {
                     return null;
                 }
-                List<ProteinMetadata> alternativeProteins = new List<ProteinMetadata>();
-                foreach (var alternativeName in protein.AlternativeNames)
-                {
-                    alternativeProteins.Add(alternativeName);
-                }
                 foundMetadata = protein.ProteinMetadata;
-                return new FastaSequence(protein.ProteinMetadata.Name, protein.ProteinMetadata.Description, alternativeProteins, protein.Sequence);
+                return MakeFastaSequence(protein);
             }
+        }
+
+        public FastaSequence MakeFastaSequence(Protein protein)
+        {
+            List<ProteinMetadata> alternativeProteins = new List<ProteinMetadata>();
+            foreach (var alternativeName in protein.AlternativeNames)
+            {
+                alternativeProteins.Add(alternativeName);
+            }
+            return new FastaSequence(protein.ProteinMetadata.Name, protein.ProteinMetadata.Description, alternativeProteins, protein.Sequence);
         }
 
         public override bool Equals(object obj)
@@ -160,37 +164,43 @@ namespace pwiz.Skyline.Model.Proteome
         }
     }
 
-    public class ProteaseImpl : IProtease
+    public class ProteaseImpl
     {
         private readonly Enzyme _enzyme;
         public ProteaseImpl(Enzyme enzyme)
         {
-            _enzyme = enzyme;
+            // Background proteome databases cannot yet deal with semi-cleaving enzymes
+            _enzyme = !enzyme.IsSemiCleaving ? enzyme : enzyme.ChangeSemiCleaving(false);
         }
 
-        public IEnumerable<DigestedPeptide> Digest(Protein protein)
+        public IEnumerable<DigestedPeptide> Digest(Protein protein, int maxMissedCleavages)
         {
-            if (string.IsNullOrEmpty(protein.Sequence))
+            return DigestSequence(protein.Sequence, maxMissedCleavages, null);
+        }
+
+        public IEnumerable<DigestedPeptide> DigestSequence(string proteinSequence, int maxMissedCleavages, int? maxPeptideSequenceLength)
+        {
+            if (string.IsNullOrEmpty(proteinSequence))
             {
                 yield break;
             }
             FastaSequence fastaSequence;
             try
             {
-                fastaSequence = new FastaSequence("name", "description", new List<ProteinMetadata>(), protein.Sequence); // Not L10N
+                fastaSequence = new FastaSequence(@"name", @"description", new List<ProteinMetadata>(), proteinSequence);
             }
             catch (InvalidDataException)
             {
                 // It's possible that the peptide sequence in the fasta file was bogus, in which case we just don't digest it.
                 yield break;
             }
-            DigestSettings digestSettings = new DigestSettings(6, false);
-            foreach (var digest in _enzyme.Digest(fastaSequence, digestSettings))
+            var digestSettings = new DigestSettings(maxMissedCleavages, false);
+            foreach (var digest in _enzyme.Digest(fastaSequence, digestSettings, maxPeptideSequenceLength))
             {
                 var digestedPeptide = new DigestedPeptide
                 {
                     Index = digest.Begin ?? 0,
-                    Sequence = digest.Sequence
+                    Sequence = digest.Target.Sequence
                 };
                 yield return digestedPeptide;
             }

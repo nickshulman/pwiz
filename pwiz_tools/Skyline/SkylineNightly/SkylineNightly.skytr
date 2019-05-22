@@ -4,9 +4,12 @@
   <nightlyRoot></nightlyRoot>
   <nightlyDuration>9</nightlyDuration>
   <nightlyBuildType>1</nightlyBuildType>
+  <nightlyRepeat>1</nightlyRepeat>
+  <nightlyRandomize>false</nightlyRandomize>
   <nightlyBuildTrunk>true</nightlyBuildTrunk>
   <nightlyRunPerfTests>false</nightlyRunPerfTests>
   <nightlyBranch>false</nightlyBranch>
+  <nightlyBranchUrl></nightlyBranchUrl>
   <nightlyExit>true</nightlyExit>
   <buildRoot></buildRoot>
 </SkylineTester>

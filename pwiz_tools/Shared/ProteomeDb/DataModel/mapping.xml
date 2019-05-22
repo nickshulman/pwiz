@@ -1,6 +1,5 @@
 ﻿<?xml version="1.0" encoding="utf-8" ?>
-<hibernate-mapping xmlns="urn:nhibernate-mapping-2.2"
-    namespace="pwiz.ProteomeDatabase.DataModel" assembly="ProteomeDb">
+<hibernate-mapping xmlns="urn:nhibernate-mapping-2.2">
   <class name="DbVersionInfo" table="ProteomeDbSchemaVersion">
     <id name="Id">
       <column name="Id" not-null="true"/>
@@ -8,41 +7,6 @@
     </id>
     <property name="SchemaVersionMajor"/>
     <property name="SchemaVersionMinor"/>
-  </class>
-  <class name="DbDigestedPeptide" table="ProteomeDbDigestedPeptide">
-    <id name="Id">
-      <column name="Id" not-null="true"/>
-      <generator class="native" />
-    </id>
-    <many-to-one name="Digestion" unique-key="DigestionSequence" not-null="true"/>
-    <property name="Sequence" unique-key="DigestionSequence" not-null="true"/>
-    <bag name="PeptideProteins">
-      <key column="Peptide"/>
-      <one-to-many class="DbDigestedPeptideProtein"/>
-    </bag>
-  </class>
-  <class name="DbDigestedPeptideProtein" table="ProteomeDbDigestedPeptideProtein">
-    <id name="Id">
-      <column name="Id" not-null="true"/>
-      <generator class="native" />
-    </id>
-    <many-to-one name="Peptide" unique-key="PeptideProtein" not-null="true"/>
-    <many-to-one name="Protein" unique-key="PeptideProtein" not-null="true"/>
-  </class>
-  <class name="DbDigestion" table="ProteomeDbDigestion">
-    <id name="Id">
-      <column name="Id" not-null="true"/>
-      <generator class="native" />
-    </id>
-    <version name="Version"/>
-    <property name="Name" unique="true" />
-    <property name="MinSequenceLength" />
-    <property name="MaxSequenceLength" />
-    <property name="Description" />
-    <bag name="Peptides">
-      <key column="Digestion"/>
-      <one-to-many class="DbDigestedPeptide"/>
-    </bag>
   </class>
   <class name="DbProtein" table="ProteomeDbProtein">
     <id name="Id">
@@ -81,5 +45,11 @@
     <many-to-one name="Protein" unique-key="ProteinAnnotation" />
     <property name="Name" unique-key="ProteinAnnotation"/>
     <property name="Value" />
+  </class>
+  <class name="DbSubsequence" table="ProteomeDbSubsequence">
+    <id name="Sequence">
+      <column name="Sequence"/>
+    </id>
+    <property name="ProteinIdBytes"/>
   </class>
 </hibernate-mapping>

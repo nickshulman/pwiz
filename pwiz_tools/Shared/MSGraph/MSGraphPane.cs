@@ -1,4 +1,4 @@
-//
+﻿//
 // $Id: MSGraphPane.cs 1599 2009-12-04 01:35:39Z brendanx $
 //
 //
@@ -277,7 +277,7 @@ namespace pwiz.MSGraph
 
 
             // some dummy labels for very fast clipping
-            string baseLabel = "0"; // Not L10N
+            string baseLabel = @"0";
             foreach( CurveItem item in CurveList )
             {
                 IMSGraphItemInfo info = item.Tag as IMSGraphItemInfo;
@@ -334,7 +334,8 @@ namespace pwiz.MSGraph
 
                 PointPairList fullList = points.FullList;
                 List<int> maxIndexList = points.ScaledMaxIndexList;
-                for( int i = 0; i < maxIndexList.Count; ++i )
+                var annotationsPrioritized = new Dictionary<PointAnnotation, int>();
+                for (int i = 0; i < maxIndexList.Count; ++i)
                 {
                     if( maxIndexList[i] < 0 )
                         continue;
@@ -351,10 +352,14 @@ namespace pwiz.MSGraph
                     if( xAxisPixel - yPixel < 3 )
                         continue;
 
-                    PointAnnotation annotation = info.AnnotatePoint( pt );
-                    if( annotation == null )
-                        continue;
+                    PointAnnotation annotation = info.AnnotatePoint(pt);
+                    if (annotation != null)
+                        annotationsPrioritized.Add(annotation, i);
+                }
 
+                // Give the higher ranked point priority
+                foreach (var annotation in annotationsPrioritized.Keys.OrderBy(a => a.ZOrder ?? int.MaxValue))
+                {
                     if( annotation.ExtraAnnotation != null )
                     {
                         GraphObjList.Add( annotation.ExtraAnnotation );
@@ -366,6 +371,9 @@ namespace pwiz.MSGraph
 
                     float pointLabelWidth = labelLengthToWidthRatio * annotation.Label.Split('\n').Max(o => o.Length);
 
+                    var i = annotationsPrioritized[annotation];
+                    PointPair pt = fullList[maxIndexList[i]];
+                    float yPixel = yAxis.Scale.Transform(pt.Y);
                     double labelY = yAxis.Scale.ReverseTransform(yPixel - 5);
 
                     if (!AllowCurveOverlap)
@@ -499,13 +507,20 @@ namespace pwiz.MSGraph
                         {
                             var rectID = _labelBoundsCache.GetLabelBounds(id, this, g);
 
-                            if (rectID.Left  < rectPeak.Right && rectID.Right > rectID.Left)
+                            // If the rectangles overlap
+                            if (Math.Min(rectID.Right, rectPeak.Right) - Math.Max(rectID.Left, rectPeak.Left) > 0 &&
+                                Math.Min(rectID.Bottom, rectPeak.Bottom) - Math.Max(rectID.Top, rectPeak.Top) > 0)
                             {
-                                pixelShift = Math.Max(rectID.Height, pixelShift);
+                                pixelShift = Math.Max(rectID.Height + 7, pixelShift);   // 7 pixel gap between labels
                             }
                         }
+                        double y2Pos = yAxis.Scale.ReverseTransform(pts[2].Y);
                         double labelHeight = 
-                            Math.Abs(yAxis.Scale.ReverseTransform(pts[0].Y - pixelShift) - yAxis.Scale.ReverseTransform(pts[2].Y));
+                            Math.Abs(yAxis.Scale.ReverseTransform(pts[0].Y - pixelShift) - y2Pos);
+                        // If separating the labels takes too much space, just revert to showing them aligned
+                        if (labelHeight >= axisHeight / 2)
+                            labelHeight = Math.Abs(yAxis.Scale.ReverseTransform(pts[0].Y) - y2Pos);
+
                         if (labelHeight < axisHeight / 2)
                         {
                             // Ensure that the YAxis will have enough space to show the label.
@@ -515,15 +530,15 @@ namespace pwiz.MSGraph
                             // When calculating the scaling required, take into account that the height of the label
                             // itself will not shrink when we shrink the YAxis.
                             var labelYMaxRequired = (text.Location.Y - labelHeight*YAxis.Scale.Min/axisHeight)/
-                                                    (1 - labelHeight/axisHeight) + pixelShift;
+                                                    (1 - labelHeight/axisHeight);
                             yMaxRequired = Math.Max(yMaxRequired, labelYMaxRequired);
                         }
                     }
 
                     if (!GraphObjList.Any(
                             o =>
-                                (o is TextObj) && (o as TextObj).Location == text.Location &&
-                                (o as TextObj).Text == text.Text))
+                                (o is TextObj) && ((TextObj) o).Location == text.Location &&
+                                ((TextObj) o).Text == text.Text))
                     {
                         if (_pointAnnotations.Contains(text))
                             GraphObjList.Add(text);

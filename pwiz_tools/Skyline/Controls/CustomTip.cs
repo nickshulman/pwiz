@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Original author: Brendan MacLean <brendanx .at. u.washington.edu>,
  *                  MacCoss Lab, Department of Genome Sciences, UW
  *
@@ -52,7 +52,8 @@ namespace pwiz.Skyline.Controls
 
 		public CustomTip()
 		{
-			_supportsLayered = OSFeature.Feature.GetVersionPresent(OSFeature.LayeredWindows) != null;
+            // The layered window support was causing a GDI handle leak
+		    _supportsLayered = false; // OSFeature.Feature.GetVersionPresent(OSFeature.LayeredWindows) != null;
 		}
 
 		~CustomTip()
@@ -862,41 +863,29 @@ namespace pwiz.Skyline.Controls
 
 		#region #  Properties  #
 
-		protected virtual CreateParams CreateParams
-		{
-			get
-			{
-				CreateParams params1 = new CreateParams();
-				int nX = _location.X;
-				int nY = _location.Y;
-				Screen screen1 = Screen.FromHandle(Handle);
-				if ((nX + _size.Width) > screen1.Bounds.Width)
-				{
-					nX = screen1.Bounds.Width - _size.Width;
-				}
-				if ((nY + _size.Height) > screen1.Bounds.Height)
-				{
-					nY = screen1.Bounds.Height - _size.Height;
-				}
-				_location = new Point(nX, nY);
-				Size size1 = _size;
-				Point point1 = _location;
-				params1.X = nX;
-				params1.Y = nY;
-				params1.Height = size1.Height;
-				params1.Width = size1.Width;
-				params1.Parent = IntPtr.Zero;
-				params1.Style = -2147483648;
-				params1.ExStyle = 0x88;
-				if (_supportsLayered)
-				{
-					params1.ExStyle += 0x80000;
-				}
-				_size = size1;
-				_location = point1;
-				return params1;
-			}
-		}
+	    protected virtual CreateParams CreateParams
+	    {
+	        get
+	        {
+	            CreateParams params1 = new CreateParams();
+	            Size size1 = _size;
+	            Point point1 = _location;
+	            params1.X = _location.X;
+	            params1.Y = _location.Y;
+	            params1.Height = size1.Height;
+	            params1.Width = size1.Width;
+	            params1.Parent = _parent != null ? _parent.Handle : IntPtr.Zero;
+	            params1.Style = -2147483648;
+                params1.ExStyle = 0x88;      // WS_EX_TOOLWINDOW | WS_EX_TOPMOST
+	            if (_supportsLayered)
+	            {
+	                params1.ExStyle += 0x80000; // WS_EX_LAYERED
+	            }
+	            _size = size1;
+	            _location = point1;
+	            return params1;
+	        }
+	    }
 
 		public Control Parent
 		{
@@ -1071,7 +1060,7 @@ namespace pwiz.Skyline.Controls
 				if (_alpha == value) return;
 				if (value < 0 || value > 255)
 				{
-                    throw new ArgumentException("Alpha must be between 0 and 255"); // Not L10N
+                    throw new ArgumentException(@"Alpha must be between 0 and 255");
 				}
 				_alpha = (byte)value;
 				UpdateLayeredWindow(_alpha);
@@ -1321,7 +1310,7 @@ namespace pwiz.Skyline.Controls
         public static IntPtr TRUE = new IntPtr(1);
 
         // Methods
-	    // Not L10N
+
 		[DllImport("User32.dll", CharSet=CharSet.Auto)]
 		internal static extern bool AnimateWindow(IntPtr hWnd, uint dwTime, uint dwFlags);
 		[DllImport("User32.dll", CharSet=CharSet.Auto)]
@@ -1427,7 +1416,7 @@ namespace pwiz.Skyline.Controls
 	internal static class Gdi32
 	{
 		// Methods
-	    // Not L10N
+
 		[DllImport("gdi32.dll", CharSet=CharSet.Auto)]
 		internal static extern int CombineRgn(IntPtr dest, IntPtr src1, IntPtr src2, int flags);
 		[DllImport("gdi32.dll", CharSet=CharSet.Auto)]

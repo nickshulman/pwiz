@@ -709,6 +709,13 @@ PWIZ_API_DECL void Spectrum::getMZIntensityPairs(MZIntensityPair* output, size_t
     }
 }
 
+PWIZ_API_DECL BinaryDataArrayPtr Spectrum::getArrayByCVID(CVID arrayType) const
+{
+    for (const auto& arrayPtr : binaryDataArrayPtrs) 
+        if (arrayPtr->hasCVParam(arrayType)) return arrayPtr;
+    return BinaryDataArrayPtr();
+}
+
 
 PWIZ_API_DECL BinaryDataArrayPtr Spectrum::getMZArray() const
 {
@@ -724,13 +731,7 @@ PWIZ_API_DECL BinaryDataArrayPtr Spectrum::getMZArray() const
 
 PWIZ_API_DECL BinaryDataArrayPtr Spectrum::getIntensityArray() const
 {
-    for (vector<BinaryDataArrayPtr>::const_iterator it = binaryDataArrayPtrs.begin();
-         it != binaryDataArrayPtrs.end();
-         ++it)
-    {
-        if ((*it)->hasCVParam(MS_intensity_array)) return *it;
-    }
-    return BinaryDataArrayPtr();
+    return getArrayByCVID(MS_intensity_array);
 }
 
 
@@ -790,7 +791,7 @@ PWIZ_API_DECL void Spectrum::setMZIntensityPairs(const MZIntensityPair* input, s
 
 /// set m/z and intensity arrays separately (they must be the same size) by swapping the vector contents
 /// this allows for a more nearly zero copy setup.  Contents of mzArray and intensityArray are undefined after calling.
-PWIZ_API_DECL void Spectrum::swapMZIntensityArrays(std::vector<double>& mzArray, std::vector<double>& intensityArray, CVID intensityUnits)
+PWIZ_API_DECL void Spectrum::swapMZIntensityArrays(pwiz::util::BinaryData<double>& mzArray, pwiz::util::BinaryData<double>& intensityArray, CVID intensityUnits)
 {
     if (mzArray.size() != intensityArray.size())
         throw runtime_error("[MSData::Spectrum::swapMZIntensityArrays()] Sizes do not match.");

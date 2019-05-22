@@ -464,7 +464,8 @@ void diff(const Spectrum& a,
 
     // special handling for binary data arrays
 
-    if (a.binaryDataArrayPtrs.size() != b.binaryDataArrayPtrs.size())
+    if ((!config.ignoreExtraBinaryDataArrays && a.binaryDataArrayPtrs.size() != b.binaryDataArrayPtrs.size()) ||
+        (config.ignoreExtraBinaryDataArrays && (a.binaryDataArrayPtrs.size() < 2 || b.binaryDataArrayPtrs.size() < 2)))
     {
         a_b.userParams.push_back(UserParam("Binary data array count: " + 
                                  lexical_cast<string>(a.binaryDataArrayPtrs.size())));
@@ -474,9 +475,21 @@ void diff(const Spectrum& a,
     else
     {
         pair<size_t, double> maxPrecisionDiff(0, 0);
-        diff(a.binaryDataArrayPtrs, b.binaryDataArrayPtrs, 
-             a_b.binaryDataArrayPtrs, b_a.binaryDataArrayPtrs,
-             config, maxPrecisionDiff);
+        if (config.ignoreExtraBinaryDataArrays)
+        {
+            // only check 2 primary arrays
+            vector<BinaryDataArrayPtr> aBDA(a.binaryDataArrayPtrs.begin(), a.binaryDataArrayPtrs.begin() + 2);
+            vector<BinaryDataArrayPtr> bBDA(b.binaryDataArrayPtrs.begin(), b.binaryDataArrayPtrs.begin() + 2);
+            diff(aBDA, bBDA,
+                 a_b.binaryDataArrayPtrs, b_a.binaryDataArrayPtrs,
+                 config, maxPrecisionDiff);
+        }
+        else
+        {
+            diff(a.binaryDataArrayPtrs, b.binaryDataArrayPtrs, 
+                 a_b.binaryDataArrayPtrs, b_a.binaryDataArrayPtrs,
+                 config, maxPrecisionDiff);
+        }
       
         if (maxPrecisionDiff.second>(config.precision+numeric_limits<double>::epsilon()))   
         {
@@ -532,7 +545,8 @@ void diff(const Chromatogram& a,
 
     // special handling for binary data arrays
 
-    if (a.binaryDataArrayPtrs.size() != b.binaryDataArrayPtrs.size())
+    if ((!config.ignoreExtraBinaryDataArrays && a.binaryDataArrayPtrs.size() != b.binaryDataArrayPtrs.size()) ||
+        (config.ignoreExtraBinaryDataArrays && (a.binaryDataArrayPtrs.size() < 2 || b.binaryDataArrayPtrs.size() < 2)))
     {
         a_b.userParams.push_back(UserParam("Binary data array count: " + 
                                  lexical_cast<string>(a.binaryDataArrayPtrs.size())));
@@ -542,9 +556,21 @@ void diff(const Chromatogram& a,
     else
     {
         pair<size_t, double> maxPrecisionDiff(0, 0);
-        diff(a.binaryDataArrayPtrs, b.binaryDataArrayPtrs,
-             a_b.binaryDataArrayPtrs, b_a.binaryDataArrayPtrs,
-             config, maxPrecisionDiff);
+        if (config.ignoreExtraBinaryDataArrays)
+        {
+            // only check 2 primary arrays
+            vector<BinaryDataArrayPtr> aBDA(a.binaryDataArrayPtrs.begin(), a.binaryDataArrayPtrs.begin() + 2);
+            vector<BinaryDataArrayPtr> bBDA(b.binaryDataArrayPtrs.begin(), b.binaryDataArrayPtrs.begin() + 2);
+            diff(aBDA, bBDA,
+                 a_b.binaryDataArrayPtrs, b_a.binaryDataArrayPtrs,
+                 config, maxPrecisionDiff);
+        }
+        else
+        {
+            diff(a.binaryDataArrayPtrs, b.binaryDataArrayPtrs, 
+                 a_b.binaryDataArrayPtrs, b_a.binaryDataArrayPtrs,
+                 config, maxPrecisionDiff);
+        }
 
         if (maxPrecisionDiff.second>(config.precision+numeric_limits<double>::epsilon()))   
         {
@@ -600,7 +626,7 @@ void diff(const SpectrumList& a,
 
     {
         SpectrumPtr dummy(new Spectrum);
-        dummy->userParams.push_back(UserParam("SpectrumList sizes differ"));
+        dummy->userParams.push_back(UserParam((boost::format("SpectrumList sizes differ (expected %1%, got %2%)") % b.size() % a.size()).str()));
         a_b.spectra.push_back(dummy);
         return;
     }
@@ -684,7 +710,7 @@ void diff(const ChromatogramList& a,
     if (a.size() != b.size())
     {
         ChromatogramPtr dummy(new Chromatogram);
-        dummy->userParams.push_back(UserParam("ChromatogramList sizes differ"));
+        dummy->userParams.push_back(UserParam((boost::format("ChromatogramList sizes differ (expected %1%, got %2%)") % b.size() % a.size()).str()));
         a_b.chromatograms.push_back(dummy);
         return;
     }
@@ -879,7 +905,7 @@ std::ostream& os_write_spectra(std::ostream& os, const SpectrumListPtr a_b, cons
 
     if(a_b->size()!=b_a->size())
     {
-        os<<"in SpectrumList diff: SpectrumList sizes differ"<<endl;
+        os << "in SpectrumList diff: " << a_b->spectrum(0)->userParams.front().name << endl;
         return os;
     }
 
@@ -912,7 +938,7 @@ std::ostream& os_write_chromatograms(std::ostream& os, const ChromatogramListPtr
 
     if(a_b->size()!=b_a->size())
     {
-        os<<"in ChromatogramList diff: ChromatogramList sizes differ"<<endl;
+        os << "in ChromatogramList diff: " << a_b->chromatogram(0)->userParams.front().name << endl;
         return os;
     }
 

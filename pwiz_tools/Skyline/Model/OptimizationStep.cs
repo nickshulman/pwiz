@@ -20,6 +20,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using pwiz.Skyline.Model.DocSettings;
+using pwiz.Skyline.Model.Results;
 
 namespace pwiz.Skyline.Model
 {
@@ -42,7 +43,7 @@ namespace pwiz.Skyline.Model
         }
 
         public delegate double GetRegressionValue(SrmSettings settings, PeptideDocNode nodePep,
-                                                  TransitionGroupDocNode nodeGroup, TReg regression, int step);
+                                                  TransitionGroupDocNode nodeGroup, TransitionDocNode nodeTran, TReg regression, int step);
 
         public static double? FindOptimizedValueFromResults(SrmSettings settings,
                                                            PeptideDocNode nodePep,
@@ -95,7 +96,7 @@ namespace pwiz.Skyline.Model
                     if (maxArea < optStep.TotalArea)
                     {
                         maxArea = optStep.TotalArea;
-                        bestValue = getRegressionValue(settings, nodePep, nodeGroup, optStep.Regression, optStep.Step);
+                        bestValue = getRegressionValue(settings, nodePep, nodeGroup, nodeTran, optStep.Regression, optStep.Step);
                     }
                 }
             }
@@ -112,7 +113,7 @@ namespace pwiz.Skyline.Model
                                              GetRegressionValue getRegressionValue)
         {
             double? optimizedValue = FindOptimizedValueFromResults(settings, nodePep, nodeGroup, nodeTran, methodType, getRegressionValue);
-            return optimizedValue.HasValue ? optimizedValue.Value : getRegressionValue(settings, nodePep, nodeGroup, regressionDocument, 0);
+            return optimizedValue.HasValue ? optimizedValue.Value : getRegressionValue(settings, nodePep, nodeGroup, nodeTran, regressionDocument, 0);
         }
 
         // ReSharper disable SuggestBaseTypeForParameter
@@ -125,7 +126,7 @@ namespace pwiz.Skyline.Model
             var listCandidates = new List<TransitionGroupDocNode> { nodeGroup };
             foreach (TransitionGroupDocNode nodeGroupCandidate in nodePep.Children)
             {
-                if (nodeGroup.TransitionGroup.PrecursorCharge == nodeGroupCandidate.TransitionGroup.PrecursorCharge &&
+                if (nodeGroup.TransitionGroup.PrecursorAdduct == nodeGroupCandidate.TransitionGroup.PrecursorAdduct &&
                         !ReferenceEquals(nodeGroup, nodeGroupCandidate))
                     listCandidates.Add(nodeGroupCandidate);
             }
@@ -145,7 +146,7 @@ namespace pwiz.Skyline.Model
                 foreach (TransitionDocNode nodeTranCandidate in candidateGroups[i].Children)
                 {
                     var transitionCandidate = nodeTranCandidate.Transition;
-                    if (transition.Charge == transitionCandidate.Charge &&
+                    if (transition.Charge == transitionCandidate.Charge &&  // CONSIDER(bspratt) is this about charge per se, or about adduct?
                         transition.Ordinal == transitionCandidate.Ordinal &&
                         transition.IonType == transitionCandidate.IonType)
                     {
@@ -160,8 +161,8 @@ namespace pwiz.Skyline.Model
         private static void AddOptimizationStepAreas(TransitionGroupDocNode nodeGroup, int iResult, TReg regression,
             IDictionary<int, OptimizationStep<TReg>> optTotals)
         {
-            var results = (nodeGroup.HasResults ? nodeGroup.Results[iResult] : null);
-            if (results == null)
+            var results = nodeGroup.HasResults ? nodeGroup.Results[iResult] : default(ChromInfoList<TransitionGroupChromInfo>);
+            if (results.IsEmpty)
                 return;
             foreach (var chromInfo in results)
             {
@@ -178,11 +179,11 @@ namespace pwiz.Skyline.Model
         private static void AddOptimizationStepAreas(TransitionDocNode nodeTran, int iResult, TReg regression,
             IDictionary<int, OptimizationStep<TReg>> optTotals)
         {
-            var results = (nodeTran.HasResults ? nodeTran.Results[iResult] : null);
+            var results = (nodeTran.HasResults ? nodeTran.Results[iResult] : default(ChromInfoList<TransitionChromInfo>));
             // Skip the result set if it only has step 0, the predicted value. This happens
             // when someone mistakenly sets "Optimizing" on a data set that does not contain
             // optimization steps.
-            if (results == null || results.All(c => c.OptimizationStep == 0 || c.IsEmpty))
+            if (results.IsEmpty || results.All(c => c.OptimizationStep == 0 || c.IsEmpty))
                 return;
             foreach (var chromInfo in results)
             {

@@ -18,6 +18,7 @@
  */
 using System;
 using System.Collections.Generic;
+using System.Drawing;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -32,6 +33,7 @@ using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.DocSettings.AbsoluteQuantification;
 using pwiz.Skyline.Model.GroupComparison;
 using pwiz.Skyline.Model.Lib;
+using pwiz.Skyline.Model.Lib.Midas;
 using pwiz.Skyline.Model.Proteome;
 using pwiz.Skyline.Model.Results.Scoring;
 using pwiz.Skyline.Properties;
@@ -46,7 +48,7 @@ namespace pwiz.Skyline.SettingsUI
         private const int BORDER_BOTTOM_HEIGHT = 16;
 
 // ReSharper disable InconsistentNaming
-        public enum TABS { Digest, Prediction, Filter, Library, Modifications, /* Integration, */ Quantification }
+        public enum TABS { Digest, Prediction, Filter, Library, Modifications, Labels, /* Integration, */ Quantification }
 // ReSharper restore InconsistentNaming
 
         public class DigestionTab : IFormView { }
@@ -54,12 +56,13 @@ namespace pwiz.Skyline.SettingsUI
         public class FilterTab : IFormView { }
         public class LibraryTab : IFormView { }
         public class ModificationsTab : IFormView { }
+        public class LabelsTab : IFormView { }
 //        public class IntegrationTab : IFormView { }    - not yet visible ever
         public class QuantificationTab : IFormView { }
 
         private static readonly IFormView[] TAB_PAGES =
         {
-            new DigestionTab(), new PredictionTab(), new FilterTab(), new LibraryTab(), new ModificationsTab(), /* new IntegrationTab(), */ new QuantificationTab(), 
+            new DigestionTab(), new PredictionTab(), new FilterTab(), new LibraryTab(), new ModificationsTab(), new LabelsTab(), /* new IntegrationTab(), */ new QuantificationTab(), 
         };
 
         private readonly SkylineWindow _parent;
@@ -71,7 +74,7 @@ namespace pwiz.Skyline.SettingsUI
 
         private readonly SettingsListComboDriver<Enzyme> _driverEnzyme;
         private readonly SettingsListComboDriver<RetentionTimeRegression> _driverRT;
-        private readonly SettingsListComboDriver<DriftTimePredictor> _driverDT;
+        private readonly SettingsListComboDriver<IonMobilityPredictor> _driverDT;
         private readonly SettingsListBoxDriver<PeptideExcludeRegex> _driverExclusion;
         private readonly SettingsListBoxDriver<LibrarySpec> _driverLibrary;
         private readonly SettingsListComboDriver<BackgroundProteomeSpec> _driverBackgroundProteome;
@@ -80,10 +83,13 @@ namespace pwiz.Skyline.SettingsUI
         private readonly SettingsListComboDriver<PeakScoringModelSpec> _driverPeakScoringModel;
         private readonly LabelTypeComboDriver _driverLabelType;
         private static readonly IList<int?> _quantMsLevels = ImmutableList.ValueOf(new int?[] {null, 1, 2});
+        private readonly LabelTypeComboDriver _driverSmallMolInternalStandardTypes;
 
-        public PeptideSettingsUI(SkylineWindow parent, LibraryManager libraryManager)
+        public PeptideSettingsUI(SkylineWindow parent, LibraryManager libraryManager, TABS? selectTab)
         {
             InitializeComponent();
+
+            RestoreTabSel(selectTab);
 
             btnUpdateIonMobilityLibraries.Visible = false; // TODO: ion mobility libraries are more complex than initially thought - put this off until after summer 2014 release
 
@@ -109,12 +115,29 @@ namespace pwiz.Skyline.SettingsUI
             if (Prediction.MeasuredRTWindow.HasValue)
                 textMeasureRTWindow.Text = Prediction.MeasuredRTWindow.Value.ToString(LocalizationHelper.CurrentCulture);
 
-            _driverDT = new SettingsListComboDriver<DriftTimePredictor>(comboDriftTimePredictor, Settings.Default.DriftTimePredictorList);
-            string selDT = (Prediction.DriftTimePredictor == null ? null : Prediction.DriftTimePredictor.Name);
+            _driverDT = new SettingsListComboDriver<IonMobilityPredictor>(comboDriftTimePredictor, Settings.Default.DriftTimePredictorList);
+            string selDT = (Prediction.IonMobilityPredictor == null ? null : Prediction.IonMobilityPredictor.Name);
             _driverDT.LoadList(selDT);
-            cbUseSpectralLibraryDriftTimes.Checked = textSpectralLibraryDriftTimesResolvingPower.Enabled = Prediction.UseLibraryDriftTimes;
-            if (Prediction.LibraryDriftTimesResolvingPower.HasValue)
-                textSpectralLibraryDriftTimesResolvingPower.Text = Prediction.LibraryDriftTimesResolvingPower.Value.ToString(LocalizationHelper.CurrentCulture);
+            cbUseSpectralLibraryDriftTimes.Checked = textSpectralLibraryDriftTimesResolvingPower.Enabled = Prediction.UseLibraryIonMobilityValues;
+            var imsWindowCalc = Prediction.LibraryIonMobilityWindowWidthCalculator;
+            if (imsWindowCalc != null)
+            {
+                cbLinear.Checked = imsWindowCalc.PeakWidthMode == IonMobilityWindowWidthCalculator.IonMobilityPeakWidthType.linear_range;
+                if (cbLinear.Checked)
+                {
+                    textSpectralLibraryDriftTimesResolvingPower.Text = string.Empty;
+                    textSpectralLibraryDriftTimesWidthAtDt0.Text = imsWindowCalc.PeakWidthAtIonMobilityValueZero.ToString(LocalizationHelper.CurrentCulture);
+                    textSpectralLibraryDriftTimesWidthAtDtMax.Text = imsWindowCalc.PeakWidthAtIonMobilityValueMax.ToString(LocalizationHelper.CurrentCulture);
+                }
+                else
+                {
+                    textSpectralLibraryDriftTimesResolvingPower.Text = imsWindowCalc.ResolvingPower != 0
+                        ? imsWindowCalc.ResolvingPower.ToString(LocalizationHelper.CurrentCulture)
+                        : string.Empty;
+                    textSpectralLibraryDriftTimesWidthAtDt0.Text = string.Empty;
+                    textSpectralLibraryDriftTimesWidthAtDtMax.Text = string.Empty;
+                }                
+            }
 
             // Initialize filter settings
             _driverExclusion = new SettingsListBoxDriver<PeptideExcludeRegex>(listboxExclusions, Settings.Default.PeptideExcludeList);
@@ -124,6 +147,8 @@ namespace pwiz.Skyline.SettingsUI
             textMaxLength.Text = Filter.MaxPeptideLength.ToString(LocalizationHelper.CurrentCulture);
             textMinLength.Text = Filter.MinPeptideLength.ToString(LocalizationHelper.CurrentCulture);
             cbAutoSelect.Checked = Filter.AutoSelect;
+            comboBoxPeptideUniquenessConstraint.SelectedItem =
+                comboBoxPeptideUniquenessConstraint.Items[(int)_peptideSettings.Filter.PeptideUniqueness];
 
             // Initialize spectral library settings
             _driverLibrary = new SettingsListBoxDriver<LibrarySpec>(listLibraries, Settings.Default.SpectralLibraryList);
@@ -132,6 +157,8 @@ namespace pwiz.Skyline.SettingsUI
             _driverLibrary.LoadList(null, listLibrarySpecs);
             _driverBackgroundProteome = new SettingsListComboDriver<BackgroundProteomeSpec>(comboBackgroundProteome, Settings.Default.BackgroundProteomeList);
             _driverBackgroundProteome.LoadList(_peptideSettings.BackgroundProteome.Name);
+            UpdatePeptideUniquenessEnabled();
+            FilterLibraryEnabled = _peptideSettings.Libraries.HasMidasLibrary && _parent.Document.Settings.HasResults;
 
             panelPick.Visible = listLibrarySpecs.Count > 0;
             btnExplore.Enabled = listLibraries.Items.Count > 0;
@@ -149,10 +176,14 @@ namespace pwiz.Skyline.SettingsUI
             _driverStaticMod = new SettingsListBoxDriver<StaticMod>(listStaticMods, Settings.Default.StaticModList);
             _driverStaticMod.LoadList(null, Modifications.StaticModifications);
             _driverHeavyMod = new SettingsListBoxDriver<StaticMod>(listHeavyMods, Settings.Default.HeavyModList);
-            _driverLabelType = new LabelTypeComboDriver(comboLabelType, Modifications, _driverHeavyMod, 
+            _driverLabelType = new LabelTypeComboDriver(LabelTypeComboDriver.UsageType.ModificationsPicker, comboLabelType, Modifications, _driverHeavyMod, 
                 labelStandardType, comboStandardType, listStandardTypes);
             textMaxVariableMods.Text = Modifications.MaxVariableMods.ToString(LocalizationHelper.CurrentCulture);
             textMaxNeutralLosses.Text = Modifications.MaxNeutralLosses.ToString(LocalizationHelper.CurrentCulture);
+
+            // Initialize small molecule label types.
+            _driverSmallMolInternalStandardTypes = new LabelTypeComboDriver(LabelTypeComboDriver.UsageType.InternalStandardListMaintainer, comboLabelType, Modifications, null,
+                labelSmallMolInternalStandardTypes, null, listBoxSmallMolInternalStandardTypes);
 
             // Initialize peak scoring settings.
             _driverPeakScoringModel = new SettingsListComboDriver<PeakScoringModelSpec>(comboPeakScoringModel, Settings.Default.PeakScoringModelList);
@@ -170,6 +201,59 @@ namespace pwiz.Skyline.SettingsUI
             comboRegressionFit.SelectedItem = _peptideSettings.Quantification.RegressionFit;
             comboQuantMsLevel.SelectedIndex = Math.Max(0, _quantMsLevels.IndexOf(_peptideSettings.Quantification.MsLevel));
             tbxQuantUnits.Text = _peptideSettings.Quantification.Units;
+
+            comboLodMethod.Items.AddRange(LodCalculation.ALL.Cast<object>().ToArray());
+            comboLodMethod.SelectedItem = _peptideSettings.Quantification.LodCalculation;
+            tbxMaxLoqBias.Text = _peptideSettings.Quantification.MaxLoqBias.ToString();
+            tbxMaxLoqCv.Text = _peptideSettings.Quantification.MaxLoqCv.ToString();
+
+            UpdateLibraryDriftPeakWidthControls();
+        }
+
+        /// <summary>
+        /// Restore the selected tab, or use current UI mode's last-used tab if null request
+        /// </summary>
+        private void RestoreTabSel(TABS? selectTab)
+        {
+            if (selectTab != null)
+            {
+                TabControlSel = selectTab;
+            }
+            else
+            { 
+                // No active tab requested (ie we're not in a test), go with current UI mode's last-used
+                switch (GetModeUIHelper().ModeUI)
+                {
+                    case SrmDocument.DOCUMENT_TYPE.proteomic:
+                        TabControlSel = (TABS) Settings.Default.PeptideSettingsTab;
+                        break;
+                    case SrmDocument.DOCUMENT_TYPE.small_molecules:
+                        TabControlSel = (TABS) Settings.Default.MoleculeSettingsTab;
+                        break;
+                    case SrmDocument.DOCUMENT_TYPE.mixed:
+                        TabControlSel = (TABS) Settings.Default.MixedMoleculeSettingsTab;
+                        break;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Remember which tab we were on for user convenience next time we are here
+        /// </summary>
+        private void SaveTabSel()
+        {
+            switch (GetModeUIHelper().ModeUI) 
+            {
+                case SrmDocument.DOCUMENT_TYPE.proteomic:
+                    Settings.Default.PeptideSettingsTab = (int)SelectedTab;
+                    break;
+                case SrmDocument.DOCUMENT_TYPE.small_molecules:
+                    Settings.Default.MoleculeSettingsTab = (int)SelectedTab;
+                    break;
+                case SrmDocument.DOCUMENT_TYPE.mixed:
+                    Settings.Default.MixedMoleculeSettingsTab = (int)SelectedTab;
+                    break;
+            }
         }
 
         public DigestSettings Digest { get { return _peptideSettings.DigestSettings; } }
@@ -181,11 +265,64 @@ namespace pwiz.Skyline.SettingsUI
         public bool IsShowLibraryExplorer { get; set; }
         public TABS? TabControlSel { get; set; }
 
+        protected override void OnHandleCreated(EventArgs e)
+        {
+            base.OnHandleCreated(e);
+            if (_parent != null)
+            {
+                _parent.DocumentUIChangedEvent += ParentOnDocumentChangedEvent;
+            }
+        }
+
+        private void ParentOnDocumentChangedEvent(object sender, DocumentChangedEventArgs documentChangedEventArgs)
+        {
+            _peptideSettings = _parent.DocumentUI.Settings.PeptideSettings;
+            var retentionTime = _peptideSettings.Prediction.RetentionTime;
+            string retentionTimeName = retentionTime != null ? retentionTime.Name : null;
+            _driverRT.LoadList(retentionTimeName);
+        }
+
+        protected override void OnHandleDestroyed(EventArgs e)
+        {
+            if (_parent != null)
+            {
+                _parent.DocumentUIChangedEvent -= ParentOnDocumentChangedEvent;
+            }
+            base.OnHandleDestroyed(e);
+        }
+
+        public bool FilterLibraryEnabled
+        {
+            get { return btnFilter.Visible; }
+            private set
+            {
+                btnFilter.Visible = value;
+                if (value)
+                {
+                    btnExplore.Top = btnFilter.Bottom + 7;
+                }
+                else
+                {
+                    btnExplore.Location = btnFilter.Location;
+                }
+            }
+        }
+
         protected override void OnShown(EventArgs e)
         {
             if (TabControlSel != null) 
                 tabControl1.SelectedIndex = (int) TabControlSel; 
             tabControl1.FocusFirstTabStop();
+        }
+
+        protected override void OnFormClosing(FormClosingEventArgs e)
+        {
+            base.OnFormClosing(e);
+            SaveTabSel(); // Remember which tab we were on for user convenience next time we are here
+        }
+        private void UpdatePeptideUniquenessEnabled()
+        {
+            labelPeptideUniquenessConstraint.Enabled = comboBoxPeptideUniquenessConstraint.Enabled = !_driverBackgroundProteome.SelectedItem.IsNone;
         }
 
         private PeptideSettings ValidateNewSettings(bool showMessages)
@@ -206,13 +343,15 @@ namespace pwiz.Skyline.SettingsUI
             BackgroundProteome backgroundProteome = BackgroundProteome.NONE;
             if (!backgroundProteomeSpec.IsNone)
             {
-                backgroundProteome = new BackgroundProteome(backgroundProteomeSpec, true);
+                backgroundProteome = new BackgroundProteome(backgroundProteomeSpec);
                 if (backgroundProteome.DatabaseInvalid)
                 {
 
                     var message = TextUtil.LineSeparate(string.Format(Resources.PeptideSettingsUI_ValidateNewSettings_Failed_to_load_background_proteome__0__,
-                                                                      backgroundProteomeSpec.Name),
-                                                        string.Format(Resources.PeptideSettingsUI_ValidateNewSettings_The_file__0__may_not_be_a_valid_proteome_file,
+                                                                      backgroundProteomeSpec.Name),                                                        
+                                                        string.Format(File.Exists(backgroundProteomeSpec.DatabasePath)
+                                                                        ? Resources.PeptideSettingsUI_ValidateNewSettings_The_file__0__may_not_be_a_valid_proteome_file
+                                                                        : Resources.PeptideSettingsUI_ValidateNewSettings_The_file__0__is_missing_,
                                                                       backgroundProteomeSpec.DatabasePath));
                     MessageDlg.Show(this, message);
                     tabControl1.SelectedIndex = 0;
@@ -221,6 +360,7 @@ namespace pwiz.Skyline.SettingsUI
                 }
             }
             Helpers.AssignIfEquals(ref backgroundProteome, _peptideSettings.BackgroundProteome);
+            UpdatePeptideUniquenessEnabled();
 
             // Validate and hold prediction settings
             string nameRT = comboRetentionTime.SelectedItem.ToString();
@@ -242,59 +382,87 @@ namespace pwiz.Skyline.SettingsUI
                 double measuredRTWindowOut;
                 const double minWindow = PeptidePrediction.MIN_MEASURED_RT_WINDOW;
                 const double maxWindow = PeptidePrediction.MAX_MEASURED_RT_WINDOW;
-                if (!helper.ValidateDecimalTextBox(tabControl1, (int) TABS.Prediction,
-                        textMeasureRTWindow, minWindow, maxWindow, out measuredRTWindowOut))
+                if (!helper.ValidateDecimalTextBox(textMeasureRTWindow, minWindow, maxWindow, out measuredRTWindowOut))
                     return null;
                 measuredRTWindow = measuredRTWindowOut;
             }
 
             string nameDt = comboDriftTimePredictor.SelectedItem.ToString();
-            DriftTimePredictor driftTimePredictor =
+            IonMobilityPredictor ionMobilityPredictor =
                 Settings.Default.GetDriftTimePredictorByName(nameDt);
-            if (driftTimePredictor != null && driftTimePredictor.IonMobilityLibrary != null)
+            if (ionMobilityPredictor != null && ionMobilityPredictor.IonMobilityLibrary != null)
             {
                 IonMobilityLibrarySpec ionMobilityLibrary =
-                    Settings.Default.GetIonMobilityLibraryByName(driftTimePredictor.IonMobilityLibrary.Name);
+                    Settings.Default.GetIonMobilityLibraryByName(ionMobilityPredictor.IonMobilityLibrary.Name);
                 // Just in case the library in use in the current documet got removed,
                 // never set the library to null.  Just keep using the one we have.
-                if (ionMobilityLibrary != null && !ReferenceEquals(ionMobilityLibrary, driftTimePredictor.IonMobilityLibrary))
-                    driftTimePredictor = driftTimePredictor.ChangeLibrary(ionMobilityLibrary);
+                if (ionMobilityLibrary != null && !ReferenceEquals(ionMobilityLibrary, ionMobilityPredictor.IonMobilityLibrary))
+                    ionMobilityPredictor = ionMobilityPredictor.ChangeLibrary(ionMobilityLibrary);
             }
             bool useLibraryDriftTime = cbUseSpectralLibraryDriftTimes.Checked;
-            double? libraryDTResolvingPower = null;
-            if (useLibraryDriftTime || !string.IsNullOrEmpty(textSpectralLibraryDriftTimesResolvingPower.Text))
+
+            var libraryDriftTimeWindowWidthCalculator = IonMobilityWindowWidthCalculator.EMPTY;
+            if (useLibraryDriftTime)
             {
-                double libraryDTWindowOut;
-                if (!helper.ValidateDecimalTextBox(tabControl1, (int)TABS.Prediction,
-                        textSpectralLibraryDriftTimesResolvingPower, null, null, out libraryDTWindowOut))
-                    return null;
-                string errmsg = EditDriftTimePredictorDlg.ValidateResolvingPower(libraryDTWindowOut);
-                if (errmsg != null)
+                double resolvingPower = 0;
+                double widthAtDt0 = 0;
+                double widthAtDtMax = 0;
+                IonMobilityWindowWidthCalculator.IonMobilityPeakWidthType peakWidthType;
+                if (cbLinear.Checked)
                 {
-                    helper.ShowTextBoxError(tabControl1, (int)TABS.Prediction, textSpectralLibraryDriftTimesResolvingPower, errmsg);
-                    return null;
+                    if (!helper.ValidateDecimalTextBox(textSpectralLibraryDriftTimesWidthAtDt0, out widthAtDt0))
+                        return null;
+                    if (!helper.ValidateDecimalTextBox(textSpectralLibraryDriftTimesWidthAtDtMax, out widthAtDtMax))
+                        return null;
+                    var errmsg = EditDriftTimePredictorDlg.ValidateWidth(widthAtDt0);
+                    if (errmsg != null)
+                    {
+                        helper.ShowTextBoxError(textSpectralLibraryDriftTimesWidthAtDt0, errmsg);
+                        return null;
+                    }
+                    errmsg = EditDriftTimePredictorDlg.ValidateWidth(widthAtDtMax);
+                    if (errmsg != null)
+                    {
+                        helper.ShowTextBoxError(textSpectralLibraryDriftTimesWidthAtDtMax, errmsg);
+                        return null;
+                    }
+                    peakWidthType = IonMobilityWindowWidthCalculator.IonMobilityPeakWidthType.linear_range;
                 }
-                libraryDTResolvingPower = libraryDTWindowOut;
+                else
+                {
+                    if (!helper.ValidateDecimalTextBox(textSpectralLibraryDriftTimesResolvingPower, out resolvingPower))
+                        return null;
+                    var errmsg = EditDriftTimePredictorDlg.ValidateResolvingPower(resolvingPower);
+                    if (errmsg != null)
+                    {
+                        helper.ShowTextBoxError(textSpectralLibraryDriftTimesResolvingPower, errmsg);
+                        return null;
+                    }
+                    peakWidthType = IonMobilityWindowWidthCalculator.IonMobilityPeakWidthType.resolving_power;
+                }
+                libraryDriftTimeWindowWidthCalculator = new IonMobilityWindowWidthCalculator(peakWidthType, resolvingPower, widthAtDt0, widthAtDtMax);
             }
 
-            var prediction = new PeptidePrediction(retentionTime, driftTimePredictor, useMeasuredRT, measuredRTWindow, useLibraryDriftTime, libraryDTResolvingPower);
+            var prediction = new PeptidePrediction(retentionTime, ionMobilityPredictor, useMeasuredRT, measuredRTWindow, useLibraryDriftTime, libraryDriftTimeWindowWidthCalculator);
             Helpers.AssignIfEquals(ref prediction, Prediction);
 
             // Validate and hold filter settings
             int excludeNTermAAs;
-            if (!helper.ValidateNumberTextBox(tabControl1, (int) TABS.Filter, textExcludeAAs,
+            if (!helper.ValidateNumberTextBox(textExcludeAAs,
                     PeptideFilter.MIN_EXCLUDE_NTERM_AA, PeptideFilter.MAX_EXCLUDE_NTERM_AA, out excludeNTermAAs))
                 return null;
             int minPeptideLength;
-            if (!helper.ValidateNumberTextBox(tabControl1, (int) TABS.Filter, textMinLength,
+            if (!helper.ValidateNumberTextBox(textMinLength,
                     PeptideFilter.MIN_MIN_LENGTH, PeptideFilter.MAX_MIN_LENGTH, out minPeptideLength))
                 return null;
             int maxPeptideLength;
-            if (!helper.ValidateNumberTextBox(tabControl1, (int)TABS.Filter, textMaxLength,
+            if (!helper.ValidateNumberTextBox(textMaxLength,
                     Math.Max(PeptideFilter.MIN_MAX_LENGTH, minPeptideLength), PeptideFilter.MAX_MAX_LENGTH, out maxPeptideLength))
                 return null;
 
             PeptideExcludeRegex[] exclusions = _driverExclusion.Chosen;
+
+            var peptideUniquenessMode = ComboPeptideUniquenessConstraintSelected;
 
             bool autoSelect = cbAutoSelect.Checked;
             PeptideFilter filter;
@@ -304,7 +472,8 @@ namespace pwiz.Skyline.SettingsUI
                                            minPeptideLength,
                                            maxPeptideLength,
                                            exclusions,
-                                           autoSelect);
+                                           autoSelect,
+                                           peptideUniquenessMode);
             }
             catch (InvalidDataException x)
             {
@@ -363,15 +532,17 @@ namespace pwiz.Skyline.SettingsUI
 
             // Validate and hold modifications
             int maxVariableMods;
-            if (!helper.ValidateNumberTextBox(tabControl1, (int)TABS.Modifications, textMaxVariableMods,
+            if (!helper.ValidateNumberTextBox(textMaxVariableMods,
                     PeptideModifications.MIN_MAX_VARIABLE_MODS, PeptideModifications.MAX_MAX_VARIABLE_MODS, out maxVariableMods))
                 return null;
             int maxNeutralLosses;
-            if (!helper.ValidateNumberTextBox(tabControl1, (int)TABS.Modifications, textMaxNeutralLosses,
+            if (!helper.ValidateNumberTextBox(textMaxNeutralLosses,
                     PeptideModifications.MIN_MAX_NEUTRAL_LOSSES, PeptideModifications.MAX_MAX_NEUTRAL_LOSSES, out maxNeutralLosses))
                 return null;
 
-            var standardTypes = _driverLabelType.InternalStandardTypes;
+            var standardTypes = SmallMoleculeLabelsTabEnabled
+                ? _driverSmallMolInternalStandardTypes.InternalStandardTypes
+                : _driverLabelType.InternalStandardTypes;
             PeptideModifications modifications = new PeptideModifications(
                 _driverStaticMod.Chosen, maxVariableMods, maxNeutralLosses,
                 _driverLabelType.GetHeavyModifications(), standardTypes);
@@ -389,7 +560,33 @@ namespace pwiz.Skyline.SettingsUI
                 .ChangeRegressionWeighting(comboWeighting.SelectedItem as RegressionWeighting)
                 .ChangeRegressionFit(comboRegressionFit.SelectedItem as RegressionFit)
                 .ChangeMsLevel(_quantMsLevels[comboQuantMsLevel.SelectedIndex])
-                .ChangeUnits(tbxQuantUnits.Text);
+                .ChangeUnits(tbxQuantUnits.Text)
+                .ChangeLodCalculation(comboLodMethod.SelectedItem as LodCalculation);
+            if (Equals(quantification.LodCalculation, LodCalculation.TURNING_POINT) &&
+                !Equals(quantification.RegressionFit, RegressionFit.BILINEAR))
+            {
+                MessageDlg.Show(this, Resources.PeptideSettingsUI_ValidateNewSettings_In_order_to_use_the__Bilinear_turning_point__method_of_LOD_calculation___Regression_fit__must_be_set_to__Bilinear__);
+                comboLodMethod.Focus();
+                return null;
+            }
+            if (!string.IsNullOrEmpty(tbxMaxLoqBias.Text.Trim()))
+            {
+                double maxLoqBias;
+                if (!helper.ValidateDecimalTextBox(tbxMaxLoqBias, 0, null, out maxLoqBias))
+                {
+                    return null;
+                }
+                quantification = quantification.ChangeMaxLoqBias(maxLoqBias);
+            }
+            if (!string.IsNullOrEmpty(tbxMaxLoqCv.Text.Trim()))
+            {
+                double maxLoqCv;
+                if (!helper.ValidateDecimalTextBox(tbxMaxLoqCv, 0, null, out maxLoqCv))
+                {
+                    return null;
+                }
+                quantification = quantification.ChangeMaxLoqCv(maxLoqCv);
+            }
 
             return new PeptideSettings(enzyme, digest, prediction, filter, libraries, modifications, integration, backgroundProteome)
                     .ChangeAbsoluteQuantification(quantification);
@@ -398,7 +595,7 @@ namespace pwiz.Skyline.SettingsUI
         public void OkDialog()
         {
             PeptideSettings settings = ValidateNewSettings(true);
-            if(settings == null)
+            if (settings == null)
                 return;
 
             // Only update, if anything changed
@@ -447,7 +644,14 @@ namespace pwiz.Skyline.SettingsUI
             var list = Settings.Default.RTScoreCalculatorList;
             var calcNew = list.EditItem(this, null, list, null);
             if (calcNew != null)
+            {
                 list.SetValue(calcNew);
+                // Automatically add new RT regression using this calculator
+                var regressionName = Helpers.GetUniqueName(calcNew.Name, name => !_driverRT.List.Contains(r => Equals(r.Name, name)));
+                var regression = new RetentionTimeRegression(regressionName, calcNew, null, null, EditRTDlg.DEFAULT_RT_WINDOW, new List<MeasuredRetentionTime>());
+                Settings.Default.RetentionTimeList.Add(regression);
+                _driverRT.LoadList(regression.GetKey());
+            }
         }
 
         private void editCalculatorCurrentContextMenuItem_Click(object sender, EventArgs e)
@@ -554,6 +758,7 @@ namespace pwiz.Skyline.SettingsUI
         private void comboBackgroundProteome_SelectedIndexChanged(object sender, EventArgs e)
         {
             _driverBackgroundProteome.SelectedIndexChangedEvent(sender, e);
+            UpdatePeptideUniquenessEnabled();
         }
 
         private void cbUseMeasuredRT_CheckedChanged(object sender, EventArgs e)
@@ -578,17 +783,29 @@ namespace pwiz.Skyline.SettingsUI
         private void cbUseSpectralLibraryDriftTimes_CheckChanged(object sender, EventArgs e)
         {
             bool enable = cbUseSpectralLibraryDriftTimes.Checked;
+            labelResolvingPower.Enabled =
             textSpectralLibraryDriftTimesResolvingPower.Enabled = enable;
+            labelWidthDtZero.Enabled =
+            textSpectralLibraryDriftTimesWidthAtDt0.Enabled = enable;
+            labelWidthDtMax.Enabled =
+            textSpectralLibraryDriftTimesWidthAtDtMax.Enabled = enable;
+            cbLinear.Enabled = enable;
             // If disabling the text box, and it has content, make sure it is
             // valid content.  Otherwise, clear the current content, which
             // is always valid, if the measured drift time values will not be used.
-            if (!enable && !string.IsNullOrEmpty(textSpectralLibraryDriftTimesResolvingPower.Text))
+            CleanupDriftInfoText(enable, textSpectralLibraryDriftTimesResolvingPower);
+            CleanupDriftInfoText(enable, textSpectralLibraryDriftTimesWidthAtDt0);
+            CleanupDriftInfoText(enable, textSpectralLibraryDriftTimesWidthAtDtMax);
+        }
+
+        private void CleanupDriftInfoText(bool enable, TextBox textBox)
+        {
+            if (!enable && !string.IsNullOrEmpty(textBox.Text))
             {
-                double resolvingPower;
-                if (!double.TryParse(textSpectralLibraryDriftTimesResolvingPower.Text, out resolvingPower) ||
-                        resolvingPower <= 0)
+                double value;
+                if (!double.TryParse(textBox.Text, out value) || value <= 0)
                 {
-                    textSpectralLibraryDriftTimesResolvingPower.Text = string.Empty;
+                    textBox.Text = string.Empty;
                 }
             }
         }
@@ -634,14 +851,82 @@ namespace pwiz.Skyline.SettingsUI
 
             // Libraries built for full-scan filtering can have important retention time information,
             // and the redundant libraries are more likely to be desirable for showing spectra.
-            bool isFullScanEnabled = _parent.DocumentUI.Settings.TransitionSettings.FullScan.IsEnabled;
-            using (var dlg = new BuildLibraryDlg(_parent) {LibraryKeepRedundant = isFullScanEnabled})
+            using (var dlg = new BuildLibraryDlg(_parent) { LibraryKeepRedundant = _parent.DocumentUI.Settings.TransitionSettings.FullScan.IsEnabled })
             {
                 if (dlg.ShowDialog(this) == DialogResult.OK)
                 {
-                    _libraryManager.BuildLibrary(_parent, dlg.Builder, _parent.LibraryBuildCompleteCallback);
+                    var builder = dlg.Builder;
 
-                    Settings.Default.SpectralLibraryList.Add(dlg.Builder.LibrarySpec);
+                    // assume success and cleanup later
+                    Settings.Default.SpectralLibraryList.Add(builder.LibrarySpec);
+                    _driverLibrary.LoadList();
+                    var libraryIndex = listLibraries.Items.IndexOf(builder.LibrarySpec.Name);
+                    if (libraryIndex >= 0)
+                        listLibraries.SetItemChecked(libraryIndex, true);
+
+                    var currentForm = this;
+
+                    _libraryManager.BuildLibrary(_parent, builder, (buildState, success) =>
+                    {
+                        _parent.LibraryBuildCompleteCallback(buildState, success);
+
+                        if (!success)
+                        {
+                            _parent.Invoke(new Action(() =>
+                            {
+                                if (Settings.Default.SpectralLibraryList.Contains(builder.LibrarySpec))
+                                    Settings.Default.SpectralLibraryList.Remove(builder.LibrarySpec);
+                            }));
+
+                            // TODO: handle the case of cleaning up a PeptideSettingsUI form other than the one that launched this library build
+                            if (ReferenceEquals(currentForm, this) && !IsDisposed && !Disposing)
+                                currentForm.Invoke(new Action(() =>
+                                {
+                                    _driverLibrary.LoadList();
+                                    listLibraries.Items.Remove(builder.LibrarySpec.Name);
+                                }));
+                        }
+                    });
+                }
+            }
+        }
+
+        private void btnFilter_Click(object sender, EventArgs e)
+        {
+            ShowFilterMidasDlg();
+        }
+
+        public void ShowFilterMidasDlg()
+        {
+            var midasLibSpecs = _driverLibrary.Chosen.OfType<MidasLibSpec>().ToArray();
+            if (midasLibSpecs.Length > 1)
+            {
+                midasLibSpecs = midasLibSpecs.Where(lib => Equals(lib.Name, MidasLibSpec.GetName(_parent.DocumentFilePath))).ToArray();
+                if (midasLibSpecs.Length != 1)
+                {
+                    MessageDlg.Show(this, Resources.PeptideSettingsUI_ShowFilterMidasDlg_Multiple_MIDAS_libraries_in_document__Select_only_one_before_filtering_);
+                    return;
+                }
+                midasLibSpecs = new[] {midasLibSpecs[0]};
+            }
+            var midasLibSpec = midasLibSpecs[0];
+
+            using (var filterDlg = new FilterMidasLibraryDlg(_parent.DocumentFilePath, midasLibSpec, _driverLibrary.List))
+            {
+                if (filterDlg.ShowDialog(this) == DialogResult.OK)
+                {
+                    MidasLibrary midasLib = null;
+                    using (var longWait = new LongWaitDlg
+                    {
+                        Text = Resources.PeptideSettingsUI_ShowFilterMidasDlg_Loading_MIDAS_Library,
+                        Message = string.Format(Resources.PeptideSettingsUI_ShowFilterMidasDlg_Loading__0_, Path.GetFileName(midasLibSpec.FilePath))
+                    })
+                    {
+                        longWait.PerformWork(this, 800, monitor => midasLib = _libraryManager.LoadLibrary(midasLibSpec, () => new DefaultFileLoadMonitor(monitor)) as MidasLibrary);
+                    }
+                    var builder = new MidasBlibBuilder(_parent.Document, midasLib, filterDlg.LibraryName, filterDlg.FileName);
+                    builder.BuildLibrary(null);
+                    Settings.Default.SpectralLibraryList.Add(builder.LibrarySpec);
                     _driverLibrary.LoadList();
                 }
             }
@@ -658,6 +943,16 @@ namespace pwiz.Skyline.SettingsUI
             int match = comboMatching.SelectedIndex;
             if (match == (int) PeptidePick.library || match == (int) PeptidePick.both)
                 UpdateRanks(e);
+
+            var isMidas = _driverLibrary.List[e.Index] is MidasLibSpec;
+            if (e.NewValue == CheckState.Checked && !FilterLibraryEnabled && isMidas && _parent.Document.Settings.HasResults)
+            {
+                FilterLibraryEnabled = true;
+            }
+            else if (e.NewValue == CheckState.Unchecked && FilterLibraryEnabled && _driverLibrary.Chosen.OfType<MidasLibSpec>().Count() == 1 && isMidas)
+            {
+                FilterLibraryEnabled = false;
+            }
         }
 
         private void comboMatching_SelectedIndexChanged(object sender, EventArgs e)
@@ -862,21 +1157,36 @@ namespace pwiz.Skyline.SettingsUI
                                   : (_driverLibrary.CheckedNames.Any() ? _driverLibrary.CheckedNames[0] : string.Empty);
                 }
                 var viewLibraryDlg = new ViewLibraryDlg(_libraryManager, libName, _parent) { Owner = Owner };
-                viewLibraryDlg.Show();
+                viewLibraryDlg.Show(Owner);
             }
         }
 
         private void comboLabelType_SelectedIndexChanged(object sender, EventArgs e)
         {
             // Handle label type selection events, like <Edit list...>
-            if (_driverLabelType != null)
+            if (_driverLabelType != null && _driverLabelType.Usage == LabelTypeComboDriver.UsageType.ModificationsPicker)
                 _driverLabelType.SelectedIndexChangedEvent();
         }
 
-        public void EditLabelTypeList ()
+        public bool SmallMoleculeLabelsTabEnabled
+        {
+            get { return tabControl1.TabPages.ContainsKey(@"tabLabels"); }
+        }
+
+        public void EditLabelTypeList()
         {
             CheckDisposed();
             _driverLabelType.EditList();
+        }
+
+        private void btnEditSmallMoleculeInternalStandards_Click(object sender, EventArgs e)
+        {
+            EditSmallMoleculeInternalStandards();
+        }
+
+        public void EditSmallMoleculeInternalStandards()
+        {
+            _driverSmallMolInternalStandardTypes.EditList();
         }
 
         private void btnEditStaticMods_Click(object sender, EventArgs e)
@@ -1072,13 +1382,24 @@ namespace pwiz.Skyline.SettingsUI
         public string SelectedBackgroundProteome
         {
             get { return _driverBackgroundProteome.Combo.SelectedItem.ToString(); }
-            set { _driverBackgroundProteome.Combo.SelectedItem = value;  }
+            set { _driverBackgroundProteome.Combo.SelectedItem = value; }
+        }
+
+        public IEnumerable<string> ListBackgroundProteomes
+        {
+            get { return _driverBackgroundProteome.Combo.Items.Cast<object>().Select(item => item.ToString()); }
         }
 
         public string SelectedRTPredictor
         {
             get { return _driverRT.Combo.SelectedItem.ToString(); }
             set { _driverRT.Combo.SelectedItem = value; }
+        }
+
+        public string SelectedDriftTimePredictor
+        {
+            get { return _driverDT.Combo.SelectedItem.ToString(); }
+            set { _driverDT.Combo.SelectedItem = value; }
         }
 
         public string SelectedLabelTypeName
@@ -1200,6 +1521,12 @@ namespace pwiz.Skyline.SettingsUI
             _driverBackgroundProteome.AddItem();    
         }
 
+        public PeptideFilter.PeptideUniquenessConstraint ComboPeptideUniquenessConstraintSelected
+        {
+            get { return (PeptideFilter.PeptideUniquenessConstraint)comboBoxPeptideUniquenessConstraint.SelectedIndex; }
+            set { comboBoxPeptideUniquenessConstraint.SelectedIndex = (int)value; }
+        }
+
         public NormalizationMethod QuantNormalizationMethod
         {
             get { return comboNormalizationMethod.SelectedItem as NormalizationMethod; }
@@ -1230,6 +1557,37 @@ namespace pwiz.Skyline.SettingsUI
             set { tbxQuantUnits.Text = value; }
         }
 
+        public double? QuantMaxLoqBias
+        {
+            get {
+                if (tbxMaxLoqBias.Text.Trim().Length == 0)
+                {
+                    return null;
+                }
+                return double.Parse(tbxMaxLoqBias.Text.Trim());
+            }
+            set { tbxMaxLoqBias.Text = value.ToString(); }
+        }
+
+        public double? QuantMaxLoqCv
+        {
+            get
+            {
+                if (tbxMaxLoqCv.Text.Trim().Length == 0)
+                {
+                    return null;
+                }
+                return double.Parse(tbxMaxLoqCv.Text.Trim());
+            }
+            set { tbxMaxLoqCv.Text = value.ToString(); }
+        }
+
+        public LodCalculation QuantLodMethod
+        {
+            get { return comboLodMethod.SelectedItem as LodCalculation; }
+            set { comboLodMethod.SelectedItem = value; }
+        }
+
         #endregion
 
         public sealed class LabelTypeComboDriver
@@ -1237,15 +1595,28 @@ namespace pwiz.Skyline.SettingsUI
             private readonly SettingsListBoxDriver<StaticMod> _driverHeavyMod;
 
             private int _selectedIndexLast;
+            private int SafeSelectedIndexLast
+            {
+                get
+                {
+                    return _selectedIndexLast < 0 ? 0 :
+                        _selectedIndexLast >= Combo.Items.Count ? Combo.Items.Count - 1 :
+                        _selectedIndexLast;
+                }
+            }
             private bool _singleStandard;
+            public UsageType Usage { get; }
 
-            public LabelTypeComboDriver(ComboBox combo,
+            public enum UsageType { ModificationsPicker, InternalStandardPicker, InternalStandardListMaintainer }
+
+            public LabelTypeComboDriver(UsageType usageType, ComboBox combo,
                                         PeptideModifications modifications,
                                         SettingsListBoxDriver<StaticMod> driverHeavyMod,
                                         Label labelIS,
                                         ComboBox comboIS,
                                         CheckedListBox listBoxIS)
             {
+                Usage = usageType;
                 _driverHeavyMod = driverHeavyMod;
 
                 LabelIS = labelIS;
@@ -1267,10 +1638,10 @@ namespace pwiz.Skyline.SettingsUI
             {
                 get
                 {
-                    if (ComboIS == null)
+                    if (Usage == UsageType.InternalStandardPicker)
                         return null; // We're using this from the EditCustomMolecule dialog
 
-                    if (_singleStandard)
+                    if (_singleStandard && Usage == UsageType.ModificationsPicker)
                         return Equals(ComboIS.SelectedItem, Resources.LabelTypeComboDriver_LoadList_none) ? new IsotopeLabelType[0] : new[] { (IsotopeLabelType)ComboIS.SelectedItem };
                     
                     var listStandardTypes = new List<IsotopeLabelType>();
@@ -1290,15 +1661,15 @@ namespace pwiz.Skyline.SettingsUI
                         ComboIS.BeginUpdate();
                     Combo.Items.Clear();
 
-                    if (ComboIS == null) 
+                    if (Usage == UsageType.InternalStandardPicker) 
                     {
                         // Using this from the Edit Molecule dialog, we want to see Light in this list
                         Combo.Items.Add(new TypedModifications(IsotopeLabelType.light, new List<StaticMod>()));
                     }
                     else
                     {
-                        _singleStandard = (heavyMods.Count() <= 1);
-                        if (_singleStandard)
+                        _singleStandard = (heavyMods.Count <= 1);
+                        if (_singleStandard && Usage == UsageType.ModificationsPicker && ComboIS != null)
                         {
                             LabelIS.Text = Resources.LabelTypeComboDriver_LoadList_Internal_standard_type;
                             ComboIS.Items.Clear();
@@ -1320,10 +1691,13 @@ namespace pwiz.Skyline.SettingsUI
                             ListBoxIS.Items.Add(IsotopeLabelType.light);
                             if (internalStandardTypes.Contains(IsotopeLabelType.light))
                                 ListBoxIS.SetItemChecked(0, true);
-                            ComboIS.Visible = false;
                             ListBoxIS.Visible = true;
-                            ListBoxIS.Parent.Parent.Parent.Height +=
-                                ListBoxIS.Bottom + BORDER_BOTTOM_HEIGHT - ComboIS.Parent.Height;
+                            if (ComboIS != null)
+                            {
+                                ComboIS.Visible = false;
+                                ListBoxIS.Parent.Parent.Parent.Height +=
+                                    ListBoxIS.Bottom + BORDER_BOTTOM_HEIGHT - ComboIS.Parent.Height;
+                            }
                         }
                     }
                     foreach (var typedMods in heavyMods)
@@ -1334,9 +1708,9 @@ namespace pwiz.Skyline.SettingsUI
                         if (Equals(typedMods.LabelType.Name, selectedItemLast))
                             Combo.SelectedIndex = i;
 
-                        if (ComboIS != null) // We may be using this from the Edit Molecule dialog, which is less complex
+                        if (Usage != UsageType.InternalStandardPicker) // We may be using this from the Edit Molecule dialog, which is less complex
                         {
-                            if (_singleStandard)
+                            if (_singleStandard && Usage == UsageType.ModificationsPicker && ComboIS != null)
                             {
                                 i = ComboIS.Items.Add(typedMods.LabelType);
                                 if (internalStandardTypes.Contains(lt => Equals(lt.Name, labelName)))
@@ -1414,7 +1788,7 @@ namespace pwiz.Skyline.SettingsUI
 
             private TypedModifications SelectedModsLast
             {
-                get { return (TypedModifications)Combo.Items[_selectedIndexLast]; }
+                get { return (TypedModifications)Combo.Items[SafeSelectedIndexLast]; }
             }
 
             public IEnumerable<TypedModifications> GetHeavyModifications()
@@ -1454,7 +1828,7 @@ namespace pwiz.Skyline.SettingsUI
                 var currentMods = _driverHeavyMod.Chosen;
                 if (!ArrayUtil.EqualsDeep(currentMods, lastSelectedMods.Modifications))
                 {
-                    Combo.Items[_selectedIndexLast] =
+                    Combo.Items[SafeSelectedIndexLast] =
                         new TypedModifications(lastSelectedMods.LabelType, currentMods);
                 }
             }
@@ -1507,10 +1881,62 @@ namespace pwiz.Skyline.SettingsUI
                     else
                     {
                         // Reset the selected index before edit was chosen.
-                        Combo.SelectedIndex = _selectedIndexLast;
+                        Combo.SelectedIndex = SafeSelectedIndexLast;
                     }
                 }
             }
+        }
+
+        private void UpdateLibraryDriftPeakWidthControls()
+        {
+            // Linear peak width vs Resolving Power
+            labelResolvingPower.Visible = !cbLinear.Checked;
+            textSpectralLibraryDriftTimesResolvingPower.Visible = !cbLinear.Checked;
+            labelWidthDtZero.Visible = cbLinear.Checked;
+            labelWidthDtMax.Visible = cbLinear.Checked;
+            textSpectralLibraryDriftTimesWidthAtDt0.Visible =  cbLinear.Checked;
+            textSpectralLibraryDriftTimesWidthAtDtMax.Visible =  cbLinear.Checked;
+
+            cbLinear.Enabled = cbUseSpectralLibraryDriftTimes.Checked;
+            labelResolvingPower.Enabled = cbUseSpectralLibraryDriftTimes.Checked;
+            textSpectralLibraryDriftTimesResolvingPower.Enabled = cbUseSpectralLibraryDriftTimes.Checked;
+            labelWidthDtZero.Enabled = cbUseSpectralLibraryDriftTimes.Checked;
+            labelWidthDtMax.Enabled = cbUseSpectralLibraryDriftTimes.Checked;
+            textSpectralLibraryDriftTimesWidthAtDt0.Enabled = cbUseSpectralLibraryDriftTimes.Checked;
+            textSpectralLibraryDriftTimesWidthAtDtMax.Enabled = cbUseSpectralLibraryDriftTimes.Checked;
+
+
+            if (labelWidthDtZero.Location.X > labelResolvingPower.Location.X)
+            {
+                var dX = labelWidthDtZero.Location.X - labelResolvingPower.Location.X;
+                labelWidthDtZero.Location = new Point(labelWidthDtZero.Location.X - dX, labelWidthDtZero.Location.Y);
+                labelWidthDtMax.Location = new Point(labelWidthDtMax.Location.X - dX, labelWidthDtMax.Location.Y);
+                textSpectralLibraryDriftTimesWidthAtDt0.Location = new Point(textSpectralLibraryDriftTimesWidthAtDt0.Location.X - dX, textSpectralLibraryDriftTimesWidthAtDt0.Location.Y);
+                textSpectralLibraryDriftTimesWidthAtDtMax.Location = new Point(textSpectralLibraryDriftTimesWidthAtDtMax.Location.X - dX, textSpectralLibraryDriftTimesWidthAtDtMax.Location.Y);
+            }
+        }
+
+        private void cbLinear_CheckedChanged(object sender, EventArgs e)
+        {
+            UpdateLibraryDriftPeakWidthControls();
+        }
+
+        public void SetWidthAtDtZero(double width)
+        {
+            textSpectralLibraryDriftTimesWidthAtDt0.Text = width.ToString(LocalizationHelper.CurrentCulture);
+            UpdateLibraryDriftPeakWidthControls();
+        }
+
+        public void SetWidthAtDtMax(double width)
+        {
+            textSpectralLibraryDriftTimesWidthAtDtMax.Text = width.ToString(LocalizationHelper.CurrentCulture);
+            UpdateLibraryDriftPeakWidthControls();
+        }
+
+        public void SetLinearRangeCheckboxState(bool checkedState)
+        {
+            cbLinear.Checked = checkedState;
+            UpdateLibraryDriftPeakWidthControls();
         }
     }
 }

@@ -24,6 +24,7 @@
 
 
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
@@ -46,7 +47,7 @@ using pwiz.CLI.cv;
 using proteome = pwiz.CLI.proteome;
 using chemistry = pwiz.CLI.chemistry;
 using phosphoRS = IMP.PhosphoRS;
-using System.Collections.Concurrent;
+using pwiz.Common.Collections;
 
 namespace IDPicker.Forms
 {
@@ -741,7 +742,7 @@ namespace IDPicker.Forms
                 var pwizMods = Peptide.modifications();
                 if (!String.IsNullOrEmpty((string)queryRow[6]))
                 {
-                    var IdMassDeltaAndOffsetTriplets = ((string)queryRow[6]).Split(',');
+                    var IdMassDeltaAndOffsetTriplets = ((string)queryRow[6]).Split(Properties.Settings.Default.GroupConcatSeparator[0]);
                     foreach (var triplet in IdMassDeltaAndOffsetTriplets)
                     {
                         var tokens = triplet.Split(':');

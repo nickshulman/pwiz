@@ -22,8 +22,10 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Windows.Forms;
+using Microsoft.VisualBasic.FileIO;
 
 namespace MSStatArgsCollector
 {    
@@ -79,7 +81,7 @@ namespace MSStatArgsCollector
         private const string FALSESTRING = "FALSE"; // Not L10N
 
         // ReSharper disable InconsistentNaming
-        private enum Args { name, normalize_to, allow_missing_peaks, feature_selection, fixed_argument_count }
+        private enum Args { name, normalize_to, allow_missing_peaks, feature_selection, remove_interfered_proteins, fixed_argument_count }
         // ReSharper restore InconsistentNaming
 
 
@@ -121,6 +123,7 @@ namespace MSStatArgsCollector
                 comboBoxNormalizeTo.SelectedIndex = int.Parse(fixedArguments[(int)Args.normalize_to], CultureInfo.InvariantCulture);
                 cboxAllowMissingPeaks.Checked = TRUESTRING == fixedArguments[(int) Args.allow_missing_peaks];
                 cboxSelectHighQualityFeatures.Checked = TRUESTRING == fixedArguments[(int) Args.feature_selection];
+                cboxRemoveInterferedProteins.Checked = TRUESTRING == fixedArguments[(int) Args.remove_interfered_proteins];
             }
             else
             {
@@ -204,6 +207,7 @@ namespace MSStatArgsCollector
             commandLineArguments.Add(comboBoxNormalizeTo.SelectedIndex.ToString(CultureInfo.InvariantCulture));
             commandLineArguments.Add(cboxAllowMissingPeaks.Checked ? TRUESTRING : FALSESTRING);
             commandLineArguments.Add(cboxSelectHighQualityFeatures.Checked ? TRUESTRING : FALSESTRING);
+            commandLineArguments.Add(cboxRemoveInterferedProteins.Checked ? TRUESTRING : FALSESTRING);
             
             // Generate constants for comparisons
             var constants = new double[ControlGroupList.Length];
@@ -229,16 +233,34 @@ namespace MSStatArgsCollector
 
             Arguments = commandLineArguments.ToArray();
         }
+
+        private void cboxSelectHighQualityFeatures_CheckedChanged(object sender, EventArgs e)
+        {
+            cboxRemoveInterferedProteins.Enabled = cboxSelectHighQualityFeatures.Checked;
+        }
     }
 
     public class MSstatsGroupComparisonCollector
     {
+        /// <summary>
+        /// This is the entry point that gets called by Skyline before Skyline calls the MSstats
+        /// R Script.
+        /// </summary>
         public static string[] CollectArgs(IWin32Window parent, string report, string[] oldArgs)
         {
+            return CollectArgsReader(parent, new StringReader(report), oldArgs);
+        }
+
+        /// <summary>
+        /// This entry point might be used future versions of Skyline in case the report text is too
+        /// large to fit in a string.
+        /// </summary>
+        public static string[] CollectArgsReader(IWin32Window parent, TextReader report, string[] oldArgs)
+        {
             const string conditionColumnName = "Condition"; // Not L10N
-            // Split report (.csv file) by lines
-            string[] lines = report.Split(new[] { Environment.NewLine }, StringSplitOptions.None);
-            string[] fields = lines[0].ParseCsvFields();
+            var parser = new TextFieldParser(report);
+            parser.SetDelimiters(",");
+            string[] fields = parser.ReadFields() ?? new string[0];
             int groupIndex = Array.IndexOf(fields, conditionColumnName);
             if (groupIndex < 0)
             {
@@ -250,18 +272,11 @@ namespace MSStatArgsCollector
 
             ICollection<string> groups = new HashSet<string>();
             // The last line in the CSV file is empty, thus we compare length - 1 
-            for (int i = 1; i < lines.Length - 1; i++)
+            string[] line;
+            while ((line = parser.ReadFields()) != null)
             {
-                try
-                {
-                    groups.Add(lines[i].ParseCsvFields()[groupIndex]);
-                }
-                catch
-                {
-                    // ignore
-                }
+                groups.Add(line[groupIndex]);
             }
-
             using (var dlg = new GroupComparisonUi(groups.ToArray(), oldArgs))
             {
                 var result = parent != null ? dlg.ShowDialog(parent) : dlg.ShowDialog();

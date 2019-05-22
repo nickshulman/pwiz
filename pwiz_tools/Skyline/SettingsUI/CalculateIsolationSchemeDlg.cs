@@ -96,7 +96,8 @@ namespace pwiz.Skyline.SettingsUI
                 EditIsolationSchemeDlg.DeconvolutionMethod.NONE,
                 EditIsolationSchemeDlg.DeconvolutionMethod.MSX,
                 EditIsolationSchemeDlg.DeconvolutionMethod.OVERLAP,
-                EditIsolationSchemeDlg.DeconvolutionMethod.MSX_OVERLAP
+                EditIsolationSchemeDlg.DeconvolutionMethod.MSX_OVERLAP,
+                EditIsolationSchemeDlg.DeconvolutionMethod.FAST_OVERLAP
             });
             comboDeconv.SelectedItem = EditIsolationSchemeDlg.DeconvolutionMethod.NONE;
 
@@ -224,9 +225,9 @@ namespace pwiz.Skyline.SettingsUI
             if (windowCount == 0)
                 labelWindowCount.Text = string.Empty;
             else if (windowCount > MAX_GENERATED_WINDOWS)
-                labelWindowCount.Text = string.Format(">{0}", MAX_GENERATED_WINDOWS); // Not L10N
+                labelWindowCount.Text = string.Format(@">{0}", MAX_GENERATED_WINDOWS);
             else
-                labelWindowCount.Text = string.Format("{0}", windowCount); // Not L10N
+                labelWindowCount.Text = string.Format(@"{0}", windowCount);
         }
 
         public void OkDialog()
@@ -261,6 +262,19 @@ namespace pwiz.Skyline.SettingsUI
                 return;
             }
 
+            // if given windowWidth is not an integer value
+            if (windowWidth % 1 != 0 && OptimizeWindowPlacement)
+            {
+                MessageDlg.Show(this, Resources.CalculateIsolationSchemeDlg_OkDialog_Window_width_must_be_an_integer);
+                return;
+            }
+
+            // if given windowWidth is odd
+            if (windowWidth % 2 != 0 && OptimizeWindowPlacement && (string) comboDeconv.SelectedItem != EditIsolationSchemeDlg.DeconvolutionMethod.NONE && (string) comboDeconv.SelectedItem != EditIsolationSchemeDlg.DeconvolutionMethod.MSX)
+            {
+                MessageDlg.Show(this, Resources.CalculateIsolationSchemeDlg_OkDialog_Window_width_not_even);
+                return;
+            }
 
             // Validate margins.
             double? margin = null;
@@ -396,7 +410,8 @@ namespace pwiz.Skyline.SettingsUI
             {
                 return
                     ((Equals(comboDeconv.SelectedItem, EditIsolationSchemeDlg.DeconvolutionMethod.OVERLAP) ||
-                     Equals(comboDeconv.SelectedItem, EditIsolationSchemeDlg.DeconvolutionMethod.MSX_OVERLAP))
+                     Equals(comboDeconv.SelectedItem, EditIsolationSchemeDlg.DeconvolutionMethod.MSX_OVERLAP) ||
+                     Equals(comboDeconv.SelectedItem, EditIsolationSchemeDlg.DeconvolutionMethod.FAST_OVERLAP))
                         ? 50
                         : 0);
             }

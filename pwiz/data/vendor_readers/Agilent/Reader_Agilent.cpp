@@ -31,7 +31,10 @@ PWIZ_API_DECL std::string pwiz::msdata::Reader_Agilent::identify(const std::stri
 {
     if (bfs::is_directory(filename))
     {
-        if (bfs::exists(bfs::path(filename) / "AcqData"))
+        auto filepath = bfs::path(filename) / "AcqData";
+        if (bfs::exists(filepath) &&
+            (bfs::exists(filepath / "mspeak.bin") ||
+             bfs::exists(filepath / "msprofile.bin")))
             return getType();
     }
     else if (bal::icontains(filename, ".d/AcqData/mspeak.bin") ||
@@ -84,6 +87,10 @@ void initializeInstrumentConfigurationPtrs(MSData& msd,
         commonInstrumentParams->userParams.push_back(UserParam("instrument model", rawfile->getDeviceName(deviceType)));
     commonInstrumentParams->set(cvidModel);
 
+    auto serialNumber = rawfile->getDeviceSerialNumber(deviceType);
+    if (!serialNumber.empty())
+        commonInstrumentParams->set(MS_instrument_serial_number, serialNumber);
+
     // create instrument configuration templates based on the instrument model
     vector<InstrumentConfiguration> configurations = createInstrumentConfigurations(rawfile);
     if (configurations.empty())
@@ -102,7 +109,7 @@ void initializeInstrumentConfigurationPtrs(MSData& msd,
 }
 
 
-void fillInMetadata(const string& rawpath, MassHunterDataPtr rawfile, MSData& msd)
+void fillInMetadata(const string& rawpath, MassHunterDataPtr rawfile, MSData& msd, const Reader::Config& config)
 {
     msd.cvs = defaultCVList();
 
@@ -196,7 +203,7 @@ void fillInMetadata(const string& rawpath, MassHunterDataPtr rawfile, MSData& ms
         msd.run.defaultInstrumentConfigurationPtr = msd.instrumentConfigurationPtrs[0];
 
     msd.run.id = msd.id;
-    msd.run.startTimeStamp = encode_xml_datetime(rawfile->getAcquisitionTime());
+    msd.run.startTimeStamp = encode_xml_datetime(rawfile->getAcquisitionTime(false));  // All but the oldest Agilent formats state their time zones
 }
 
 } // namespace
@@ -221,7 +228,7 @@ void Reader_Agilent::read(const string& filename,
     result.run.spectrumListPtr = sl;
     result.run.chromatogramListPtr = cl;
 
-    fillInMetadata(filename, dataReader, result);
+    fillInMetadata(filename, dataReader, result, config);
 }
 
 

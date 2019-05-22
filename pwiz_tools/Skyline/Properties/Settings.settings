@@ -1,4 +1,4 @@
-<?xml version='1.0' encoding='utf-8'?>
+﻿<?xml version='1.0' encoding='utf-8'?>
 <SettingsFile xmlns="http://schemas.microsoft.com/VisualStudio/2004/01/settings" CurrentProfile="(Default)" GeneratedClassNamespace="pwiz.Skyline.Properties" GeneratedClassName="Settings">
   <Profiles />
   <Settings>
@@ -113,9 +113,6 @@
     <Setting Name="LibraryResultsDirectory" Type="System.String" Scope="User">
       <Value Profile="(Default)" />
     </Setting>
-    <Setting Name="LibraryAuthority" Type="System.String" Scope="User">
-      <Value Profile="(Default)" />
-    </Setting>
     <Setting Name="LibraryResultCutOff" Type="System.Double" Scope="User">
       <Value Profile="(Default)">0.95</Value>
     </Setting>
@@ -141,7 +138,7 @@
       <Value Profile="(Default)">none</Value>
     </Setting>
     <Setting Name="TransformTypeChromatogram" Type="System.String" Scope="User">
-      <Value Profile="(Default)">none</Value>
+      <Value Profile="(Default)">interpolated</Value>
     </Setting>
     <Setting Name="SrmResultsSourceType" Type="System.String" Scope="User">
       <Value Profile="(Default)" />
@@ -473,7 +470,7 @@
     <Setting Name="AutoZoomFullScanGraph" Type="System.Boolean" Scope="User">
       <Value Profile="(Default)">True</Value>
     </Setting>
-    <Setting Name="FilterDriftTimesFullScan" Type="System.Boolean" Scope="User">
+    <Setting Name="FilterIonMobilityFullScan" Type="System.Boolean" Scope="User">
       <Value Profile="(Default)">False</Value>
     </Setting>
     <Setting Name="SumScansFullScan" Type="System.Boolean" Scope="User">
@@ -529,6 +526,168 @@
     </Setting>
     <Setting Name="DocumentGridView" Type="System.String" Scope="User">
       <Value Profile="(Default)" />
+    </Setting>
+    <Setting Name="RTPointsType" Type="System.String" Scope="User">
+      <Value Profile="(Default)">targets</Value>
+    </Setting>
+    <Setting Name="ImportResultsAutoCloseWindow" Type="System.Boolean" Scope="User">
+      <Value Profile="(Default)">True</Value>
+    </Setting>
+    <Setting Name="ImportResultsAutoScaleGraph" Type="System.Boolean" Scope="User">
+      <Value Profile="(Default)">False</Value>
+    </Setting>
+    <Setting Name="ImportResultsSimultaneousFiles" Type="System.Int32" Scope="User">
+      <Value Profile="(Default)">0</Value>
+    </Setting>
+    <Setting Name="ImportResultsDoAutoRetry" Type="System.Boolean" Scope="User">
+      <Value Profile="(Default)">False</Value>
+    </Setting>
+    <Setting Name="ShowMassErrorGraph" Type="System.Boolean" Scope="User">
+      <Value Profile="(Default)">False</Value>
+    </Setting>
+    <Setting Name="MassErrorGraphType" Type="System.String" Scope="User">
+      <Value Profile="(Default)">replicate</Value>
+    </Setting>
+    <Setting Name="MaxMassError" Type="System.Double" Scope="User">
+      <Value Profile="(Default)">0</Value>
+    </Setting>
+    <Setting Name="MinMassError" Type="System.Double" Scope="User">
+      <Value Profile="(Default)">0</Value>
+    </Setting>
+    <Setting Name="MassErrorPointsType" Type="System.String" Scope="User">
+      <Value Profile="(Default)">targets</Value>
+    </Setting>
+    <Setting Name="MassErorrHistogramBinSize" Type="System.Double" Scope="User">
+      <Value Profile="(Default)">0.5</Value>
+    </Setting>
+    <Setting Name="MassErrorHistogramTransition" Type="System.String" Scope="User">
+      <Value Profile="(Default)">best</Value>
+    </Setting>
+    <Setting Name="MassErrorHistogramDisplayType" Type="System.String" Scope="User">
+      <Value Profile="(Default)">products</Value>
+    </Setting>
+    <Setting Name="MassErrorHistogram2DXAxis" Type="System.String" Scope="User">
+      <Value Profile="(Default)">retention_time</Value>
+    </Setting>
+    <Setting Name="MassErrorHistogram2DLogScale" Type="System.Boolean" Scope="User">
+      <Value Profile="(Default)">False</Value>
+    </Setting>
+    <Setting Name="ShowMassErrorLegend" Type="System.Boolean" Scope="User">
+      <Value Profile="(Default)">True</Value>
+    </Setting>
+    <Setting Name="UpdateCheckAtStartup" Type="System.Boolean" Scope="User">
+      <Value Profile="(Default)">True</Value>
+    </Setting>
+    <Setting Name="ShowFullScanNumber" Type="System.Boolean" Scope="User">
+      <Value Profile="(Default)">False</Value>
+    </Setting>
+    <Setting Name="CompactFormatOption" Type="System.String" Scope="User">
+      <Value Profile="(Default)" />
+    </Setting>
+    <Setting Name="ExportPolarityFilterEnum" Type="System.String" Scope="User">
+      <Value Profile="(Default)">all</Value>
+    </Setting>
+    <Setting Name="RTRegressionMethod" Type="System.String" Scope="User">
+      <Value Profile="(Default)">linear</Value>
+    </Setting>
+    <Setting Name="CurrentColorScheme" Type="System.String" Scope="User">
+      <Value Profile="(Default)" />
+    </Setting>
+    <Setting Name="SynchronizeSummaryZooming" Type="System.Boolean" Scope="User">
+      <Value Profile="(Default)">False</Value>
+    </Setting>
+    <Setting Name="AreaCVHistogramBinWidth" Type="System.Double" Scope="User">
+      <Value Profile="(Default)">1</Value>
+    </Setting>
+    <Setting Name="AreaCVQValueCutoff" Type="System.Double" Scope="User">
+      <Value Profile="(Default)">NaN</Value>
+    </Setting>
+    <Setting Name="AreaCVShowCVCutoff" Type="System.Boolean" Scope="User">
+      <Value Profile="(Default)">True</Value>
+    </Setting>
+    <Setting Name="AreaCVShowMedianCV" Type="System.Boolean" Scope="User">
+      <Value Profile="(Default)">True</Value>
+    </Setting>
+    <Setting Name="AreaCVMaxFrequency" Type="System.Double" Scope="User">
+      <Value Profile="(Default)">NaN</Value>
+    </Setting>
+    <Setting Name="AreaCVMaxCV" Type="System.Double" Scope="User">
+      <Value Profile="(Default)">NaN</Value>
+    </Setting>
+    <Setting Name="AreaCVPointsType" Type="System.String" Scope="User">
+      <Value Profile="(Default)">targets</Value>
+    </Setting>
+    <Setting Name="AreaCVShowDecimals" Type="System.Boolean" Scope="User">
+      <Value Profile="(Default)">False</Value>
+    </Setting>
+    <Setting Name="AreaCVCVCutoff" Type="System.Double" Scope="User">
+      <Value Profile="(Default)">20</Value>
+    </Setting>
+    <Setting Name="AreaCVNormalizationMethod" Type="System.String" Scope="User">
+      <Value Profile="(Default)">none</Value>
+    </Setting>
+    <Setting Name="AreaCVLogScale" Type="System.Boolean" Scope="User">
+      <Value Profile="(Default)">False</Value>
+    </Setting>
+    <Setting Name="AreaCVMinLog10Area" Type="System.Double" Scope="User">
+      <Value Profile="(Default)">NaN</Value>
+    </Setting>
+    <Setting Name="AreaCVMaxLog10Area" Type="System.Double" Scope="User">
+      <Value Profile="(Default)">NaN</Value>
+    </Setting>
+    <Setting Name="ChromShowRawTimes" Type="System.Boolean" Scope="User">
+      <Value Profile="(Default)">True</Value>
+    </Setting>
+    <Setting Name="ShowFragmentIons" Type="System.Boolean" Scope="User">
+      <Value Profile="(Default)">True</Value>
+    </Setting>
+    <Setting Name="ShowQuantitativeOnly" Type="System.Boolean" Scope="User">
+      <Value Profile="(Default)">False</Value>
+    </Setting>
+    <Setting Name="Log2FoldChangeCutoff" Type="System.Double" Scope="User">
+      <Value Profile="(Default)">1</Value>
+    </Setting>
+    <Setting Name="PValueCutoff" Type="System.Double" Scope="User">
+      <Value Profile="(Default)">1.3010299956639813</Value>
+    </Setting>
+    <Setting Name="GroupComparisonShowSelection" Type="System.Boolean" Scope="User">
+      <Value Profile="(Default)">True</Value>
+    </Setting>
+    <Setting Name="FilterVolcanoPlotPoints" Type="System.Boolean" Scope="User">
+      <Value Profile="(Default)">False</Value>
+    </Setting>
+    <Setting Name="VolcanoPlotPropertiesLog" Type="System.Boolean" Scope="User">
+      <Value Profile="(Default)">True</Value>
+    </Setting>
+    <Setting Name="ShowOriginalPeak" Type="System.Boolean" Scope="User">
+      <Value Profile="(Default)">True</Value>
+    </Setting>
+    <Setting Name="AreaGraphDisplayType" Type="System.String" Scope="User">
+      <Value Profile="(Default)">bars</Value>
+    </Setting>
+    <Setting Name="ShowAdvancedVolcanoPlotFormatting" Type="System.Boolean" Scope="User">
+      <Value Profile="(Default)">True</Value>
+    </Setting>
+    <Setting Name="AuditLogView" Type="System.String" Scope="User">
+      <Value Profile="(Default)" />
+    </Setting>
+    <Setting Name="AreaCVTransitions" Type="System.String" Scope="User">
+      <Value Profile="(Default)">all</Value>
+    </Setting>
+    <Setting Name="AreaCVMsLevel" Type="System.String" Scope="User">
+      <Value Profile="(Default)">products</Value>
+    </Setting>
+    <Setting Name="AreaCVRatioIndex" Type="System.Int32" Scope="User">
+      <Value Profile="(Default)">-1</Value>
+    </Setting>
+    <Setting Name="UIMode" Type="System.String" Scope="User">
+      <Value Profile="(Default)" />
+    </Setting>
+    <Setting Name="MoleculeSettingsTab" Type="System.Int32" Scope="User">
+      <Value Profile="(Default)">0</Value>
+    </Setting>
+    <Setting Name="MixedMoleculeSettingsTab" Type="System.Int32" Scope="User">
+      <Value Profile="(Default)">0</Value>
     </Setting>
   </Settings>
 </SettingsFile>

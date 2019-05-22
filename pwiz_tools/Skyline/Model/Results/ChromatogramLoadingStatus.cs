@@ -37,15 +37,18 @@ namespace pwiz.Skyline.Model.Results
         public const int MAX_PEAKS_PER_BIN = 3;                // how many peaks to graph per bin
         public const double DISPLAY_FILTER_PERCENT = 0.01;     // filter peaks less than this percentage of maximum intensity
 
-        public ChromatogramLoadingStatus(string message) :
-            base(message)
+        public ChromatogramLoadingStatus(MsDataFileUri filePath, IEnumerable<string> replicateNames) :
+            base(SampleHelp.GetFileName(filePath))
         {
             Transitions = new TransitionData();
+            FilePath = filePath;
+            ReplicateNames = replicateNames;
         }
 
         public TransitionData Transitions { get; private set; }
         public MsDataFileUri FilePath { get; private set; }
         public bool Importing { get; private set; }
+        public IEnumerable<string> ReplicateNames { get; private set; }
 
         public ChromatogramLoadingStatus ChangeFilePath(MsDataFileUri filePath)
         {
@@ -87,7 +90,7 @@ namespace pwiz.Skyline.Model.Results
             /// <summary>
             /// Add transition points (partial data for multiple transitions) to AllChromatogramsGraph.
             /// </summary>
-            public void Add(string modifiedSequence, Color color, int filterIndex, float time, float[] intensities)
+            public void Add(Target modifiedSequence, Color color, int filterIndex, float time, float[] intensities)
             {
                 MaxRetentionTime = Math.Max(MaxRetentionTime, time);
                 float intensity = 0;
@@ -106,25 +109,24 @@ namespace pwiz.Skyline.Model.Results
                     BinnedPeaks.Enqueue(_bin);
                     _bin = null;
                 }
-                BinnedPeaks.Enqueue(null);  // Signal change of graph.
             }
 
             /// <summary>
             /// Add a complete transition to AllChromatogramsGraph.
             /// </summary>
-            public void AddTransition(string modifiedSequence, Color color, int index, int rank, float[] times, float[] intensities)
+            public void AddTransition(Target modifiedSequence, Color color, int index, int rank, IList<float> times, IList<float> intensities)
             {
-                if (rank == 0 || times.Length == 0)
+                if (rank == 0 || times.Count == 0)
                     return;
 
-                float maxTime = times[times.Length - 1];
+                float maxTime = times[times.Count - 1];
                 MaxRetentionTime = Math.Max(MaxRetentionTime, maxTime);
 
-                for (int i = 0; i < times.Length; i++)
+                for (int i = 0; i < times.Count; i++)
                     AddIntensity(modifiedSequence, color, index, times[i], intensities[i]);
             }
 
-            private void AddIntensity(string modifiedSequence, Color color, int filterIndex, float time, float intensity)
+            private void AddIntensity(Target modifiedSequence, Color color, int filterIndex, float time, float intensity)
             {
                 // Filter out small intensities quickly.
                 if (intensity < _maxImportedIntensity*DISPLAY_FILTER_PERCENT)
@@ -190,15 +192,9 @@ namespace pwiz.Skyline.Model.Results
                 _maxImportedIntensity = Math.Max(_maxImportedIntensity, intensity);
             }
 
-            public int GetRank(int id)
-            {
-                // TODO: how to get rank from AllChromatogramsGraph (information must be moved to Model!)
-                return 1;
-            }
-
             public class Peak
             {
-                public Peak(float intensity, string modifiedSequence, Color color, int filterIndex, int binIndex)
+                public Peak(float intensity, Target modifiedSequence, Color color, int filterIndex, int binIndex)
                 {
                     Intensity = intensity;
                     ModifiedSequence = modifiedSequence;
@@ -207,7 +203,7 @@ namespace pwiz.Skyline.Model.Results
                     BinIndex = binIndex;
                 }
 
-                public string ModifiedSequence;
+                public Target ModifiedSequence;
                 public Color Color;
                 public int FilterIndex;
                 public int BinIndex;

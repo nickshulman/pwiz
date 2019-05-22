@@ -37,8 +37,10 @@
 #include <cstdlib>
 #include <ctime>
 #include <vector>
+#include "BlibUtils.h" // For IONMOBILITY_TYPE enum
 
-using namespace std;
+using std::binary_function;
+
 
 namespace BiblioSpec {
 
@@ -46,14 +48,14 @@ struct PEAK_T
 { 
   double mz; 
   float intensity; 
-  float ionMobility; // In Waters machines, product ions have kinetic energy added in a cell after the drift tube, and thus move faster from there to the detector, resulting in a drift time offset.
+  float driftTime; // In Waters machines, product ions have kinetic energy added in a cell after the drift tube, and thus move faster from there to the detector, resulting in a drift time offset.
 
-  PEAK_T() : mz(0), intensity(0), ionMobility(0) {};
+  PEAK_T() : mz(0), intensity(0), driftTime(0) {};
 
   PEAK_T& operator= (const PEAK_T& right){
       mz = right.mz;
       intensity = right.intensity;
-      ionMobility = right.ionMobility;
+      driftTime = right.driftTime;
       return *this;
   };
 };
@@ -111,9 +113,12 @@ class Spectrum
     SPEC_TYPE type_;
     double mz_;
     double ionMobility_;
-    int ionMobilityType_; // This also applies to all product ion mobilities in the PEAK_T vectors
-    double ionMobilityHighEnergyDriftTimeOffsetMsec_; // for Waters Mse IMS, where product ions fly a little faster between the end of the drift tube and the detector
+    double collisionalCrossSection_;
+    double ionMobilityHighEnergyOffset_; // for Waters Mse IMS, where product ions fly a little faster between the end of the drift tube and the detector
+    IONMOBILITY_TYPE ionMobilityType_;
     double retentionTime_;
+    double startTime_;
+    double endTime_;
     double totalIonCurrentRaw_;
     double totalIonCurrentProcessed_;
     double basePeakIntensityRaw_;
@@ -125,7 +130,7 @@ class Spectrum
  public:
     Spectrum();
     Spectrum(const Spectrum& s);
-    ~Spectrum();
+    virtual ~Spectrum();
 
     //overloaded operators 
     Spectrum& operator= (const Spectrum& s);
@@ -137,9 +142,12 @@ class Spectrum
     int getScanNumber() const;
     double getMz() const;
     double getIonMobility() const;
-    double getIonMobilityHighEnergyDriftTimeOffsetMsec() const;
-    int getIonMobilityType() const;
+    double getIonMobilityHighEnergyOffset() const;
+    IONMOBILITY_TYPE getIonMobilityType() const;
+    double getCollisionalCrossSection() const;
     double getRetentionTime() const;
+    double getStartTime() const;
+    double getEndTime() const;
     int getNumRawPeaks() const; 
     int getNumProcessedPeaks() const;
     double getTotalIonCurrentRaw() const;
@@ -159,10 +167,12 @@ class Spectrum
     
     //setters
     void setScanNumber(int newNum);
-    void setIonMobility(double mobility);
-    void setIonMobilityHighEnergyDriftTimeOffsetMsec(double msec);
-    void setIonMobilityType(int type);
+    void setIonMobility(double im, IONMOBILITY_TYPE type);
+    void setIonMobilityHighEnergyOffset(double imHEO);
+    void setCollisionalCrossSection(double ccs);
     void setRetentionTime(double rt);
+    void setStartTime(double rt);
+    void setEndTime(double rt);
     void setRawPeaks(const vector<PEAK_T>& newpeaks);
     void setProcessedPeaks(const vector<PEAK_T>& newpeaks);
     virtual void addCharge(int newz);

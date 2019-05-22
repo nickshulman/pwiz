@@ -606,7 +606,16 @@ namespace ZedGraph
 				base.OnPaint( e );
 
 				// Add a try/catch pair since the users of the control can't catch this one
-				try { _masterPane.Draw( e.Graphics ); }
+				try
+				{
+					_masterPane.Draw(e.Graphics);
+					if (_isZooming)
+					{
+						Rectangle rect = CalcScreenRect(_dragStartPt, _dragEndPt);
+						Pen p = new Pen(Color.Black) {DashStyle = DashStyle.Dash};
+						e.Graphics.DrawRectangle(p, rect);
+					}
+				}
 				catch { }
 			}
 

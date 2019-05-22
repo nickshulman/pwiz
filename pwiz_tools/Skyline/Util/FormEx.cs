@@ -19,22 +19,103 @@
 
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Drawing;
+using System.Reflection;
 using System.Windows.Forms;
 using pwiz.Common.Controls;
+using pwiz.Common.SystemUtil;
+using pwiz.Skyline.Util.Extensions;
 
 namespace pwiz.Skyline.Util
 {
-    public class FormEx : Form, IFormView
+    public class FormEx : Form, IFormView, 
+                     Helpers.IModeUIAwareForm // Can translate "peptide"=>"molecule" etc if desired
     {
         public static bool ShowFormNames { get; set; }
 
+        private const int STATE_CREATINGHANDLE = 0x00040000;
+
         private const int TIMEOUT_SECONDS = 10;
         private static readonly List<FormEx> _undisposedForms = new List<FormEx>();
+        private Helpers.ModeUIAwareFormHelper _modeUIHelper;
+        public Helpers.ModeUIExtender modeUIHandler; // Allows UI mode management in Designer
+        private Container _components; // For IExtender use
+
+
+        public FormEx()
+        {
+            InitializeComponent(); // Required for Windows Form Designer support
+        }
+
+        #region Windows Form Designer generated code
+
+        /// <summary>
+        /// Required method for Designer support - do not modify
+        /// the contents of this method with the code editor.
+        /// </summary>
+        private void InitializeComponent()
+        {
+            this._components = new System.ComponentModel.Container();
+            this.modeUIHandler = new Helpers.ModeUIExtender(_components);
+            this._modeUIHelper = new Helpers.ModeUIAwareFormHelper(modeUIHandler);
+            ((System.ComponentModel.ISupportInitialize)(this.modeUIHandler)).BeginInit();
+        }
+        #endregion
+
+        public Helpers.ModeUIAwareFormHelper GetModeUIHelper() // Method instead of property so it doesn't show up in Designer
+        {
+            return _modeUIHelper; 
+        }
+
+        public string ModeUIAwareStringFormat(string format, params object[] args)
+        {
+            return _modeUIHelper.Format(format, args);
+        }
+
+        private bool IsCreatingHandle()
+        {
+            var GetState = GetType().GetMethod(@"GetState", BindingFlags.NonPublic | BindingFlags.Instance);
+            Assume.IsNotNull(GetState);
+
+            // ReSharper disable once PossibleNullReferenceException
+            return (bool) GetState.Invoke(this, new object[] { STATE_CREATINGHANDLE });
+        }
+
+        /// <summary>
+        /// Sealed to keep ReSharper happy, because we set it in constructors
+        /// </summary>
+        public sealed override string Text
+        {
+            get { return base.Text; }
+            set { base.Text = value; }
+        }
+
+        public new void Show()
+        {
+            // If you really need this, then you have to use ShowParentless (not yet created), or windows may leak handles.
+            throw new InvalidOperationException(@"Not supported.");
+        }
+
+        public new DialogResult ShowDialog()
+        {
+            // If you really need this, then you have to use ShowParentlessDialog, or windows may leak handles.
+            throw new InvalidOperationException(@"Not supported.");
+        }
+
+        public DialogResult ShowParentlessDialog()
+        {
+            // WINDOWS 10 UPDATE HACK: Because Windows 10 update version 1803 causes unparented non-ShowInTaskbar windows to leak GDI and User handles
+            ShowInTaskbar = ShowInTaskbar || Program.FunctionalTest;
+
+            return base.ShowDialog();
+        }
 
         public DialogResult ShowWithTimeout(IWin32Window parent, string message)
         {
+            Assume.IsNotNull(parent);   // Problems if the parent is null
+
             if (Program.FunctionalTest && Program.PauseSeconds == 0 && !Debugger.IsAttached)
             {
                 bool timeout = false;
@@ -54,7 +135,7 @@ namespace pwiz.Skyline.Util
                 timeoutTimer.Stop();
                 if (timeout)
                     throw new TimeoutException(
-                        string.Format("{0} not closed for {1} seconds. Message = {2}", // Not L10N
+                        string.Format(@"{0} not closed for {1} seconds. Message = {2}",
                             GetType(),
                             TIMEOUT_SECONDS,
                             message));
@@ -75,12 +156,18 @@ namespace pwiz.Skyline.Util
             if (Program.FunctionalTest)
             {
                 // Track undisposed forms.
-                _undisposedForms.Add(this);
+                lock (_undisposedForms)
+                {
+                    _undisposedForms.Add(this);
+                }
             }
+
+            // Potentially replace "peptide" with "molecule" etc in all controls on open, or possibly disable non-proteomic components etc
+            GetModeUIHelper().OnLoad(this);
 
             if (ShowFormNames)
             {
-                string textAppend = "  (" + GetType().Name + ")"; // Not L10N
+                string textAppend = @"  (" + GetType().Name + @")";
                 Text += textAppend;
             }
         }
@@ -90,29 +177,72 @@ namespace pwiz.Skyline.Util
             get { return Program.FunctionalTest || Program.SkylineOffscreen; }
         }
 
+        [Localizable(false)]
         protected override void Dispose(bool disposing)
         {
-            if (Program.FunctionalTest && disposing)
-                _undisposedForms.Remove(this);
+            if (Program.FunctionalTest && IsCreatingHandle())
+            {
+                // We might be in a stack unwind at this point, so we print out some information
+                // and return so that we don't call base.Dispose and maybe get to find out what
+                // the "current exception" is
+                Program.Log?.Invoke(string.Format(
+                    "\r\n[WARNING] Attempting to dispose form of type '{0}' during handle creation. StackTrace:\r\n{1}\r\n",
+                    GetType(), Environment.StackTrace));
 
-            base.Dispose(disposing);
+                var exceptionPtrs = ExceptionPointers.Current;
+                if (exceptionPtrs == null)
+                {
+                    Program.Log?.Invoke("ExceptionPointers is null\r\n\r\n");
+                }
+                else
+                {
+                    Program.Log?.Invoke(string.Format("ExceptionPointers: {0}\r\nModule List:{1}\r\n\r\n",
+                        exceptionPtrs, ExceptionPointers.GetModuleList()));
+                }
+
+                return;
+            }
+
+            if (Program.FunctionalTest && disposing)
+            {
+                lock (_undisposedForms)
+                {
+                    _undisposedForms.Remove(this);
+                }
+            }
+
+            try
+            {
+                base.Dispose(disposing);
+            }
+            catch (InvalidOperationException x)
+            {
+                var message = TextUtil.LineSeparate(
+                    string.Format("Exception thrown attempting to dispose {0}", GetType()),
+                    x.Message,
+                    "Exception caught at: " + new StackTrace());
+                throw new InvalidOperationException(message, x);
+            }
         }
 
         public void CheckDisposed()
         {
             if (IsDisposed)
             {
-                throw new ObjectDisposedException("Form disposed"); // Not L10N
+                throw new ObjectDisposedException(@"Form disposed");
             }
         }
 
         public static void CheckAllFormsDisposed()
         {
-            if (_undisposedForms.Count != 0)
+            lock (_undisposedForms)
             {
-                var formType = _undisposedForms[0].GetType().Name;
-                _undisposedForms.Clear();
-                throw new ApplicationException(formType + " was not disposed"); // Not L10N
+                if (_undisposedForms.Count != 0)
+                {
+                    var formType = _undisposedForms[0].GetType().Name;
+                    _undisposedForms.Clear();
+                    throw new ApplicationException(formType + @" was not disposed");
+                }
             }
         }
 
@@ -139,7 +269,7 @@ namespace pwiz.Skyline.Util
             {
                 var parent = control.Parent;
                 if (parent == null)
-                    return null;
+                    return FormUtil.FindTopLevelOpenForm();
                 var parentForm = parent as Form;
                 if (parentForm != null)
                     return parentForm;
@@ -149,12 +279,17 @@ namespace pwiz.Skyline.Util
 
         public void ForceOnScreen()
         {
-            var location = Location;
-            location.X = Math.Max(GetScreen(Left, Top).WorkingArea.Left,
-                Math.Min(location.X, GetScreen(Right, Top).WorkingArea.Right - Size.Width));
-            location.Y = Math.Max(GetScreen(Left, Top).WorkingArea.Top,
-                Math.Min(location.Y, GetScreen(Left, Bottom).WorkingArea.Bottom - Size.Height));
-            Location = location;
+            ForceOnScreen(this);
+        }
+
+        public static void ForceOnScreen(Form form)
+        {
+            var location = form.Location;
+            location.X = Math.Max(GetScreen(form.Left, form.Top).WorkingArea.Left,
+                Math.Min(location.X, GetScreen(form.Right, form.Top).WorkingArea.Right - form.Size.Width));
+            location.Y = Math.Max(GetScreen(form.Left, form.Top).WorkingArea.Top,
+                Math.Min(location.Y, GetScreen(form.Left, form.Bottom).WorkingArea.Bottom - form.Size.Height));
+            form.Location = location;
         }
 
         private static Screen GetScreen(int x, int y)
@@ -166,5 +301,8 @@ namespace pwiz.Skyline.Util
         {
             CancelButton.PerformClick();
         }
+
+        public virtual string DetailedMessage { get { return null; } }
+
     }
 }

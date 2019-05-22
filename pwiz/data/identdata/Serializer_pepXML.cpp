@@ -742,7 +742,7 @@ void write_search_hit(XMLWriter& xmlWriter,
         {
             if (cvParam.cvid != MS_number_of_matched_peaks &&
                 cvParam.cvid != MS_number_of_unmatched_peaks &&
-                (cvIsA(cvParam.cvid, MS_search_engine_specific_score_for_PSMs) ||
+                (cvIsA(cvParam.cvid, MS_PSM_level_search_engine_specific_statistic) ||
                  regex_match(cvParam.value, what, numericRegex)))
             {
                 const string& preferredScoreName = ScoreTranslator::instance->translate(analysisSoftwareCVID, cvParam.cvid);
@@ -1075,8 +1075,8 @@ struct HandlerSearchSummary : public SAXParser::Handler
             else if (bal::starts_with(ionSeries, "v"))      _sip->additionalSearchParams.cvParams.push_back(MS_param__v_ion);
             else if (bal::starts_with(ionSeries, "w"))      _sip->additionalSearchParams.cvParams.push_back(MS_param__w_ion);
 
-            if (bal::contains(ionSeries, "NH3"))            _sip->additionalSearchParams.cvParams.push_back(MS_NH3_neutral_loss);
-            if (bal::contains(ionSeries, "H2O"))            _sip->additionalSearchParams.cvParams.push_back(MS_H2O_neutral_loss);
+            if (bal::contains(ionSeries, "NH3"))            _sip->additionalSearchParams.cvParams.push_back(MS_NH3_neutral_loss_OBSOLETE);
+            if (bal::contains(ionSeries, "H2O"))            _sip->additionalSearchParams.cvParams.push_back(MS_H2O_neutral_loss_OBSOLETE);
         }
     }
 
@@ -2150,6 +2150,32 @@ PWIZ_API_DECL string stripChargeFromConventionalSpectrumId(const string& id)
         return id.substr(0, lastDot);
 
     return id;
+}
+
+
+PWIZ_API_DECL CVID pepXMLSoftwareNameToCVID(const std::string& softwareName)
+{
+    return AnalysisSoftwareTranslator::instance->translate(softwareName);
+}
+
+PWIZ_API_DECL const std::string& softwareCVIDToPepXMLSoftwareName(CVID softwareCVID)
+{
+    return AnalysisSoftwareTranslator::instance->translate(softwareCVID);
+}
+
+PWIZ_API_DECL CVID pepXMLScoreNameToCVID(CVID softwareCVID, const std::string& scoreName)
+{
+    return ScoreTranslator::instance->translate(softwareCVID, scoreName);
+}
+
+PWIZ_API_DECL const std::string& scoreCVIDToPepXMLScoreName(CVID softwareCVID, CVID scoreCVID)
+{
+    return ScoreTranslator::instance->translate(softwareCVID, scoreCVID);
+}
+
+PWIZ_API_DECL CVID nativeIdStringToCVID(const std::string& id)
+{
+    return NativeIdTranslator::instance->translate(id);
 }
 
 

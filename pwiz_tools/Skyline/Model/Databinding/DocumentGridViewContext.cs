@@ -16,10 +16,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+using System.Collections.Generic;
+using System.Linq;
 using System.Windows.Forms;
 using pwiz.Common.DataBinding;
+using pwiz.Common.DataBinding.Controls;
 using pwiz.Common.DataBinding.Controls.Editor;
 using pwiz.Skyline.Controls.Databinding;
+using pwiz.Skyline.Model.Databinding.Entities;
+using pwiz.Skyline.Model.Databinding.RowActions;
 using pwiz.Skyline.Properties;
 
 namespace pwiz.Skyline.Model.Databinding
@@ -70,6 +76,57 @@ namespace pwiz.Skyline.Model.Databinding
             };
             dialog.ShowDialog(owner);
         }
+
+        public BoundDataGridView BoundDataGridView { get; set; }
+
+        public override bool DeleteEnabled
+        {
+            get
+            {
+                if (BoundDataGridView == null)
+                {
+                    return false;
+                }
+                var bindingListSource = BoundDataGridView.DataSource as BindingListSource;
+                if (bindingListSource == null)
+                {
+                    return false;
+                }
+                var viewInfo = bindingListSource.ViewInfo;
+                if (viewInfo == null)
+                {
+                    return false;
+                }
+                return typeof(SkylineDocNode).IsAssignableFrom(viewInfo.ParentColumn.PropertyType);
+            }
+        }
+
+        public override void Delete()
+        {
+            DeleteSkylineDocNodes(BoundDataGridView, GetSelectedDocNodes(BoundDataGridView).ToArray());
+        }
+
+        private IEnumerable<SkylineDocNode> GetSelectedDocNodes(BoundDataGridView dataGridView)
+        {
+            if (null == dataGridView)
+            {
+                return new SkylineDocNode[0];
+            }
+            var bindingSource = dataGridView.DataSource as BindingListSource;
+            if (null == bindingSource)
+            {
+                return new SkylineDocNode[0];
+            }
+            var selectedRows = dataGridView.SelectedRows.Cast<DataGridViewRow>()
+                .Select(row => (RowItem) bindingSource[row.Index]).ToArray();
+            if (!selectedRows.Any())
+            {
+                selectedRows = new[] {bindingSource.Current as RowItem};
+            }
+
+            return selectedRows.Select(row => row.Value).OfType<SkylineDocNode>();
+        }
+
         /// <summary>
         /// Creates a DocumentGridViewContext that can be used for exporting reports, importing report definitions, etc.
         /// </summary>
@@ -86,7 +143,43 @@ namespace pwiz.Skyline.Model.Databinding
 
         protected override ViewSpec GetBlankView()
         {
-            return new ViewSpec().SetRowType(typeof (Entities.Protein)).SetSublistId(PropertyPath.Parse("Results!*")); // Not L10N
+            return new ViewSpec().SetRowType(typeof (Protein)).SetSublistId(PropertyPath.Parse(@"Results!*"));
+        }
+
+        public void UpdateBuiltInViews()
+        {
+            RowSources = GetDocumentGridRowSources(SkylineDataSchema);
+        }
+
+        public override bool HasRowActions
+        {
+            get { return true; }
+        }
+        public override void RowActionsDropDownOpening(ToolStripItemCollection dropDownItems)
+        {
+            base.RowActionsDropDownOpening(dropDownItems);
+            if (BoundDataGridView == null)
+            {
+                return;
+            }
+            foreach (var action in RemovePeaksAction.All)
+            {
+                var menuItem = action.CreateMenuItem(SkylineDataSchema.ModeUI, BoundDataGridView);
+                if (menuItem != null)
+                {
+                    dropDownItems.Add(menuItem);
+                }
+            }
+
+            dropDownItems.Add(new ToolStripSeparator());
+            foreach (var action in DeleteNodesAction.All)
+            {
+                var menuItem = action.CreateMenuItem(SkylineDataSchema.ModeUI, BoundDataGridView);
+                if (menuItem != null)
+                {
+                    dropDownItems.Add(menuItem);
+                }
+            }
         }
     }
 }

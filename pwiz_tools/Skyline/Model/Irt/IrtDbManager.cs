@@ -12,7 +12,7 @@
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY C:\proj\pwiz\pwiz\pwiz_tools\Skyline\Model\Lib\Library.csKIND, either express or implied.
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
@@ -31,7 +31,7 @@ namespace pwiz.Skyline.Model.Irt
             // Not loaded if the calculator is not usable
             var calc = GetIrtCalculator(document);
             if (calc != null && !calc.IsUsable)
-                return "IrtDbManager: GetIrtCalculator(document) not usable"; // Not L10N
+                return @"IrtDbManager: GetIrtCalculator(document) not usable";
             // Auto-calc of all replicates can wait until the bulk load completes
             if (document.Settings.IsResultsJoiningDisabled)
                 return null;
@@ -40,12 +40,21 @@ namespace pwiz.Skyline.Model.Irt
             if (rtRegression == null)
                 return null;
             if (rtRegression.IsAutoCalcRequired(document, null))
-                return "IrtDbManager: rtRegression IsAutoCalcRequired"; // Not L10N
+                return @"IrtDbManager: rtRegression IsAutoCalcRequired";
             return null;
         }
 
         private readonly Dictionary<string, RCalcIrt> _loadedCalculators =
             new Dictionary<string, RCalcIrt>();
+
+        // For use on container shutdown, clear caches to restore minimal memory footprint
+        public override void ClearCache()
+        {
+            lock (_loadedCalculators)
+            {
+                _loadedCalculators.Clear();
+            }
+        }
 
         protected override bool StateChanged(SrmDocument document, SrmDocument previous)
         {
@@ -113,7 +122,10 @@ namespace pwiz.Skyline.Model.Irt
                 // Change the document to use the new calculator and regression information.
                 docCurrent = container.Document;
                 if (!ReferenceEquals(rtRegression, docCurrent.Settings.PeptideSettings.Prediction.RetentionTime))
+                {
+                    EndProcessing(document);
                     return false;
+                }
                 docNew = docCurrent.ChangeSettings(docCurrent.Settings.ChangePeptidePrediction(predict =>
                     predict.ChangeRetentionTime(rtRegressionNew)));
             }
@@ -149,20 +161,21 @@ namespace pwiz.Skyline.Model.Irt
                                                                    RetentionTimeRegression rtRegression)
         {
             var document = container.Document;
-            var dictSeqToPeptide = new Dictionary<string, PeptideDocNode>();
-            foreach (var nodePep in document.Peptides)
+            var dictSeqToPeptide = new Dictionary<Target, PeptideDocNode>();
+            foreach (var nodePep in document.Molecules)
             {
                 if (nodePep.IsDecoy)
                     continue;
 
-                string seqMod = document.Settings.GetSourceTextId(nodePep);
+                var seqMod = document.Settings.GetSourceTarget(nodePep);
                 if (!dictSeqToPeptide.ContainsKey(seqMod))
                     dictSeqToPeptide.Add(seqMod, nodePep);
             }
+            int minCount = 0;
             try
             {
-                var regressionPeps = rtRegression.Calculator.ChooseRegressionPeptides(dictSeqToPeptide.Keys);
-                var setRegression = new HashSet<string>(regressionPeps);
+                var regressionPeps = rtRegression.Calculator.ChooseRegressionPeptides(dictSeqToPeptide.Keys, out minCount);
+                var setRegression = new HashSet<Target>(regressionPeps);
                 dictSeqToPeptide = dictSeqToPeptide.Where(p => setRegression.Contains(p.Key))
                                                    .ToDictionary(p => p.Key, p => p.Value);
             }
@@ -177,7 +190,7 @@ namespace pwiz.Skyline.Model.Irt
             // Must have standard peptides, all with results
             if (dictSeqToPeptide.Count == 0)
                 return rtRegression.ClearEquations();
-            else if (dictSeqToPeptide.Values.Any(nodePep => !nodePep.HasResults))
+            else if (dictSeqToPeptide.Values.Count(nodePep => nodePep.HasResults) < minCount)
                 return rtRegression.ClearEquations(dictStandardPeptides);
 
             var calculator = rtRegression.Calculator;
@@ -194,8 +207,7 @@ namespace pwiz.Skyline.Model.Irt
                 double score = dictSeqToScore[seqToPeptide.Key];
                 listPepCorr.Add(new TimeScorePair(time.Value, score));
 
-                foreach (var fileId in nodePep.Results.Where(r => r != null)
-                                                      .SelectMany(r => r)
+                foreach (var fileId in nodePep.Results.SelectMany(r => r)
                                                       .Select(chromInfo => chromInfo.FileId))
                 {
                     IList<TimeScorePair> listTimeScores;
@@ -209,25 +221,27 @@ namespace pwiz.Skyline.Model.Irt
             }
 
             // If not all standard peptides have at least some retention time value, fail prediction
-            if (listPepCorr.Count != dictSeqToPeptide.Count)
+            if (listPepCorr.Count < minCount)
                 return rtRegression.ClearEquations(dictStandardPeptides);
 
             // Only calculate regressions for files with retention times for all of the standards
             var fileIdToConversions = from p in dictFileIdToCorr
                                        where p.Value.Count == dictSeqToPeptide.Count
-                                       select new KeyValuePair<int, RegressionLine>(p.Key, CalcConversion(p.Value));
+                                       select new KeyValuePair<int, RegressionLine>(p.Key, CalcConversion(p.Value, minCount));
 
-            return rtRegression.ChangeEquations(new RegressionLineElement(CalcConversion(listPepCorr)),
-                                                fileIdToConversions,
-                                                dictStandardPeptides);
+            var line = CalcConversion(listPepCorr, minCount);
+            return line != null
+                ? rtRegression.ChangeEquations(new RegressionLineElement(line), fileIdToConversions, dictStandardPeptides)
+                : rtRegression.ChangeEquations(null, fileIdToConversions, dictStandardPeptides).ChangeInsufficientCorrelation(true);
         }
 
-        private static RegressionLine CalcConversion(IList<TimeScorePair> listPepCorr)
+        private static RegressionLine CalcConversion(IList<TimeScorePair> listPepCorr, int minCount)
         {
-            var statTime = new Statistics(listPepCorr.Select(p => p.Time));
-            var statScore = new Statistics(listPepCorr.Select(p => p.Score));
+            var listTime = listPepCorr.Select(p => p.Time).ToList();
+            var listScore = listPepCorr.Select(p => p.Score).ToList();
 
-            return new RegressionLine(statTime.Slope(statScore), statTime.Intercept(statScore));
+            RegressionLine line;
+            return RCalcIrt.TryGetRegressionLine(listScore, listTime, minCount, out line) ? line : null;
         }
 
         private struct TimeScorePair

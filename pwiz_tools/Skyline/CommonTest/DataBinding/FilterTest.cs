@@ -36,13 +36,13 @@ namespace CommonTest.DataBinding
                 .SetSublistId(PropertyPath.Parse("AminoAcidsDict!*"));
             var viewSpecWithFilter = viewSpec.SetFilters(new[]
                 {
-                    new FilterSpec(PropertyPath.Parse("AminoAcidsDict!*.Value"),
-                                   FilterOperations.OP_IS_NOT_BLANK, null),
+                    new FilterSpec(PropertyPath.Parse("AminoAcidsDict!*.Value"), FilterPredicate.IS_NOT_BLANK),
                 });
             var bindingListSource = new BindingListSource();
             var bindingListSourceWithFilter = new BindingListSource();
             bindingListSource.SetView(new ViewInfo(dataSchema, typeof(Peptide), viewSpec), null);
-            bindingListSourceWithFilter.SetView(new ViewInfo(dataSchema, typeof(Peptide), viewSpecWithFilter), new[] {new Peptide("")});
+            bindingListSourceWithFilter.SetView(new ViewInfo(dataSchema, typeof(Peptide), viewSpecWithFilter), 
+                new StaticRowSource(new[]{new Peptide("")}));
             Assert.AreEqual(0, bindingListSourceWithFilter.Count);
             bindingListSource.RowSource = bindingListSourceWithFilter.RowSource;
             Assert.AreEqual(1, bindingListSource.Count);
@@ -56,9 +56,9 @@ namespace CommonTest.DataBinding
                 new ViewSpec().SetColumns(new[]
                 {new ColumnSpec(PropertyPath.Parse("Code")), new ColumnSpec(PropertyPath.Parse("Molecule!*.Key")),})
                     .SetFilters(new[]
-                    {new FilterSpec(PropertyPath.Parse("Molecule!*.Key"), FilterOperations.OP_EQUALS, "S")});
+                    {new FilterSpec(PropertyPath.Parse("Molecule!*.Key"), FilterPredicate.CreateFilterPredicate(dataSchema, typeof(string), FilterOperations.OP_EQUALS, "S"))});
             var bindingListSource = new BindingListSource();
-            bindingListSource.SetView(new ViewInfo(dataSchema, typeof(AminoAcid), viewSpec), AminoAcid.AMINO_ACIDS);
+            bindingListSource.SetView(new ViewInfo(dataSchema, typeof(AminoAcid), viewSpec), new StaticRowSource(AminoAcid.AMINO_ACIDS));
             Assert.AreEqual(2, bindingListSource.Count);
 
 

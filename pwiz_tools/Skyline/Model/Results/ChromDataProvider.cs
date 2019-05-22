@@ -19,6 +19,7 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using pwiz.Common.Chemistry;
 using pwiz.Common.SystemUtil;
 using pwiz.ProteowizardWrapper;
 using pwiz.Skyline.Properties;
@@ -32,7 +33,7 @@ namespace pwiz.Skyline.Model.Results
         protected readonly IProgressMonitor _loader;
 
         protected ChromDataProvider(ChromFileInfo fileInfo,
-                                    ProgressStatus status,
+                                    IProgressStatus status,
                                     int startPercent,
                                     int endPercent,
                                     IProgressMonitor loader)
@@ -72,26 +73,33 @@ namespace pwiz.Skyline.Model.Results
 
         public ChromFileInfo FileInfo { get; private set; }
 
-        public ProgressStatus Status { get; protected set; }
+        public IProgressStatus Status { get; protected set; }
 
-        public ChromatogramLoadingStatus LoadingStatus { get { return (ChromatogramLoadingStatus) Status; } }
-
-        public abstract IEnumerable<KeyValuePair<ChromKey, int>> ChromIds { get; }
+        public abstract IEnumerable<ChromKeyProviderIdPair> ChromIds { get; }
 
         public virtual byte[] MSDataFileScanIdBytes { get { return new byte[0]; } }
 
         public virtual void SetRequestOrder(IList<IList<int>> orderedSets) { }
 
-        public abstract bool GetChromatogram(int id, string modifiedSequence, Color color, out ChromExtra extra,
-            out float[] times, out int[] scanIndexes, out float[] intensities, out float[] massErrors);
+        public abstract bool GetChromatogram(int id, Target modifiedSequence, Color color, out ChromExtra extra, out TimeIntensities timeIntensities);
 
         public abstract double? MaxRetentionTime { get; }
 
         public abstract double? MaxIntensity { get; }
 
+        public virtual double? TicArea { get { return FileInfo.TicArea; } }
+
+        public abstract eIonMobilityUnits IonMobilityUnits { get; }
+
         public abstract bool IsProcessedScans { get; }
 
         public abstract bool IsSingleMzMatch { get; }
+
+        public virtual bool HasMidasSpectra { get { return false; } }
+
+        // Used for offering hints to user when document transition polarities don't agree with the raw data
+        public abstract bool SourceHasPositivePolarityData { get; }
+        public abstract bool SourceHasNegativePolarityData { get; }
 
         public abstract void ReleaseMemory();
 
@@ -100,11 +108,14 @@ namespace pwiz.Skyline.Model.Results
 
     internal sealed class ChromatogramDataProvider : ChromDataProvider
     {
-        private readonly List<KeyValuePair<ChromKey, int>> _chromIds =
-            new List<KeyValuePair<ChromKey, int>>();
+        private readonly List<ChromKeyProviderIdPair> _chromIds = new List<ChromKeyProviderIdPair>();
         private readonly int[] _chromIndices;
 
         private MsDataFileImpl _dataFile;
+        
+        private readonly bool _hasMidasSpectra;
+        private readonly bool _sourceHasNegativePolarityData;
+        private readonly bool _sourceHasPositivePolarityData;
 
         /// <summary>
         /// The number of chromatograms read so far.
@@ -125,7 +136,7 @@ namespace pwiz.Skyline.Model.Results
 
         public ChromatogramDataProvider(MsDataFileImpl dataFile,
                                         ChromFileInfo fileInfo,
-                                        ProgressStatus status,
+                                        IProgressStatus status,
                                         int startPercent,
                                         int endPercent,
                                         IProgressMonitor loader)
@@ -143,7 +154,7 @@ namespace pwiz.Skyline.Model.Results
 
             bool fixCEOptForShimadzu = dataFile.IsShimadzuFile;
             int indexPrecursor = -1;
-            double lastPrecursor = 0;
+            var lastPrecursor = SignedMz.ZERO;
             for (int i = 0; i < len; i++)
             {
                 int index;
@@ -158,7 +169,15 @@ namespace pwiz.Skyline.Model.Results
                     lastPrecursor = chromKey.Precursor;
                     indexPrecursor++;
                 }
-                var ki = new KeyValuePair<ChromKey, int>(chromKey, index);
+                if (chromKey.Precursor.IsNegative)
+                {
+                    _sourceHasNegativePolarityData = true;
+                }
+                else
+                {
+                    _sourceHasPositivePolarityData = true;
+                }
+                var ki = new ChromKeyProviderIdPair(chromKey, index);
                 _chromIndices[index] = indexPrecursor;
                 _chromIds.Add(ki);
             }
@@ -170,7 +189,10 @@ namespace pwiz.Skyline.Model.Results
                 FixCEOptForShimadzu();
 
             if (_chromIds.Count == 0)
-                throw new NoSrmDataException(dataFile.FilePath);
+                throw new NoSrmDataException(FileInfo.FilePath);
+
+            // CONSIDER(kaipot): Some way to support mzML files converted from MIDAS wiff files
+            _hasMidasSpectra = (dataFile.IsABFile) && SpectraChromDataProvider.HasSpectrumData(dataFile);
 
             SetPercentComplete(50);
         }
@@ -178,10 +200,11 @@ namespace pwiz.Skyline.Model.Results
         private void FixCEOptForShimadzu()
         {
             // Need to sort by keys to ensure everything is in the right order.
-            _chromIds.Sort((p1, p2) => p1.Key.CompareTo(p2.Key));
+            _chromIds.Sort();
 
             int indexLast = 0;
-            double lastPrecursor = 0, lastProduct = 0;
+            var lastPrecursor = SignedMz.ZERO;
+            var lastProduct = SignedMz.ZERO;
             for (int i = 0; i < _chromIds.Count; i++)
             {
                 var chromKey = _chromIds[i].Key;
@@ -237,28 +260,31 @@ namespace pwiz.Skyline.Model.Results
             {
                 var chromId = _chromIds[start + i];
                 var chromKeyNew = chromId.Key.ChangeOptimizationStep(step);
-                _chromIds[start + i] = new KeyValuePair<ChromKey, int>(chromKeyNew, chromId.Value);
+                _chromIds[start + i] = new ChromKeyProviderIdPair(chromKeyNew, chromId.ProviderId);
                 step--;
             }
         }
 
-        public override IEnumerable<KeyValuePair<ChromKey, int>> ChromIds
+        public override IEnumerable<ChromKeyProviderIdPair> ChromIds
         {
             get { return _chromIds; }
         }
 
-        public override bool GetChromatogram(int id, string modifiedSequence, Color color, out ChromExtra extra, out float[] times, out int[] scanIndexes, out float[] intensities, out float[] massErrors)
+        public override eIonMobilityUnits IonMobilityUnits { get { return eIonMobilityUnits.none; } }
+
+        public override bool GetChromatogram(int id, Target modifiedSequence, Color color, out ChromExtra extra, out TimeIntensities timeIntensities)
         {
             // No mass errors in SRM
-            massErrors = null;
             if (_readChromatograms == 0)
             {
-                _readStartTime = DateTime.Now;
+                _readStartTime = DateTime.UtcNow; // Said to be 117x faster than Now and this is for a delta
             }
 
             string chromId;
+            float[] times;
+            float[] intensities;
             _dataFile.GetChromatogram(id, out chromId, out times, out intensities);
-            scanIndexes = null;
+            timeIntensities = new TimeIntensities(times, intensities, null, null);
 
             // Assume that each chromatogram will be read once, though this may
             // not always be completely true.
@@ -270,8 +296,9 @@ namespace pwiz.Skyline.Model.Results
                 if (_readMaxMinutes > 0 && predictedMinutes > _readMaxMinutes)
                 {
                     // TODO: This warning isn't checked in the command line version of Skyline.  Maybe we should do that.
-                    Status =
-                        Status.ChangeWarningMessage(Resources.ChromatogramDataProvider_GetChromatogram_This_import_appears_to_be_taking_longer_than_expected__If_importing_from_a_network_drive__consider_canceling_this_import__copying_to_local_disk_and_retrying_);
+                    if (Status is ChromatogramLoadingStatus)
+                        Status =
+                            ((ChromatogramLoadingStatus)Status).ChangeWarningMessage(Resources.ChromatogramDataProvider_GetChromatogram_This_import_appears_to_be_taking_longer_than_expected__If_importing_from_a_network_drive__consider_canceling_this_import__copying_to_local_disk_and_retrying_);
                 }
             }
 
@@ -282,18 +309,20 @@ namespace pwiz.Skyline.Model.Results
             extra = new ChromExtra(index, -1);  // TODO: is zero the right value?
 
             // Display in AllChromatogramsGraph
-            LoadingStatus.Transitions.AddTransition(
-                modifiedSequence,
-                color,
-                index, -1,
-                times,
-                intensities);
+            var loadingStatus = Status as ChromatogramLoadingStatus;
+            if (loadingStatus != null)
+                loadingStatus.Transitions.AddTransition(
+                    modifiedSequence,
+                    color,
+                    index, -1,
+                    times,
+                    intensities);
             return true;
         }
 
         private double ExpectedReadDurationMinutes
         {
-            get { return DateTime.Now.Subtract(_readStartTime).TotalMinutes * _chromIds.Count / _readChromatograms; }
+            get { return DateTime.UtcNow.Subtract(_readStartTime).TotalMinutes * _chromIds.Count / _readChromatograms; }
         }
 
         public override double? MaxIntensity
@@ -314,6 +343,21 @@ namespace pwiz.Skyline.Model.Results
         public override bool IsSingleMzMatch
         {
             get { return false; }
+        }
+
+        public override bool HasMidasSpectra
+        {
+            get { return _hasMidasSpectra; }
+        }
+
+        public override bool SourceHasPositivePolarityData
+        {
+            get { return _sourceHasPositivePolarityData; }
+        }
+
+        public override bool SourceHasNegativePolarityData
+        {
+            get { return _sourceHasNegativePolarityData; }
         }
 
         public static bool HasChromatogramData(MsDataFileImpl dataFile)

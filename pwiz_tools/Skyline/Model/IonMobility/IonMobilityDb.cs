@@ -22,34 +22,40 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using NHibernate;
+using pwiz.Common.Chemistry;
 using pwiz.Common.Collections;
+using pwiz.Common.Database.NHibernate;
 using pwiz.Common.SystemUtil;
-using pwiz.ProteomeDatabase.Util;
 using pwiz.Skyline.Model.DocSettings;
+using pwiz.Skyline.Model.Lib;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.SettingsUI.IonMobility;
+using pwiz.Skyline.Util;
 using pwiz.Skyline.Util.Extensions;
 
 namespace pwiz.Skyline.Model.IonMobility
 {
     public class DatabaseOpeningException : CalculatorException
     {
-        public DatabaseOpeningException(string message)
-            : base(message)
+        public DatabaseOpeningException(string message) : base(message)
+        {
+        }
+
+        public DatabaseOpeningException(string message, Exception innerException) : base(message, innerException)
         {
         }
     }
 
     public class IonMobilityDb : Immutable, IValidating
     {
-        public const string EXT = ".imdb"; // Not L10N
+        public const string EXT = ".imdb";
 
         public static string FILTER_IONMOBILITYLIBRARY
         {
             get { return TextUtil.FileDialogFilter(Resources.IonMobilityDb_FILTER_IONMOBILITYLIBRARY_Ion_Mobility_Library_Files, EXT); }
         }
 
-        public const int SCHEMA_VERSION_CURRENT = 2; // Version 2 adds high energy drift time offset 
+        public const int SCHEMA_VERSION_CURRENT = 3; // Version 2 adds high energy drift time offset, version 3 adds adduct and small molecule info
 
         private readonly string _path;
         private readonly ISessionFactory _sessionFactory;
@@ -57,7 +63,7 @@ namespace pwiz.Skyline.Model.IonMobility
         private int _schemaVersion;
 
         private DateTime _modifiedTime;
-        private ImmutableDictionary<String, DbIonMobilityPeptide> _dictLibrary;
+        private ImmutableDictionary<LibKey, DbIonMobilityPeptide> _dictLibrary;
 
         private IonMobilityDb(String path, ISessionFactory sessionFactory)
         {
@@ -92,10 +98,10 @@ namespace pwiz.Skyline.Model.IonMobility
             }
         }
 
-        private IDictionary<String, DbIonMobilityPeptide> DictLibrary
+        private IDictionary<LibKey, DbIonMobilityPeptide> DictLibrary
         {
             get { return _dictLibrary; }
-            set { _dictLibrary = new ImmutableDictionary<String, DbIonMobilityPeptide>(value); }
+            set { _dictLibrary = new ImmutableDictionary<LibKey, DbIonMobilityPeptide>(value); }
         }
 
         private ISession OpenWriteSession()
@@ -103,11 +109,12 @@ namespace pwiz.Skyline.Model.IonMobility
             return new SessionWithLock(_sessionFactory.OpenSession(), _databaseLock, true);
         }
 
-        public DriftTimeInfo GetDriftTimeInfo(string seq, ChargeRegressionLine regression)
+        // TODO(bspratt) either upgrade this for all ion mobility types, or rip out this code altogether
+        public IonMobilityAndCCS GetDriftTimeInfo(LibKey key, ChargeRegressionLine regression)
         {
             DbIonMobilityPeptide pep;
-            if (DictLibrary.TryGetValue(seq, out pep))
-                return new DriftTimeInfo(regression.GetY(pep.CollisionalCrossSection), pep.HighEnergyDriftTimeOffsetMsec);
+            if (DictLibrary.TryGetValue(key, out pep))
+                return IonMobilityAndCCS.GetIonMobilityAndCCS(IonMobilityValue.GetIonMobilityValue(regression.GetY(pep.CollisionalCrossSection), eIonMobilityUnits.drift_time_msec), pep.CollisionalCrossSection, pep.HighEnergyDriftTimeOffsetMsec);
             return null;
         }
 
@@ -115,7 +122,8 @@ namespace pwiz.Skyline.Model.IonMobility
         {
             using (var session = new SessionWithLock(_sessionFactory.OpenSession(), _databaseLock, false))
             {
-                return session.CreateCriteria(typeof (DbIonMobilityPeptide)).List<DbIonMobilityPeptide>();
+                LoadPeptides(session.CreateCriteria(typeof (DbIonMobilityPeptide)).List<DbIonMobilityPeptide>());
+                return DictLibrary.Values;
             }
         }
 
@@ -132,19 +140,21 @@ namespace pwiz.Skyline.Model.IonMobility
 
         public IonMobilityDb UpdatePeptides(IList<ValidatingIonMobilityPeptide> newPeptides, IList<ValidatingIonMobilityPeptide> oldPeptides)
         {
-            var dictOld = new Dictionary<String, ValidatingIonMobilityPeptide>();
+            var dictOld = new Dictionary<LibKey, ValidatingIonMobilityPeptide>();
             foreach (var ionMobilityPeptide in oldPeptides)  // Not using ToDict in case of duplicate entries
             {
                 ValidatingIonMobilityPeptide pep;
-                if (!dictOld.TryGetValue(ionMobilityPeptide.Sequence, out pep))
-                    dictOld[ionMobilityPeptide.Sequence] = ionMobilityPeptide;
+                var libKey = ionMobilityPeptide.GetLibKey();
+                if (!dictOld.TryGetValue(libKey, out pep))
+                    dictOld[libKey] = ionMobilityPeptide;
             }
-            var dictNew = new Dictionary<String, ValidatingIonMobilityPeptide>();
+            var dictNew = new Dictionary<LibKey, ValidatingIonMobilityPeptide>();
             foreach (var ionMobilityPeptide in newPeptides)  // Not using ToDict in case of duplicate entries
             {
                 ValidatingIonMobilityPeptide pep;
-                if (!dictNew.TryGetValue(ionMobilityPeptide.Sequence, out pep))
-                    dictNew[ionMobilityPeptide.Sequence] = ionMobilityPeptide;
+                var libKey = ionMobilityPeptide.GetLibKey();
+                if (!dictNew.TryGetValue(libKey, out pep))
+                    dictNew[libKey] = ionMobilityPeptide;
             }
 
             using (var session = OpenWriteSession())
@@ -154,19 +164,26 @@ namespace pwiz.Skyline.Model.IonMobility
                 foreach (var peptideOld in oldPeptides)
                 {
                     ValidatingIonMobilityPeptide pep;
-                    if (!dictNew.TryGetValue(peptideOld.Sequence, out pep))
+                    var libKey = peptideOld.GetLibKey();
+                    if (!dictNew.TryGetValue(libKey, out pep))
                         session.Delete(peptideOld);
                 }
 
                 // Add or update peptides that have changed from the old list
                 foreach (var peptideNew in newPeptides)
                 {
-                    ValidatingIonMobilityPeptide pep;
-                    if (!dictOld.TryGetValue(peptideNew.Sequence, out pep))
+                    ValidatingIonMobilityPeptide peptideOld;
+                    // Create a new instance, because not doing this causes a BindingSource leak
+                    var peptideNewDisconnected = new DbIonMobilityPeptide(peptideNew);
+                    if (dictOld.TryGetValue(peptideNew.GetLibKey(), out peptideOld))
                     {
-                        // Create a new instance, because not doing this causes a BindingSource leak
-                        var peptideNewDisconnected = new DbIonMobilityPeptide(peptideNew);
+                        if (Equals(peptideNew, peptideOld))
+                            continue;
                         session.SaveOrUpdate(peptideNewDisconnected);
+                    }
+                    else
+                    {
+                        session.Save(peptideNewDisconnected);
                     }
                 }
 
@@ -178,20 +195,33 @@ namespace pwiz.Skyline.Model.IonMobility
 
         private void LoadPeptides(IEnumerable<DbIonMobilityPeptide> peptides)
         {
-            var dictLibrary = new Dictionary<String, DbIonMobilityPeptide>();
+            var dictLibrary = new Dictionary<LibKey, DbIonMobilityPeptide>();
 
             foreach (var pep in peptides)
             {
                 var dict = dictLibrary;
                 try
                 {
-                    // Unnormalized modified sequences will not match anything.  The user interface
-                    // attempts to enforce only normalized modified sequences, but this extra protection
-                    // handles IonMobilitydb files edited outside Skyline.  TODO - copied from iRT code - is this an issue here?
-                    var peptide = SequenceMassCalc.NormalizeModifiedSequence(pep.PeptideModSeq);
                     DbIonMobilityPeptide ignored;
-                    if (! dict.TryGetValue(peptide, out ignored) )
-                        dict.Add(peptide, pep);
+                    var adduct = pep.GetPrecursorAdduct();
+                    if (adduct.IsEmpty)
+                    {
+                        // Older formats didn't consider charge to be a factor is CCS, so just fake up M+H, M+2H and M+3H
+                        for (int z = 1; z <= 3; z++)
+                        {
+                            var newPep = new DbIonMobilityPeptide(pep.GetNormalizedModifiedSequence(),
+                                Adduct.FromChargeProtonated(z), pep.CollisionalCrossSection, pep.HighEnergyDriftTimeOffsetMsec);
+                            var key = newPep.GetLibKey();
+                            if (!dict.TryGetValue(key, out ignored))
+                                dict.Add(key, newPep);
+                        }
+                    }
+                    else
+                    {
+                        var key = pep.GetLibKey();
+                        if (!dict.TryGetValue(key, out ignored))
+                            dict.Add(key, pep);
+                    }
                 }
                 catch (ArgumentException)
                 {
@@ -273,6 +303,7 @@ namespace pwiz.Skyline.Model.IonMobility
                         path));
 
                 string message;
+                Exception xInner = null;
                 try
                 {
                     //Check for a valid SQLite file and that it has our schema
@@ -285,24 +316,28 @@ namespace pwiz.Skyline.Model.IonMobility
                         }
                     }
                 }
-                catch (UnauthorizedAccessException)
+                catch (UnauthorizedAccessException x)
                 {
                     message = string.Format(Resources.IonMobilityDb_GetIonMobilityDb_You_do_not_have_privileges_to_access_the_ion_mobility_library_file__0_, path);
+                    xInner = x;
                 }
-                catch (DirectoryNotFoundException)
+                catch (DirectoryNotFoundException x)
                 {
                     message = string.Format(Resources.IonMobilityDb_GetIonMobilityDb_The_path_containing_ion_mobility_library__0__does_not_exist_, path);
+                    xInner = x;
                 }
-                catch (FileNotFoundException)
+                catch (FileNotFoundException x)
                 {
                     message = string.Format(Resources.IonMobilityDb_GetIonMobilityDb_The_ion_mobility_library_file__0__could_not_be_found__Perhaps_you_did_not_have_sufficient_privileges_to_create_it_, path);
+                    xInner = x;
                 }
-                catch (Exception) // SQLiteException is already something of a catch-all, just lump it with the others here
+                catch (Exception x) // SQLiteException is already something of a catch-all, just lump it with the others here
                 {
                     message = string.Format(Resources.IonMobilityDb_GetIonMobilityDb_The_file__0__is_not_a_valid_ion_mobility_library_file_, path);
+                    xInner = x;
                 }
 
-                throw new DatabaseOpeningException(message);
+                throw new DatabaseOpeningException(message, xInner);
             }
             catch (DatabaseOpeningException x)
             {
@@ -317,7 +352,7 @@ namespace pwiz.Skyline.Model.IonMobility
         {
             using (var cmd = session.Connection.CreateCommand())
             {
-                cmd.CommandText = "SELECT SchemaVersion FROM VersionInfo"; // Not L10N
+                cmd.CommandText = @"SELECT SchemaVersion FROM VersionInfo";
                 var obj = cmd.ExecuteScalar();
                 _schemaVersion = Convert.ToInt32(obj);
             }
@@ -331,11 +366,24 @@ namespace pwiz.Skyline.Model.IonMobility
                 using (var transaction = session.BeginTransaction())
                 using (var command = session.Connection.CreateCommand())
                 {
-                    command.CommandText =
-                            "ALTER TABLE IonMobilityLibrary ADD COLUMN HighEnergyDriftTimeOffsetMsec DOUBLE"; // Not L10N
-                    command.ExecuteNonQuery();
+                    if (_schemaVersion < 2)
+                    {
+                        command.CommandText =
+                            @"ALTER TABLE IonMobilityLibrary ADD COLUMN HighEnergyDriftTimeOffsetMsec DOUBLE";
+                        command.ExecuteNonQuery();
+                    }
+                    if (_schemaVersion < 3)
+                    {
+                        foreach (var col in new[] { @"PrecursorAdduct", @"MoleculeName", @"ChemicalFormula", @"InChiKey", @"OtherKeys" })
+                        {
+                            command.CommandText =
+                                string.Format(@"ALTER TABLE IonMobilityLibrary ADD COLUMN {0} TEXT", col);
+                            command.ExecuteNonQuery();
+                        }
+                    }
                     _schemaVersion = SCHEMA_VERSION_CURRENT;
-                    session.Save(new DbVersionInfo { SchemaVersion = _schemaVersion });
+                    command.CommandText = string.Format(@"UPDATE VersionInfo SET SchemaVersion = {0}", _schemaVersion);
+                    command.ExecuteNonQuery();
                     transaction.Commit();
                 }
             }

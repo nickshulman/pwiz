@@ -126,13 +126,13 @@
     <value>14, 201</value>
   </data>
   <data name="linkProteome.Size" type="System.Drawing.Size, System.Drawing">
-    <value>131, 13</value>
+    <value>55, 13</value>
   </data>
   <data name="linkProteome.TabIndex" type="System.Int32, mscorlib">
     <value>0</value>
   </data>
   <data name="linkProteome.Text" xml:space="preserve">
-    <value>skyline.gs.washington.edu</value>
+    <value>skyline.ms</value>
   </data>
   <data name="&gt;&gt;linkProteome.Name" xml:space="preserve">
     <value>linkProteome</value>
@@ -297,7 +297,7 @@ http://www.nhibernate.org
 
 ProteoWizard
 Mass Spectrometry Data Import
-http://proteowizard.sourceforge.net
+https://github.com/ProteoWizard
 
 Shimadzu Corporation
 Shimadzu's file converter software
@@ -410,7 +410,7 @@ http://www.zlib.net</value>
     <value>8</value>
   </data>
   <data name="linkProteoWizard.Text" xml:space="preserve">
-    <value>proteowizard.sourceforge.net</value>
+    <value>github.com/ProteoWizard</value>
   </data>
   <data name="&gt;&gt;linkProteoWizard.Name" xml:space="preserve">
     <value>linkProteoWizard</value>
@@ -467,7 +467,7 @@ http://www.zlib.net</value>
     <value>10</value>
   </data>
   <data name="linkLabel1.Text" xml:space="preserve">
-    <value>Copyright © 2008-2015 University of Washington, all rights reserved
+    <value>Copyright © 2008-2019 University of Washington, all rights reserved
 
 MacCoss Lab, Department of Genome Sciences, UW
 

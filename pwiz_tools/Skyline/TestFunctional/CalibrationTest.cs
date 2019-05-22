@@ -140,9 +140,10 @@ namespace pwiz.SkylineTestFunctional
             var calibrationForm = FindOpenForm<CalibrationForm>();
             foreach (var quant in ListAllQuantificationSettings())
             {
+                var quantValue = quant; // For ReSharper
                 RunUI(() => SkylineWindow.ModifyDocument("Change Quantification Settings", doc => doc.ChangeSettings(
                     doc.Settings.ChangePeptideSettings(
-                        doc.Settings.PeptideSettings.ChangeAbsoluteQuantification(quant)))));
+                        doc.Settings.PeptideSettings.ChangeAbsoluteQuantification(quantValue)))));
                 WaitForGraphs();
                 CalibrationCurve calibrationCurve = calibrationForm.CalibrationCurve;
                 if (quant.MsLevel == 1 && quant.RegressionFit != RegressionFit.NONE)
@@ -161,18 +162,36 @@ namespace pwiz.SkylineTestFunctional
                         Assert.IsNull(calibrationCurve.Intercept);
                         Assert.IsNotNull(calibrationCurve.Slope);
                         Assert.IsNull(calibrationCurve.QuadraticCoefficient);
+                        Assert.IsNull(calibrationCurve.TurningPoint);
                     }
                     else if (quant.RegressionFit == RegressionFit.LINEAR)
                     {
                         Assert.IsNotNull(calibrationCurve.Intercept);
                         Assert.IsNotNull(calibrationCurve.Slope);
                         Assert.IsNull(calibrationCurve.QuadraticCoefficient);
+                        Assert.IsNull(calibrationCurve.TurningPoint);
                     }
-                    else
+                    else if (quant.RegressionFit == RegressionFit.BILINEAR)
+                    {
+                        Assert.IsNotNull(calibrationCurve.Intercept);
+                        Assert.IsNotNull(calibrationCurve.Slope);
+                        Assert.IsNull(calibrationCurve.QuadraticCoefficient);
+                        Assert.IsNotNull(calibrationCurve.TurningPoint);
+                    }
+                    else if (quant.RegressionFit == RegressionFit.QUADRATIC)
                     {
                         Assert.IsNotNull(calibrationCurve.Intercept);
                         Assert.IsNotNull(calibrationCurve.Slope);
                         Assert.IsNotNull(calibrationCurve.QuadraticCoefficient);
+                        Assert.IsNull(calibrationCurve.TurningPoint);
+                    }
+                    else
+                    {
+                        Assert.AreEqual(RegressionFit.LINEAR_IN_LOG_SPACE, quant.RegressionFit);
+                        Assert.IsNotNull(calibrationCurve.Intercept);
+                        Assert.IsNotNull(calibrationCurve.Slope);
+                        Assert.IsNull(calibrationCurve.QuadraticCoefficient);
+                        Assert.IsNull(calibrationCurve.TurningPoint);
                     }
                 }
             }
@@ -200,27 +219,7 @@ namespace pwiz.SkylineTestFunctional
                     {"QC3__VIFonly", new Tuple<SampleType, double?>(SampleType.QC, null)},
                     {"QC4__VIFonly", new Tuple<SampleType, double?>(SampleType.QC, null)},
                 };
-            RunUI(()=>SkylineWindow.ShowDocumentGrid(true));
-            var documentGrid = FindOpenForm<DocumentGridForm>();
-            RunUI(() => documentGrid.DataboundGridControl.ChooseView(Resources.SkylineViewContext_GetDocumentGridRowSources_Replicates));
-            WaitForCondition(() => documentGrid.IsComplete);
-            RunUI(() =>
-            {
-                var colReplicate = documentGrid.FindColumn(PropertyPath.Root);
-                var colSampleType = documentGrid.FindColumn(PropertyPath.Root.Property("SampleType"));
-                var colConcentration = documentGrid.FindColumn(PropertyPath.Root.Property("AnalyteConcentration"));
-                for (int iRow = 0; iRow < documentGrid.RowCount; iRow++)
-                {
-                    var row = documentGrid.DataGridView.Rows[iRow];
-                    var replicateName = row.Cells[colReplicate.Index].Value.ToString();
-                    Tuple<SampleType, double?> tuple;
-                    if (sampleTypes.TryGetValue(replicateName, out tuple))
-                    {
-                        row.Cells[colSampleType.Index].Value = tuple.Item1;
-                        row.Cells[colConcentration.Index].Value = tuple.Item2;
-                    }
-                }
-            });
+            SetDocumentGridSampleTypesAndConcentrations(sampleTypes);
         }
 
         public static IEnumerable<QuantificationSettings> ListAllQuantificationSettings()

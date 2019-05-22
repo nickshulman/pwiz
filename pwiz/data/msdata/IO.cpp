@@ -40,6 +40,21 @@ using namespace minimxml::SAXParser;
 using namespace util;
 
 
+template <typename object_type>
+void writeList(minimxml::XMLWriter& writer, const vector<object_type>& objectPtrs, const string& label)
+{
+    if (!objectPtrs.empty())
+    {
+        XMLWriter::Attributes attributes;
+        attributes.add("count", objectPtrs.size());
+        writer.startElement(label, attributes);
+        for (typename vector<object_type>::const_iterator it = objectPtrs.begin(); it != objectPtrs.end(); ++it)
+            write(writer, **it);
+        writer.endElement();
+    }
+}
+
+
 //
 // CV
 //
@@ -461,16 +476,8 @@ PWIZ_API_DECL void write(minimxml::XMLWriter& writer, const FileDescription& fd)
 {
     writer.startElement("fileDescription");
     write(writer, fd.fileContent);
-
-    XMLWriter::Attributes attributes;
-    attributes.add("count", fd.sourceFilePtrs.size());
-    writer.startElement("sourceFileList", attributes);
-
-    for (vector<SourceFilePtr>::const_iterator it=fd.sourceFilePtrs.begin(); 
-         it!=fd.sourceFilePtrs.end(); ++it)
-         write(writer, **it);
-
-    writer.endElement();
+    
+    writeList(writer, fd.sourceFilePtrs, "sourceFileList");
 
     for (vector<Contact>::const_iterator it=fd.contacts.begin(); 
          it!=fd.contacts.end(); ++it)
@@ -662,6 +669,9 @@ PWIZ_API_DECL void read(std::istream& is, Component& component)
 
 PWIZ_API_DECL void write(minimxml::XMLWriter& writer, const ComponentList& componentList)
 {
+    if (componentList.empty()) // componentList not required by schema
+        return;
+
     int count = (int) componentList.size();
 
     XMLWriter::Attributes attributes;
@@ -1647,13 +1657,16 @@ void write(minimxml::XMLWriter& writer, const BinaryDataArray& binaryDataArray,
     if (usedConfig.byteOrder == BinaryDataEncoder::ByteOrder_BigEndian)
         throw runtime_error("[IO::write()] mzML: must use little endian encoding.");
 
+	bool zlib = false; // Handle numpress+zlib
     switch (usedConfig.compression) {
         case BinaryDataEncoder::Compression_None:
             if (BinaryDataEncoder::Numpress_None == usedConfig.numpress)
                 write(writer, MS_no_compression);
             break;
         case BinaryDataEncoder::Compression_Zlib:
-            write(writer, MS_zlib_compression);
+			zlib = true;
+			if (BinaryDataEncoder::Numpress_None == usedConfig.numpress)
+				write(writer, MS_zlib_compression);
             break;
         default:
             throw runtime_error("[IO::write()] Unsupported compression method.");
@@ -1662,15 +1675,15 @@ void write(minimxml::XMLWriter& writer, const BinaryDataArray& binaryDataArray,
     switch (usedConfig.numpress) {
         case BinaryDataEncoder::Numpress_Linear:
             write(writer, MS_32_bit_float); // This should actually be ignored by any reader since numpress defines word size and format, but it makes output standards-compliant and is pretty close to true anyway
-            write(writer, MS_MS_Numpress_linear_prediction_compression);
+			write(writer, zlib ? MS_MS_Numpress_linear_prediction_compression_followed_by_zlib_compression : MS_MS_Numpress_linear_prediction_compression);
             break;
         case BinaryDataEncoder::Numpress_Pic:
             write(writer, MS_32_bit_integer); // This should actually be ignored by any reader since numpress defines word size and format, but it makes output standards-compliant and is pretty close to true anyway
-            write(writer, MS_MS_Numpress_positive_integer_compression);
+			write(writer, zlib ? MS_MS_Numpress_positive_integer_compression_followed_by_zlib_compression : MS_MS_Numpress_positive_integer_compression);
             break;
         case BinaryDataEncoder::Numpress_Slof:
             write(writer, MS_32_bit_float); // This should actually be ignored by any reader since numpress defines word size and format, but it makes output standards-compliant and is pretty close to true anyway
-            write(writer, MS_MS_Numpress_short_logged_float_compression);
+			write(writer, zlib ? MS_MS_Numpress_short_logged_float_compression_followed_by_zlib_compression : MS_MS_Numpress_short_logged_float_compression);
             break;
         case BinaryDataEncoder::Numpress_None:
             break;
@@ -1840,16 +1853,28 @@ struct HandlerBinaryDataArray : public HandlerParamContainer
                 case MS_zlib_compression:
                     config.compression = BinaryDataEncoder::Compression_Zlib;
                     break;
-                case MS_MS_Numpress_linear_prediction_compression:
-                    config.numpress = BinaryDataEncoder::Numpress_Linear;
-                    break;
-                case MS_MS_Numpress_positive_integer_compression:
-                    config.numpress = BinaryDataEncoder::Numpress_Pic;
-                    break;
-                case MS_MS_Numpress_short_logged_float_compression:
-                    config.numpress = BinaryDataEncoder::Numpress_Slof;
-                    break;
-                default:
+				case MS_MS_Numpress_linear_prediction_compression:
+					config.numpress = BinaryDataEncoder::Numpress_Linear;
+					break;
+				case MS_MS_Numpress_positive_integer_compression:
+					config.numpress = BinaryDataEncoder::Numpress_Pic;
+					break;
+				case MS_MS_Numpress_short_logged_float_compression:
+					config.numpress = BinaryDataEncoder::Numpress_Slof;
+					break;
+				case MS_MS_Numpress_linear_prediction_compression_followed_by_zlib_compression:
+					config.numpress = BinaryDataEncoder::Numpress_Linear;
+					config.compression = BinaryDataEncoder::Compression_Zlib;
+					break;
+				case MS_MS_Numpress_positive_integer_compression_followed_by_zlib_compression:
+					config.numpress = BinaryDataEncoder::Numpress_Pic;
+					config.compression = BinaryDataEncoder::Compression_Zlib;
+					break;
+				case MS_MS_Numpress_short_logged_float_compression_followed_by_zlib_compression:
+					config.numpress = BinaryDataEncoder::Numpress_Slof;
+					config.compression = BinaryDataEncoder::Compression_Zlib;
+					break;
+				default:
                     throw runtime_error("[IO::HandlerBinaryDataArray] Unknown compression type.");
             }
         }
@@ -2230,7 +2255,8 @@ PWIZ_API_DECL
 void write(minimxml::XMLWriter& writer, const SpectrumList& spectrumList, const MSData& msd,
            const BinaryDataEncoder::Config& config,
            vector<boost::iostreams::stream_offset>* spectrumPositions,
-           const IterationListenerRegistry* iterationListenerRegistry)
+           const IterationListenerRegistry* iterationListenerRegistry,
+           bool useWorkerThreads)
 {
     XMLWriter::Attributes attributes;
     attributes.add("count", spectrumList.size());
@@ -2239,8 +2265,9 @@ void write(minimxml::XMLWriter& writer, const SpectrumList& spectrumList, const 
         attributes.push_back(make_pair("defaultDataProcessingRef", 
                                         spectrumList.dataProcessingPtr()->id));
 
-    writer.startElement("spectrumList", attributes);
-    SpectrumWorkerThreads spectrumWorkers(spectrumList);
+    writer.startElement("spectrumList", attributes); // required by schema, even if empty
+
+    SpectrumWorkerThreads spectrumWorkers(spectrumList, useWorkerThreads);
 
     for (size_t i=0; i<spectrumList.size(); i++)
     {
@@ -2250,7 +2277,7 @@ void write(minimxml::XMLWriter& writer, const SpectrumList& spectrumList, const 
 
         if (iterationListenerRegistry)
             status = iterationListenerRegistry->broadcastUpdateMessage(
-                IterationListener::UpdateMessage(i, spectrumList.size()));
+                IterationListener::UpdateMessage(i, spectrumList.size(), "converting spectra"));
 
         if (status == IterationListener::Status_Cancel)
             break;
@@ -2334,6 +2361,9 @@ void write(minimxml::XMLWriter& writer, const ChromatogramList& chromatogramList
            vector<boost::iostreams::stream_offset>* chromatogramPositions,
            const IterationListenerRegistry* iterationListenerRegistry)
 {
+    if (chromatogramList.empty()) // chromatogramList not required by schema
+        return;
+
     XMLWriter::Attributes attributes;
     attributes.add("count", chromatogramList.size());
 
@@ -2351,7 +2381,7 @@ void write(minimxml::XMLWriter& writer, const ChromatogramList& chromatogramList
 
         if (iterationListenerRegistry)
             status = iterationListenerRegistry->broadcastUpdateMessage(
-                IterationListener::UpdateMessage(i, chromatogramList.size()));
+                IterationListener::UpdateMessage(i, chromatogramList.size(), "converting chromatograms"));
 
         if (status == IterationListener::Status_Cancel)
             break;
@@ -2430,7 +2460,8 @@ void write(minimxml::XMLWriter& writer, const Run& run, const MSData& msd,
            const BinaryDataEncoder::Config& config,
            vector<boost::iostreams::stream_offset>* spectrumPositions,
            vector<boost::iostreams::stream_offset>* chromatogramPositions,
-           const pwiz::util::IterationListenerRegistry* iterationListenerRegistry)
+           const pwiz::util::IterationListenerRegistry* iterationListenerRegistry,
+           bool useWorkerThreads)
 {
     XMLWriter::Attributes attributes;
     attributes.add("id", encode_xml_id_copy(run.id));
@@ -2460,7 +2491,7 @@ void write(minimxml::XMLWriter& writer, const Run& run, const MSData& msd,
     bool hasChromatogramList = run.chromatogramListPtr.get() && run.chromatogramListPtr->size() > 0;
 
     if (hasSpectrumList)
-        write(writer, *run.spectrumListPtr, msd, config, spectrumPositions, iterationListenerRegistry);
+        write(writer, *run.spectrumListPtr, msd, config, spectrumPositions, iterationListenerRegistry, useWorkerThreads);
 
     if (hasChromatogramList)
         write(writer, *run.chromatogramListPtr, config, chromatogramPositions, iterationListenerRegistry);
@@ -2565,28 +2596,13 @@ void read(std::istream& is, Run& run,
 //
 
 
-template <typename object_type>
-void writeList(minimxml::XMLWriter& writer, const vector<object_type>& objectPtrs, 
-               const string& label)
-{
-    if (!objectPtrs.empty())
-    {
-        XMLWriter::Attributes attributes;
-        attributes.add("count", objectPtrs.size());
-        writer.startElement(label, attributes);
-        for (typename vector<object_type>::const_iterator it=objectPtrs.begin(); it!=objectPtrs.end(); ++it)
-            write(writer, **it);
-        writer.endElement();
-    }
-}
-
-
 PWIZ_API_DECL
 void write(minimxml::XMLWriter& writer, const MSData& msd,
            const BinaryDataEncoder::Config& config,
            vector<boost::iostreams::stream_offset>* spectrumPositions,
            vector<boost::iostreams::stream_offset>* chromatogramPositions,
-           const pwiz::util::IterationListenerRegistry* iterationListenerRegistry)
+           const pwiz::util::IterationListenerRegistry* iterationListenerRegistry,
+           bool useWorkerThreads)
 {
     XMLWriter::Attributes attributes;
     attributes.add("xmlns", "http://psi.hupo.org/ms/mzml");
@@ -2629,7 +2645,7 @@ void write(minimxml::XMLWriter& writer, const MSData& msd,
 
     writeList(writer, msd.allDataProcessingPtrs(), "dataProcessingList");
 
-    write(writer, msd.run, msd, config, spectrumPositions, chromatogramPositions, iterationListenerRegistry);
+    write(writer, msd.run, msd, config, spectrumPositions, chromatogramPositions, iterationListenerRegistry, useWorkerThreads);
 
     writer.endElement();
 }

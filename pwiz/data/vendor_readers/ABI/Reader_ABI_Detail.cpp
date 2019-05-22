@@ -56,6 +56,7 @@ InstrumentConfigurationPtr translateAsInstrumentConfiguration(InstrumentModel in
         case API3000:
         case API3200:
         case API4000:
+        case API4500:
         case API5000:
         case API5500:
         case API6500:
@@ -78,8 +79,10 @@ InstrumentConfigurationPtr translateAsInstrumentConfiguration(InstrumentModel in
         case API3200QTrap:
         case API3500QTrap:
         case API4000QTrap:
+        case API4500QTrap:
         case API5500QTrap:
         case API6500QTrap:
+        case GenericQTrap:
             ic.componentList.push_back(source);
             ic.componentList.push_back(Component(MS_quadrupole, 2));
             ic.componentList.push_back(Component(MS_quadrupole, 3));
@@ -95,6 +98,7 @@ InstrumentConfigurationPtr translateAsInstrumentConfiguration(InstrumentModel in
         case API4600TripleTOF:
         case API5600TripleTOF:
         case API6600TripleTOF:
+        case X500QTOF:
         case NlxTof:
             ic.componentList.push_back(source);
             ic.componentList.push_back(Component(MS_quadrupole, 2));
@@ -130,6 +134,7 @@ PWIZ_API_DECL CVID translateAsInstrumentModel(InstrumentModel instrumentModel)
         case API3000:           return MS_API_3000;
         case API3200:           return MS_API_3200;
         case API4000:           return MS_API_4000;
+        case API4500:           return MS_Triple_Quad_4500;
         case API5000:           return MS_API_5000;
         case API5500:           return MS_Triple_Quad_5500;
         case API6500:           return MS_Triple_Quad_6500;
@@ -138,8 +143,10 @@ PWIZ_API_DECL CVID translateAsInstrumentModel(InstrumentModel instrumentModel)
         case API3200QTrap:      return MS_3200_QTRAP;
         case API3500QTrap:      return MS_3500_QTRAP;
         case API4000QTrap:      return MS_4000_QTRAP;
+        case API4500QTrap:      return MS_QTRAP_4500;
         case API5500QTrap:      return MS_QTRAP_5500;
         case API6500QTrap:      return MS_QTRAP_6500;
+        case GenericQTrap:      return MS_Q_TRAP;
         case API4600TripleTOF:  return MS_TripleTOF_4600;
         case API5600TripleTOF:  return MS_TripleTOF_5600;
         case API6600TripleTOF:  return MS_TripleTOF_6600;
@@ -148,7 +155,9 @@ PWIZ_API_DECL CVID translateAsInstrumentModel(InstrumentModel instrumentModel)
         case QStarXL:           return MS_QSTAR_XL;
         case QStarElite:        return MS_QSTAR_Elite;
 
-        case NlxTof:
+        case NlxTof:            return MS_TripleTOF_5600;
+        case X500QTOF:          return MS_X500R_QTOF;
+
         case InstrumentModel_Unknown:
             return MS_Applied_Biosystems_instrument_model;
 

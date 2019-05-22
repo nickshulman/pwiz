@@ -22,6 +22,7 @@ using System.Globalization;
 using System.Linq;
 using System.IO;
 using System.Xml.Serialization;
+using pwiz.Common.Chemistry;
 
 namespace UniModCompiler
 {
@@ -43,7 +44,21 @@ namespace UniModCompiler
         private static List<Mod> _listedMods;
         private static List<Mod> _listedHiddenMods;
         private static List<string> _impossibleMods;
-        private static Dictionary<string, string> _dictModNameToThreeLetterCode;
+        private static Dictionary<string, ThreeLetterCodeUsed> _dictModNameToThreeLetterCode;
+        private static readonly MassDistribution EmptyMassDistribution = new MassDistribution(.001, .00001);
+        private static readonly IsotopeAbundances IsotopeAbundances = GetIsotopeAbundances();
+        private static Dictionary<Mod, int> _requiredPrecisions;
+
+        private class ThreeLetterCodeUsed
+        {
+            public ThreeLetterCodeUsed(string threeLetterCode)
+            {
+                ThreeLetterCode = threeLetterCode;
+            }
+
+            public string ThreeLetterCode { get; private set; }
+            public bool Used { get; set; }
+        }
 
         private const string PROJECT_PATH = @"..\..";
         private static readonly string INPUT_FILES_PATH = Path.Combine(PROJECT_PATH, "InputFiles");
@@ -113,6 +128,8 @@ namespace UniModCompiler
                     }
                 }
 
+                _requiredPrecisions = GetRequiredPrecisions(3);
+
                 _impossibleMods = new List<string>();
 
                 // Writing the output file.
@@ -147,6 +164,10 @@ namespace UniModCompiler
                 foreach (Mod listedMod in _listedHiddenMods)
                 {
                     writer.WriteLine("//Unable to match: " + listedMod.Name);
+                }
+                foreach (var unusedSciex in _dictModNameToThreeLetterCode.Where(p => !p.Value.Used).OrderBy(p => p.Key))
+                {
+                    writer.WriteLine("//Unused code: {0} = {1}", unusedSciex.Key, unusedSciex.Value.ThreeLetterCode);
                 }
 
                 writer.Close();
@@ -233,9 +254,9 @@ namespace UniModCompiler
         }
 
 
-        private static Dictionary<string, string> LoadShortNames(string path)
+        private static Dictionary<string, ThreeLetterCodeUsed> LoadShortNames(string path)
         {
-            var dictModNameToThreeLetterCode = new Dictionary<string, string>();
+            var dictModNameToThreeLetterCode = new Dictionary<string, ThreeLetterCodeUsed>();
             // Throws an exception, if it cannot read the file
             using (var reader = new StreamReader(path))
             {
@@ -248,11 +269,15 @@ namespace UniModCompiler
                         mod.ItemsElementName.Select((t, i) => new {type = t, index = i}).First(
                             t => t.type.ToString() == ItemsChoiceType.Nme.ToString()).index;
                     var name = (string)mod.Items[nameIndex];
+                    if ((name.Contains("Protein") && name.Contains("Terminal")) || name.Contains("Old3LetterCode"))
+                        continue;
+                    if (name.StartsWith("Terminal "))
+                        name = name.Substring(9);
 
                     var threeLetterCodeIndex =
                         mod.ItemsElementName.Select((t, i) => new {type = t, index = i}).First(
                             t => t.type.ToString() == ItemsChoiceType.TLC.ToString()).index;
-                    dictModNameToThreeLetterCode[name] = (string)mod.Items[threeLetterCodeIndex];
+                    dictModNameToThreeLetterCode[name.ToLower()] = new ThreeLetterCodeUsed((string) mod.Items[threeLetterCodeIndex]);
 
                     var displayNameItem =
                         mod.ItemsElementName.Select((t, i) => new {type = t, index = i}).FirstOrDefault(
@@ -261,11 +286,31 @@ namespace UniModCompiler
                     {
                         nameIndex = displayNameItem.index;
                         var displayNamename = (string) mod.Items[nameIndex];
-                        dictModNameToThreeLetterCode[displayNamename] = (string)mod.Items[threeLetterCodeIndex];
+                        dictModNameToThreeLetterCode[displayNamename.ToLower()] = new ThreeLetterCodeUsed((string) mod.Items[threeLetterCodeIndex]);
                     }
                 }
             }
+
+            AddNameAliases(dictModNameToThreeLetterCode,
+                new Dictionary<string, string>
+                {
+                    {"GlyGlyGln", "GGQ"},
+                    {"GlnThrGlyGly", "QTGG"},
+                    {"GlnGlnGlnThrGlyGly", "QQQTGG"},
+                    {"Chloro", "Chlorination" },
+                    {"Dichloro", "dichlorination"},
+                    {"Acetyl-PEO-Biotin", "PEO-Iodoacetyl-LC-Biotin"}
+                });
+
             return dictModNameToThreeLetterCode;
+        }
+
+        private static void AddNameAliases(Dictionary<string, ThreeLetterCodeUsed> dictModNameToThreeLetterCode, Dictionary<string, string> dictAliases)
+        {
+            foreach (var nameValue in dictAliases)
+            {
+                dictModNameToThreeLetterCode.Add(nameValue.Value.ToLower(), dictModNameToThreeLetterCode[nameValue.Key.ToLower()]);
+            }
         }
 
         /// <summary>
@@ -336,7 +381,7 @@ namespace UniModCompiler
             }
             return listedMods;
         }
-              
+
         /// <summary>
         /// Search for the listed modifications within the XML modifications, and write matches to the C# file.
         /// </summary>
@@ -405,8 +450,8 @@ namespace UniModCompiler
                     continue;
                 }
 
-                string threeLetterCode;
-                var nameKey = mod.Name.Substring(0, mod.Name.LastIndexOf("(", StringComparison.Ordinal)).Trim();
+                ThreeLetterCodeUsed threeLetterCode;
+                var nameKey = mod.Name.Substring(0, mod.Name.LastIndexOf("(", StringComparison.Ordinal)).Trim().ToLower();
                 _dictModNameToThreeLetterCode.TryGetValue(nameKey, out threeLetterCode);
 
                 writer.WriteLine("            new UniModModificationData");
@@ -414,19 +459,43 @@ namespace UniModCompiler
                 writer.WriteLine(@"                 Name = ""{0}"", ", mod.Name);
                 writer.Write("                 ");
                 if (mod.AAs.Length > 0)
-                    writer.Write(string.Format(@"AAs = ""{0}"", ", BuildAAString(mod.AAs)));
+                    writer.Write(@"AAs = ""{0}"", ", BuildAAString(mod.AAs));
                 if (mod.Terminus != null)
-                    writer.Write(string.Format(@"Terminus = {0}, ", "ModTerminus." + mod.Terminus));
-                writer.Write(string.Format("LabelAtoms = {0}, ", labelAtoms));
+                    writer.Write(@"Terminus = {0}, ", "ModTerminus." + mod.Terminus);
+                writer.Write("LabelAtoms = {0}, ", labelAtoms);
                 if (Equals(labelAtoms, "LabelAtoms.None"))
-                    writer.Write(string.Format(@"Formula = ""{0}"", ", BuildFormula(dictMod.delta.element)));
+                    writer.Write(@"Formula = ""{0}"", ", BuildFormula(dictMod.delta.element));
                 if(!Equals(lossesStr, "null"))
-                    writer.Write(string.Format("Losses = {0}, ", lossesStr));
+                    writer.Write("Losses = {0}, ", lossesStr);
                 writer.WriteLine("ID = {0}, ", dictMod.record_id);
-                writer.Write(string.Format("                 Structural = {0}, ", (!isotopic).ToString(CultureInfo.InvariantCulture).ToLower()));
-                if (!string.IsNullOrEmpty(threeLetterCode))
-                    writer.Write(string.Format(@"ShortName = ""{0}"", ", threeLetterCode));
-                writer.WriteLine("Hidden = {0}, ", hidden.ToString().ToLower());
+                writer.Write("                 Structural = {0}, ", (!isotopic).ToString(CultureInfo.InvariantCulture).ToLower());
+                if (threeLetterCode != null)
+                {
+                    writer.Write(@"ShortName = ""{0}"", ", threeLetterCode.ThreeLetterCode);
+                    threeLetterCode.Used = true;
+                    if (mod.Terminus.HasValue)
+                    {
+                        nameKey = "Terminal " + nameKey;
+                        ThreeLetterCodeUsed threeLetterCodeTerm;
+                        if (_dictModNameToThreeLetterCode.TryGetValue(nameKey, out threeLetterCodeTerm))
+                        {
+                            if (!Equals(threeLetterCode.ThreeLetterCode, threeLetterCodeTerm.ThreeLetterCode))
+                            {
+                                Console.Error.WriteLine("Mismatched three letter codes {0} and terminal {1}",
+                                    threeLetterCode.ThreeLetterCode, threeLetterCodeTerm.ThreeLetterCode);
+                            }
+                            else
+                            {
+                                threeLetterCodeTerm.Used = true;
+                            }
+                        }
+                    }
+                }
+                writer.Write("Hidden = {0}, ", hidden.ToString().ToLower());
+                int precisionRequired;
+                if (!_requiredPrecisions.TryGetValue(mod, out precisionRequired))
+                    precisionRequired = 1;
+                writer.WriteLine("PrecisionRequired = {0}", precisionRequired);
                 writer.WriteLine("            },");
 
                 
@@ -435,6 +504,99 @@ namespace UniModCompiler
                 else
                     _listedMods.Remove(mod);
             }
+        }
+
+        private static Dictionary<Mod, int> GetRequiredPrecisions(int decimalsToCheck)
+        {
+            var all = new List<Tuple<Mod, double>>();
+            foreach (var mod in _listedMods.Concat(_listedHiddenMods))
+            {
+                var dictMods = new List<mod_t>();
+                mod_t dictLookupMod;
+                if (_dictIsotopeMods.TryGetValue(mod.Title, out dictLookupMod))
+                    dictMods.Add(dictLookupMod);
+                if (_dictStructuralMods.TryGetValue(mod.Title, out dictLookupMod))
+                    dictMods.Add(dictLookupMod);
+                if (!dictMods.Any())
+                    continue;
+
+                var curMod = mod;
+                all.AddRange(from dictMod in dictMods
+                             select BuildFormula(dictMod.delta.element)
+                             into skylineFormula where skylineFormula.Length > 0
+                             select GetMassDistribution(skylineFormula)
+                             into massDistribution
+                             select massDistribution.MostAbundanceMass into monoMass
+                             select Tuple.Create(curMod, monoMass));
+            }
+
+            all.Sort((x, y) => x.Item2.CompareTo(y.Item2));
+            var precisions = new Dictionary<Mod, int>();
+            for (var i = 0; i < all.Count; i++)
+            {
+                var current = all[i];
+                var requiredLower = RequiredPrecision(current, all.Take(i).Reverse(), decimalsToCheck);
+                var requiredUpper = RequiredPrecision(current, all.Skip(i + 1), decimalsToCheck);
+                precisions[current.Item1] = Math.Max(requiredLower, requiredUpper);
+            }
+
+            return precisions;
+        }
+
+        private static int RequiredPrecision(Tuple<Mod, double> cur, IEnumerable<Tuple<Mod, double>> check, int decimalsToCheck)
+        {
+            var protein = string.Join(string.Empty, cur.Item1.AAs).Equals("Protein");
+            // find first Mod in check with at least one matching AA
+            foreach (var other in check)
+            {
+                if (protein || !cur.Item1.AAs.Any() || !other.Item1.AAs.Any() || cur.Item1.AAs.Intersect(other.Item1.AAs).Any())
+                {
+                    // find minimum amount of decimals needed to distinguish cur from other
+                    for (var i = 1; i <= decimalsToCheck; i++)
+                    {
+                        if (!ValuesEqualWithPrecision(cur.Item2, other.Item2, i))
+                            return i;
+                    }
+                    break; // not distinguishable with any amount of decimals up to limit
+                }
+            }
+            return 1;
+        }
+
+        private static bool ValuesEqualWithPrecision(double x, double y, int precision)
+        {
+            var formatString = "F0" + precision;
+            return Equals(x.ToString(formatString), y.ToString(formatString));
+        }
+
+        private static MassDistribution GetMassDistribution(string formula)
+        {
+            var md = EmptyMassDistribution;
+            var result = md;
+            Molecule moleculePlus;
+            Molecule moleculeMinus;
+            var indexMinus = formula.IndexOf("-", StringComparison.InvariantCulture);
+            if (indexMinus < 0)
+            {
+                moleculePlus = Molecule.Parse(formula.Trim());
+                moleculeMinus = Molecule.Empty;
+            }
+            else
+            {
+                moleculePlus = Molecule.Parse(formula.Substring(0, indexMinus).Trim());
+                moleculeMinus = Molecule.Parse(formula.Substring(indexMinus + 1).Trim());
+            }
+            var isotopeAbundances = IsotopeAbundances;
+            foreach (var element in moleculePlus)
+            {
+                result = result.Add(md.Add(isotopeAbundances[element.Key]).Multiply(element.Value));
+            }
+            foreach (var element in moleculeMinus)
+            {
+                result = result.Add(md.Add(isotopeAbundances[element.Key]).Multiply(-element.Value));
+            }
+            return result;
+
         }
 
         private static bool ListEquals(List<string> list1, List<string> list2)
@@ -616,6 +778,28 @@ namespace UniModCompiler
             AMINO_FORMULAS['w'] = AMINO_FORMULAS['W'] = "C11H10ON2";
             AMINO_FORMULAS['y'] = AMINO_FORMULAS['Y'] = "C9H9O2N";
             // ReSharper restore CharImplicitlyConvertedToNumeric
+        }
+
+        private static IsotopeAbundances GetIsotopeAbundances()
+        {
+            var isotopeAbundances = IsotopeAbundances.Default;
+            isotopeAbundances = isotopeAbundances.SetAbundances(
+                new Dictionary<string, MassDistribution>
+                {
+                    {"H'", SingleMass(2.014101779)},
+                    {"O\"", SingleMass(16.9991315)},
+                    {"O'", SingleMass(17.9991604)},
+                    {"N'", SingleMass(15.0001088984)},
+                    {"C'", SingleMass(13.0033548378)},
+                    {"Cl'", SingleMass(36.965902602)},
+                    {"Br'", SingleMass(80.9162897)}
+                });
+            return isotopeAbundances;
+        }
+
+        private static MassDistribution SingleMass(double mass)
+        {
+            return EmptyMassDistribution.SetAbundance(mass, 1.0);
         }
     }
 

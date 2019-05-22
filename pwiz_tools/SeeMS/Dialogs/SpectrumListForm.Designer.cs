@@ -63,7 +63,9 @@ namespace seems
             this.IcId = new DataGridViewAutoFilter.DataGridViewAutoFilterTextBoxColumn();
             this.DpId = new DataGridViewAutoFilter.DataGridViewAutoFilterTextBoxColumn();
             this.PrecursorInfo = new DataGridViewAutoFilter.DataGridViewAutoFilterTextBoxColumn();
+            this.IsolationWindows = new DataGridViewAutoFilter.DataGridViewAutoFilterTextBoxColumn();
             this.ScanInfo = new DataGridViewAutoFilter.DataGridViewAutoFilterTextBoxColumn();
+            this.IonMobility = new DataGridViewAutoFilter.DataGridViewAutoFilterTextBoxColumn();
             this.spectraSource = new System.Windows.Forms.BindingSource( this.components );
             this.spectrumDataSet = new seems.Misc.SpectrumDataSet();
             this.selectColumnsMenuStrip = new System.Windows.Forms.ContextMenuStrip( this.components );
@@ -98,7 +100,9 @@ namespace seems
             this.IcId,
             this.DpId,
             this.PrecursorInfo,
-            this.ScanInfo} );
+            this.IsolationWindows,
+            this.ScanInfo,
+            this.IonMobility} );
             this.gridView.Cursor = System.Windows.Forms.Cursors.Hand;
             this.gridView.DataSource = this.spectraSource;
             this.gridView.Dock = System.Windows.Forms.DockStyle.Fill;
@@ -208,6 +212,14 @@ namespace seems
             this.PrecursorInfo.ReadOnly = true;
             this.PrecursorInfo.Resizable = System.Windows.Forms.DataGridViewTriState.True;
             // 
+            // IsolationWindows
+            // 
+            this.IsolationWindows.DataPropertyName = "IsolationWindows";
+            this.IsolationWindows.HeaderText = "Isolation Windows";
+            this.IsolationWindows.Name = "IsolationWindows";
+            this.IsolationWindows.ReadOnly = true;
+            this.IsolationWindows.Resizable = System.Windows.Forms.DataGridViewTriState.True;
+            // 
             // ScanInfo
             // 
             this.ScanInfo.DataPropertyName = "ScanInfo";
@@ -215,6 +227,14 @@ namespace seems
             this.ScanInfo.Name = "ScanInfo";
             this.ScanInfo.ReadOnly = true;
             this.ScanInfo.Resizable = System.Windows.Forms.DataGridViewTriState.True;
+            // 
+            // IonMobility
+            // 
+            this.IonMobility.DataPropertyName = "IonMobility";
+            this.IonMobility.HeaderText = "Ion Mobility";
+            this.IonMobility.Name = "IonMobility";
+            this.IonMobility.ReadOnly = true;
+            this.IonMobility.Visible = false;
             // 
             // spectraSource
             // 
@@ -279,6 +299,8 @@ namespace seems
         private DataGridViewAutoFilter.DataGridViewAutoFilterTextBoxColumn IcId;
         private DataGridViewAutoFilter.DataGridViewAutoFilterTextBoxColumn DpId;
         private DataGridViewAutoFilter.DataGridViewAutoFilterTextBoxColumn PrecursorInfo;
+        private DataGridViewAutoFilter.DataGridViewAutoFilterTextBoxColumn IsolationWindows;
         private DataGridViewAutoFilter.DataGridViewAutoFilterTextBoxColumn ScanInfo;
+        private DataGridViewAutoFilter.DataGridViewAutoFilterTextBoxColumn IonMobility;
 	}
 }

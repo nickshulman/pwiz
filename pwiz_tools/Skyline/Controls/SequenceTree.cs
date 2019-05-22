@@ -27,25 +27,15 @@ using pwiz.Skyline.Controls.Graphs;
 using pwiz.Skyline.Controls.SeqNode;
 using pwiz.Skyline.Model;
 using pwiz.Skyline.Model.Find;
+using pwiz.Skyline.Model.Proteome;
 using pwiz.Skyline.Model.Results;
+using pwiz.Skyline.Model.Themes;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
 
 namespace pwiz.Skyline.Controls
 {
     public enum ReplicateDisplay { all, single, best }
-
-    /// <summary>
-    /// helpful for the many places where user might prefer to think of a protein
-    /// in terms of something other than its name
-    /// </summary>
-    public enum ProteinDisplayMode
-    {
-        ByName,
-        ByAccession,
-        ByPreferredName,
-        ByGene
-    };
 
     /// <summary>
     /// Displays a <see cref="SrmDocument"/> as a tree of nodes.
@@ -63,7 +53,7 @@ namespace pwiz.Skyline.Controls
         private NodeTip _nodeTip;
         private bool _focus;
         private bool _sawDoubleClick;
-        private bool _triggerLabelEdit;
+        private TreeNode _triggerLabelEdit;
         private string _editedLabel;
         private int _resultsIndex;
         private int _ratioIndex;
@@ -109,6 +99,11 @@ namespace pwiz.Skyline.Controls
             tran_group_lib_decoy,
             fragment_lib_decoy,
             molecule,
+            molecule_lib,
+            molecule_irt,
+            molecule_irt_lib,
+            molecule_standard,
+            molecule_standard_lib,
             molecule_list,
             peptide_list,
             empty_list,
@@ -162,6 +157,11 @@ namespace pwiz.Skyline.Controls
             ImageList.Images.Add(Resources.TransitionGroupLibDecoy);
             ImageList.Images.Add(Resources.FragmentLibDecoy);
             ImageList.Images.Add(Resources.Molecule);
+            ImageList.Images.Add(Resources.MoleculeLib);
+            ImageList.Images.Add(Resources.MoleculeIrt);
+            ImageList.Images.Add(Resources.MoleculeIrtLib);
+            ImageList.Images.Add(Resources.MoleculeStandard);
+            ImageList.Images.Add(Resources.MoleculeStandardLib);
             ImageList.Images.Add(Resources.MoleculeList);
             ImageList.Images.Add(Resources.PeptideList);
             ImageList.Images.Add(Resources.EmptyList);
@@ -180,7 +180,7 @@ namespace pwiz.Skyline.Controls
             _pickTimer = new Timer { Interval = 1 };
             _pickTimer.Tick += tick_ShowPickList;
 
-            _nodeTip = new NodeTip(this);
+            _nodeTip = new NodeTip(this) {Parent = TopLevelControl};
 
             OnTextZoomChanged();
             OnDocumentChanged(this, new DocumentChangedEventArgs(null));
@@ -196,6 +196,11 @@ namespace pwiz.Skyline.Controls
                 _nodeTip = null;
             }
             base.Dispose(disposing);
+        }
+
+        public bool IsTipVisible
+        {
+            get { return _nodeTip.Visible; }
         }
 
         [Browsable(true)]
@@ -303,8 +308,11 @@ namespace pwiz.Skyline.Controls
 
             Document = document;
 
+            bool integrateAllChanged = e.DocumentPrevious != null &&
+                                       e.DocumentPrevious.Settings.TransitionSettings.Integration.IsIntegrateAll !=
+                                       document.Settings.TransitionSettings.Integration.IsIntegrateAll;
             // If none of the children changed, then do nothing
-            if (e.DocumentPrevious != null &&
+            if (!integrateAllChanged && e.DocumentPrevious != null &&
                     ReferenceEquals(document.Children, e.DocumentPrevious.Children))
             {
                 return;                
@@ -348,6 +356,10 @@ namespace pwiz.Skyline.Controls
 
                 SrmTreeNodeParent.UpdateNodes(this, Nodes, document.Children,
                     true, PeptideGroupTreeNode.CreateInstance, changeAll);
+                if (integrateAllChanged)
+                {
+                    UpdateNodeStates();
+                }
             }
             finally
             {
@@ -417,19 +429,24 @@ namespace pwiz.Skyline.Controls
             return i;
         }
 
+        private ReplicateDisplay? _showReplicate;
+
         [Browsable(false)]
         [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
         public ReplicateDisplay ShowReplicate
         {
             get
             {
-                return Helpers.ParseEnum(Settings.Default.ShowTreeReplicateEnum, ReplicateDisplay.single);
+                if (_showReplicate == null)
+                    _showReplicate = Helpers.ParseEnum(Settings.Default.ShowTreeReplicateEnum, ReplicateDisplay.single);
+                return _showReplicate.Value;
             }
 
             set
             {
                 if (ShowReplicate != value)
                 {
+                    _showReplicate = value;
                     Settings.Default.ShowTreeReplicateEnum = value.ToString();
                     UpdateNodeStates();
                 }
@@ -551,7 +568,7 @@ namespace pwiz.Skyline.Controls
             SelectedNode = node;
             _inhibitAfterSelect = false;
 
-            Refresh();
+            Invalidate();
         }
 
         protected override void OnAfterSelect(TreeViewEventArgs e)
@@ -762,6 +779,9 @@ namespace pwiz.Skyline.Controls
         /// </summary>
         public void HideEffects()
         {
+            if (IgnoreFocus)
+                return;
+
             // Clear capture node to hide drop arrow
             NodeCapture = null;
 
@@ -871,7 +891,7 @@ namespace pwiz.Skyline.Controls
             int y = pt.Y + rectDrop.Height;
             if (y + size.Height > screen.WorkingArea.Height)
                 y = pt.Y - size.Height;
-            int x = Math.Min(pt.X, screen.WorkingArea.Width - size.Width);
+            int x = Math.Min(pt.X, screen.WorkingArea.Right - size.Width); 
             
             return new Point(x, y);
         }
@@ -898,11 +918,13 @@ namespace pwiz.Skyline.Controls
             }
         }
 
+        public bool IgnoreFocus { get; set; }
+
         protected override void OnGotFocus(EventArgs e)
         {
             base.OnGotFocus(e);
             _focus = true;
-            Refresh();
+            Invalidate();
         }
 
         protected override void OnLostFocus(EventArgs e)
@@ -910,7 +932,7 @@ namespace pwiz.Skyline.Controls
             _focus = false;
             HideEffects();
             base.OnLostFocus(e);
-            Refresh();
+            Invalidate();
         }
 
         protected override void WndProc(ref Message m)
@@ -929,7 +951,11 @@ namespace pwiz.Skyline.Controls
         {
             base.OnMouseMove(e);
 
-            Point pt = e.Location;
+            MoveMouse(e.Location);
+        }
+
+        public void MoveMouse(Point pt)
+        {
             if (!_moveThreshold.Moved(pt))
                 return;
             _moveThreshold.Location = null;
@@ -942,7 +968,7 @@ namespace pwiz.Skyline.Controls
                 ((SrmTreeNode) node).ShowAnnotationTipOnly = GetNoteRect(node).Contains(pt);
             if (tipProvider != null && !tipProvider.HasTip)
                 tipProvider = null;
-            if (_focus &&  (picker != null || tipProvider != null))
+            if ((_focus || IgnoreFocus) && (picker != null || tipProvider != null))
             {
                 Rectangle rectCapture = node.BoundsMS;
                 if (tipProvider == null || !rectCapture.Contains(pt))
@@ -959,9 +985,11 @@ namespace pwiz.Skyline.Controls
             {
                 node = null;
                 if (_nodeTip != null)
-                    _nodeTip.HideTip();                
+                    _nodeTip.HideTip();
             }
-            NodeCapture = node;
+            // Capture the mouse cursor, if not in test mode ignoring focus
+            if (!IgnoreFocus)
+                NodeCapture = node;
         }
 
         protected override void OnMouseClick(MouseEventArgs e)
@@ -977,7 +1005,7 @@ namespace pwiz.Skyline.Controls
             }
             else
             {
-                _triggerLabelEdit = false;
+                _triggerLabelEdit = null;
 
                 base.OnMouseClick(e);
             }
@@ -998,7 +1026,7 @@ namespace pwiz.Skyline.Controls
                     if (_sawDoubleClick)
                         _sawDoubleClick = false;
                     else if (IsEditableNode(node))
-                        _triggerLabelEdit = true;
+                        _triggerLabelEdit = node;
                 }
             }
             base.OnMouseUp(e);
@@ -1109,12 +1137,17 @@ namespace pwiz.Skyline.Controls
             // No erasebackground to reduce flicker
             //if (m.Msg == (int)WinMsg.WM_ERASEBKGND)
             //    return;
-
-            if (_triggerLabelEdit)
+            if (m.Msg == (int) WinMsg.WM_TIMER)
             {
-                if (m.Msg == (int) WinMsg.WM_TIMER)
+                if (_triggerLabelEdit != null && !ReferenceEquals(_triggerLabelEdit, SelectedNode))
                 {
-                    _triggerLabelEdit = false;
+                    // If the selected node has changed since the mouse edit, then cancel
+                    // the label edit trigger.
+                    _triggerLabelEdit = null;
+                }
+                if (_triggerLabelEdit != null)
+                {
+                    _triggerLabelEdit = null;
                     StartLabelEdit(true);
                 }
             }
@@ -1271,12 +1304,12 @@ namespace pwiz.Skyline.Controls
 
         public bool AllowDisplayTip
         {
-            get { return Focused || ToolTipOwner != null; }
+            get { return IgnoreFocus || Focused || ToolTipOwner != null; }
         }
 
-        static public ProteinDisplayMode ProteinsDisplayMode
+        public static ProteinMetadataManager.ProteinDisplayMode ProteinsDisplayMode
         {
-            get { return Helpers.ParseEnum(Settings.Default.ShowPeptidesDisplayMode, ProteinDisplayMode.ByName); }
+            get { return Helpers.ParseEnum(Settings.Default.ShowPeptidesDisplayMode, ProteinMetadataManager.ProteinDisplayMode.ByName); }
         }
 
         public DisplaySettings GetDisplaySettings(PeptideDocNode nodePep)
@@ -1368,9 +1401,38 @@ namespace pwiz.Skyline.Controls
             _nodeTip.HideTip();
         }
 
-        public bool ExpandProteins { get { return !LockDefaultExpansion && Settings.Default.SequenceTreeExpandProteins; } }
-        public bool ExpandPeptides { get { return !LockDefaultExpansion && Settings.Default.SequenceTreeExpandPeptides; } }
-        public bool ExpandPrecursors { get { return !LockDefaultExpansion && Settings.Default.SequenceTreeExpandPrecursors; } }
+        public const int MAX_PEPTIDE_EXPANSION = 2000;
+        public const int MAX_TRANSITION_EXPANSTION = 10 * 1000;
+
+        public bool ExpandProteins
+        {
+            get
+            {
+                if (Document.MoleculeCount > MAX_PEPTIDE_EXPANSION)
+                    return false;
+                return !LockDefaultExpansion && Settings.Default.SequenceTreeExpandProteins;
+            }
+        }
+
+        public bool ExpandPeptides
+        {
+            get
+            {
+                if (Document.MoleculeCount > MAX_PEPTIDE_EXPANSION)
+                    return false;
+                return !LockDefaultExpansion && Settings.Default.SequenceTreeExpandPeptides;
+            }
+        }
+
+        public bool ExpandPrecursors
+        {
+            get
+            {
+                if (Document.MoleculeTransitionCount > MAX_TRANSITION_EXPANSTION)
+                    return false;
+                return !LockDefaultExpansion && Settings.Default.SequenceTreeExpandPrecursors;
+            }
+        }
 
         public bool LockDefaultExpansion { get; set; }
     }
@@ -1407,13 +1469,20 @@ namespace pwiz.Skyline.Controls
             return (labelType.IsLight ? Light : Heavy);
         }
 
+        public static IList<Color> GetModColors()
+        {
+            // CONSIDER: Maybe make this customizable with its own color scheme some day
+            return ColorSchemeList.DEFAULT.PrecursorColors;
+        }
+
         public static Color GetModColor(IsotopeLabelType labelType)
         {
             if (labelType.IsLight)
                 return Color.Black;
 
-            int indexColor = labelType.SortOrder % GraphChromatogram.COLORS_GROUPS.Length;
-            return GraphChromatogram.COLORS_GROUPS[indexColor];
+            var colors = GetModColors();
+            int indexColor = labelType.SortOrder % colors.Count;
+            return colors[indexColor];
         }
     }
 }

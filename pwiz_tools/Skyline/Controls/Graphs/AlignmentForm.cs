@@ -22,11 +22,11 @@ using System.ComponentModel;
 using System.Drawing;
 using System.Linq;
 using System.Threading;
-using System.Threading.Tasks;
 using System.Windows.Forms;
+using pwiz.Common.DataAnalysis;
+using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Model.Results;
 using ZedGraph;
-using pwiz.Skyline.EditUI;
 using pwiz.Skyline.Model;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.Lib;
@@ -44,20 +44,33 @@ namespace pwiz.Skyline.Controls.Graphs
                                                                   AllowNew = false,
                                                                   AllowRemove = false,
                                                               };
+        private readonly QueueWorker<Action> _rowUpdateQueue = new QueueWorker<Action>(null, (a, i) => a());
         private CancellationTokenSource _cancellationTokenSource = new CancellationTokenSource();
+
         public AlignmentForm(SkylineWindow skylineWindow)
         {
             InitializeComponent();
             SkylineWindow = skylineWindow;
             Icon = Resources.Skyline;
             bindingSource.DataSource = _dataRows;
-            colIntercept.CellTemplate.Style.Format = "0.0000"; // Not L10N  
-            colSlope.CellTemplate.Style.Format = "0.0000"; // Not L10N
-            colCorrelationCoefficient.CellTemplate.Style.Format = "0.0000"; // Not L10N
-            colUnrefinedSlope.CellTemplate.Style.Format = "0.0000"; // Not L10N
-            colUnrefinedIntercept.CellTemplate.Style.Format = "0.0000"; // Not L10N
-            colUnrefinedCorrelationCoefficient.CellTemplate.Style.Format = "0.0000"; // Not L10N
+            colIntercept.CellTemplate.Style.Format = @"0.0000";
+            colSlope.CellTemplate.Style.Format = @"0.0000";
+            colCorrelationCoefficient.CellTemplate.Style.Format = @"0.0000";
+            colUnrefinedSlope.CellTemplate.Style.Format = @"0.0000";
+            colUnrefinedIntercept.CellTemplate.Style.Format = @"0.0000";
+            colUnrefinedCorrelationCoefficient.CellTemplate.Style.Format = @"0.0000";
+
+            zedGraphControl.GraphPane.IsFontsScaled = false;
+            zedGraphControl.GraphPane.YAxisList[0].MajorTic.IsOpposite = false;
+            zedGraphControl.GraphPane.YAxisList[0].MinorTic.IsOpposite = false;
+            zedGraphControl.GraphPane.XAxis.MajorTic.IsOpposite = false;
+            zedGraphControl.GraphPane.XAxis.MinorTic.IsOpposite = false;
+            zedGraphControl.GraphPane.Chart.Border.IsVisible = false;
+
+            _rowUpdateQueue.RunAsync(ParallelEx.GetThreadCount(), @"Alignment Rows");
         }
+
+        private PlotTypeRT _plotType;
 
         public SkylineWindow SkylineWindow { get; private set; }
         public SrmDocument Document
@@ -80,6 +93,7 @@ namespace pwiz.Skyline.Controls.Graphs
                 SkylineWindow.DocumentUIChangedEvent -= SkylineWindowOnDocumentUIChangedEvent;
             }
             _cancellationTokenSource.Cancel();
+            _rowUpdateQueue.Dispose();
             base.OnHandleDestroyed(e);
         }
 
@@ -95,8 +109,10 @@ namespace pwiz.Skyline.Controls.Graphs
 
         public void UpdateGraph()
         {
+            zedGraphControl.IsEnableVPan = zedGraphControl.IsEnableVZoom = PlotType == PlotTypeRT.residuals;
             zedGraphControl.GraphPane.CurveList.Clear();
             zedGraphControl.GraphPane.GraphObjList.Clear();
+            zedGraphControl.IsZoomOnMouseCenter = true;
             if (!(bindingSource.Current is DataRow))
             {
                 return;
@@ -114,9 +130,11 @@ namespace pwiz.Skyline.Controls.Graphs
             for (int i = 0; i < peptideTimes.Count; i++)
             {
                 var peptideTime = peptideTimes[i];
-                var point = new PointPair(alignedFile.OriginalTimes[peptideTime.PeptideSequence],
-                                            peptideTime.RetentionTime,
-                                            peptideTime.PeptideSequence);
+                var xTime = alignedFile.OriginalTimes[peptideTime.PeptideSequence];
+                var yTime = peptideTime.RetentionTime;
+                if (PlotType == PlotTypeRT.residuals)
+                    yTime = (double) (alignedFile.Regression.GetRetentionTime(xTime, true) - yTime);
+                var point = new PointPair(xTime, yTime, peptideTime.PeptideSequence.Sequence);
                 if (alignedFile.OutlierIndexes.Contains(i))
                 {
                     outliers.Add(point);
@@ -127,7 +145,7 @@ namespace pwiz.Skyline.Controls.Graphs
                 }
             }
 
-            var goodPointsLineItem = new LineItem("Peptides", points, Color.Black, SymbolType.Diamond) // Not L10N?
+            var goodPointsLineItem = new LineItem(@"Peptides", points, Color.Black, SymbolType.Diamond) // CONSIDER: localize?
                 {
                     Symbol = {Size = 8f},
                     Line = {IsVisible = false}
@@ -146,7 +164,7 @@ namespace pwiz.Skyline.Controls.Graphs
                 goodPointsLineItem.Label.Text = Resources.AlignmentForm_UpdateGraph_Peptides_Refined;
             }
             zedGraphControl.GraphPane.CurveList.Add(goodPointsLineItem);
-            if (points.Count > 0)
+            if (points.Count > 0 && PlotType == PlotTypeRT.correlation)
             {
                 double xMin = points.Select(p => p.X).Min();
                 double xMax = points.Select(p => p.X).Max();
@@ -157,12 +175,13 @@ namespace pwiz.Skyline.Controls.Graphs
                         Color.Black);
                 regressionLine.Symbol.IsVisible = false;
             }
-                zedGraphControl.GraphPane.Title.Text = string.Format(Resources.AlignmentForm_UpdateGraph_Alignment_of__0__to__1_,
-                currentRow.DataFile,
-                currentRow.Target.Name);
-                zedGraphControl.GraphPane.XAxis.Title.Text = string.Format(Resources.AlignmentForm_UpdateGraph_Time_from__0__, 
-                    currentRow.DataFile);
-                zedGraphControl.GraphPane.YAxis.Title.Text = Resources.AlignmentForm_UpdateGraph_Aligned_time;
+            zedGraphControl.GraphPane.Title.Text = string.Format(Resources.AlignmentForm_UpdateGraph_Alignment_of__0__to__1_,
+                currentRow.DataFile, currentRow.Target.Name);
+            zedGraphControl.GraphPane.XAxis.Title.Text = string.Format(Resources.AlignmentForm_UpdateGraph_Time_from__0__, 
+                currentRow.DataFile);
+            zedGraphControl.GraphPane.YAxis.Title.Text = PlotType == PlotTypeRT.correlation
+                ? Resources.AlignmentForm_UpdateGraph_Aligned_Time
+                : Resources.AlignmentForm_UpdateGraph_Time_from_Regression;
             zedGraphControl.GraphPane.AxisChange();
             zedGraphControl.Invalidate();
         }
@@ -174,34 +193,47 @@ namespace pwiz.Skyline.Controls.Graphs
             {
                 return;
             }
-            Task.Factory.StartNew(
-                () => {
-                    try
-                    {
-                        return AlignedRetentionTimes.AlignLibraryRetentionTimes(
-                            dataRow.TargetTimes, dataRow.SourceTimes,
-                            DocumentRetentionTimes.REFINEMENT_THRESHHOLD,
-                            () => cancellationToken.IsCancellationRequested);
-                    }
-                    catch (OperationCanceledException operationCanceledException)
-                    {
-                        throw new OperationCanceledException(operationCanceledException.Message, operationCanceledException, cancellationToken);
-                    }
-                }, cancellationToken)
-                .ContinueWith(alignedTimesTask => UpdateDataRow(index, alignedTimesTask), TaskScheduler.FromCurrentSynchronizationContext());
+
+            _rowUpdateQueue.Add(() => AlignDataRowAsync(dataRow, index, cancellationToken));
         }
 
-        private void UpdateDataRow(int iRow, Task<AlignedRetentionTimes> alignedTimesTask)
+        private void AlignDataRowAsync(DataRow dataRow, int index, CancellationToken cancellationToken)
         {
-            if (alignedTimesTask.IsCanceled)
+            try
+            {
+                var alignedTimes = AlignedRetentionTimes.AlignLibraryRetentionTimes(
+                    dataRow.TargetTimes, dataRow.SourceTimes,
+                    DocumentRetentionTimes.REFINEMENT_THRESHHOLD,
+                    RegressionMethodRT.linear,
+                    new CustomCancellationToken(cancellationToken));
+
+                if (!cancellationToken.IsCancellationRequested)
+                {
+                    RunUI(() => UpdateDataRow(index, alignedTimes, cancellationToken));
+                }
+            }
+            catch (OperationCanceledException operationCanceledException)
+            {
+                throw new OperationCanceledException(operationCanceledException.Message, operationCanceledException, cancellationToken);
+            }
+        }
+
+        private void RunUI(Action action)
+        {
+            Invoke(action);
+        }
+
+        private void UpdateDataRow(int iRow, AlignedRetentionTimes alignedTimes, CancellationToken cancellationToken)
+        {
+            if (cancellationToken.IsCancellationRequested)
             {
                 return;
             }
             var dataRow = _dataRows[iRow];
-            dataRow.AlignedRetentionTimes = alignedTimesTask.Result;
+            dataRow.AlignedRetentionTimes = alignedTimes;
             _dataRows[iRow] = dataRow;
         }
-        
+
         public void UpdateRows()
         {
             var newRows = GetRows();
@@ -244,6 +276,7 @@ namespace pwiz.Skyline.Controls.Graphs
             comboAlignAgainst.Items.Clear();
             comboAlignAgainst.Items.AddRange(newItems.Cast<object>().ToArray());
             ComboHelper.AutoSizeDropDown(comboAlignAgainst);
+            bool updateRows = true;
             if (comboAlignAgainst.Items.Count > 0)
             {
                 if (selectedIndex < 0)
@@ -266,10 +299,17 @@ namespace pwiz.Skyline.Controls.Graphs
                         }
                     }
                 }
-                comboAlignAgainst.SelectedIndex = Math.Min(comboAlignAgainst.Items.Count - 1, 
+
+                selectedIndex = Math.Min(comboAlignAgainst.Items.Count - 1,
                     Math.Max(0, selectedIndex));
+                if (comboAlignAgainst.SelectedIndex != selectedIndex)
+                {
+                    comboAlignAgainst.SelectedIndex = selectedIndex;
+                    updateRows = false; // because the selection change will cause an update
+                }
             }
-            UpdateRows();
+            if (updateRows)
+                UpdateRows();
         }
 
         private IList<DataRow> GetRows()
@@ -299,13 +339,13 @@ namespace pwiz.Skyline.Controls.Graphs
                 DocumentRetentionTimes = settings.DocumentRetentionTimes;
                 Target = target;
                 Source = timesToAlign;
-                Assume.IsNotNull(target, "target"); // Not L10N
-                Assume.IsNotNull(DocumentRetentionTimes.FileAlignments, "DocumentRetentionTimes.FileAlignments"); // Not L10N
+                Assume.IsNotNull(target, @"target");
+                Assume.IsNotNull(DocumentRetentionTimes.FileAlignments, @"DocumentRetentionTimes.FileAlignments");
                 var fileAlignment = DocumentRetentionTimes.FileAlignments.Find(target.Name);
                 if (fileAlignment != null)
                 {
-                    Assume.IsNotNull(fileAlignment.RetentionTimeAlignments, "fileAlignment.RetentionTimeAlignments"); // Not L10N
-                    Assume.IsNotNull(Source, "Source"); // Not L10N
+                    Assume.IsNotNull(fileAlignment.RetentionTimeAlignments, @"fileAlignment.RetentionTimeAlignments");
+                    Assume.IsNotNull(Source, @"Source");
                     Alignment = fileAlignment.RetentionTimeAlignments.Find(Source.Name);
                 }
                 TargetTimes = GetFirstRetentionTimes(settings, target);
@@ -316,8 +356,8 @@ namespace pwiz.Skyline.Controls.Graphs
             internal RetentionTimeSource Target { get; private set; }
             internal RetentionTimeSource Source { get; private set; }
             internal RetentionTimeAlignment Alignment { get; private set; }
-            internal IDictionary<string, double> TargetTimes { get; private set; }
-            internal IDictionary<string, double> SourceTimes { get; private set; }
+            internal IDictionary<Target, double> TargetTimes { get; private set; }
+            internal IDictionary<Target, double> SourceTimes { get; private set; }
             public AlignedRetentionTimes AlignedRetentionTimes { get; set; }
 
             public String DataFile { get { return Source.Name; } }
@@ -331,7 +371,9 @@ namespace pwiz.Skyline.Controls.Graphs
                         var regression = AlignedRetentionTimes.RegressionRefined ?? AlignedRetentionTimes.Regression;
                         if (regression != null)
                         {
-                            return new RegressionLine(regression.Conversion.Slope, regression.Conversion.Intercept);
+                            var regressionLine = regression.Conversion as RegressionLineElement;
+                            if(regressionLine != null)
+                                return new RegressionLine(regressionLine.Slope, regressionLine.Intercept);
                         }
                     }
                     if (Alignment != null)
@@ -395,7 +437,8 @@ namespace pwiz.Skyline.Controls.Graphs
                     {
                         return null;
                     }
-                    return AlignedRetentionTimes.Regression.Conversion.Slope;
+                    var regressionLine = AlignedRetentionTimes.Regression.Conversion as RegressionLineElement;
+                    return regressionLine != null ? regressionLine.Slope : null as double?;
                 }
             }
             public double? UnrefinedIntercept
@@ -406,7 +449,8 @@ namespace pwiz.Skyline.Controls.Graphs
                     {
                         return null;
                     }
-                    return AlignedRetentionTimes.Regression.Conversion.Intercept;
+                    var regressionLine = AlignedRetentionTimes.Regression.Conversion as RegressionLineElement;
+                    return regressionLine != null ? regressionLine.Intercept: null as double?;
                 }
             }
             public double? UnrefinedCorrelationCoefficient
@@ -432,13 +476,14 @@ namespace pwiz.Skyline.Controls.Graphs
                 }
             }
 
-            private static IDictionary<string, double> GetFirstRetentionTimes(
+            private static IDictionary<Target, double> GetFirstRetentionTimes(
                 SrmSettings settings, RetentionTimeSource retentionTimeSource)
             {
-                var libraryRetentionTimes = settings.GetRetentionTimes(MsDataFileUri.Parse(retentionTimeSource.Name));
+                var libraryRetentionTimes = settings.PeptideSettings.Libraries.IsLoaded ? 
+                    settings.GetRetentionTimes(MsDataFileUri.Parse(retentionTimeSource.Name)) : null;
                 if (null == libraryRetentionTimes)
                 {
-                    return new Dictionary<string, double>();
+                    return new Dictionary<Target, double>();
                 }
                 return libraryRetentionTimes.GetFirstRetentionTimes();
             }
@@ -468,15 +513,56 @@ namespace pwiz.Skyline.Controls.Graphs
             UpdateGraph();
         }
 
-        #region Public members for the purpose of testing
+        private void zedGraphControl_ContextMenuBuilder(ZedGraphControl sender, ContextMenuStrip menuStrip, Point mousePt, ZedGraphControl.ContextMenuObjectState objState)
+        {
+            ZedGraphHelper.BuildContextMenu(sender, menuStrip, true);
+
+            int iInsert = 0;
+            menuStrip.Items.Insert(iInsert++, timePlotContextMenuItem);
+            if (timePlotContextMenuItem.DropDownItems.Count == 0)
+            {
+                timePlotContextMenuItem.DropDownItems.AddRange(new ToolStripItem[]
+                    {
+                        timeCorrelationContextMenuItem,
+                        timeResidualsContextMenuItem
+                    });
+            }
+            timeCorrelationContextMenuItem.Checked = PlotType == PlotTypeRT.correlation;
+            timeResidualsContextMenuItem.Checked = PlotType == PlotTypeRT.residuals;
+            menuStrip.Items.Insert(iInsert, new ToolStripSeparator());
+        }
+
+        private void timeCorrelationContextMenuItem_Click(object sender, EventArgs e)
+        {
+            PlotType = PlotTypeRT.correlation;
+        }
+
+        private void timeResidualsContextMenuItem_Click(object sender, EventArgs e)
+        {
+            PlotType = PlotTypeRT.residuals;
+        }
+
+        public PlotTypeRT PlotType
+        {
+            get { return _plotType; }
+
+            set
+            {
+                if (_plotType != value)
+                {
+                    _plotType = value;
+                    zedGraphControl.ZoomOutAll(zedGraphControl.GraphPane);
+                    UpdateGraph();                    
+                }
+            }
+        }
+
+        #region Functional test support
+
         public ComboBox ComboAlignAgainst { get { return comboAlignAgainst; } }
         public DataGridView DataGridView { get { return dataGridView1; } }
         public ZedGraphControl RegressionGraph { get { return zedGraphControl; } }
-        #endregion
 
-        private void zedGraphControl_ContextMenuBuilder(ZedGraphControl sender, ContextMenuStrip menuStrip, Point mousePt, ZedGraphControl.ContextMenuObjectState objState)
-        {
-            CopyEmfToolStripMenuItem.AddToContextMenu(sender, menuStrip);
-        }
+        #endregion
     }
 }

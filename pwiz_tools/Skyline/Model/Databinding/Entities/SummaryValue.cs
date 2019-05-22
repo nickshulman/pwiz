@@ -27,11 +27,13 @@ namespace pwiz.Skyline.Model.Databinding.Entities
     {
         public SummaryValue(Statistics statistics)
         {
-            Mean = statistics.Mean();
+            double mean = statistics.Mean();
+            Mean = mean;
             if (statistics.Length > 1)
             {
-                Stdev = statistics.StdDev();
-                Cv = Stdev/Mean;
+                double stdev = statistics.StdDev();
+                Stdev = stdev;
+                Cv = stdev/mean;
             }
         }
 
@@ -44,7 +46,7 @@ namespace pwiz.Skyline.Model.Databinding.Entities
         {
             if (Stdev.HasValue)
             {
-                return Mean.ToString(format) + "+/-" + Stdev.Value.ToString(format); // Not L10N
+                return Mean.ToString(format) + @"+/-" + Stdev.Value.ToString(format);
             }
             return Mean.ToString(format);
         }

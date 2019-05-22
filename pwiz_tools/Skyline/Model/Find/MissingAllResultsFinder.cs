@@ -28,7 +28,7 @@ namespace pwiz.Skyline.Model.Find
     {
         public override string Name
         {
-            get { return "missing_all_results"; } // Not L10N
+            get { return @"missing_all_results"; }
         }
 
         public override string DisplayName
@@ -38,17 +38,17 @@ namespace pwiz.Skyline.Model.Find
 
         protected override bool IsMatch(PeptideDocNode nodePep)
         {
-            return nodePep != null && nodePep.HasResults && nodePep.Results.All(chromInfo => chromInfo == null);
+            return nodePep != null && nodePep.HasResults && nodePep.Results.All(chromInfo => chromInfo.IsEmpty);
         }
 
         protected override bool IsMatch(TransitionGroupDocNode nodeGroup)
         {
-            return nodeGroup != null && nodeGroup.HasResults && nodeGroup.Results.All(chromInfo => chromInfo == null);
+            return nodeGroup != null && nodeGroup.HasResults && nodeGroup.Results.All(chromInfo => chromInfo.IsEmpty);
         }
 
         protected override bool IsMatch(TransitionGroupDocNode nodeGroup, TransitionDocNode nodeTran)
         {
-            return nodeTran != null && nodeTran.HasResults && nodeTran.Results.All(chromInfo => chromInfo == null);
+            return nodeTran != null && nodeTran.HasResults && nodeTran.Results.All(chromInfo => chromInfo.IsEmpty);
         }
     }
 }

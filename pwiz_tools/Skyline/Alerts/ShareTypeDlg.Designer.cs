@@ -28,41 +28,19 @@
         /// </summary>
         private void InitializeComponent()
         {
+            this.components = new System.ComponentModel.Container();
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(ShareTypeDlg));
-            this.btnMinimal = new System.Windows.Forms.Button();
-            this.labelMessage = new System.Windows.Forms.Label();
-            this.panel1 = new System.Windows.Forms.Panel();
-            this.btnComplete = new System.Windows.Forms.Button();
             this.btnCancel = new System.Windows.Forms.Button();
-            this.panel1.SuspendLayout();
+            this.panelButtonBar = new System.Windows.Forms.FlowLayoutPanel();
+            this.btnShare = new System.Windows.Forms.Button();
+            this.comboSkylineVersion = new System.Windows.Forms.ComboBox();
+            this.label2 = new System.Windows.Forms.Label();
+            this.radioComplete = new System.Windows.Forms.RadioButton();
+            this.radioMinimal = new System.Windows.Forms.RadioButton();
+            this.label3 = new System.Windows.Forms.Label();
+            this.toolTip1 = new System.Windows.Forms.ToolTip(this.components);
+            this.panelButtonBar.SuspendLayout();
             this.SuspendLayout();
-            // 
-            // btnMinimal
-            // 
-            resources.ApplyResources(this.btnMinimal, "btnMinimal");
-            this.btnMinimal.DialogResult = System.Windows.Forms.DialogResult.OK;
-            this.btnMinimal.Name = "btnMinimal";
-            this.btnMinimal.UseVisualStyleBackColor = true;
-            // 
-            // labelMessage
-            // 
-            resources.ApplyResources(this.labelMessage, "labelMessage");
-            this.labelMessage.MaximumSize = new System.Drawing.Size(362, 0);
-            this.labelMessage.Name = "labelMessage";
-            // 
-            // panel1
-            // 
-            resources.ApplyResources(this.panel1, "panel1");
-            this.panel1.BackColor = System.Drawing.SystemColors.Window;
-            this.panel1.Controls.Add(this.labelMessage);
-            this.panel1.Name = "panel1";
-            // 
-            // btnComplete
-            // 
-            resources.ApplyResources(this.btnComplete, "btnComplete");
-            this.btnComplete.Name = "btnComplete";
-            this.btnComplete.UseVisualStyleBackColor = true;
-            this.btnComplete.Click += new System.EventHandler(this.btnComplete_Click);
             // 
             // btnCancel
             // 
@@ -71,33 +49,89 @@
             this.btnCancel.Name = "btnCancel";
             this.btnCancel.UseVisualStyleBackColor = true;
             // 
+            // panelButtonBar
+            // 
+            this.panelButtonBar.BackColor = System.Drawing.SystemColors.Control;
+            this.panelButtonBar.Controls.Add(this.btnCancel);
+            this.panelButtonBar.Controls.Add(this.btnShare);
+            resources.ApplyResources(this.panelButtonBar, "panelButtonBar");
+            this.panelButtonBar.Name = "panelButtonBar";
+            // 
+            // btnShare
+            // 
+            resources.ApplyResources(this.btnShare, "btnShare");
+            this.btnShare.Name = "btnShare";
+            this.btnShare.UseVisualStyleBackColor = true;
+            this.btnShare.Click += new System.EventHandler(this.btnShare_Click);
+            // 
+            // comboSkylineVersion
+            // 
+            resources.ApplyResources(this.comboSkylineVersion, "comboSkylineVersion");
+            this.comboSkylineVersion.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.comboSkylineVersion.FormattingEnabled = true;
+            this.comboSkylineVersion.Name = "comboSkylineVersion";
+            this.toolTip1.SetToolTip(this.comboSkylineVersion, resources.GetString("comboSkylineVersion.ToolTip"));
+            // 
+            // label2
+            // 
+            resources.ApplyResources(this.label2, "label2");
+            this.label2.Name = "label2";
+            // 
+            // radioComplete
+            // 
+            resources.ApplyResources(this.radioComplete, "radioComplete");
+            this.radioComplete.Name = "radioComplete";
+            this.radioComplete.TabStop = true;
+            this.toolTip1.SetToolTip(this.radioComplete, resources.GetString("radioComplete.ToolTip"));
+            this.radioComplete.UseVisualStyleBackColor = true;
+            // 
+            // radioMinimal
+            // 
+            resources.ApplyResources(this.radioMinimal, "radioMinimal");
+            this.radioMinimal.Name = "radioMinimal";
+            this.radioMinimal.TabStop = true;
+            this.toolTip1.SetToolTip(this.radioMinimal, resources.GetString("radioMinimal.ToolTip"));
+            this.radioMinimal.UseVisualStyleBackColor = true;
+            // 
+            // label3
+            // 
+            resources.ApplyResources(this.label3, "label3");
+            this.label3.Name = "label3";
+            // 
             // ShareTypeDlg
             // 
-            this.AcceptButton = this.btnMinimal;
+            this.AcceptButton = this.btnShare;
             resources.ApplyResources(this, "$this");
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
+            this.BackColor = System.Drawing.SystemColors.Control;
             this.CancelButton = this.btnCancel;
-            this.Controls.Add(this.btnCancel);
-            this.Controls.Add(this.btnComplete);
-            this.Controls.Add(this.panel1);
-            this.Controls.Add(this.btnMinimal);
+            this.Controls.Add(this.radioMinimal);
+            this.Controls.Add(this.label2);
+            this.Controls.Add(this.radioComplete);
+            this.Controls.Add(this.comboSkylineVersion);
+            this.Controls.Add(this.label3);
+            this.Controls.Add(this.panelButtonBar);
             this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.FixedDialog;
             this.MaximizeBox = false;
             this.MinimizeBox = false;
             this.Name = "ShareTypeDlg";
             this.ShowInTaskbar = false;
-            this.panel1.ResumeLayout(false);
-            this.panel1.PerformLayout();
+            this.panelButtonBar.ResumeLayout(false);
             this.ResumeLayout(false);
+            this.PerformLayout();
 
         }
 
         #endregion
 
-        private System.Windows.Forms.Button btnMinimal;
-        private System.Windows.Forms.Label labelMessage;
-        private System.Windows.Forms.Panel panel1;
-        private System.Windows.Forms.Button btnComplete;
         private System.Windows.Forms.Button btnCancel;
+        private System.Windows.Forms.FlowLayoutPanel panelButtonBar;
+        private System.Windows.Forms.Label label2;
+        private System.Windows.Forms.Button btnShare;
+        private System.Windows.Forms.RadioButton radioComplete;
+        private System.Windows.Forms.RadioButton radioMinimal;
+        private System.Windows.Forms.Label label3;
+        private System.Windows.Forms.ComboBox comboSkylineVersion;
+        private System.Windows.Forms.ToolTip toolTip1;
     }
 }

@@ -24,12 +24,14 @@ using System.Drawing;
 using System.Linq;
 using System.Windows.Forms;
 using pwiz.Common.DataBinding;
+using pwiz.Common.DataBinding.Attributes;
 using pwiz.Common.DataBinding.Controls;
-using pwiz.Common.DataBinding.Internal;
+using pwiz.Common.DataBinding.Layout;
 using pwiz.Skyline.Alerts;
 using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Model.Databinding;
 using pwiz.Skyline.Properties;
+using pwiz.Skyline.Util;
 using pwiz.Skyline.Util.Extensions;
 
 // This code is associated with the DocumentGrid.
@@ -38,14 +40,16 @@ namespace pwiz.Skyline.Controls.Databinding
 {
     public partial class DataboundGridControl: UserControl
     {
-        private PropertyDescriptor _columnFilterPropertyDescriptor;
+        private DataPropertyDescriptor _columnFilterPropertyDescriptor;
         private readonly object _errorMessageLock = new object();
         private bool _errorMessagePending;
         private bool _suppressErrorMessages;
+        private DataGridViewPasteHandler _dataGridViewPasteHandler;
 
         public DataboundGridControl()
         {
             InitializeComponent();
+            _dataGridViewPasteHandler = DataGridViewPasteHandler.Attach(DataGridView);
         }
 
         public BindingListSource BindingListSource
@@ -87,29 +91,35 @@ namespace pwiz.Skyline.Controls.Databinding
         protected override void OnEnter(EventArgs e)
         {
             base.OnEnter(e);
-            var skylineWindow = FindParentSkylineWindow();
-            if (skylineWindow != null)
-            {
-                skylineWindow.ClipboardControlGotFocus(this);
-            }
+            ClipboardControlGotLostFocus(true);
         }
 
         protected override void OnLeave(EventArgs e)
         {
             base.OnLeave(e);
+            ClipboardControlGotLostFocus(false);
+        }
+
+        protected override void OnHandleDestroyed(EventArgs e)
+        {
+            base.OnHandleDestroyed(e);
+            ClipboardControlGotLostFocus(false);
+        }
+
+        protected void ClipboardControlGotLostFocus(bool gettingFocus)
+        {
             var skylineWindow = FindParentSkylineWindow();
             if (skylineWindow != null)
             {
-                skylineWindow.ClipboardControlLostFocus(this);
+                if (gettingFocus)
+                {
+                    skylineWindow.ClipboardControlGotFocus(this);
+                }
+                else
+                {
+                    skylineWindow.ClipboardControlLostFocus(this);
+                }
             }
-        }
-
-        /// <summary>
-        /// Testing method: Sends Ctrl-V to this control.
-        /// </summary>
-        public void SendPaste()
-        {
-            OnKeyDown(new KeyEventArgs(Keys.V | Keys.Control));
         }
 
         #region Methods exposed for testing
@@ -118,16 +128,19 @@ namespace pwiz.Skyline.Controls.Databinding
 
         public DataGridViewColumn FindColumn(PropertyPath propertyPath)
         {
-            var propertyDescriptor =
-                BindingListSource.GetItemProperties(null)
-                    .OfType<ColumnPropertyDescriptor>()
-                    .FirstOrDefault(colPd => Equals(propertyPath, colPd.PropertyPath));
+            // Get the list separately for debugging, since this helps in figuring out what
+            // the propertyPath should be.
+            var propertyDescriptorList = BindingListSource.GetItemProperties(null)
+                .OfType<ColumnPropertyDescriptor>();
+            var propertyDescriptor = propertyDescriptorList
+                .FirstOrDefault(colPd => Equals(propertyPath, colPd.PropertyPath));
             if (null == propertyDescriptor)
             {
                 return null;
             }
             return DataGridView.Columns.Cast<DataGridViewColumn>().FirstOrDefault(col => col.DataPropertyName == propertyDescriptor.Name);
         }
+
         public bool IsComplete
         {
             get
@@ -150,7 +163,7 @@ namespace pwiz.Skyline.Controls.Databinding
                     }
                 }
             }
-            throw new InvalidOperationException(string.Format("No view named {0}", viewName)); // Not L10N
+            throw new InvalidOperationException(string.Format(@"No view named {0}", viewName));
         }
 
         public bool ChooseView(ViewName viewName)
@@ -189,15 +202,21 @@ namespace pwiz.Skyline.Controls.Databinding
 
         public void QuickFilter(DataGridViewColumn column)
         {
-            _columnFilterPropertyDescriptor = BindingListSource.GetItemProperties(null)[column.DataPropertyName];
+            _columnFilterPropertyDescriptor = BindingListSource.FindDataProperty(column.DataPropertyName);
             filterToolStripMenuItem_Click(filterToolStripMenuItem, new EventArgs());
+        }
+
+        public void ShowFormatDialog(DataGridViewColumn column)
+        {
+            _columnFilterPropertyDescriptor = BindingListSource.FindDataProperty(column.DataPropertyName);
+            formatToolStripMenuItem_Click(formatToolStripMenuItem, new EventArgs());
         }
 
         #endregion
 
         protected virtual void boundDataGridView_CellContextMenuStripNeeded(object sender, DataGridViewCellContextMenuStripNeededEventArgs e)
         {
-            PropertyDescriptor propertyDescriptor = null;
+            DataPropertyDescriptor propertyDescriptor = null;
             if (e.ColumnIndex >= 0)
             {
                 var column = boundDataGridView.Columns[e.ColumnIndex];
@@ -282,9 +301,10 @@ namespace pwiz.Skyline.Controls.Databinding
         {
             if (null != _columnFilterPropertyDescriptor)
             {
+                var columnId = ColumnId.GetColumnId(_columnFilterPropertyDescriptor);
                 var rowFilter = BindingListSource.RowFilter;
                 rowFilter = rowFilter.SetColumnFilters(
-                    rowFilter.ColumnFilters.Where(spec => !Equals(spec.ColumnCaption, _columnFilterPropertyDescriptor.DisplayName)));
+                    rowFilter.ColumnFilters.Where(spec => !Equals(spec.ColumnId, columnId)));
                 BindingListSource.RowFilter = rowFilter;
             }
         }
@@ -362,9 +382,9 @@ namespace pwiz.Skyline.Controls.Databinding
             }
         }
 
-        public PropertyDescriptor GetPropertyDescriptor(DataGridViewColumn column)
+        public DataPropertyDescriptor GetPropertyDescriptor(DataGridViewColumn column)
         {
-            return bindingListSource.GetItemProperties(null)[column.DataPropertyName];
+            return bindingListSource.FindDataProperty(column.DataPropertyName);
         }
 
         private void fillDownToolStripMenuItem_Click(object sender, EventArgs e)
@@ -386,23 +406,27 @@ namespace pwiz.Skyline.Controls.Databinding
             {
                 return false;
             }
-            using (var undoTransaction = skylineWindow.BeginUndo(Resources.DataboundGridControl_FillDown_Fill_Down))
-            {
-                if (DoFillDown(propertyDescriptors, firstRowIndex, lastRowIndex))
-                {
-                    undoTransaction.Commit();
-                    return true;
-                }
-            }
+
+            _dataGridViewPasteHandler.PerformUndoableOperation(Resources.DataboundGridControl_FillDown_Fill_Down,
+                longWaitBroker => DoFillDown(longWaitBroker, propertyDescriptors, firstRowIndex, lastRowIndex),
+                new DataGridViewPasteHandler.BatchModifyInfo(DataGridViewPasteHandler.BatchModifyAction.FillDown,
+                    BindingListSource.ViewInfo.Name, BindingListSource.RowFilter));
             return false;
         }
-
-        private bool DoFillDown(PropertyDescriptor[] propertyDescriptors, int firstRowIndex, int lastRowIndex)
+        
+        private bool DoFillDown(ILongWaitBroker longWaitBroker, PropertyDescriptor[] propertyDescriptors, int firstRowIndex, int lastRowIndex)
         {
             bool anyChanges = false;
             var firstRowValues = propertyDescriptors.Select(pd => pd.GetValue(BindingListSource[firstRowIndex])).ToArray();
+            int totalRows = lastRowIndex - firstRowIndex + 1;
             for (int iRow = firstRowIndex + 1; iRow <= lastRowIndex; iRow++)
             {
+                if (longWaitBroker.IsCanceled)
+                {
+                    return anyChanges;
+                }
+                longWaitBroker.ProgressValue = 100*(iRow - firstRowIndex)/totalRows;
+                longWaitBroker.Message = string.Format(Resources.DataboundGridControl_DoFillDown_Filling__0___1__rows, iRow - firstRowIndex, totalRows);
                 var row = BindingListSource[iRow];
                 for (int icol = 0; icol < propertyDescriptors.Length; icol++)
                 {
@@ -414,8 +438,8 @@ namespace pwiz.Skyline.Controls.Databinding
                     }
                     catch (Exception e)
                     {
-                        MessageDlg.Show(this, TextUtil.LineSeparate(Resources.DataboundGridControl_DoFillDown_Error_setting_value_, 
-                            e.Message));
+                        MessageDlg.ShowWithException(this, TextUtil.LineSeparate(Resources.DataboundGridControl_DoFillDown_Error_setting_value_, 
+                            e.Message), e);
                         var column = DataGridView.Columns.OfType<DataGridViewColumn>()
                             .FirstOrDefault(col => col.DataPropertyName == propertyDescriptor.Name);
                         if (null != column)
@@ -434,15 +458,34 @@ namespace pwiz.Skyline.Controls.Databinding
             UpdateContextMenuItems();
         }
 
+        private bool IsSortable(PropertyDescriptor propertyDescriptor)
+        {
+            return propertyDescriptor != null && !propertyDescriptor.Attributes.OfType<ExpensiveAttribute>().Any();
+        }
+
+        private bool IsFormattable(PropertyDescriptor propertyDescriptor)
+        {
+            if (propertyDescriptor == null)
+            {
+                return false;
+            }
+            var type = BindingListSource.ViewInfo.DataSchema.GetWrappedValueType(propertyDescriptor.PropertyType);
+            if (typeof(IFormattable).IsAssignableFrom(type))
+            {
+                return true;
+            }
+            return false;
+        }
+
         private void UpdateContextMenuItems()
         {
             clearAllFiltersToolStripMenuItem.Enabled = !BindingListSource.RowFilter.IsEmpty;
-            if (null != _columnFilterPropertyDescriptor)
+            if (null != _columnFilterPropertyDescriptor && IsSortable(_columnFilterPropertyDescriptor))
             {
-
+                var columnId = ColumnId.GetColumnId(_columnFilterPropertyDescriptor);
                 clearFilterToolStripMenuItem.Enabled =
                     BindingListSource.RowFilter.ColumnFilters.Any(
-                        filter => Equals(_columnFilterPropertyDescriptor.DisplayName, filter.ColumnCaption));
+                        filter => Equals(columnId, filter.ColumnId));
                 filterToolStripMenuItem.Enabled = true;
                 ListSortDirection? sortDirection = null;
                 if (null != BindingListSource.SortDescriptions && BindingListSource.SortDescriptions.Count > 0)
@@ -465,12 +508,21 @@ namespace pwiz.Skyline.Controls.Databinding
             }
             else
             {
+                clearSortToolStripMenuItem.Enabled = false;
                 clearFilterToolStripMenuItem.Enabled = false;
                 filterToolStripMenuItem.Enabled = false;
                 sortAscendingToolStripMenuItem.Enabled = false;
                 sortDescendingToolStripMenuItem.Enabled = false;
                 sortAscendingToolStripMenuItem.Checked = false;
                 sortDescendingToolStripMenuItem.Checked = false;
+            }
+            if (IsFormattable(_columnFilterPropertyDescriptor))
+            {
+                formatToolStripMenuItem.Enabled = true;
+            }
+            else
+            {
+                formatToolStripMenuItem.Enabled = false;
             }
             fillDownToolStripMenuItem.Enabled = IsEnableFillDown();
         }
@@ -500,24 +552,60 @@ namespace pwiz.Skyline.Controls.Databinding
 
         private void DisplayError(BindingManagerDataErrorEventArgs e)
         {
-            lock (_errorMessageLock)
+            try
             {
-                _errorMessagePending = false;
+                if (_suppressErrorMessages)
+                {
+                    return;
+                }
+                string message = TextUtil.LineSeparate(
+                    Resources.DataboundGridControl_DisplayError_An_error_occured_while_displaying_the_data_rows_,
+                    e.Exception.Message,
+                    Resources.DataboundGridControl_DisplayError_Do_you_want_to_continue_to_see_these_error_messages_
+                    );
+
+                var alertDlg = new AlertDlg(message, MessageBoxButtons.YesNo) {Exception = e.Exception};
+                if (alertDlg.ShowAndDispose(this) == DialogResult.No)
+                {
+                    _suppressErrorMessages = true;
+                }
             }
-            if (_suppressErrorMessages)
+            finally
+            {
+                lock (_errorMessageLock)
+                {
+                    _errorMessagePending = false;
+                }
+            }
+        }
+
+        private void formatToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            if (_columnFilterPropertyDescriptor == null)
             {
                 return;
             }
-            string message = TextUtil.LineSeparate(
-                Resources.DataboundGridControl_DisplayError_An_error_occured_while_displaying_the_data_rows_,
-                e.Exception.Message,
-                Resources.DataboundGridControl_DisplayError_Do_you_want_to_continue_to_see_these_error_messages_
-                );
-
-            var alertDlg = new AlertDlg(message, MessageBoxButtons.YesNo) {Exception = e.Exception};
-            if (alertDlg.ShowAndDispose(this) == DialogResult.No)
+            using (var dlg = new ChooseFormatDlg(BindingListSource.ViewInfo.DataSchema.DataSchemaLocalizer))
             {
-                _suppressErrorMessages = true;
+                var columnId = ColumnId.GetColumnId(_columnFilterPropertyDescriptor);
+                var columnFormat =
+                    BindingListSource.ColumnFormats.GetFormat(ColumnId.GetColumnId(_columnFilterPropertyDescriptor));
+                if (null != columnFormat.Format)
+                {
+                    dlg.FormatText = columnFormat.Format;
+                }
+                if (dlg.ShowDialog(FormUtil.FindTopLevelOwner(this)) == DialogResult.OK)
+                {
+                    if (string.IsNullOrEmpty(dlg.FormatText))
+                    {
+                        columnFormat = columnFormat.ChangeFormat(null);
+                    }
+                    else
+                    {
+                        columnFormat = columnFormat.ChangeFormat(dlg.FormatText);
+                    }
+                    BindingListSource.ColumnFormats.SetFormat(columnId, columnFormat);
+                }
             }
         }
     }

@@ -19,7 +19,6 @@
 
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Linq;
 using System.Text;
 using System.Threading;
@@ -32,15 +31,15 @@ namespace pwiz.Skyline.Model.Results.Scoring
 {
     public static class PeakFeatureEnumerator
     {
-        public static PeakTransitionGroupFeatures[] GetPeakFeatures(this SrmDocument document,
+        public static PeakTransitionGroupFeatureSet GetPeakFeatures(this SrmDocument document,
                                                                                IList<IPeakFeatureCalculator> calcs,
                                                                                IProgressMonitor progressMonitor = null,
-                                                                               bool includeMzFilters = false)
+                                                                               bool verbose = false)
         {
             // Get features for each peptide
             int totalPeptides = document.MoleculeCount;
             int currentPeptide = 0;
-            var status = new ProgressStatus(Resources.PeakFeatureEnumerator_GetPeakFeatures_Calculating_peak_group_scores);
+            IProgressStatus status = new ProgressStatus(Resources.PeakFeatureEnumerator_GetPeakFeatures_Calculating_peak_group_scores);
 
             // Set up run ID dictionary
             var runEnumDict = new Dictionary<int, int>();
@@ -52,7 +51,7 @@ namespace pwiz.Skyline.Model.Results.Scoring
 
             // Using Parallel.For is quicker, but order needs to be maintained
             var moleculeGroupPairs = document.GetMoleculeGroupPairs();
-            var peakFeatureLists = new List<PeakTransitionGroupFeatures>[moleculeGroupPairs.Length];
+            var peakFeatureLists = new PeakTransitionGroupFeatures[moleculeGroupPairs.Length][];
             int peakFeatureCount = 0;
             ParallelEx.For(0, moleculeGroupPairs.Length, i =>
             {
@@ -71,15 +70,13 @@ namespace pwiz.Skyline.Model.Results.Scoring
                     if (progressMonitor.IsCanceled)
                         throw new OperationCanceledException();
 
-                    int percentComplete = currentPeptide*100/totalPeptides;
-                    Interlocked.Increment(ref currentPeptide);
-                    if (percentComplete < 100)
-                        progressMonitor.UpdateProgress(status = status.ChangePercentComplete(percentComplete));
+                    int? percentComplete = ProgressStatus.ThreadsafeIncementPercent(ref currentPeptide, totalPeptides);
+                    if (percentComplete.HasValue && percentComplete.Value < 100)
+                        progressMonitor.UpdateProgress(status = status.ChangePercentComplete(percentComplete.Value));
                 }
 
                 var peakFeatureList = new List<PeakTransitionGroupFeatures>();
-                peakFeatureLists[i] = peakFeatureList;
-                foreach (var peakFeature in document.GetPeakFeatures(nodePepGroup, nodePep, calcs, runEnumDict, includeMzFilters))
+                foreach (var peakFeature in document.GetPeakFeatures(nodePepGroup, nodePep, calcs, runEnumDict, verbose))
                 {
                     if (peakFeature.PeakGroupFeatures.Any())
                     {
@@ -87,22 +84,28 @@ namespace pwiz.Skyline.Model.Results.Scoring
                         Interlocked.Increment(ref peakFeatureCount);
                     }
                 }
+                peakFeatureLists[i] = peakFeatureList.ToArray();
             });
 
             var result = new PeakTransitionGroupFeatures[peakFeatureCount];
             int peakFeatureCurrent = 0;
+            int decoyCount = 0;
             foreach (var peakFeatureList in peakFeatureLists)
             {
                 if (peakFeatureList == null)
                     continue;
 
                 foreach (var peakFeature in peakFeatureList)
+                {
                     result[peakFeatureCurrent++] = peakFeature;
+                    if (peakFeature.IsDecoy)
+                        decoyCount++;
+                }
             }
 
             if (progressMonitor != null)
                 progressMonitor.UpdateProgress(status.ChangePercentComplete(100));
-            return result;
+            return new PeakTransitionGroupFeatureSet(decoyCount, result);
         }
 
         private static IEnumerable<PeakTransitionGroupFeatures> GetPeakFeatures(this SrmDocument document,
@@ -110,14 +113,14 @@ namespace pwiz.Skyline.Model.Results.Scoring
                                                                                 PeptideDocNode nodePep,
                                                                                 IList<IPeakFeatureCalculator> calcs,
                                                                                 IDictionary<int, int> runEnumDict,
-                                                                                bool includeMzFilters)
+                                                                                bool verbose)
         {
             // Get peptide features for each set of comparable groups
             foreach (var nodeGroups in ComparableGroups(nodePep))
             {
                 var arrayGroups = nodeGroups.ToArray();
                 var labelType = arrayGroups[0].TransitionGroup.LabelType;
-                foreach (var peakFeature in document.GetPeakFeatures(nodePepGroup, nodePep, labelType, arrayGroups, calcs, runEnumDict, includeMzFilters))
+                foreach (var peakFeature in document.GetPeakFeatures(nodePepGroup, nodePep, labelType, arrayGroups, calcs, runEnumDict, verbose))
                 {
                     yield return peakFeature;
                 }
@@ -147,7 +150,7 @@ namespace pwiz.Skyline.Model.Results.Scoring
                                                                    IList<TransitionGroupDocNode> nodeGroups,
                                                                    IList<IPeakFeatureCalculator> calcs,
                                                                    IDictionary<int, int> runEnumDict,
-                                                                   bool includeMzFilters)
+                                                                   bool verbose)
         {
             var chromatograms = document.Settings.MeasuredResults.Chromatograms;
             float mzMatchTolerance = (float)document.Settings.TransitionSettings.Instrument.MzMatchTolerance;
@@ -180,24 +183,29 @@ namespace pwiz.Skyline.Model.Results.Scoring
                             features[i] = summaryPeakData.GetScore(context, calcs[i]);
                         }
 
-                        MzFilterPairs[] mzFilters = null;
-                        if (includeMzFilters)
-                            mzFilters = summaryPeakData.GetMzFilters(context);
-
-                        float retentionTime = summaryPeakData.RetentionTime;
-                        float startTime = summaryPeakData.StartTime;
-                        float endTime = summaryPeakData.EndTime;
-                        bool isMaxPeakIndex = summaryPeakData.IsMaxPeakIndex;
-                        listRunFeatures.Add(new PeakGroupFeatures(retentionTime, startTime, endTime,
-                            isMaxPeakIndex, features, mzFilters));
+                        // CONSIDER: Peak features can take up a lot of space in large scale DIA
+                        //           It may be possible to save even more by using a smaller struct
+                        //           when times are not required, which they are only for export
+                        float retentionTime = 0, startTime = 0, endTime = 0;
+                        if (verbose)
+                        {
+                            var peakTimes = summaryPeakData.RetentionTimeStatistics;
+                            retentionTime = peakTimes.RetentionTime;
+                            startTime = peakTimes.StartTime;
+                            endTime = peakTimes.EndTime;
+                        }
+                        int peakIndex = summaryPeakData.UsedBestPeakIndex
+                            ? summaryPeakData.BestPeakIndex
+                            : summaryPeakData.PeakIndex;
+                        listRunFeatures.Add(new PeakGroupFeatures(peakIndex, retentionTime, startTime, endTime, features));
                     }
 
-                    yield return new PeakTransitionGroupFeatures(peakId, listRunFeatures.ToArray());
+                    yield return new PeakTransitionGroupFeatures(peakId, listRunFeatures.ToArray(), verbose);
                 }
             }
         }
 
-        private class SummaryPeptidePeakData : IPeptidePeakData<ISummaryPeakData>
+        public class SummaryPeptidePeakData : IPeptidePeakData<ISummaryPeakData>
         {
             private static readonly IList<ITransitionGroupPeakData<ISummaryPeakData>> EMPTY_DATA = new ITransitionGroupPeakData<ISummaryPeakData>[0];
 
@@ -278,16 +286,34 @@ namespace pwiz.Skyline.Model.Results.Scoring
             /// </summary>
             public bool HasArea
             {
-                get { return TransitionPeakData.FirstOrDefault(pd => pd.PeakData != null && pd.PeakData.Area != 0) != null; }
+                get
+                {
+                    // Using a Linq expression showed up in the profiler
+                    foreach (var tg in TransitionGroupPeakData)
+                    {
+                        foreach (var pd in tg.TransitionPeakData)
+                        {
+                            if (pd.PeakData != null && pd.PeakData.Area != 0)
+                                return true;
+                        }
+                    }
+                    return false;
+                }
             }
 
-            public bool IsMaxPeakIndex
+            public int BestPeakIndex
             {
-                get { return _peakIndex == _chromGroupInfoPrimary.BestPeakIndex; }
+                get { return _chromGroupInfoPrimary.BestPeakIndex; }
             }
+
+            public bool UsedBestPeakIndex { get; private set; }
+
+            public int PeakIndex { get { return _peakIndex; } }
 
             public bool NextPeakIndex()
             {
+                // By derault use _peakIndex
+                UsedBestPeakIndex = false;
                 int lastPeakIndex = _peakIndex;
 
                 _peakIndex++;
@@ -307,7 +333,8 @@ namespace pwiz.Skyline.Model.Results.Scoring
                         if (tranGroupPeakData.PeakIndex <= lastPeakIndex)
                             return false;
                     }
-
+                    // One last peak index using the best peak that just got set
+                    UsedBestPeakIndex = true;
                     return MatchingPeaks();
                 }
 
@@ -369,45 +396,45 @@ namespace pwiz.Skyline.Model.Results.Scoring
                 return true;
             }
 
-            public float RetentionTime
+            public PeakTimes RetentionTimeStatistics
             {
                 get
                 {
-                    ISummaryPeakData maxPeakData = null;
-                    foreach (var tranPeakData in TransitionGroupPeakData.SelectMany(g => g.TransitionPeakData))
-                    {
-                        if (maxPeakData == null || tranPeakData.PeakData.Height > maxPeakData.Height)
-                            maxPeakData = tranPeakData.PeakData;
-                    }
-                    return maxPeakData != null ? maxPeakData.RetentionTime : 0;
-                }
-            }
+                    // Avoid extra allocations for deteriming the median time. Probably the median
+                    // of the 3 most intense peaks is better than the median of everything anyway.
+                    ITransitionPeakData<ISummaryPeakData> maxPeakData = null;
+                    ITransitionPeakData<ISummaryPeakData> max2PeakData = null;
+                    ITransitionPeakData<ISummaryPeakData> max3PeakData = null;
 
-            public float StartTime
-            {
-                get
-                {
-                    ISummaryPeakData maxPeakData = null;
-                    foreach (var tranPeakData in TransitionGroupPeakData.SelectMany(g => g.TransitionPeakData))
+                    foreach (var tg in TransitionGroupPeakData)
                     {
-                        if (maxPeakData == null || tranPeakData.PeakData.Height > maxPeakData.Height)
-                            maxPeakData = tranPeakData.PeakData;
+                        foreach (var pd in tg.TransitionPeakData)
+                        {
+                            var tranPeakDataCurrent = pd;
+                            if (maxPeakData == null || tranPeakDataCurrent.PeakData.Height > maxPeakData.PeakData.Height)
+                                Helpers.Swap(ref tranPeakDataCurrent, ref maxPeakData);
+                            if (tranPeakDataCurrent == null)
+                                continue;
+                            if (max2PeakData == null || tranPeakDataCurrent.PeakData.Height > max2PeakData.PeakData.Height)
+                                Helpers.Swap(ref tranPeakDataCurrent, ref max2PeakData);
+                            if (tranPeakDataCurrent == null)
+                                continue;
+                            if (max3PeakData == null || tranPeakDataCurrent.PeakData.Height > max3PeakData.PeakData.Height)
+                                Helpers.Swap(ref tranPeakDataCurrent, ref max3PeakData);
+                        }
                     }
-                    return maxPeakData != null ? maxPeakData.StartTime : 0;
-                }
-            }
 
-            public float EndTime
-            {
-                get
-                {
-                    ISummaryPeakData maxPeakData = null;
-                    foreach (var tranPeakData in TransitionGroupPeakData.SelectMany(g => g.TransitionPeakData))
-                    {
-                        if (maxPeakData == null || tranPeakData.PeakData.Height > maxPeakData.Height)
-                            maxPeakData = tranPeakData.PeakData;
-                    }
-                    return maxPeakData != null ? maxPeakData.EndTime : 0;
+                    float retentionTime = maxPeakData != null ? maxPeakData.PeakData.RetentionTime : 0;
+                    float startTime = maxPeakData != null ? maxPeakData.PeakData.StartTime : 0;
+                    float endTime = maxPeakData != null ? maxPeakData.PeakData.EndTime : 0;
+                    float medianTime = 0;
+                    if (max3PeakData != null)
+                        medianTime = max2PeakData.PeakData.RetentionTime;
+                    else if (max2PeakData != null && maxPeakData != null) // Keep ReSharper happy with second check
+                        medianTime = (maxPeakData.PeakData.RetentionTime + max2PeakData.PeakData.RetentionTime) / 2;
+                    else if (maxPeakData != null)
+                        medianTime = maxPeakData.PeakData.RetentionTime;
+                    return new PeakTimes(retentionTime, startTime, endTime, medianTime);
                 }
             }
 
@@ -421,78 +448,22 @@ namespace pwiz.Skyline.Model.Results.Scoring
                     return groupPeakData.GetScore(calc.GetType());
                 return float.NaN;
             }
+        }
 
-            public MzFilterPairs[] GetMzFilters(PeakScoringContext context)
+        public struct PeakTimes
+        {
+            public PeakTimes(float retentionTime, float startTime, float endTime, float medianTime) : this()
             {
-                var listMzFilters = new List<MzFilterPairs>();
-                var fullScan = context.Document.Settings.TransitionSettings.FullScan;
-                // Impossible to report precursor filter for results dependent DIA
-                if (fullScan.AcquisitionMethod == FullScanAcquisitionMethod.DIA && fullScan.IsolationScheme.FromResults)
-                        return listMzFilters.ToArray();
-                foreach (var transitionGroupPeakData in TransitionGroupPeakData)
-                {
-                    double targetMzDia = 0, widthMzDia = 0;
-                    if (fullScan.AcquisitionMethod == FullScanAcquisitionMethod.DIA)
-                    {
-                        var isolationWindows = fullScan.IsolationScheme.GetIsolationWindowsContaining(
-                            transitionGroupPeakData.NodeGroup.PrecursorMz);
-
-                        double start = double.MaxValue, end = double.MinValue;
-                        foreach (var isolationWindow in isolationWindows)
-                        {
-                            start = Math.Min(start, isolationWindow.Start);
-                            end = Math.Max(end, isolationWindow.End);
-                        }
-                        // This should not happen, but if no containing windows were found, give up.
-                        if (start > end)
-                            return new MzFilterPairs[0];
-                        targetMzDia = (start + end) / 2;
-                        widthMzDia = end - start;
-                    }
-                    foreach (var transitionPeakData in transitionGroupPeakData.TransitionPeakData)
-                    {
-                        // Skip forced integration peaks
-                        if (transitionPeakData.PeakData == null)
-                            continue;
-
-                        // Default to SRM filters
-                        var mzFilter = new MzFilterPairs
-                        {
-                            TargetPrecursorMz = transitionGroupPeakData.NodeGroup.PrecursorMz,
-                            WidthPrecursorMz = 0.7,
-                            TargetProductMz = transitionPeakData.NodeTran.Mz,
-                            WidthProductMz = 0.7,
-                            IsForcedIntegration = transitionPeakData.PeakData.IsForcedIntegration
-                        };
-                        if (fullScan.IsEnabled)
-                        {
-                            if (transitionPeakData.NodeTran.IsMs1)
-                            {
-                                // Move product mz to precursor mz for isotope transitions
-                                mzFilter.TargetPrecursorMz = mzFilter.TargetProductMz.Value;
-                                mzFilter.WidthPrecursorMz = fullScan.GetPrecursorFilterWindow(mzFilter.TargetPrecursorMz);
-                                mzFilter.TargetProductMz = null;
-                                mzFilter.WidthProductMz = null;
-                            }
-                            else
-                            {
-                                if (fullScan.AcquisitionMethod == FullScanAcquisitionMethod.Targeted)
-                                {
-                                    mzFilter.WidthPrecursorMz = 2.0;
-                                }
-                                else if (fullScan.AcquisitionMethod == FullScanAcquisitionMethod.DIA)
-                                {
-                                    mzFilter.TargetPrecursorMz = targetMzDia;
-                                    mzFilter.WidthPrecursorMz = widthMzDia;
-                                }
-                                mzFilter.WidthProductMz = fullScan.GetProductFilterWindow(mzFilter.TargetProductMz.Value);
-                            }
-                        }
-                        listMzFilters.Add(mzFilter);
-                    }
-                }
-                return listMzFilters.ToArray();
+                RetentionTime = retentionTime;
+                StartTime = startTime;
+                EndTime = endTime;
+                MedianTime = medianTime;
             }
+
+            public float RetentionTime { get; private set; }
+            public float StartTime { get; private set; }
+            public float EndTime { get; private set; }
+            public float MedianTime { get; private set; }
         }
 
         private sealed class SummaryTransitionGroupPeakData : ITransitionGroupPeakData<ISummaryPeakData>
@@ -526,18 +497,26 @@ namespace pwiz.Skyline.Model.Results.Scoring
 
                     if (_chromGroupInfo != null)
                     {
-                        int ms1Count = 0, ms2Count = 0;
-                        var listPeakData = new List<ITransitionPeakData<ISummaryPeakData>>();
+                        int ms1Count = 0, ms2Count = 0, totalCount = 0;
+                        // Assume there will be one per transtion
+                        var listPeakData = new ITransitionPeakData<ISummaryPeakData>[nodeGroup.TransitionCount];
                         foreach (var nodeTran in nodeGroup.Transitions)
                         {
-                            var tranInfo = _chromGroupInfo.GetTransitionInfo((float) nodeTran.Mz, mzMatchTolerance);
+                            var tranInfo = _chromGroupInfo.GetTransitionInfo(nodeTran, mzMatchTolerance, chromatogramSet.OptimizationFunction);
                             if (tranInfo == null)
                                 continue;
-                            listPeakData.Add(new SummaryTransitionPeakData(document, nodeTran, chromatogramSet, tranInfo));
+                            listPeakData[totalCount++] = new SummaryTransitionPeakData(document, nodeTran, chromatogramSet, tranInfo);
                             if (nodeTran.IsMs1)
                                 ms1Count++;
                             else
                                 ms2Count++;
+                        }
+                        // If something was missing reallocate, which can't be slower than List.ToArray()
+                        if (totalCount < listPeakData.Length)
+                        {
+                            var peakDatasShort = new ITransitionPeakData<ISummaryPeakData>[totalCount];
+                            Array.Copy(listPeakData, peakDatasShort, totalCount);
+                            listPeakData = peakDatasShort;
                         }
                         TransitionPeakData = listPeakData.ToArray();
                         Ms1TranstionPeakData = GetTransitionTypePeakData(ms1Count, ms2Count, true);
@@ -662,29 +641,35 @@ namespace pwiz.Skyline.Model.Results.Scoring
                                      IDictionary<int, int> runEnumDict)
         {
             NodePepGroup = nodePepGroup;
-            NodePep = nodePep;
             LabelType = labelType;
             ChromatogramSet = chromatogramSet;
             FilePath = chromGroupInfo.FilePath;
             FileId = chromatogramSet.FindFile(chromGroupInfo);
             Run = runEnumDict[FileId.GlobalIndex];
+
+            // Avoid hanging onto the peptide, since it can end up being the primary memory root
+            // for large-scale command-line processing
+            RawTextId = nodePep.ModifiedTarget.ToString();
+            RawUnmodifiedTextId = nodePep.Target.ToString();
+            IsDecoy = nodePep.IsDecoy;
+            Key = new PeakTransitionGroupIdKey(nodePep.Id.GlobalIndex, FileId.GlobalIndex);
         }
 
         public PeptideGroupDocNode NodePepGroup { get; private set; }
-        public PeptideDocNode NodePep { get; private set; }
         public IsotopeLabelType LabelType { get; private set; }
         public ChromatogramSet ChromatogramSet { get; private set; }
         public ChromFileInfoId FileId { get; private set; }
         public MsDataFileUri FilePath { get; private set; }
         public int Run { get; private set; }
 
+        public string RawTextId { get; private set; }
+        public string RawUnmodifiedTextId { get; private set; }
+        public bool IsDecoy { get; private set; }
+
         /// <summary>
         /// Guaranteed unique key for internal use
         /// </summary>
-        public PeakTransitionGroupIdKey Key
-        {
-            get { return new PeakTransitionGroupIdKey(NodePep.Id.GlobalIndex, FileId.GlobalIndex); }
-        }
+        public PeakTransitionGroupIdKey Key { get; private set; }
 
         /// <summary>
         /// Mostly unique string identifier for external use with R version of mProphet
@@ -692,12 +677,12 @@ namespace pwiz.Skyline.Model.Results.Scoring
         public override string ToString()
         {
             var sb = new StringBuilder();
-            if (NodePep.IsDecoy)
-                sb.Append("DECOY_"); // Not L10N
-            sb.Append(NodePep.RawTextId); // Modified sequence, or display name for custom ion
+            if (IsDecoy)
+                sb.Append(@"DECOY_");
+            sb.Append(RawTextId); // Modified sequence, or display name for custom ion
             if (!LabelType.IsLight)
-                sb.Append("_").Append(LabelType); // Not L10N
-            sb.Append("_run").Append(Run); // Not L10N
+                sb.Append(@"_").Append(LabelType);
+            sb.Append(@"_run").Append(Run);
             return sb.ToString();
         }
     }
@@ -733,70 +718,61 @@ namespace pwiz.Skyline.Model.Results.Scoring
         }
     }
 
+    public interface IFeatureScoreProvider
+    {
+        PeakTransitionGroupFeatureSet GetFeatureScores(SrmDocument document, IPeakScoringModel scoringModel, IProgressMonitor progressMonitor);
+    }
+
+    public sealed class PeakTransitionGroupFeatureSet
+    {
+        public PeakTransitionGroupFeatureSet(int decoyCount, PeakTransitionGroupFeatures[] features)
+        {
+            DecoyCount = decoyCount;
+            Features = features;
+        }
+
+        public int TargetCount { get { return Features.Length - DecoyCount; } }
+        public int DecoyCount { get; private set; }
+        public PeakTransitionGroupFeatures[] Features { get; private set; }
+    }
+
     /// <summary>
     /// All features for all peak groups of a scored group of transitions.
     /// </summary>
-    public sealed class PeakTransitionGroupFeatures
+    public struct PeakTransitionGroupFeatures
     {
-        public PeakTransitionGroupFeatures(PeakTransitionGroupId id, IList<PeakGroupFeatures> peakGroupFeatures)
+        public PeakTransitionGroupFeatures(PeakTransitionGroupId id, IList<PeakGroupFeatures> peakGroupFeatures, bool verbose) : this()
         {
-            Id = id;
+            Key = id.Key;
+            IsDecoy = id.IsDecoy;
             PeakGroupFeatures = peakGroupFeatures;
+            if (verbose)
+                Id = id;    // Avoid holding this in memory unless required for verbose output
         }
 
-        public PeakTransitionGroupId Id { get; private set; }
+        public PeakTransitionGroupIdKey Key { get; private set; }
+        public bool IsDecoy { get; private set; }
         public IList<PeakGroupFeatures> PeakGroupFeatures { get; private set; }
+        public PeakTransitionGroupId Id { get; private set; }
     }
 
-    public sealed class PeakGroupFeatures
+    public struct PeakGroupFeatures
     {
-        public PeakGroupFeatures(float retentionTime, float startTime, float endTime, bool isMaxPeak,
-            float[] features, MzFilterPairs[] filterPairs)
+        public PeakGroupFeatures(int peakIndex, float retentionTime, float startTime, float endTime,
+            float[] features) : this()
         {
+            OriginalPeakIndex = peakIndex;
+            // CONSIDER: This impacts memory consumption for large-scale DIA, and it is not clear anyone uses these
             RetentionTime = retentionTime;
             StartTime = startTime;
             EndTime = endTime;
-            IsMaxPeak = isMaxPeak;
             Features = features;
-            FilterPairs = filterPairs;
         }
 
+        public int OriginalPeakIndex { get; private set; }
         public float RetentionTime { get; private set; }
         public float StartTime { get; private set; }
         public float EndTime { get; private set; }
-        public bool IsMaxPeak { get; private set; } // Max peak picked during import
         public float[] Features { get; private set; }
-        public MzFilterPairs[] FilterPairs { get; private set; }
-
-        public string GetFilterPairsText(CultureInfo cultureInfo)
-        {
-            if (FilterPairs == null)
-                return string.Empty;
-
-            var sb = new StringBuilder();
-            foreach (var filterPairs in FilterPairs)
-            {
-                sb.Append('(');
-                sb.Append(filterPairs.TargetPrecursorMz.ToString(cultureInfo));
-                sb.Append(cultureInfo.TextInfo.ListSeparator).Append(filterPairs.WidthPrecursorMz.ToString(cultureInfo));
-                if (filterPairs.TargetProductMz.HasValue && filterPairs.WidthProductMz.HasValue)
-                {
-                    sb.Append(cultureInfo.TextInfo.ListSeparator).Append(filterPairs.TargetProductMz);
-                    sb.Append(cultureInfo.TextInfo.ListSeparator).Append(filterPairs.WidthProductMz);
-                }
-                sb.Append(cultureInfo.TextInfo.ListSeparator).Append(filterPairs.IsForcedIntegration ? 0 : 1);
-                sb.Append(')');
-            }
-            return sb.ToString();
-        }
-    }
-
-    public struct MzFilterPairs
-    {
-        public double TargetPrecursorMz { get; set; }
-        public double WidthPrecursorMz { get; set; }
-        public double? TargetProductMz { get; set; }
-        public double? WidthProductMz { get; set; }
-        public bool IsForcedIntegration { get; set; }
     }
 }

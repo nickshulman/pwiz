@@ -78,6 +78,9 @@ namespace seems
         private CVID nativeIdFormat = CVID.CVID_Unknown;
         public CVID NativeIdFormat { get { return nativeIdFormat; } }
 
+        private bool hasMergedSpectra = false;
+        private bool hasNativeIdSpectra = false;
+
 		private void initializeGridView( CVID nativeIdFormat )
 		{
             // force handle creation
@@ -93,12 +96,12 @@ namespace seems
                 {
                     string[] nameValuePair = nameValuePairs[i].Split( "=".ToCharArray() );
                     DataGridViewColumn nameColumn = new DataGridViewAutoFilter.DataGridViewAutoFilterTextBoxColumn();
-                    nameColumn.Name = nameValuePair[0];
+                    nameColumn.Name = nameValuePair[0] + "NativeIdColumn";
                     nameColumn.HeaderText = System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase( nameValuePair[0] );
                     nameColumn.DataPropertyName = nameValuePair[0];
                     gridView.Columns.Insert( 1 + i, nameColumn );
                     string type = null;
-                    if( nameValuePair[0] == "file" )
+                    if( nameValuePair[0] == "file" || nameValuePair[1] == "xsd:string" )
                         type = "System.String";
                     else
                         type = "System.Int32";
@@ -157,9 +160,13 @@ namespace seems
             param = s.cvParam( CVID.MS_total_ion_current );
             row.TotalIonCurrent = !param.empty() ? (double) param.value : 0;
 
-            StringBuilder precursorInfo = new StringBuilder();
+            var precursorInfo = new StringBuilder();
+            var isolationWindows = new StringBuilder();
             if( row.MsLevel == 1 || s.precursors.Count == 0 )
+            {
                 precursorInfo.Append( "n/a" );
+                isolationWindows.Append( "n/a" );
+            }
             else
             {
                 foreach( Precursor p in s.precursors )
@@ -168,7 +175,24 @@ namespace seems
                     {
                         if( precursorInfo.Length > 0 )
                             precursorInfo.Append( "," );
-                        precursorInfo.Append( (double) si.cvParam( CVID.MS_selected_ion_m_z ).value );
+                        precursorInfo.AppendFormat("{0:G8}", (double) si.cvParam( CVID.MS_selected_ion_m_z ).value );
+                    }
+
+                    var iw = p.isolationWindow;
+                    CVParam isolationTarget = iw.cvParam(CVID.MS_isolation_window_target_m_z);
+                    if (!isolationTarget.empty())
+                    {
+                        double iwMz = (double) isolationTarget.value;
+
+                        if (isolationWindows.Length > 0)
+                            isolationWindows.Append(",");
+
+                        CVParam lowerOffset = iw.cvParam(CVID.MS_isolation_window_lower_offset);
+                        CVParam upperOffset = iw.cvParam(CVID.MS_isolation_window_upper_offset);
+                        if (lowerOffset.empty() || upperOffset.empty())
+                            isolationWindows.AppendFormat("{0:G8}", iwMz);
+                        else
+                            isolationWindows.AppendFormat("[{0:G8}-{1:G8}]", iwMz - (double)lowerOffset.value, iwMz + (double)upperOffset.value);
                     }
                 }
             }
@@ -176,6 +200,10 @@ namespace seems
             if( precursorInfo.Length == 0 )
                 precursorInfo.Append( "unknown" );
             row.PrecursorInfo = precursorInfo.ToString();
+
+            if (isolationWindows.Length == 0)
+                isolationWindows.Append("unknown");
+            row.IsolationWindows = isolationWindows.ToString();
 
             StringBuilder scanInfo = new StringBuilder();
             foreach( Scan scan2 in s.scanList.scans )
@@ -186,7 +214,7 @@ namespace seems
                     {
                         if( scanInfo.Length > 0 )
                             scanInfo.Append( "," );
-                        scanInfo.AppendFormat( "[{0}-{1}]",
+                        scanInfo.AppendFormat( "[{0:G8}-{1:G8}]",
                                               (double) sw.cvParam( CVID.MS_scan_window_lower_limit ).value,
                                               (double) sw.cvParam( CVID.MS_scan_window_upper_limit ).value );
                     }
@@ -197,6 +225,18 @@ namespace seems
                 scanInfo.Append( "unknown" );
             row.ScanInfo = scanInfo.ToString();
 
+            row.IonMobility = scan != null ? (double) scan.cvParam(CVID.MS_ion_mobility_drift_time).value : 0;
+            if (row.IonMobility == 0 && scan != null)
+            {
+                row.IonMobility = (double) scan.cvParam(CVID.MS_inverse_reduced_ion_mobility).value;
+                if (row.IonMobility == 0)
+                {
+                    // Early version of drift time info, before official CV params
+                    var userparam = scan.userParam("drift time");
+                    if (!userparam.empty())
+                        row.IonMobility = userparam.timeInSeconds() * 1000.0;
+                }
+            }
             row.SpotId = s.spotID;
             row.SpectrumType = s.cvParamChild( CVID.MS_spectrum_type ).name;
             row.DataPoints = s.defaultArrayLength;
@@ -204,14 +244,53 @@ namespace seems
             row.DpId = ( dp == null || dp.id.Length == 0 ? "unknown" : dp.id );
         }
 
+        public void BeginBulkLoad()
+        {
+            spectrumDataSet.SpectrumTable.BeginLoadData();
+            spectraSource.SuspendBinding();
+            spectraSource.RaiseListChangedEvents = false;
+        }
+
+        public void EndBulkLoad()
+        {
+            spectrumDataSet.SpectrumTable.EndLoadData();
+            spectraSource.ResumeBinding();
+            spectraSource.RaiseListChangedEvents = true;
+            spectraSource.ResetBindings(true);
+        }
+
 		public void Add( MassSpectrum spectrum )
 		{
             SpectrumDataSet.SpectrumTableRow row = spectrumDataSet.SpectrumTable.NewSpectrumTableRow();
             row.Id = spectrum.Id;
 
-            if( nativeIdFormat != CVID.CVID_Unknown )
+            if (spectrum.Id.StartsWith("merged="))
             {
-                gridView.Columns["Id"].Visible = false;
+                if (!hasMergedSpectra)
+                {
+                    hasMergedSpectra = true;
+                    gridView.Columns["Id"].Visible = true;
+                }
+
+                if (!hasNativeIdSpectra)
+                {
+                    foreach (DataGridViewColumn column in gridView.Columns)
+                        if (column.Name.EndsWith("NativeIdColumn"))
+                            column.Visible = false;
+                }
+            }
+            else if( nativeIdFormat != CVID.CVID_Unknown )
+            {
+                if (!hasMergedSpectra)
+                    gridView.Columns["Id"].Visible = false;
+
+                if (!hasNativeIdSpectra)
+                {
+                    hasNativeIdSpectra = true;
+                    foreach (DataGridViewColumn column in gridView.Columns)
+                        if (column.Name.EndsWith("NativeIdColumn"))
+                            column.Visible = true;
+                }
 
                 // guard against case where input is mzXML which
                 // is identified as, say, Agilent-derived, but 
@@ -247,11 +326,15 @@ namespace seems
 
             row.Index = spectrum.Index;
             updateRow( row, spectrum );
-            spectrumDataSet.SpectrumTable.AddSpectrumTableRow( row );
+            spectrumDataSet.SpectrumTable.LoadDataRow(row.ItemArray, true);
 
             //int rowIndex = gridView.Rows.Add();
 			//gridView.Rows[rowIndex].Tag = spectrum;
             spectrum.Tag = this;
+
+
+            if (row.IonMobility > 0)
+                gridView.Columns["IonMobility"].Visible = true;
 
             if( spectrum.Element.spotID.Length > 0 )
                 gridView.Columns["SpotId"].Visible = true;

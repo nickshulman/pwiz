@@ -106,7 +106,7 @@ namespace pwiz.SkylineTestFunctional
 
             // Open the model comparison from the EditListDlg, rename it, get same results
             var editListDlgRename = ShowDialog<EditListDlg<ComparePeakBoundariesList, ComparePeakBoundaries>>(comparePeakPickingDlg.EditList);
-            RunUI(() => editListDlgRename.SelectItem(string.Format(Resources.ComparePeakBoundaries_ComparePeakBoundaries__0___external_, "OpenSwath")));
+            RunUI(() => editListDlgRename.SelectItem("OpenSwath"));
             var addPeakCompareDlgRename = ShowDialog<AddPeakCompareDlg>(editListDlgRename.EditItem);
             RunUI(() =>
             {
@@ -114,7 +114,7 @@ namespace pwiz.SkylineTestFunctional
             });
             OkDialog(addPeakCompareDlgRename, addPeakCompareDlgRename.OkDialog);
             OkDialog(editListDlgRename, editListDlgRename.OkDialog);
-            RunUI(() => Assert.IsTrue(comparePeakPickingDlg.ComparePeakBoundariesList.Select(comp => comp.Name).Contains(string.Format(Resources.ComparePeakBoundaries_ComparePeakBoundaries__0___external_, "OpenSwathRename"))));
+            RunUI(() => Assert.IsTrue(comparePeakPickingDlg.ComparePeakBoundariesList.Select(comp => comp.Name).Contains("OpenSwathRename")));
             CheckNumberComparisons(comparePeakPickingDlg, 4, 4, 4, 4);
             CheckNumberResults(comparePeakPickingDlg, numberResults);
 
@@ -163,10 +163,10 @@ namespace pwiz.SkylineTestFunctional
             });
             // Remove an unchecked model using the EditListDlg, show that it doesn't affect the graph, etc
             RemoveComparer(comparePeakPickingDlg, "skyline_default_plus");
+            CheckNumberComparisons(comparePeakPickingDlg, 2, 2, 2, 2);
+            CheckNumberResults(comparePeakPickingDlg, numberResults);
             RunUI(() =>
             {
-                CheckNumberComparisons(comparePeakPickingDlg, 2, 2, 2, 2);
-                CheckNumberResults(comparePeakPickingDlg, numberResults);
                 Assert.AreEqual(4, comparePeakPickingDlg.ComparePeakBoundariesList.Count); 
             });
 
@@ -175,7 +175,7 @@ namespace pwiz.SkylineTestFunctional
             AddFile(comparePeakPickingDlg, "OpenSwathBadQ", peakBoundariesFileNoQ);
             CheckNumberComparisons(comparePeakPickingDlg, 3, 2, 3, 3);
             CheckNumberResults(comparePeakPickingDlg, numberResults);
-            RemoveComparer(comparePeakPickingDlg, string.Format(Resources.ComparePeakBoundaries_ComparePeakBoundaries__0___external_,"OpenSwathBadQ"));
+            RemoveComparer(comparePeakPickingDlg,"OpenSwathBadQ");
             CheckNumberComparisons(comparePeakPickingDlg, 2, 2, 2, 2);
             CheckNumberResults(comparePeakPickingDlg, numberResults);
             
@@ -184,7 +184,7 @@ namespace pwiz.SkylineTestFunctional
             AddFile(comparePeakPickingDlg, "OpenSwathBadScore", peakBoundariesFileNoScore);
             CheckNumberComparisons(comparePeakPickingDlg, 3, 3, 3, 3);
             CheckNumberResults(comparePeakPickingDlg, numberResults);
-            RemoveComparer(comparePeakPickingDlg, string.Format(Resources.ComparePeakBoundaries_ComparePeakBoundaries__0___external_, "OpenSwathBadScore"));
+            RemoveComparer(comparePeakPickingDlg, "OpenSwathBadScore");
             CheckNumberComparisons(comparePeakPickingDlg, 2, 2, 2, 2);
             CheckNumberResults(comparePeakPickingDlg, numberResults);
 
@@ -219,6 +219,7 @@ namespace pwiz.SkylineTestFunctional
             Assert.AreEqual(messageDlg.Message, string.Format(Resources.AddPeakCompareDlg_OkDialog_The_imported_file_does_not_contain_any_peak_boundaries_for__0__transition_group___file_pairs___These_chromatograms_will_be_treated_as_if_no_boundary_was_selected_,
                                                               3));
             OkDialog(messageDlg, messageDlg.Btn1Click);
+            TryWaitForConditionUI(() => comparePeakPickingDlg.ComparePeakBoundariesList.Any(comparer => comparer.FileName == "OpenSwathFillIn"));
             RunUI(() =>
             {
                 var comparerFillIn = comparePeakPickingDlg.ComparePeakBoundariesList.FirstOrDefault(comparer => comparer.FileName == "OpenSwathFillIn");
@@ -248,11 +249,8 @@ namespace pwiz.SkylineTestFunctional
             Assert.AreEqual(messageDlgNull.Message, string.Format(Resources.AddPeakCompareDlg_OkDialog_The_imported_file_does_not_contain_any_peak_boundaries_for__0__transition_group___file_pairs___These_chromatograms_will_be_treated_as_if_no_boundary_was_selected_,
                                                               342));
             OkDialog(messageDlgNull, messageDlgNull.Btn1Click);
-            RunUI(() =>
-            {
-                CheckNumberComparisons(comparePeakPickingDlg, 4, 4, 4, 4);
-                CheckNumberResults(comparePeakPickingDlg, numberResults);
-            });
+            CheckNumberComparisons(comparePeakPickingDlg, 4, 4, 4, 4);
+            CheckNumberResults(comparePeakPickingDlg, numberResults);
 
             // Unrecognized peptide leads to message box warning, but otherwise ok
             var peakBoundariesFilePeptide = GetLocalizedFile("OpenSwathPeaksBadPeptide.csv");
@@ -274,11 +272,8 @@ namespace pwiz.SkylineTestFunctional
                                                                      "",
                                                                      Resources.PeakBoundaryImporter_UnrecognizedPeptidesCancel_Continue_peak_boundary_import_ignoring_this_peptide_));
             OkDialog(messageDlgPeptide, messageDlgPeptide.Btn1Click);
-            RunUI(() =>
-            {
-                CheckNumberComparisons(comparePeakPickingDlg, 5, 5, 5, 5);
-                CheckNumberResults(comparePeakPickingDlg, numberResults);
-            });
+            CheckNumberComparisons(comparePeakPickingDlg, 5, 5, 5, 5);
+            CheckNumberResults(comparePeakPickingDlg, numberResults);
 
             // Unrecognized file leads to message box warning, but otherwise ok
             var peakBoundariesFileFile = GetLocalizedFile("OpenSwathPeaksBadFile.csv");
@@ -300,11 +295,8 @@ namespace pwiz.SkylineTestFunctional
                                                                              "",
                                                                              Resources.PeakBoundaryImporter_UnrecognizedPeptidesCancel_Continue_peak_boundary_import_ignoring_this_file_));
             OkDialog(messageDlgFile, messageDlgFile.Btn1Click);
-            RunUI(() =>
-            {
-                CheckNumberComparisons(comparePeakPickingDlg, 6, 6, 6, 6);
-                CheckNumberResults(comparePeakPickingDlg, numberResults);
-            });
+            CheckNumberComparisons(comparePeakPickingDlg, 6, 6, 6, 6);
+            CheckNumberResults(comparePeakPickingDlg, numberResults);
 
             // Import based on peak apex rather than boundaries works OK
             var peakBoundariesApex = GetLocalizedFile("OpenSwathPeaksApex.csv");
@@ -316,9 +308,9 @@ namespace pwiz.SkylineTestFunctional
             RunUI(() =>
             {
                 comparePeakPickingDlg.CheckBoxConflicts = true;
-                comparePeakPickingDlg.ComboCompare1Selected = string.Format(Resources.ComparePeakBoundaries_ComparePeakBoundaries__0___external_, "OpenSwathApex");
-                comparePeakPickingDlg.ComboCompare2Selected = string.Format(Resources.ComparePeakBoundaries_ComparePeakBoundaries__0___external_, "OpenSwathRename");
-                Assert.AreEqual(comparePeakPickingDlg.CountCompareGridEntries, 6);
+                comparePeakPickingDlg.ComboCompare1Selected =  "OpenSwathApex";
+                comparePeakPickingDlg.ComboCompare2Selected = "OpenSwathRename";
+                Assert.AreEqual(4, comparePeakPickingDlg.CountCompareGridEntries);
             });
 
             OkDialog(comparePeakPickingDlg, comparePeakPickingDlg.OkDialog);
@@ -361,7 +353,7 @@ namespace pwiz.SkylineTestFunctional
             RunUI(() => addPeakCompareDlg.FileName = "OpenSwathBad");
             RunUI(() => addPeakCompareDlg.FilePath = peakBoundariesBadScore);
             MessageDlgError(addPeakCompareDlg.OkDialog, string.Format(Resources.AddPeakCompareDlg_OkDialog_Error_applying_imported_peak_boundaries___0_,
-                                                                      string.Format(Resources.PeakBoundsMatch_QValue_Unable_to_read_q_value_annotation_for_peptide__0__of_file__1_,
+                                                                      string.Format(Resources.PeakBoundsMatch_PeakBoundsMatch_Unable_to_read_a_score_annotation_for_peptide__0__of_file__1_,
                                                                                     "APIPTALDTDSSK",
                                                                                     "napedro_L120420_007_SW")));
             // 9. File with missing q value column and score column produces error
@@ -386,9 +378,7 @@ namespace pwiz.SkylineTestFunctional
             RunUI(() => addPeakCompareDlg.FileName = "OpenSwathBadApex");
             RunUI(() => addPeakCompareDlg.FilePath = peakBoundariesApex);
             MessageDlgError(addPeakCompareDlg.OkDialog, string.Format(Resources.AddPeakCompareDlg_OkDialog_Error_applying_imported_peak_boundaries___0_,
-                                                                      string.Format(Resources.PeakBoundsMatch_PeakBoundsMatch_Unable_to_read_apex_retention_time_value_for_peptide__0__of_file__1__,
-                                                                                    "DITAFDETLFR",
-                                                                                    "napedro_L120420_007_SW")));
+                string.Format(Resources.PeakBoundaryImporter_Import_The_value___0___on_line__1__is_not_a_valid_time_, "bad_apex", 3)));
         }
 
         private static void CheckNumberResults(ComparePeakPickingDlg comparePeakPickingDlg, int numResults)
@@ -405,7 +395,17 @@ namespace pwiz.SkylineTestFunctional
                                             int detailsChoices, 
                                             int compareChoices)
         {
-            WaitForConditionUI(() => Equals(Math.Max(comparePeakPickingDlg.CountRocCurves - 1, 0), rocCurves), "unexpected rocCurves count");  // Use WaitForCondition instead of Assert.AreEqual to avoid race conditions
+            TryWaitForConditionUI(() => Equals(rocCurves, Math.Max(comparePeakPickingDlg.CountRocCurves - 1, 0)));  // Use WaitForCondition instead of Assert.AreEqual to avoid race conditions
+            int actualRocCurves = Math.Max(comparePeakPickingDlg.CountRocCurves - 1, 0);
+            if (!Equals(rocCurves, actualRocCurves))
+            {
+                var alertDlg = FindOpenForm<AlertDlg>();
+                if (alertDlg != null)
+                    Assert.Fail("Unexpected alert found: {0}", alertDlg.Message);
+
+                Assert.Fail(TextUtil.LineSeparate(string.Format("Expecting {0} ROC curves - 1, found {1}", rocCurves, actualRocCurves),
+                    TextUtil.LineSeparate(comparePeakPickingDlg.ZedGraphRoc.GraphPane.CurveList.Select(c => c.Label.Text))));
+            }
             Assert.AreEqual(Math.Max(comparePeakPickingDlg.CountQCurves - 2, 0), qCurves);
             Assert.AreEqual(comparePeakPickingDlg.CountDetailsItems, detailsChoices);
             Assert.AreEqual(comparePeakPickingDlg.CountCompare1Items, compareChoices);

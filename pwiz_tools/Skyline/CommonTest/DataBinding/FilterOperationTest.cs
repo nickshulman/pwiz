@@ -1,7 +1,27 @@
-﻿using System;
+﻿/*
+ * Original author: Nicholas Shulman <nicksh .at. u.washington.edu>,
+ *                  MacCoss Lab, Department of Genome Sciences, UW
+ *
+ * Copyright 2015 University of Washington - Seattle, WA
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
 using System.Linq;
+using System.Xml;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using pwiz.Common.DataBinding;
 using pwiz.SkylineTestUtil;
@@ -61,9 +81,10 @@ namespace CommonTest.DataBinding
             VerifyFilterCount(uris, FilterOperations.OP_EQUALS, "urn:two", 1);
             VerifyFilterCount(uris, FilterOperations.OP_NOT_EQUALS, "urn:two", 2);
             VerifyFilterCount(uris, FilterOperations.OP_EQUALS, "invaliduri", 0);
-            Assert.IsFalse(IsValidForType<Uri>(FilterOperations.OP_STARTS_WITH));
-            Assert.IsFalse(IsValidForType<Uri>(FilterOperations.OP_CONTAINS));
-            Assert.IsFalse(IsValidForType<Uri>(FilterOperations.OP_NOT_CONTAINS));
+            VerifyFilterCount(uris, FilterOperations.OP_STARTS_WITH, "urn:t", 2);
+            VerifyFilterCount(uris, FilterOperations.OP_NOT_STARTS_WITH, "urn:t", 1);
+            VerifyFilterCount(uris, FilterOperations.OP_CONTAINS, "o", 2);
+            VerifyFilterCount(uris, FilterOperations.OP_NOT_CONTAINS, "o", 1);
             Assert.IsFalse(IsValidForType<Uri>(FilterOperations.OP_IS_LESS_THAN));
             Assert.IsFalse(IsValidForType<Uri>(FilterOperations.OP_IS_LESS_THAN_OR_EQUAL));
             Assert.IsFalse(IsValidForType<Uri>(FilterOperations.OP_IS_GREATER_THAN));
@@ -89,6 +110,8 @@ namespace CommonTest.DataBinding
             VerifyFilterCountStructs(dates, FilterOperations.OP_IS_GREATER_THAN_OR_EQUAL, "1969-07-20", 2);
             Assert.IsFalse(IsValidForType<DateTime>(FilterOperations.OP_STARTS_WITH));
             Assert.IsFalse(IsValidForType<DateTime>(FilterOperations.OP_CONTAINS));
+            Assert.IsFalse(IsValidForType<DateTime>(FilterOperations.OP_NOT_STARTS_WITH));
+            Assert.IsFalse(IsValidForType<DateTime>(FilterOperations.OP_NOT_CONTAINS));
             Assert.IsNull(GetOperandError<DateTime>("1969-07-20"));
             Assert.IsNotNull(GetOperandError<DateTime>("invalid date"));
         }
@@ -121,17 +144,14 @@ namespace CommonTest.DataBinding
 
         private List<TItem> ApplyFilter<TItem>(IFilterOperation filterOperation, string operand, IEnumerable<TItem> items)
         {
-            var dataSchema = new DataSchema();
+            var dataSchema = new DataSchema(new DataSchemaLocalizer(CultureInfo.CurrentCulture, CultureInfo.CurrentUICulture));
             var columnDescriptor = ColumnDescriptor.RootColumn(dataSchema, typeof(TItem));
-            if (null == operand)
-            {
-                Assert.IsNull(filterOperation.GetOperandType(columnDescriptor));
-            }
-            else
+            if (null != operand)
             {
                 Assert.IsNotNull(filterOperation.GetOperandType(columnDescriptor));
             }
-            var predicate = filterOperation.MakePredicate(columnDescriptor, operand);
+            var filterPredicate = FilterPredicate.CreateFilterPredicate(dataSchema, typeof (TItem), filterOperation, operand);
+            var predicate = filterPredicate.MakePredicate(dataSchema, typeof(TItem));
             return items.Where(item => predicate(item)).ToList();
         }
 
@@ -147,7 +167,10 @@ namespace CommonTest.DataBinding
             Assert.AreEqual(expectedCount, ApplyFilter(filterOperation, operand, nullableItems).Count);
             var itemsWithNulls = nullableItems.Concat(nulls);
             int nullCount;
-            if (filterOperation == FilterOperations.OP_IS_BLANK || filterOperation == FilterOperations.OP_NOT_EQUALS)
+            if (filterOperation == FilterOperations.OP_IS_BLANK 
+                || filterOperation == FilterOperations.OP_NOT_EQUALS 
+                || filterOperation == FilterOperations.OP_NOT_CONTAINS
+                || filterOperation == FilterOperations.OP_NOT_STARTS_WITH)
             {
                 nullCount = nulls.Count;
             }
@@ -182,7 +205,22 @@ namespace CommonTest.DataBinding
             var dataSchema = new DataSchema();
             var rootColumn = ColumnDescriptor.RootColumn(dataSchema, typeof(DataRowWithProperty<T>));
             var column = rootColumn.ResolveChild("Property");
-            FilterInfo filterInfo = new FilterInfo(new FilterSpec(column.PropertyPath, FilterOperations.OP_EQUALS, operand), column, rootColumn);
+
+            var stringWriter = new StringWriter();
+            using (var xmlTextWriter = new XmlTextWriter(stringWriter))
+            {
+                xmlTextWriter.WriteStartElement("filter");
+                xmlTextWriter.WriteAttributeString("opname", FilterOperations.OP_EQUALS.OpName);
+                xmlTextWriter.WriteAttributeString("operand", operand);
+                xmlTextWriter.WriteEndElement();
+            }
+            var xmlReader = new XmlTextReader(new StringReader(stringWriter.ToString()));
+            while (!xmlReader.IsStartElement())
+            {
+                xmlReader.Read();
+            }
+            FilterPredicate filterPredicate = FilterPredicate.ReadXml(xmlReader);
+            FilterInfo filterInfo = new FilterInfo(new FilterSpec(column.PropertyPath, filterPredicate), column, rootColumn);
             return filterInfo.Error;
         }
 

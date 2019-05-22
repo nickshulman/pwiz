@@ -19,8 +19,13 @@
 
 using System;
 using System.Globalization;
+using System.Linq;
 using System.Windows.Forms;
+using pwiz.Common.Controls;
+using pwiz.Skyline.Alerts;
 using pwiz.Skyline.Model.Results.RemoteApi;
+using pwiz.Skyline.Model.Serialization;
+using pwiz.Skyline.Model.Themes;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.SettingsUI;
 using pwiz.Skyline.Util;
@@ -30,7 +35,8 @@ namespace pwiz.Skyline.ToolsUI
     public partial class ToolOptionsUI : FormEx
     {
         private readonly SettingsListBoxDriver<Server> _driverServers;
-        private readonly SettingsListBoxDriver<ChorusAccount> _driverChorusAccounts;
+        private readonly SettingsListBoxDriver<RemoteAccount> _driverChorusAccounts;
+        private readonly SettingsListComboDriver<ColorScheme> _driverColorSchemes;
 
         public ToolOptionsUI()
         {
@@ -41,8 +47,10 @@ namespace pwiz.Skyline.ToolsUI
 
             _driverServers = new SettingsListBoxDriver<Server>(listboxServers, Settings.Default.ServerList);
             _driverServers.LoadList();
-            _driverChorusAccounts = new SettingsListBoxDriver<ChorusAccount>(listBoxChorusAccounts, Settings.Default.ChorusAccountList);
+            _driverChorusAccounts = new SettingsListBoxDriver<RemoteAccount>(listBoxRemoteAccounts, Settings.Default.RemoteAccountList);
             _driverChorusAccounts.LoadList();
+            _driverColorSchemes = new SettingsListComboDriver<ColorScheme>(comboColorScheme, Settings.Default.ColorSchemes, true);
+            _driverColorSchemes.LoadList(Settings.Default.CurrentColorScheme);
 
             // Hide ability to turn off live reports
             //tabControl.TabPages.Remove(tabMisc);
@@ -63,10 +71,8 @@ namespace pwiz.Skyline.ToolsUI
                     listBoxLanguages.SelectedIndex = i;
                 }
             }
-            if (!Settings.Default.EnableChorus)
-            {
-                tabControl.TabPages.Remove(tabChorus);
-            }
+            comboCompactFormatOption.Items.AddRange(CompactFormatOption.ALL_VALUES.ToArray());
+            comboCompactFormatOption.SelectedItem = CompactFormatOption.FromSettings();
         }
 
         private void btnEditServers_Click(object sender, EventArgs e)
@@ -101,6 +107,12 @@ namespace pwiz.Skyline.ToolsUI
                     Settings.Default.UsePowerOfTen = powerOfTenCheckBox.Checked;
                     Program.MainWindow.UpdateGraphPanes();
                 }
+                CompactFormatOption compactFormatOption = comboCompactFormatOption.SelectedItem as CompactFormatOption;
+                if (null != compactFormatOption)
+                {
+                    Settings.Default.CompactFormatOption = compactFormatOption.Name;
+                }
+                Settings.Default.CurrentColorScheme = comboColorScheme.SelectedItem as string;
             }
             base.OnClosed(e);
         }
@@ -124,7 +136,39 @@ namespace pwiz.Skyline.ToolsUI
                 return DisplayName;
             }
         }
-        #region For Testing
+
+        // ReSharper disable InconsistentNaming
+        public enum TABS { Panorama, Chorus, Language, Miscellaneous, Display }
+        // ReSharper restore InconsistentNaming
+
+        public class PanoramaTab : IFormView { }
+        public class ChorusTab : IFormView { }
+        public class LanguageTab : IFormView { }
+        public class MiscellaneousTab : IFormView { }
+        public class DisplayTab : IFormView { }
+
+        private static readonly IFormView[] TAB_PAGES =
+        {
+            new PanoramaTab(), new ChorusTab(), new LanguageTab(), new MiscellaneousTab(), new DisplayTab(),
+        };
+
+        #region Functional testing support
+
+        public IFormView ShowingFormView
+        {
+            get
+            {
+                int selectedIndex = 0;
+                Invoke(new Action(() => selectedIndex = tabControl.SelectedIndex));
+                return TAB_PAGES[selectedIndex];
+            }
+        }
+
+        public TABS SelectedTab
+        {
+            get { return (TABS)tabControl.SelectedIndex; }
+            set { tabControl.SelectedIndex = (int)value; }
+        }
 
         public bool PowerOfTenCheckBox
         {
@@ -134,5 +178,42 @@ namespace pwiz.Skyline.ToolsUI
 
         #endregion
 
+        private void comboColorScheme_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            ColorScheme newColorScheme = _driverColorSchemes.SelectedItem;
+            if (newColorScheme != null)
+            {
+                Settings.Default.CurrentColorScheme = newColorScheme.Name;
+                Program.MainWindow.ChangeColorScheme();
+            }
+            _driverColorSchemes.SelectedIndexChangedEvent(sender, e);
+        }
+
+        public ComboBox getColorCB()
+        {
+            return comboColorScheme;
+        }
+
+        public SettingsListComboDriver<ColorScheme> getColorDrive()
+        {
+            return _driverColorSchemes;
+        }
+
+        private void btnResetSettings_Click(object sender, EventArgs e)
+        {
+            ResetAllSettings();
+        }
+
+        public void ResetAllSettings()
+        {
+            if (MultiButtonMsgDlg.Show(this,
+                    string.Format(
+                        Resources
+                            .ToolOptionsUI_btnResetSettings_Click_Are_you_sure_you_want_to_clear_all_saved_settings__This_will_immediately_return__0__to_its_original_configuration_and_cannot_be_undone_,
+                        Program.Name), MultiButtonMsgDlg.BUTTON_OK) == DialogResult.OK)
+            {
+                Settings.Default.Reset();
+            }
+        }
     }
 }

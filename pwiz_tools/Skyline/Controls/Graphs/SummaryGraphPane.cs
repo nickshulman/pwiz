@@ -16,6 +16,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+using System;
+using System.Linq;
 using System.Windows.Forms;
 using ZedGraph;
 
@@ -67,23 +70,86 @@ namespace pwiz.Skyline.Controls.Graphs
         /// <summary>
         /// Update the graph pane.
         /// </summary>
-        /// <param name="checkData"></param>
-        public abstract void UpdateGraph(bool checkData);
+        /// <param name="selectionChanged">True when the selection has changed, otherwise false</param>
+        public abstract void UpdateGraph(bool selectionChanged);
+
+        public virtual bool HasToolbar { get { return false; } }
+
+        public virtual void OnClose(EventArgs e)
+        {
+            
+        }
 
         public virtual bool HandleMouseMoveEvent(ZedGraphControl sender, MouseEventArgs e)
         {
             return false;
         }
+
         public virtual bool HandleMouseDownEvent(ZedGraphControl sender, MouseEventArgs e)
         {
             return false;
         }
+
+        public virtual void HandleMouseClick(object sender, MouseEventArgs e)
+        {
+        }
+
         public virtual bool HandleKeyDownEvent(object sender, KeyEventArgs e)
         {
             return false;
         }
+
         public virtual void HandleResizeEvent()
         {            
         }
+
+        #region Functional test support
+
+        public int GetTransitionCount()
+        {
+            return CurveList.Count;
+        }
+
+        public int GetTotalBars()
+        {
+            int count = 0;
+            foreach (var curve in CurveList) {
+                count += curve.Points.Count;
+            }
+            return count;
+        }
+
+        public int GetBoxObjCount()
+        {
+            return GraphObjList.Count(o => o is BoxObj);
+        }
+
+
+        public double GetMin()
+        {
+            double min = double.MaxValue;
+            foreach (var curve in CurveList) {
+                for (int i = 0; i < curve.Points.Count; i++) {
+                    var point = curve.Points[i];
+                    min = Math.Min(point.Y, min);
+                }
+            }
+            return min;
+        }
+
+        public double GetMax()
+        {
+            double max = double.MinValue;
+            foreach (var curve in CurveList) {
+                for (int i = 0; i < curve.Points.Count; i++) {
+                    var point = curve.Points[i];
+                    if (point.Y < double.MaxValue)
+                        max = Math.Max(point.Y, max);
+                }
+            }
+            return max;
+        }
+
+        #endregion
     }
 }

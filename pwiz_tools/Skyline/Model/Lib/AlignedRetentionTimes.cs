@@ -20,7 +20,9 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using pwiz.Common.DataAnalysis;
 using pwiz.Skyline.Model.DocSettings;
+using pwiz.Skyline.Model.RetentionTimes;
 
 namespace pwiz.Skyline.Model.Lib
 {
@@ -30,11 +32,11 @@ namespace pwiz.Skyline.Model.Lib
     /// </summary>
     public class AlignedRetentionTimes
     {
-        public IDictionary<string, double> TargetTimes { get; private set; }
+        public IDictionary<Target, double> TargetTimes { get; private set; }
         /// <summary>
         /// The original times that were read out of the spectral library.
         /// </summary>
-        public IDictionary<string, double> OriginalTimes { get; private set; }
+        public IDictionary<Target, double> OriginalTimes { get; private set; }
 
         public RetentionTimeRegression Regression { get; private set; }
         public RetentionTimeStatistics RegressionStatistics { get; private set; }
@@ -58,6 +60,8 @@ namespace pwiz.Skyline.Model.Lib
                         Regression.Calculator.ScoreSequence(measuredRetentionTime.PeptideSequence)).Cast<double>().ToArray());
         } }
 
+        public RetentionScoreCalculatorSpec Calculator { get; private set;}
+
         /// <summary>
         /// Align retention times with a target.
         /// For the MS2 Id's that are found in both the target and the timesToAlign, the MS2 id's 
@@ -65,9 +69,10 @@ namespace pwiz.Skyline.Model.Lib
         /// In cases where there is more than one MS2 id in either file, only the earliest MS2 id from
         /// each file is used.
         /// </summary>
-        public static AlignedRetentionTimes AlignLibraryRetentionTimes(IDictionary<string, double> target, IDictionary<string, double> originalTimes, double refinementThreshhold, Func<bool> isCanceled)
+        public static AlignedRetentionTimes AlignLibraryRetentionTimes(IDictionary<Target, double> target, IDictionary<Target, double> originalTimes, double refinementThreshhold, RegressionMethodRT regressionMethod,
+            CustomCancellationToken token)
         {
-            var calculator = new DictionaryRetentionScoreCalculator("alignment", originalTimes); // Not L10N
+            var calculator = new DictionaryRetentionScoreCalculator(@"alignment", originalTimes);
             var targetTimesList = new List<MeasuredRetentionTime>();
             foreach (var entry in calculator.RetentionTimes)
             {
@@ -87,8 +92,10 @@ namespace pwiz.Skyline.Model.Lib
                 }
                 targetTimesList.Add(measuredRetentionTime);
             }
+
             RetentionTimeStatistics regressionStatistics;
-            var regression = RetentionTimeRegression.CalcRegression(XmlNamedElement.NAME_INTERNAL, new[] {calculator}, targetTimesList, out regressionStatistics);
+            var regression = RetentionTimeRegression.CalcSingleRegression(XmlNamedElement.NAME_INTERNAL, calculator,
+                targetTimesList, null, false, regressionMethod, out regressionStatistics, out _, token);
             if (regression == null)
             {
                 return null;
@@ -104,8 +111,8 @@ namespace pwiz.Skyline.Model.Lib
             {
                 var cache = new RetentionTimeScoreCache(new[] {calculator}, new MeasuredRetentionTime[0], null);
                 regressionRefined = regression.FindThreshold(refinementThreshhold, null, 0,
-                                                                targetTimesList.Count, new MeasuredRetentionTime[0], targetTimesList, regressionStatistics,
-                                                                calculator, cache, isCanceled, ref regressionRefinedStatistics,
+                                                                targetTimesList.Count, new MeasuredRetentionTime[0], targetTimesList,null, regressionStatistics,
+                                                                calculator, regressionMethod, cache, token, ref regressionRefinedStatistics,
                                                                 ref outIndexes);
             }
                 
@@ -118,6 +125,7 @@ namespace pwiz.Skyline.Model.Lib
                            RegressionRefined = regressionRefined,
                            RegressionRefinedStatistics = regressionRefinedStatistics,
                            OutlierIndexes = outIndexes,
+                           Calculator = calculator
                        };
         }
 
@@ -125,14 +133,14 @@ namespace pwiz.Skyline.Model.Lib
 
     internal class DictionaryRetentionScoreCalculator : RetentionScoreCalculatorSpec
     {
-        public DictionaryRetentionScoreCalculator(string name, IDictionary<string, double> retentionTimes)
+        public DictionaryRetentionScoreCalculator(string name, IDictionary<Target, double> retentionTimes)
             : base(name)
         {
             RetentionTimes = retentionTimes;
         }
 
-        public IDictionary<string, double> RetentionTimes { get; private set; }
-        public override double? ScoreSequence(string modifiedSequence)
+        public IDictionary<Target, double> RetentionTimes { get; private set; }
+        public override double? ScoreSequence(Target modifiedSequence)
         {
             double result;
             if (RetentionTimes.TryGetValue(modifiedSequence, out result))
@@ -147,14 +155,16 @@ namespace pwiz.Skyline.Model.Lib
             get { return double.NaN; }
         }
 
-        public override IEnumerable<string> ChooseRegressionPeptides(IEnumerable<string> peptides)
+        public override IEnumerable<Target> ChooseRegressionPeptides(IEnumerable<Target> peptides, out int minCount)
         {
+            minCount = 0;
             return peptides.Where(peptide => null != ScoreSequence(peptide));
         }
 
-        public override IEnumerable<string> GetStandardPeptides(IEnumerable<string> peptides)
+        public override IEnumerable<Target> GetStandardPeptides(IEnumerable<Target> peptides)
         {
-            return ChooseRegressionPeptides(peptides);
+            int minCount;
+            return ChooseRegressionPeptides(peptides, out minCount);
         }
     }
 }

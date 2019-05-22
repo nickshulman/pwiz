@@ -42,11 +42,14 @@ namespace pwiz.Skyline.SettingsUI
         {
             GridView.CellValidating += gridView_CellValidating;
             GridView.RowValidating += gridView_RowValidating;
+            TargetResolver = TargetResolver.EMPTY;
         }
 
         protected bool AllowNegativeTime { get; set; }
 
-        public static string ValidateUniquePeptides(IEnumerable<string> peptides, IEnumerable<string> existing, string existingName)
+        public TargetResolver TargetResolver { get; set; }
+
+        public static string ValidateUniquePeptides(IEnumerable<Target> peptides, IEnumerable<Target> existing, string existingName)
         {
             var peptidesArray = peptides.ToArray();
             var multiplePeptides = (from p in peptidesArray
@@ -66,7 +69,7 @@ namespace pwiz.Skyline.SettingsUI
                 {
                     return TextUtil.LineSeparate(Resources.PeptideGridViewDriver_ValidateUniquePeptides_The_following_peptides_appear_multiple_times_in_the_added_list,
                                                  string.Empty,
-                                                 TextUtil.LineSeparate(multiplePeptides));
+                                                 TextUtil.LineSeparate(multiplePeptides.Select(mp => mp.ToString())));
                 }
                 return string.Format(Resources.PeptideGridViewDriver_ValidateUniquePeptides_The_added_lists_contains__0__peptides_which_appear_multiple_times,
                                      countDuplicates);
@@ -85,7 +88,7 @@ namespace pwiz.Skyline.SettingsUI
                     return TextUtil.LineSeparate(string.Format(Resources.PeptideGridViewDriver_ValidateUniquePeptides_The_following_peptides_already_appear_in_the__0__list,
                                                                existingName),
                                                  string.Empty,
-                                                 TextUtil.LineSeparate(multiplePeptides));
+                                                 TextUtil.LineSeparate(multiplePeptides.Select(mp => mp.ToString())));
                 }
                 return string.Format(Resources.PeptideGridViewDriver_ValidateUniquePeptides_The_added_lists_contains__0__peptides_which_already_appear_in_the__1__list,
                                      countDuplicates, existingName);
@@ -165,16 +168,27 @@ namespace pwiz.Skyline.SettingsUI
                 e.Cancel = true;
         }
 
+        private Target TryResolveTarget(object targetText, out string errorText)
+        {
+            if (targetText == null)
+            {
+                errorText = Resources
+                    .MeasuredPeptide_ValidateSequence_A_modified_peptide_sequence_is_required_for_each_entry;
+                return null;
+            }
+
+            return TargetResolver.TryResolveTarget(targetText.ToString(), out errorText);
+        }
+
         protected virtual bool DoCellValidating(int rowIndex, int columnIndex, string value)
         {
             string errorText = null;
             if (columnIndex == COLUMN_SEQUENCE && GridView.IsCurrentCellInEditMode)
             {
-                string sequence = value;
-                errorText = MeasuredPeptide.ValidateSequence(sequence);
+                var sequence = TryResolveTarget(value, out errorText);
                 if (errorText == null)
                 {
-                    int iExist = Items.ToArray().IndexOf(pep => Equals(pep.Sequence, sequence));
+                    int iExist = Items.ToArray().IndexOf(pep => Equals(pep.Target, sequence));
                     if (iExist != -1 && iExist != rowIndex)
                         errorText = string.Format(Resources.PeptideGridViewDriver_DoCellValidating_The_sequence__0__is_already_present_in_the_list, sequence);
                 }
@@ -204,9 +218,8 @@ namespace pwiz.Skyline.SettingsUI
             if (row.IsNewRow)
                 return true;
             var cell = row.Cells[COLUMN_SEQUENCE];
-            string errorText = MeasuredPeptide.ValidateSequence(cell.FormattedValue != null
-                                                                    ? cell.FormattedValue.ToString()
-                                                                    : null);
+            string errorText;
+            TryResolveTarget(cell.FormattedValue, out errorText);
             if (errorText == null)
             {
                 cell = row.Cells[COLUMN_TIME];

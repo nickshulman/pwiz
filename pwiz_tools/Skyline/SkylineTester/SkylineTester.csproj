@@ -10,7 +10,7 @@
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>SkylineTester</RootNamespace>
     <AssemblyName>SkylineTester</AssemblyName>
-    <TargetFrameworkVersion>v4.5.1</TargetFrameworkVersion>
+    <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
     <TargetFrameworkProfile>
     </TargetFrameworkProfile>
     <FileAlignment>512</FileAlignment>
@@ -31,6 +31,7 @@
     <UseApplicationTrust>false</UseApplicationTrust>
     <PublishWizardCompleted>true</PublishWizardCompleted>
     <BootstrapperEnabled>true</BootstrapperEnabled>
+    <EnableSecurityDebugging>false</EnableSecurityDebugging>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|x86' ">
     <PlatformTarget>x86</PlatformTarget>
@@ -103,9 +104,9 @@
     <Reference Include="EnvDTE, Version=8.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a">
       <EmbedInteropTypes>True</EmbedInteropTypes>
     </Reference>
-    <Reference Include="Ionic.Zip, Version=1.9.1.8, Culture=neutral, PublicKeyToken=edbe51ad942a3f5c, processorArchitecture=MSIL">
+    <Reference Include="DotNetZip">
       <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\..\Shared\Lib\DotNetZip\Release\Ionic.Zip.dll</HintPath>
+      <HintPath>..\..\Shared\Lib\DotNetZip\DotNetZip.dll</HintPath>
     </Reference>
     <Reference Include="Microsoft.CSharp" />
     <Reference Include="Microsoft.Win32.TaskScheduler">
@@ -166,6 +167,9 @@
       <DependentUpon>MyTreeView.cs</DependentUpon>
     </Compile>
     <Compile Include="ProcessUtilities.cs" />
+    <Compile Include="SafeDataGridView.cs">
+      <SubType>Component</SubType>
+    </Compile>
     <Compile Include="SkylineTesterWindow.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -210,6 +214,7 @@
     </EmbeddedResource>
     <EmbeddedResource Include="SkylineTesterWindow.resx">
       <DependentUpon>SkylineTesterWindow.cs</DependentUpon>
+      <SubType>Designer</SubType>
     </EmbeddedResource>
     <EmbeddedResource Include="Properties\Resources.resx">
       <Generator>ResXFileCodeGenerator</Generator>
@@ -250,6 +255,10 @@
     <ProjectReference Include="..\TestRunnerLib\TestRunnerLib.csproj">
       <Project>{E3F0E34F-F9E6-4360-996F-E2054E4FA1AE}</Project>
       <Name>TestRunnerLib</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\TestUtil\TestUtil.csproj">
+      <Project>{1a76f2b4-353a-4bcf-9d15-70d4b387e480}</Project>
+      <Name>TestUtil</Name>
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>

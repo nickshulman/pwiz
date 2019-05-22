@@ -22,6 +22,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Windows.Forms;
 using Timer = System.Windows.Forms.Timer;
@@ -30,20 +31,39 @@ namespace SkylineTester
 {
     public class CommandShell : RichTextBox
     {
+        public const int MAX_PROCESS_SILENCE_MINUTES = 60; // If a process is silent longer than this, assume it's hung
+        public const int MAX_PROCESS_OUTPUT_DELAY = 700; // milliseconds 
+        private enum EXIT_TYPE {error_stop, error_restart, success};
         public string DefaultDirectory { get; set; }
         public Button StopButton { get; set; }
         public Func<string, bool> FilterFunc { get; set; }
         public Action<string> ColorLine { get; set; }
         public Action FinishedOneCommand { get; set; }
+        public int RestartCount { get; set; }
         public int NextCommand { get; set; }
+        public DateTime RunStartTime { get; set; }
+        public bool IsUnattended { get; set; }
         public readonly object LogLock = new object();
+
+        /// <summary>Checks whether our child process is being debugged.</summary>
+        /// From https://www.codeproject.com/articles/670193/csharp-detect-if-debugger-is-attached
+        /// The "remote" in CheckRemoteDebuggerPresent does not imply that the debugger
+        /// necessarily resides on a different computer; instead, it indicates that the 
+        /// debugger resides in a separate and parallel process.
+        /// Use the IsDebuggerPresent function to detect whether the calling process 
+        /// is running under the debugger.
+        [DllImport("kernel32.dll", SetLastError = true, ExactSpelling = true)]
+        static extern bool CheckRemoteDebuggerPresent(IntPtr hProcess, ref bool isDebuggerPresent);
 
         private string _workingDirectory;
         private readonly List<string> _commands = new List<string>();
         private Action<bool> _doneAction;
+        private Action _restartAction;
         private readonly StringBuilder _logBuffer = new StringBuilder();
         private bool _logEmpty;
         private Process _process;
+        private string _processName;
+        private bool _processKilled;
         private Timer _outputTimer;
 
         #region Add/run commands
@@ -82,9 +102,10 @@ namespace SkylineTester
         /// (through successful completion, abort due to error, or abort due to
         /// user interrupt request).
         /// </summary>
-        public void Run(Action<bool> doneAction)
+        public void Run(Action<bool> doneAction, Action restartAction)
         {
             _doneAction = doneAction;
+            _restartAction = restartAction;
             NextCommand = 0;
 
             _outputTimer = new Timer { Interval = 1000 };
@@ -173,14 +194,25 @@ namespace SkylineTester
                     var deleteDir = words[0].Trim('"');
                     if (Directory.Exists(deleteDir))
                     {
-                        using (var deleteWindow = new DeleteWindow(deleteDir))
+                        using (var deleteWindow = new DeleteWindow(deleteDir, IsUnattended))
                         {
-                            deleteWindow.ShowDialog();
+                            deleteWindow.ShowDialog(GetParentForm());
+                            if (deleteWindow.IsCancelled)
+                                break;
                         }
                         if (Directory.Exists(deleteDir))
                         {
-                            CommandsDone(false);
-                            return;
+                            try
+                            {
+                                // One last try to either delete the directory or report an exception as to why this failed
+                                Directory.Delete(deleteDir, true);
+                            }
+                            catch (Exception e)
+                            {
+                                Log(Environment.NewLine + "!!!! COMMAND FAILED !!!! unable to remove folder " + deleteDir + " : " + e);
+                                CommandsDone(EXIT_TYPE.error_stop);
+                                return;
+                            }
                         }
                     }
                 }
@@ -197,28 +229,71 @@ namespace SkylineTester
                     }
                     catch (Exception e)
                     {
-                        Log(Environment.NewLine + "!!!! COMMAND FAILED !!!! " + e);
+                        if (e is Win32Exception && e.Message.Contains("cannot find"))
+                            Log(Environment.NewLine + "!!!! COMMAND FAILED !!!! Command not found " + command);
+                        else
+                            Log(Environment.NewLine + "!!!! COMMAND FAILED !!!! " + e);
+                        CommandsDone(EXIT_TYPE.error_stop);    // Quit if any command fails
                     }
                     _workingDirectory = DefaultDirectory;
                     return;
                 }
             }
 
-            CommandsDone(true);
+            CommandsDone(EXIT_TYPE.success);
+        }
+
+        private Form GetParentForm()
+        {
+            Control parent = this;
+            while (parent != null)
+            {
+                var parentForm = parent as Form;
+                if (parentForm != null)
+                    return parentForm;
+                parent = parent.Parent;
+            }
+
+            return null;
         }
 
         /// <summary>
         /// Handle completion of commands, either by successfully finishing,
         /// or due to error or user interrupt.  Run on UI thread.
         /// </summary>
-        private void CommandsDone(bool success)
+        private void CommandsDone(EXIT_TYPE exitType)
         {
-            if (!success)
+            bool restart = false;
+            
+            if (exitType == EXIT_TYPE.error_restart)
+            {
+                // restart a maximum of 10 times and within 30 minutes of starting
+                if (RestartCount < 10 && DateTime.Now.Subtract(RunStartTime) < new TimeSpan(0, 0, 30, 0, 0)) 
+                {
+                    restart = true;
+                    RestartCount++;
+                    Log("# Restarting (take "+RestartCount+") " + DateTime.Now.ToString("f") + Environment.NewLine + Environment.NewLine);
+                }
+                else
+                {
+                    Log("# Restart count exceeded" + Environment.NewLine + Environment.NewLine);
+                    exitType = EXIT_TYPE.error_stop;
+                }
+            }
+            if(exitType == EXIT_TYPE.error_stop)
                 Log("# Stopped " + DateTime.Now.ToString("f") + Environment.NewLine + Environment.NewLine);
+
             UpdateLog();
-            _commands.Clear();
-            _doneAction(success);
-        }
+            if (restart)
+            {
+                _restartAction();
+            }
+            else
+            {
+                _commands.Clear();
+                _doneAction(exitType == EXIT_TYPE.success);
+            }
+        } 
 
         // Run on UI thread.
         public void Done(bool success)
@@ -274,8 +349,10 @@ namespace SkylineTester
             _process.ErrorDataReceived += HandleOutput;
             _process.Exited += ProcessExit;
             _process.Start();
+            _processName = _process.ProcessName;
             _process.BeginOutputReadLine();
             _process.BeginErrorReadLine();
+            LastOutputTime = DateTime.Now;
         }
 
         public int ProcessId
@@ -283,27 +360,67 @@ namespace SkylineTester
             get { return _process != null ? _process.Id : 0; }
         }
 
+        private DateTime LastOutputTime { get; set; }
+
         /// <summary>
         /// Handle a line of output/error data from the process.
         /// </summary>
         private void HandleOutput(object sender, DataReceivedEventArgs e)
         {
+            LastOutputTime = DateTime.Now;
             Log(e.Data);
         }
 
         /// <summary>
         /// Stop the running process or background thread.
         /// </summary>
-        public void Stop()
+        public void Stop(bool preserveHungProcesses = false)
         {
+            if (IsWaiting)
+            {
+                IsWaiting = false;  // Stop waiting
+                return;
+            }
+
             try
             {
-                if (_process != null && !_process.HasExited)
-                    ProcessUtilities.KillProcessTree(_process);
+                if (IsRunning)
+                {
+                    // If process has been quiet for a very long time, don't kill it, for forensic purposes
+                    if (preserveHungProcesses && (DateTime.Now - LastOutputTime).TotalMinutes > MAX_PROCESS_SILENCE_MINUTES)
+                    {
+                        Log(string.Format("{0} has been silent for more than {1} minutes.  Leaving it running for forensic purposes.",
+                           _process.Modules[0].FileName, MAX_PROCESS_SILENCE_MINUTES));
+                    }
+                    else
+                    {
+                        _processKilled = true;
+                        ProcessUtilities.KillProcessTree(_process);
+                    }
+                }
             }
             // ReSharper disable once EmptyGeneralCatchClause
             catch (Exception)
             {
+            }
+        }
+
+        public bool IsRunning
+        {
+            get { return _process != null && !_process.HasExited; }
+        }
+
+        public bool IsWaiting { get; set; }
+
+        public bool IsDebuggerAttached 
+        {
+            get
+            {
+                if (_process == null)
+                    return false;
+                var isDebuggerAttached=false;
+                CheckRemoteDebuggerPresent(_process.Handle, ref isDebuggerAttached);
+                return isDebuggerAttached;
             }
         }
 
@@ -317,8 +434,11 @@ namespace SkylineTester
             if (_process == null)
                 return;
 
-            var exitCode = _process.ExitCode;
+            var exitCode = _process.ExitCode; // That's all the info you can get from a process that has exited - no name etc
+            var processName = _process.ToString();
             _process = null;
+            bool processKilled = _processKilled;
+            _processKilled = false;
 
             if (exitCode == 0)
             {
@@ -326,7 +446,7 @@ namespace SkylineTester
                 // be logged, otherwise the output from the next process may be interleaved.
                 RunUI(() =>
                 {
-                    _exitTimer = new Timer {Interval = 700};
+                    _exitTimer = new Timer {Interval = MAX_PROCESS_OUTPUT_DELAY};
                     _exitTimer.Tick += (o, args) =>
                     {
                         _exitTimer.Stop();
@@ -339,7 +459,9 @@ namespace SkylineTester
             {
                 try
                 {
-                    RunUI(() => CommandsDone(false));
+                    if (!processKilled)
+                        Log(Environment.NewLine + "# Process " + (_processName??string.Empty) + " had nonzero exit code " + exitCode + Environment.NewLine);
+                    RunUI(() => CommandsDone(EXIT_TYPE.error_stop));
                 }
 // ReSharper disable once EmptyGeneralCatchClause
                 catch (Exception)
@@ -351,6 +473,9 @@ namespace SkylineTester
         #endregion
 
         #region Display/scroll log
+
+        // VisibleLogFile is the file selected to view, LogFile is the file being currently written to
+        public string VisibleLogFile { get; set; }
 
         private string _logFile;
 
@@ -371,6 +496,7 @@ namespace SkylineTester
                     {
                     }
                 }
+                VisibleLogFile = _logFile;
             }
         }
 
@@ -425,7 +551,8 @@ namespace SkylineTester
                     File.AppendAllText(LogFile, logLines);
                 }
             }
-
+            if (VisibleLogFile == null || !VisibleLogFile.Equals(LogFile))
+                return;
             // Scroll if text box is already scrolled to bottom.
             int previousLength = Math.Max(0, TextLength - 1);
             var point = GetPositionFromCharIndex(previousLength);
@@ -479,9 +606,15 @@ namespace SkylineTester
             _colorMatchList.Add(new ColorMatch {LineStart = lineStart, LineContains = lineContains, LineColor = lineColor});
         }
  
-        public void Load(string file, Action loadDone = null)
+        public void Load(string file, bool isRunLogFile, Action loadDone = null)
         {
-            _logFile = file;
+            if (isRunLogFile)
+                _logFile = file;
+            else
+                VisibleLogFile = file;
+
+            if (VisibleLogFile == null)
+                VisibleLogFile = _logFile;
 
             if (!File.Exists(file))
             {
@@ -560,30 +693,44 @@ namespace SkylineTester
         public void AddLines(string[] lines)
         {
             IgnorePaint++;
-            foreach (var line in lines)
+            var matchIndices = new int[lines.Length];
+            for (var i = 0; i < lines.Length; i++)
             {
-                ColorMatch match = null;
-                foreach (var colorMatch in _colorMatchList)
+                matchIndices[i] = -1;
+                for (var j = 0; j < _colorMatchList.Count; j++)
                 {
-                    if (line.StartsWith(colorMatch.LineStart))
+                    var colorMatch = _colorMatchList[j];
+                    if (lines[i].StartsWith(colorMatch.LineStart))
                     {
-                        match = colorMatch;
+                        matchIndices[i] = j;
                         break;
                     }
                 }
-
-                var addLine = line + Environment.NewLine;
-                RunUI(() =>
-                {
-                    AppendText(addLine);
-                    if (match != null)
-                    {
-                        Select(Text.Length - addLine.Length, addLine.Length);
-                        SelectionColor = match.LineColor;
-                        Select(Text.Length - 1, 0);
-                    }
-                });
             }
+
+            // Append and change color of all lines in the same RunUI.
+            // Also don't color lines individual lines, instead search for continuous
+            // sequences of lines of the same color
+            RunUI(() =>
+            {
+                for (var i = 0; i < lines.Length; )
+                {
+                    var prev = i;
+                    var addLines = new StringBuilder();
+                    var item = matchIndices[i];
+                    while (i < lines.Length && item == matchIndices[i])
+                        addLines.AppendLine(lines[i++]);
+                    var lineCount = i - prev;
+                    var addLine = addLines.ToString();
+                    AppendText(addLine);
+                    if (item < 0)
+                        continue;
+
+                    Select(Text.Length - addLine.Length + lineCount, addLine.Length);
+                    SelectionColor = _colorMatchList[item].LineColor;
+                    Select(Text.Length - 1, 0);
+                }
+            });
             IgnorePaint--;
         }
 

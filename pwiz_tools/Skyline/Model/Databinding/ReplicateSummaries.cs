@@ -17,13 +17,16 @@
  * limitations under the License.
  */
 using System.Collections.Generic;
+using System.Threading;
 using pwiz.Common.Collections;
+using pwiz.Skyline.Model.GroupComparison;
 
 namespace pwiz.Skyline.Model.Databinding
 {
     public class ReplicateSummaries
     {
         private readonly ImmutableSortedList<IsotopeLabelType, double>[] _allTotalAreas;
+        private NormalizationData _normalizationData;
         public ReplicateSummaries(SrmDocument document)
         {
             Document = document;
@@ -54,10 +57,13 @@ namespace pwiz.Skyline.Model.Databinding
         public SrmDocument Document { get; private set; }
         public double GetTotalArea(int replicateIndex, IsotopeLabelType isotopeLabelType)
         {
+            // ReSharper disable InconsistentlySynchronizedField
             if (replicateIndex >= _allTotalAreas.Length)
             {
                 return 0;
             }
+            // ReSharper restore InconsistentlySynchronizedField
+
             ImmutableSortedList<IsotopeLabelType, double> areasByLabelType;
             lock (_allTotalAreas)
             {
@@ -79,7 +85,7 @@ namespace pwiz.Skyline.Model.Databinding
             var dictTotalAreas = new Dictionary<IsotopeLabelType, double>();
             foreach (var nodeGroup in Document.MoleculeTransitionGroups)
             {
-                if (!nodeGroup.HasResults || nodeGroup.Results[replicateIndex] == null)
+                if (!nodeGroup.HasResults)
                     continue;
                 var labelType = nodeGroup.TransitionGroup.LabelType;
 
@@ -94,6 +100,17 @@ namespace pwiz.Skyline.Model.Databinding
                 }
             }
             return dictTotalAreas;
+        }
+
+        public NormalizationData GetNormalizationData()
+        {
+            var normalizationData = _normalizationData;
+            if (normalizationData == null)
+            {
+                normalizationData = NormalizationData.GetNormalizationData(Document, false, null);
+                Interlocked.CompareExchange(ref _normalizationData, normalizationData, null);
+            }
+            return _normalizationData;
         }
     }
 }

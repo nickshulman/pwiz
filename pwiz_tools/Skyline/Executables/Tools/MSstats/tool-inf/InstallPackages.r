@@ -1,69 +1,25 @@
 #Install MSstats Packages
-a<-installed.packages()
-packages<-a[,1]
+#a <- installed.packages()
+#packages <- a[, 1]
 
-#if (!is.element("gplots",packages)){
-install.packages("gplots" , repos='http://cran.us.r-project.org')
-#}
+install.packages(c("gplots", "lme4", "reshape", "reshape2", "grid",
+                   "ggplot2", "ggrepel", "data.table", "dplyr", "tidyr",
+                   "survival", "doSNOW", "snow", "foreach", 'stringr',
+                   "randomForest", "minpack.lm"), 
+                 repos='http://cran.us.r-project.org')
 
-#if (!is.element("lme4",packages)){
-install.packages("lme4" , repos='http://cran.us.r-project.org')
-#}
-
-#if (!is.element("reshape",packages)){
-install.packages("reshape" , repos='http://cran.us.r-project.org')
-#}
-
-#if (!is.element("reshape2",packages)){
-install.packages("reshape2" , repos='http://cran.us.r-project.org')
-#}
-
-#if (!is.element("grid",packages)){
-install.packages("grid" , repos='http://cran.us.r-project.org')
-#}
-
-#if (!is.element("ggplot2",packages)){
-install.packages("ggplot2" , repos='http://cran.us.r-project.org')
-#}
-
-#if (!is.element("data.table",packages)){
-install.packages("data.table" , repos='http://cran.us.r-project.org')
-#}
-
-#if (!is.element("limma",packages)){
 source("http://bioconductor.org/biocLite.R")
-biocLite("limma")
-#}
-
-#if (!is.element("preprocessCore",packages)){
-source("http://bioconductor.org/biocLite.R")
-biocLite("preprocessCore")
-#}
-
-#if (!is.element("marray",packages)){
-source("http://bioconductor.org/biocLite.R")
-biocLite("marray")
-#}
-
-#if (!is.element("Rcpp",packages)){
-install.packages("Rcpp" , repos='http://cran.us.r-project.org')
-#}
-
-install.packages("XML" , repos='http://cran.us.r-project.org')
-
-#if (!is.element("MSnbase",packages)){
-source("http://bioconductor.org/biocLite.R")
-biocLite("MSnbase")
-#}
+biocLite(c("limma", "preprocessCore", "marray", "MSstats"))
 
 
-if (!is.element("MSstats",packages) || packageVersion("MSstats") < "3.2.3" ){
-directory <- tempdir()
-directory<-gsub("\\", "/", directory, fixed = TRUE)
-filename <- "MSstats_3.2.2.tar.gz"
-path <- file.path(directory, filename)
+
+#if (!is.element("MSstats",packages) || packageVersion("MSstats") < "3.3.11" ){
+#directory <- tempdir()
+#directory<-gsub("\\", "/", directory, fixed = TRUE)
+#filename <- "MSstats_3.3.11.tar.gz"
+#path <- file.path(directory, filename)
 #MSstatsPackage <-normalizePath(path)
-download.file("http://www.stat.purdue.edu/~choi67/MSstats_3.2.3.tar.gz",path)
+#download.file("http://www.stat.purdue.edu/~choi67/MSstats_3.3.11.tar.gz",path)
 
-install.packages(path, repos = NULL, type="source")
-}
+#install.packages(path, repos = NULL, type="source")
+#}

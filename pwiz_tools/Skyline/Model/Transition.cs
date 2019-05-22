@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Original author: Brendan MacLean <brendanx .at. u.washington.edu>,
  *                  MacCoss Lab, Department of Genome Sciences, UW
  *
@@ -36,7 +36,7 @@ namespace pwiz.Skyline.Model
 
     public static class IonTypeExtension
     {
-        private static readonly string[] VALUES = {string.Empty, string.Empty, "a", "b", "c", "x", "y", "z"}; // Not L10N
+        private static readonly string[] VALUES = {string.Empty, string.Empty, @"a", @"b", @"c", @"x", @"y", @"z"};
 
         private static string[] LOCALIZED_VALUES
         {
@@ -66,7 +66,7 @@ namespace pwiz.Skyline.Model
     public class Transition : Identity
     {
         public const int MIN_PRODUCT_CHARGE = 1;
-        public const int MAX_PRODUCT_CHARGE = 5;
+        public const int MAX_PRODUCT_CHARGE = 20;
 
         public const int MIN_PRODUCT_DECOY_MASS_SHIFT = -5;
         public const int MAX_PRODUCT_DECOY_MASS_SHIFT = 5;
@@ -100,22 +100,28 @@ namespace pwiz.Skyline.Model
         /// <summary>
         /// Prioritized list of default product ion charges
         /// </summary>
-        public static readonly int[] ALL_CHARGES = { 1, 2, 3 };
+        public static readonly Adduct[] DEFAULT_PEPTIDE_CHARGES = { Adduct.SINGLY_PROTONATED, Adduct.DOUBLY_PROTONATED, Adduct.TRIPLY_PROTONATED };
+        public static readonly Adduct[] DEFAULT_PEPTIDE_LIBRARY_CHARGES = { Adduct.SINGLY_PROTONATED, Adduct.DOUBLY_PROTONATED, Adduct.TRIPLY_PROTONATED, Adduct.QUADRUPLY_PROTONATED };
+        public static readonly Adduct[] DEFAULT_MOLECULE_CHARGES = { Adduct.M_MINUS_3H, Adduct.M_MINUS_2H, Adduct.M_MINUS_H, Adduct.M_MINUS, Adduct.M_PLUS, Adduct.M_PLUS_H, Adduct.M_PLUS_2H, Adduct.M_PLUS_3H };
+        public static readonly Adduct[] DEFAULT_MOLECULE_FRAGMENT_CHARGES = { Adduct.M_MINUS, Adduct.M_MINUS_2, Adduct.M_MINUS_3, Adduct.M_PLUS, Adduct.M_PLUS_2, Adduct.M_PLUS_3 };
 
         /// <summary>
         /// Prioritize, paired list of non-custom product ion types
         /// </summary>
-        public static readonly IonType[] ALL_TYPES =
+        public static readonly IonType[] PEPTIDE_ION_TYPES =
             {IonType.y, IonType.b, IonType.z, IonType.c, IonType.x, IonType.a};
+        // And its small molecule equivalent
+        public static readonly IonType[] MOLECULE_ION_TYPES = { IonType.custom };
+        public static readonly IonType[] DEFAULT_MOLECULE_FILTER_ION_TYPES = { IonType.custom }; 
 
-        public static readonly int[] ALL_TYPE_ORDERS;
+        public static readonly int[] PEPTIDE_ION_TYPES_ORDERS;
 
         static Transition()
         {
-            ALL_TYPE_ORDERS = new int[ALL_TYPES.Length];
-            for (int i = 0; i < ALL_TYPES.Length; i++)
+            PEPTIDE_ION_TYPES_ORDERS = new int[PEPTIDE_ION_TYPES.Length];
+            for (int i = 0; i < PEPTIDE_ION_TYPES.Length; i++)
             {
-                ALL_TYPE_ORDERS[(int) ALL_TYPES[i]] = i;
+                PEPTIDE_ION_TYPES_ORDERS[(int) PEPTIDE_ION_TYPES[i]] = i;
             }
         }
 
@@ -134,6 +140,11 @@ namespace pwiz.Skyline.Model
             return type == IonType.precursor;
         }
 
+        public static bool IsPeptideFragment(IonType type)
+        {
+            return type >= IonType.a;
+        }
+
         public static bool IsCustom(IonType type, TransitionGroup parent)
         {
             return type == IonType.custom || (type == IonType.precursor && parent.IsCustomIon);
@@ -142,14 +153,14 @@ namespace pwiz.Skyline.Model
         public static IonType[] GetTypePairs(ICollection<IonType> types)
         {
             var listTypes = new List<IonType>();
-            for (int i = 0; i < ALL_TYPES.Length; i++)
+            for (int i = 0; i < PEPTIDE_ION_TYPES.Length; i++)
             {
-                if (types.Contains(ALL_TYPES[i]))
+                if (types.Contains(PEPTIDE_ION_TYPES[i]))
                 {
                     if (i % 2 == 0)
                         i++;
-                    listTypes.Add(ALL_TYPES[i - 1]);
-                    listTypes.Add(ALL_TYPES[i]);
+                    listTypes.Add(PEPTIDE_ION_TYPES[i - 1]);
+                    listTypes.Add(PEPTIDE_ION_TYPES[i]);
                 }
             }
             return listTypes.ToArray();
@@ -175,29 +186,63 @@ namespace pwiz.Skyline.Model
 
         public static int OffsetToOrdinal(IonType type, int offset, int len)
         {
-            if (IsNTerminal(type))
+            if (IsNTerminal(type) || type==IonType.custom) // Custom for small molecule work
                 return offset + 1;
             else
                 return len - offset - 1;
         }
 
-        public static string GetChargeIndicator(int charge)
+        public static string GetChargeIndicator(Adduct adduct)
         {
+            if (!adduct.IsProteomic && !adduct.IsChargeOnly)
+            {
+                return adduct.AsFormulaOrSignedInt();
+            }
+            var charge = adduct.AdductCharge;
             if (charge >= 0)
             {
-                const string pluses = "++++"; // Not L10N
+                const string pluses = "++++";
                 return charge <= pluses.Length
                     ? pluses.Substring(0, Math.Min(charge, pluses.Length))
-                    : string.Format("{0} +{1}", LocalizationHelper.CurrentCulture.NumberFormat.NumberGroupSeparator, charge); // Not L10N
+                    : string.Format(@"{0} +{1}", LocalizationHelper.CurrentCulture.NumberFormat.NumberGroupSeparator, charge);
             }
             else
             {
-                const string minuses = "--"; // Not L10N
+                const string minuses = "--";
                 charge = -charge;
                 return charge <= minuses.Length
                     ? minuses.Substring(0, Math.Min(charge, minuses.Length))
-                    : string.Format("{0} -{1}", LocalizationHelper.CurrentCulture.NumberFormat.NumberGroupSeparator, charge); // Not L10N
+                    : string.Format(@"{0} -{1}", LocalizationHelper.CurrentCulture.NumberFormat.NumberGroupSeparator, charge);
             }
+        }
+
+        public static int FindAdductDescription(string line, out Adduct adduct)
+        {
+            // Check for adduct description
+            var chargePos = -1;
+            adduct = Adduct.EMPTY;
+            var adductStart = line.LastIndexOf('[');
+            if (adductStart >= 0)
+            {
+                if (adductStart + 2 > line.Length || line[adductStart + 1] == '+')
+                {
+                    // It was probably a modification like "[+57]", and we're being called by StripChargeIndicators on a peptide
+                    return chargePos;
+                }
+                var adductText = line.Substring(adductStart);
+                if (adductStart > 0 && line[adductStart - 1] == '(')
+                {
+                    adductText = adductText.TrimEnd(')', ' ');
+                    adductStart--; // Consider adduct description as beginning at start of enclosing parens
+                }
+                if (!Adduct.TryParse(adductText, out adduct))
+                {
+                    // Whatever it was, it's not an adduct
+                    return chargePos;
+                }
+                chargePos = adductStart;
+            }
+            return chargePos;
         }
 
         public static string StripChargeIndicators(string text, int min, int max)
@@ -212,17 +257,31 @@ namespace pwiz.Skyline.Model
                 for (int i = max; i >= min; i--)
                 {
                     // Handle negative charges
-                    var charge = GetChargeIndicator(-i);
+                    var charge = GetChargeIndicator(Adduct.FromChargeProtonated(-i));
                     if (line.EndsWith(charge))
                     {
                         chargePos = line.LastIndexOf(charge, StringComparison.CurrentCulture);
                         break;
                     }
-                    charge = GetChargeIndicator(i);
+                    charge = GetChargeIndicator(Adduct.FromChargeProtonated(i));
                     if (line.EndsWith(charge))
                     {
                         chargePos = line.LastIndexOf(charge, StringComparison.CurrentCulture);
                         break;
+                    }
+                }
+                if (chargePos == -1)
+                {
+                    // Check for adduct description
+                    Adduct adduct;
+                    var adductStart = FindAdductDescription(line, out adduct);
+                    if (adductStart >= 0)
+                    {
+                        var z = Math.Abs(adduct.AdductCharge);
+                        if (min <= z && z <= max)
+                        {
+                            chargePos = adductStart;
+                        }
                     }
                 }
                 sequences.Add(chargePos == -1 ? line : line.Substring(0, chargePos));
@@ -230,27 +289,61 @@ namespace pwiz.Skyline.Model
             return TextUtil.LineSeparate(sequences);
         }
 
-        private static bool MayHaveChargeIndicator(string text)
+        public static bool MayHaveChargeIndicator(string text)
         {
             foreach (char c in text)
             {
-                if (c == '-' || c == '+')
+                if (c == '-' || c == '+' || c== '[')  // looking for something like +++, --, or [M+Na]
                     return true;
             }
             return false;
         }
 
-        public static int? GetChargeFromIndicator(string text, int min, int max)
+        public static Adduct GetChargeFromIndicator(string text, int min, int max)
         {
+            int foundAt;
+            return GetChargeFromIndicator(text, min, max, out foundAt);
+        }
+
+        public static Adduct GetChargeFromIndicator(string text, int min, int max, Adduct defaultVal)
+        {
+            var result = GetChargeFromIndicator(text, min, max);
+            return result.IsEmpty ? defaultVal : result;
+        }
+
+        public static Adduct GetChargeFromIndicator(string text, int min, int max, out int foundAt)
+        {
+            foundAt = -1;
+            if (!MayHaveChargeIndicator(text))
+            {
+                return Adduct.EMPTY;
+            }
+            Adduct adduct;
             for (int i = max; i >= min; i--)
             {
                 // Handle negative charges
-                if (text.EndsWith(GetChargeIndicator(-i)))
-                    return -i;
-                if (text.EndsWith(GetChargeIndicator(i)))
-                    return i;
+                adduct = Adduct.FromChargeProtonated(-i);
+                var chargeIndicator = GetChargeIndicator(adduct);
+                if (text.EndsWith(chargeIndicator))
+                {
+                    foundAt = text.Length - chargeIndicator.Length;
+                    return adduct;
+                }
+                adduct = Adduct.FromChargeProtonated(i);
+                chargeIndicator = GetChargeIndicator(adduct);
+                if (text.EndsWith(chargeIndicator))
+                {
+                    foundAt = text.Length - chargeIndicator.Length;
+                    return adduct;
+                }
             }
-            return null;
+            var adductStart = FindAdductDescription(text, out adduct);
+            if (adductStart >= 0)
+            {
+                foundAt = adductStart;
+                return adduct;
+            }
+            return Adduct.EMPTY;
         }
 
         public static string GetMassIndexText(int massIndex)
@@ -258,15 +351,15 @@ namespace pwiz.Skyline.Model
             if (massIndex == 0)
                 return string.Empty;
 
-            return " " + SequenceMassCalc.GetMassIDescripion(massIndex); // Not L10N
+            return @" " + SequenceMassCalc.GetMassIDescripion(massIndex);
         }
 
         public static string GetDecoyText(int? decoyMassShift)
         {
             if (!decoyMassShift.HasValue || decoyMassShift.Value == 0)
                 return string.Empty;
-            return string.Format("({0}{1})", // Not L10N
-                                 decoyMassShift.Value >= 0 ? "+" : string.Empty, // Not L10N
+            return string.Format(@"({0}{1})",
+                                 decoyMassShift.Value >= 0 ? @"+" : string.Empty,
                                  decoyMassShift.Value);
         }
 
@@ -277,36 +370,47 @@ namespace pwiz.Skyline.Model
         /// </summary>
         /// <param name="group">The <see cref="TransitionGroup"/> which the transition represents</param>
         /// <param name="massIndex">Isotope mass shift</param>
-        /// <param name="customIon">Non-null if this is a custom transition</param>
-        public Transition(TransitionGroup group, int massIndex, CustomIon customIon = null)
-            :this(group, IonType.precursor, group.Peptide.Length - 1, massIndex, group.PrecursorCharge, null, customIon)
+        /// <param name="customMolecule">Non-null if this is a custom transition</param>
+        public Transition(TransitionGroup group, int massIndex, CustomMolecule customMolecule = null)
+            :this(group, IonType.precursor, group.Peptide.Length - 1, massIndex, group.PrecursorAdduct, null, customMolecule)
         {
         }
 
-        public Transition(TransitionGroup group, IonType type, int offset, int massIndex, int charge)
+        public Transition(TransitionGroup group, IonType type, int offset, int massIndex, Adduct charge)
             :this(group, type, offset, massIndex, charge, null)
         {
         }
 
-        public Transition(TransitionGroup group, int charge, int? massIndex, CustomIon customIon, IonType type=IonType.custom)
-            :this(group, type, null, massIndex, charge, null, customIon)
+        public Transition(TransitionGroup group, Adduct charge, int? massIndex, CustomMolecule customMolecule, IonType type=IonType.custom)
+            :this(group, type, null, massIndex, charge, null, customMolecule)
         {
         }
 
-        public Transition(TransitionGroup group, IonType type, int? offset, int? massIndex, int charge, int? decoyMassShift, CustomIon customIon = null)
+        public Transition(TransitionGroup group, IonType type, int? offset, int? massIndex, Adduct adduct, int? decoyMassShift, CustomMolecule customMolecule = null)
         {
             _group = group;
 
             IonType = type;
             CleavageOffset = offset ?? 0;
             MassIndex = massIndex ?? 0;
-            Charge = charge;
+            Adduct = adduct;
             DecoyMassShift = decoyMassShift;
-            // Small molecule precursor transition should have same custom ion as parent
+            // Small molecule precursor transition should have same custom molecule as parent
             if (IsPrecursor(type) && group.IsCustomIon)
-                CustomIon = group.CustomIon;
-            else
-                CustomIon = customIon;
+            {
+                CustomIon = new CustomIon(group.CustomMolecule, adduct);
+            }
+            else if (customMolecule is CustomIon)
+            {
+                // As with reporter ions
+                CustomIon = (CustomIon)customMolecule;
+                Assume.IsTrue(Equals(adduct.AdductCharge, CustomIon.Adduct.AdductCharge));
+                Adduct = CustomIon.Adduct; // Ion mass is part of formula, so use charge only adduct
+            }
+            else if (customMolecule != null)
+            {
+                CustomIon = new CustomIon(customMolecule, adduct);
+            }
             // Derived values
             if (!IsCustom(type, group))
             {
@@ -329,14 +433,17 @@ namespace pwiz.Skyline.Model
             get { return _group; }
         }
 
-        public int Charge { get; private set; }
+        // NB an adduct (rather than a simple integer charge) is arguably overkill for transitions that are not precursors, 
+        // but it simplifies the code to treat them all as having a potentially complex charge mechanism
+        public Adduct Adduct { get; private set; } 
+        public int Charge { get { return Adduct.AdductCharge; } } 
         public IonType IonType { get; private set; }
 
         public int CleavageOffset { get; private set; }
         public int MassIndex { get; private set; }
         public int? DecoyMassShift { get; private set; }
 
-        public CustomIon CustomIon { get; private set; } // May be instantiated as a DocNodeCustomIon or SettingsCustomIon
+        public CustomIon CustomIon { get; private set; } // May be instantiated as a CustomIon or SettingsCustomIon
 
         // Derived values
         public int Ordinal { get; private set; }
@@ -347,10 +454,10 @@ namespace pwiz.Skyline.Model
             get { return GetFragmentIonName(LocalizationHelper.CurrentCulture); }
         }
 
-        public string GetFragmentIonName(CultureInfo cultureInfo)
+        public string GetFragmentIonName(CultureInfo cultureInfo, double? tolerance=null)
         {
             if (IsCustom() && !IsPrecursor())
-                return CustomIon.ToString();
+                return CustomIon.ToString(tolerance);
             string ionName = ReferenceEquals(cultureInfo, CultureInfo.InvariantCulture)
                 ? IonType.ToString() : IonType.GetLocalizedString();
             if (!IsPrecursor())
@@ -373,6 +480,11 @@ namespace pwiz.Skyline.Model
             return IsPrecursor(IonType);
         }
 
+        public bool IsNegative()
+        {
+            return Charge < 0;
+        }
+
         public bool IsCustom()
         {
             return IsCustom(IonType, Group);
@@ -385,7 +497,7 @@ namespace pwiz.Skyline.Model
 
         public bool IsNonReporterCustomIon()
         {
-            return IsCustom() && CustomIon is DocNodeCustomIon;
+            return IsCustom() && !(CustomIon is SettingsCustomIon);
         }
 
         public char FragmentNTermAA
@@ -398,7 +510,7 @@ namespace pwiz.Skyline.Model
             get { return GetFragmentCTermAA(_group.Peptide.Sequence, CleavageOffset); }
         }
 
-        public static double CalcMass(double massH, TransitionLosses losses)
+        public static TypedMass CalcMass(TypedMass massH, TransitionLosses losses)
         {
             return massH - (losses != null ? losses.Mass : 0);
         }
@@ -469,7 +581,7 @@ namespace pwiz.Skyline.Model
                 {
                     throw new InvalidDataException(
                         string.Format(Resources.Transition_Validate_Fragment_ordinal__0__exceeds_the_maximum__1__for_the_peptide__2__,
-                            Ordinal, Group.Peptide.Length - 1, Group.Peptide.Sequence));
+                            Ordinal, Group.Peptide.Length - 1, Group.Peptide.Target));
                 }
 
                 if (DecoyMassShift.HasValue)
@@ -485,6 +597,10 @@ namespace pwiz.Skyline.Model
                     }
                 }
             }
+            if (Charge < 0 != Group.PrecursorAdduct.AdductCharge < 0)
+            {
+                throw new InvalidDataException(Resources.Transition_Validate_Precursor_and_product_ion_polarity_do_not_agree_);
+            }
         }
 
         /// <summary>
@@ -498,11 +614,15 @@ namespace pwiz.Skyline.Model
 
         public static bool Equivalent(Transition t, Transition obj)
         {
+            if (ReferenceEquals(t, obj))
+            {
+                return true;
+            }
             return Equals(obj.IonType, t.IonType) &&
                 obj.CleavageOffset == t.CleavageOffset &&
                 obj.Charge == t.Charge &&
                 obj.MassIndex == t.MassIndex &&
-                CustomIon.Equivalent(obj.CustomIon, t.CustomIon) && // Looks at unlabeled formula or name only
+                CustomMolecule.Equivalent(obj.CustomIon, t.CustomIon) && // Looks at unlabeled formula or name only
                 (obj.DecoyMassShift.Equals(t.DecoyMassShift) || 
                 // Deal with strange case of mProphet golden standard data set - only a concern for peptides, not small molecules
                 (obj.DecoyMassShift.HasValue && t.DecoyMassShift.HasValue &&
@@ -535,7 +655,7 @@ namespace pwiz.Skyline.Model
                 Equals(obj.CustomIon, CustomIon) && 
                 obj.CleavageOffset == CleavageOffset &&
                 obj.MassIndex == MassIndex &&
-                obj.Charge == Charge && 
+                Equals(obj.Adduct, Adduct) && 
                 obj.DecoyMassShift.Equals(DecoyMassShift);
             return equal; // For debugging convenience
         }
@@ -556,7 +676,7 @@ namespace pwiz.Skyline.Model
                 result = (result*397) ^ IonType.GetHashCode();
                 result = (result*397) ^ CleavageOffset;
                 result = (result*397) ^ MassIndex;
-                result = (result*397) ^ Charge;
+                result = (result*397) ^ Adduct.GetHashCode();
                 result = (result*397) ^ (DecoyMassShift.HasValue ? DecoyMassShift.Value : 0);
                 result = (result*397) ^ (CustomIon != null ? CustomIon.GetHashCode() : 0);
                 return result;
@@ -567,7 +687,7 @@ namespace pwiz.Skyline.Model
         {
             if (IsPrecursor())
             {
-                return Resources.Transition_ToString_precursor + GetChargeIndicator(Charge) +
+                return Resources.Transition_ToString_precursor + GetChargeIndicator(Adduct) +
                        GetMassIndexText(MassIndex);
             }
 
@@ -576,21 +696,21 @@ namespace pwiz.Skyline.Model
                 var text = CustomIon.ToString();
                 // Was there enough information to generate a string more distinctive that just "Ion"?
                 if (String.IsNullOrEmpty(CustomIon.Name) && 
-                    String.IsNullOrEmpty(CustomIon.Formula))
+                    String.IsNullOrEmpty(CustomIon.NeutralFormula))
                 {
                     // No, add mz and charge to whatever generic text was used to describe it
-                    var mz = BioMassCalc.CalculateIonMz(CustomIon.MonoisotopicMass, Charge);
-                    return string.Format("{0} {1:F04}{2}",  // Not L10N
-                        text, mz, GetChargeIndicator(Charge));
+                    var mz = Adduct.MzFromNeutralMass(CustomIon.MonoisotopicMass);
+                    return string.Format(@"{0} {1:F04}{2}",
+                        text, mz, GetChargeIndicator(Adduct));
                 }
                 return text;
             }
-            return string.Format("{0} - {1}{2}{3}{4}", // Not L10N
+            return string.Format(@"{0} - {1}{2}{3}{4}",
                                  AA,
                                  IonType.ToString().ToLowerInvariant(),
                                  Ordinal,
                                  GetDecoyText(DecoyMassShift),
-                                 GetChargeIndicator(Charge));
+                                 GetChargeIndicator(Adduct));
         }
 
         #endregion // object overrides
@@ -610,7 +730,7 @@ namespace pwiz.Skyline.Model
                 else if (!string.IsNullOrEmpty(transition.SecondaryCustomIonEquivalenceKey))
                     CustomIonEquivalenceTestValue = transition.SecondaryCustomIonEquivalenceKey;
                 else if (Transition.IsNonReporterCustomIon())
-                    CustomIonEquivalenceTestValue = "_mzSortIndex_" + parent.Children.IndexOf(transition); // Not L10N
+                    CustomIonEquivalenceTestValue = @"_mzSortIndex_" + parent.Children.IndexOf(transition);
                 else
                     CustomIonEquivalenceTestValue = null;
             }
@@ -654,6 +774,11 @@ namespace pwiz.Skyline.Model
             {
                 return (Transition.GetHashCode()*397) ^ (Losses != null ? Losses.GetHashCode() : 0);
             }
+        }
+
+        public override string ToString()
+        {
+            return Transition + (Losses != null ? @" -" + Losses.Mass : string.Empty);
         }
 
         #endregion

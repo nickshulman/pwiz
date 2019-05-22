@@ -84,15 +84,15 @@ void test()
     BOOST_LOG_SEV(logSource::get(), MessageSeverity::BriefInfo) << "BriefInfoTest";
     BOOST_LOG_SEV(logSource::get(), MessageSeverity::Warning) << "WarningTest";
     BOOST_LOG_SEV(logSource::get(), MessageSeverity::Error) << "ErrorTest";
+    logStream->close();
 
     string log = read_file_header("test.log", 1024).c_str();
-    unit_assert_operator_equal("VerboseInfoTest"NEWLINE
-                               "BriefInfoTest"NEWLINE
-                               "Warning: WarningTest"NEWLINE
-                               "Error: ErrorTest"NEWLINE,
+    unit_assert_operator_equal("VerboseInfoTest" NEWLINE
+                               "BriefInfoTest" NEWLINE
+                               "Warning: WarningTest" NEWLINE
+                               "Error: ErrorTest" NEWLINE,
                                log);
 
-    logStream->close();
     bfs::remove("test.log");
     logStream->open("test.log");
 
@@ -101,14 +101,14 @@ void test()
     BOOST_LOG_SEV(logSource::get(), MessageSeverity::BriefInfo) << "BriefInfoTest";
     BOOST_LOG_SEV(logSource::get(), MessageSeverity::Warning) << "WarningTest";
     BOOST_LOG_SEV(logSource::get(), MessageSeverity::Error) << "ErrorTest";
+    logStream->close();
 
     log = read_file_header("test.log", 1024).c_str();
-    unit_assert_operator_equal("BriefInfoTest"NEWLINE
-                               "Warning: WarningTest"NEWLINE
-                               "Error: ErrorTest"NEWLINE,
+    unit_assert_operator_equal("BriefInfoTest" NEWLINE
+                               "Warning: WarningTest" NEWLINE
+                               "Error: ErrorTest" NEWLINE,
                                log);
 
-    logStream->close();
     bfs::remove("test.log");
     logStream->open("test.log");
 
@@ -117,14 +117,14 @@ void test()
     BOOST_LOG_SEV(logSource::get(), MessageSeverity::BriefInfo) << "BriefInfoTest";
     BOOST_LOG_SEV(logSource::get(), MessageSeverity::Warning) << "WarningTest";
     BOOST_LOG_SEV(logSource::get(), MessageSeverity::Error) << "ErrorTest";
+    logStream->close();
 
     log = read_file_header("test.log", 1024).c_str();
-    unit_assert_operator_equal("BriefInfoTest"NEWLINE
-                               "Warning: WarningTest"NEWLINE
-                               "Error: ErrorTest"NEWLINE,
+    unit_assert_operator_equal("BriefInfoTest" NEWLINE
+                               "Warning: WarningTest" NEWLINE
+                               "Error: ErrorTest" NEWLINE,
                                log);
 
-    logStream->close();
     bfs::remove("test.log");
     logStream->open("test.log");
 
@@ -133,13 +133,13 @@ void test()
     BOOST_LOG_SEV(logSource::get(), MessageSeverity::BriefInfo) << "BriefInfoTest";
     BOOST_LOG_SEV(logSource::get(), MessageSeverity::Warning) << "WarningTest";
     BOOST_LOG_SEV(logSource::get(), MessageSeverity::Error) << "ErrorTest";
+    logStream->close();
 
     log = read_file_header("test.log", 1024).c_str();
-    unit_assert_operator_equal("Warning: WarningTest"NEWLINE
-                               "Error: ErrorTest"NEWLINE,
+    unit_assert_operator_equal("Warning: WarningTest" NEWLINE
+                               "Error: ErrorTest" NEWLINE,
                                log);
 
-    logStream->close();
     bfs::remove("test.log");
     logStream->open("test.log");
 
@@ -148,12 +148,12 @@ void test()
     BOOST_LOG_SEV(logSource::get(), MessageSeverity::BriefInfo) << "BriefInfoTest";
     BOOST_LOG_SEV(logSource::get(), MessageSeverity::Warning) << "WarningTest";
     BOOST_LOG_SEV(logSource::get(), MessageSeverity::Error) << "ErrorTest";
+    logStream->close();
 
     log = read_file_header("test.log", 1024).c_str();
     unit_assert_operator_equal("Error: ErrorTest"NEWLINE,
                                log);
 
-    logStream->close();
     bfs::remove("test.log");
     logStream->open("test.log");
 
@@ -162,14 +162,14 @@ void test()
     BOOST_LOG_SEV(logSource::get(), MessageSeverity::BriefInfo) << "BriefInfoTest";
     BOOST_LOG_SEV(logSource::get(), MessageSeverity::Warning) << "WarningTest";
     BOOST_LOG_SEV(logSource::get(), MessageSeverity::Error) << "ErrorTest";
+    logStream->close();
 
     log = read_file_header("test.log", 1024).c_str();
-    unit_assert_operator_equal("VerboseInfoTest"NEWLINE
-                               "BriefInfoTest"NEWLINE
-                               "Warning: WarningTest"NEWLINE,
+    unit_assert_operator_equal("VerboseInfoTest" NEWLINE
+                               "BriefInfoTest" NEWLINE
+                               "Warning: WarningTest" NEWLINE,
                                log);
 
-    logStream->close();
     bfs::remove("test.log");
 }
 

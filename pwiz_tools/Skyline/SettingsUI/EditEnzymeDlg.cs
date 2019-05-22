@@ -66,6 +66,7 @@ namespace pwiz.Skyline.SettingsUI
                     textCleavage.Text = string.Empty;
                     textRestrict.Text = string.Empty;
                     comboDirection.SelectedIndex = 0;
+                    cbSemiCleavage.Checked = false;
                 }
                 else
                 {
@@ -90,6 +91,7 @@ namespace pwiz.Skyline.SettingsUI
                         textCleavage.Text = _enzyme.CleavageC;
                         textRestrict.Text = _enzyme.RestrictC;
                     }
+                    cbSemiCleavage.Checked = _enzyme.IsSemiCleaving;
                 }
             }
         }
@@ -131,7 +133,7 @@ namespace pwiz.Skyline.SettingsUI
                 restrictN = null;
             }
 
-            Enzyme enzyme = new Enzyme(name, cleavageC, restrictC, cleavageN, restrictN);
+            Enzyme enzyme = new Enzyme(name, cleavageC, restrictC, cleavageN, restrictN, cbSemiCleavage.Checked);
             if (_enzyme == null && _existing.Contains(enzyme))
             {
                 helper.ShowTextBoxError(textName, Resources.EditEnzymeDlg_OnClosing_The_enzyme__0__already_exists, name);

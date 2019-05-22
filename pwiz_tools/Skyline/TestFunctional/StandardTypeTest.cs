@@ -60,6 +60,12 @@ namespace pwiz.SkylineTestFunctional
 
         private void RunTestStandardType(bool asSmallMolecules)
         {
+            if (asSmallMolecules && !RunSmallMoleculeTestVersions)
+            {
+                System.Console.Write(MSG_SKIPPING_SMALLMOLECULE_TEST_VERSION);
+                return;
+            }
+
             AsSmallMolecules = asSmallMolecules;
             if (AsSmallMolecules)
                 TestDirectoryName = "AsSmallMolecules";
@@ -101,7 +107,7 @@ namespace pwiz.SkylineTestFunctional
             RunUI(() => SkylineWindow.ShowTreeNodeContextMenu(new Point(0, 0)));
             RunUI(() =>
                 {
-                    Assert.IsFalse(SkylineWindow.SetStandardTypeConextMenuItem.Visible);
+                    Assert.IsFalse(SkylineWindow.SetStandardTypeContextMenuItem.Visible);
                     SkylineWindow.ContextMenuTreeNode.Close();
                 });
             // Select first peptide, which is not actually an iRT standard
@@ -109,7 +115,7 @@ namespace pwiz.SkylineTestFunctional
             RunUI(() => SkylineWindow.ShowTreeNodeContextMenu(new Point(0, 0)));
             RunUI(() =>
             {
-                Assert.IsTrue(SkylineWindow.SetStandardTypeConextMenuItem.Visible);
+                Assert.IsTrue(SkylineWindow.SetStandardTypeContextMenuItem.Visible);
                 SkylineWindow.ContextMenuTreeNode.Close();
             });
             // CONSIDER: Would have been nice to validate the contents of the Set Standard Type menu
@@ -125,10 +131,10 @@ namespace pwiz.SkylineTestFunctional
             if (!AsSmallMolecules)
             {
                 RunUI(() => SetPeptideStandardType(SkylineWindow.DocumentUI.MoleculeGroupCount - 1, 0, 5,
-                    PeptideDocNode.STANDARD_TYPE_NORMALIZAITON, false));
+                    PeptideDocNode.STANDARD_TYPE_GLOBAL, false));
             }
             // Set Normalization type
-            RunUI(() => SetPeptideStandardType(1, 0, 3, PeptideDocNode.STANDARD_TYPE_NORMALIZAITON));
+            RunUI(() => SetPeptideStandardType(1, 0, 3, PeptideDocNode.STANDARD_TYPE_GLOBAL));
             RunUI(() =>
             {
                 AreaReplicateGraphPane pane;
@@ -177,7 +183,7 @@ namespace pwiz.SkylineTestFunctional
             string documentPath2 = TestFilesDir.GetTestPath("MultiLabel.sky");
             RunUI(() => SkylineWindow.OpenFile(documentPath2));
             WaitForDocumentLoaded();
-            RunUI(() => SkylineWindow.SetStandardType(PeptideDocNode.STANDARD_TYPE_NORMALIZAITON));
+            RunUI(() => SkylineWindow.SetStandardType(PeptideDocNode.STANDARD_TYPE_GLOBAL));
         }
 
         private void TestLiveResultsGrid()
@@ -243,6 +249,9 @@ namespace pwiz.SkylineTestFunctional
             var exportReportDlg = ShowDialog<ExportLiveReportDlg>(SkylineWindow.ShowExportReportDialog);
             var editReportListDlg = ShowDialog<ManageViewsForm>(exportReportDlg.EditList);
             var viewEditor = ShowDialog<ViewEditor>(editReportListDlg.AddView);
+            var documentationViewer = ShowDialog<DocumentationViewer>(() => viewEditor.ShowColumnDocumentation(true));
+            Assert.IsNotNull(documentationViewer);
+            OkDialog(documentationViewer, documentationViewer.Close);
 
             var columnsToAdd = new[]
                     {
@@ -266,6 +275,7 @@ namespace pwiz.SkylineTestFunctional
                 }
             });
             var previewReportDlg = ShowDialog<DocumentGridForm>(viewEditor.ShowPreview);
+            WaitForConditionUI(() => previewReportDlg.IsComplete);
 
             RunUI(() =>
             {
@@ -295,7 +305,7 @@ namespace pwiz.SkylineTestFunctional
                             for (int i = 0; i < countReplicates; i++)
                             {
                                 var row = previewReportDlg.DataGridView.Rows[iRow++];
-                                string standardTypeExpected = nodePep.GlobalStandardType;
+                                var standardTypeExpected = nodePep.GlobalStandardType;
                                 var standardTypeActual = row.Cells[iStandardType].Value;
                                 if (standardTypeExpected == null)
                                 {
@@ -314,11 +324,18 @@ namespace pwiz.SkylineTestFunctional
                                 float peptideLightRatio = (float)(double)row.Cells[iLightRatio].Value;
                                 // Light ration never empty
                                 Assert.IsTrue(peptideLightRatio > 0);
-                                float peptideHeavyRatio = (float)(double)row.Cells[iHeavyRatio].Value;
+                                float? peptideHeavyRatio = (float?)(double?)row.Cells[iHeavyRatio].Value;
                                 // Heavy ratio empty when peptide has only a light precursor
-                                Assert.IsTrue(nodePep.TransitionGroupCount == 1
-                                    ? peptideHeavyRatio == 0
-                                    : peptideHeavyRatio > 0 && peptideHeavyRatio != peptideLightRatio);
+                                if (nodePep.TransitionGroupCount == 1)
+                                {
+                                    Assert.IsNull(peptideHeavyRatio);
+                                }
+                                else
+                                {
+                                    Assert.IsNotNull(peptideHeavyRatio);
+                                    Assert.IsTrue(peptideHeavyRatio > 0);
+                                    Assert.AreNotEqual(peptideHeavyRatio.Value, peptideLightRatio);
+                                }
                                 string labelType = row.Cells[iLabelType].Value.ToString();
                                 float precursorRatio = (float)(double)row.Cells[iPrecRatio].Value;
                                 if (string.Equals(labelType, IsotopeLabelType.light.Name))
@@ -328,7 +345,7 @@ namespace pwiz.SkylineTestFunctional
                                 if (iPeptide == SELECTED_PEPTIDE_INDEX)
                                 {
                                     Assert.AreEqual(lightValues[i], peptideLightRatio);
-                                    Assert.AreEqual(heavyValues[i], peptideHeavyRatio);
+                                    Assert.AreEqual(heavyValues[i], peptideHeavyRatio.Value);
                                 }
 
                                 float transitionRatio = (float)(double)row.Cells[iTranRatio].Value;
@@ -362,12 +379,16 @@ namespace pwiz.SkylineTestFunctional
             WaitForConditionUI(() => resultsGridForm.IsComplete);
         }
 
-        private void SetPeptideStandardType(int protindex, int pepStartIndex, int pepCount, string standardType, bool success = true)
+        private void SetPeptideStandardType(int protindex, int pepStartIndex, int pepCount, StandardType standardType, bool success = true)
         {
             var qcPeps = SkylineWindow.SequenceTree.Nodes[protindex];
-            SelectRange(qcPeps.Nodes[pepStartIndex], qcPeps.Nodes[pepStartIndex + pepCount - 1]);
+            var nodeStart = qcPeps.Nodes[pepStartIndex];
+            var nodeEnd = qcPeps.Nodes[pepStartIndex + pepCount - 1];
+            SelectRange(nodeStart, nodeEnd);
             SkylineWindow.SetStandardType(standardType);
-
+            // Get back to single selection to have area graph single-peptide
+            SkylineWindow.SequenceTree.SelectedNode = null;
+            SkylineWindow.SequenceTree.SelectedNode = nodeEnd;
             var docChanged = SkylineWindow.DocumentUI;
             ValidateStandardType(docChanged, protindex, pepStartIndex, pepCount, standardType, success);
 
@@ -376,7 +397,7 @@ namespace pwiz.SkylineTestFunctional
         }
 
         private static void ValidateStandardType(SrmDocument docChanged, int protindex, int pepStartIndex, int pepCount,
-                                                 string standardType, bool success)
+                                                 StandardType standardType, bool success)
         {
             var pepsChanged = docChanged.MoleculeGroups.ElementAt(protindex).Molecules;
             Assert.IsTrue(pepsChanged.Skip(pepStartIndex).Take(pepCount).All(nodePep =>

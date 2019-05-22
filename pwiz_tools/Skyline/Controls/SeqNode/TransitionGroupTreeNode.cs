@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Original author: Brendan MacLean <brendanx .at. u.washington.edu>,
  *                  MacCoss Lab, Department of Genome Sciences, UW
  *
@@ -61,7 +61,7 @@ namespace pwiz.Skyline.Controls.SeqNode
 
         public TransitionGroupDocNode DocNode { get { return (TransitionGroupDocNode) Model; } }
 
-        public string ModifiedSequence
+        public Target ModifiedSequence
         {
             get { return GetModifiedSequence(PepNode, DocNode, SequenceTree.Document.Settings); }
         }
@@ -168,8 +168,8 @@ namespace pwiz.Skyline.Controls.SeqNode
                 GetResultsText(nodeGroup, settings.NodePep, settings.Index, settings.RatioIndex));
         }
 
-        private const string DOTP_FORMAT = "0.##"; // Not L10N
-        private const string CS_SEPARATOR = ", "; // Not L10N
+        private const string DOTP_FORMAT = "0.##";
+        private const string CS_SEPARATOR = ", ";
 
         public static string GetResultsText(TransitionGroupDocNode nodeGroup,
             PeptideDocNode nodePep, int indexResult, int indexRatio)
@@ -179,15 +179,15 @@ namespace pwiz.Skyline.Controls.SeqNode
             RatioValue ratio = nodeGroup.GetPeakAreaRatio(indexResult, indexRatio);
             if (null == ratio && !isotopeProduct.HasValue && !libraryProduct.HasValue)
                 return string.Empty;
-            StringBuilder sb = new StringBuilder(" ("); // Not L10N
+            StringBuilder sb = new StringBuilder(@" (");
             int len = sb.Length;
             if (isotopeProduct.HasValue)
-                sb.Append(string.Format("idotp {0}", isotopeProduct.Value.ToString(DOTP_FORMAT))); // Not L10N
+                sb.Append(string.Format(@"idotp {0}", isotopeProduct.Value.ToString(DOTP_FORMAT)));
             if (libraryProduct.HasValue)
             {
                 if (sb.Length > len)
                     sb.Append(CS_SEPARATOR);
-                sb.Append(string.Format("dotp {0}", libraryProduct.Value.ToString(DOTP_FORMAT))); // Not L10N
+                sb.Append(string.Format(@"dotp {0}", libraryProduct.Value.ToString(DOTP_FORMAT)));
             }
             if (ratio != null)
             {
@@ -195,14 +195,14 @@ namespace pwiz.Skyline.Controls.SeqNode
                     sb.Append(CS_SEPARATOR);
                 if (!double.IsNaN(ratio.StdDev))
                 {
-                    sb.Append(string.Format("rdotp {0}", ratio.DotProduct.ToString(DOTP_FORMAT))); // Not L10N
+                    sb.Append(string.Format(@"rdotp {0}", ratio.DotProduct.ToString(DOTP_FORMAT)));
                     sb.Append(CS_SEPARATOR);
                 }
 
                 sb.Append(string.Format(Resources.TransitionGroupTreeNode_GetResultsText_total_ratio__0__,
                                         MathEx.RoundAboveZero(ratio.Ratio, 2, 4)));
             }
-            sb.Append(")"); // Not L10N
+            sb.Append(@")");
             return sb.ToString();
         }
 
@@ -215,8 +215,8 @@ namespace pwiz.Skyline.Controls.SeqNode
         public static string GetLabel(TransitionGroup tranGroup, double precursorMz,
             string resultsText)
         {
-            return string.Format("{0}{1}{2}{3}", GetMzLabel(tranGroup, precursorMz), // Not L10N
-                                 Transition.GetChargeIndicator(tranGroup.PrecursorCharge),
+            return string.Format(@"{0}{1}{2}{3}", GetMzLabel(tranGroup, precursorMz),
+                                 Transition.GetChargeIndicator(tranGroup.PrecursorAdduct),
                                  tranGroup.LabelTypeText, resultsText);
         }
 
@@ -224,7 +224,7 @@ namespace pwiz.Skyline.Controls.SeqNode
         {
             int? massShift = tranGroup.DecoyMassShift;
             double shift = SequenceMassCalc.GetPeptideInterval(massShift);
-            return string.Format("{0:F04}{1}", precursorMz - shift, // Not L10N
+            return string.Format(@"{0:F04}{1}", precursorMz - shift,
                 Transition.GetDecoyText(massShift));
         }
 
@@ -292,7 +292,7 @@ namespace pwiz.Skyline.Controls.SeqNode
                     Resources.TransitionGroupTreeNode_GetChoices_Invalid_attempt_to_get_choices_for_a_node_that_has_not_been_added_to_the_tree_yet);
             }
 
-            var listChildrenNew = GetChoices(DocNode, DocSettings, nodePep.ExplicitMods, useFilter);
+            var listChildrenNew = DocNode.GetPrecursorChoices(DocSettings, nodePep.ExplicitMods, useFilter);
             // Existing transitions must be part of the first settings change to ensure proper
             // handling of user set peak boundaries.
             MergeChosen(listChildrenNew, useFilter, node => ((TransitionDocNode)node).Key(DocNode));
@@ -315,23 +315,6 @@ namespace pwiz.Skyline.Controls.SeqNode
             // updates.
             MergeChosen(listChildrenNew, useFilter, node => ((TransitionDocNode)node).Key(nodeGroup));
             return listChildrenNew;
-        }
-
-        public static IList<DocNode> GetChoices(TransitionGroupDocNode nodeGroup, SrmSettings settings, ExplicitMods mods, bool useFilter)
-        {
-            TransitionGroup group = nodeGroup.TransitionGroup;
-
-            SpectrumHeaderInfo libInfo = null;
-            var transitionRanks = new Dictionary<double, LibraryRankedSpectrumInfo.RankedMI>();
-            group.GetLibraryInfo(settings, mods, useFilter, ref libInfo, transitionRanks);
-
-            var listChoices = new List<DocNode>();
-            foreach (TransitionDocNode nodeTran in nodeGroup.GetTransitions(settings, mods,
-                    nodeGroup.PrecursorMz, nodeGroup.IsotopeDist, libInfo, transitionRanks, useFilter))
-            {
-                listChoices.Add(nodeTran);               
-            }
-            return listChoices;
         }
 
         public override bool ShowAutoManageChildren
@@ -376,11 +359,12 @@ namespace pwiz.Skyline.Controls.SeqNode
                 if (!IsSynchable())
                     return false;
                 var tranGroupThis = DocNode.TransitionGroup;
+                var adductNoLabels = tranGroupThis.PrecursorAdduct.Unlabeled; // If adduct contains an isotope label, ignore label for comparison purposes
                 foreach (TransitionGroupTreeNode nodeTree in siblingNodes)
                 {
                     var tranGroup = nodeTree.DocNode.TransitionGroup;
                     if (!ReferenceEquals(tranGroupThis, tranGroup) &&
-                        tranGroupThis.PrecursorCharge == tranGroup.PrecursorCharge &&
+                        Equals(adductNoLabels, tranGroup.PrecursorAdduct.Unlabeled) &&
                         !(mustBeInSynch && DocNode.EquivalentChildren(nodeTree.DocNode)))
                     {
                         if (!tranGroupThis.IsCustomIon)
@@ -388,8 +372,8 @@ namespace pwiz.Skyline.Controls.SeqNode
                             return true;
                         }
                         else if (tranGroup.IsCustomIon && nodeTree.IsSynchable() &&
-                                 string.IsNullOrEmpty(tranGroupThis.CustomIon.Formula) ==
-                                 string.IsNullOrEmpty(tranGroup.CustomIon.Formula))
+                                 string.IsNullOrEmpty(tranGroupThis.CustomMolecule.Formula) ==
+                                 string.IsNullOrEmpty(tranGroup.CustomMolecule.Formula))
                         {
                             return true;
                         }
@@ -438,20 +422,20 @@ namespace pwiz.Skyline.Controls.SeqNode
                                      Size sizeMax,
                                      bool draw)
         {
-            if (nodeGroup.TransitionGroup.IsCustomIon)
+            if (nodeGroup.TransitionGroup.IsCustomIon)  // TODO(bspratt) this seems to leave out a lot of detail
             {
                 var customTable = new TableDesc();
                 using (RenderTools rt = new RenderTools())
                 {
-                    customTable.AddDetailRow(Resources.TransitionGroupTreeNode_RenderTip_Molecule, nodeGroup.CustomIon.Name, rt);
+                    customTable.AddDetailRow(Resources.TransitionGroupTreeNode_RenderTip_Molecule, nodeGroup.CustomMolecule.Name, rt);
                     customTable.AddDetailRow(Resources.TransitionGroupTreeNode_RenderTip_Precursor_charge,
-                        nodeGroup.TransitionGroup.PrecursorCharge.ToString(LocalizationHelper.CurrentCulture), rt);
+                        FormatAdductTip(nodeGroup.TransitionGroup.PrecursorAdduct), rt);
                     customTable.AddDetailRow(Resources.TransitionGroupTreeNode_RenderTip_Precursor_mz,
-                        string.Format("{0:F04}", nodeGroup.PrecursorMz), rt); // Not L10N
-                    if (nodeGroup.CustomIon.Formula != null)
+                        string.Format(@"{0:F04}", nodeGroup.PrecursorMz), rt);
+                    if (nodeGroup.CustomMolecule.Formula != null)
                     {
                         customTable.AddDetailRow(Resources.TransitionTreeNode_RenderTip_Formula,
-                            nodeGroup.CustomIon.Formula, rt);
+                            nodeGroup.CustomMolecule.Formula + nodeGroup.TransitionGroup.PrecursorAdduct.AdductFormula.ToString(LocalizationHelper.CurrentCulture), rt);
                     }
                     SizeF size = customTable.CalcDimensions(g);
                     customTable.Draw(g);
@@ -459,7 +443,7 @@ namespace pwiz.Skyline.Controls.SeqNode
                 }
             }
             ExplicitMods mods = (nodePep != null ? nodePep.ExplicitMods : null);
-            IEnumerable<DocNode> choices = GetChoices(nodeGroup, settings, mods, true).ToArray();
+            IEnumerable<DocNode> choices = nodeGroup.GetPrecursorChoices(settings, mods, true).ToArray();
             HashSet<DocNode> chosen = new HashSet<DocNode>(nodeGroup.Children);
 
             // Make sure all chosen peptides get listed
@@ -470,26 +454,26 @@ namespace pwiz.Skyline.Controls.SeqNode
             Transition tranSelected = (nodeTranSelected != null ? nodeTranSelected.Transition : null);
 
             IFragmentMassCalc calc = settings.GetFragmentCalc(nodeGroup.TransitionGroup.LabelType, mods);
-            string aa = nodeGroup.TransitionGroup.Peptide.Sequence;  // We handled custom ions above, and returned
-            double[,] masses = calc.GetFragmentIonMasses(aa);
+            var aa = nodeGroup.TransitionGroup.Peptide.Target.Sequence;  // We handled custom ions above, and returned
+            var masses = calc.GetFragmentIonMasses(nodeGroup.TransitionGroup.Peptide.Target);
 
             var filter = settings.TransitionSettings.Filter;
 
             // Get charges and type pairs, making sure all chosen charges are included
-            HashSet<int> setCharges = new HashSet<int>(filter.ProductCharges.Where(charge =>
-                Math.Abs(charge) <= Math.Abs(nodeGroup.TransitionGroup.PrecursorCharge) &&
-                Math.Sign(charge) == Math.Sign(nodeGroup.TransitionGroup.PrecursorCharge)));
-            HashSet<IonType> setTypes = new HashSet<IonType>(filter.IonTypes);
+            var setCharges = new HashSet<Adduct>(filter.PeptideProductCharges.Where(charge =>
+                Math.Abs(charge.AdductCharge) <= Math.Abs(nodeGroup.TransitionGroup.PrecursorCharge) &&
+                Math.Sign(charge.AdductCharge) == Math.Sign(nodeGroup.TransitionGroup.PrecursorCharge)));
+            HashSet<IonType> setTypes = new HashSet<IonType>(filter.PeptideIonTypes);
             foreach (TransitionDocNode nodTran in chosen)
             {
                 var type = nodTran.Transition.IonType;
-                if (type == IonType.precursor)
+                if (!Transition.IsPeptideFragment(type))
                     continue;
-                setCharges.Add(nodTran.Transition.Charge);
+                setCharges.Add(nodTran.Transition.Adduct);
                 setTypes.Add(type);
             }
-            setTypes.Remove(IonType.precursor);
-            int[] charges = setCharges.ToArray();
+            setTypes.RemoveWhere(t => !Transition.IsPeptideFragment(t));
+            var charges = setCharges.Where(c => c.IsProteomic).ToArray();
             Array.Sort(charges);
             IonType[] types = Transition.GetTypePairs(setTypes);
 
@@ -498,18 +482,18 @@ namespace pwiz.Skyline.Controls.SeqNode
 
             using (RenderTools rt = new RenderTools())
             {
-                string seqModified = GetModifiedSequence(nodePep, nodeGroup, settings);
-                if (!Equals(seqModified, nodeGroup.TransitionGroup.Peptide.Sequence))
-                    tableDetails.AddDetailRow(Resources.TransitionGroupTreeNode_RenderTip_Modified, seqModified, rt);
+                var seqModified = GetModifiedSequence(nodePep, nodeGroup, settings);
+                if (!Equals(seqModified, nodeGroup.TransitionGroup.Peptide.Target))
+                    tableDetails.AddDetailRow(Resources.TransitionGroupTreeNode_RenderTip_Modified, seqModified.Sequence, rt);
 
-                var precursorCharge = nodeGroup.TransitionGroup.PrecursorCharge;
+                var precursorCharge = nodeGroup.TransitionGroup.PrecursorAdduct;
                 var precursorMz = nodeGroup.PrecursorMz;
                 tableDetails.AddDetailRow(Resources.TransitionGroupTreeNode_RenderTip_Precursor_charge,
-                                          precursorCharge.ToString(LocalizationHelper.CurrentCulture), rt);
+                                          precursorCharge.AdductCharge.ToString(LocalizationHelper.CurrentCulture), rt);
                 tableDetails.AddDetailRow(Resources.TransitionGroupTreeNode_RenderTip_Precursor_mz,
-                                          string.Format("{0:F04}", precursorMz), rt); // Not L10N
+                                          string.Format(@"{0:F04}", precursorMz), rt);
                 tableDetails.AddDetailRow(Resources.TransitionGroupTreeNode_RenderTip_Precursor_mh,
-                                          string.Format("{0:F04}", nodeGroup.GetPrecursorIonMass()), // Not L10N
+                                          string.Format(@"{0:F04}", nodeGroup.GetPrecursorIonMass()),
                                           rt);
                 int? decoyMassShift = nodeGroup.TransitionGroup.DecoyMassShift;
                 if (decoyMassShift.HasValue)
@@ -527,11 +511,11 @@ namespace pwiz.Skyline.Controls.SeqNode
                 {
                     var headers = new RowDesc
                                   {
-                                      CreateHead("#", rt), // Not L10N
-                                      CreateHead("AA", rt), // Not L10N
-                                      CreateHead("#", rt) // Not L10N
+                                      CreateHead(@"#", rt),
+                                      CreateHead(@"AA", rt),
+                                      CreateHead(@"#", rt)
                                   };
-                    foreach (int charge in charges)
+                    foreach (var charge in charges)
                     {
                         string plusSub = Transition.GetChargeIndicator(charge);
                         foreach (IonType type in types)
@@ -558,7 +542,7 @@ namespace pwiz.Skyline.Controls.SeqNode
                                       CreateRowLabel(i == 0 ? string.Empty : (len - i).ToString(CultureInfo.InvariantCulture), rt)
                                   };
 
-                        foreach (int charge in charges)
+                        foreach (var charge in charges)
                         {
                             foreach (IonType type in types)
                             {
@@ -569,7 +553,7 @@ namespace pwiz.Skyline.Controls.SeqNode
                                         cell = CreateData(string.Empty, rt);
                                     else
                                     {
-                                        double massH = masses[(int)type, i];
+                                        var massH = masses[type, i];
                                         cell = CreateIon(type, i + 1, massH, charge, choices, chosen, tranSelected, rt);
                                     }
                                     row.Insert(0, cell);
@@ -580,7 +564,7 @@ namespace pwiz.Skyline.Controls.SeqNode
                                         cell = CreateData(string.Empty, rt);
                                     else
                                     {
-                                        double massH = masses[(int)type, i - 1];
+                                        var massH = masses[type, i - 1];
                                         cell = CreateIon(type, len - i, massH, charge, choices, chosen, tranSelected, rt);
                                     }
                                     row.Add(cell);
@@ -608,14 +592,14 @@ namespace pwiz.Skyline.Controls.SeqNode
             }
         }
 
-        private static string GetModifiedSequence(PeptideDocNode nodePep,
+        private static Target GetModifiedSequence(PeptideDocNode nodePep,
                                                   TransitionGroupDocNode nodeGroup,
                                                   SrmSettings settings)
         {
             ExplicitMods mods = (nodePep != null ? nodePep.ExplicitMods : null);
             var calcPre = settings.GetPrecursorCalc(nodeGroup.TransitionGroup.LabelType, mods);
-            string seq = nodeGroup.TransitionGroup.Peptide.Sequence;
-            return calcPre.GetModifiedSequence(seq, true);            
+            var seq = nodeGroup.TransitionGroup.Peptide.Target;
+            return calcPre.GetModifiedSequenceDisplay(seq);            
         }
 
         private static CellDesc CreateHead(string text, RenderTools rt)
@@ -633,19 +617,19 @@ namespace pwiz.Skyline.Controls.SeqNode
             return new CellDesc(text, rt) { Align = StringAlignment.Far };
         }
 
-        private static CellDesc CreateIon(IonType type, int ordinal, double massH, int charge,
+        private static CellDesc CreateIon(IonType type, int ordinal, TypedMass massH, Adduct charge,
                                           IEnumerable<DocNode> choices, ICollection<DocNode> chosen, Transition tranSelected,
                                           RenderTools rt)
         {
             double mz = SequenceMassCalc.GetMZ(massH, charge);
-            CellDesc cell = CreateData(string.Format("{0:F02}", mz), rt); // Not L10N
+            CellDesc cell = CreateData(string.Format(@"{0:F02}", mz), rt);
 
             foreach (TransitionDocNode nodeTran in choices)
             {
                 Transition tran = nodeTran.Transition;
                 if (tran.IonType == type &&
                     tran.Ordinal == ordinal &&
-                    tran.Charge == charge)
+                    tran.Adduct == charge)
                 {
                     cell.Font = rt.FontBold;
                     if (Equals(tran, tranSelected))

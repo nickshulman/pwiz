@@ -17,31 +17,36 @@
  * limitations under the License.
  */
 
+using System;
 using System.ComponentModel;
 using pwiz.Common.DataBinding.Attributes;
 using pwiz.Skyline.Model.DocSettings;
+using pwiz.Skyline.Model.ElementLocators;
 using pwiz.Skyline.Model.Hibernate;
 using pwiz.Skyline.Model.Results;
 using pwiz.Skyline.Util.Extensions;
 
 namespace pwiz.Skyline.Model.Databinding.Entities
 {
+    [InvariantDisplayName(nameof(TransitionResult))]
     [AnnotationTarget(AnnotationDef.AnnotationTarget.transition_result)]
     public class TransitionResult : Result
     {
         private readonly CachedValue<TransitionChromInfo> _chromInfo;
+        private readonly CachedValue<Chromatogram> _chromatogram;
         public TransitionResult(Transition transition, ResultFile resultFile) : base(transition, resultFile)
         {
             _chromInfo = CachedValue.Create(DataSchema, () => GetResultFile().FindChromInfo(transition.DocNode.Results));
+            _chromatogram = CachedValue.Create(DataSchema, 
+                () => new Chromatogram(new ChromatogramGroup(PrecursorResult), Transition));
         }
 
         [Browsable(false)]
         public TransitionChromInfo ChromInfo { get { return _chromInfo.Value; } }
 
-        public void ChangeChromInfo(EditDescription editDescription, TransitionChromInfo newChromInfo)
+        public void ChangeChromInfo(EditDescription editDescription, Func<TransitionChromInfo, TransitionChromInfo> newChromInfo)
         {
-            var newDocNode = Transition.DocNode.ChangeResults(GetResultFile().ChangeChromInfo(Transition.DocNode.Results, newChromInfo));
-            Transition.ChangeDocNode(editDescription, newDocNode);
+            Transition.ChangeDocNode(editDescription, docNode=>docNode.ChangeResults(GetResultFile().ChangeChromInfo(docNode.Results, newChromInfo)));
         }
         [HideWhen(AncestorOfType = typeof(Transition))]
         public Transition Transition { get { return (Transition)SkylineDocNode; } }
@@ -72,24 +77,37 @@ namespace pwiz.Skyline.Model.Databinding.Entities
         public bool? Truncated { get { return ChromInfo.IsTruncated; } }
         [Format(NullValue = TextUtil.EXCEL_NA)]
         public int? PeakRank { get { return ChromInfo.IsEmpty ? (int?)null : ChromInfo.Rank; } }
+        [Format(NullValue = TextUtil.EXCEL_NA)]
+        public int? PeakRankByLevel { get { return ChromInfo.IsEmpty ? (int?)null : ChromInfo.RankByLevel; } }
         public UserSet UserSetPeak { get { return ChromInfo.UserSet; } }
         [Format(NullValue = TextUtil.EXCEL_NA)]
         public int OptStep { get { return ChromInfo.OptimizationStep; } }
+        [Format(NullValue = TextUtil.EXCEL_NA)]
+        public int? PointsAcrossPeak { get { return ChromInfo.PointsAcrossPeak; } }
+
+        public bool Coeluting { get { return !ChromInfo.IsForcedIntegration; } }
+
+        public Chromatogram Chromatogram
+        {
+            get { return _chromatogram.Value; }
+        }
+
         [InvariantDisplayName("TransitionReplicateNote")]
+        [Importable]
         public string Note
         {
             get { return ChromInfo.Annotations.Note; }
             set
             {
-                ChangeChromInfo(EditDescription.SetColumn("TransitionReplicateNote", value), // Not L10N
-                    ChromInfo.ChangeAnnotations(ChromInfo.Annotations.ChangeNote(value)));
+                ChangeChromInfo(EditColumnDescription(nameof(Note), value),
+                    chromInfo=>chromInfo.ChangeAnnotations(chromInfo.Annotations.ChangeNote(value)));
             }
         }
 
         public override void SetAnnotation(AnnotationDef annotationDef, object value)
         {
             ChangeChromInfo(EditDescription.SetAnnotation(annotationDef, value), 
-                ChromInfo.ChangeAnnotations(ChromInfo.Annotations.ChangeAnnotation(annotationDef, value)));
+                chromInfo=>chromInfo.ChangeAnnotations(chromInfo.Annotations.ChangeAnnotation(annotationDef, value)));
         }
 
         public override object GetAnnotation(AnnotationDef annotationDef)
@@ -107,7 +125,24 @@ namespace pwiz.Skyline.Model.Databinding.Entities
         }
         public override string ToString()
         {
-            return string.Format("{0:0}", ChromInfo.Area); // Not L10N
+            return string.Format(@"{0:0}", ChromInfo.Area);
+        }
+
+        [InvariantDisplayName("TransitionResultLocator")]
+        public string Locator
+        {
+            get { return GetLocator(); }
+        }
+
+        public override ElementRef GetElementRef()
+        {
+            return TransitionResultRef.PROTOTYPE.ChangeChromInfo(GetResultFile().Replicate.ChromatogramSet, ChromInfo)
+                .ChangeParent(Transition.GetElementRef());
+        }
+
+        public override bool IsEmpty()
+        {
+            return ChromInfo.IsEmpty;
         }
     }
 }

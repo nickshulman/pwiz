@@ -28,7 +28,6 @@
 #include <iostream>
 #include <boost/algorithm/string.hpp>
 
-using namespace std;
 using namespace pwiz;
 using namespace identdata;
 
@@ -59,8 +58,9 @@ MzIdentMLReader::~MzIdentMLReader()
  * stores psms, organized by spectrum file, and imports all spectra.
  */
 bool MzIdentMLReader::parseFile(){
+    map<DBSequencePtr, Protein> proteins;
     Verbosity::debug("Reading psms from the file.");
-    collectPsms();
+    collectPsms(proteins);
     
     // for each file
     if( fileMap_.size() > 1 ){
@@ -92,10 +92,17 @@ bool MzIdentMLReader::parseFile(){
             break;
         case MSGF_ANALYSIS:
             scoreType = MSGF_SCORE;
-            lookUpBy_ = SCAN_NUM_ID;
             break;
         case PEPTIDESHAKER_ANALYSIS:
             scoreType = PEPTIDE_SHAKER_CONFIDENCE;
+            break;
+        case MASCOT_ANALYSIS:
+            scoreType = MASCOT_IONS_SCORE;
+            break;
+        case PEAKS_ANALYSIS:
+            scoreType = PEAKS_CONFIDENCE_SCORE;
+        case GENERIC_QVALUE_ANALYSIS:
+            scoreType = GENERIC_QVALUE;
             break;
     }
 
@@ -109,6 +116,10 @@ bool MzIdentMLReader::parseFile(){
         boost::split(pathParts, fileIterator->first, boost::is_any_of(";"));
         string specFileroot = getFileRoot(pathParts[0]);
         setSpecFileName(specFileroot.c_str(), specExtensions);
+        string filename = getSpecFileName();
+        if (filename.length() >= 6 && filename.substr(filename.length() - 6) == ".mzXML") {
+            lookUpBy_ = SCAN_NUM_ID;
+        }
 
         string sourceFile = pathParts[1];
         if (!mapSourceFiles[sourceFile].empty())
@@ -134,7 +145,7 @@ bool MzIdentMLReader::parseFile(){
  *         SpectrumIdenficiationItem -- specific peptide match to the spec
  *             PeptideEvidencePtr -- one for each prot in which pep is found
  */
-void MzIdentMLReader::collectPsms(){
+void MzIdentMLReader::collectPsms(map<DBSequencePtr, Protein>& proteins) {
     // 1 SpectrumIdentificationList = 1 .MGF file
     for(; list_iter_ != list_end_; ++list_iter_){
         
@@ -176,25 +187,40 @@ void MzIdentMLReader::collectPsms(){
                     case MSGF_ANALYSIS:
                         if (result.hasCVParam(MS_scan_number_s__OBSOLETE)) {
                             curPSM_->specKey = result.cvParam(MS_scan_number_s__OBSOLETE).valueAs<int>();
+                            lookUpBy_ = SCAN_NUM_ID;
                         } else {
-                            // If still no scan number, look for it in the spectrum id
-                            vector<string> parts;
-                            boost::split(parts, idStr, boost::is_any_of(" "));
-                            for (vector<string>::const_iterator i = parts.begin(); i != parts.end(); ++i) {
-                                if (idStr.compare(0, 6, "scan=") == 0) {
-                                    curPSM_->specKey = boost::lexical_cast<int>(idStr.substr(5));
-                                    break;
-                                }
-                            }
+                            // If still no scan number, use nativeID
+                            curPSM_->specName = idStr;
                         }
                         break;
                     default:
                         curPSM_->specName = idStr;
                         break;
                 }
+                if (curPSM_->specKey < 0) {
+                    stringToScan(curPSM_->specName, curPSM_);
+                }
                 curPSM_->score = score;
                 curPSM_->charge = item.chargeState;
-                extractModifications(item.peptidePtr, curPSM_);
+                extractIonMobility(result, item, curPSM_);
+
+                PeptidePtr peptidePtr = item.peptidePtr;
+                for (const auto& peptideEvidencePtr : item.peptideEvidencePtr) {
+                    if (!peptideEvidencePtr->dbSequencePtr) {
+                        Verbosity::error("peptideEvidenceRef %s has null dbSequenceRef", peptideEvidencePtr->id.c_str());
+                        continue;
+                    }
+                    const DBSequencePtr& dbSeq = peptideEvidencePtr->dbSequencePtr;
+                    if (!peptidePtr) peptidePtr = peptideEvidencePtr->peptidePtr;
+                    map<DBSequencePtr, Protein>::const_iterator j = proteins.find(dbSeq);
+                    if (j != proteins.end()) {
+                        curPSM_->proteins.insert(&j->second);
+                    } else {
+                        proteins[dbSeq] = Protein(dbSeq->accession);
+                        curPSM_->proteins.insert(&proteins[dbSeq]);
+                    }
+                }
+                extractModifications(peptidePtr, curPSM_);
                 
                 // add the psm to the map
                 Verbosity::comment(V_DETAIL, "For file %s adding PSM: "
@@ -242,10 +268,35 @@ void MzIdentMLReader::extractModifications(PeptidePtr peptide, PSM* psm){
         // in BiblioSpec.  Instead, N-terminal modifications are treated as modifictions
         // to the first amino acid residue, as in X! Tandem.
         location = max(location, 1);
+        location = min(location, (int)peptide->peptideSequence.length());
         psm->mods.push_back(SeqMod(location, massDelta));
     }
 
     psm->unmodSeq = peptide->peptideSequence;
+}
+
+void MzIdentMLReader::extractIonMobility(const pwiz::identdata::SpectrumIdentificationResult& result, const pwiz::identdata::SpectrumIdentificationItem& item, PSM* psm) {
+
+    auto ionMobilityParam = result.cvParamChild(MS_ion_mobility_attribute);
+    if (ionMobilityParam.empty())
+        ionMobilityParam = item.cvParamChild(MS_ion_mobility_attribute); // should not be in SII, but some PEAKS output has it there
+    if (!ionMobilityParam.empty()) {
+        psm->ionMobility = ionMobilityParam.valueAs<double>();
+        switch (ionMobilityParam.cvid) {
+            case MS_ion_mobility_drift_time:
+                psm->ionMobilityType = IONMOBILITY_DRIFTTIME_MSEC;
+                break;
+            case MS_inverse_reduced_ion_mobility:
+                psm->ionMobilityType = IONMOBILITY_INVERSEREDUCED_VSECPERCM2;
+                break;
+            case MS_FAIMS_CV:
+                psm->ionMobilityType = IONMOBILITY_COMPENSATION_V;
+                break;
+            default:
+                Verbosity::warn("unsupported ion mobility type: %s", ionMobilityParam.name().c_str());
+                break;
+        }
+    }
 }
 
 /**
@@ -255,38 +306,76 @@ void MzIdentMLReader::extractModifications(PeptidePtr peptide, PSM* psm){
 double MzIdentMLReader::getScore(const SpectrumIdentificationItem& item){
 
     // look through all params to find the probability
-    for(vector<CVParam>::const_iterator it=item.cvParams.begin(); it!=item.cvParams.end(); ++it){
-        string name = cvTermInfo((*it).cvid).name;
-        if (name == "PeptideShaker PSM confidence") {
-            if (analysisType_ == UNKNOWN_ANALYSIS) {
-                analysisType_ = PEPTIDESHAKER_ANALYSIS;
-                scoreThreshold_ = getScoreThreshold(PEPTIDE_SHAKER);
-            }
-            if (analysisType_ == PEPTIDESHAKER_ANALYSIS)
-                return boost::lexical_cast<double>(it->value) / 100.0;
-        } else if (name == "Scaffold: Peptide Probability" // ": " in file but being
-            || name == "Scaffold:Peptide Probability") { // returned as ":P"
-            if (analysisType_ == UNKNOWN_ANALYSIS) {
-                analysisType_ = SCAFFOLD_ANALYSIS;
-                scoreThreshold_ = getScoreThreshold(SCAFFOLD);
-            }
-            if (analysisType_ == SCAFFOLD_ANALYSIS)
-                return boost::lexical_cast<double>(it->value);
-        } else if (name == "Byonic: Peptide AbsLogProb"
-                   || name == "Byonic: Peptide AbsLogProb2D") {
-            if (analysisType_ == UNKNOWN_ANALYSIS) {
-                analysisType_ = BYONIC_ANALYSIS;
-                scoreThreshold_ = getScoreThreshold(BYONIC);
-            }
-            if (analysisType_ == BYONIC_ANALYSIS)
-                return pow(10, -1 * boost::lexical_cast<double>(it->value));
-        } else if (name == "MS-GF:QValue") {
-            if (analysisType_ == UNKNOWN_ANALYSIS) {
-                analysisType_ = MSGF_ANALYSIS;
-                scoreThreshold_ = getScoreThreshold(MSGF);
-            }
-            if (analysisType_ = MSGF_ANALYSIS)
-                return boost::lexical_cast<double>(it->value);
+    for(const CVParam& cvParam : item.cvParams)
+    {
+        switch (cvParam.cvid)
+        {
+            case MS_PeptideShaker_PSM_confidence:
+                if (analysisType_ == UNKNOWN_ANALYSIS) {
+                    analysisType_ = PEPTIDESHAKER_ANALYSIS;
+                    scoreThreshold_ = getScoreThreshold(PEPTIDE_SHAKER);
+                }
+                if (analysisType_ == PEPTIDESHAKER_ANALYSIS)
+                    return cvParam.valueAs<double>() / 100.0;
+                break;
+
+            case MS_Scaffold_Peptide_Probability:
+                if (analysisType_ == UNKNOWN_ANALYSIS) {
+                    analysisType_ = SCAFFOLD_ANALYSIS;
+                    scoreThreshold_ = getScoreThreshold(SCAFFOLD);
+                }
+                if (analysisType_ == SCAFFOLD_ANALYSIS)
+                    return cvParam.valueAs<double>();
+                break;
+
+            case MS_Byonic__Peptide_AbsLogProb:
+            case MS_Byonic__Peptide_AbsLogProb2D:
+                if (analysisType_ == UNKNOWN_ANALYSIS) {
+                    analysisType_ = BYONIC_ANALYSIS;
+                    scoreThreshold_ = getScoreThreshold(BYONIC);
+                }
+                if (analysisType_ == BYONIC_ANALYSIS)
+                    return pow(10, -1 * cvParam.valueAs<double>());
+                break;
+
+            case MS_MS_GF_QValue:
+                if (analysisType_ == UNKNOWN_ANALYSIS) {
+                    analysisType_ = MSGF_ANALYSIS;
+                    scoreThreshold_ = getScoreThreshold(MSGF);
+                }
+                if (analysisType_ == MSGF_ANALYSIS)
+                    return cvParam.valueAs<double>();
+                break;
+
+            case MS_Mascot_expectation_value:
+                if (analysisType_ == UNKNOWN_ANALYSIS) {
+                    analysisType_ = MASCOT_ANALYSIS;
+                    scoreThreshold_ = getScoreThreshold(MASCOT);
+                }
+                if (analysisType_ == MASCOT_ANALYSIS)
+                    return cvParam.valueAs<double>();
+                break;
+            
+            case MS_PEAKS_peptideScore:
+                if (analysisType_ == UNKNOWN_ANALYSIS) {
+                    analysisType_ = PEAKS_ANALYSIS;
+                    scoreThreshold_ = getScoreThreshold(PEAKS);
+                }
+                if (analysisType_ == PEAKS_ANALYSIS)
+                    return pow(10, cvParam.valueAs<double>() / -10);
+                break;
+
+            case MS_PSM_level_q_value:
+                if (analysisType_ == UNKNOWN_ANALYSIS) {
+                    analysisType_ = GENERIC_QVALUE_ANALYSIS;
+                    scoreThreshold_ = getScoreThreshold(GENERIC_QVALUE_INPUT);
+                }
+                if (analysisType_ == GENERIC_QVALUE_ANALYSIS)
+                    return cvParam.valueAs<double>();
+                break;
+
+            default:
+                continue;
         }
     }
 
@@ -299,7 +388,10 @@ bool MzIdentMLReader::passThreshold(double score)
     switch (analysisType_) {
         // Scores where lower is better
         case BYONIC_ANALYSIS:
+        case MASCOT_ANALYSIS:
         case MSGF_ANALYSIS:
+        case PEAKS_ANALYSIS:
+        case GENERIC_QVALUE_ANALYSIS:
             return score <= scoreThreshold_;
         // Scores where higher is better
         case SCAFFOLD_ANALYSIS:
@@ -307,6 +399,28 @@ bool MzIdentMLReader::passThreshold(double score)
             return score >= scoreThreshold_;
     }
     Verbosity::error("Can't determine cutoff score, unknown analysis type");
+    return false;
+}
+
+bool MzIdentMLReader::stringToScan(const string& name, PSM* psm) {
+    vector<string> parts;
+    boost::split(parts, name, boost::is_any_of(" "));
+    for (vector<string>::const_iterator i = parts.begin(); i != parts.end(); ++i) {
+        if (i->compare(0, 5, "scan=") == 0) {
+            psm->specKey = boost::lexical_cast<int>(i->substr(5));
+            return true;
+        }
+    }
+
+    // check for <scan>.<scan>
+    boost::split(parts, name, boost::is_any_of("."));
+    for (size_t i = 0; i < parts.size() - 1; i++) {
+        if (parts[i] == parts[i+1] && parts[i].find_first_not_of("0123456789") == string::npos) {
+            psm->specKey = atoi(parts[i].c_str());
+            return true;
+        }
+    }
+
     return false;
 }
 

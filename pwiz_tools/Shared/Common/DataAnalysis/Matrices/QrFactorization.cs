@@ -34,9 +34,9 @@ namespace pwiz.Common.DataAnalysis.Matrices
     /// but was then modified to enable a tolerance for detecting linear dependence.
     /// The logic for detecting linear dependence was taken from the R source code in the file "dqrdc2.f".
     /// </summary>
-    // ReSharper disable NonLocalizedString
     public class QrFactorization
     {
+        // ReSharper disable LocalizableElement
         public static QrFactorization GetQrFactorization(Matrix<double> matrix, double tolerance)
         {
             double[] tau = new double[Math.Min(matrix.RowCount, matrix.ColumnCount)];
@@ -131,24 +131,24 @@ namespace pwiz.Common.DataAnalysis.Matrices
             {
                 if (r == null)
                 {
-                    throw new ArgumentNullException("r");
+                    throw new ArgumentNullException(nameof(r));
                 }
 
                 if (q == null)
                 {
-                    throw new ArgumentNullException("q");
+                    throw new ArgumentNullException(nameof(q));
                 }
                 int rowsR = r.GetLength(0);
                 int columnsR = r.GetLength(1);
                 var minmn = Math.Min(rowsR, columnsR);
                 if (tau.Length < minmn)
                 {
-                    throw new ArgumentException(string.Format(Resources.ArrayTooSmall, "min(m,n)"), "tau");
+                    throw new ArgumentException(string.Format(Resources.ArrayTooSmall, "min(m,n)"), nameof(tau));
                 }
 
                 if (q.GetLength(0) != r.GetLength(0) || q.GetLength(1) != r.GetLength(0))
                 {
-                    throw new ArgumentException(string.Format(Resources.ArgumentArrayWrongLength, "rowsR * rowsR"), "q");
+                    throw new ArgumentException(string.Format(Resources.ArgumentArrayWrongLength, "rowsR * rowsR"), nameof(q));
                 }
                 for (int i = 0; i < r.GetLength(0); i++)
                 {

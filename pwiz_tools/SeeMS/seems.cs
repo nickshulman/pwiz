@@ -20,6 +20,7 @@
 //
 
 using System;
+using System.Linq;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
@@ -44,9 +45,6 @@ namespace seems
 {
 	public partial class seemsForm : Form
 	{
-        public static string Version = "0.5";
-        public static string LastModified = "2/10/2009";
-
 		private bool isLoaded = false;
 		private OpenDataSourceDialog browseToFileDialog;
 
@@ -114,6 +112,10 @@ namespace seems
 			this.Location = Properties.Settings.Default.MainFormLocation;
 			this.Size = Properties.Settings.Default.MainFormSize;
 			this.WindowState = Properties.Settings.Default.MainFormWindowState;
+
+            if (Properties.Settings.Default.DefaultDecimalPlaces < decimalPlacesToolStripMenuItem.DropDownItems.Count)
+                (decimalPlacesToolStripMenuItem.DropDownItems[Properties.Settings.Default.DefaultDecimalPlaces] as ToolStripMenuItem).Checked = true;
+
 			isLoaded = true;
 		}
 
@@ -171,11 +173,7 @@ namespace seems
 
             try
             {
-                Arguments argParser = new Arguments(args);
-
-                if (argParser["help"] != null ||
-                    argParser["h"] != null ||
-                    argParser["?"] != null)
+                if (args.Any(o => Regex.Match(o, "(-{1,2}|/)(help|\\?)").Success))
                 {
                     Console.WriteLine("TODO");
                     Close();
@@ -189,29 +187,62 @@ namespace seems
                 Application.DoEvents();
 
                 string datasource = null;
-                foreach (string arg in args)
-                    if (!arg.StartsWith("--index") && !arg.StartsWith("id") && !arg.StartsWith("annotation"))
-                    {
-                        datasource = arg;
-                        break;
-                    }
-
                 IAnnotation annotation = null;
-                if (argParser["annotation"] != null)
-                    annotation = AnnotationFactory.ParseArgument(argParser["annotation"]);
+                var idOrIndexList = new List<object>();
+                var idOrIndexListByFile = new Dictionary<string, List<object>>();
+                var annotationByFile = new Dictionary<string, IAnnotation>();
+
+                for (int i=0; i < args.Length; ++i)
+                {
+                    string arg = args[i];
+                    // does the arg specify a data source?
+                    if (arg.StartsWith("--index"))
+                    {
+                        idOrIndexList.Add(Convert.ToInt32(args[i+1]));
+                        ++i;
+                    }
+                    else if (arg.StartsWith("--id"))
+                    {
+                        idOrIndexList.Add(args[i+1]);
+                        ++i;
+                    }
+                    else if (arg.StartsWith("--annotation"))
+                    {
+                        annotation = AnnotationFactory.ParseArgument(args[i+1]);
+                        ++i;
+                    }
+                    else
+                    {
+                        if (datasource != null)
+                        {
+                            idOrIndexListByFile[datasource].AddRange(idOrIndexList);
+                            annotationByFile[datasource] = annotation;
+
+                            idOrIndexList.Clear();
+                            annotation = null;
+                        }
+
+                        datasource = arg;
+                        if (!idOrIndexListByFile.ContainsKey(datasource))
+                            idOrIndexListByFile[datasource] = new List<object>();
+                    }
+                }
 
                 if (datasource != null)
                 {
-                    if (argParser["index"] != null)
-                    {
-                        Manager.OpenFile(datasource, Convert.ToInt32(argParser["index"]), annotation);
-                    }
-                    else if (argParser["id"] != null)
-                    {
-                        Manager.OpenFile(datasource, argParser["id"], annotation);
-                    }
+                    idOrIndexListByFile[datasource].AddRange(idOrIndexList);
+                    annotationByFile[datasource] = annotation;
+
+                    idOrIndexList.Clear();
+                    annotation = null;
+                }
+
+                foreach (var fileListPair in idOrIndexListByFile)
+                {
+                    if (fileListPair.Value.Count > 0)
+                        Manager.OpenFile(fileListPair.Key, fileListPair.Value, annotationByFile[fileListPair.Key]);
                     else
-                        Manager.OpenFile(datasource);
+                        Manager.OpenFile(fileListPair.Key);
                 }
             }
             catch (Exception ex)
@@ -394,5 +425,26 @@ namespace seems
         {
             //eventLog.Show();
         }
-	}
+
+        private void timeToMzHeatmapsToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            Manager.LoadAllMetadata(CurrentGraphForm.Sources[0]);
+
+            var heatmapForm = new TimeMzHeatmapForm(Manager, CurrentGraphForm.Sources[0]);
+            heatmapForm.Show(DockPanel, DockState.Document);
+        }
+
+        private void decimalPlaces_Click(object sender, EventArgs e)
+        {
+            string decimalPlacesStr = (sender as ToolStripMenuItem)?.Text ?? throw new ArgumentException();
+            Properties.Settings.Default.DefaultDecimalPlaces = Int32.Parse(decimalPlacesStr);
+            Properties.Settings.Default.Save();
+
+            foreach (ToolStripMenuItem item in decimalPlacesToolStripMenuItem.DropDownItems)
+                item.Checked = false;
+            (decimalPlacesToolStripMenuItem.DropDownItems[Properties.Settings.Default.DefaultDecimalPlaces] as ToolStripMenuItem).Checked = true;
+
+            Refresh();
+        }
+    }
 }

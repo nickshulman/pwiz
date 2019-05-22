@@ -21,6 +21,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
+using pwiz.Common.Chemistry;
 using pwiz.ProteowizardWrapper;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
@@ -29,6 +30,7 @@ namespace pwiz.Skyline.Model.Results
 {
     public class MsDataFileScanHelper : IDisposable
     {
+        private ChromSource _chromSource;
         public MsDataFileScanHelper(Action<MsDataSpectrum[]> successAction, Action<Exception> failureAction)
         {
             ScanProvider = new BackgroundScanProvider(successAction, failureAction);
@@ -50,7 +52,33 @@ namespace pwiz.Skyline.Model.Results
 
         public string[] SourceNames { get; set; }
 
-        public ChromSource Source { get; set; }
+        public ChromSource Source
+        {
+            get { return _chromSource; }
+            set
+            {
+                if (Source == value)
+                {
+                    return;
+                }
+
+                var oldTimeIntensities = GetTimeIntensities(Source);
+                _chromSource = value;
+                var newTimeIntensities = GetTimeIntensities(Source);
+                if (newTimeIntensities != null)
+                {
+                    if (oldTimeIntensities != null)
+                    {
+                        var oldTime = oldTimeIntensities.Times[ScanIndex];
+                        ScanIndex = newTimeIntensities.IndexOfNearestTime(oldTime);
+                    }
+                    else
+                    {
+                        ScanIndex = Math.Min(ScanIndex, newTimeIntensities.NumPoints - 1);
+                    }
+                }
+            }
+        }
 
         public ChromSource SourceFromName(string name)
         {
@@ -65,77 +93,114 @@ namespace pwiz.Skyline.Model.Results
         public MsDataSpectrum[] GetFilteredScans()
         {
             var fullScans = MsDataSpectra;
-            double minDrift, maxDrift;
-            if (Settings.Default.FilterDriftTimesFullScan && GetDriftRange(out minDrift, out maxDrift, Source))
-                fullScans = fullScans.Where(s => minDrift <= s.DriftTimeMsec && s.DriftTimeMsec <= maxDrift).ToArray();
+            double minIonMobility, maxIonMobility;
+            if (Settings.Default.FilterIonMobilityFullScan && GetIonMobilityRange(out minIonMobility, out maxIonMobility, Source))
+                fullScans = fullScans.Where(s => minIonMobility <= s.IonMobility.Mobility && s.IonMobility.Mobility <= maxIonMobility).ToArray();
             return fullScans;
         }
 
-        public bool GetDriftRange(out double minDrift, out double maxDrift, ChromSource sourceType)
+        public bool GetIonMobilityRange(out double minIonMobility, out double maxIonMobility, ChromSource sourceType)
         {
-            minDrift = double.MaxValue;
-            maxDrift = double.MinValue;
-            var hasDriftInfo = false;
+            minIonMobility = double.MaxValue;
+            maxIonMobility = double.MinValue;
+            var hasIonMobilityInfo = false;
+            int i = 0;
             foreach (var transition in ScanProvider.Transitions)
             {
-                if (!transition.IonMobilityValue.HasValue || !transition.IonMobilityExtractionWidth.HasValue)
+                if (!transition._ionMobilityInfo.HasIonMobilityValue || !transition._ionMobilityInfo.IonMobilityExtractionWindowWidth.HasValue)
                 {
                     // Accept all values
-                    minDrift = double.MinValue;
-                    maxDrift = double.MaxValue;
+                    minIonMobility = double.MinValue;
+                    maxIonMobility = double.MaxValue;
                 }
-                else if (sourceType == ChromSource.unknown || transition.Source == sourceType)
+                else if (sourceType == ChromSource.unknown || (transition.Source == sourceType && i == TransitionIndex))
                 {
-                    // Products and precursors may have different expected drift time values in Waters MsE
-                    double startDrift = transition.IonMobilityValue.Value -
-                                        transition.IonMobilityExtractionWidth.Value / 2;
-                    double endDrift = startDrift + transition.IonMobilityExtractionWidth.Value;
-                    minDrift = Math.Min(minDrift, startDrift);
-                    maxDrift = Math.Max(maxDrift, endDrift);
-                    hasDriftInfo = true;
+                    // Products and precursors may have different expected ion mobility values in Waters MsE
+                    double startIM = transition._ionMobilityInfo.IonMobility.Mobility.Value -
+                                        transition._ionMobilityInfo.IonMobilityExtractionWindowWidth.Value / 2;
+                    double endIM = startIM + transition._ionMobilityInfo.IonMobilityExtractionWindowWidth.Value;
+                    minIonMobility = Math.Min(minIonMobility, startIM);
+                    maxIonMobility = Math.Max(maxIonMobility, endIM);
+                    hasIonMobilityInfo = true;
                 }
+                i++;
             }
-            return hasDriftInfo;
+            return hasIonMobilityInfo;
         }
 
-        public int[][] GetScanIndexes()
+        /// <summary>
+        /// Return a collisional cross section for this ion mobility at this mz, if reader supports this
+        /// </summary>
+        public double? CCSFromIonMobility(IonMobilityValue ionMobility, double mz, int charge)
+        {
+            if (ScanProvider == null)
+            {
+                return null;
+            }
+            return ScanProvider.CCSFromIonMobility(ionMobility, mz, charge);
+        }
+
+        public bool ProvidesCollisionalCrossSectionConverter
+        {
+            get { return ScanProvider != null && ScanProvider.ProvidesCollisionalCrossSectionConverter; }
+        }
+
+        public eIonMobilityUnits IonMobilityUnits
+        {
+            get
+            {
+                return ScanProvider.IonMobilityUnits;
+            }
+        }
+
+        public TimeIntensities GetTimeIntensities(ChromSource source)
         {
             if (ScanProvider != null)
             {
                 foreach (var transition in ScanProvider.Transitions)
                 {
-                    if (transition.Source == ScanProvider.Source)
-                        return transition.ScanIndexes;
+                    if (transition.Source == source)
+                        return transition.TimeIntensities;
                 }
             }
             return null;
         }
 
+        public IList<int> GetScanIndexes(ChromSource source)
+        {
+            return GetTimeIntensities(source)?.ScanIds;
+        }
+
         public int GetScanIndex()
         {
-            var scanIndexes = GetScanIndexes();
-            var result = scanIndexes != null ? scanIndexes[(int)Source][ScanIndex] : -1;
+            var scanIndexes = GetScanIndexes(Source);
+            var result = scanIndexes != null ? scanIndexes[ScanIndex] : -1;
             if (result < 0)
                 MsDataSpectra = null;
             return result;
         }
 
-        public static int FindScanIndex(ChromatogramGroupInfo chromatogramGroupInfo, double retentionTime)
+        public static int FindScanIndex(ChromatogramInfo chromatogramInfo, double retentionTime)
         {
-            if (chromatogramGroupInfo.ScanIndexes == null)
+            if (chromatogramInfo.TimeIntensities.ScanIds == null)
                 return -1;
-            return FindScanIndex(chromatogramGroupInfo, retentionTime, 0, chromatogramGroupInfo.Times.Length);
+            return FindScanIndex(chromatogramInfo.Times, retentionTime, 0, chromatogramInfo.Times.Count);
         }
 
-        private static int FindScanIndex(ChromatogramGroupInfo chromatogramGroupInfo, double retentionTime, int startIndex, int endIndex)
+        public static int FindScanIndex(IList<float> times, double retentionTime)
+        {
+            return FindScanIndex(times, retentionTime, 0, times.Count);
+        }
+
+        private static int FindScanIndex(IList<float> times, double retentionTime, int startIndex, int endIndex)
         {
             if (endIndex - startIndex <= 1)
                 return startIndex;
 
             int index = (startIndex + endIndex) / 2;
-            return (retentionTime < chromatogramGroupInfo.Times[index])
-                ? FindScanIndex(chromatogramGroupInfo, retentionTime, startIndex, index)
-                : FindScanIndex(chromatogramGroupInfo, retentionTime, index, endIndex);
+            return (retentionTime < times[index])
+                ? FindScanIndex(times, retentionTime, startIndex, index)
+                : FindScanIndex(times, retentionTime, index, endIndex);
         }
 
         public void UpdateScanProvider(IScanProvider scanProvider, int transitionIndex, int scanIndex)
@@ -170,7 +235,6 @@ namespace pwiz.Skyline.Model.Results
             private IScanProvider _scanProvider;
             private readonly List<IScanProvider> _cachedScanProviders;
             private readonly List<IScanProvider> _oldScanProviders;
-            // ReSharper disable once PrivateFieldCanBeConvertedToLocalVariable
             private readonly Thread _backgroundThread;
 
             private readonly Action<MsDataSpectrum[]> _successAction;
@@ -204,7 +268,7 @@ namespace pwiz.Skyline.Model.Results
                 get { return GetProviderProperty(p => p.Transitions, new TransitionFullScanInfo[0]); }
             }
 
-            public float[] Times
+            public IList<float> Times
             {
                 get { return GetProviderProperty(p => p.Times, new float[0]); }
             }
@@ -218,47 +282,85 @@ namespace pwiz.Skyline.Model.Results
             }
 
             /// <summary>
+            /// Return a collisional cross section for this ion mobility at this mz, if reader supports this
+            /// </summary>
+            public double? CCSFromIonMobility(IonMobilityValue ionMobility, double mz, int charge)
+            {
+                if (_scanProvider == null)
+                {
+                    return null;
+                }
+                return _scanProvider.CCSFromIonMobility(ionMobility, mz, charge);
+            }
+
+            public eIonMobilityUnits IonMobilityUnits
+            {
+                get
+                {
+                    return _scanProvider != null
+                        ? _scanProvider.IonMobilityUnits
+                        : eIonMobilityUnits.none;
+                } }
+
+            public bool ProvidesCollisionalCrossSectionConverter { get { return _scanProvider != null && _scanProvider.ProvidesCollisionalCrossSectionConverter; } }
+
+            /// <summary>
             /// Always run on a specific background thread to avoid changing threads when dealing
             /// with a scan provider, which can mess up data readers used by ProteoWizard.
             /// </summary>
             private void Work()
             {
-                while (!_disposing)
+                try
                 {
-                    IScanProvider scanProvider;
-                    int internalScanIndex;
+                    while (!_disposing)
+                    {
+                        IScanProvider scanProvider;
+                        int internalScanIndex;
 
+                        lock (this)
+                        {
+                            while (!_disposing && (_scanProvider == null || _scanIndexNext < 0) && _oldScanProviders.Count == 0)
+                                Monitor.Wait(this);
+                            if (_disposing)
+                                break;
+
+                            scanProvider = _scanProvider;
+                            internalScanIndex = _scanIndexNext;
+                            _scanIndexNext = -1;
+                        }
+
+                        if (scanProvider != null && internalScanIndex != -1)
+                        {
+                            try
+                            {
+                                var msDataSpectra = scanProvider.GetMsDataFileSpectraWithCommonRetentionTime(internalScanIndex); // Get a collection of scans with changing ion mobility but same retention time, or single scan if no ion mobility info
+                                _successAction(msDataSpectra);
+                            }
+                            catch (Exception ex)
+                            {
+                                try
+                                {
+                                    _failureAction(ex);
+                                }
+                                catch (Exception exFailure)
+                                {
+                                    Program.ReportException(exFailure);
+                                }
+                            }
+                        }
+
+                        DisposeAllProviders();
+                    }
+                }
+                finally
+                {
                     lock (this)
                     {
-                        while ((_scanProvider == null || _scanIndexNext < 0) && _oldScanProviders.Count == 0)
-                            Monitor.Wait(this);
+                        SetScanProvider(null);
+                        DisposeAllProviders();
 
-                        scanProvider = _scanProvider;
-                        internalScanIndex = _scanIndexNext;
-                        _scanIndexNext = -1;
+                        Monitor.PulseAll(this);
                     }
-
-                    if (scanProvider != null && internalScanIndex != -1)
-                    {
-                        try
-                        {
-                            var msDataSpectra = scanProvider.GetMsDataFileSpectraWithCommonRetentionTime(internalScanIndex); // Get a collection of scans with increasing drift time but same retention time, or single scan if no drift info
-                            _successAction(msDataSpectra);
-                        }
-                        catch (Exception ex)
-                        {
-                            _failureAction(ex);
-                        }
-                    }
-
-                    DisposeAllProviders();
-                }
-
-                lock (this)
-                {
-                    DisposeAllProviders();
-
-                    Monitor.PulseAll(this);
                 }
             }
 
@@ -339,6 +441,8 @@ namespace pwiz.Skyline.Model.Results
                     _disposing = true;
                     SetScanProvider(null);
                 }
+                // Make sure the background thread goes away
+                _backgroundThread.Join();
             }
         }
 

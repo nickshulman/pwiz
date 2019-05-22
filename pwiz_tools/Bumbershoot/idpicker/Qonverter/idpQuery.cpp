@@ -31,6 +31,7 @@
 #include "boost/variant.hpp"
 
 #include "SchemaUpdater.hpp"
+#include "IdpSqlExtensions.hpp"
 #include "Parser.hpp"
 #include "Embedder.hpp"
 #include "sqlite3pp.h"
@@ -56,84 +57,248 @@ BOOST_ENUM(GroupBy,
     (Cluster)
     (Gene)
     (GeneGroup)
-    /*(DistinctMatch)
+    (DistinctMatch)
     (Peptide)
     (PeptideGroup)
-    (PeptideSpectrumMatch)
     (Spectrum)
-    (SpectrumSourceAndGroup)
+    /*(PeptideSpectrumMatch)
+    (SpectrumSourceAndGroup)*/
     (Modification)
     (DeltaMass)
-    (ModifiedSite)*/
+    (ModifiedSite)
+    (ProteinSite)
 );
 
 typedef pair<string, int> SqlColumn;
 
-BOOST_ENUM_VALUES(ProteinColumn, SqlColumn,
-    (Invalid)(make_pair("", 0))
-    (Accession)(make_pair("GROUP_CONCAT(DISTINCT pro.Accession)", SQLITE_TEXT))
-    (GeneId)(make_pair("GROUP_CONCAT(DISTINCT pro.GeneId)", SQLITE_TEXT))
-    (GeneGroup)(make_pair("pro.GeneGroup", SQLITE_INTEGER))
-    (DistinctPeptides)(make_pair("COUNT(DISTINCT pi.Peptide)", SQLITE_INTEGER))
-    (DistinctMatches)(make_pair("COUNT(DISTINCT dm.DistinctMatchId)", SQLITE_INTEGER))
-    (FilteredSpectra)(make_pair("COUNT(DISTINCT psm.Spectrum)", SQLITE_INTEGER))
-    (IsDecoy)(make_pair("pro.IsDecoy", SQLITE_INTEGER))
-    (Cluster)(make_pair("pro.Cluster", SQLITE_INTEGER))
-    (ProteinGroup)(make_pair("pro.ProteinGroup", SQLITE_INTEGER))
-    (Length)(make_pair("pro.Length", SQLITE_INTEGER))
-    (PercentCoverage)(make_pair("ROUND(pc.Coverage, 2)", SQLITE_FLOAT))
-    (Sequence)(make_pair("pd.Sequence", SQLITE_TEXT))
-    (Description)(make_pair("pmd.Description", SQLITE_TEXT))
-    (TaxonomyId)(make_pair("pmd.TaxonomyId", SQLITE_INTEGER))
-    (GeneName)(make_pair("pmd.GeneName", SQLITE_TEXT))
-    (GeneFamily)(make_pair("pmd.GeneFamily", SQLITE_TEXT))
-    (Chromosome)(make_pair("pmd.Chromosome", SQLITE_TEXT))
-    (GeneDescription)(make_pair("pmd.GeneDescription", SQLITE_TEXT))
-    (PrecursorIntensity)(make_pair("IFNULL(SUM(DISTINCT xic.PeakIntensity), 0)", SQLITE_FLOAT))
-    (PrecursorArea)(make_pair("IFNULL(SUM(DISTINCT xic.PeakArea), 0)", SQLITE_FLOAT))
-    (PrecursorBestSNR)(make_pair("IFNULL(MAX(xic.PeakSNR), 0)", SQLITE_FLOAT))
-    (PrecursorMeanSNR)(make_pair("IFNULL(AVG(DISTINCT xic.PeakSNR), 0)", SQLITE_FLOAT))
-    (iTRAQ4plex)(make_pair("IFNULL(DISTINCT_DOUBLE_ARRAY_SUM(sq.iTRAQ_ReporterIonIntensities), 0)", SQLITE_BLOB))
-    (iTRAQ8plex)(make_pair("IFNULL(DISTINCT_DOUBLE_ARRAY_SUM(sq.iTRAQ_ReporterIonIntensities), 0)", SQLITE_BLOB))
-    (TMT2plex)(make_pair("IFNULL(DISTINCT_DOUBLE_ARRAY_SUM(sq.TMT_ReporterIonIntensities), 0)", SQLITE_BLOB))
-    (TMT6plex)(make_pair("IFNULL(DISTINCT_DOUBLE_ARRAY_SUM(sq.TMT_ReporterIonIntensities), 0)", SQLITE_BLOB))
-    (TMT10plex)(make_pair("IFNULL(DISTINCT_DOUBLE_ARRAY_SUM(sq.TMT_ReporterIonIntensities), 0)", SQLITE_BLOB))
-    (PivotMatchesByGroup)(make_pair("0", SQLITE_INTEGER))
-    (PivotMatchesBySource)(make_pair("0", SQLITE_INTEGER))
-    (PivotPeptidesByGroup)(make_pair("0", SQLITE_INTEGER))
-    (PivotPeptidesBySource)(make_pair("0", SQLITE_INTEGER))
-    (PivotSpectraByGroup)(make_pair("0", SQLITE_INTEGER))
-    (PivotSpectraBySource)(make_pair("0", SQLITE_INTEGER))
-    (PivotPrecursorIntensityByGroup)(make_pair("0", SQLITE_FLOAT))
-    (PivotPrecursorIntensityBySource)(make_pair("0", SQLITE_FLOAT))
-    (PivotPrecursorAreaByGroup)(make_pair("0", SQLITE_FLOAT))
-    (PivotPrecursorAreaBySource)(make_pair("0", SQLITE_FLOAT))
-    (PivotPrecursorBestSNRByGroup)(make_pair("0", SQLITE_FLOAT))
-    (PivotPrecursorBestSNRBySource)(make_pair("0", SQLITE_FLOAT))
-    (PivotPrecursorMeanSNRByGroup)(make_pair("0", SQLITE_FLOAT))
-    (PivotPrecursorMeanSNRBySource)(make_pair("0", SQLITE_FLOAT))
-    (PivotITRAQByGroup)(make_pair("0", SQLITE_BLOB))
-    (PivotITRAQBySource)(make_pair("0", SQLITE_BLOB))
-    (PivotTMTByGroup)(make_pair("0", SQLITE_BLOB))
-    (PivotTMTBySource)(make_pair("0", SQLITE_BLOB))
-    (PeptideGroups)(make_pair("GROUP_CONCAT(DISTINCT pep.PeptideGroup)", SQLITE_TEXT))
-    (PeptideSequences)(make_pair("GROUP_CONCAT(DISTINCT (SELECT IFNULL(SUBSTR(pd.Sequence, pi.Offset+1, pi.Length), pep.DecoySequence) FROM PeptideInstance pi LEFT JOIN ProteinData pd ON pi.Protein=pd.Id WHERE pep.Id=pi.Peptide))", SQLITE_TEXT))
+#define SHARED_QUANTATITIVE_COLUMNS \
+    (DistinctPeptides) \
+    (DistinctMatches) \
+    (FilteredSpectra) \
+    (PrecursorIntensity) \
+    (PrecursorArea) \
+    (PrecursorBestSNR) \
+    (PrecursorMeanSNR) \
+    (iTRAQ4plex) \
+    (iTRAQ8plex) \
+    (TMT2plex) \
+    (TMT6plex) \
+    (TMT10plex) \
+    (PivotMatchesByGroup) \
+    (PivotMatchesBySource) \
+    (PivotPeptidesByGroup) \
+    (PivotPeptidesBySource) \
+    (PivotSpectraByGroup) \
+    (PivotSpectraBySource) \
+    (PivotPrecursorIntensityByGroup) \
+    (PivotPrecursorIntensityBySource) \
+    (PivotPrecursorAreaByGroup) \
+    (PivotPrecursorAreaBySource) \
+    (PivotPrecursorBestSNRByGroup) \
+    (PivotPrecursorBestSNRBySource) \
+    (PivotPrecursorMeanSNRByGroup) \
+    (PivotPrecursorMeanSNRBySource) \
+    (PivotITRAQByGroup) \
+    (PivotITRAQBySource) \
+    (PivotTMTByGroup) \
+    (PivotTMTBySource)
+
+BOOST_ENUM_VALUES(QuantitationRollupMethod, const char*, \
+        (Invalid)("") \
+        (Sum)("DISTINCT_DOUBLE_ARRAY_SUM") \
+        (Mean)("DISTINCT_DOUBLE_ARRAY_MEAN") \
+        (Median)("DISTINCT_DOUBLE_ARRAY_MEDIAN") \
+        (Tukey)("DISTINCT_DOUBLE_ARRAY_TUKEY_BIWEIGHT_AVERAGE") \
+        (TukeyLog)("DISTINCT_DOUBLE_ARRAY_TUKEY_BIWEIGHT_LOG_AVERAGE") \
+    );
+
+#define SHARED_QUANTITATIVE_SQLCOLUMNS(ns) \
+    case ns::DistinctPeptides: return make_pair("COUNT(DISTINCT pi.Peptide)", SQLITE_INTEGER); \
+    case ns::DistinctMatches: return make_pair("COUNT(DISTINCT dm.DistinctMatchId)", SQLITE_INTEGER); \
+    case ns::FilteredSpectra: return make_pair("COUNT(DISTINCT psm.Spectrum)", SQLITE_INTEGER); \
+    case ns::PrecursorIntensity: return make_pair("IFNULL(SUM(DISTINCT xic.PeakIntensity), 0)", SQLITE_FLOAT); \
+    case ns::PrecursorArea: return make_pair("IFNULL(SUM(DISTINCT xic.PeakArea), 0)", SQLITE_FLOAT); \
+    case ns::PrecursorBestSNR: return make_pair("IFNULL(MAX(xic.PeakSNR), 0)", SQLITE_FLOAT); \
+    case ns::PrecursorMeanSNR: return make_pair("IFNULL(AVG(DISTINCT xic.PeakSNR), 0)", SQLITE_FLOAT); \
+    case ns::iTRAQ4plex: return make_pair("IFNULL(DISTINCT_DOUBLE_ARRAY_SUM(sq.iTRAQ_ReporterIonIntensities), 0)", SQLITE_BLOB); \
+    case ns::iTRAQ8plex: return make_pair("IFNULL(DISTINCT_DOUBLE_ARRAY_SUM(sq.iTRAQ_ReporterIonIntensities), 0)", SQLITE_BLOB); \
+    case ns::TMT2plex: return make_pair("IFNULL(DISTINCT_DOUBLE_ARRAY_SUM(sq.TMT_ReporterIonIntensities), 0)", SQLITE_BLOB); \
+    case ns::TMT6plex: return make_pair("IFNULL(DISTINCT_DOUBLE_ARRAY_SUM(sq.TMT_ReporterIonIntensities), 0)", SQLITE_BLOB); \
+    case ns::TMT10plex: return make_pair("IFNULL(DISTINCT_DOUBLE_ARRAY_SUM(sq.TMT_ReporterIonIntensities), 0)", SQLITE_BLOB); \
+    case ns::PivotMatchesByGroup: return make_pair("0", SQLITE_INTEGER); \
+    case ns::PivotMatchesBySource: return make_pair("0", SQLITE_INTEGER); \
+    case ns::PivotPeptidesByGroup: return make_pair("0", SQLITE_INTEGER); \
+    case ns::PivotPeptidesBySource: return make_pair("0", SQLITE_INTEGER); \
+    case ns::PivotSpectraByGroup: return make_pair("0", SQLITE_INTEGER); \
+    case ns::PivotSpectraBySource: return make_pair("0", SQLITE_INTEGER); \
+    case ns::PivotPrecursorIntensityByGroup: return make_pair("0", SQLITE_FLOAT); \
+    case ns::PivotPrecursorIntensityBySource: return make_pair("0", SQLITE_FLOAT); \
+    case ns::PivotPrecursorAreaByGroup: return make_pair("0", SQLITE_FLOAT); \
+    case ns::PivotPrecursorAreaBySource: return make_pair("0", SQLITE_FLOAT); \
+    case ns::PivotPrecursorBestSNRByGroup: return make_pair("0", SQLITE_FLOAT); \
+    case ns::PivotPrecursorBestSNRBySource: return make_pair("0", SQLITE_FLOAT); \
+    case ns::PivotPrecursorMeanSNRByGroup: return make_pair("0", SQLITE_FLOAT); \
+    case ns::PivotPrecursorMeanSNRBySource: return make_pair("0", SQLITE_FLOAT); \
+    case ns::PivotITRAQByGroup: return make_pair("0", SQLITE_BLOB); \
+    case ns::PivotITRAQBySource: return make_pair("0", SQLITE_BLOB); \
+    case ns::PivotTMTByGroup: return make_pair("0", SQLITE_BLOB); \
+    case ns::PivotTMTBySource: return make_pair("0", SQLITE_BLOB);
+
+
+BOOST_ENUM(ProteinColumn,
+    (Invalid)
+    (Accession)
+    (GeneId)
+    (GeneGroup)
+    (IsDecoy)
+    (Cluster)
+    (ProteinGroup)
+    (Length)
+    (PercentCoverage)
+    (Sequence)
+    (Description)
+    (TaxonomyId)
+    (GeneName)
+    (GeneFamily)
+    (Chromosome)
+    (GeneDescription)
+    (PeptideGroups)
+    (PeptideSequences)
+    SHARED_QUANTATITIVE_COLUMNS
 );
 
-/*DistinctMatch, Peptide, PeptideGroup
-Sequence
-DistinctPeptides
-DistinctMatches
-FilteredSpectra
-MonoisotopicMass
-MolecularWeight
-PeptideGroup
-ProteinGroups
-ProteinAccessions
-Proteins
-iTRAQ
-TMT
-*/
+SqlColumn getSqlColumn(ProteinColumn column)
+{
+    switch (column.index())
+    {
+        default: throw runtime_error(string("[getSqlColumn] BUG: no case for ProteinColumn::") + column.str());
+
+        case ProteinColumn::Invalid: return make_pair("", 0);
+        case ProteinColumn::Accession: return make_pair("GROUP_CONCAT(DISTINCT pro.Accession)", SQLITE_TEXT);
+        case ProteinColumn::GeneId: return make_pair("SORT_UNMAPPED_LAST(GROUP_CONCAT(DISTINCT pro.GeneId))", SQLITE_TEXT);
+        case ProteinColumn::GeneGroup: return make_pair("pro.GeneGroup", SQLITE_INTEGER);
+        case ProteinColumn::IsDecoy: return make_pair("pro.IsDecoy", SQLITE_INTEGER);
+        case ProteinColumn::Cluster: return make_pair("pro.Cluster", SQLITE_INTEGER);
+        case ProteinColumn::ProteinGroup: return make_pair("pro.ProteinGroup", SQLITE_INTEGER);
+        case ProteinColumn::Length: return make_pair("pro.Length", SQLITE_INTEGER);
+        case ProteinColumn::PercentCoverage: return make_pair("ROUND(pc.Coverage, 2)", SQLITE_FLOAT);
+        case ProteinColumn::Sequence: return make_pair("pd.Sequence", SQLITE_TEXT);
+        case ProteinColumn::Description: return make_pair("pmd.Description", SQLITE_TEXT);
+        case ProteinColumn::TaxonomyId: return make_pair("pmd.TaxonomyId", SQLITE_INTEGER);
+        case ProteinColumn::GeneName: return make_pair("pmd.GeneName", SQLITE_TEXT);
+        case ProteinColumn::GeneFamily: return make_pair("pmd.GeneFamily", SQLITE_TEXT);
+        case ProteinColumn::Chromosome: return make_pair("pmd.Chromosome", SQLITE_TEXT);
+        case ProteinColumn::GeneDescription: return make_pair("pmd.GeneDescription", SQLITE_TEXT);
+        case ProteinColumn::PeptideGroups: return make_pair("GROUP_CONCAT(DISTINCT pep.PeptideGroup)", SQLITE_TEXT);
+        case ProteinColumn::PeptideSequences: return make_pair("GROUP_CONCAT(DISTINCT (SELECT IFNULL(SUBSTR(pd.Sequence, pi.Offset+1, pi.Length), pep.DecoySequence) FROM PeptideInstance pi LEFT JOIN ProteinData pd ON pi.Protein=pd.Id WHERE pep.Id=pi.Peptide))", SQLITE_TEXT);
+        SHARED_QUANTITATIVE_SQLCOLUMNS(ProteinColumn)
+    }
+}
+
+
+BOOST_ENUM(PeptideColumn,
+    (Invalid)
+    (MonoisotopicMass)
+    (MolecularWeight)
+    (ProteinCount)
+    (ProteinGroupCount)
+    (ProteinAccessions)
+    (GeneIds)
+    (GeneGroups)
+    (IsDecoy)
+    (Cluster)
+    (ProteinGroups)
+    (Length)
+    (ProteinDescriptions)
+    (TaxonomyIds)
+    (GeneNames)
+    (GeneFamilies)
+    (Chromosomes)
+    (GeneDescriptions)
+    (PeptideGroup)
+    (Sequence)
+    (Instances)
+    (Modifications)
+    (Charges)
+    (SpectrumId)
+    SHARED_QUANTATITIVE_COLUMNS
+);
+
+SqlColumn getSqlColumn(PeptideColumn column)
+{
+    switch (column.index())
+    {
+        default: throw runtime_error(string("[getSqlColumn] BUG: no case for PeptideColumn::") + column.str());
+
+        case PeptideColumn::Invalid: return make_pair("", 0);
+        case PeptideColumn::MonoisotopicMass: return make_pair("pep.MonoisotopicMass", SQLITE_FLOAT);
+        case PeptideColumn::MolecularWeight: return make_pair("pep.MolecularWeight", SQLITE_FLOAT);
+        case PeptideColumn::ProteinCount: return make_pair("COUNT(DISTINCT pro.Id)", SQLITE_INTEGER);
+        case PeptideColumn::ProteinGroupCount: return make_pair("COUNT(DISTINCT pro.ProteinGroup)", SQLITE_INTEGER);
+        case PeptideColumn::ProteinAccessions: return make_pair("GROUP_CONCAT(DISTINCT pro.Accession)", SQLITE_TEXT);
+        case PeptideColumn::GeneIds: return make_pair("SORT_UNMAPPED_LAST(GROUP_CONCAT(DISTINCT pro.GeneId))", SQLITE_TEXT);
+        case PeptideColumn::GeneGroups: return make_pair("GROUP_CONCAT(DISTINCT pro.GeneGroup)", SQLITE_TEXT);
+        case PeptideColumn::IsDecoy: return make_pair("pro.IsDecoy", SQLITE_INTEGER);
+        case PeptideColumn::Cluster: return make_pair("pro.Cluster", SQLITE_INTEGER);
+        case PeptideColumn::ProteinGroups: return make_pair("GROUP_CONCAT(DISTINCT pro.ProteinGroup)", SQLITE_TEXT);
+        case PeptideColumn::Length: return make_pair("pi.Length", SQLITE_INTEGER);
+        case PeptideColumn::ProteinDescriptions: return make_pair("GROUP_CONCAT(DISTINCT pmd.Description)", SQLITE_TEXT);
+        case PeptideColumn::TaxonomyIds: return make_pair("GROUP_CONCAT(DISTINCT pmd.TaxonomyId)", SQLITE_TEXT);
+        case PeptideColumn::GeneNames: return make_pair("GROUP_CONCAT(DISTINCT pmd.GeneName)", SQLITE_TEXT);
+        case PeptideColumn::GeneFamilies: return make_pair("GROUP_CONCAT(DISTINCT pmd.GeneFamily)", SQLITE_TEXT);
+        case PeptideColumn::Chromosomes: return make_pair("GROUP_CONCAT(DISTINCT pmd.Chromosome)", SQLITE_TEXT);
+        case PeptideColumn::GeneDescriptions: return make_pair("GROUP_CONCAT(DISTINCT pmd.GeneDescription)", SQLITE_TEXT);
+        case PeptideColumn::PeptideGroup: return make_pair("pep.PeptideGroup", SQLITE_INTEGER);
+        case PeptideColumn::Sequence: return make_pair("(SELECT IFNULL(SUBSTR(pd.Sequence, pi.Offset+1, pi.Length), pep.DecoySequence) FROM PeptideInstance pi LEFT JOIN ProteinData pd ON pi.Protein=pd.Id WHERE pep.Id=pi.Peptide)", SQLITE_TEXT);
+        case PeptideColumn::Instances: return make_pair("(SELECT GROUP_CONCAT(DISTINCT pro.Accession || '@' || (pi.Offset+1)) "
+                                                        "FROM PeptideInstance pi_ "
+                                                        "LEFT JOIN ProteinData pro ON pi.Protein = pro.Id "
+                                                        "WHERE psm.Peptide = pi_.Peptide)", SQLITE_TEXT);
+        case PeptideColumn::Modifications: return make_pair("IFNULL((SELECT GROUP_CONCAT(DISTINCT (ROUND(mod_.MonoMassDelta/{ModificationMassRoundToNearest})*{ModificationMassRoundToNearest}) || '@' || pm_.Site || (pm_.Offset+1)) "
+                                                            "        FROM PeptideSpectrumMatch psm_, Peptide pep_, DistinctMatch dm_ "
+                                                            "        LEFT JOIN PeptideModification pm_ ON psm_.Id = pm_.PeptideSpectrumMatch "
+                                                            "        LEFT JOIN Modification mod_ ON pm_.Modification = mod_.Id "
+                                                            "        WHERE {GroupBy} = {SubGroupBy} AND psm_.Peptide=pep_.Id AND psm_.Id=dm_.PsmId "
+                                                            "        GROUP BY {SubGroupBy}), '')", SQLITE_TEXT);
+        case PeptideColumn::Charges: return make_pair("GROUP_CONCAT(DISTINCT psm.Charge)", SQLITE_TEXT);
+        case PeptideColumn::SpectrumId: return make_pair("GROUP_CONCAT(DISTINCT ssg.Name || '/' || ss.Name || '/' || s.NativeID)", SQLITE_TEXT);
+        SHARED_QUANTITATIVE_SQLCOLUMNS(PeptideColumn)
+    }
+}
+
+
+BOOST_ENUM(ModificationColumn,
+    (Invalid)
+    (MonoDeltaMass)
+    (AvgDeltaMass)
+    (ProteinOffsets)
+    (ModifiedSite)
+    (ProteinSite)
+    (PeptideSequences)
+    SHARED_QUANTATITIVE_COLUMNS
+);
+
+SqlColumn getSqlColumn(ModificationColumn column)
+{
+    switch (column.index())
+    {
+        default: throw runtime_error(string("[getSqlColumn] BUG: no case for ModificationColumn::") + column.str());
+
+        case ModificationColumn::Invalid: return make_pair("", 0);
+        case ModificationColumn::MonoDeltaMass: return make_pair("GROUP_CONCAT(DISTINCT ROUND(mod.MonoMassDelta/{ModificationMassRoundToNearest})*{ModificationMassRoundToNearest})", SQLITE_FLOAT);
+        case ModificationColumn::AvgDeltaMass: return make_pair("GROUP_CONCAT(DISTINCT ROUND(mod.AvgMassDelta/{ModificationMassRoundToNearest})*{ModificationMassRoundToNearest})", SQLITE_FLOAT);
+        case ModificationColumn::ProteinOffsets: return make_pair("(SELECT GROUP_CONCAT(DISTINCT (pro.Accession || '@' || (pi.Offset+(CASE WHEN pm.Offset<0 THEN 0 WHEN pm.Offset>=pi.Length THEN (pi.Length-1) ELSE pm.Offset END)+1))) "
+                                                                  "FROM PeptideInstance pi_ "
+                                                                  "LEFT JOIN ProteinData pro ON pi.Protein = pro.Id "
+                                                                  "JOIN PeptideModification pm_ ON psm.Id = pm_.PeptideSpectrumMatch "
+                                                                  "JOIN Modification mod_ ON pm_.Modification = mod_.Id "
+                                                                  "WHERE psm.Peptide = pi_.Peptide)", SQLITE_TEXT);
+        case ModificationColumn::ModifiedSite: return make_pair("GROUP_CONCAT(DISTINCT pm.Site)", SQLITE_TEXT);
+        case ModificationColumn::ProteinSite: return make_pair("(pro.Accession || '@' || (pi.Offset+(CASE WHEN pm.Offset<0 THEN 0 WHEN pm.Offset>=pi.Length THEN (pi.Length-1) ELSE pm.Offset END)+1))", SQLITE_TEXT);
+        case ModificationColumn::PeptideSequences: return make_pair("GROUP_CONCAT(DISTINCT (SELECT IFNULL(SUBSTR(pd.Sequence, pi.Offset+1, pi.Length), pep.DecoySequence) FROM PeptideInstance pi LEFT JOIN ProteinData pd ON pi.Protein=pd.Id WHERE pep.Id=pi.Peptide))", SQLITE_TEXT);
+        SHARED_QUANTITATIVE_SQLCOLUMNS(ModificationColumn)
+    }
+}
 
 /*PeptideSpectrumMatch, Spectrum, SpectrumSourceAndGroup
 Key
@@ -171,37 +336,39 @@ struct ReporterIon
 {
     const char* name;
     size_t index;
+    bool empty;
+    bool reference;
 };
 
 ReporterIon iTRAQ_ions[8] =
 {
-    { "113", 0 },
-    { "114", 1 },
-    { "115", 2 },
-    { "116", 3 },
-    { "117", 4 },
-    { "118", 5 },
-    { "119", 6 },
-    { "121", 7 }
+    { "113", 0, false, false },
+    { "114", 1, false, false },
+    { "115", 2, false, false },
+    { "116", 3, false, false },
+    { "117", 4, false, false },
+    { "118", 5, false, false },
+    { "119", 6, false, false },
+    { "121", 7, false, false }
 };
 ReporterIon itraq4plexIons[4] = { iTRAQ_ions[1], iTRAQ_ions[2], iTRAQ_ions[3], iTRAQ_ions[4] };
 ReporterIon itraq8plexIons[8] = { iTRAQ_ions[0], iTRAQ_ions[1], iTRAQ_ions[2], iTRAQ_ions[3], iTRAQ_ions[4], iTRAQ_ions[5], iTRAQ_ions[6], iTRAQ_ions[7] };
 
 ReporterIon TMT_ions[10] =
 {
-    { "126", 0 },
-    { "127N", 1 },
-    { "127C", 2 },
-    { "128N", 3 },
-    { "128C", 4 },
-    { "129N", 5 },
-    { "129C", 6 },
-    { "130N", 7 },
-    { "130C", 8 },
-    { "131", 9 }
+    { "126", 0, false, false },
+    { "127N", 1, false, false },
+    { "127C", 2, false, false },
+    { "128N", 3, false, false },
+    { "128C", 4, false, false },
+    { "129N", 5, false, false },
+    { "129C", 6, false, false },
+    { "130N", 7, false, false },
+    { "130C", 8, false, false },
+    { "131", 9, false, false }
 };
 ReporterIon tmt2plexIons[2] = { TMT_ions[0], TMT_ions[2] };
-ReporterIon tmt6plexIons[6] = { TMT_ions[0], TMT_ions[2], TMT_ions[4], TMT_ions[6], TMT_ions[8], TMT_ions[9] };
+ReporterIon tmt6plexIons[6] = { TMT_ions[0], TMT_ions[1], TMT_ions[4], TMT_ions[5], TMT_ions[8], TMT_ions[9] };
 ReporterIon tmt10plexIons[10] = { TMT_ions[0], TMT_ions[1], TMT_ions[2], TMT_ions[3], TMT_ions[4], TMT_ions[5], TMT_ions[6], TMT_ions[7], TMT_ions[8], TMT_ions[9] };
 
 
@@ -213,33 +380,66 @@ void writeBlobArray(const void* blob, ostream& os, const vector<ReporterIon>& ar
 
     if (blob == NULL)
     {
-        os << "0";
-        for (size_t i=1; i < arrayInfo.size(); ++i)
-            os << "\t0";
+        for (size_t i = 0; i < arrayInfo.size(); ++i)
+            if (!arrayInfo[i].empty && !arrayInfo[i].reference)
+                os << "0\t";
+        os.seekp(-1, ios::cur);
         return;
     }
 
     const ArrayType* blobArray = reinterpret_cast<const ArrayType*>(blob);
-    streamsize oldPrecision = os.precision(0);
+
+    ArrayType referenceValue = 1;
+    for (size_t i = 0; i < arrayInfo.size(); ++i)
+        if (arrayInfo[i].reference)
+        {
+            referenceValue = blobArray[arrayInfo[i].index];
+            break;
+        }
+
+    if (referenceValue == 0)
+        referenceValue = 1; // don't divide by zero
+
     ios::fmtflags oldFlags = os.flags(ios::fixed);
     for (size_t i = 0; i < arrayInfo.size(); ++i)
-        os << blobArray[arrayInfo[i].index] << '\t';
+        if (!arrayInfo[i].empty && !arrayInfo[i].reference)
+            os << blobArray[arrayInfo[i].index] / referenceValue << '\t';
     os.seekp(-1, ios::cur);
-    os.precision(oldPrecision);
     os.flags(oldFlags);
+}
+
+
+string getGroupByString(GroupBy groupBy, double ModificationMassRoundToNearest)
+{
+    switch (groupBy.index())
+    {
+        case GroupBy::Protein:          return "pro.Id";
+        case GroupBy::ProteinGroup:     return "pro.ProteinGroup";
+        case GroupBy::Cluster:          return "pro.Cluster";
+        case GroupBy::Gene:             return "pro.GeneId";
+        case GroupBy::GeneGroup:        return "pro.GeneGroup";
+
+        case GroupBy::DistinctMatch:    return "dm.DistinctMatchId";
+        case GroupBy::Peptide:          return "psm.Peptide";
+        case GroupBy::PeptideGroup:     return "pep.PeptideGroup";
+        case GroupBy::Spectrum:         return "s.Id || '/' || psm.Peptide";
+
+        case GroupBy::Modification:     return "pm.Modification";
+        case GroupBy::DeltaMass:        return bal::replace_all_copy(string("ROUND(mod.MonoMassDelta/{ModificationMassRoundToNearest})*{ModificationMassRoundToNearest}"), string("{ModificationMassRoundToNearest}"), lexical_cast<string>(ModificationMassRoundToNearest));
+        case GroupBy::ModifiedSite:     return "pm.Site";
+        case GroupBy::ProteinSite:      return "(pro.Id*10000+pi.Offset+pm.Offset)";
+
+        default: throw runtime_error("[getGroupByString] invalid groupBy value");
+    }
 }
 
 
 typedef boost::variant<int, double, const void*> PivotDataType;
 typedef map<boost::int64_t, map<boost::int64_t, PivotDataType> > PivotDataMap;
 typedef map<size_t, PivotDataMap> PivotDataByColumnMap;
-void pivotData(sqlite::database& idpDB, GroupBy groupBy, const string& pivotMode, PivotDataMap& pivotDataMap)
+void pivotData(sqlite::database& idpDB, GroupBy groupBy, const string& pivotMode, PivotDataMap& pivotDataMap, double ModificationMassRoundToNearest, QuantitationRollupMethod rollupMethod)
 {
-    string groupByString = "pro.Id";
-    if (groupBy == GroupBy::ProteinGroup) groupByString = "pro.ProteinGroup";
-    else if (groupBy == GroupBy::Cluster) groupByString = "pro.Cluster";
-    else if (groupBy == GroupBy::Gene) groupByString = "pro.GeneId";
-    else if (groupBy == GroupBy::GeneGroup) groupByString = "pro.GeneGroup";
+    string groupByString = getGroupByString(groupBy, ModificationMassRoundToNearest);
 
     string pivotColumn;
     if (bal::ends_with(pivotMode, "Source"))
@@ -288,16 +488,20 @@ void pivotData(sqlite::database& idpDB, GroupBy groupBy, const string& pivotMode
                      "JOIN SpectrumSourceGroupLink ssgl ON ss.Id=ssgl.Source "
                      "JOIN SpectrumSourceGroup ssg ON ssgl.Group_=ssg.Id "
                      "JOIN PeptideInstance pi ON psm.Peptide=pi.Peptide "
+                     "JOIN Peptide pep ON pi.Peptide=pep.Id "
                      "JOIN Protein pro ON pi.Protein=pro.Id "
+                     "LEFT JOIN PeptideModification pm ON psm.Id = pm.PeptideSpectrumMatch "
+                     "LEFT JOIN Modification mod ON pm.Modification = mod.Id "
                      "LEFT JOIN SpectrumQuantitation sq ON psm.Spectrum=sq.Id "
                      "LEFT JOIN XICMetrics xic ON dm.DistinctMatchId=xic.DistinctMatch AND s.Source=xic.SpectrumSource " +
                      whereConstraint +
                      "GROUP BY " + groupByString + ", " + pivotColumn;
+        if (rollupMethod != QuantitationRollupMethod::Sum) bal::replace_all(sql, "DISTINCT_DOUBLE_ARRAY_SUM", rollupMethod.value());
         cout << sql << endl;
         sqlite::query q(idpDB, sql.c_str());
 
         if (bal::contains(countColumn, "ARRAY_SUM"))
-            BOOST_FOREACH(sqlite::query::rows row, q)
+            for(sqlite::query::rows row : q)
             {
                 int blobBytes = row.column_bytes(2);
                 if (blobBytes == 0)
@@ -307,7 +511,7 @@ void pivotData(sqlite::database& idpDB, GroupBy groupBy, const string& pivotMode
                 pivotDataMap[row.get<sqlite_int64>(0)][row.get<sqlite_int64>(1)] = blobCopy;
             }
         else
-            BOOST_FOREACH(sqlite::query::rows row, q)
+            for(sqlite::query::rows row : q)
                 pivotDataMap[row.get<sqlite_int64>(0)][row.get<sqlite_int64>(1)] = row.get<double>(2);
         return;
     }
@@ -321,12 +525,48 @@ void pivotData(sqlite::database& idpDB, GroupBy groupBy, const string& pivotMode
                  "JOIN SpectrumSourceGroupLink ssgl ON ss.Id=ssgl.Source "
                  "JOIN SpectrumSourceGroup ssg ON ssgl.Group_=ssg.Id "
                  "JOIN PeptideInstance pi ON psm.Peptide=pi.Peptide "
+                 "JOIN Peptide pep ON pi.Peptide=pep.Id "
                  "JOIN Protein pro ON pi.Protein=pro.Id "
+                 "LEFT JOIN PeptideModification pm ON psm.Id = pm.PeptideSpectrumMatch "
+                 "LEFT JOIN Modification mod ON pm.Modification = mod.Id "
                  "GROUP BY " + groupByString + ", " + pivotColumn;
+    if (rollupMethod != QuantitationRollupMethod::Sum) bal::replace_all(sql, "DISTINCT_DOUBLE_ARRAY_SUM", rollupMethod.value());
     cout << sql << endl;
     sqlite::query q(idpDB, sql.c_str());
-    BOOST_FOREACH(sqlite::query::rows row, q)
+    for(sqlite::query::rows row : q)
         pivotDataMap[row.get<sqlite_int64>(0)][row.get<sqlite_int64>(1)] = row.get<int>(2);
+}
+
+
+template <typename ColumnType>
+int parseColumns(const vector<string>& tokens, vector<ColumnType>& enumColumns, vector<SqlColumn>& sqlColumns)
+{
+    vector<string> invalidTokens;
+
+    for (size_t i = 0; i < tokens.size(); ++i)
+    {
+        ColumnType newColumn = ColumnType::get_by_name(tokens[i].c_str()).get_value_or(ColumnType::Invalid);
+        if (newColumn == ColumnType::Invalid)
+            invalidTokens.push_back(tokens[i]);
+        else
+        {
+            enumColumns.push_back(newColumn);
+            sqlColumns.push_back(getSqlColumn(newColumn));
+        }
+    }
+
+    if (!invalidTokens.empty())
+    {
+        cerr << "Invalid column choice" << (invalidTokens.size() > 1 ? "s" : "") << ":";
+        for (size_t i = 0; i < invalidTokens.size(); ++i)
+            cerr << " \"" << invalidTokens[i] << "\"";
+        cerr << "\nValid options are:" << endl;
+        for (typename ColumnType::const_iterator itr = ColumnType::begin() + 1; itr < ColumnType::end(); ++itr)
+            cerr << "  " << itr->str() << endl;
+        return 1;
+    }
+
+    return 0;
 }
 
 
@@ -366,15 +606,21 @@ vector<string> getReporterIonHeaders(const ReporterIon ions[], const set<Quantit
     return reporterIonColumnHeaders;
 }
 
-
-int proteinQuery(GroupBy groupBy, const bfs::path& filepath,
-                 const vector<ProteinColumn>& enumColumns,
-                 const vector<SqlColumn>& selectedColumns,
-                 const vector<string>& tokens)
+template <typename ColumnType>
+int doQuery(GroupBy groupBy,
+            const bfs::path& filepath,
+            const vector<string>& tokens,
+            double ModificationMassRoundToNearest,
+            QuantitationRollupMethod rollupMethod)
 {
+    vector<ColumnType> enumColumns;
+    vector<SqlColumn> selectedColumns;
+    if (parseColumns<ColumnType>(tokens, enumColumns, selectedColumns))
+        return 1;
+
     SchemaUpdater::update(filepath.string());
     sqlite::database idpDB(filepath.string());
-    SchemaUpdater::createUserSQLiteFunctions(idpDB.connected());
+    idpDB.load_extension("IdpSqlExtensions");
     //idpDB.execute("PRAGMA mmap_size=70368744177664; -- 2^46");
 
     try {sqlite::query q(idpDB, "SELECT Id FROM Protein LIMIT 1"); q.begin();}
@@ -395,13 +641,10 @@ int proteinQuery(GroupBy groupBy, const bfs::path& filepath,
     string outputFilepath = bfs::change_extension(filepath.string(), ".tsv").string();
     ofstream outputStream(outputFilepath.c_str(), ios::binary);
 
-    string groupByString = "pro.Id";
-    if (groupBy == GroupBy::ProteinGroup) groupByString = "pro.ProteinGroup";
-    else if (groupBy == GroupBy::Cluster) groupByString = "pro.Cluster";
-    else if (groupBy == GroupBy::Gene) groupByString = "pro.GeneId";
-    else if (groupBy == GroupBy::GeneGroup) groupByString = "pro.GeneGroup";
+    string groupByString = getGroupByString(groupBy, ModificationMassRoundToNearest);
 
-        
+    map<string, vector<string> > isobaricSamplesByGroup = Embedder::getIsobaricSampleMapping(filepath.string());
+
     PivotDataByColumnMap pivotDataByColumn;
     PivotDataByColumnMap::const_iterator findAbstractColumnItr;
     PivotDataMap::const_iterator findIdItr;
@@ -413,28 +656,39 @@ int proteinQuery(GroupBy groupBy, const bfs::path& filepath,
 
     sqlite::query quantitationMethodsQuery(idpDB, "SELECT DISTINCT QuantitationMethod FROM SpectrumSource");
     set<QuantitationMethod> quantitationMethods;
-    BOOST_FOREACH(sqlite::query::rows row, quantitationMethodsQuery)
+    for(sqlite::query::rows row : quantitationMethodsQuery)
         quantitationMethods.insert(QuantitationMethod::get_by_index(row.get<int>(0)).get());
+
+    map<boost::int64_t, string> groupNameById;
+    sqlite::query groupQuery(idpDB, "SELECT Id, Name FROM SpectrumSourceGroup");
+    for(sqlite::query::rows row : groupQuery)
+        groupNameById[row.get<sqlite_int64>(0)] = row.get<string>(1);
+
 
     vector<ReporterIon> itraqMethodIons, tmtMethodIons;
     if (quantitationMethods.count(QuantitationMethod::ITRAQ8plex) > 0)
-        itraqMethodIons.assign(itraq8plexIons, itraq8plexIons+8);
+        itraqMethodIons.assign(itraq8plexIons, itraq8plexIons + 8);
     else if (quantitationMethods.count(QuantitationMethod::ITRAQ4plex) > 0)
         itraqMethodIons.assign(itraq4plexIons, itraq4plexIons + 4);
 
     if (quantitationMethods.count(QuantitationMethod::TMT10plex) > 0)
         tmtMethodIons.assign(tmt10plexIons, tmt10plexIons + 10);
     else if (quantitationMethods.count(QuantitationMethod::TMT6plex) > 0)
-        tmtMethodIons.assign(tmt6plexIons, tmt10plexIons + 6);
+        tmtMethodIons.assign(tmt6plexIons, tmt6plexIons + 6);
     else if (quantitationMethods.count(QuantitationMethod::TMT2plex) > 0)
-        tmtMethodIons.assign(tmt2plexIons, tmt10plexIons + 2);
+        tmtMethodIons.assign(tmt2plexIons, tmt2plexIons + 2);
 
     bool hasITRAQ = false;
     bool hasTMT = false;
+    vector<bool> visibleColumns(selectedColumns.size(), true);
 
     // write column headers
     for (size_t i=0; i < tokens.size(); ++i)
     {
+        if ((bal::icontains(tokens[i], "itraq") && itraqMethodIons.empty()) ||
+            (bal::icontains(tokens[i], "tmt") && tmtMethodIons.empty()))
+            visibleColumns[i] = false; // this column will not be written to the output file
+
         if (tokens[i] == "iTRAQ4plex" && !hasITRAQ)
         {
             hasITRAQ = true;
@@ -477,44 +731,78 @@ int proteinQuery(GroupBy groupBy, const bfs::path& filepath,
         }
         else if (bal::starts_with(tokens[i], "Pivot"))
         {
-            string sql = bal::ends_with(tokens[i], "Source") ? "SELECT Name, Id FROM SpectrumSource ORDER BY Name"
-                                                             : "SELECT Name, Id FROM SpectrumSourceGroup ORDER BY Name";
+            bool groupBySource = bal::ends_with(tokens[i], "Source");
+            string sql = groupBySource ? "SELECT Name, Id FROM SpectrumSource ORDER BY Name"
+                                       : "SELECT Name, Id FROM SpectrumSourceGroup ORDER BY Name";
             sqlite::query q(idpDB, sql.c_str());
 
             vector<boost::int64_t>& pivotColumnIds = pivotColumnIdsByAbstractColumn[i];
+            string groupOrSourceName, sampleNamesString;
+            vector<string> sampleNames;
 
             if (bal::contains(tokens[i], "ITRAQ"))
             {
                 if (!itraqMethodIons.empty())
-                    BOOST_FOREACH(sqlite::query::rows row, q)
+                    for(sqlite::query::rows row : q)
                     {
-                        BOOST_FOREACH(const string& header, getReporterIonHeaders(iTRAQ_ions, quantitationMethods))
-                            outputStream << row.get<string>(0) << " (" << header << ")\t";
+                        groupOrSourceName = row.get<string>(0);
+
+                        const vector<string>& sampleNames = isobaricSamplesByGroup[groupOrSourceName];
+
+                        if (groupOrSourceName == "/" && sampleNames.empty())
+                            continue;
+
+                        if (sampleNames.empty())
+                            BOOST_FOREACH(const string& header, getReporterIonHeaders(iTRAQ_ions, quantitationMethods))
+                                outputStream << groupOrSourceName << " (" << header << ")\t";
+                        else
+                            for(const string& sample : sampleNames)
+                                if (sample != "Reference" && sample != "Empty")
+                                    outputStream << sample << "\t";
+
                         pivotColumnIds.push_back(static_cast<boost::int64_t>(row.get<sqlite3_int64>(1)));
                     }
             }
             else if (bal::contains(tokens[i], "TMT"))
             {
                 if (!tmtMethodIons.empty())
-                    BOOST_FOREACH(sqlite::query::rows row, q)
+                    for(sqlite::query::rows row : q)
                     {
-                        BOOST_FOREACH(const string& header, getReporterIonHeaders(TMT_ions, quantitationMethods))
-                            outputStream << row.get<string>(0) << " (" << header << ")\t";
+                        groupOrSourceName = row.get<string>(0);
+
+                        const vector<string>& sampleNames = isobaricSamplesByGroup[groupOrSourceName];
+
+                        if (groupOrSourceName == "/" && sampleNames.empty())
+                            continue;
+
+                        if (sampleNames.empty())
+                            BOOST_FOREACH(const string& header, getReporterIonHeaders(TMT_ions, quantitationMethods))
+                                outputStream << groupOrSourceName << " (" << header << ")\t";
+                        else
+                            for(const string& sample : sampleNames)
+                                if (sample != "Reference" && sample != "Empty")
+                                    outputStream << sample << "\t";
+
                         pivotColumnIds.push_back(static_cast<boost::int64_t>(row.get<sqlite3_int64>(1)));
                     }
             }
             else
             {
                 bool includeColumnName = bal::contains(tokens[i], "Precursor");
-                BOOST_FOREACH(sqlite::query::rows row, q)
+                for(sqlite::query::rows row : q)
                 {
                     outputStream << row.get<string>(0) << (includeColumnName ? " " + tokens[i] : "") << '\t';
                     pivotColumnIds.push_back(static_cast<boost::int64_t>(row.get<sqlite3_int64>(1)));
                 }
             }
 
-            if (!pivotColumnIds.empty())
-                pivotData(idpDB, groupBy, tokens[i], pivotDataByColumn[i]);
+            if (pivotColumnIds.empty())
+            {
+                outputStream.close();
+                bfs::remove(outputFilepath);
+                throw runtime_error("no pivot columns available. Are sources assigned to source groups? Has quantitation data been embedded?");
+            }
+            pivotData(idpDB, groupBy, tokens[i], pivotDataByColumn[i], ModificationMassRoundToNearest, rollupMethod);
         }
         else
         {
@@ -523,10 +811,11 @@ int proteinQuery(GroupBy groupBy, const bfs::path& filepath,
             outputStream << tokens[i] << '\t';
         }
     }
+    outputStream.seekp(-1, std::ios_base::cur);
     outputStream << endl;
 
     // build SQL query
-    string sql = "SELECT " + groupByString + ", " + bal::join(selectedColumns | boost::adaptors::map_keys, ", ") + " "
+    string sql = "SELECT {GroupBy}, " + bal::join(selectedColumns | boost::adaptors::map_keys, ", ") + " "
                  "FROM Protein pro "
                  "LEFT JOIN ProteinMetadata pmd ON pro.Id=pmd.Id "
                  "LEFT JOIN ProteinData pd ON pro.Id=pd.Id "
@@ -534,21 +823,35 @@ int proteinQuery(GroupBy groupBy, const bfs::path& filepath,
                  "JOIN PeptideInstance pi ON pro.Id=pi.Protein "
                  "JOIN Peptide pep ON pi.Peptide=pep.Id "
                  "JOIN PeptideSpectrumMatch psm ON psm.Peptide=pi.Peptide "
+                 "LEFT JOIN PeptideModification pm ON psm.Id = pm.PeptideSpectrumMatch "
+                 "LEFT JOIN Modification mod ON pm.Modification = mod.Id "
                  "JOIN Spectrum s ON psm.Spectrum=s.Id "
+                 "JOIN SpectrumSource ss ON s.Source=ss.Id "
+                 "JOIN SpectrumSourceGroup ssg ON ss.Group_=ssg.Id "
                  "JOIN DistinctMatch dm ON psm.Id=dm.PsmId " +
                  string(hasSpectrumQuantitation ? "LEFT JOIN SpectrumQuantitation sq ON psm.Spectrum=sq.Id " : "") +
                  string(hasPrecursorQuantitation ? "LEFT JOIN XICMetrics xic ON dm.DistinctMatchId=xic.DistinctMatch AND s.Source=xic.SpectrumSource " : "") +
-                 "GROUP BY " + groupByString;
+                 "GROUP BY {GroupBy}";
+    bal::replace_all(sql, "{ModificationMassRoundToNearest}", lexical_cast<string>(ModificationMassRoundToNearest));
+    bal::replace_all(sql, "{GroupBy}", groupByString);
+    bal::replace_all(sql, "{SubGroupBy}", bal::replace_all_copy(groupByString, ".", "_.")); // subgroup table aliases end with '_'
+    if (rollupMethod != QuantitationRollupMethod::Sum) bal::replace_all(sql, "DISTINCT_DOUBLE_ARRAY_SUM", rollupMethod.value());
     cout << sql << endl;
     sqlite::query q(idpDB, sql.c_str());
 
     // write column values
-    BOOST_FOREACH(sqlite::query::rows row, q)
+    for(sqlite::query::rows row : q)
     {
         boost::int64_t id = static_cast<boost::int64_t>(row.get<sqlite_int64>(0));
 
         for (size_t i=0; i < selectedColumns.size(); ++i)
         {
+            if (!visibleColumns[i])
+                continue;
+
+            if (i > 0)
+                outputStream << '\t';
+
             findAbstractColumnItr = pivotDataByColumn.find(i);
 
             const SqlColumn& sqlColumn = selectedColumns[i];
@@ -558,20 +861,20 @@ int proteinQuery(GroupBy groupBy, const bfs::path& filepath,
                 case SQLITE_INTEGER:
                     switch (enumColumns[i].index())
                     {
-                        case ProteinColumn::PivotMatchesByGroup:
-                        case ProteinColumn::PivotMatchesBySource:
-                        case ProteinColumn::PivotPeptidesByGroup:
-                        case ProteinColumn::PivotPeptidesBySource:
-                        case ProteinColumn::PivotSpectraByGroup:
-                        case ProteinColumn::PivotSpectraBySource:
-                        case ProteinColumn::PivotPrecursorIntensityByGroup:
-                        case ProteinColumn::PivotPrecursorIntensityBySource:
-                        case ProteinColumn::PivotPrecursorAreaByGroup:
-                        case ProteinColumn::PivotPrecursorAreaBySource:
-                        case ProteinColumn::PivotPrecursorBestSNRByGroup:
-                        case ProteinColumn::PivotPrecursorBestSNRBySource:
-                        case ProteinColumn::PivotPrecursorMeanSNRByGroup:
-                        case ProteinColumn::PivotPrecursorMeanSNRBySource:
+                        case ColumnType::PivotMatchesByGroup:
+                        case ColumnType::PivotMatchesBySource:
+                        case ColumnType::PivotPeptidesByGroup:
+                        case ColumnType::PivotPeptidesBySource:
+                        case ColumnType::PivotSpectraByGroup:
+                        case ColumnType::PivotSpectraBySource:
+                        case ColumnType::PivotPrecursorIntensityByGroup:
+                        case ColumnType::PivotPrecursorIntensityBySource:
+                        case ColumnType::PivotPrecursorAreaByGroup:
+                        case ColumnType::PivotPrecursorAreaBySource:
+                        case ColumnType::PivotPrecursorBestSNRByGroup:
+                        case ColumnType::PivotPrecursorBestSNRBySource:
+                        case ColumnType::PivotPrecursorMeanSNRByGroup:
+                        case ColumnType::PivotPrecursorMeanSNRBySource:
                         {
                             if (findAbstractColumnItr == pivotDataByColumn.end())
                                 throw runtime_error("unable to get pivot data for column " + lexical_cast<string>(i));
@@ -604,6 +907,7 @@ int proteinQuery(GroupBy groupBy, const bfs::path& filepath,
                                 break;
                         }
 
+                        // non-pivot columns
                         default:
                             if (sqlColumn.second == SQLITE_FLOAT)
                                 outputStream << row.get<double>(i+1);
@@ -615,19 +919,19 @@ int proteinQuery(GroupBy groupBy, const bfs::path& filepath,
                 case SQLITE_BLOB:
                     switch (enumColumns[i].index())
                     {
-                        case ProteinColumn::iTRAQ4plex: writeBlobArray<double>(row.get<const void*>(i+1), outputStream, itraqMethodIons); break;
-                        case ProteinColumn::iTRAQ8plex: writeBlobArray<double>(row.get<const void*>(i+1), outputStream, itraqMethodIons); break;
-                        case ProteinColumn::TMT2plex: writeBlobArray<double>(row.get<const void*>(i+1), outputStream, tmtMethodIons); break;
-                        case ProteinColumn::TMT6plex: writeBlobArray<double>(row.get<const void*>(i+1), outputStream, tmtMethodIons); break;
-                        case ProteinColumn::TMT10plex: writeBlobArray<double>(row.get<const void*>(i+1), outputStream, tmtMethodIons); break;
+                        case ColumnType::iTRAQ4plex: writeBlobArray<double>(row.get<const void*>(i+1), outputStream, itraqMethodIons); break;
+                        case ColumnType::iTRAQ8plex: writeBlobArray<double>(row.get<const void*>(i+1), outputStream, itraqMethodIons); break;
+                        case ColumnType::TMT2plex: writeBlobArray<double>(row.get<const void*>(i+1), outputStream, tmtMethodIons); break;
+                        case ColumnType::TMT6plex: writeBlobArray<double>(row.get<const void*>(i+1), outputStream, tmtMethodIons); break;
+                        case ColumnType::TMT10plex: writeBlobArray<double>(row.get<const void*>(i+1), outputStream, tmtMethodIons); break;
                             
-                        case ProteinColumn::PivotITRAQByGroup:
-                        case ProteinColumn::PivotITRAQBySource:
-                        case ProteinColumn::PivotTMTByGroup:
-                        case ProteinColumn::PivotTMTBySource:
+                        case ColumnType::PivotITRAQByGroup:
+                        case ColumnType::PivotITRAQBySource:
+                        case ColumnType::PivotTMTByGroup:
+                        case ColumnType::PivotTMTBySource:
                         {
-                            if (itraqMethodIons.empty() && (enumColumns[i].index() == ProteinColumn::PivotITRAQByGroup || enumColumns[i].index() == ProteinColumn::PivotITRAQBySource) ||
-                                tmtMethodIons.empty() && (enumColumns[i].index() == ProteinColumn::PivotTMTByGroup || enumColumns[i].index() == ProteinColumn::PivotTMTBySource))
+                            if (itraqMethodIons.empty() && (enumColumns[i].index() == ColumnType::PivotITRAQByGroup || enumColumns[i].index() == ColumnType::PivotITRAQBySource) ||
+                                tmtMethodIons.empty() && (enumColumns[i].index() == ColumnType::PivotTMTByGroup || enumColumns[i].index() == ColumnType::PivotTMTBySource))
                                 break;
 
                             if (findAbstractColumnItr == pivotDataByColumn.end())
@@ -637,16 +941,37 @@ int proteinQuery(GroupBy groupBy, const bfs::path& filepath,
                             const PivotDataMap& pivotDataMap = findAbstractColumnItr->second;
                             findIdItr = pivotDataMap.find(id);
 
+                            vector<ReporterIon>* reporterIonsPtr = &itraqMethodIons;
+                            if (enumColumns[i].index() == ColumnType::PivotTMTByGroup || enumColumns[i].index() == ColumnType::PivotTMTBySource)
+                                reporterIonsPtr = &tmtMethodIons;
+                            vector<ReporterIon>& reporterIons = *reporterIonsPtr;
+
+                            // reset reference/empty properties for reporter ions
+                            if (enumColumns[i].index() == ColumnType::PivotITRAQByGroup || enumColumns[i].index() == ColumnType::PivotTMTByGroup)
+                                for (size_t j=0; j < reporterIons.size(); ++j)
+                                    reporterIons[j].reference = reporterIons[j].empty = false;
+
                             // for the current protein/gene/cluster/whatever, look it up in the pivotDataMap by its id,
                             // then (even if it's not found): for every source or group, output a column for the value
                             // corresponding to that source or group (or 0 if there is no value for that source or group)
                             if (findIdItr == pivotDataMap.end())
                                 for (size_t j=0; j < pivotColumnIds.size(); ++j)
                                 {
-                                    if (enumColumns[i].index() == ProteinColumn::PivotITRAQByGroup || enumColumns[i].index() == ProteinColumn::PivotITRAQBySource)
-                                        writeBlobArray<double>(NULL, outputStream, itraqMethodIons);
-                                    else if (enumColumns[i].index() == ProteinColumn::PivotTMTByGroup || enumColumns[i].index() == ProteinColumn::PivotTMTBySource)
-                                        writeBlobArray<double>(NULL, outputStream, tmtMethodIons);
+                                    const string& groupName = groupNameById[pivotColumnIds[j]];
+                                    const vector<string>& sampleNames = isobaricSamplesByGroup[groupName];
+                                    if (!sampleNames.empty())
+                                    {
+                                        if (reporterIons.size() != sampleNames.size())
+                                            throw runtime_error("sample name count does not match number of reporter ions");
+                                        for (size_t k=0; k < sampleNames.size(); ++k)
+                                            if (sampleNames[k] == "Empty")
+                                                reporterIons[k].empty = true, reporterIons[k].reference = false;
+                                            else if (sampleNames[k] == "Reference")
+                                                reporterIons[k].reference = true, reporterIons[k].empty = false;
+                                            else
+                                                reporterIons[k].reference = reporterIons[k].empty = false;
+                                    }
+                                    writeBlobArray<double>(NULL, outputStream, reporterIons);
                                     
                                     if (j < pivotColumnIds.size()-1)
                                         outputStream << '\t';
@@ -655,21 +980,27 @@ int proteinQuery(GroupBy groupBy, const bfs::path& filepath,
                                 for (size_t j=0; j < pivotColumnIds.size(); ++j)
                                 {
                                     findPivotColumnItr = findIdItr->second.find(pivotColumnIds[j]);
-                                    if (enumColumns[i].index() == ProteinColumn::PivotITRAQByGroup || enumColumns[i].index() == ProteinColumn::PivotITRAQBySource)
+
+                                    const string& groupName = groupNameById[pivotColumnIds[j]];
+                                    const vector<string>& sampleNames = isobaricSamplesByGroup[groupName];
+                                    if (!sampleNames.empty())
                                     {
-                                        if (findPivotColumnItr == findIdItr->second.end())
-                                            writeBlobArray<double>(NULL, outputStream, itraqMethodIons);
-                                        else
-                                            writeBlobArray<double>(boost::get<const void*>(findPivotColumnItr->second), outputStream, itraqMethodIons);
+                                        if (reporterIons.size() != sampleNames.size())
+                                            throw runtime_error("sample name count does not match number of reporter ions");
+                                        for (size_t k = 0; k < sampleNames.size(); ++k)
+                                            if (sampleNames[k] == "Empty")
+                                                reporterIons[k].empty = true, reporterIons[k].reference = false;
+                                            else if (sampleNames[k] == "Reference")
+                                                reporterIons[k].reference = true, reporterIons[k].empty = false;
+                                            else
+                                                reporterIons[k].reference = reporterIons[k].empty = false;
                                     }
-                                    else if (enumColumns[i].index() == ProteinColumn::PivotTMTByGroup || enumColumns[i].index() == ProteinColumn::PivotTMTBySource)
-                                    {
-                                        if (findPivotColumnItr == findIdItr->second.end())
-                                            writeBlobArray<double>(NULL, outputStream, tmtMethodIons);
-                                        else
-                                            writeBlobArray<double>(boost::get<const void*>(findPivotColumnItr->second), outputStream, tmtMethodIons);
-                                    }
-                                    
+
+                                    if (findPivotColumnItr == findIdItr->second.end())
+                                        writeBlobArray<double>(NULL, outputStream, reporterIons);
+                                    else
+                                        writeBlobArray<double>(boost::get<const void*>(findPivotColumnItr->second), outputStream, reporterIons);
+
                                     if (j < pivotColumnIds.size()-1)
                                         outputStream << '\t';
                                 }
@@ -688,9 +1019,6 @@ int proteinQuery(GroupBy groupBy, const bfs::path& filepath,
                 default:
                     throw runtime_error("unknown SQL column type");
             }
-
-            if (i < selectedColumns.size()-1)
-                outputStream << '\t';
         }
         outputStream << '\n';
     }
@@ -701,72 +1029,70 @@ int proteinQuery(GroupBy groupBy, const bfs::path& filepath,
 }
 
 
-int query(GroupBy groupBy, const vector<string>& args)
+int query(GroupBy groupBy, const vector<string>& args, double ModificationMassRoundToNearest, QuantitationRollupMethod rollupMethod)
 {
+    vector<bfs::path> filepaths;
+    for (size_t i = 3; i < args.size(); ++i)
+    {
+        size_t oldSize = filepaths.size();
+        pwiz::util::expand_pathmask(args[i], filepaths);
+        if (filepaths.size() == oldSize)
+            cerr << "Filemask or idpDB file \"" << args[i] << "\" does not exist." << endl;
+    }
+
+    if (filepaths.empty())
+    {
+        cerr << "No idpDB files specified. Nothing to do." << endl;
+        return 1;
+    }
+
     vector<string> tokens;
     bal::split(tokens, args[2], bal::is_any_of(","));
 
-    if (groupBy >= GroupBy::Protein && groupBy <= GroupBy::GeneGroup)
+    int result = 0;
+    for(const bfs::path& filepath : filepaths)
     {
-        vector<string> invalidTokens;
+        switch (groupBy.index())
+        {
+            case GroupBy::Gene:
+            case GroupBy::GeneGroup:
+                if (!Embedder::hasGeneMetadata(filepath.string()))
+                {
+                    cerr << "Error: cannot group by gene or gene group because \"" << filepath.string() << "\" does not have embedded gene metadata; use idpQonvert to embed gene metadata." << endl;
+                    ++result;
+                    continue;
+                }
 
-        vector<ProteinColumn> enumColumns;
-        vector<SqlColumn> selectedColumns;
-        for (size_t i=0 ; i < tokens.size(); ++i)
-        {
-            ProteinColumn newColumn = ProteinColumn::get_by_name(tokens[i].c_str()).get_value_or(ProteinColumn::Invalid);
-            if (newColumn == ProteinColumn::Invalid)
-                invalidTokens.push_back(tokens[i]);
-            else
-            {
-                enumColumns.push_back(newColumn);
-                selectedColumns.push_back(newColumn.value());
-            }
-        }
+            case GroupBy::Protein:
+            case GroupBy::ProteinGroup:
+            case GroupBy::Cluster:
+                result += doQuery<ProteinColumn>(groupBy, filepath, tokens, ModificationMassRoundToNearest, rollupMethod);
+                break;
 
-        if (!invalidTokens.empty())
-        {
-            cerr << "Invalid column choice" << (invalidTokens.size() > 1 ? "s" : "") << ":";
-            for (size_t i=0; i < invalidTokens.size(); ++i)
-                cerr << " \"" << invalidTokens[i] << "\"";
-            cerr << "\nValid options are:" << endl;
-            for (ProteinColumn::const_iterator itr = ProteinColumn::begin()+1; itr < ProteinColumn::end(); ++itr)
-                cerr << "  " << itr->str() << "\n";
-            return 1;
-        }
-        
-        
-        vector<bfs::path> filepaths;
-        for (size_t i=3; i < args.size(); ++i)
-        {
-            size_t oldSize = filepaths.size();
-            pwiz::util::expand_pathmask(args[i], filepaths);
-            if (filepaths.size() == oldSize)
-                cerr << "Filemask or idpDB file \"" << args[i] << "\" does not exist." << endl;
-        }
+            case GroupBy::DistinctMatch:
+            case GroupBy::Peptide:
+            case GroupBy::PeptideGroup:
+            case GroupBy::Spectrum:
+                result += doQuery<PeptideColumn>(groupBy, filepath, tokens, ModificationMassRoundToNearest, rollupMethod);
+                break;
 
-        if (filepaths.empty())
-        {
-            cerr << "No idpDB files specified. Nothing to do." << endl;
-            return 1;
-        }
-        
-        int result = 0;
-        BOOST_FOREACH(const bfs::path& filepath, filepaths)
-        {
-            if ((groupBy == GroupBy::Gene || groupBy == GroupBy::GeneGroup) && !Embedder::hasGeneMetadata(filepath.string()))
-            {
-                cerr << "Error: cannot group by gene or gene group because \"" << filepath.string() << "\" does not have embedded gene metadata; use idpQonvert to embed gene metadata." << endl;
-                ++result;
-                continue;
-            }
+            /*(PeptideSpectrumMatch)
+            (Spectrum)
+            (SpectrumSourceAndGroup)*/
 
-            result += proteinQuery(groupBy, filepath, enumColumns, selectedColumns, tokens);
+            case GroupBy::Modification:
+            case GroupBy::DeltaMass:
+            case GroupBy::ModifiedSite:
+            case GroupBy::ProteinSite:
+                result += doQuery<ModificationColumn>(groupBy, filepath, tokens, ModificationMassRoundToNearest, rollupMethod);
+                break;
+
+            default:
+                throw runtime_error("unsupported group by mode");
         }
-        return result;
     }
 
-    return 0;
+    return result;
 }
 
 END_IDPICKER_NAMESPACE
@@ -774,29 +1100,80 @@ END_IDPICKER_NAMESPACE
 
 int main(int argc, const char* argv[])
 {
-    cout << "IDPickerQuery " << idpQuery::Version::str() << " (" << idpQuery::Version::LastModified() << ")\n" <<
-            "IDPickerCore " << IDPicker::Version::str() << " (" << IDPicker::Version::LastModified() << ")\n"  << endl;
+    cout << "IDPickerQuery " << idpQuery::Version::str() << " (" << idpQuery::Version::LastModified() << ")\n" << endl;
 
-    string usage = "Usage: idpQuery <group by field> <comma-delimited export column fields> <idpDB filepath>\n"
+    string usage = "Usage: idpQuery <group by field> <comma-delimited export column fields> <idpDB filepath> [-ModificationMassRoundToNearest <real (0.0001)] [-QuantitationRollupMethod <Sum|Tukey (Sum)>]\n"
                    "\nExample: idpQuery ProteinGroup Accession,FilteredSpectra,PercentCoverage,iTRAQ4plex data.idpDB\n";
     
     usage += string("\nValid \"group by\" fields: ") + (GroupBy::begin()+1)->str();
     for (GroupBy::const_iterator itr = GroupBy::begin()+2; itr < GroupBy::end(); ++itr)
         usage += string(", ") + itr->str();
-    usage += "\nValid \"export column\" fields depend on the \"group by\" field; run idpQuery with only the group by field as an argument to see details.\n";
+    usage += "\nValid \"export column\" fields depend on the \"group by\" field; run idpQuery with no arguments, or with only the group by argument, to see details.\n";
 
     GroupBy groupBy;
     vector<string> args;
+    double ModificationMassRoundToNearest = 0.0001;
+    QuantitationRollupMethod rollupMethod = QuantitationRollupMethod::Sum;
+    IDPicker::setGroupConcatSeparator(";");
     
     if (argc > 1)
     {
         args.assign(argv, argv+argc);
+
+        for (int i = 0; i < args.size(); ++i)
+        {
+            if (args[i] == "-ModificationMassRoundToNearest")
+            {
+                if (i + 1 == args.size())
+                    throw pwiz::util::user_error("no value passed for ModificationMassRoundToNearest");
+                try
+                {
+                    ModificationMassRoundToNearest = lexical_cast<double>(args[i + 1]);
+                    args.erase(args.begin()+i);
+                    args.erase(args.begin()+i);
+                    --i;
+                }
+                catch (bad_lexical_cast&)
+                {
+                    throw pwiz::util::user_error("invalid value \"" + args[i+1] + "\" for ModificationMassRoundToNearest");
+                }
+            }
+            else if (args[i] == "-QuantitationRollupMethod")
+            {
+                if (i + 1 == args.size())
+                    throw pwiz::util::user_error("no value passed for QuantitationRollupMethod");
+                rollupMethod = QuantitationRollupMethod::get_by_name(args[i + 1].c_str()).get_value_or(QuantitationRollupMethod::Invalid);
+
+                if (rollupMethod == QuantitationRollupMethod::Invalid)
+                {
+                    cerr << "Invalid rollup method \"" << args[i+1] << "\". Valid options are:" << endl;
+                    for (QuantitationRollupMethod::const_iterator itr = QuantitationRollupMethod::begin()+1; itr < QuantitationRollupMethod::end(); ++itr)
+                        cerr << "  " << itr->str() << endl;
+                    return 1;
+                }
+                args.erase(args.begin() + i);
+                args.erase(args.begin() + i);
+                --i;
+            }
+            else if (args[i] == "-GroupSeparator")
+            {
+                if (i + 1 == args.size())
+                    throw pwiz::util::user_error("no value passed for GroupSeparator");
+
+                IDPicker::setGroupConcatSeparator(args[i + 1]);
+
+                args.erase(args.begin() + i);
+                args.erase(args.begin() + i);
+                --i;
+            }
+        }
+
         groupBy = GroupBy::get_by_name(args[1].c_str()).get_value_or(GroupBy::Invalid);
         if (groupBy == GroupBy::Invalid)
         {
             cerr << "Invalid grouping choice \"" << args[1] << "\". Valid options are:" << endl;
             for (GroupBy::const_iterator itr = GroupBy::begin()+1; itr < GroupBy::end(); ++itr)
-                cerr << "  " << itr->str() << "\n";
+                cerr << "  " << itr->str() << endl;
             return 1;
         }
         
@@ -812,23 +1189,23 @@ int main(int argc, const char* argv[])
         for (ProteinColumn::const_iterator itr = ProteinColumn::begin()+1; itr < ProteinColumn::end(); ++itr)
             usage += string("  ") + itr->str() + "\n";
 
-        /*usage += "\n\n"
-                 "DistinctMatch, Peptide, PeptideGroup\n"
+        usage += "\n\n"
+                 "DistinctMatch, Peptide, PeptideGroup, Spectrum\n"
                  "------------------------------------\n";
         for (PeptideColumn::const_iterator itr = PeptideColumn::begin()+1; itr < PeptideColumn::end(); ++itr)
             usage += string("  ") + itr->str() + "\n";
 
-        usage += "\n\n"
+        /*usage += "\n\n"
                  "PeptideSpectrumMatch, Spectrum, SpectrumSourceAndGroup\n"
                  "------------------------------------------------------\n";
         for (SpectrumColumn::const_iterator itr = SpectrumColumn::begin()+1; itr < SpectrumColumn::end(); ++itr)
-            usage += string("  ") + itr->str() + "\n";
+            usage += string("  ") + itr->str() + "\n";*/
 
         usage += "\n\n"
-                 "Modification, DeltaMass, ModifiedSite\n"
+                 "Modification, DeltaMass, ModifiedSite, ProteinSite\n"
                  "-------------------------------------\n";
         for (ModificationColumn::const_iterator itr = ModificationColumn::begin()+1; itr < ModificationColumn::end(); ++itr)
-            usage += string("  ") + itr->str() + "\n";*/
+            usage += string("  ") + itr->str() + "\n";
     }
 
     if (argc < 4)
@@ -840,7 +1217,7 @@ int main(int argc, const char* argv[])
 
     try
     {
-        return query(groupBy, args);
+        return query(groupBy, args, ModificationMassRoundToNearest, rollupMethod);
     }
     catch (exception& e)
     {

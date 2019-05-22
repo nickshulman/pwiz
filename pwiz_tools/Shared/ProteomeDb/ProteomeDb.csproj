@@ -10,7 +10,7 @@
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>pwiz.ProteomeDatabase</RootNamespace>
     <AssemblyName>ProteomeDb</AssemblyName>
-    <TargetFrameworkVersion>v4.5.1</TargetFrameworkVersion>
+    <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <FileUpgradeFlags>
     </FileUpgradeFlags>
@@ -75,12 +75,15 @@
     <Prefer32Bit>false</Prefer32Bit>
   </PropertyGroup>
   <ItemGroup>
+    <Reference Include="Google.Protobuf">
+      <HintPath>..\Lib\Google.Protobuf.dll</HintPath>
+    </Reference>
     <Reference Include="Iesi.Collections">
       <HintPath>..\Lib\NHibernate\Iesi.Collections.dll</HintPath>
       <SpecificVersion>False</SpecificVersion>
     </Reference>
-    <Reference Include="Ionic.Zip">
-      <HintPath>..\Lib\DotNetZip\Release\Ionic.Zip.dll</HintPath>
+    <Reference Include="DotNetZip">
+      <HintPath>..\Lib\DotNetZip\DotNetZip.dll</HintPath>
     </Reference>
     <Reference Include="NHibernate">
       <HintPath>..\Lib\NHibernate\NHibernate.dll</HintPath>
@@ -111,18 +114,15 @@
     <Compile Include="API\Digestion.cs" />
     <Compile Include="API\EntityModel.cs" />
     <Compile Include="API\Protease.cs" />
-    <Compile Include="API\IProgressMonitor.cs" />
     <Compile Include="API\Protein.cs" />
     <Compile Include="API\ProteinMatcher.cs" />
     <Compile Include="API\ProteinMetadata.cs" />
     <Compile Include="API\ProteomeDb.cs" />
     <Compile Include="DataModel\DbProteinAnnotation.cs" />
-    <Compile Include="DataModel\DbDigestedPeptide.cs" />
-    <Compile Include="DataModel\DbDigestedPeptideProtein.cs" />
-    <Compile Include="DataModel\DbDigestion.cs" />
     <Compile Include="DataModel\DbProtein.cs" />
     <Compile Include="DataModel\DbProteinName.cs" />
     <Compile Include="DataModel\DbEntity.cs" />
+    <Compile Include="DataModel\DbSubsequence.cs" />
     <Compile Include="DataModel\DbVersionInfo.cs" />
     <Compile Include="Fasta\WebEnabledFastaImporter.cs" />
     <Compile Include="Fasta\IpiToUniprotMap.cs" />
@@ -134,8 +134,6 @@
     </Compile>
     <Compile Include="Util\DatabaseResource.cs" />
     <Compile Include="Util\ProteomeDbPath.cs" />
-    <Compile Include="Util\SessionFactoryFactory.cs" />
-    <Compile Include="Util\SessionWithLock.cs" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="DataModel\mapping.xml">
@@ -148,12 +146,16 @@
       <DependentUpon>Resources.resx</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="Properties\Resources.resx">
-      <Generator>ResXFileCodeGenerator</Generator>
+      <Generator>PublicResXFileCodeGenerator</Generator>
       <LastGenOutput>Resources.Designer.cs</LastGenOutput>
       <SubType>Designer</SubType>
     </EmbeddedResource>
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\Common\Common.csproj">
+      <Project>{A5527BE9-4A62-458F-AE47-F0F9204A5CF9}</Project>
+      <Name>Common</Name>
+    </ProjectReference>
     <ProjectReference Include="..\Common\CommonUtil.csproj">
       <Project>{13BF2FFB-50A1-4AB1-83A4-5733E36905CE}</Project>
       <Name>CommonUtil</Name>

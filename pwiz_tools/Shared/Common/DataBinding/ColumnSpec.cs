@@ -24,11 +24,12 @@ using System.Linq;
 using System.Xml;
 using System.Xml.Serialization;
 using pwiz.Common.Collections;
+using pwiz.Common.SystemUtil;
 
 namespace pwiz.Common.DataBinding
 {
     [XmlRoot("column")]
-    public class ColumnSpec
+    public class ColumnSpec : IAuditLogObject
     {
         public ColumnSpec()
         {
@@ -95,7 +96,7 @@ namespace pwiz.Common.DataBinding
             return new ColumnSpec(this) {Name = value == null ? string.Empty : value.ToString()};
         }
 
-        // ReSharper disable NonLocalizedString
+        // ReSharper disable LocalizableElement
         public static ColumnSpec ReadXml(XmlReader reader)
         {
             TotalOperation total = TotalOperation.GroupBy;
@@ -132,9 +133,9 @@ namespace pwiz.Common.DataBinding
             }
             return columnSpec;
         }
-        // ReSharper restore NonLocalizedString
+        // ReSharper restore LocalizableElement
 
-        // ReSharper disable NonLocalizedString
+        // ReSharper disable LocalizableElement
         public void WriteXml(XmlWriter writer)
         {
             if (Name != null)
@@ -166,7 +167,20 @@ namespace pwiz.Common.DataBinding
                 writer.WriteAttributeString("total", Total.ToString());
             }
         }
-        // ReSharper restore NonLocalizedString
+        // ReSharper restore LocalizableElement
+
+        public string AuditLogText
+        {
+            get
+            {
+                return AuditLogParseHelper.GetParseString(ParseStringType.column_caption, PropertyPath.Name);
+            }
+        }
+
+        public bool IsName
+        {
+            get { return true; }
+        }
 
         public bool Equals(ColumnSpec other)
         {
@@ -203,24 +217,35 @@ namespace pwiz.Common.DataBinding
                 return result;
             }
         }
+
+        public override string ToString() // For debugging convenience
+        {
+            return Name;
+        }
     }
     public class FilterSpec
     {
-        public FilterSpec()
+        private FilterSpec()
         {
         }
-        public FilterSpec(PropertyPath propertyPath, IFilterOperation filterOperation, string operand)
+
+        public FilterSpec(PropertyPath propertyPath, FilterPredicate predicate)
         {
             Column = propertyPath.ToString();
-            OpName = filterOperation == null ? null : filterOperation.OpName;
-            Operand = operand;
+            Predicate = predicate;
         }
-        public FilterSpec(FilterSpec that)
+        private FilterSpec(FilterSpec that)
         {
             Column = that.Column;
-            OpName = that.OpName;
-            Operand = that.Operand;
+            Predicate = that.Predicate;
         }
+
+        [Track]
+        public string AuditLogColumn
+        {
+            get { return string.Format(@"{{5:{0}}}", ColumnId.Name); }
+        }
+        
         public string Column { get; private set; }
         public FilterSpec SetColumn(string column)
         {
@@ -231,29 +256,22 @@ namespace pwiz.Common.DataBinding
         {
             return SetColumn(columnId.ToString());
         }
-        public string OpName { get; private set; }
-        public FilterSpec SetOp(string op)
+
+        [TrackChildren(ignoreName:true)]
+        public FilterPredicate Predicate { get; private set; }
+
+        public FilterSpec SetPredicate(FilterPredicate predicate)
         {
-            return new FilterSpec(this){OpName = op};
+            return new FilterSpec(this){Predicate = predicate};
         }
-        public IFilterOperation Operation {get { return FilterOperations.GetOperation(OpName);}}
-        public FilterSpec SetOperation(IFilterOperation operation)
-        {
-            return SetOp(operation == null ? string.Empty : operation.OpName);
-        }
-        public string Operand { get; private set; }
-        public FilterSpec SetOperand(string operand)
-        {
-            return new FilterSpec(this){Operand = operand};
-        }
-        // ReSharper disable NonLocalizedString
+        public IFilterOperation Operation { get { return Predicate.FilterOperation; } }
+        // ReSharper disable LocalizableElement
         public static FilterSpec ReadXml(XmlReader reader)
         {
             var filterSpec = new FilterSpec
                 {
                     Column = reader.GetAttribute("column"),
-                    OpName = reader.GetAttribute("opname"),
-                    Operand = reader.GetAttribute("operand")
+                    Predicate = FilterPredicate.ReadXml(reader),
                 };
             bool empty = reader.IsEmptyElement;
             reader.ReadElementString("filter");
@@ -267,19 +285,15 @@ namespace pwiz.Common.DataBinding
         public void WriteXml(XmlWriter writer)
         {
             writer.WriteAttributeString("column", Column);
-            writer.WriteAttributeString("opname", OpName);
-            if (Operand != null)
-            {
-                writer.WriteAttributeString("operand", Operand);
-            }
+            Predicate.WriteXml(writer);
         }
-        // ReSharper restore NonLocalizedString
+        // ReSharper restore LocalizableElement
 
         public bool Equals(FilterSpec other)
         {
             if (ReferenceEquals(null, other)) return false;
             if (ReferenceEquals(this, other)) return true;
-            return Equals(other.Column, Column) && Equals(other.OpName, OpName) && Equals(other.Operand, Operand);
+            return Equals(other.Column, Column) && Equals(other.Predicate, Predicate);
         }
 
         public override bool Equals(object obj)
@@ -295,8 +309,7 @@ namespace pwiz.Common.DataBinding
             unchecked
             {
                 int result = Column == null ? 0 : Column.GetHashCode();
-                result = (result*397) ^ (OpName == null ? 0 : OpName.GetHashCode());
-                result = (result*397) ^ (Operand == null ? 0 : Operand.GetHashCode());
+                result = (result*397) ^ Predicate.GetHashCode();
                 return result;
             }
         }
@@ -307,31 +320,24 @@ namespace pwiz.Common.DataBinding
     /// Models a user's customization of a view.
     /// A view has a list of columns to display.  It also can have a filter and sort to be applied (NYI).
     /// </summary>
-    public class ViewSpec : IComparable<ViewSpec>
+    public class ViewSpec : Immutable, IComparable<ViewSpec>
     {
         public ViewSpec()
         {
-            Columns = new ColumnSpec[0];
-            Filters = new FilterSpec[0];
-        }
-        private ViewSpec(ViewSpec that)
-        {
-            Name = that.Name;
-            Columns = that.Columns;
-            Filters = that.Filters;
-            SublistName = that.SublistName;
-            RowSource = that.RowSource;
+            Columns = ImmutableList.Empty<ColumnSpec>();
+            Filters = ImmutableList.Empty<FilterSpec>();
+            UiMode = string.Empty;
         }
         public string Name { get; private set; }
         public ViewSpec SetName(string value)
         {
-            return new ViewSpec(this){Name = value};
+            return ChangeProp(ImClone(this), im=>im.Name = value);
         }
         public string RowSource { get; private set; }
 
         public ViewSpec SetRowSource(string value)
         {
-            return new ViewSpec(this){RowSource = value};
+            return ChangeProp(ImClone(this), im => im.RowSource = value);
         }
 
         public ViewSpec SetRowType(Type type)
@@ -339,19 +345,25 @@ namespace pwiz.Common.DataBinding
             return SetRowSource(type.FullName);
         }
 
+        public string UiMode { get; private set; }
 
-        public IList<ColumnSpec> Columns { get; private set; }
+        public ViewSpec SetUiMode(string uiMode)
+        {
+            return ChangeProp(ImClone(this), im => im.UiMode = uiMode ?? string.Empty);
+        }
+
+
+        [Track]
+        public ImmutableList<ColumnSpec> Columns { get; private set; }
         public ViewSpec SetColumns(IEnumerable<ColumnSpec> value)
         {
-            return new ViewSpec(this)
-                       {
-                           Columns = Array.AsReadOnly(value.ToArray())
-                       };
+            return ChangeProp(ImClone(this), im => im.Columns = ImmutableList.ValueOf(value));
         }
-        public IList<FilterSpec> Filters { get; private set; }
+        [Track]
+        public ImmutableList<FilterSpec> Filters { get; private set; }
         public ViewSpec SetFilters(IEnumerable<FilterSpec> value)
         {
-            return new ViewSpec(this){Filters = Array.AsReadOnly(value.ToArray())};
+            return ChangeProp(ImClone(this), im => im.Filters = ImmutableList.ValueOf(value));
         }
         public string SublistName { get; private set; }
         public PropertyPath SublistId
@@ -361,7 +373,7 @@ namespace pwiz.Common.DataBinding
         }
         public ViewSpec SetSublistId(PropertyPath sublistId)
         {
-            return new ViewSpec(this){SublistId = sublistId};
+            return ChangeProp(ImClone(this), im => im.SublistId = sublistId);
         }
 
         public bool HasTotals
@@ -372,14 +384,15 @@ namespace pwiz.Common.DataBinding
             }
         }
 
-        // ReSharper disable NonLocalizedString
+        // ReSharper disable LocalizableElement
         public static ViewSpec ReadXml(XmlReader reader)
         {
             var viewSpec = new ViewSpec
                 {
                     Name = reader.GetAttribute("name"),
                     RowSource = reader.GetAttribute("rowsource"),
-                    SublistName = reader.GetAttribute("sublist")
+                    SublistName = reader.GetAttribute("sublist"),
+                    UiMode = reader.GetAttribute("uimode") ?? string.Empty
                 };
             var columns = new List<ColumnSpec>();
             var filters = new List<FilterSpec>();
@@ -406,11 +419,11 @@ namespace pwiz.Common.DataBinding
                 }
                 else
                 {
-                    reader.Read();
+                    reader.Skip();
                 }
             }
-            viewSpec.Columns = Array.AsReadOnly(columns.ToArray());
-            viewSpec.Filters = Array.AsReadOnly(filters.ToArray());
+            viewSpec.Columns = ImmutableList.ValueOf(columns);
+            viewSpec.Filters = ImmutableList.ValueOf(filters);
             return viewSpec;
         }
 
@@ -428,6 +441,11 @@ namespace pwiz.Common.DataBinding
             {
                 writer.WriteAttributeString("sublist", SublistName);
             }
+
+            if (!string.IsNullOrEmpty(UiMode))
+            {
+                writer.WriteAttributeString("uimode", UiMode);
+            }
             foreach (var column in Columns)
             {
                 writer.WriteStartElement("column");
@@ -441,7 +459,7 @@ namespace pwiz.Common.DataBinding
                 writer.WriteEndElement();
             }
         }
-        // ReSharper restore NonLocalizedString
+        // ReSharper restore LocalizableElement
 
         public bool Equals(ViewSpec other)
         {
@@ -451,7 +469,8 @@ namespace pwiz.Common.DataBinding
                    && Equals(other.RowSource, RowSource)
                    && Columns.SequenceEqual(other.Columns)
                    && Filters.SequenceEqual(other.Filters)
-                   && SublistId.Equals(other.SublistId);
+                   && SublistId.Equals(other.SublistId)
+                   && UiMode.Equals(other.UiMode);
         }
 
         public override bool Equals(object obj)
@@ -471,6 +490,7 @@ namespace pwiz.Common.DataBinding
                 result = (result*397) ^ CollectionUtil.GetHashCodeDeep(Columns);
                 result = (result*397) ^ CollectionUtil.GetHashCodeDeep(Filters);
                 result = (result*397) ^ SublistId.GetHashCode();
+                result = (result*397) ^ UiMode.GetHashCode();
                 return result;
             }
         }
@@ -479,6 +499,11 @@ namespace pwiz.Common.DataBinding
         {
             return CaseInsensitiveComparer.Default.Compare(Name, other.Name);
         }
-    }
 
+        public override string ToString() // For debugging convenience
+        {
+            return Name;
+        }
+
+    }
 }

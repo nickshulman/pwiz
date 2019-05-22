@@ -24,6 +24,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -42,30 +43,159 @@ namespace TestRunner
 {
     internal static class Program
     {
-        private static readonly string[] TEST_DLLS = { "Test.dll", "TestA.dll", "TestConnected.dll", "TestFunctional.dll", "TestTutorial.dll", "CommonTest.dll", "TestPerf.dll" };
-        private const int LeakThreshold = 250000;
-        private const int CrtLeakThreshold = 1000;
-        private const int LeakCheckIterations = 20;
+        private static readonly string[] TEST_DLLS = { "Test.dll", "TestData.dll", "TestConnected.dll", "TestFunctional.dll", "TestTutorial.dll", "CommonTest.dll", "TestPerf.dll" };
+        private const int LeakTrailingDeltas = 7;   // Number of trailing deltas to average and check against thresholds below
+        // CONSIDER: Ideally these thresholds would be zero, but memory and handle retention are not stable enough to support that
+        //           The problem is that we don't reliably return to exactly the same state during EndTest and these numbers go both up and down
+        private const int KB = 1024;
+        private static LeakTracking LeakThresholds = new LeakTracking
+        {
+            // Average delta per test between 8 runs (7 deltas)
+            TotalMemory = 150 * KB, // Too much variance to track leaks in just 12 runs
+            HeapMemory = 20 * KB,
+            ManagedMemory = 8 * KB,
+            TotalHandles = 2,
+            UserGdiHandles = 1
+        };
+        private const int CrtLeakThreshold = 1000;  // No longer used
+        private const int LeakCheckIterations = 24; // Maximum number of runs to try to achieve below thresholds for trailing deltas
+        private static bool IsFixedLeakIterations { get { return false; } } // CONSIDER: It would be nice to make this true to reduce test run count variance
 
-        [STAThread]
+        // These tests get twice as many runs to meet the leak thresholds when using fixed iterations
+        private static string[] LeakExceptionTests =
+        {
+            "TestAbsoluteQuantificationTutorial",
+            "TestCEOptimizationTutorial",
+            "TestMethodRefinementTutorial",
+            "TestTargetedMSMSTutorial",
+            "TestMs1Tutorial"
+        };
+
+        private static int GetLeakCheckIterations(TestInfo test)
+        {
+            return IsFixedLeakIterations && LeakExceptionTests.Contains(test.TestMethod.Name)
+                ? LeakCheckIterations * 2
+                : LeakCheckIterations;
+        }
+
+
+        private struct LeakTracking
+        {
+            public LeakTracking(RunTests runTests) : this()
+            {
+                TotalMemory = runTests.TotalMemoryBytes;
+                HeapMemory = runTests.CommittedMemoryBytes;
+                ManagedMemory = runTests.ManagedMemoryBytes;
+                TotalHandles = runTests.LastTotalHandleCount;
+                UserGdiHandles = runTests.LastUserHandleCount + runTests.LastGdiHandleCount;
+            }
+
+            public double TotalMemory { get; set; }
+            public double HeapMemory { get; set; }
+            public double ManagedMemory { get; set; }
+            public double TotalHandles { get; set; }
+            public double UserGdiHandles { get; set; }
+
+            public bool BelowThresholds(LeakTracking leakThresholds)
+            {
+                return TotalMemory < leakThresholds.TotalMemory &&
+                       HeapMemory < leakThresholds.HeapMemory &&
+                       ManagedMemory < leakThresholds.ManagedMemory &&
+                       TotalHandles < leakThresholds.TotalHandles &&
+                       UserGdiHandles < leakThresholds.UserGdiHandles;
+            }
+
+            public static LeakTracking MeanDeltas(List<LeakTracking> values)
+            {
+                return new LeakTracking
+                {
+                    TotalMemory = MeanDelta(values, l => l.TotalMemory),
+                    HeapMemory = MeanDelta(values, l => l.HeapMemory),
+                    ManagedMemory = MeanDelta(values, l => l.ManagedMemory),
+                    TotalHandles = MeanDelta(values, l => l.TotalHandles),
+                    UserGdiHandles = MeanDelta(values, l => l.UserGdiHandles)
+                };
+            }
+            private static double MeanDelta(List<LeakTracking> values, Func<LeakTracking, double> getValue)
+            {
+                var listDelta = new List<double>();
+                for (int i = 1; i < values.Count; i++)
+                    listDelta.Add(getValue(values[i]) - getValue(values[i - 1]));
+                return listDelta.Average();
+            }
+
+            public string GetLeakMessage(LeakTracking leakThresholds, string testName)
+            {
+                if (ManagedMemory >= leakThresholds.ManagedMemory)
+                    return string.Format("!!! {0} LEAKED {1:0.#} Managed bytes\r\n", testName, ManagedMemory);
+                if (HeapMemory >= leakThresholds.HeapMemory)
+                    return string.Format("!!! {0} LEAKED {1:0.#} Heap bytes\r\n", testName, HeapMemory);
+                if (TotalMemory >= leakThresholds.TotalMemory)
+                    return string.Format("!!! {0} LEAKED {1:0.#} bytes\r\n", testName, TotalMemory);
+                if (UserGdiHandles >= leakThresholds.UserGdiHandles)
+                    return string.Format("!!! {0} HANDLE-LEAKED {1:0.#} User+GDI\r\n", testName, UserGdiHandles);
+                if (TotalHandles >= leakThresholds.TotalHandles)
+                    return string.Format("!!! {0} HANDLE-LEAKED {1:0.#} Total\r\n", testName, TotalHandles);
+                return null;
+            }
+
+            public string GetLogMessage(string testName, int passedCount)
+            {
+                // Report the final mean average deltas over the passing or final 8 runs (7 deltas)
+                return string.Format("# {0} deltas ({1}): {2}\r\n", testName, passedCount, this);
+            }
+
+            public override string ToString()
+            {
+                return string.Format("managed = {0:0.#} KB, heap = {1:0.#} KB, memory = {2:0.#} KB, user-gdi = {3:0.#}, total = {4:0.#}",
+                    ManagedMemory / KB, HeapMemory / KB, TotalMemory / KB, UserGdiHandles, TotalHandles);
+            }
+
+            public LeakTracking Max(LeakTracking lastDeltas)
+            {
+                return new LeakTracking
+                {
+                    TotalMemory = Math.Max(TotalMemory, lastDeltas.TotalMemory),
+                    HeapMemory = Math.Max(HeapMemory, lastDeltas.HeapMemory),
+                    ManagedMemory = Math.Max(ManagedMemory, lastDeltas.ManagedMemory),
+                    TotalHandles = Math.Max(TotalHandles, lastDeltas.TotalHandles),
+                    UserGdiHandles = Math.Max(UserGdiHandles, lastDeltas.UserGdiHandles)
+                };
+            }
+
+            public LeakTracking Min(LeakTracking lastDeltas)
+            {
+                return new LeakTracking
+                {
+                    TotalMemory = Math.Min(TotalMemory, lastDeltas.TotalMemory),
+                    HeapMemory = Math.Min(HeapMemory, lastDeltas.HeapMemory),
+                    ManagedMemory = Math.Min(ManagedMemory, lastDeltas.ManagedMemory),
+                    TotalHandles = Math.Min(TotalHandles, lastDeltas.TotalHandles),
+                    UserGdiHandles = Math.Min(UserGdiHandles, lastDeltas.UserGdiHandles)
+                };
+            }
+        }
+
+        [STAThread, MethodImpl(MethodImplOptions.NoOptimization)]
         static int Main(string[] args)
         {
             Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
             Application.ThreadException += ThreadExceptionEventHandler;
-
-            Console.OutputEncoding = Encoding.UTF8;  // So we can send Japanese to SkylineTester, which monitors our stdout
 
             // Parse command line args and initialize default values.
             const string commandLineOptions =
                 "?;/?;-?;help;skylinetester;debug;results;" +
                 "test;skip;filter;form;" +
                 "loop=0;repeat=1;pause=0;random=off;offscreen=on;multi=1;wait=off;internet=off;" +
+                "maxsecondspertest=-1;" +
                 "demo=off;showformnames=off;showpages=off;status=off;buildcheck=0;screenshotlist;" +
                 "quality=off;pass0=off;pass1=off;" +
                 "perftests=off;" +
+                "runsmallmoleculeversions=off;" +
+                "recordauditlogs=off;" +
                 "testsmallmolecules=off;" +
                 "clipboardcheck=off;profile=off;vendors=on;language=fr-FR,en-US;" +
-                "log=TestRunner.log;report=TestRunner.log";
+                "log=TestRunner.log;report=TestRunner.log;dmpdir=Minidumps;teamcitytestdecoration=off";
             var commandLineArgs = new CommandLineArgs(args, commandLineOptions);
 
             switch (commandLineArgs.SearchArgs("?;/?;-?;help;report"))
@@ -81,6 +211,9 @@ namespace TestRunner
                     Report(commandLineArgs.ArgAsString("report"));
                     return 0;
             }
+
+            if (commandLineArgs.ArgAsString("language") != "en" && commandLineArgs.ArgAsString("language") != "en-US")
+                Console.OutputEncoding = Encoding.UTF8;  // So we can send Japanese to SkylineTester, which monitors our stdout
 
             Console.WriteLine();
             if (!commandLineArgs.ArgAsBool("status") && !commandLineArgs.ArgAsBool("buildcheck"))
@@ -190,14 +323,25 @@ namespace TestRunner
             }
             catch (Exception e)
             {
-                Console.WriteLine("\n\n" + e.Message);
-                Console.WriteLine(e.StackTrace);
+                Console.WriteLine("\nCaught exception in TestRunnner.Program.Main:\n" + e.Message);
+                if (string.IsNullOrEmpty(e.StackTrace))
+                    Console.WriteLine("No stacktrace");
+                else
+                    Console.WriteLine(e.StackTrace);
                 if (e.InnerException != null)
                 {
-                    Console.WriteLine("\nInner exception:");
+                    Console.WriteLine("Inner exception:");
                     Console.WriteLine(e.InnerException.Message);
-                    Console.WriteLine(e.InnerException.StackTrace);
+                    if (string.IsNullOrEmpty(e.InnerException.StackTrace))
+                        Console.WriteLine("No stacktrace");
+                    else
+                        Console.WriteLine(e.InnerException.StackTrace);
                 }
+                else
+                {
+                    Console.WriteLine("No inner exception.");
+                }
+                Console.Out.Flush(); // Get this info to TeamCity or SkylineTester ASAP
                 allTestsPassed = false;
             }
 
@@ -241,7 +385,9 @@ namespace TestRunner
             bool offscreen = commandLineArgs.ArgAsBool("offscreen");
             bool internet = commandLineArgs.ArgAsBool("internet");
             bool perftests = commandLineArgs.ArgAsBool("perftests");
-            bool testsmallmolecules = commandLineArgs.ArgAsBool("testsmallmolecules");
+            bool addsmallmoleculenodes = commandLineArgs.ArgAsBool("testsmallmolecules"); // Add the magic small molecule test node to every document?
+            bool runsmallmoleculeversions = commandLineArgs.ArgAsBool("runsmallmoleculeversions"); // Run the various tests that are versions of other tests with the document completely converted to small molecules?
+            bool recordauditlogs = commandLineArgs.ArgAsBool("recordauditlogs"); // Replace or create audit logs for tutorial tests
             bool useVendorReaders = commandLineArgs.ArgAsBool("vendors");
             bool showStatus = commandLineArgs.ArgAsBool("status");
             bool showFormNames = commandLineArgs.ArgAsBool("showformnames");
@@ -254,8 +400,33 @@ namespace TestRunner
             var formList = commandLineArgs.ArgAsString("form");
             var pauseDialogs = (string.IsNullOrEmpty(formList)) ? null : formList.Split(',');
             var results = commandLineArgs.ArgAsString("results");
+            var maxSecondsPerTest = commandLineArgs.ArgAsDouble("maxsecondspertest");
+            var dmpDir = commandLineArgs.ArgAsString("dmpdir");
+            bool teamcityTestDecoration = commandLineArgs.ArgAsBool("teamcitytestdecoration");
 
-            // Check to see if we actually have any perf tests, so we don't chat about them consfusingly in the log
+            bool asNightly = offscreen && qualityMode;  // While it is possible to run quality off screen from the Quality tab, this is what we use to distinguish for treatment of perf tests
+
+            // If we haven't been told to run perf tests, remove any from the list
+            // which may have shown up by default
+            if (!perftests)
+            {
+                for (var t = testList.Count; t-- > 0; )
+                {
+                    if (testList[t].IsPerfTest)
+                    {
+                        testList.RemoveAt(t);
+                    }
+                }
+                for (var ut = unfilteredTestList.Count; ut-- > 0; )
+                {
+                    if (unfilteredTestList[ut].IsPerfTest)
+                    {
+                        unfilteredTestList.RemoveAt(ut);
+                    }
+                }
+            }
+            // Even if we have been told to run perftests, if none are in the list
+            // then make sure we don't chat about perf tests in the log
             perftests &= testList.Any(t => t.IsPerfTest);
 
             if (buildMode)
@@ -270,9 +441,47 @@ namespace TestRunner
             }
 
             var runTests = new RunTests(
-                demoMode, buildMode, offscreen, internet, showStatus, perftests, testsmallmolecules,
+                demoMode, buildMode, offscreen, internet, showStatus, perftests, addsmallmoleculenodes,
+                runsmallmoleculeversions, recordauditlogs, teamcityTestDecoration,
                 pauseDialogs, pauseSeconds, useVendorReaders, timeoutMultiplier, 
                 results, log);
+            
+            if (asNightly && !string.IsNullOrEmpty(dmpDir) && Directory.Exists(dmpDir))
+            {
+                runTests.Log("# Deleting memory dumps.\r\n");
+
+                var dmpDirInfo = new DirectoryInfo(dmpDir);
+                var memoryDumps = dmpDirInfo.GetFileSystemInfos("*.dmp")
+                    .OrderBy(f => f.CreationTime)
+                    .ToArray();
+
+                runTests.Log("# Found {0} mempory dumps in {1}.\r\n", memoryDumps.Length, dmpDir);
+
+                // Only keep 5 pairs. If memory dumps are deleted manually it could
+                // happen that we delete a pre-dump but not a post-dump
+                if (memoryDumps.Length > 10)
+                {
+                    foreach (var dmp in memoryDumps.Take(memoryDumps.Length - 10))
+                    {
+                        // Just to double check that we don't delete other files
+                        if (dmp.Extension == ".dmp" &&
+                            (dmp.Name.StartsWith("pre_") || dmp.Name.StartsWith("post_")))
+                        {
+                            runTests.Log("# Deleting {0}.\r\n", dmp.FullName);
+                            File.Delete(dmp.FullName);
+
+                            if (File.Exists(dmp.FullName))
+                                runTests.Log("# WARNING: {0} not deleted.\r\n", dmp.FullName);
+                        }
+                        else
+                        {
+                            runTests.Log("# Skipping deletion of {0}.\r\n", dmp.FullName);
+                        }
+                    }
+                }
+
+                runTests.Log("\r\n");
+            }
 
             if (commandLineArgs.ArgAsBool("clipboardcheck"))
             {
@@ -283,13 +492,13 @@ namespace TestRunner
             }
             else
             {
-                if (!randomOrder && testList.Any(t => t.IsPerfTest))
+                if (!randomOrder && perftests)
                     runTests.Log("Perf tests will run last, for maximum overall test coverage.\r\n");
                 runTests.Log("Running {0}{1} tests{2}{3}...\r\n",
                     testList.Count,
                     testList.Count < unfilteredTestList.Count ? "/" + unfilteredTestList.Count : "",
                     (loopCount <= 0) ? " forever" : (loopCount == 1) ? "" : " in " + loopCount + " loops",
-                    (repeat <= 1) ? "" : ", repeated " + repeat + " times each");
+                    (repeat <= 1) ? "" : ", repeated " + repeat + " times each per language");
             }
 
             // Get list of languages
@@ -321,7 +530,7 @@ namespace TestRunner
                 runTests.AccessInternet = false;
                 runTests.LiveReports = false;
                 runTests.RunPerfTests = false;
-                runTests.TestSmallMolecules = false;
+                runTests.AddSmallMoleculeNodes = false;
                 runTests.CheckCrtLeaks = CrtLeakThreshold;
                 bool warnedPass0PerfTest = false;
                 for (int testNumber = 0; testNumber < testList.Count; testNumber++)
@@ -337,14 +546,14 @@ namespace TestRunner
                         }
                         continue;
                     }
-                    if (!runTests.Run(test, 0, testNumber))
+                    if (!runTests.Run(test, 0, testNumber, dmpDir))
                         removeList.Add(test);
                 }
                 runTests.Skyline.Set("NoVendorReaders", false);
                 runTests.AccessInternet = internet;
                 runTests.LiveReports = true;
                 runTests.RunPerfTests = perftests;
-                runTests.TestSmallMolecules = testsmallmolecules;
+                runTests.AddSmallMoleculeNodes = addsmallmoleculenodes;
                 runTests.CheckCrtLeaks = 0;
 
                 foreach (var removeTest in removeList)
@@ -358,6 +567,8 @@ namespace TestRunner
                 runTests.Log("\r\n");
                 runTests.Log("# Pass 1: Run tests multiple times to detect memory leaks.\r\n");
                 bool warnedPass1PerfTest = false;
+                var maxDeltas = new LeakTracking();
+                int maxIterationCount = 0;
 
                 for (int testNumber = 0; testNumber < testList.Count; testNumber++)
                 {
@@ -375,30 +586,19 @@ namespace TestRunner
                         continue;  
                     }
 
-                    // Warm up memory by running the test in each language.
-                    for (int i = 0; i < qualityLanguages.Length; i++)
-                    {
-                        runTests.Language =  new CultureInfo(qualityLanguages[i]);
-                        if (!runTests.Run(test, 1, testNumber))
-                        {
-                            failed = true;
-                            removeList.Add(test);
-                            break;
-                        }
-                    }
-
                     if (failed)
                         continue;
 
                     // Run test repeatedly until we can confidently assess the leak status.
-                    double slope = 0;
-                    var memoryPoints = new List<double> {runTests.TotalMemoryBytes};
-                    for (int i = 0; i < LeakCheckIterations; i++)
+                    var listValues = new List<LeakTracking>();
+                    LeakTracking? minDeltas = null;
+                    int? passedIndex = null;
+                    for (int i = 0; i < GetLeakCheckIterations(test); i++)
                     {
                         // Run the test in the next language.
                         runTests.Language =
                             new CultureInfo(qualityLanguages[i%qualityLanguages.Length]);
-                        if (!runTests.Run(test, 1, testNumber))
+                        if (!runTests.Run(test, 1, testNumber, dmpDir))
                         {
                             failed = true;
                             removeList.Add(test);
@@ -406,28 +606,47 @@ namespace TestRunner
                         }
 
                         // Run linear regression on memory size samples.
-                        var memoryBytes = runTests.TotalMemoryBytes;
-                        memoryPoints.Add(memoryBytes);
-                        if (memoryPoints.Count < 8)
+                        listValues.Add(new LeakTracking(runTests));
+                        if (listValues.Count <= LeakTrailingDeltas)
                             continue;
 
-                        // Stop if the leak magnitude is below our threshold.
-                        slope = CalculateSlope(memoryPoints); 
-                        if (slope < LeakThreshold)
-                            break;
-                        memoryPoints.RemoveAt(0);
+                        // Stop accumulating points if all leak minimal values are below the threshold values.
+                        var lastDeltas = LeakTracking.MeanDeltas(listValues);
+                        minDeltas = minDeltas.HasValue ? minDeltas.Value.Min(lastDeltas) : lastDeltas;
+                        if (minDeltas.Value.BelowThresholds(LeakThresholds))
+                        {
+                            passedIndex = passedIndex ?? i;
+
+                            if (!IsFixedLeakIterations)
+                                break;
+                        }
+
+                        // Remove the oldest point unless this is the last iteration
+                        // So that the report below will be based on the set that just
+                        // failed the leak check
+                        if (!passedIndex.HasValue || i < LeakCheckIterations - 1)
+                        {
+                            listValues.RemoveAt(0);
+                        }
                     }
 
                     if (failed)
                         continue;
 
-                    if (slope >= LeakThreshold)
+                    string leakMessage = minDeltas.Value.GetLeakMessage(LeakThresholds, test.TestMethod.Name);
+                    int iterationCount = passedIndex + 1 ?? LeakCheckIterations;
+                    if (leakMessage != null)
                     {
-                        runTests.Log("!!! {0} LEAKED {1} bytes\r\n", test.TestMethod.Name, Math.Floor(slope));
+                        runTests.Log(leakMessage);
                         removeList.Add(test);
                     }
+                    runTests.Log(minDeltas.Value.GetLogMessage(test.TestMethod.Name, iterationCount));
+
+                    maxDeltas = maxDeltas.Max(minDeltas.Value);
+                    maxIterationCount = Math.Max(maxIterationCount, iterationCount);
                 }
 
+                runTests.Log(maxDeltas.GetLogMessage("MaximumLeaks", maxIterationCount));
                 foreach (var removeTest in removeList)
                     testList.Remove(removeTest);
                 removeList.Clear();
@@ -455,10 +674,10 @@ namespace TestRunner
                 runTests.Log("# Pass 2+: Run tests in each selected language.\r\n");
             }
 
-            int perfPass = pass; // We'll run perf tests just once per language, and only in one language (french) if english and french (along with any others) are both enabled
-            bool warnedPass2PerfTest = false;
-            bool flip=true;
-            var perfTestsFrenchOnly = perftests && languages.Any(l => l.StartsWith("en")) && languages.Any(l => l.StartsWith("fr"));
+            int perfPass = pass; // For nightly tests, we'll run perf tests just once per language, and only in one language (dynamically chosen for coverage) if english and french (along with any others) are both enabled
+            bool needsPerfTestPass2Warning = asNightly && testList.Any(t => t.IsPerfTest); // No perf tests, no warning
+            var perfTestsOneLanguageOnly = asNightly && perftests && languages.Any(l => l.StartsWith("en")) && languages.Any(l => l.StartsWith("fr"));
+            bool flip = true;
 
             for (; pass < passEnd; pass++)
             {
@@ -471,37 +690,49 @@ namespace TestRunner
                 {
                     var test = testPass[testNumber];
 
-                    // Perf Tests are generally too lengthy to run multiple times (but non-english format check is useful)
-                    var languagesThisTest = (test.IsPerfTest && perfTestsFrenchOnly) ? new[] { "fr" } : languages;
-                    if (perfTestsFrenchOnly && !warnedPass2PerfTest)
+                    // Perf Tests are generally too lengthy to run multiple times (but non-english format check is useful, so rotate through on a per-day basis)
+                    var perfTestLanguage = languages[DateTime.Now.DayOfYear % languages.Length];
+                    var languagesThisTest = (test.IsPerfTest && perfTestsOneLanguageOnly) ? new[] { perfTestLanguage } : languages;
+                    if (perfTestsOneLanguageOnly && needsPerfTestPass2Warning)
                     {
                         // NB the phrase "# Perf tests" in a log is a key for SkylineNightly to post to a different URL - so don't mess with this.
-                        runTests.Log("# Perf tests will be run only once, and only in French.  To run perf tests in other languages, enable all but English.\r\n");
-                        warnedPass2PerfTest = true;
+                        runTests.Log("# Perf tests will be run only once, and only in one language, dynamically chosen (by DayOfYear%NumberOfLanguages) for coverage.  To run perf tests in specific languages, enable all but English.\r\n");
+                        needsPerfTestPass2Warning = false;
                     }
 
                     // Run once (or repeat times) for each language.
                     for (int i = 0; i < languagesThisTest.Length; i++)
                     {
                         runTests.Language = new CultureInfo(languagesThisTest[i]);
+                        var stopWatch = new Stopwatch();
+                        stopWatch.Start(); // Limit the repeats in case of very long tests
                         for (int repeatCounter = 1; repeatCounter <= repeat; repeatCounter++)
                         {
-                            if (test.IsPerfTest && ((pass > perfPass) || (repeatCounter > 1)))
+                            if (asNightly && test.IsPerfTest && ((pass > perfPass) || (repeatCounter > 1)))
                             {
                                 // Perf Tests are generally too lengthy to run multiple times (but per-language check is useful)
-                                if (!warnedPass2PerfTest)
+                                if (needsPerfTestPass2Warning)
                                 {
                                     // NB the phrase "# Perf tests" in a log is a key for SkylineNightly to post to a different URL - so don't mess with this.
                                     runTests.Log("# Perf tests will be run only once per language.\r\n");
-                                    warnedPass2PerfTest = true;
+                                    needsPerfTestPass2Warning = false;
                                 }
                                 break;
                             }
-                            if (!runTests.Run(test, pass, testNumber))
+                            if (!runTests.Run(test, pass, testNumber, dmpDir))
                             {
                                 removeList.Add(test);
                                 i = languages.Length - 1;   // Don't run other languages.
                                 break;
+                            }
+                            if ( maxSecondsPerTest > 0)
+                            {
+                                var maxSecondsPerTestPerLanguage = maxSecondsPerTest / languagesThisTest.Length; // We'd like no more than 5 minutes per test across all languages when doing stess tests
+                                if (stopWatch.Elapsed.TotalSeconds > maxSecondsPerTestPerLanguage && repeatCounter <= repeat - 1)
+                                {
+                                    runTests.Log("# Breaking repeat test at count {0} of requested {1} (at {2} minutes), to allow other tests and languages to run.\r\n", repeatCounter, repeat, stopWatch.Elapsed.TotalMinutes);
+                                    break;
+                                }
                             }
                         }
                         if (profiling)
@@ -512,21 +743,10 @@ namespace TestRunner
                 foreach (var removeTest in removeList)
                     testList.Remove(removeTest);
                 removeList.Clear();
-                runTests.TestSmallMolecules = testsmallmolecules && (flip = !flip); // Do this in every other pass, so we get it both ways
+                runTests.AddSmallMoleculeNodes = addsmallmoleculenodes && (flip = !flip); // Do this in every other pass, so we get it both ways
             }
 
             return runTests.FailureCount == 0;
-        }
-
-        private static double CalculateSlope(IEnumerable<double> points)
-        {
-            var yValues = points.ToArray();
-            var xValues = new double[yValues.Length];
-            for (int i = 0; i < xValues.Length; i++)
-                xValues[i] = i;
-            var xStats = new Statistics(xValues);
-            var yStats = new Statistics(yValues);
-            return yStats.Slope(xStats);
         }
 
         // Load list of tests to be run into TestList.
@@ -663,7 +883,7 @@ namespace TestRunner
         private class LeakingTest
         {
             public string TestName;
-            public long LeakSize;
+            public double LeakSize;
         }
 
         // Generate a summary report of errors and memory leaks from a log file.
@@ -673,6 +893,7 @@ namespace TestRunner
 
             var errorList = new List<string>();
             var leakList = new List<LeakingTest>();
+            var handleLeakList = new List<LeakingTest>();
             var crtLeakList = new List<LeakingTest>();
 
             string error = null;
@@ -702,12 +923,17 @@ namespace TestRunner
                    
                     if (failureType == "LEAKED")
                     {
-                        var leakSize = long.Parse(parts[3]);
+                        var leakSize = double.Parse(parts[3]);
                         leakList.Add(new LeakingTest { TestName = test, LeakSize = leakSize });
                         continue;
                     }
-                   
-                    if (failureType == "CRT-LEAKED")
+                    else if (failureType == "HANDLE-LEAKED")
+                    {
+                        var leakSize = double.Parse(parts[3]);
+                        handleLeakList.Add(new LeakingTest { TestName = test, LeakSize = leakSize });
+                        continue;
+                    }
+                    else if (failureType == "CRT-LEAKED")
                     {
                         var leakSize = long.Parse(parts[3]);
                         crtLeakList.Add(new LeakingTest { TestName = test, LeakSize = leakSize });
@@ -732,6 +958,13 @@ namespace TestRunner
                 ReportLeaks(leakList);
             }
 
+            if (handleLeakList.Count > 0)
+            {
+                Console.WriteLine();
+                Console.WriteLine("# Leaking handles tests (handles per run):");
+                ReportLeaks(handleLeakList);
+            }
+
             if (crtLeakList.Count > 0)
             {
                 Console.WriteLine();
@@ -744,7 +977,7 @@ namespace TestRunner
         {
             foreach (var leakTest in leakList.OrderByDescending(test => test.LeakSize))
             {
-                Console.WriteLine("#    {0,-36} {1,10:N0}",
+                Console.WriteLine("#    {0,-36} {1,10:0.#}",
                     leakTest.TestName.Substring(0, Math.Min(36, leakTest.TestName.Length)),
                     leakTest.LeakSize);
             }
@@ -793,8 +1026,13 @@ Here is a list of recognized arguments:
                                     This can help diagnose consistent memory leaks, in contrast
                                     with a leak that occurs only the first time a test is run.
 
+    maxsecondspertest=[n]           Used in conjunction with the repeat value, this limits the
+                                    amount of time a repeated test will take to no more than ""n"" 
+                                    seconds, where  n is an integer greater than 0.  If this time 
+                                    is exceeded, the test will not be repeated further.
+
     random=[on|off]                 Run the tests in random order (random=on, the default)
-                                    or alphabetic order (random=off).  Each test is run
+                                    or alphabetic order (random=off).  Each test is selected
                                     exactly once per loop, regardless of the order.
                                     
     offscreen=[on|off]              Set offscreen=on (the default) to keep Skyline windows
@@ -846,8 +1084,26 @@ Here is a list of recognized arguments:
 
         private static void ThreadExceptionEventHandler(Object sender, ThreadExceptionEventArgs e)
         {
+            Console.WriteLine("Report from TestRunner.Program.ThreadExceptionEventHandler:");
             Console.WriteLine(e.Exception.Message);
-            Console.WriteLine(e.Exception.StackTrace);
+            if (string.IsNullOrEmpty(e.Exception.StackTrace))
+                Console.WriteLine("No stacktrace");
+            else
+                Console.WriteLine(e.Exception.StackTrace);
+            if (e.Exception.InnerException != null)
+            {
+                Console.WriteLine("Inner exception:");
+                Console.WriteLine(e.Exception.InnerException.Message);
+                if (string.IsNullOrEmpty(e.Exception.InnerException.StackTrace))
+                    Console.WriteLine("No stacktrace");
+                else
+                    Console.WriteLine(e.Exception.InnerException.StackTrace);
+            }
+            else
+            {
+                Console.WriteLine("No inner exception.");
+            }
+            Console.Out.Flush(); // Get this info to TeamCity or SkylineTester ASAP
         }
 
         public static IEnumerable<TItem> RandomOrder<TItem>(this IList<TItem> list)

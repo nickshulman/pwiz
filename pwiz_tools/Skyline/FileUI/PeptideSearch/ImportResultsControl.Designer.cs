@@ -28,6 +28,7 @@ namespace pwiz.Skyline.FileUI.PeptideSearch
         /// </summary>
         private void InitializeComponent()
         {
+            this.components = new System.ComponentModel.Container();
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(ImportResultsControl));
             this.resultsSplitContainer = new System.Windows.Forms.SplitContainer();
             this.label2 = new System.Windows.Forms.Label();
@@ -37,6 +38,10 @@ namespace pwiz.Skyline.FileUI.PeptideSearch
             this.findResultsFilesButton = new System.Windows.Forms.Button();
             this.listResultsFilesMissing = new System.Windows.Forms.ListBox();
             this.cbExcludeSourceFiles = new System.Windows.Forms.CheckBox();
+            this.toolTip1 = new System.Windows.Forms.ToolTip(this.components);
+            this.label1 = new System.Windows.Forms.Label();
+            this.comboSimultaneousFiles = new System.Windows.Forms.ComboBox();
+            this.cbAutoRetry = new System.Windows.Forms.CheckBox();
             ((System.ComponentModel.ISupportInitialize)(this.resultsSplitContainer)).BeginInit();
             this.resultsSplitContainer.Panel1.SuspendLayout();
             this.resultsSplitContainer.Panel2.SuspendLayout();
@@ -52,6 +57,7 @@ namespace pwiz.Skyline.FileUI.PeptideSearch
             // 
             this.resultsSplitContainer.Panel1.Controls.Add(this.label2);
             this.resultsSplitContainer.Panel1.Controls.Add(this.listResultsFilesFound);
+            this.resultsSplitContainer.Panel1.Controls.Add(this.cbExcludeSourceFiles);
             // 
             // resultsSplitContainer.Panel2
             // 
@@ -100,15 +106,40 @@ namespace pwiz.Skyline.FileUI.PeptideSearch
             // 
             resources.ApplyResources(this.cbExcludeSourceFiles, "cbExcludeSourceFiles");
             this.cbExcludeSourceFiles.Name = "cbExcludeSourceFiles";
+            this.toolTip1.SetToolTip(this.cbExcludeSourceFiles, resources.GetString("cbExcludeSourceFiles.ToolTip"));
             this.cbExcludeSourceFiles.UseVisualStyleBackColor = true;
             this.cbExcludeSourceFiles.CheckedChanged += new System.EventHandler(this.cbExcludeSourceFiles_CheckedChanged);
+            // 
+            // label1
+            // 
+            resources.ApplyResources(this.label1, "label1");
+            this.label1.Name = "label1";
+            // 
+            // comboSimultaneousFiles
+            // 
+            resources.ApplyResources(this.comboSimultaneousFiles, "comboSimultaneousFiles");
+            this.comboSimultaneousFiles.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.comboSimultaneousFiles.FormattingEnabled = true;
+            this.comboSimultaneousFiles.Items.AddRange(new object[] {
+            resources.GetString("comboSimultaneousFiles.Items"),
+            resources.GetString("comboSimultaneousFiles.Items1"),
+            resources.GetString("comboSimultaneousFiles.Items2")});
+            this.comboSimultaneousFiles.Name = "comboSimultaneousFiles";
+            // 
+            // cbAutoRetry
+            // 
+            resources.ApplyResources(this.cbAutoRetry, "cbAutoRetry");
+            this.cbAutoRetry.Name = "cbAutoRetry";
+            this.cbAutoRetry.UseVisualStyleBackColor = true;
             // 
             // ImportResultsControl
             // 
             resources.ApplyResources(this, "$this");
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.BackColor = System.Drawing.Color.Transparent;
-            this.Controls.Add(this.cbExcludeSourceFiles);
+            this.Controls.Add(this.cbAutoRetry);
+            this.Controls.Add(this.comboSimultaneousFiles);
+            this.Controls.Add(this.label1);
             this.Controls.Add(this.resultsSplitContainer);
             this.Name = "ImportResultsControl";
             this.resultsSplitContainer.Panel1.ResumeLayout(false);
@@ -132,5 +163,9 @@ namespace pwiz.Skyline.FileUI.PeptideSearch
         private System.Windows.Forms.ListBox listResultsFilesMissing;
         private System.Windows.Forms.Button browseToResultsFileButton;
         private System.Windows.Forms.CheckBox cbExcludeSourceFiles;
+        private System.Windows.Forms.ToolTip toolTip1;
+        private System.Windows.Forms.Label label1;
+        private System.Windows.Forms.ComboBox comboSimultaneousFiles;
+        private System.Windows.Forms.CheckBox cbAutoRetry;
     }
 }

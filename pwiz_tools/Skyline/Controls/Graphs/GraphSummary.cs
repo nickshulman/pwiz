@@ -21,7 +21,9 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
 using System.Windows.Forms;
+using pwiz.Common.Collections;
 using pwiz.Common.Controls;
+using pwiz.Skyline.Controls.SeqNode;
 using pwiz.Skyline.Model;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
@@ -31,14 +33,13 @@ namespace pwiz.Skyline.Controls.Graphs
 {
     public partial class GraphSummary : DockableFormEx, IUpdatable, IMultipleViewProvider
     {
-        private const string FONT_FACE = "Arial"; // Not L10N
-        private const int FONT_SIZE = 10;
+        private const string FONT_FACE = "Arial";
 
         public static Color ColorSelected { get { return Color.Red; } }
 
         public static FontSpec CreateFontSpec(Color color)
         {
-            return new FontSpec(FONT_FACE, FONT_SIZE, color, false, false, false, Color.Empty, null, FillType.None)
+            return new FontSpec(FONT_FACE, Settings.Default.AreaFontSize, color, false, false, false, Color.Empty, null, FillType.None)
             {
                 Border = { IsVisible = false },
                 StringAlignment = StringAlignment.Near
@@ -49,6 +50,9 @@ namespace pwiz.Skyline.Controls.Graphs
         {
             GraphSummary GraphSummary { get; set; }
 
+            UniqueList<GraphTypeSummary> GraphTypes { get; set; }
+
+            void OnDocumentChanged(SrmDocument oldDocument, SrmDocument newDocument);
             void OnActiveLibraryChanged();
             void OnResultsIndexChanged();
             void OnRatioIndexChanged();
@@ -58,6 +62,16 @@ namespace pwiz.Skyline.Controls.Graphs
             bool HandleKeyDownEvent(object sender, KeyEventArgs e);
 
             IFormView FormView { get; }
+
+            string Text { get; }
+        }
+
+        public interface IControllerSplit : IController
+        {
+            bool IsReplicatePane(SummaryGraphPane pane);
+            bool IsPeptidePane(SummaryGraphPane pane);
+            SummaryGraphPane CreateReplicatePane(PaneKey key);
+            SummaryGraphPane CreatePeptidePane(PaneKey key);
         }
 
         public class RTGraphView : IFormView {}
@@ -68,9 +82,10 @@ namespace pwiz.Skyline.Controls.Graphs
             SrmDocument SelectionDocument { get; }
 
             TreeNodeMS SelectedNode { get; }
-
+            IList<TreeNodeMS> SelectedNodes { get; }
             IdentityPath SelectedPath { get; set; }
-
+            void SelectPath(IdentityPath path);
+            PeptideGraphInfo GetPeptideGraphInfo(DocNode docNode);
             int SelectedResultsIndex { get; set; }
 
             GraphValues.IRetentionTimeTransformOp GetRetentionTimeTransformOperation();
@@ -84,11 +99,17 @@ namespace pwiz.Skyline.Controls.Graphs
         {
             public SrmDocument SelectionDocument { get { return null;}}
             public TreeNodeMS SelectedNode { get { return null; } }
+            public IList<TreeNodeMS> SelectedNodes { get { return null; } }
             public IdentityPath SelectedPath { get { return IdentityPath.ROOT; } set { } }
             public void BuildGraphMenu(ZedGraphControl zedGraphControl, ContextMenuStrip menuStrip, Point mousePt, IController controller) { }
             public int SelectedResultsIndex { get; set; }
             public void ActivateSpectrum() {}
             public GraphValues.IRetentionTimeTransformOp GetRetentionTimeTransformOperation() {return null;}
+            public void SelectPath(IdentityPath path){}
+            public PeptideGraphInfo GetPeptideGraphInfo(DocNode docNode)
+            {
+                return null;
+            }
         }
 
         private readonly IDocumentUIContainer _documentContainer;
@@ -96,11 +117,32 @@ namespace pwiz.Skyline.Controls.Graphs
         private readonly IController _controller;
 
         private bool _activeLibrary;
-        private int _resultsIndex;
+        private int _targetResultsIndex;
+        private int _originalResultsIndex;
+
+        private GraphSummaryToolbar _toolbar;
+        public GraphSummaryToolbar Toolbar
+        {
+            get { return _toolbar; }
+            set
+            {
+                if (value != null)
+                {
+                    _toolbar = value;
+                    splitContainer.Panel1.Controls.Clear();
+                    splitContainer.Panel1.Controls.Add(value);
+                }
+            }
+        }
+
         private int _ratioIndex;
 
-        public GraphSummary(IDocumentUIContainer documentUIContainer, IController controller)
+        public GraphTypeSummary Type { get; set; }
+
+        public GraphSummary(GraphTypeSummary type, IDocumentUIContainer documentUIContainer, IController controller, int targetResultsIndex, int originalIndex = -1)
         {
+            _targetResultsIndex = targetResultsIndex;
+            _originalResultsIndex = originalIndex;
             InitializeComponent();
 
             Icon = Resources.SkylineData;
@@ -114,6 +156,10 @@ namespace pwiz.Skyline.Controls.Graphs
             _documentContainer.ListenUI(OnDocumentUIChanged);
             _stateProvider = documentUIContainer as IStateProvider ??
                              new DefaultStateProvider();
+
+            Type = type;
+            Text = Controller.Text + @" - " + Type.CustomToString();
+            Helpers.PeptideToMoleculeTextMapper.TranslateForm(this, _documentContainer.Document.DocumentType); // Use terminology like "Molecule Comparison" instead of "Peptide Comparison" as appropriate
 
             UpdateUI();
         }
@@ -134,16 +180,27 @@ namespace pwiz.Skyline.Controls.Graphs
 
         public int ResultsIndex
         {
-            get { return _resultsIndex; }
-            set
-            {
-                if (_resultsIndex != value)
-                {
-                    _resultsIndex = value;
+            get { return _targetResultsIndex; } // Synonym to avoid making other code use Target
+        }
 
-                    _controller.OnResultsIndexChanged();
-                }
-            }
+        public int TargetResultsIndex
+        {
+            get { return _targetResultsIndex; }
+        }
+
+        public int OriginalResultsIndex
+        {
+            get { return _originalResultsIndex; }
+
+        }
+
+        public void SetResultIndexes(int target, int original = -1, bool updateIfChanged = true)
+        {
+            bool update = target != _targetResultsIndex || original != _originalResultsIndex;
+            _targetResultsIndex = target;
+            _originalResultsIndex = original;
+            if (update && updateIfChanged)
+                _controller.OnResultsIndexChanged();
         }
 
         /// <summary>
@@ -177,6 +234,10 @@ namespace pwiz.Skyline.Controls.Graphs
 
         public void OnDocumentUIChanged(object sender, DocumentChangedEventArgs e)
         {
+            _controller.OnDocumentChanged(e.DocumentPrevious, DocumentUIContainer.DocumentUI);
+            if(HasToolbar)
+                Toolbar.OnDocumentChanged(e.DocumentPrevious, DocumentUIContainer.DocumentUI);
+
             UpdateUI();
         }
 
@@ -201,7 +262,12 @@ namespace pwiz.Skyline.Controls.Graphs
             }
         }
 
-        public int CurveCount { get { return GraphPanes.Sum(pane=>pane.CurveList.Count); } }
+        public int CurveCount { get { return CountCurves(c => true); } }
+
+        public int CountCurves(Func<CurveItem, bool> isCounted)
+        {
+            return GraphPanes.Sum(pane => pane.CurveList.Count(isCounted));
+        }
 
         internal IEnumerable<SummaryGraphPane> GraphPanes
         {
@@ -217,7 +283,7 @@ namespace pwiz.Skyline.Controls.Graphs
 
         protected override string GetPersistentString()
         {
-            return base.GetPersistentString() + '|' + _controller.GetType().Name;
+            return base.GetPersistentString() + '|' + _controller.GetType().Name + '|' + Type;
         }
 
         public IEnumerable<string> Categories
@@ -227,10 +293,44 @@ namespace pwiz.Skyline.Controls.Graphs
 
         public void UpdateUI(bool selectionChanged = true)
         {
-            UpdateGraph(true);
+            UpdateGraph(selectionChanged);
+            UpdateToolbar();
         }
 
-        private void UpdateGraph(bool checkData)
+        public void UpdateUIWithoutToolbar(bool selectionChanged = true)
+        {
+            UpdateGraph(selectionChanged);
+        }
+
+        private bool SplitterDistanceValid(double distance)
+        {
+            return distance > splitContainer.Panel1MinSize &&
+                   distance < splitContainer.Height - splitContainer.Panel2MinSize;
+        }
+
+        private void UpdateToolbar()
+        {
+            if (!Visible || IsDisposed || Toolbar == null || !SplitterDistanceValid(Toolbar.Height))
+                return;
+
+            if (!ReferenceEquals(DocumentUIContainer.Document, StateProvider.SelectionDocument))
+                return;
+
+            if (HasToolbar)
+            {
+                Toolbar.UpdateUI();
+                splitContainer.SplitterDistance = Toolbar.Height;
+                splitContainer.Panel1Collapsed = !_toolbar.Visible;
+            }
+            else
+            {
+                splitContainer.Panel1Collapsed = true;
+            }
+        }
+
+        public bool HasToolbar { get { return Toolbar != null && GraphPanes.Count() == 1 && GraphPanes.First().HasToolbar; } }
+
+        private void UpdateGraph(bool selectionChanged)
         {
             // Only worry about updates, if the graph is visible
             // And make sure it is not disposed, since rendering happens on a timer
@@ -240,16 +340,6 @@ namespace pwiz.Skyline.Controls.Graphs
             // Avoid updating when document container and state provider are out of sync
             if (!ReferenceEquals(DocumentUIContainer.Document, StateProvider.SelectionDocument))
                 return;
-           
-            // CONSIDER: Need a better guarantee that this ratio index matches the
-            //           one in the sequence tree, but at least this will keep the UI
-            //           from crashing with IndexOutOfBoundsException.
-            var mods = DocumentUIContainer.DocumentUI.Settings.PeptideSettings.Modifications;
-            _ratioIndex = Math.Min(_ratioIndex, mods.RatioInternalStandardTypes.Count - 1);
-
-            // Only show ratios if document changes to have valid ratios
-            if (AreaGraphController.AreaView == AreaNormalizeToView.area_ratio_view && !mods.HasHeavyModifications)
-                AreaGraphController.AreaView = AreaNormalizeToView.none;
 
             var graphPanesCurrent = GraphPanes.ToArray();
             _controller.OnUpdateGraph();
@@ -274,7 +364,7 @@ namespace pwiz.Skyline.Controls.Graphs
 
             foreach (var pane in graphPanes)
             {
-                pane.UpdateGraph(checkData);
+                pane.UpdateGraph(selectionChanged);
                 GraphHelper.FormatGraphPane(pane);
                 GraphHelper.FormatFontSize(pane, Settings.Default.AreaFontSize);
             }
@@ -302,6 +392,13 @@ namespace pwiz.Skyline.Controls.Graphs
             return null != graphPane && graphPane.HandleMouseDownEvent(sender, e);
         }
 
+        private void graphControl_MouseClick(object sender, MouseEventArgs e)
+        {
+            var graphPane = GraphPaneFromPoint(e.Location);
+            if(graphPane != null)
+                graphPane.HandleMouseClick(sender, e);
+        }
+
         private void graphControl_ZoomEvent(ZedGraphControl sender, ZoomState oldState, ZoomState newState, PointF mousePosition)
         {
             foreach (var pane in GraphPanes)
@@ -326,6 +423,8 @@ namespace pwiz.Skyline.Controls.Graphs
         protected override void OnClosed(EventArgs e)
         {
             _documentContainer.UnlistenUI(OnDocumentUIChanged);
+            foreach (var summaryGraphPane in GraphPanes)
+                summaryGraphPane.OnClose(e);
         }
 
         private void GraphSummary_Resize(object sender, EventArgs e)
@@ -334,6 +433,143 @@ namespace pwiz.Skyline.Controls.Graphs
             foreach (var pane in GraphPanes)
             {
                 pane.HandleResizeEvent();
+            }
+        }
+
+        public void DoUpdateGraph(IControllerSplit graphController, GraphTypeSummary graphType)
+        {
+            var paneKeys = CalcPaneKeys(graphType);
+
+            bool panesValid = paneKeys.SequenceEqual(GraphPanes.Select(pane => pane.PaneKey));
+            if (panesValid)
+            {
+                switch (graphType)
+                {
+                    case GraphTypeSummary.replicate:
+                        panesValid = GraphPanes.All(graphController.IsReplicatePane);
+                        break;
+                    case GraphTypeSummary.peptide:
+                        panesValid = GraphPanes.All(graphController.IsPeptidePane);
+                        break;
+                }
+            }
+            if (panesValid)
+            {
+                return;
+            }
+
+            switch (graphType)
+            {
+                case GraphTypeSummary.replicate:
+                    GraphPanes = paneKeys.Select(graphController.CreateReplicatePane);
+                    break;
+                case GraphTypeSummary.peptide:
+                    GraphPanes = paneKeys.Select(graphController.CreatePeptidePane);
+                    break;
+            }
+        }
+
+        public PaneKey[] CalcPaneKeys(GraphTypeSummary graphType)
+        {
+            PaneKey[] paneKeys = null;
+            if (Settings.Default.SplitChromatogramGraph)
+            {
+                if (graphType == GraphTypeSummary.replicate)
+                {
+                    var selectedTreeNode = StateProvider.SelectedNode as SrmTreeNode;
+                    if (null != selectedTreeNode)
+                    {
+                        TransitionGroupDocNode[] transitionGroups;
+                        bool transitionSelected = false;
+                        // ReSharper disable once CanBeReplacedWithTryCastAndCheckForNull
+                        if (selectedTreeNode.Model is PeptideDocNode)
+                        {
+                            transitionGroups = ((PeptideDocNode)selectedTreeNode.Model).TransitionGroups.ToArray();
+                        }
+                        // ReSharper disable once CanBeReplacedWithTryCastAndCheckForNull
+                        else if (selectedTreeNode.Model is TransitionGroupDocNode)
+                        {
+                            transitionGroups = new[] { (TransitionGroupDocNode)selectedTreeNode.Model };
+                        }
+                        else if (selectedTreeNode.Model is TransitionDocNode)
+                        {
+                            transitionGroups = new[] { (TransitionGroupDocNode)((SrmTreeNode)selectedTreeNode.Parent).Model };
+                            transitionSelected = true;
+                        }
+                        else
+                        {
+                            transitionGroups = new TransitionGroupDocNode[0];
+                        }
+                        if (transitionGroups.Length == 1)
+                        {
+                            if (GraphChromatogram.DisplayType == DisplayTypeChrom.all
+                                || (GraphChromatogram.DisplayType == DisplayTypeChrom.single && !transitionSelected))
+                            {
+                                var transitionGroup = transitionGroups[0];
+                                bool hasPrecursors = transitionGroup.Transitions.Any(transition => transition.IsMs1);
+                                bool hasProducts = transitionGroup.Transitions.Any(transition => !transition.IsMs1);
+                                if (hasPrecursors && hasProducts)
+                                {
+                                    paneKeys = new[] { PaneKey.PRECURSORS, PaneKey.PRODUCTS };
+                                }
+                            }
+                        }
+                        else if (transitionGroups.Length > 1)
+                        {
+                            paneKeys = transitionGroups.Select(group => new PaneKey(@group))
+                                .Distinct().ToArray();
+                        }
+                    }
+                }
+                else
+                {
+                    paneKeys = StateProvider.SelectionDocument.MoleculeTransitionGroups.Select(
+                        group => new PaneKey(@group.TransitionGroup.LabelType)).Distinct().ToArray();
+                }
+            }
+            paneKeys = paneKeys ?? new[] { PaneKey.DEFAULT };
+            Array.Sort(paneKeys);
+            return paneKeys;
+        }
+    }
+
+    [Flags]
+    public enum GraphTypeSummary
+    {
+        invalid = 0,
+        replicate = 1 << 0,
+        peptide = 1 << 1,
+        score_to_run_regression = 1 << 2,
+        schedule = 1 << 3,
+        run_to_run_regression = 1 << 4,
+        histogram = 1 << 5,
+        histogram2d = 1 << 6
+    }
+
+    public static class Extensions
+    {
+        public static string CustomToString(this GraphTypeSummary type)
+        {
+            switch (type)
+            {
+                case GraphTypeSummary.invalid:
+                    return string.Empty;
+                case GraphTypeSummary.replicate:
+                    return Resources.Extensions_CustomToString_Replicate_Comparison;
+                case GraphTypeSummary.peptide:
+                    return Resources.Extensions_CustomToString_Peptide_Comparison;
+                case GraphTypeSummary.score_to_run_regression:
+                    return Resources.Extensions_CustomToString_Score_To_Run_Regression;
+                case GraphTypeSummary.schedule:
+                    return Resources.Extensions_CustomToString_Scheduling;
+                case GraphTypeSummary.run_to_run_regression:
+                    return Resources.Extensions_CustomToString_Run_To_Run_Regression;
+                case GraphTypeSummary.histogram:
+                    return Resources.Extensions_CustomToString_Histogram;
+                case GraphTypeSummary.histogram2d:
+                    return Resources.Extensions_CustomToString__2D_Histogram;
+                default:
+                    return string.Empty;
             }
         }
     }

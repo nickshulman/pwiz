@@ -131,6 +131,9 @@ namespace pwiz.Skyline.SettingsUI
                     cb15N.Checked = false;
                     cb18O.Checked = false;
                     cb2H.Checked = false;
+                    cb37Cl.Checked = false;
+                    cb81Br.Checked = false;
+                    cb37Cl.Visible = cb81Br.Visible = false;  // No demonstrated need for this yet
                     listNeutralLosses.Items.Clear();
                     if (comboRelativeRT.Items.Count > 0)
                         comboRelativeRT.SelectedIndex = 0;
@@ -169,6 +172,12 @@ namespace pwiz.Skyline.SettingsUI
                     cb15N.Checked = modification.Label15N;
                     cb18O.Checked = modification.Label18O;
                     cb2H.Checked = modification.Label2H;
+                    cb37Cl.Checked = modification.Label37Cl;
+                    cb81Br.Checked = modification.Label81Br;
+
+                    // No demonstrated need for these yet, so keep hidden unless somehow selected elsewhere
+                    cb37Cl.Visible = cb37Cl.Checked;
+                    cb81Br.Visible = cb81Br.Checked;
 
                     if (comboRelativeRT.Items.Count > 0)
                         comboRelativeRT.SelectedItem = modification.RelativeRT.ToString();
@@ -221,6 +230,10 @@ namespace pwiz.Skyline.SettingsUI
                     labelAtoms |= LabelAtoms.O18;
                 if (cb2H.Checked)
                     labelAtoms |= LabelAtoms.H2;
+                if (cb37Cl.Checked)
+                    labelAtoms |= LabelAtoms.Cl37;
+                if (cb81Br.Checked)
+                    labelAtoms |= LabelAtoms.Br81;
                 return labelAtoms;
             }
         }
@@ -241,7 +254,7 @@ namespace pwiz.Skyline.SettingsUI
 
                 string btnText = btnLoss.Text;
                 btnLoss.Text = btnText.Substring(0, btnText.Length - 2) +
-                    (_showLoss ? "<<" : ">>"); // Not L10N
+                    (_showLoss ? @"<<" : @">>");
 
                 ResizeForLoss();
             }
@@ -292,7 +305,7 @@ namespace pwiz.Skyline.SettingsUI
                     if (aa.Length == 0)
                         continue;
                     if (sb.Length > 0)
-                        sb.Append(", "); // Not L10N
+                        sb.Append(@", ");
                     sb.Append(aa);
                 }
             }
@@ -329,7 +342,7 @@ namespace pwiz.Skyline.SettingsUI
             {
                 try
                 {
-                    SequenceMassCalc.ParseModMass(BioMassCalc.MONOISOTOPIC, formula);
+                    SequenceMassCalc.FormulaMass(BioMassCalc.MONOISOTOPIC, formula, SequenceMassCalc.MassPrecision);
                 }
                 catch (ArgumentException x)
                 {
@@ -395,7 +408,7 @@ namespace pwiz.Skyline.SettingsUI
                     if (DialogResult.OK == MultiButtonMsgDlg.Show(
                         this,
                         TextUtil.LineSeparate(Resources.EditStaticModDlg_OkDialog_There_is_an_existing_modification_with_the_same_settings,
-                                              string.Format("'{0}'.", mod.Name), // Not L10N
+                                              string.Format(@"'{0}'.", mod.Name),
                                               string.Empty,
                                               Resources.EditStaticModDlg_OkDialog_Continue),
                         MultiButtonMsgDlg.BUTTON_OK))
@@ -507,6 +520,16 @@ namespace pwiz.Skyline.SettingsUI
             UpdateMasses();
         }
 
+        private void cb37Cl_CheckedChanged(object sender, EventArgs e)
+        {
+            UpdateMasses();
+        }
+
+        private void cb81Br_CheckedChanged(object sender, EventArgs e)
+        {
+            UpdateMasses();
+        }
+
         private void comboAA_SelectedIndexChanged(object sender, EventArgs e)
         {
             UpdateMasses();
@@ -568,7 +591,7 @@ namespace pwiz.Skyline.SettingsUI
         }
 
 
-        private const char SEPARATOR_AA = ','; // Not L10N
+        private const char SEPARATOR_AA = ',';
 
 // ReSharper disable MemberCanBeMadeStatic.Local
         private void comboAA_KeyPress(object sender, KeyPressEventArgs e)
@@ -576,7 +599,8 @@ namespace pwiz.Skyline.SettingsUI
             // Force uppercase in this control.
             e.KeyChar = char.ToUpper(e.KeyChar);
             // Only allow amino acid characters space, comma and backspace
-            if (!AminoAcid.IsAA(e.KeyChar) && " ,\b".IndexOf(e.KeyChar) == -1) // Not L10N
+            // ReSharper disable once LocalizableElement
+            if (!AminoAcid.IsAA(e.KeyChar) && " ,\b".IndexOf(e.KeyChar) == -1)
                 e.Handled = true;
         }
 // ReSharper restore MemberCanBeMadeStatic.Local
@@ -725,7 +749,7 @@ namespace pwiz.Skyline.SettingsUI
         public void SetModification(string modName)
         {
             // Make all but Cysteine modifications default to variable
-            SetModification(modName, !modName.Contains("(C)")); // Not L10N
+            SetModification(modName, !modName.Contains(@"(C)"));
         }
 
         public void SetModification(string modName, bool isVariable)
@@ -741,8 +765,13 @@ namespace pwiz.Skyline.SettingsUI
 
         private void comboMod_SelectedIndexChanged(object sender, EventArgs e)
         {
-            if (comboMod.SelectedIndex == 0 && !comboMod.DroppedDown)
-                comboMod.SelectedIndex = 1;
+            if (comboMod.SelectedIndex == 0)
+            {
+                if (!comboMod.DroppedDown)
+                {
+                    comboMod.SelectedIndex = 1;
+                }
+            }
             else if (comboMod.SelectedIndex == -1)
                 Modification = null;
             else

@@ -25,17 +25,18 @@ using pwiz.BiblioSpec;
 using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.DocSettings.Extensions;
+using pwiz.Skyline.Model.Irt;
 using pwiz.Skyline.Model.Lib;
 using pwiz.Skyline.Model.Results;
+using pwiz.Skyline.Model.Results.Scoring;
 using pwiz.Skyline.Properties;
+using pwiz.Skyline.SettingsUI;
 using pwiz.Skyline.Util;
 
 namespace pwiz.Skyline.Model
 {
     public class ImportPeptideSearch
     {
-        private const string LAB_AUTHORITY = "proteome.gs.washington.edu";  // Not L10N
-
         public ImportPeptideSearch()
         {
             SearchFilenames = new string[0];
@@ -48,7 +49,7 @@ namespace pwiz.Skyline.Model
 
         public string[] SearchFilenames { get; set; }
         public double CutoffScore { get; set; }
-        private Library DocLib { get; set; }
+        public Library DocLib { get; private set; }
         public Dictionary<string, FoundResultsFilePossibilities> SpectrumSourceFiles { get; set; }
 
         public bool HasDocLib { get { return DocLib != null; } }
@@ -58,7 +59,7 @@ namespace pwiz.Skyline.Model
         public PeptideModifications MatcherPepMods { get { return _matcher.MatcherPepMods; } }
         public IList<StaticMod> MatcherHeavyMods { get { return MatcherPepMods.GetModifications(DefaultHeavyLabelType); } }
 
-        public BiblioSpecLiteBuilder GetLibBuilder(SrmDocument doc, string docFilePath)
+        public BiblioSpecLiteBuilder GetLibBuilder(SrmDocument doc, string docFilePath, bool includeAmbiguousMatches)
         {
             string outputPath = BiblioSpecLiteSpec.GetLibraryFileName(docFilePath);
 
@@ -87,8 +88,8 @@ namespace pwiz.Skyline.Model
                 Action = libraryBuildAction,
                 KeepRedundant = true,
                 CutOffScore = CutoffScore,
-                Authority = LAB_AUTHORITY,
-                Id = Helpers.MakeId(name)
+                Id = Helpers.MakeId(name),
+                IncludeAmbiguousMatches = includeAmbiguousMatches
             };
         }
 
@@ -119,13 +120,50 @@ namespace pwiz.Skyline.Model
         {
             return doc.ChangeSettings(doc.Settings.ChangePeptideLibraries(lib =>
             {
-                int skipCount = lib.HasDocumentLibrary ? 1 : 0;
-                var libSpecs = new List<LibrarySpec> {libSpec};
-                libSpecs.AddRange(lib.LibrarySpecs.Skip(skipCount));
-                var libs = new List<Library> {DocLib};
-                libs.AddRange(lib.Libraries.Skip(skipCount));
-                return lib.ChangeDocumentLibrary(true).ChangeLibraries(libSpecs, libs);
+                var libSpecs = new List<LibrarySpec>();
+                var libs = new List<Library>();
+                if (libSpec.IsDocumentLibrary)
+                {
+                    libSpecs.Add(libSpec);
+                    libs.Add(DocLib);
+                    int skipCount = lib.HasDocumentLibrary ? 1 : 0;
+                    libSpecs.AddRange(lib.LibrarySpecs.Skip(skipCount));
+                    libs.AddRange(lib.Libraries.Skip(skipCount));
+                    lib = lib.ChangeDocumentLibrary(true);
+                }
+                else
+                {
+                    for (int i = 0; i < lib.LibrarySpecs.Count; i++)
+                    {
+                        var spec = lib.LibrarySpecs[i];
+                        if (spec.IsDocumentLibrary || spec.Name != libSpec.Name)
+                        {
+                            libSpecs.Add(spec);
+                            libs.Add(lib.Libraries[i]);
+                        }
+                    }
+                    libSpecs.Add(libSpec);
+                    libs.Add(DocLib);
+                }
+
+                return lib.ChangeLibraries(libSpecs, libs);
             }));
+        }
+
+        public static SrmDocument AddRetentionTimePredictor(SrmDocument doc, LibrarySpec libSpec)
+        {
+            var calc = new RCalcIrt(
+                Helpers.GetUniqueName(libSpec.Name, Settings.Default.RTScoreCalculatorList.Select(lib => lib.Name).ToArray()),
+                libSpec.FilePath);
+            var predictor = new RetentionTimeRegression(
+                Helpers.GetUniqueName(libSpec.Name, Settings.Default.RetentionTimeList.Select(rt => rt.Name).ToArray()),
+                calc, null, null, EditRTDlg.DEFAULT_RT_WINDOW, new List<MeasuredRetentionTime>());
+            Settings.Default.RTScoreCalculatorList.Add(calc);
+            Settings.Default.RetentionTimeList.Add(predictor);
+            return doc.ChangeSettings(
+                doc.Settings.ChangePeptideSettings(
+                    doc.Settings.PeptideSettings.ChangePrediction(
+                        doc.Settings.PeptideSettings.Prediction.ChangeRetentionTime(predictor))));
         }
 
         public bool VerifyRetentionTimes(IEnumerable<string> resultsFiles)
@@ -151,7 +189,7 @@ namespace pwiz.Skyline.Model
                 return;
 
             var measuredResults = document.Settings.MeasuredResults;
-            foreach (var dataFile in DocLib.LibraryDetails.DataFiles)
+            foreach (var dataFile in DocLib.LibraryFiles.FilePaths)
             {
                 var msDataFilePath = new MsDataFilePath(dataFile);
                 SpectrumSourceFiles[dataFile] = new FoundResultsFilePossibilities(msDataFilePath.GetFileNameWithoutExtension());
@@ -360,21 +398,20 @@ namespace pwiz.Skyline.Model
         }
 
         public static SrmDocument ImportFasta(SrmDocument document, string fastaPath, IProgressMonitor monitor,
-            IdentityPath to, out IdentityPath firstAdded, out IdentityPath nextAdd, out int emptyProteinCount)
+            IdentityPath to, out IdentityPath firstAdded, out IdentityPath nextAdd, out List<PeptideGroupDocNode> peptideGroupsNew)
         {
             var importer = new FastaImporter(document, false);
             using (TextReader reader = File.OpenText(fastaPath))
             {
-                document = document.AddPeptideGroups(importer.Import(reader, monitor, Helpers.CountLinesInFile(fastaPath)),
-                    false, null, out firstAdded, out nextAdd);
+                peptideGroupsNew = importer.Import(reader, monitor, Helpers.CountLinesInFile(fastaPath)).ToList();
+                document = document.AddPeptideGroups(peptideGroupsNew, false, to, out firstAdded, out nextAdd);
             }
-            emptyProteinCount = importer.EmptyPeptideGroupCount;
             return document;
         }
 
-        public static SrmDocument RemoveEmptyProteins(SrmDocument document)
+        public static SrmDocument RemoveProteinsByPeptideCount(SrmDocument document, int minPeptides)
         {
-            return new RefinementSettings {MinPeptidesPerProtein = 1}.Refine(document);
+            return minPeptides > 0 ? new RefinementSettings {MinPeptidesPerProtein = minPeptides}.Refine(document) : document;
         }
 
         public class FoundResultsFile
@@ -437,6 +474,103 @@ namespace pwiz.Skyline.Model
             public bool HasMatches { get { return HasExactMatch && HasAlternateMatch; } }
             public bool HasExactMatch { get { return ExactMatch != null; } }
             public bool HasAlternateMatch { get { return AlternateMatch != null; } }
+        }
+    }
+
+    public class ImportPeptideSearchManager : BackgroundLoader, IFeatureScoreProvider
+    {
+        private SrmDocument _document;
+        private IList<IPeakFeatureCalculator> _cacheCalculators;
+        private PeakTransitionGroupFeatureSet _cachedFeatureScores;
+
+        public override void ClearCache()
+        {
+        }
+
+        protected override bool StateChanged(SrmDocument document, SrmDocument previous)
+        {
+            return document.Settings.PeptideSettings.Integration.AutoTrain;
+        }
+
+        protected override string IsNotLoadedExplained(SrmDocument document)
+        {
+            if (document.Settings.PeptideSettings.Integration.AutoTrain &&
+                document.Settings.HasResults && document.MeasuredResults.IsLoaded)
+            {
+                return @"ImportPeptideSearchManager: Model not trained";
+            }
+            return null;
+        }
+
+        protected override IEnumerable<IPooledStream> GetOpenStreams(SrmDocument document)
+        {
+            yield break;
+        }
+
+        protected override bool IsCanceled(IDocumentContainer container, object tag)
+        {
+            return false;
+        }
+
+        protected override bool LoadBackground(IDocumentContainer container, SrmDocument document, SrmDocument docCurrent)
+        {
+            var loadMonitor = new LoadMonitor(this, container, container.Document);
+
+            IPeakScoringModel scoringModel = new MProphetPeakScoringModel(
+                Path.GetFileNameWithoutExtension(container.DocumentFilePath), null as LinearModelParams,
+                MProphetPeakScoringModel.GetDefaultCalculators(docCurrent), true);
+
+            var targetDecoyGenerator = new TargetDecoyGenerator(docCurrent, scoringModel, this, loadMonitor);
+
+            // Get scores for target and decoy groups.
+            List<IList<float[]>> targetTransitionGroups, decoyTransitionGroups;
+            targetDecoyGenerator.GetTransitionGroups(out targetTransitionGroups, out decoyTransitionGroups);
+            if (!decoyTransitionGroups.Any())
+                throw new InvalidDataException();
+
+            // Set intial weights based on previous model (with NaN's reset to 0)
+            var initialWeights = new double[scoringModel.PeakFeatureCalculators.Count];
+            // But then set to NaN the weights that have unknown values for this dataset
+            for (var i = 0; i < initialWeights.Length; ++i)
+            {
+                if (!targetDecoyGenerator.EligibleScores[i])
+                    initialWeights[i] = double.NaN;
+            }
+            var initialParams = new LinearModelParams(initialWeights);
+
+            // Train the model.
+            scoringModel = scoringModel.Train(targetTransitionGroups, decoyTransitionGroups, targetDecoyGenerator, initialParams, null, scoringModel.UsesSecondBest, true, loadMonitor);
+
+            SrmDocument docNew;
+            do
+            {
+                docCurrent = container.Document;
+                docNew = docCurrent.ChangeSettings(docCurrent.Settings.ChangePeptideIntegration(i =>
+                    i.ChangeAutoTrain(false).ChangePeakScoringModel((PeakScoringModelSpec) scoringModel)));
+
+                // Reintegrate peaks
+                var resultsHandler = new MProphetResultsHandler(docNew, (PeakScoringModelSpec) scoringModel, _cachedFeatureScores);
+                resultsHandler.ScoreFeatures(loadMonitor);
+                if (resultsHandler.IsMissingScores())
+                    throw new InvalidDataException(Resources.ImportPeptideSearchManager_LoadBackground_The_current_peak_scoring_model_is_incompatible_with_one_or_more_peptides_in_the_document_);
+                docNew = resultsHandler.ChangePeaks(loadMonitor);
+            }
+            while (!CompleteProcessing(container, docNew, docCurrent));
+
+            return true;
+        }
+
+        public PeakTransitionGroupFeatureSet GetFeatureScores(SrmDocument document, IPeakScoringModel scoringModel,
+            IProgressMonitor progressMonitor)
+        {
+            if (!ReferenceEquals(document, _document) ||
+                !ArrayUtil.EqualsDeep(_cacheCalculators, scoringModel.PeakFeatureCalculators))
+            {
+                _document = document;
+                _cacheCalculators = scoringModel.PeakFeatureCalculators;
+                _cachedFeatureScores = document.GetPeakFeatures(_cacheCalculators, progressMonitor);
+            }
+            return _cachedFeatureScores;
         }
     }
 }

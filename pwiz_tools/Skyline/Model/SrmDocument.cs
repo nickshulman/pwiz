@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Original author: Brendan MacLean <brendanx .at. u.washington.edu>,
  *                  MacCoss Lab, Department of Genome Sciences, UW
  *
@@ -45,8 +45,6 @@
 
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
-using System.Globalization;
 using System.Linq;
 using System.IO;
 using System.Text;
@@ -54,21 +52,24 @@ using System.Threading;
 using System.Xml;
 using System.Xml.Schema;
 using System.Xml.Serialization;
-using pwiz.Common.Collections;
 using pwiz.Common.SystemUtil;
 using pwiz.ProteomeDatabase.API;
 using pwiz.Skyline.Controls.SeqNode;
+using pwiz.Skyline.Model.AuditLog;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.DocSettings.Extensions;
 using pwiz.Skyline.Model.Find;
+using pwiz.Skyline.Model.IonMobility;
 using pwiz.Skyline.Model.Irt;
 using pwiz.Skyline.Model.Lib;
 using pwiz.Skyline.Model.Optimization;
+using pwiz.Skyline.Model.Proteome;
 using pwiz.Skyline.Model.Results.Scoring;
 using pwiz.Skyline.Model.RetentionTimes;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
 using pwiz.Skyline.Model.Results;
+using pwiz.Skyline.Model.Serialization;
 using pwiz.Skyline.Util.Extensions;
 
 namespace pwiz.Skyline.Model
@@ -110,6 +111,18 @@ namespace pwiz.Skyline.Model
         /// </summary>
         /// <param name="listener">The event handler to remove</param>
         void Unlisten(EventHandler<DocumentChangedEventArgs> listener);
+
+        /// <summary>
+        /// Returns true if the container is in teardown, and we should not attempt any document changes.
+        /// </summary>
+        bool IsClosing { get; }
+
+        /// <summary>
+        /// Tracking active background loaders for a container - helps in test harness SkylineWindow teardown
+        /// </summary>
+        IEnumerable<BackgroundLoader> BackgroundLoaders { get; }
+        void AddBackgroundLoader(BackgroundLoader loader);
+        void RemoveBackgroundLoader(BackgroundLoader loader);
     }
 
     /// <summary>
@@ -122,6 +135,11 @@ namespace pwiz.Skyline.Model
         /// Get the current document for display in the UI.
         /// </summary>
         SrmDocument DocumentUI { get; }
+
+        /// <summary>
+        /// Get the current UI mode (proteomics vs molecules vs mixed).
+        /// </summary>
+        SrmDocument.DOCUMENT_TYPE ModeUI { get; }
 
         /// <summary>
         /// Adds an event handler to the container's document UI changed event. The
@@ -154,10 +172,11 @@ namespace pwiz.Skyline.Model
     /// </summary>
     public class DocumentChangedEventArgs : EventArgs
     {
-        public DocumentChangedEventArgs(SrmDocument documentPrevious, bool inSelUpdateLock = false)
+        public DocumentChangedEventArgs(SrmDocument documentPrevious, bool isOpeningFile = false, bool inSelUpdateLock = false)
         {
             DocumentPrevious = documentPrevious;
             IsInSelUpdateLock = inSelUpdateLock;
+            IsOpeningFile = isOpeningFile;
         }
 
         public SrmDocument DocumentPrevious { get; private set; }
@@ -167,6 +186,11 @@ namespace pwiz.Skyline.Model
         /// cannot be trusted as reflecting the current document.
         /// </summary>
         public bool IsInSelUpdateLock { get; private set; }
+
+        /// <summary>
+        /// True when the document change is caused by opening a file
+        /// </summary>
+        public bool IsOpeningFile { get; private set; }
     }
 
     /// <summary>
@@ -202,13 +226,13 @@ namespace pwiz.Skyline.Model
     /// rather than a record of actions taken to modify a mutable document.
     /// </para>
     /// </summary>
-    [XmlRoot("srm_settings")] // Not L10N
+    [XmlRoot(@"srm_settings")]
     public class SrmDocument : DocNodeParent, IXmlSerializable
     {
         /// <summary>
         /// Document extension on disk
         /// </summary>
-        public const string EXT = ".sky"; // Not L10N
+        public const string EXT = ".sky";
 
         public static string FILTER_DOC
         {
@@ -225,28 +249,25 @@ namespace pwiz.Skyline.Model
             }    
         }
 
-        public const double FORMAT_VERSION_0_1 = 0.1;
-        public const double FORMAT_VERSION_0_2 = 0.2;
-        public const double FORMAT_VERSION_0_8 = 0.8;
-        public const double FORMAT_VERSION_1_2 = 1.2;   // Used briefly during development of v1.3
-        public const double FORMAT_VERSION_1_3 = 1.3;
-        public const double FORMAT_VERSION_1_4 = 1.4;
-        public const double FORMAT_VERSION_1_5 = 1.5;
-        public const double FORMAT_VERSION_1_6 = 1.6;   // Adds richer protein metadata
-        public const double FORMAT_VERSION_1_7 = 1.7;   // Adds Ion Mobility handling
-        public const double FORMAT_VERSION_1_8 = 1.8;   // Adds Reporter Ions and non proteomic transitions
-        public const double FORMAT_VERSION_1_9 = 1.9;   // Adds sequence lookup key for decoys
-        public const double FORMAT_VERSION_2_61 = 2.61;   // Adds drift time high energy offsets for Waters IMS
-        public const double FORMAT_VERSION_2_62 = 2.62;   // Revised small molecule support
-        public const double FORMAT_VERSION_3_1 = 3.1;   // Release format. No change from 2.62
-        public const double FORMAT_VERSION_3_11 = 3.11; // Adds compensation voltage optimization support
-        public const double FORMAT_VERSION_3_12 = 3.12; // Adds small molecule ion labels and multiple charge states
-        public const double FORMAT_VERSION_3_5 = 3.5; // Release format
-        public const double FORMAT_VERSION_3_51 = 3.51; // Adds document GUID and Panorama URI
-        public const double FORMAT_VERSION = FORMAT_VERSION_3_51;
+        public static readonly DocumentFormat FORMAT_VERSION = DocumentFormat.CURRENT;
 
-        public const int MAX_PEPTIDE_COUNT = 100*1000;
-        public const int MAX_TRANSITION_COUNT = 6*MAX_PEPTIDE_COUNT; // Modern DIA experiments may often have 6 transitions per peptide
+        public const int MAX_PEPTIDE_COUNT = 200 * 1000;
+        public const int MAX_TRANSITION_COUNT = 5 * 1000 * 1000;
+
+        public static int _maxTransitionCount = Install.Is64Bit ? MAX_TRANSITION_COUNT : MAX_TRANSITION_COUNT/5;   // To keep from running out of memory on 32-bit
+
+        public static int MaxTransitionCount
+        {
+            get { return _maxTransitionCount; }
+        }
+
+        /// <summary>
+        /// For testing to avoid needing to create 5,000,000 transitions to test transition count limits
+        /// </summary>
+        public static void SetTestMaxTransitonCount(int max)
+        {
+            _maxTransitionCount = max;
+        }
 
         // Version of this document in deserialized XML
 
@@ -255,23 +276,66 @@ namespace pwiz.Skyline.Model
         {
             FormatVersion = FORMAT_VERSION;
             Settings = settings;
+            AuditLog = new AuditLogList();
+            SetDocumentType(); // Note proteomics vs  molecule vs mixed (as we're empty, will be set to none)
         }
 
-        public SrmDocument(SrmDocument doc, SrmSettings settings, IList<DocNode> children)
-            : base(doc.Id, Annotations.EMPTY, children, false)
+        private SrmDocument(SrmDocument doc, SrmSettings settings, Action<SrmDocument> changeProps = null)
+            : base(doc.Id, Annotations.EMPTY, doc.Children, false)
         {
             FormatVersion = doc.FormatVersion;
-            RevisionIndex = doc.RevisionIndex + 1;
+            RevisionIndex = doc.RevisionIndex;
             UserRevisionIndex = doc.UserRevisionIndex;
             Settings = settings;
-            CheckIsProteinMetadataComplete();
+            AuditLog = doc.AuditLog;
+            DocumentHash = doc.DocumentHash;
+            DeferSettingsChanges = doc.DeferSettingsChanges;
+            DocumentType = doc.DocumentType;
+
+            if (changeProps != null)
+                changeProps(this);
+        }
+
+        /// <summary>
+        /// Notes document contents type: proteomic, small molecule, or mixed (empty reports as proteomic),
+        /// which allows for quick discrimination between needs for proteomic and small molecule behavior.
+        /// N.B. For construction time and <see cref="OnChangingChildren"/> only!!! Mustn't break immutabilty contract.
+        ///
+        /// </summary>
+        private void SetDocumentType()
+        {
+            var hasPeptides = false;
+            var hasSmallMolecules = false;
+            foreach (var tg in MoleculeTransitionGroups)
+            {
+                hasPeptides |= !tg.IsCustomIon;
+                hasSmallMolecules |= tg.IsCustomIon;
+            }
+
+            if (hasSmallMolecules && hasPeptides)
+            {
+                DocumentType = DOCUMENT_TYPE.mixed;
+            }
+            else if (hasSmallMolecules)
+            {
+                DocumentType = DOCUMENT_TYPE.small_molecules;
+            }
+            else if (hasPeptides)
+            {
+                DocumentType = DOCUMENT_TYPE.proteomic;
+            }
+            else
+            {
+                DocumentType = DOCUMENT_TYPE.none;
+            }
+            Settings = UpdateHasHeavyModifications(Settings);
         }
 
         public override AnnotationDef.AnnotationTarget AnnotationTarget { 
             get { throw new InvalidOperationException();}
         }
 
-        public double FormatVersion { get; private set; }
+        public DocumentFormat FormatVersion { get; private set; }
 
         /// <summary>
         /// Monotonically increasing index, incremented each time a modified
@@ -300,6 +364,22 @@ namespace pwiz.Skyline.Model
         public SrmSettings Settings { get; private set; }
 
         /// <summary>
+        /// Document hash that gets updated when the document is opened/saved
+        /// </summary>
+        public string DocumentHash { get; private set; }
+
+        public AuditLogList AuditLog { get; private set; }
+
+        public Targets Targets { get { return new Targets(this);} }
+
+        public bool DeferSettingsChanges { get; private set; }
+
+        /// <summary>
+        /// Convenience access to the <see cref="MeasuredResults"/> for easier debugging.
+        /// </summary>
+        public MeasuredResults MeasuredResults { get { return Settings.MeasuredResults; } }
+
+        /// <summary>
         /// Node level depths below this node
         /// </summary>
 // ReSharper disable InconsistentNaming
@@ -318,7 +398,29 @@ namespace pwiz.Skyline.Model
         public int PeptideTransitionCount { get { return PeptideTransitions.Count(); } }
 
         // Convenience functions for ignoring proteomic nodes - that is, getting only custom ions
-        public int CustomIonCount { get { return CustomIons.Count(); } } 
+        public int CustomIonCount { get { return CustomMolecules.Count(); } } 
+
+        /// <summary>
+        /// Quick access to document type proteomic/small_molecules/mixed, based on the assumption that 
+        /// TransitionGroups are purely proteomic or small molecule, but the document is not.
+        /// 
+        /// Empty documents report as none.
+        ///
+        /// These enum names are used on persisted settings for UI mode, so don't rename them as
+        /// it will confuse existing installations.
+        /// 
+        /// </summary>
+        public enum DOCUMENT_TYPE
+        {
+            proteomic,  
+            small_molecules,
+            mixed,
+            none // empty documents return this
+        };
+        public DOCUMENT_TYPE DocumentType { get; private set; }
+        public bool IsEmptyOrHasPeptides { get { return DocumentType != DOCUMENT_TYPE.small_molecules; } }
+        public bool HasPeptides { get { return DocumentType == DOCUMENT_TYPE.proteomic || DocumentType == DOCUMENT_TYPE.mixed; } }
+        public bool HasSmallMolecules { get { return DocumentType == DOCUMENT_TYPE.small_molecules || DocumentType == DOCUMENT_TYPE.mixed; } }
 
         /// <summary>
         /// Return all <see cref="PeptideGroupDocNode"/>s of any kind
@@ -360,18 +462,18 @@ namespace pwiz.Skyline.Model
         {
             get
             {
-                return Molecules.Where(p => !p.Peptide.IsCustomIon);
+                return Molecules.Where(p => !p.Peptide.IsCustomMolecule);
             }
         }
 
         /// <summary>
-        /// Return all <see cref="PeptideDocNode"/> that are custom ions
+        /// Return all <see cref="PeptideDocNode"/> that are custom molecules
         /// </summary>
-        public IEnumerable<PeptideDocNode> CustomIons
+        public IEnumerable<PeptideDocNode> CustomMolecules
         {
             get
             {
-                return Molecules.Where(p => p.Peptide.IsCustomIon);
+                return Molecules.Where(p => p.Peptide.IsCustomMolecule);
             }
         }
 
@@ -393,7 +495,7 @@ namespace pwiz.Skyline.Model
         {
             get
             {
-                return MoleculeTransitionGroups.Where(t => !t.TransitionGroup.Peptide.IsCustomIon);
+                return MoleculeTransitionGroups.Where(t => !t.TransitionGroup.Peptide.IsCustomMolecule);
             }
         }
 
@@ -437,7 +539,7 @@ namespace pwiz.Skyline.Model
             }
         }
 
-        public HashSet<string> GetRetentionTimeStandards()
+        public HashSet<Target> GetRetentionTimeStandards()
         {
             try
             {
@@ -445,7 +547,7 @@ namespace pwiz.Skyline.Model
             }
             catch (Exception)
             {
-                return new HashSet<string>();
+                return new HashSet<Target>();
             }
         }
 
@@ -462,15 +564,15 @@ namespace pwiz.Skyline.Model
            }
         }
 
-        private HashSet<string> GetRetentionTimeStandardsOrThrow()
+        private HashSet<Target> GetRetentionTimeStandardsOrThrow()
         {
             var rtRegression = Settings.PeptideSettings.Prediction.RetentionTime;
             if (rtRegression == null || rtRegression.Calculator == null)
-                return new HashSet<string>();
+                return new HashSet<Target>();
 
             var regressionPeps = rtRegression.Calculator.GetStandardPeptides(Peptides.Select(
                 nodePep => Settings.GetModifiedSequence(nodePep)));
-            return new HashSet<string>(regressionPeps);
+            return new HashSet<Target>(regressionPeps);
         }
 
         /// <summary>
@@ -503,16 +605,32 @@ namespace pwiz.Skyline.Model
             {
                 string whyNot;
                 if (Settings.HasResults && (whyNot = Settings.MeasuredResults.IsNotLoadedExplained) != null)
-                    yield return "Settings.MeasuredResults " + whyNot; // Not L10N
+                    yield return @"Settings.MeasuredResults " + whyNot;
                 if (Settings.HasLibraries && (whyNot = Settings.PeptideSettings.Libraries.IsNotLoadedExplained)!=null)
-                    yield return "Settings.PeptideSettings.Libraries: " + whyNot; // Not L10N
+                    yield return @"Settings.PeptideSettings.Libraries: " + whyNot;
                 if ((whyNot = IrtDbManager.IsNotLoadedDocumentExplained(this)) != null)
-                    yield return whyNot; // Not L10N
+                    yield return whyNot;
                 if ((whyNot = OptimizationDbManager.IsNotLoadedDocumentExplained(this)) != null)
-                    yield return whyNot; // Not L10N
+                    yield return whyNot;
                 if ((whyNot = DocumentRetentionTimes.IsNotLoadedExplained(Settings)) != null)
-                    yield return whyNot; // Not L10N
+                    yield return whyNot;
+                if ((whyNot = IonMobilityLibraryManager.IsNotLoadedDocumentExplained(this)) != null)
+                    yield return whyNot;
                 // BackgroundProteome?
+            }
+        }
+
+        public IEnumerable<string> NonLoadedStateDescriptionsFull
+        {
+            get
+            {
+                foreach (var desc in NonLoadedStateDescriptions)
+                    yield return desc;
+
+                string whyNot;
+                var pepSet = Settings.PeptideSettings;
+                if ((whyNot = BackgroundProteomeManager.IsNotLoadedExplained(pepSet, pepSet.BackgroundProteome, true)) != null)
+                    yield return whyNot;
             }
         }
 
@@ -551,24 +669,55 @@ namespace pwiz.Skyline.Model
             }
         }
 
-        public string GetPeptideGroupId(bool peptideList)
+        public SrmDocument ChangeDocumentHash(string hash)
+        {
+            return ChangeProp(ImClone(this), im => im.DocumentHash = hash);
+        }
+
+        public SrmDocument ChangeAuditLog(AuditLogList log)
+        {
+            return ChangeProp(ImClone(this), im => im.AuditLog = log);
+        }
+
+        public SrmDocument ChangeAuditLog(AuditLogEntry entries)
+        {
+            return ChangeAuditLog(new AuditLogList(entries));
+        }
+
+        private string GetMoleculeGroupId(string baseId)
         {
             HashSet<string> ids = new HashSet<string>();
             foreach (PeptideGroupDocNode nodeGroup in Children)
                 ids.Add(nodeGroup.Name);
 
-            string baseId = peptideList
-                ? Resources.SrmDocument_GetPeptideGroupId_peptides 
-                : Resources.SrmDocument_GetPeptideGroupId_sequence; 
             int i = 1;
             while (ids.Contains(baseId + i))
                 i++;
             return baseId + i;
         }
 
+        public string GetSmallMoleculeGroupId()
+        {
+            return GetMoleculeGroupId(Resources.SrmDocument_GetSmallMoleculeGroupId_molecules);
+        }
+
+        public string GetPeptideGroupId(bool peptideList)
+        {
+            string baseId = peptideList
+                ? Resources.SrmDocument_GetPeptideGroupId_peptides 
+                : Resources.SrmDocument_GetPeptideGroupId_sequence;
+            return GetMoleculeGroupId(baseId);
+        }
+
         public bool CanTrigger(int? replicateIndex)
         {
             return Molecules.All(p => p.CanTrigger(replicateIndex));
+        }
+
+        public bool IsMixedPolarity()
+        {
+            return MoleculeTransitionGroups.Any(tg => tg.TransitionGroup.PrecursorCharge < 0) &&
+                   MoleculeTransitionGroups.Any(tg => tg.TransitionGroup.PrecursorCharge > 0);
         }
 
         public bool CanSchedule(bool singleWindow)
@@ -578,11 +727,11 @@ namespace pwiz.Skyline.Model
                         : PeptidePrediction.SchedulingStrategy.all_variable_window);
         }
 
-        private void CheckIsProteinMetadataComplete()
+        private bool CalcIsProteinMetadataPending()
         {
             // Non proteomic molecules never do protein metadata searches
             var unsearched = (from pg in PeptideGroups where pg.ProteinMetadata.NeedsSearch() select pg);
-            IsProteinMetadataPending = unsearched.Any();
+            return unsearched.Any();
         }
 
         public SrmDocument IncrementUserRevisionIndex()
@@ -595,7 +744,8 @@ namespace pwiz.Skyline.Model
         /// for <see cref="RevisionIndex"/>.
         /// </summary>
         /// <param name="clone">The new copy of the document</param>
-        protected override IList<DocNode> OnChangingChildren(DocNodeParent clone)
+        /// <param name="indexReplaced">Index to a single replaced node, if that is why the children are changing</param>
+        protected override IList<DocNode> OnChangingChildren(DocNodeParent clone, int indexReplaced)
         {
             if (ReferenceEquals(clone, this))
                 return Children;
@@ -604,24 +754,43 @@ namespace pwiz.Skyline.Model
             docClone.RevisionIndex = RevisionIndex + 1;
 
             // Make sure peptide standards lists are up to date
-            docClone.Settings = Settings.CachePeptideStandards(Children, docClone.Children);
+            docClone.Settings = docClone.Settings.CachePeptideStandards(Children, docClone.Children);
 
             // Note protein metadata readiness
-            docClone.CheckIsProteinMetadataComplete();
+            docClone.IsProteinMetadataPending = docClone.CalcIsProteinMetadataPending();
 
+            // If iRT standards have changed, reset auto-calculated conversion to make sure they are
+            // updated on a background thread
+            if (!ReferenceEquals(Settings.GetPeptideStandards(StandardType.IRT),
+                docClone.Settings.GetPeptideStandards(StandardType.IRT)) &&
+                docClone.Settings.PeptideSettings.Prediction.RetentionTime != null)
+            {
+                docClone.Settings = docClone.Settings.ChangePeptidePrediction(p =>
+                    p.ChangeRetentionTime(p.RetentionTime.ForceRecalculate()));
+            }
+
+            // Note document contents type: proteomic, small molecule, or mixed (empty reports as proteomic)
+            if (!DeferSettingsChanges)
+            {
+                docClone.SetDocumentType();
+            }
+            
             // If this document has associated results, update the results
             // for any peptides that have changed.
-            if (!Settings.HasResults)
+            if (!Settings.HasResults || DeferSettingsChanges)
                 return docClone.Children;
 
             // Store indexes to previous results in a dictionary for lookup
             var dictPeptideIdPeptide = new Dictionary<int, PeptideDocNode>();
             // Unless the normalization standards have changed, which require recalculating of all ratios
-            if (ReferenceEquals(Settings.GetPeptideStandards(PeptideDocNode.STANDARD_TYPE_NORMALIZAITON),
-                docClone.Settings.GetPeptideStandards(PeptideDocNode.STANDARD_TYPE_NORMALIZAITON)))
+            if (ReferenceEquals(Settings.GetPeptideStandards(StandardType.GLOBAL_STANDARD),
+                docClone.Settings.GetPeptideStandards(StandardType.GLOBAL_STANDARD)))
             {
                 foreach (var nodePeptide in Molecules)
-                    dictPeptideIdPeptide.Add(nodePeptide.Peptide.GlobalIndex, nodePeptide);
+                {
+                    if (nodePeptide != null)    // Or previous peptides were freed during command-line peak picking
+                        dictPeptideIdPeptide.Add(nodePeptide.Peptide.GlobalIndex, nodePeptide);
+                }
             }
 
             return docClone.UpdateResultsSummaries(docClone.Children, dictPeptideIdPeptide);
@@ -717,6 +886,8 @@ namespace pwiz.Skyline.Model
                     newChildren = rankChildren(nodeGroup, newChildren);
                 newMoleculeGroups[i] = nodeGroup.ChangeChildrenChecked(newChildren);
             }
+            if (ArrayUtil.ReferencesEqual(children, newMoleculeGroups))
+                return children;
             return newMoleculeGroups;
         }
 
@@ -735,6 +906,13 @@ namespace pwiz.Skyline.Model
 
             public PeptideGroupDocNode NodeMoleculeGroup { get; private set; }
             public PeptideDocNode NodeMolecule { get; private set; }
+
+            public PeptideDocNode ReleaseMolecule()
+            {
+                var nodeMol = NodeMolecule;
+                NodeMolecule = null;
+                return nodeMol;
+            }
         }
 
         /// <summary>
@@ -761,7 +939,11 @@ namespace pwiz.Skyline.Model
         /// <returns>A new document revision</returns>
         public SrmDocument ChangeSettingsNoDiff(SrmSettings settingsNew)
         {
-            return new SrmDocument(this, settingsNew, Children);
+            return new SrmDocument(this, UpdateHasHeavyModifications(settingsNew), doc =>
+            {
+                doc.RevisionIndex++;
+                doc.IsProteinMetadataPending = doc.CalcIsProteinMetadataPending();
+            });
         }
 
         /// <summary>
@@ -786,6 +968,7 @@ namespace pwiz.Skyline.Model
         /// <returns>A new document revision</returns>
         private SrmDocument ChangeSettingsInternal(SrmSettings settingsNew, SrmSettingsChangeMonitor progressMonitor = null)
         {
+            settingsNew = UpdateHasHeavyModifications(settingsNew);
             // First figure out what changed.
             SrmSettingsDiff diff = new SrmSettingsDiff(Settings, settingsNew);
             if (progressMonitor != null)
@@ -797,7 +980,7 @@ namespace pwiz.Skyline.Model
             }
 
             // If there were no changes that require DocNode tree updates
-            if (!diff.RequiresDocNodeUpdate)
+            if (DeferSettingsChanges || !diff.RequiresDocNodeUpdate)
                 return ChangeSettingsNoDiff(settingsNew);
             else
             {
@@ -809,10 +992,57 @@ namespace pwiz.Skyline.Model
                     // peptide group, like Decoys
                     var childrenParallel = new DocNode[Children.Count];
                     var settingsParallel = settingsNew;
+                    int currentPeptide = 0;
+                    int totalPeptides = Children.Count;
+
+                    // If we are looking at peptide uniqueness against a background proteome,
+                    // it's faster to do those checks with a comprehensive list of peptides of 
+                    // potential interest rather than taking them one by one.
+                    // So we'll precalculate the peptides using any other filter settings
+                    // before we go on to apply the uniqueness check.
+                    var uniquenessPrecheckChildren = new List<PeptideDocNode>[Children.Count];
+                    Dictionary<Target, bool> uniquenessDict = null;
+                    if (settingsNew.PeptideSettings.Filter.PeptideUniqueness != PeptideFilter.PeptideUniquenessConstraint.none &&
+                        !settingsNew.PeptideSettings.NeedsBackgroundProteomeUniquenessCheckProcessing)
+                    {
+                        // Generate the peptide docnodes with no uniqueness filter
+                        var settingsNoUniquenessFilter =
+                            settingsNew.ChangePeptideSettings(
+                                settingsNew.PeptideSettings.ChangeFilter(
+                                    settingsNew.PeptideSettings.Filter.ChangePeptideUniqueness(
+                                        PeptideFilter.PeptideUniquenessConstraint.none)));
+                        uniquenessPrecheckChildren = new List<PeptideDocNode>[Children.Count];
+                        totalPeptides *= 2; // We have to run the list twice
+                        ParallelEx.For(0, Children.Count, i =>
+                        {
+                            if (progressMonitor != null)
+                            {
+                                var percentComplete = ProgressStatus.ThreadsafeIncementPercent(ref currentPeptide, totalPeptides);
+                                if (percentComplete.HasValue && percentComplete.Value < 100)
+                                    progressMonitor.ChangeProgress(status => status.ChangePercentComplete(percentComplete.Value));
+                            }
+                            var nodeGroup = (PeptideGroupDocNode)Children[i];
+                            uniquenessPrecheckChildren[i] = nodeGroup.GetPeptideNodes(settingsNoUniquenessFilter, true).ToList();
+                        });
+                        var uniquenessPrecheckPeptidesOfInterest = new List<Target>(uniquenessPrecheckChildren.SelectMany(u => u.Select(p => p.Peptide.Target)));
+                        // Update cache for uniqueness checks against the background proteome while we have worker threads available
+                        uniquenessDict = settingsNew.PeptideSettings.Filter.CheckPeptideUniqueness(settingsNew, uniquenessPrecheckPeptidesOfInterest, progressMonitor);
+                    }
+
+                    // Now perform or complete the peptide selection
                     ParallelEx.For(0, Children.Count, i =>
                     {
-                        var nodeGroup = (PeptideGroupDocNode) Children[i];
-                        childrenParallel[i] = nodeGroup.ChangeSettings(settingsParallel, diff);
+                        if (progressMonitor != null)
+                        {
+                            if (progressMonitor.IsCanceled())
+                                throw new OperationCanceledException();
+                            var percentComplete = ProgressStatus.ThreadsafeIncementPercent(ref currentPeptide, totalPeptides);
+                            if (percentComplete.HasValue && percentComplete.Value < 100)
+                                progressMonitor.ChangeProgress(status => status.ChangePercentComplete(percentComplete.Value));
+                        }
+                        var nodeGroup = (PeptideGroupDocNode)Children[i];
+                        childrenParallel[i] = nodeGroup.ChangeSettings(settingsParallel, diff,
+                           new DocumentSettingsContext(uniquenessPrecheckChildren[i], uniquenessDict)); 
                     });
                     childrenNew = childrenParallel;
                 }
@@ -821,11 +1051,29 @@ namespace pwiz.Skyline.Model
                     // Changes that do not change the peptides can be done quicker with
                     // parallel enumeration of the peptides
                     var moleculeGroupPairs = GetMoleculeGroupPairs(Children);
+                    var resultsHandler = settingsNew.PeptideSettings.Integration.ResultsHandler;
+                    if (resultsHandler != null && resultsHandler.FreeImmutableMemory)
+                    {
+                        // Break immutability (command-line only!) and release the peptides (children of the children)
+                        // so that their memory is freed after they have been processed
+                        foreach (DocNodeParent child in Children)
+                            child.ReleaseChildren();
+                    }
                     var moleculeNodes = new PeptideDocNode[moleculeGroupPairs.Length];
                     var settingsParallel = settingsNew;
+                    int currentMoleculeGroupPair = 0;
                     ParallelEx.For(0, moleculeGroupPairs.Length, i =>
                     {
-                        var nodePep = moleculeGroupPairs[i].NodeMolecule;
+                        if (progressMonitor != null)
+                        {
+                            if (progressMonitor.IsCanceled())
+                                throw new OperationCanceledException();
+                            var percentComplete = ProgressStatus.ThreadsafeIncementPercent(ref currentMoleculeGroupPair, moleculeGroupPairs.Length);
+                            if (percentComplete.HasValue && percentComplete.Value < 100)
+                                progressMonitor.ChangeProgress(status => status.ChangePercentComplete(percentComplete.Value));
+                        }
+
+                        var nodePep = moleculeGroupPairs[i].ReleaseMolecule();
                         moleculeNodes[i] = nodePep.ChangeSettings(settingsParallel, diff);
                     });
 
@@ -833,18 +1081,43 @@ namespace pwiz.Skyline.Model
                         (nodeGroup, children) => nodeGroup.RankChildren(settingsParallel, children));
                 }
 
-                // Don't change the children, if the resulting list contains
-                // only reference equal children of the same length and in the
-                // same order.
-                if (ArrayUtil.ReferencesEqual(childrenNew, Children))
-                    childrenNew = Children;
-
                 // Results handler changes for re-integration last only long enough
                 // to change the children
                 if (settingsNew.PeptideSettings.Integration.ResultsHandler != null)
                     settingsNew = settingsNew.ChangePeptideIntegration(i => i.ChangeResultsHandler(null));
-                return new SrmDocument(this, settingsNew, childrenNew);
+
+                // Don't change the children, if the resulting list contains
+                // only reference equal children of the same length and in the
+                // same order.
+                if (ArrayUtil.ReferencesEqual(childrenNew, Children))
+                    return ChangeSettingsNoDiff(settingsNew);
+
+                return (SrmDocument)new SrmDocument(this, settingsNew).ChangeChildren(childrenNew);
             }
+        }
+
+        private SrmSettings UpdateHasHeavyModifications(SrmSettings settings)
+        {
+            bool hasHeavyModifications = settings.PeptideSettings.Modifications.GetHeavyModifications()
+                .Any(mods => mods.Modifications.Count > 0);
+            if (!hasHeavyModifications && HasSmallMolecules)
+            {
+                foreach (var molecule in Molecules)
+                {
+                    if (molecule.TransitionGroups.Any(group =>
+                        !ReferenceEquals(group.TransitionGroup.LabelType, IsotopeLabelType.light)))
+                    {
+                        hasHeavyModifications = true;
+                        break;
+                    }
+                }
+            }
+            if (hasHeavyModifications == settings.PeptideSettings.Modifications.HasHeavyModifications)
+            {
+                return settings;
+            }
+            return settings.ChangePeptideSettings(settings.PeptideSettings.ChangeModifications(
+                settings.PeptideSettings.Modifications.ChangeHasHeavyModifications(hasHeavyModifications)));
         }
 
         public SrmDocument ImportDocumentXml(TextReader reader,
@@ -872,6 +1145,8 @@ namespace pwiz.Skyline.Model
                 var docNew = this;
                 var settingsNew = docNew.Settings;
                 var settingsOld = docImport.Settings;
+                if (settingsOld.MeasuredResults != null)
+                    settingsOld = settingsOld.ChangeMeasuredResults(settingsOld.MeasuredResults.ClearDeserialized());
 
                 // Merge results from import document with current document.
                 MeasuredResults resultsBase;
@@ -917,6 +1192,12 @@ namespace pwiz.Skyline.Model
                             docImport.Settings.PeptideSettings.Modifications,
                             docNew.Settings.PeptideSettings.Modifications,
                             staticMods, heavyMods);
+                        if (nodePepModified.GlobalStandardType != null)
+                        {
+                            // Try to keep settings change from changing the children of standards being imported
+                            nodePepModified = (PeptideDocNode)nodePepModified.ChangeAutoManageChildren(false)
+                                .ChangeChildrenChecked(nodePepModified.TransitionGroups.Select(nodeGroup => nodeGroup.ChangeAutoManageChildren(false)).ToArray());
+                        }
                         peptidesNew.Add(nodePepModified);
                     }
                     var nodePepGroupNew = (PeptideGroupDocNode)nodePepGroup.ChangeChildrenChecked(peptidesNew.ToArray());
@@ -940,6 +1221,68 @@ namespace pwiz.Skyline.Model
                 PeptideModifications.SetSerializationContext(null);
             }
         }
+
+        /// <summary>
+        /// Inspect a file to see if it's Skyline XML data or not
+        /// </summary>
+        /// <param name="path">file to inspect</param>
+        /// <param name="explained">explanation of problem with file if it's not a Skyline document</param>
+        /// <returns>true iff file exists and has XML header that appears to be the start of Skyline document.</returns>
+        public static bool IsSkylineFile(string path, out string explained)
+        {
+            explained = string.Empty;
+            if (File.Exists(path))
+            {
+                try
+                {
+                    // We have no idea what kind of file this might be, so even reading the first "line" might take a long time. Read a chunk instead.
+                    var probeFile = File.OpenRead(path);
+                    var CHUNKSIZE = 500; // Should be more than adequate to check for "?xml version="1.0" encoding="utf-8"?>< srm_settings format_version = "4.12" software_version = "Skyline (64-bit) " >"
+                    var probeBuf = new byte[CHUNKSIZE];
+                    probeFile.Read(probeBuf, 0, CHUNKSIZE);
+                    probeBuf[CHUNKSIZE - 1] = 0;
+                    var probeString = Encoding.UTF8.GetString(probeBuf);
+                    if (!probeString.Contains(@"<srm_settings"))
+                    {
+                        explained = string.Format(
+                            Resources.SkylineWindow_OpenFile_The_file_you_are_trying_to_open____0____does_not_appear_to_be_a_Skyline_document__Skyline_documents_normally_have_a___1___or___2___filename_extension_and_are_in_XML_format_,
+                            path, EXT, SrmDocumentSharing.EXT_SKY_ZIP);
+                    }
+                }
+                catch (Exception e)
+                {
+                    explained = e.Message;
+                }
+            }
+            else
+            {
+                explained = Resources.ToolDescription_RunTool_File_not_found_; // "File not found"
+            }
+
+            return string.IsNullOrEmpty(explained);
+        }
+
+        /// <summary>
+        /// Tries to find a .sky file for a .skyd or .skyl etc file
+        /// </summary>
+        /// <param name="path">Path to file which may have a sibling .sky file</param>
+        /// <returns>Input path with extension changed to .sky, if such a file exists and appears to be a Skyline file</returns>
+        public static string FindSiblingSkylineFile(string path)
+        {
+            var index = path.LastIndexOf(EXT, StringComparison.Ordinal);
+            if (index > 0 && index == path.Length - (EXT.Length + 1))
+            {
+                // Looks like user picked a .skyd or .skyl etc
+                var likelyPath = path.Substring(0, index + EXT.Length);
+                if (File.Exists(likelyPath) && IsSkylineFile(likelyPath, out _))
+                {
+                    return likelyPath;
+                }
+            }
+
+            return path;
+        }
+
 
         private SrmDocument MergeMatchingPeptidesUserInfo(IList<PeptideGroupDocNode> peptideGroupsNew)
         {
@@ -1071,8 +1414,30 @@ namespace pwiz.Skyline.Model
                                           out List<PeptideGroupDocNode> peptideGroups)
         {
             MassListImporter importer = new MassListImporter(this, inputs);
+
+            // Is this a small molecule transition list, or trying to be?
+            if (SmallMoleculeTransitionListCSVReader.IsPlausibleSmallMoleculeTransitionList(importer.Inputs.ReadLines()))
+            {
+                var docNewSmallMolecules = this;
+                irtPeptides = new List<MeasuredRetentionTime>();
+                librarySpectra = new List<SpectrumMzInfo>();
+                peptideGroups = new List<PeptideGroupDocNode>();
+                errorList = new List<TransitionImportErrorInfo>();
+                firstAdded = null;
+                try
+                {
+                    var reader = new SmallMoleculeTransitionListCSVReader(importer.Inputs.ReadLines());
+                    docNewSmallMolecules = reader.CreateTargets(this, to, out firstAdded);
+                }
+                catch (LineColNumberedIoException x)
+                {
+                    errorList.Add(new TransitionImportErrorInfo(x.PlainMessage, x.ColumnIndex, x.LineNumber, null));  // CONSIDER: worth the effort to pull row and column info from error message?
+                }
+                return docNewSmallMolecules;
+            }
+
             IdentityPath nextAdd;
-            peptideGroups = importer.Import(progressMonitor, out irtPeptides, out librarySpectra, out errorList).ToList();
+            peptideGroups = importer.Import(progressMonitor, inputs.InputFilename, out irtPeptides, out librarySpectra, out errorList).ToList();
             var docNew = AddPeptideGroups(peptideGroups, false, to, out firstAdded, out nextAdd);
             var pepModsNew = importer.GetModifications(docNew);
             if (!ReferenceEquals(pepModsNew, Settings.PeptideSettings.Modifications))
@@ -1094,7 +1459,7 @@ namespace pwiz.Skyline.Model
             string dbPath = calculator.DatabasePath;
             IrtDb db = File.Exists(dbPath) ? IrtDb.GetIrtDb(dbPath, null) : IrtDb.CreateIrtDb(dbPath);
             var oldPeptides = db.GetPeptides().Select(p => new DbIrtPeptide(p)).ToList();
-            IList<Tuple<DbIrtPeptide, DbIrtPeptide>> conflicts;
+            IList<DbIrtPeptide.Conflict> conflicts;
             var peptidesCombined = DbIrtPeptide.FindNonConflicts(oldPeptides, irtPeptides, progressMonitor, out conflicts);
             if (peptidesCombined == null)
                 return null;
@@ -1102,14 +1467,14 @@ namespace pwiz.Skyline.Model
             {
                 // If old and new peptides are a library entry and a standards entry, throw an error
                 // The same peptide must not appear in both places
-                if (conflict.Item1.Standard ^ conflict.Item2.Standard)
+                if (conflict.NewPeptide.Standard ^ conflict.ExistingPeptide.Standard)
                 {
                     throw new InvalidDataException(string.Format(Resources.SkylineWindow_AddIrtPeptides_Imported_peptide__0__with_iRT_library_value_is_already_being_used_as_an_iRT_standard_,
-                                                    conflict.Item1.PeptideModSeq));
+                                                    conflict.NewPeptide.ModifiedTarget));
                 }
             }
             // Peptides that were already present in the database can be either kept or overwritten 
-            peptidesCombined.AddRange(conflicts.Select(conflict => overwriteExisting ? conflict.Item1  : conflict.Item2));
+            peptidesCombined.AddRange(conflicts.Select(conflict => overwriteExisting ? conflict.NewPeptide  : conflict.ExistingPeptide));
             db = db.UpdatePeptides(peptidesCombined, oldPeptides);
             calculator = calculator.ChangeDatabase(db);
             retentionTimeRegression = retentionTimeRegression.ChangeCalculator(calculator);
@@ -1120,12 +1485,12 @@ namespace pwiz.Skyline.Model
         }
 
         // Note these lead with zzz in hopes of placing them last in any sorting tests
-        public static string TestingNonProteomicBaseName = "zzzTestingNonProteomic";  // Not L10N
-        public static string TestingNonProteomicMoleculeGroupName = TestingNonProteomicBaseName + "MoleculeGroup";  // Not L10N
-        public static string TestingNonProteomicMoleculeName = TestingNonProteomicBaseName + "Molecule";  // Not L10N
-        public static string TestingNonProteomicPrecursorName = TestingNonProteomicBaseName + "Precursor";  // Not L10N
-        public static string TestingNonProteomicFragmentName = TestingNonProteomicBaseName + "Fragment";  // Not L10N
-        public static string TestingNonProteomicFragment2Name = TestingNonProteomicBaseName + "Fragment2";  // Not L10N
+        public static string TestingNonProteomicBaseName = @"zzzTestingNonProteomic";
+        public static string TestingNonProteomicMoleculeGroupName = TestingNonProteomicBaseName + @"MoleculeGroup";
+        public static string TestingNonProteomicMoleculeName = TestingNonProteomicBaseName + @"Molecule";
+        public static string TestingNonProteomicPrecursorName = TestingNonProteomicBaseName + @"Precursor";
+        public static string TestingNonProteomicFragmentName = TestingNonProteomicBaseName + @"Fragment";
+        public static string TestingNonProteomicFragment2Name = TestingNonProteomicBaseName + @"Fragment2";
 
         public static bool IsConvertedFromProteomicTestDocNode(DocNode node)
         {
@@ -1148,7 +1513,7 @@ namespace pwiz.Skyline.Model
                 var peptideDocNode = node as PeptideDocNode;
                 if(peptideDocNode != null)
                 {
-                    var ion = peptideDocNode.Peptide.CustomIon;
+                    var ion = peptideDocNode.Peptide.CustomMolecule;
                     return ion != null && Equals(ion.Name, TestingNonProteomicMoleculeName);
                 }
                 else
@@ -1156,7 +1521,7 @@ namespace pwiz.Skyline.Model
                     var groupDocNode = node as TransitionGroupDocNode;
                     if (groupDocNode != null)
                     {
-                        var ion = groupDocNode.TransitionGroup.CustomIon;
+                        var ion = groupDocNode.TransitionGroup.CustomMolecule;
                         return ion != null && Equals(ion.Name, TestingNonProteomicMoleculeName);
                     }
                     else
@@ -1185,24 +1550,57 @@ namespace pwiz.Skyline.Model
         {
             var pepGroup = new PeptideGroup();
             var note = Annotations.Merge(new Annotations(TestingNonProteomicBaseName, null, 0));  // Tag it as not needing/wanting canonical small molecule sort - these need to be at the doc end, always
-            var pep = new Peptide(new DocNodeCustomIon("C16O4H4", TestingNonProteomicMoleculeName)); // Not L10N
-            const int charge = -1; // Negative charge for maximum test value, since that's new too
-            var tranGroup = new TransitionGroup(pep, pep.CustomIon, charge, IsotopeLabelType.light);
-            var tranPrecursor = new Transition(tranGroup, IonType.precursor, 0, 0, charge, null, pep.CustomIon);
-            // Specify formula
-            var tranFragment = new Transition(tranGroup, charge, 0, new DocNodeCustomIon("C2H2O2", TestingNonProteomicFragmentName)); // Not L10N
-            // Specify mass
-            var tranFragment2 = new Transition(tranGroup, charge, 0, new DocNodeCustomIon(tranFragment.CustomIon.MonoisotopicMass, tranFragment.CustomIon.AverageMass, TestingNonProteomicFragment2Name)); // Not L10N
-
+            var pep = new Peptide(new CustomMolecule(@"C16O4H4", TestingNonProteomicMoleculeName));
             var peptideGroupDocNodes = existingPeptideGroups as PeptideGroupDocNode[] ?? existingPeptideGroups.ToArray();
-            bool autoManageChildren = (!peptideGroupDocNodes.Any()) || peptideGroupDocNodes.First().AutoManageChildren; // Try to look like any existing
+            var autoManageChildren = (!peptideGroupDocNodes.Any()) || peptideGroupDocNodes.First().AutoManageChildren; // Try to look like any existing
             var hasPrecursorTransitions = (!peptideGroupDocNodes.Any()) || peptideGroupDocNodes.Any(n => n.Molecules.Any(p => p.TransitionGroups.Any(t => t.Transitions.Any(r => r.Transition.IsPrecursor())))); // Try to look like any existing
+            var hasNegativePrecursors = (peptideGroupDocNodes.Any()) && peptideGroupDocNodes.Any(n => n.Molecules.Any(p => p.TransitionGroups.Any(t => t.Transitions.Any(r => r.Transition.IsNegative())))); // Try to look like any existing
+
+            // Make sure the small molecule ion selection settings mimic that of peptides
+            var smallMoleculeIonTypes = new List<IonType>(Settings.TransitionSettings.Filter.SmallMoleculeIonTypes);
+            if (Settings.TransitionSettings.Filter.PeptideIonTypes.Contains(IonType.precursor) !=
+                smallMoleculeIonTypes.Contains(IonType.precursor))
+            {
+                if (smallMoleculeIonTypes.Contains(IonType.precursor))
+                {
+                    smallMoleculeIonTypes.Remove(IonType.precursor);
+                }
+                else
+                {
+                    smallMoleculeIonTypes.Add(IonType.precursor);
+                }
+            }
+            if (Settings.TransitionSettings.Filter.PeptideIonTypes.Any(i => i != IonType.precursor) !=
+                smallMoleculeIonTypes.Any(i => i != IonType.precursor))
+            {
+                if (smallMoleculeIonTypes.Any(i => i != IonType.precursor))
+                {
+                    smallMoleculeIonTypes.Remove(IonType.custom);
+                }
+                else
+                {
+                    smallMoleculeIonTypes.Add(IonType.custom);
+                }
+            }
+            if (!Equals(smallMoleculeIonTypes, Settings.TransitionSettings.Filter.SmallMoleculeIonTypes))
+            {
+                var filter = Settings.TransitionSettings.Filter.ChangeSmallMoleculeIonTypes(smallMoleculeIonTypes);
+                var tranSettings = Settings.TransitionSettings.ChangeFilter(filter);
+                Settings = Settings.ChangeTransitionSettings(tranSettings);
+            }
+            var charge = Adduct.NonProteomicProtonatedFromCharge(hasNegativePrecursors  ? - 1 : 1); // Negative charge for maximum test value, but only if it's likely that results data has negative ion mode scans
+            var tranGroup = new TransitionGroup(pep, charge, IsotopeLabelType.light);
+            var tranPrecursor = new Transition(tranGroup, IonType.precursor, 0, 0, charge, null);
+            // Specify formula
+            var tranFragment = new Transition(tranGroup, charge, 0, new CustomMolecule(@"C2H2O2", TestingNonProteomicFragmentName));
+            // Specify mass
+            var tranFragment2 = new Transition(tranGroup, charge, 0, new CustomMolecule(tranFragment.CustomIon.MonoisotopicMass, tranFragment.CustomIon.AverageMass, TestingNonProteomicFragment2Name));
 
             // Use any existing isotope distribution info
             var transitionGroups =
                 peptideGroupDocNodes.SelectMany(node => node.Children.Cast<PeptideDocNode>())
                     .SelectMany(node => node.Children.Cast<TransitionGroupDocNode>());
-            var transitionGroupDocNodes = transitionGroups as TransitionGroupDocNode[] ?? transitionGroups.ToArray();
+            var transitionGroupDocNodes = transitionGroups.ToArray();
             TransitionIsotopeDistInfo isotopeDistInfo =
              ((transitionGroupDocNodes.Any() && transitionGroupDocNodes.First().HasIsotopeDist)) ?
                 TransitionDocNode.GetIsotopeDistInfo(tranFragment, null, transitionGroupDocNodes.First().IsotopeDist) : null;
@@ -1217,11 +1615,11 @@ namespace pwiz.Skyline.Model
             }
 
             var tranPrecursorNode = new TransitionDocNode(tranPrecursor, note, null,
-                pep.CustomIon.GetMass(Settings.TransitionSettings.Prediction.FragmentMassType), isotopeDistInfo, null, null);
+                pep.CustomMolecule.GetMass(Settings.TransitionSettings.Prediction.FragmentMassType), new TransitionDocNode.TransitionQuantInfo(isotopeDistInfo, null, true), ExplicitTransitionValues.EMPTY, null);
             var tranFragmentNode = new TransitionDocNode(tranFragment, note, null,
-                tranFragment.CustomIon.GetMass(Settings.TransitionSettings.Prediction.FragmentMassType), null, null, null);
+                tranFragment.CustomIon.GetMass(Settings.TransitionSettings.Prediction.FragmentMassType), TransitionDocNode.TransitionQuantInfo.DEFAULT, ExplicitTransitionValues.EMPTY, null);
             var tranFragmentNode2 = new TransitionDocNode(tranFragment2, note, null,
-                tranFragment2.CustomIon.GetMass(Settings.TransitionSettings.Prediction.FragmentMassType), null, null, null);
+                tranFragment2.CustomIon.GetMass(Settings.TransitionSettings.Prediction.FragmentMassType), TransitionDocNode.TransitionQuantInfo.DEFAULT, ExplicitTransitionValues.EMPTY, null);
             var tranGroupNode = new TransitionGroupDocNode(tranGroup, note, Settings, null, null, ExplicitTransitionGroupValues.EMPTY, null,
                 hasPrecursorTransitions ? new[] { tranPrecursorNode, tranFragmentNode, tranFragmentNode2 } : new[] { tranFragmentNode, tranFragmentNode2 }, 
                 autoManageChildren);
@@ -1443,11 +1841,11 @@ namespace pwiz.Skyline.Model
                 var nodeGroup = (TransitionGroupDocNode) FindNode(groupPath);
                 if (nodeGroup == null)
                     throw new IdentityNotFoundException(groupPath.Child);
-                string lookupSequence = nodePep.SourceUnmodifiedTextId;
+                var lookupSequence = nodePep.SourceUnmodifiedTarget;
                 var lookupMods = nodePep.SourceExplicitMods;
                 IsotopeLabelType labelType;
                 double[] retentionTimes;
-                Settings.TryGetRetentionTimes(lookupSequence, nodeGroup.TransitionGroup.PrecursorCharge, lookupMods,
+                Settings.TryGetRetentionTimes(lookupSequence, nodeGroup.TransitionGroup.PrecursorAdduct, lookupMods,
                                               filePath, out labelType, out retentionTimes);
                 if(ContainsTime(retentionTimes, startTime.Value, endTime.Value))
                 {
@@ -1627,154 +2025,61 @@ namespace pwiz.Skyline.Model
             return findPredicate.FindNext(bookmarkEnumerator);
         }
 
+        public SrmDocument ChangeStandardType(StandardType standardType, IEnumerable<IdentityPath> selPaths)
+        {
+            SrmDocument doc = this;
+            var replacements = new List<NodeReplacement>();
+            foreach (IdentityPath nodePath in selPaths)
+            {
+                var nodePep = doc.FindNode(nodePath) as PeptideDocNode;
+                if (nodePep == null || nodePep.IsDecoy || Equals(standardType, nodePep.GlobalStandardType))
+                    continue;
+                replacements.Add(new NodeReplacement(nodePath.Parent, nodePep.ChangeStandardType(standardType)));
+            }
+            doc = (SrmDocument) doc.ReplaceChildren(replacements);
+            return doc;
+        }
+
+        public IEnumerable<PeptideDocNode> GetSurrogateStandards()
+        {
+            return Molecules.Where(mol => Equals(mol.GlobalStandardType, StandardType.SURROGATE_STANDARD));
+        }
+
+        public SrmDocument BeginDeferSettingsChanges()
+        {
+            return ChangeProp(ImClone(this), im => im.DeferSettingsChanges = true);
+        }
+
+        public SrmDocument EndDeferSettingsChanges(SrmDocument originalDocument, SrmSettingsChangeMonitor progressMonitor)
+        {
+            var docWithOriginalSettings = (SrmDocument) ChangeProp(ImClone(this), im =>
+            {
+                im.Settings = originalDocument.Settings;
+                im.DeferSettingsChanges = false;
+            }).ChangeChildren(originalDocument.Children);
+            var doc = docWithOriginalSettings
+                .ChangeSettings(Settings, progressMonitor)
+                .ChangeMeasuredResults(Settings.MeasuredResults, progressMonitor);
+            doc = (SrmDocument) doc.ChangeChildren(Children.ToArray());
+            return doc;
+        }
+
+        private object _referenceId = new object();
+        /// <summary>
+        /// Value which is unique to this instance of the SrmDocument.
+        /// This enables you to determine whether another SrmDocument is ReferenceEquals to this, without
+        /// having to hold onto a reference to this.
+        /// <see cref="pwiz.Skyline.Model.Databinding.CachedValue{T}"/>
+        /// </summary>
+        public object ReferenceId { get { return _referenceId; } }
+        protected override object ImmutableClone()
+        {
+            SrmDocument document = (SrmDocument) base.ImmutableClone();
+            document._referenceId = new object();
+            return document;
+        }
+
         #region Implementation of IXmlSerializable
-
-        // ReSharper disable InconsistentNaming
-        // Enum.ToString() was too slow for use in the document
-        public static class EL
-        {
-            // v0.1 lists
-            // ReSharper disable NonLocalizedString
-            public const string selected_proteins = "selected_proteins";
-            public const string selected_peptides = "selected_peptides";
-            public const string selected_transitions = "selected_transitions";
-
-            public const string protein = "protein";
-            public const string note = "note";
-            public const string annotation = "annotation";
-            public const string alternatives = "alternatives";
-            public const string alternative_protein = "alternative_protein";
-            public const string sequence = "sequence";
-            public const string peptide_list = "peptide_list";
-            public const string peptide = "peptide";
-            public const string explicit_modifications = "explicit_modifications";
-            public const string explicit_static_modifications = "explicit_static_modifications";
-            public const string explicit_heavy_modifications = "explicit_heavy_modifications";
-            public const string explicit_modification = "explicit_modification";
-            public const string variable_modifications = "variable_modifications";
-            public const string variable_modification = "variable_modification";
-            public const string implicit_modifications = "implicit_modifications";
-            public const string implicit_modification = "implicit_modification";
-            public const string implicit_static_modifications = "implicit_static_modifications";
-            public const string implicit_heavy_modifications = "implicit_heavy_modifications";
-            public const string lookup_modifications = "lookup_modifications";
-            public const string losses = "losses";
-            public const string neutral_loss = "neutral_loss";
-            public const string peptide_results = "peptide_results";
-            public const string peptide_result = "peptide_result";
-            public const string precursor = "precursor";
-            public const string precursor_results = "precursor_results";
-            public const string precursor_peak = "precursor_peak";
-            public const string transition = "transition";
-            public const string transition_results = "transition_results";
-            public const string transition_peak = "transition_peak";
-            public const string transition_lib_info = "transition_lib_info";
-            public const string precursor_mz = "precursor_mz";
-            public const string product_mz = "product_mz";
-            public const string collision_energy = "collision_energy";
-            public const string declustering_potential = "declustering_potential";
-            public const string start_rt = "start_rt";
-            public const string stop_rt = "stop_rt";
-            public const string molecule = "molecule";
-            // ReSharper restore NonLocalizedString
-        }
-        // ReSharper restore InconsistentNaming
-
-        // ReSharper disable InconsistentNaming
-        // Enum.ToString() was too slow for use in the document
-        public static class ATTR
-        {
-            // ReSharper disable NonLocalizedString
-            public const string format_version = "format_version";
-            public const string software_version = "software_version";
-            public const string name = "name";
-            public const string category = "category";
-            public const string description = "description";
-            public const string label_name = "label_name";  
-            public const string label_description = "label_description";  
-            public const string accession = "accession";
-            public const string gene = "gene";
-            public const string species = "species";
-            public const string websearch_status = "websearch_status";
-            public const string preferred_name = "preferred_name";
-            public const string peptide_list = "peptide_list";
-            public const string start = "start";
-            public const string end = "end";
-            public const string sequence = "sequence";
-            public const string prev_aa = "prev_aa";
-            public const string next_aa = "next_aa";
-            public const string index_aa = "index_aa";
-            public const string modification_name = "modification_name";
-            public const string mass_diff = "mass_diff";
-            public const string loss_index = "loss_index";
-            public const string calc_neutral_pep_mass = "calc_neutral_pep_mass";
-            public const string num_missed_cleavages = "num_missed_cleavages";
-            public const string rt_calculator_score = "rt_calculator_score";
-            public const string predicted_retention_time = "predicted_retention_time";
-            public const string explicit_retention_time = "explicit_retention_time";
-            public const string explicit_retention_time_window = "explicit_retention_time_window";
-            public const string explicit_drift_time_msec = "explicit_drift_time_msec";
-            public const string explicit_drift_time_high_energy_offset_msec = "explicit_drift_time_high_energy_offset_msec";
-            public const string avg_measured_retention_time = "avg_measured_retention_time";
-            public const string isotope_label = "isotope_label";
-            public const string fragment_type = "fragment_type";
-            public const string fragment_ordinal = "fragment_ordinal";
-            public const string mass_index = "mass_index";
-            public const string calc_neutral_mass = "calc_neutral_mass";
-            public const string precursor_mz = "precursor_mz";
-            public const string charge = "charge";
-            public const string precursor_charge = "precursor_charge";   // backward compatibility with v0.1
-            public const string product_charge = "product_charge";
-            public const string rank = "rank";
-            public const string intensity = "intensity";
-            public const string auto_manage_children = "auto_manage_children";
-            public const string decoy = "decoy";
-            public const string decoy_mass_shift = "decoy_mass_shift";
-            public const string isotope_dist_rank = "isotope_dist_rank";
-            public const string isotope_dist_proportion = "isotope_dist_proportion";
-            public const string ion_formula = "ion_formula";
-            public const string custom_ion_name = "custom_ion_name";
-            public const string mass_monoisotopic = "mass_monoisotopic";
-            public const string mass_average = "mass_average";
-            public const string modified_sequence = "modified_sequence";
-            public const string lookup_sequence = "lookup_sequence";
-            public const string cleavage_aa = "cleavage_aa";
-            public const string loss_neutral_mass = "loss_neutral_mass";
-            public const string collision_energy = "collision_energy";
-            public const string explicit_collision_energy = "explicit_collision_energy";
-            public const string s_lens = "s_lens";
-            public const string cone_voltage = "cone_voltage";
-            public const string declustering_potential = "declustering_potential";
-            public const string explicit_declustering_potential = "explicit_declustering_potential";
-            public const string explicit_compensation_voltage = "explicit_compensation_voltage";
-            public const string standard_type = "standard_type";
-            public const string measured_ion_name = "measured_ion_name";
-            public const string concentration_multiplier = "concentration_multiplier";
-            public const string internal_standard_concentration = "internal_standard_concentration";
-
-            // Results
-            public const string replicate = "replicate";
-            public const string file = "file";
-            public const string step = "step";
-            public const string mass_error_ppm = "mass_error_ppm";
-            public const string retention_time = "retention_time";
-            public const string start_time = "start_time";
-            public const string end_time = "end_time";
-            public const string area = "area";
-            public const string background = "background";
-            public const string height = "height";
-            public const string fwhm = "fwhm";
-            public const string fwhm_degenerate = "fwhm_degenerate";
-            public const string truncated = "truncated";
-            public const string identified = "identified";
-            public const string user_set = "user_set";
-            public const string peak_count_ratio = "peak_count_ratio";
-            public const string library_dotp = "library_dotp";
-            public const string isotope_dotp = "isotope_dotp";
-            // ReSharper restore NonLocalizedString
-        }
-        // ReSharper restore InconsistentNaming
-
         /// <summary>
         /// For deserialization
         /// </summary>
@@ -1783,6 +2088,129 @@ namespace pwiz.Skyline.Model
 // ReSharper restore UnusedMember.Local
             : base(new SrmDocumentId())
         {            
+        }
+
+        /// <summary>
+        /// Deserializes document from XML.
+        /// </summary>
+        /// <param name="reader">The reader positioned at the document start tag</param>
+        public void ReadXml(XmlReader reader)
+        {
+            if (Settings != null)
+            {
+                throw new InvalidOperationException();
+            }
+            var documentReader = new DocumentReader();
+            documentReader.ReadXml(reader);
+            FormatVersion = documentReader.FormatVersion;
+            Settings = documentReader.Settings;
+
+            if (documentReader.Children == null)
+                SetChildren(new PeptideGroupDocNode[0]);
+            else
+            {
+                var children = documentReader.Children;
+                if (Properties.Settings.Default.TestSmallMolecules && children.Any() && !children.Any(p => p.IsNonProteomic)) // Make sure there's a custom ion node present in any non-empty document
+                {
+                    // Code for the purpose of testing custom molecules - normally used only in automated test
+                    children = children.Concat(new[] { CreateNonProteomicTestPeptideGroupDocNode(children) }).ToArray();
+                }
+
+                // Make sure peptide standards lists are up to date
+                Settings = Settings.CachePeptideStandards(new PeptideGroupDocNode[0], children);
+
+                SetChildren(UpdateResultsSummaries(children, new Dictionary<int, PeptideDocNode>()));
+
+                IsProteinMetadataPending = CalcIsProteinMetadataPending(); // Background loaders are about to kick in, they need this info.
+            }
+
+            SetDocumentType(); // Note proteomic vs small_molecules vs mixed
+
+            AuditLog = AuditLog ?? new AuditLogList();
+        }
+
+        public SrmDocument ReadAuditLog(string documentPath, string expectedSkylineDocumentHash, Func<AuditLogEntry> getDefaultEntry)
+        {
+            var auditLog = new AuditLogList();
+            var auditLogPath = GetAuditLogPath(documentPath);
+            if (File.Exists(auditLogPath))
+            {
+                if (AuditLogList.ReadFromFile(auditLogPath, out var loggedSkylineDocumentHash, out var auditLogList))
+                {
+                    auditLog = auditLogList;
+
+                    if (expectedSkylineDocumentHash != loggedSkylineDocumentHash)
+                    {
+                        var entry = getDefaultEntry() ?? AuditLogEntry.CreateUndocumentedChangeEntry();
+                        auditLog = new AuditLogList(entry.ChangeParent(auditLog.AuditLogEntries));
+                    }
+                }
+            }
+
+            return ChangeDocumentHash(expectedSkylineDocumentHash).ChangeAuditLog(auditLog);
+        }
+
+        public void WriteXml(XmlWriter writer)
+        {
+            SerializeToXmlWriter(writer, SkylineVersion.CURRENT, null, null);
+        }
+
+        public void SerializeToXmlWriter(XmlWriter writer, SkylineVersion skylineVersion, IProgressMonitor progressMonitor,
+            IProgressStatus progressStatus)
+        {
+            var documentWriter = new DocumentWriter(this, skylineVersion);
+            if (progressMonitor != null)
+            {
+                int transitionsWritten = 0;
+                int totalTransitionCount = MoleculeTransitionCount;
+                documentWriter.WroteTransitions += count =>
+                {
+                    transitionsWritten += count;
+                    progressStatus = progressStatus.UpdatePercentCompleteProgress(progressMonitor, transitionsWritten, totalTransitionCount);
+                };
+            }
+            documentWriter.WriteXml(writer);
+        }
+
+        public static string GetAuditLogPath(string docPath)
+        {
+            if (string.IsNullOrEmpty(docPath))
+                return docPath;
+
+            var directory = Path.GetDirectoryName(docPath);
+
+            if (directory == null)
+                return null;
+
+            var fileName = Path.GetFileNameWithoutExtension(docPath) + AuditLogList.EXT;
+            return Path.Combine(directory, fileName);
+        }
+       
+
+        public void SerializeToFile(string tempName, string displayName, SkylineVersion skylineVersion, IProgressMonitor progressMonitor)
+        {
+            string hash;
+            using (var writer = new XmlTextWriter(HashingStream.CreateWriteStream(tempName), Encoding.UTF8)
+            {
+                Formatting = Formatting.Indented
+            })
+            {
+                writer.WriteStartDocument();
+                writer.WriteStartElement(@"srm_settings");
+                SerializeToXmlWriter(writer, skylineVersion, progressMonitor, new ProgressStatus(Path.GetFileName(displayName)));
+                writer.WriteEndElement();
+                writer.WriteEndDocument();
+                writer.Flush();
+                var hashingStream = (HashingStream) writer.BaseStream;
+                hash = hashingStream.Done();
+            }
+
+            var auditLogPath = GetAuditLogPath(displayName);
+
+            if (Settings.DataSettings.AuditLogging)
+                AuditLog?.WriteToFile(auditLogPath, hash);
+            else if (File.Exists(auditLogPath))
+                Helpers.TryTwice(() => File.Delete(auditLogPath));
         }
 
         public XmlSchema GetSchema()
@@ -1823,1749 +2251,24 @@ namespace pwiz.Skyline.Model
                 results.Validate(settings);
         }
 
-        private sealed class XmlReadContext
+        public double GetCollisionEnergy(PeptideDocNode nodePep, TransitionGroupDocNode nodeGroup, TransitionDocNode nodeTran, int step)
         {
-            private readonly Dictionary<string, string> _dictNonDuplicatedNames = new Dictionary<string, string>();
-
-            public string GetNonDuplicatedName(string name)
-            {
-                string nonDuplicatedName;
-                if (!_dictNonDuplicatedNames.TryGetValue(name, out nonDuplicatedName))
-                {
-                    _dictNonDuplicatedNames.Add(name, name);
-                    nonDuplicatedName = name;
-                }
-                return nonDuplicatedName;
-            }
-        }
-
-        /// <summary>
-        /// Deserializes document from XML.
-        /// </summary>
-        /// <param name="reader">The reader positioned at the document start tag</param>
-        public void ReadXml(XmlReader reader)
-        {
-            FormatVersion = reader.GetDoubleAttribute(ATTR.format_version);
-            if (FormatVersion == 0)
-                FormatVersion = FORMAT_VERSION_0_1;
-            else if (FormatVersion > FORMAT_VERSION)
-            {
-                throw new VersionNewerException(
-                    string.Format(Resources.SrmDocument_ReadXml_The_document_format_version__0__is_newer_than_the_version__1__supported_by__2__,
-                                  FormatVersion,  FORMAT_VERSION, Install.ProgramNameAndVersion));
-            }
-
-            reader.ReadStartElement();  // Start document element
-
-            Settings = reader.DeserializeElement<SrmSettings>() ?? SrmSettingsList.GetDefault();
-
-            var context = new XmlReadContext();
-            PeptideGroupDocNode[] children = null;
-            if (reader.IsStartElement())
-            {
-                // Support v0.1 naming
-                if (!reader.IsStartElement(EL.selected_proteins))
-                    children = ReadPeptideGroupListXml(reader, context);
-                else if (reader.IsEmptyElement)
-                    reader.Read();
-                else
-                {
-                    reader.ReadStartElement();
-                    children = ReadPeptideGroupListXml(reader, context);
-                    reader.ReadEndElement();
-                }
-            }
-
-            reader.ReadEndElement();    // End document element
-
-            if (children == null)
-                SetChildren(new PeptideGroupDocNode[0]);
-            else
-            {
-                if (Properties.Settings.Default.TestSmallMolecules && children.Any() && !children.Any(p => p.IsNonProteomic)) // Make sure there's a custom ion node present in any non-empty document
-                {
-                    // Code for the purpose of testing custom molecules - normally used only in automated test
-                    children = children.Concat(new[] { CreateNonProteomicTestPeptideGroupDocNode(children) }).ToArray();
-                }
-
-                // Make sure peptide standards lists are up to date
-                Settings = Settings.CachePeptideStandards(new PeptideGroupDocNode[0], children);
-
-                SetChildren(UpdateResultsSummaries(children, new Dictionary<int, PeptideDocNode>()));
-
-                CheckIsProteinMetadataComplete(); // Background loaders are about to kick in, they need this info.
-            }
-        }
-
-        /// <summary>
-        /// Deserializes an array of <see cref="PeptideGroupDocNode"/> from a
-        /// <see cref="XmlReader"/> positioned at the start of the list.
-        /// </summary>
-        /// <param name="reader">The reader positioned on the element of the first node</param>
-        /// <param name="context">Context object to store values passed to children but only used during this read</param>
-        /// <returns>An array of <see cref="PeptideGroupDocNode"/> objects for
-        ///         inclusion in a <see cref="SrmDocument"/> child list</returns>
-        private PeptideGroupDocNode[] ReadPeptideGroupListXml(XmlReader reader, XmlReadContext context)
-        {
-            var list = new List<PeptideGroupDocNode>();
-            while (reader.IsStartElement(EL.protein) || reader.IsStartElement(EL.peptide_list))
-            {
-                if (reader.IsStartElement(EL.protein))
-                    list.Add(ReadProteinXml(reader, context));
-                else
-                    list.Add(ReadPeptideGroupXml(reader, context));
-            }
-            return list.ToArray();
-        }
-
-        private static ProteinMetadata ReadProteinMetadataXML(XmlReader reader, bool labelNameAndDescription)
-        {
-            var labelPrefix = labelNameAndDescription ? "label_" : string.Empty; // Not L10N
-            return new ProteinMetadata(
-                reader.GetAttribute(labelPrefix+ATTR.name),
-                reader.GetAttribute(labelPrefix + ATTR.description),
-                reader.GetAttribute(ATTR.preferred_name),
-                reader.GetAttribute(ATTR.accession),
-                reader.GetAttribute(ATTR.gene),
-                reader.GetAttribute(ATTR.species),
-                reader.GetAttribute(ATTR.websearch_status));
-        }
-
-        /// <summary>
-        /// Deserializes a single <see cref="PeptideGroupDocNode"/> from a
-        /// <see cref="XmlReader"/> positioned at a &lt;protein&gt; tag.
-        /// 
-        /// In order to support the v0.1 format, the returned node may represent
-        /// either a FASTA sequence or a peptide list.
-        /// </summary>
-        /// <param name="reader">The reader positioned at a protein tag</param>
-        /// <param name="context">Context object to store values passed to children but only used during this read</param>
-        /// <returns>A new <see cref="PeptideGroupDocNode"/></returns>
-        private PeptideGroupDocNode ReadProteinXml(XmlReader reader, XmlReadContext context)
-        {
-            string name = reader.GetAttribute(ATTR.name);
-            string description = reader.GetAttribute(ATTR.description);
-            bool peptideList = reader.GetBoolAttribute(ATTR.peptide_list);
-            bool autoManageChildren = reader.GetBoolAttribute(ATTR.auto_manage_children, true);
-            var labelProteinMetadata = ReadProteinMetadataXML(reader, true);  // read label_name, label_description, and species, gene etc if any
-
-            reader.ReadStartElement();
-
-            var annotations = ReadAnnotations(reader, context);
-
-            ProteinMetadata[] alternatives;
-            if (!reader.IsStartElement(EL.alternatives) || reader.IsEmptyElement)
-                alternatives = new ProteinMetadata[0];
-            else
-            {
-                reader.ReadStartElement();
-                alternatives = ReadAltProteinListXml(reader);
-                reader.ReadEndElement();
-            }
-
-            reader.ReadStartElement(EL.sequence);
-            string sequence = DecodeProteinSequence(reader.ReadContentAsString());
-            reader.ReadEndElement();
-
-            // Support v0.1 documents, where peptide lists were saved as proteins,
-            // pre-v0.1 documents, which may not have identified peptide lists correctly.
-            if (sequence.StartsWith("X") && sequence.EndsWith("X")) // Not L10N
-                peptideList = true;
-
-            // All v0.1 peptide lists should have a settable label
-            if (peptideList)
-            {
-                labelProteinMetadata = labelProteinMetadata.ChangeName(name ?? string.Empty);
-                labelProteinMetadata = labelProteinMetadata.ChangeDescription(description);
-            }
-            // Or any protein without a name attribute
-            else if (name != null)
-            {
-                labelProteinMetadata = labelProteinMetadata.ChangeDescription(null);
-            }
-
-            PeptideGroup group;
-            if (peptideList)
-                group = new PeptideGroup();
-            // If there is no name attribute, ignore all info from the FASTA header line,
-            // since it should be user settable.
-            else if (name == null)
-                group = new FastaSequence(null, null, null, sequence);
-            else
-                group = new FastaSequence(name, description, alternatives, sequence);
-
-            PeptideDocNode[] children = null;
-            if (!reader.IsStartElement(EL.selected_peptides))
-                children = ReadPeptideListXml(reader, context, group);
-            else if (reader.IsEmptyElement)
-                reader.Read();
-            else
-            {
-                reader.ReadStartElement(EL.selected_peptides);
-                children = ReadPeptideListXml(reader, context, group);
-                reader.ReadEndElement();                    
-            }
-
-            reader.ReadEndElement();
-
-            return new PeptideGroupDocNode(group, annotations, labelProteinMetadata,
-                children ?? new PeptideDocNode[0], autoManageChildren);
-        }
-
-        /// <summary>
-        /// Deserializes an array of <see cref="ProteinMetadata"/> objects from
-        /// a <see cref="XmlReader"/> positioned at the first element in the list.
-        /// </summary>
-        /// <param name="reader">The reader positioned at the first element</param>
-        /// <returns>A new array of <see cref="ProteinMetadata"/></returns>
-        private static ProteinMetadata[] ReadAltProteinListXml(XmlReader reader)
-        {
-            var list = new List<ProteinMetadata>();
-            while (reader.IsStartElement(EL.alternative_protein))
-            {
-                var proteinMetaData = ReadProteinMetadataXML(reader, false);
-                reader.Read();
-                list.Add(proteinMetaData);
-            }
-            return list.ToArray();
-        }
-
-        /// <summary>
-        /// Decodes a FASTA sequence as stored in a XML document to one
-        /// with all white space removed.
-        /// </summary>
-        /// <param name="sequence">The XML format sequence</param>
-        /// <returns>The sequence suitible for use in a <see cref="FastaSequence"/></returns>
-        private static string DecodeProteinSequence(IEnumerable<char> sequence)
-        {
-            StringBuilder sb = new StringBuilder();
-            foreach (char aa in sequence)
-            {
-                if (!char.IsWhiteSpace(aa))
-                    sb.Append(aa);
-            }
-            return sb.ToString();
-        }
-
-        /// <summary>
-        /// Deserializes a single <see cref="PeptideGroupDocNode"/> representing
-        /// a peptide list from a <see cref="XmlReader"/> positioned at the
-        /// start element.
-        /// </summary>
-        /// <param name="reader">The reader positioned at a start element of a peptide group</param>
-        /// <param name="context">Context object to store values passed to children but only used during this read</param>
-        /// <returns>A new <see cref="PeptideGroupDocNode"/></returns>
-        private PeptideGroupDocNode ReadPeptideGroupXml(XmlReader reader, XmlReadContext context)
-        {
-            ProteinMetadata proteinMetadata = ReadProteinMetadataXML(reader, true); // read label_name and label_description
-            bool autoManageChildren = reader.GetBoolAttribute(ATTR.auto_manage_children, true);
-            bool isDecoy = reader.GetBoolAttribute(ATTR.decoy);
-
-            PeptideGroup group = new PeptideGroup(isDecoy);
-
-            Annotations annotations = Annotations.EMPTY;
-            PeptideDocNode[] children = null;
-
-            if (reader.IsEmptyElement)
-                reader.Read();
-            else
-            {
-                reader.ReadStartElement();
-                annotations = ReadAnnotations(reader, context);
-
-                if (!reader.IsStartElement(EL.selected_peptides))
-                    children = ReadPeptideListXml(reader, context, group);
-                else if (reader.IsEmptyElement)
-                    reader.Read();
-                else
-                {
-                    reader.ReadStartElement(EL.selected_peptides);
-                    children = ReadPeptideListXml(reader, context, group);
-                    reader.ReadEndElement();
-                }
-
-                reader.ReadEndElement();    // peptide_list
-            }
-
-            return new PeptideGroupDocNode(group, annotations, proteinMetadata,
-                children ?? new PeptideDocNode[0], autoManageChildren);
-        }
-
-        /// <summary>
-        /// Deserializes an array of <see cref="PeptideDocNode"/> objects from
-        /// a <see cref="XmlReader"/> positioned at the first element in the list.
-        /// </summary>
-        /// <param name="reader">The reader positioned at the first element</param>
-        /// <param name="context">Context object to store values passed to children but only used during this read</param>
-        /// <param name="group">A previously read parent <see cref="Identity"/></param>
-        /// <returns>A new array of <see cref="PeptideDocNode"/></returns>
-        private PeptideDocNode[] ReadPeptideListXml(XmlReader reader, XmlReadContext context, PeptideGroup group)
-        {
-            var list = new List<PeptideDocNode>();
-            while (reader.IsStartElement(EL.molecule) || reader.IsStartElement(EL.peptide))
-            {
-                 list.Add(ReadPeptideXml(reader, context, group, reader.IsStartElement(EL.molecule)));
-            }
-            return list.ToArray();
-        }
-
-        /// <summary>
-        /// Deserialize any explictly set CE, DT, etc information from attributes
-        /// </summary>
-        static private ExplicitTransitionGroupValues ReadExplicitTransitionValuesAttributes(XmlReader reader)
-        {
-            double? importedCollisionEnergy = reader.GetNullableDoubleAttribute(ATTR.explicit_collision_energy);
-            double? importedDriftTimeMsec = reader.GetNullableDoubleAttribute(ATTR.explicit_drift_time_msec);
-            double? importedDriftTimeHighEnergyOffsetMsec = reader.GetNullableDoubleAttribute(ATTR.explicit_drift_time_high_energy_offset_msec);
-            double? importedSLens = reader.GetNullableDoubleAttribute(ATTR.s_lens);
-            double? importedConeVoltage = reader.GetNullableDoubleAttribute(ATTR.cone_voltage);
-            double? importedCompensationVoltage = reader.GetNullableDoubleAttribute(ATTR.explicit_compensation_voltage);
-            double? importedDeclusteringPotential = reader.GetNullableDoubleAttribute(ATTR.explicit_declustering_potential);
-            return new ExplicitTransitionGroupValues(importedCollisionEnergy, importedDriftTimeMsec, importedDriftTimeHighEnergyOffsetMsec, importedSLens, importedConeVoltage, 
-                importedDeclusteringPotential, importedCompensationVoltage);
-        }
-
-        /// <summary>
-        /// Deserializes a single <see cref="PeptideDocNode"/> from a <see cref="XmlReader"/>
-        /// positioned at the start element.
-        /// </summary>
-        /// <param name="reader">The reader positioned at a start element of a peptide or molecule</param>
-        /// <param name="context">Context object to store values passed to children but only used during this read</param>
-        /// <param name="group">A previously read parent <see cref="Identity"/></param>
-        /// <param name="isCustomMolecule">if true, we're reading a custom molecule, not a peptide</param>
-        /// <returns>A new <see cref="PeptideDocNode"/></returns>
-        private PeptideDocNode ReadPeptideXml(XmlReader reader, XmlReadContext context, PeptideGroup group, bool isCustomMolecule)
-        {
-            int? start = reader.GetNullableIntAttribute(ATTR.start);
-            int? end = reader.GetNullableIntAttribute(ATTR.end);
-            string sequence = reader.GetAttribute(ATTR.sequence);
-            string lookupSequence = reader.GetAttribute(ATTR.lookup_sequence);
-            // If the group has no sequence, then this is a v0.1 peptide list or a custom ion
-            if (group.Sequence == null)
-            {
-                // Ignore the start and end values
-                start = null;
-                end = null;
-            }
-            int missedCleavages = reader.GetIntAttribute(ATTR.num_missed_cleavages);
-            // CONSIDER: Trusted value
-            int? rank = reader.GetNullableIntAttribute(ATTR.rank);
-            double? concentrationMultiplier = reader.GetNullableDoubleAttribute(ATTR.concentration_multiplier);
-            double? internalStandardConcentration =
-                reader.GetNullableDoubleAttribute(ATTR.internal_standard_concentration);
-            bool autoManageChildren = reader.GetBoolAttribute(ATTR.auto_manage_children, true);
-            bool isDecoy = reader.GetBoolAttribute(ATTR.decoy);
-            string standardType = reader.GetAttribute(ATTR.standard_type);
-            double? importedRetentionTimeValue = reader.GetNullableDoubleAttribute(ATTR.explicit_retention_time);
-            double? importedRetentionTimeWindow = reader.GetNullableDoubleAttribute(ATTR.explicit_retention_time_window);
-            var importedRetentionTime = importedRetentionTimeValue.HasValue
-                ? new ExplicitRetentionTimeInfo(importedRetentionTimeValue.Value, importedRetentionTimeWindow)
-                : null;
-            var annotations = Annotations.EMPTY;
-            ExplicitMods mods = null, lookupMods = null;
-            Results<PeptideChromInfo> results = null;
-            TransitionGroupDocNode[] children = null;
-            var customIon = isCustomMolecule ? DocNodeCustomIon.Deserialize(reader) : null; // This Deserialize only reads attribures, doesn't advance the reader
-            var peptide = isCustomMolecule ? 
-                new Peptide(customIon) : 
-                new Peptide(group as FastaSequence, sequence, start, end, missedCleavages, isDecoy);
-
-            if (reader.IsEmptyElement)
-                reader.Read();
-            else
-            {
-                reader.ReadStartElement();
-                if(reader.IsStartElement())
-                    annotations = ReadAnnotations(reader, context);
-                if (!isCustomMolecule)
-                {
-                    mods = ReadExplicitMods(reader, peptide);
-                    SkipImplicitModsElement(reader);
-                    lookupMods = ReadLookupMods(reader, lookupSequence);
-                }
-                results = ReadPeptideResults(reader, context);
-
-                if (reader.IsStartElement(EL.precursor))
-                {
-                    children = ReadTransitionGroupListXml(reader, context, peptide, mods, customIon);
-                }
-                else if (reader.IsStartElement(EL.selected_transitions))
-                {
-                    // Support for v0.1
-                    if (reader.IsEmptyElement)
-                        reader.Read();
-                    else
-                    {
-                        reader.ReadStartElement(EL.selected_transitions);
-                        children = ReadUngroupedTransitionListXml(reader, context, peptide, mods);
-                        reader.ReadEndElement();
-                    }
-                }
-
-                reader.ReadEndElement();
-            }
-
-            ModifiedSequenceMods sourceKey = null;
-            if (lookupSequence != null)
-                sourceKey = new ModifiedSequenceMods(lookupSequence, lookupMods);
-
-            PeptideDocNode peptideDocNode = new PeptideDocNode(peptide, Settings, mods, sourceKey, standardType, rank,
-                importedRetentionTime, annotations, results, children ?? new TransitionGroupDocNode[0], autoManageChildren);
-            peptideDocNode = peptideDocNode
-                .ChangeConcentrationMultiplier(concentrationMultiplier)
-                .ChangeInternalStandardConcentration(internalStandardConcentration);
-            return peptideDocNode;
-        }
-
-        private ExplicitMods ReadLookupMods(XmlReader reader, string lookupSequence)
-        {
-            if (!reader.IsStartElement(EL.lookup_modifications))
-                return null;
-            reader.Read();
-            string sequence = FastaSequence.StripModifications(lookupSequence);
-            var mods = ReadExplicitMods(reader, new Peptide(sequence));
-            reader.ReadEndElement();
-            return mods;
-        }
-
-        private void SkipImplicitModsElement(XmlReader reader)
-        {
-            if (!reader.IsStartElement(EL.implicit_modifications)) 
-                return;
-            reader.Skip();
-        }
-
-        private ExplicitMods ReadExplicitMods(XmlReader reader, Peptide peptide)
-        {
-            IList<ExplicitMod> staticMods = null;
-            TypedExplicitModifications staticTypedMods = null;
-            IList<TypedExplicitModifications> listHeavyMods = null;
-            bool isVariable = false;
-
-            if (reader.IsStartElement(EL.variable_modifications))
-            {
-                staticTypedMods = ReadExplicitMods(reader, EL.variable_modifications,
-                    EL.variable_modification, peptide, IsotopeLabelType.light);
-                staticMods = staticTypedMods.Modifications;
-                isVariable = true;
-            }
-            if (reader.IsStartElement(EL.explicit_modifications))
-            {
-                if (reader.IsEmptyElement)
-                {
-                    reader.Read();
-                }
-                else
-                {
-                    reader.ReadStartElement();
-
-                    if (!isVariable)
-                    {
-                        if (reader.IsStartElement(EL.explicit_static_modifications))
-                        {
-                            staticTypedMods = ReadExplicitMods(reader, EL.explicit_static_modifications,
-                                EL.explicit_modification, peptide, IsotopeLabelType.light);
-                            staticMods = staticTypedMods.Modifications;
-                        }
-                        // For format version 0.2 and earlier it was not possible
-                        // to have unmodified types.  The absence of a type simply
-                        // meant it had no modifications.
-                        else if (FormatVersion <= FORMAT_VERSION_0_2)
-                        {
-                            staticTypedMods = new TypedExplicitModifications(peptide,
-                                IsotopeLabelType.light, new ExplicitMod[0]);
-                            staticMods = staticTypedMods.Modifications;
-                        }
-                    }
-                    listHeavyMods = new List<TypedExplicitModifications>();
-                    while (reader.IsStartElement(EL.explicit_heavy_modifications))
-                    {
-                        var heavyMods = ReadExplicitMods(reader, EL.explicit_heavy_modifications,
-                            EL.explicit_modification, peptide, IsotopeLabelType.heavy);
-                        heavyMods = heavyMods.AddModMasses(staticTypedMods);
-                        listHeavyMods.Add(heavyMods);
-                    }
-                    if (FormatVersion <= FORMAT_VERSION_0_2 && listHeavyMods.Count == 0)
-                    {
-                        listHeavyMods.Add(new TypedExplicitModifications(peptide,
-                            IsotopeLabelType.heavy, new ExplicitMod[0]));
-                    }
-                    reader.ReadEndElement();
-                }
-            }
-            if (staticMods == null && listHeavyMods == null)
-                return null;
-
-            listHeavyMods = (listHeavyMods != null ?
-                listHeavyMods.ToArray() : new TypedExplicitModifications[0]);
-
-            return new ExplicitMods(peptide, staticMods, listHeavyMods, isVariable);
-        }
-
-        private TypedExplicitModifications ReadExplicitMods(XmlReader reader, string name,
-            string nameElMod, Peptide peptide, IsotopeLabelType labelTypeDefault)
-        {
-            if (!reader.IsStartElement(name))
-                return new TypedExplicitModifications(peptide, labelTypeDefault, new ExplicitMod[0]);
-
-            var typedMods = ReadLabelType(reader, labelTypeDefault);
-            var listMods = new List<ExplicitMod>();
-
-            if (reader.IsEmptyElement)
-                reader.Read();
-            else
-            {
-                reader.ReadStartElement();
-                while (reader.IsStartElement(nameElMod))
-                {
-                    int indexAA = reader.GetIntAttribute(ATTR.index_aa);
-                    string nameMod = reader.GetAttribute(ATTR.modification_name);
-                    int indexMod = typedMods.Modifications.IndexOf(mod => Equals(nameMod, mod.Name));
-                    if (indexMod == -1)
-                        throw new InvalidDataException(string.Format(Resources.TransitionInfo_ReadTransitionLosses_No_modification_named__0__was_found_in_this_document, nameMod));
-                    StaticMod modAdd = typedMods.Modifications[indexMod];
-                    listMods.Add(new ExplicitMod(indexAA, modAdd));
-                    // Consume tag
-                    reader.Read();
-                }
-                reader.ReadEndElement();                
-            }
-            return new TypedExplicitModifications(peptide, typedMods.LabelType, listMods.ToArray());
-        }
-
-        private Results<PeptideChromInfo> ReadPeptideResults(XmlReader reader, XmlReadContext context)
-        {
-            if (reader.IsStartElement(EL.peptide_results))
-                return ReadResults(reader, context, Settings, EL.peptide_result, ReadPeptideChromInfo);
-            return null;
-        }
-
-        private static PeptideChromInfo ReadPeptideChromInfo(XmlReader reader, XmlReadContext context,
-            SrmSettings settings, ChromFileInfoId fileId)
-        {
-            float peakCountRatio = reader.GetFloatAttribute(ATTR.peak_count_ratio);
-            float? retentionTime = reader.GetNullableFloatAttribute(ATTR.retention_time);
-            return new PeptideChromInfo(fileId, peakCountRatio, retentionTime, ImmutableList<PeptideLabelRatio>.EMPTY);
-        }
-
-        /// <summary>
-        /// Deserializes an array of <see cref="TransitionGroupDocNode"/> objects from
-        /// a <see cref="XmlReader"/> positioned at the first element in the list.
-        /// </summary>
-        /// <param name="reader">The reader positioned at the first element</param>
-        /// <param name="context">Context object to store values passed to children but only used during this read</param>
-        /// <param name="peptide">A previously read parent <see cref="Identity"/></param>
-        /// <param name="mods">Explicit modifications for the peptide</param>
-        /// <param name="customIon">Custom ion to use for reading older formats</param>
-        /// <returns>A new array of <see cref="TransitionGroupDocNode"/></returns>
-        private TransitionGroupDocNode[] ReadTransitionGroupListXml(XmlReader reader, XmlReadContext context, Peptide peptide, ExplicitMods mods, DocNodeCustomIon customIon)
-        {
-            var list = new List<TransitionGroupDocNode>();
-            while (reader.IsStartElement(EL.precursor))
-                list.Add(ReadTransitionGroupXml(reader, context, peptide, mods, customIon));
-            return list.ToArray();
-        }
-
-        private TransitionGroupDocNode ReadTransitionGroupXml(XmlReader reader, XmlReadContext context, Peptide peptide, ExplicitMods mods, DocNodeCustomIon customIon)
-        {
-            int precursorCharge = reader.GetIntAttribute(ATTR.charge);
-            var typedMods = ReadLabelType(reader, IsotopeLabelType.light);
-
-            int? decoyMassShift = reader.GetNullableIntAttribute(ATTR.decoy_mass_shift);
-            var explicitTransitionGroupValues = ReadExplicitTransitionValuesAttributes(reader);
-            if (peptide.IsCustomIon)
-            {
-                // In small molecules, different labels and charges mean different ion formulas
-                var ionFormula = reader.GetAttribute(ATTR.ion_formula);
-                if (!string.IsNullOrEmpty(ionFormula))
-                {
-                    var ionName = reader.GetAttribute(ATTR.custom_ion_name);
-                    customIon = new DocNodeCustomIon(ionFormula, ionName);
-                }
-                else
-                {
-                    var mz = reader.GetDoubleAttribute(ATTR.precursor_mz); // Normally ignored, but needed for molecules that are declared by mz and charge only
-                    var mass = BioMassCalc.CalculateIonMassFromMz(mz, precursorCharge); // We can't actually tell mono from average in this case
-                    double massMono = reader.GetNullableDoubleAttribute(ATTR.mass_monoisotopic) ?? mass;
-                    double massAverage = reader.GetNullableDoubleAttribute(ATTR.mass_average) ?? mass;
-                    if (FormatVersion < FORMAT_VERSION_3_12)
-                    {
-                        // In Skyline 3.1 we didn't suppport more than one transition group per molecule
-                        // Passed-in customIon is the primary precursor
-                    }
-                    // We need to determine if this is the primary precursor transition - but all we have to go on is mass
-                    else if (Math.Round(massMono, SequenceMassCalc.MassPrecision) == Math.Round(customIon.MonoisotopicMass, SequenceMassCalc.MassPrecision) &&
-                        Math.Round(massAverage, SequenceMassCalc.MassPrecision) == Math.Round(customIon.AverageMass, SequenceMassCalc.MassPrecision))
-                    {
-                        // Passed-in customIon is the primary precursor
-                    }
-                    else
-                    {
-                        customIon = new DocNodeCustomIon(massMono, massAverage, reader.GetAttribute(ATTR.custom_ion_name));
-                    }
-                }
-            }
-            var group = new TransitionGroup(peptide, customIon, precursorCharge, typedMods.LabelType, false, decoyMassShift);
-            var children = new TransitionDocNode[0];    // Empty until proven otherwise
-            bool autoManageChildren = reader.GetBoolAttribute(ATTR.auto_manage_children, true);
-
-            if (reader.IsEmptyElement)
-            {
-                reader.Read();
-
-                return new TransitionGroupDocNode(group,
-                                                  Annotations.EMPTY,
-                                                  Settings,
-                                                  mods,
-                                                  null,
-                                                  explicitTransitionGroupValues,
-                                                  null,
-                                                  children,
-                                                  autoManageChildren);
-            }
-            else
-            {
-                reader.ReadStartElement();
-                var annotations = ReadAnnotations(reader, context);
-                var libInfo = ReadTransitionGroupLibInfo(reader, context);
-                var results = ReadTransitionGroupResults(reader, context);
-
-                var nodeGroup = new TransitionGroupDocNode(group,
-                                                  annotations,
-                                                  Settings,
-                                                  mods,
-                                                  libInfo,
-                                                  explicitTransitionGroupValues,
-                                                  results,
-                                                  children,
-                                                  autoManageChildren);
-                children = ReadTransitionListXml(reader, context, group, mods, nodeGroup.IsotopeDist);
-
-                reader.ReadEndElement();
-
-                return (TransitionGroupDocNode) nodeGroup.ChangeChildrenChecked(children);
-            }
-        }
-
-        private TypedModifications ReadLabelType(XmlReader reader, IsotopeLabelType labelTypeDefault)
-        {
-            string typeName = reader.GetAttribute(ATTR.isotope_label);
-            if (string.IsNullOrEmpty(typeName))
-                typeName = labelTypeDefault.Name;
-            var typedMods = Settings.PeptideSettings.Modifications.GetModificationsByName(typeName);
-            if (typedMods == null)
-                throw new InvalidDataException(string.Format(Resources.SrmDocument_ReadLabelType_The_isotope_modification_type__0__does_not_exist_in_the_document_settings, typeName));
-            return typedMods;
-        }
-
-        private static SpectrumHeaderInfo ReadTransitionGroupLibInfo(XmlReader reader, XmlReadContext context)
-        {
-            // Look for an appropriate deserialization helper for spectrum
-            // header info on the current tag.
-            var helpers = PeptideLibraries.SpectrumHeaderXmlHelpers;
-            var helper = reader.FindHelper(helpers);
-            if (helper != null)
-            {
-                var libInfo = helper.Deserialize(reader);
-                return libInfo.ChangeLibraryName(context.GetNonDuplicatedName(libInfo.LibraryName));
-            }
-
-            return null;
-        }
-
-        private Results<TransitionGroupChromInfo> ReadTransitionGroupResults(XmlReader reader, XmlReadContext context)
-        {
-            if (reader.IsStartElement(EL.precursor_results))
-                return ReadResults(reader, context, Settings, EL.precursor_peak, ReadTransitionGroupChromInfo);
-            return null;
-        }
-
-        private static TransitionGroupChromInfo ReadTransitionGroupChromInfo(XmlReader reader, XmlReadContext context,
-            SrmSettings settings, ChromFileInfoId fileId)
-        {
-            int optimizationStep = reader.GetIntAttribute(ATTR.step);
-            float peakCountRatio = reader.GetFloatAttribute(ATTR.peak_count_ratio);
-            float? retentionTime = reader.GetNullableFloatAttribute(ATTR.retention_time);
-            float? startTime = reader.GetNullableFloatAttribute(ATTR.start_time);
-            float? endTime = reader.GetNullableFloatAttribute(ATTR.end_time);
-            float? fwhm = reader.GetNullableFloatAttribute(ATTR.fwhm);
-            float? area = reader.GetNullableFloatAttribute(ATTR.area);
-            float? backgroundArea = reader.GetNullableFloatAttribute(ATTR.background);
-            float? height = reader.GetNullableFloatAttribute(ATTR.height);
-            float? massError = reader.GetNullableFloatAttribute(ATTR.mass_error_ppm);
-            int? truncated = reader.GetNullableIntAttribute(ATTR.truncated);            
-            PeakIdentification identified = reader.GetEnumAttribute(ATTR.identified,
-                PeakIdentification.FALSE, XmlUtil.EnumCase.upper);
-            float? libraryDotProduct = reader.GetNullableFloatAttribute(ATTR.library_dotp);
-            float? isotopeDotProduct = reader.GetNullableFloatAttribute(ATTR.isotope_dotp);
-            var annotations = Annotations.EMPTY;
-            if (!reader.IsEmptyElement)
-            {
-                reader.ReadStartElement();
-                annotations = ReadAnnotations(reader, context);
-            }
-            // Ignore userSet during load, since all values are still calculated
-            // from the child transitions.  Otherwise inconsistency is possible.
-//            bool userSet = reader.GetBoolAttribute(ATTR.user_set);
-            const UserSet userSet = UserSet.FALSE;
-            int countRatios = settings.PeptideSettings.Modifications.RatioInternalStandardTypes.Count;
-            return new TransitionGroupChromInfo(fileId,
-                                                optimizationStep,
-                                                peakCountRatio,
-                                                retentionTime,
-                                                startTime,
-                                                endTime,
-                                                fwhm,
-                                                area, null, null, // Ms1 and Fragment values calculated later
-                                                backgroundArea, null, null, // Ms1 and Fragment values calculated later
-                                                height,
-                                                TransitionGroupChromInfo.GetEmptyRatios(countRatios),
-                                                massError,
-                                                truncated,
-                                                identified,
-                                                libraryDotProduct,
-                                                isotopeDotProduct,
-                                                annotations,
-                                                userSet);
-        }
-
-        /// <summary>
-        /// Deserializes ungrouped transitions in v0.1 format from a <see cref="XmlReader"/>
-        /// into an array of <see cref="TransitionGroupDocNode"/> objects with
-        /// children <see cref="TransitionDocNode"/> from the XML correctly distributed.
-        /// 
-        /// There were no "heavy" transitions in v0.1, making this a matter of
-        /// distributing multiple precursor charge states, though in most cases
-        /// there will be only one.
-        /// </summary>
-        /// <param name="reader">The reader positioned on a &lt;transition&gt; start tag</param>
-        /// <param name="context">Context object to store values passed to children but only used during this read</param>
-        /// <param name="peptide">A previously read <see cref="Peptide"/> instance</param>
-        /// <param name="mods">Explicit mods for the peptide</param>
-        /// <returns>An array of <see cref="TransitionGroupDocNode"/> instances for
-        ///         inclusion in a <see cref="PeptideDocNode"/> child list</returns>
-        private TransitionGroupDocNode[] ReadUngroupedTransitionListXml(XmlReader reader, XmlReadContext context, Peptide peptide, ExplicitMods mods)
-        {
-            TransitionInfo info = new TransitionInfo();
-            TransitionGroup curGroup = null;
-            List<TransitionDocNode> curList = null;
-            var listGroups = new List<TransitionGroup>();
-            var mapGroupToList = new Dictionary<TransitionGroup, List<TransitionDocNode>>();
-            while (reader.IsStartElement(EL.transition))
-            {
-                // Read a transition tag.
-                info.ReadXml(reader, context, Settings);
-
-                // If the transition is not in the current group
-                if (curGroup == null || curGroup.PrecursorCharge != info.PrecursorCharge)
-                {
-                    // Look for an existing group that matches
-                    curGroup = null;
-                    foreach (TransitionGroup group in listGroups)
-                    {
-                        if (group.PrecursorCharge == info.PrecursorCharge)
-                        {
-                            curGroup = group;
-                            break;
-                        }
-                    }
-                    if (curGroup != null)
-                        curList = mapGroupToList[curGroup];
-                    else
-                    {
-                        // No existing group matches, so create a new one
-                        curGroup = new TransitionGroup(peptide, null, info.PrecursorCharge, IsotopeLabelType.light);
-                        curList = new List<TransitionDocNode>();
-                        listGroups.Add(curGroup);
-                        mapGroupToList.Add(curGroup, curList);
-                    }
-                }
-                int offset = Transition.OrdinalToOffset(info.IonType,
-                    info.Ordinal, peptide.Length);
-                Transition transition = new Transition(curGroup, info.IonType,
-                    offset, info.MassIndex, info.Charge);
-
-                // No heavy transition support in v0.1, and no full-scan filtering
-                double massH = Settings.GetFragmentMass(IsotopeLabelType.light, mods, transition, null);
-
-                curList.Add(new TransitionDocNode(transition, info.Losses, massH, null, null));
-            }
-
-            // Use collected information to create the DocNodes.
-            var list = new List<TransitionGroupDocNode>();
-            foreach (TransitionGroup group in listGroups)
-            {
-                list.Add(new TransitionGroupDocNode(group, Annotations.EMPTY,
-                    Settings, mods, null, ExplicitTransitionGroupValues.EMPTY, null, mapGroupToList[group].ToArray(), true));
-            }
-            return list.ToArray();
-        }
-
-        /// <summary>
-        /// Deserializes an array of <see cref="TransitionDocNode"/> objects from
-        /// a <see cref="TransitionDocNode"/> positioned at the first element in the list.
-        /// </summary>
-        /// <param name="reader">The reader positioned at the first element</param>
-        /// <param name="context">Context object to store values passed to children but only used during this read</param>
-        /// <param name="group">A previously read parent <see cref="Identity"/></param>
-        /// <param name="mods">Explicit modifications for the peptide</param>
-        /// <param name="isotopeDist">Isotope peak distribution to use for assigning M+N m/z values</param>
-        /// <returns>A new array of <see cref="TransitionDocNode"/></returns>
-        private TransitionDocNode[] ReadTransitionListXml(XmlReader reader, XmlReadContext context,
-            TransitionGroup group, ExplicitMods mods, IsotopeDistInfo isotopeDist)
-        {
-            var list = new List<TransitionDocNode>();
-            while (reader.IsStartElement(EL.transition))
-                list.Add(ReadTransitionXml(reader, context, group, mods, isotopeDist));
-            return list.ToArray();
-        }
-
-        /// <summary>
-        /// Deserializes a single <see cref="TransitionDocNode"/> from a <see cref="XmlReader"/>
-        /// positioned at the start element.
-        /// </summary>
-        /// <param name="reader">The reader positioned at a start element of a transition</param>
-        /// <param name="context">Context object to store values passed to children but only used during this read</param>
-        /// <param name="group">A previously read parent <see cref="Identity"/></param>
-        /// <param name="mods">Explicit mods for the peptide</param>
-        /// <param name="isotopeDist">Isotope peak distribution to use for assigning M+N m/z values</param>
-        /// <returns>A new <see cref="TransitionDocNode"/></returns>
-        private TransitionDocNode ReadTransitionXml(XmlReader reader, XmlReadContext context, TransitionGroup group,
-            ExplicitMods mods, IsotopeDistInfo isotopeDist)
-        {
-            TransitionInfo info = new TransitionInfo();
-
-            // Read all the XML attributes before the reader advances through the elements
-            info.ReadXmlAttributes(reader, Settings);
-            var isPrecursor = Transition.IsPrecursor(info.IonType);
-            var isCustom = Transition.IsCustom(info.IonType, group);
-            CustomIon customIon = null;
-            if (isCustom)
-            {
-                if (info.MeasuredIon != null)
-                    customIon = info.MeasuredIon.CustomIon;
-                else if (isPrecursor)
-                    customIon = group.CustomIon;
-                else
-                    customIon = DocNodeCustomIon.Deserialize(reader);
-            }
-            info.ReadXmlElements(reader, context, Settings);
-
-            Transition transition;
-            if (isCustom)
-            {
-                transition = new Transition(group, isPrecursor ? group.PrecursorCharge : info.Charge, info.MassIndex, 
-                    customIon, info.IonType);
-            }
-            else if (isPrecursor)
-            {
-                transition = new Transition(group, info.IonType, group.Peptide.Length - 1, info.MassIndex,
-                    group.PrecursorCharge, info.DecoyMassShift);
-            }
-            else 
-            {
-                int offset = Transition.OrdinalToOffset(info.IonType,
-                    info.Ordinal, group.Peptide.Length);
-                transition = new Transition(group, info.IonType, offset, info.MassIndex, info.Charge, info.DecoyMassShift);
-            }
-
-            var losses = info.Losses;
-            double massH = Settings.GetFragmentMass(group.LabelType, mods, transition, isotopeDist);
-
-            var isotopeDistInfo = TransitionDocNode.GetIsotopeDistInfo(transition, losses, isotopeDist);
-
-            if (group.DecoyMassShift.HasValue && !info.DecoyMassShift.HasValue)
-                throw new InvalidDataException(Resources.SrmDocument_ReadTransitionXml_All_transitions_of_decoy_precursors_must_have_a_decoy_mass_shift);
-
-            return new TransitionDocNode(transition, info.Annotations, losses,
-                massH, isotopeDistInfo, info.LibInfo, info.Results);
-        }
-
-        /// <summary>
-        /// Reads annotations without ensuring that they use a single unique key string. This
-        /// is currently only used for <see cref="ChromatogramSet"/>, because it is difficult to
-        /// get it to use the version with a non-null context and the possible level of repetition
-        /// is much smaller than with the document nodes and results objects.
-        /// </summary>
-        public static Annotations ReadAnnotations(XmlReader reader)
-        {
-            return ReadAnnotations(reader, null);
-        }
-
-        private static Annotations ReadAnnotations(XmlReader reader, XmlReadContext context)
-        {
-            string note = null;
-            int color = 0;
-            var annotations = new Dictionary<string, string>();
-            
-            if (reader.IsStartElement(EL.note))
-            {
-                color = reader.GetIntAttribute(ATTR.category);
-                note = reader.ReadElementString();
-            }
-            while (reader.IsStartElement(EL.annotation))
-            {
-                string name = reader.GetAttribute(ATTR.name);
-                if (name == null)
-                    throw new InvalidDataException(Resources.SrmDocument_ReadAnnotations_Annotation_found_without_name);
-                if (context != null)
-                    name = context.GetNonDuplicatedName(name);
-                annotations[name] = reader.ReadElementString();
-            }
-
-            return note != null || annotations.Count > 0
-                ? new Annotations(note, annotations, color)
-                : Annotations.EMPTY;
-        }
-
-        /// <summary>
-        /// Helper class for reading information from a transition element into
-        /// memory for use in both <see cref="Transition"/> and <see cref="TransitionGroup"/>.
-        /// 
-        /// This class exists to share code between <see cref="ReadTransitionXml"/>
-        /// and <see cref="ReadUngroupedTransitionListXml"/>.
-        /// </summary>
-        private class TransitionInfo
-        {
-            public IonType IonType { get; private set; }
-            public int Ordinal { get; private set; }
-            public int MassIndex { get; private set; }
-            public int PrecursorCharge { get; private set; }
-            public int Charge { get; private set; }
-            public int? DecoyMassShift { get; private set; }
-            public TransitionLosses Losses { get; private set; }
-            public Annotations Annotations { get; private set; }
-            public TransitionLibInfo LibInfo { get; private set; }
-            public Results<TransitionChromInfo> Results { get; private set; }
-            public MeasuredIon MeasuredIon { get; private set; }
-
-            public void ReadXml(XmlReader reader, XmlReadContext context, SrmSettings settings)
-            {
-                ReadXmlAttributes(reader, settings);
-                ReadXmlElements(reader, context, settings);
-            }
-
-            public void ReadXmlAttributes(XmlReader reader, SrmSettings settings)
-            {
-                // Accept uppercase and lowercase for backward compatibility with v0.1
-                IonType = reader.GetEnumAttribute(ATTR.fragment_type, IonType.y, XmlUtil.EnumCase.lower);
-                Ordinal = reader.GetIntAttribute(ATTR.fragment_ordinal);
-                MassIndex = reader.GetIntAttribute(ATTR.mass_index);
-                // NOTE: PrecursorCharge is used only in TransitionInfo.ReadUngroupedTransitionListXml()
-                //       to support v0.1 document format
-                PrecursorCharge = reader.GetIntAttribute(ATTR.precursor_charge);
-                Charge = reader.GetIntAttribute(ATTR.product_charge);
-                DecoyMassShift = reader.GetNullableIntAttribute(ATTR.decoy_mass_shift);
-                string measuredIonName = reader.GetAttribute(ATTR.measured_ion_name);
-                if (measuredIonName != null)
-                {
-                    MeasuredIon = settings.TransitionSettings.Filter.MeasuredIons.SingleOrDefault(
-                        i => i.Name.Equals(measuredIonName));
-                    if (MeasuredIon == null)
-                        throw new InvalidDataException(string.Format(Resources.TransitionInfo_ReadXmlAttributes_The_reporter_ion__0__was_not_found_in_the_transition_filter_settings_, measuredIonName));
-                    IonType = IonType.custom;
-                }
-            }
-
-            public void ReadXmlElements(XmlReader reader, XmlReadContext context, SrmSettings settings)
-            {
-                if (reader.IsEmptyElement)
-                {
-                    reader.Read();
-                }
-                else
-                {
-                    reader.ReadStartElement();
-                    Annotations = ReadAnnotations(reader, context); // This is reliably first in all versions
-                    while (true)
-                    {  // The order of these elements may depend on the version of the file being read
-                        if (reader.IsStartElement(EL.losses))
-                            Losses = ReadTransitionLosses(reader, settings);
-                        else if (reader.IsStartElement(EL.transition_lib_info))
-                            LibInfo = ReadTransitionLibInfo(reader);
-                        else if (reader.IsStartElement(EL.transition_results))
-                            Results = ReadTransitionResults(reader, context, settings);
-                        // Read and discard informational elements.  These values are always
-                        // calculated from the settings to ensure consistency.
-                        else if (reader.IsStartElement(EL.precursor_mz))
-                            reader.ReadElementContentAsDoubleInvariant();
-                        else if (reader.IsStartElement(EL.product_mz))
-                            reader.ReadElementContentAsDoubleInvariant();
-                        else if (reader.IsStartElement(EL.collision_energy))
-                            reader.ReadElementContentAsDoubleInvariant();
-                        else if (reader.IsStartElement(EL.declustering_potential))
-                            reader.ReadElementContentAsDoubleInvariant();
-                        else if (reader.IsStartElement(EL.start_rt))
-                            reader.ReadElementContentAsDoubleInvariant();
-                        else if (reader.IsStartElement(EL.stop_rt))
-                            reader.ReadElementContentAsDoubleInvariant();
-                        else
-                            break;
-                    }
-                    reader.ReadEndElement();
-                }
-            }
-
-            private static TransitionLosses ReadTransitionLosses(XmlReader reader, SrmSettings settings)
-            {
-                if (reader.IsStartElement(EL.losses))
-                {
-                    var staticMods = settings.PeptideSettings.Modifications.StaticModifications;
-                    MassType massType = settings.TransitionSettings.Prediction.FragmentMassType;
-
-                    reader.ReadStartElement();
-                    var listLosses = new List<TransitionLoss>();
-                    while (reader.IsStartElement(EL.neutral_loss))
-                    {
-                        string nameMod = reader.GetAttribute(ATTR.modification_name);
-                        if (string.IsNullOrEmpty(nameMod))
-                            listLosses.Add(new TransitionLoss(null, FragmentLoss.Deserialize(reader), massType));
-                        else
-                        {
-                            int indexLoss = reader.GetIntAttribute(ATTR.loss_index);
-                            int indexMod = staticMods.IndexOf(mod => Equals(nameMod, mod.Name));
-                            if (indexMod == -1)
-                            {
-                                throw new InvalidDataException(
-                                    string.Format(Resources.TransitionInfo_ReadTransitionLosses_No_modification_named__0__was_found_in_this_document,
-                                                  nameMod));
-                            }
-                            StaticMod modLoss = staticMods[indexMod];
-                            if (!modLoss.HasLoss || indexLoss >= modLoss.Losses.Count)
-                            {
-                                throw new InvalidDataException(
-                                    string.Format(Resources.TransitionInfo_ReadTransitionLosses_Invalid_loss_index__0__for_modification__1__,
-                                                  indexLoss, nameMod));
-                            }
-                            listLosses.Add(new TransitionLoss(modLoss, modLoss.Losses[indexLoss], massType));
-                        }
-                        reader.Read();
-                    }
-                    reader.ReadEndElement();
-
-                    return new TransitionLosses(listLosses, massType);
-                }
-                return null;
-            }
-
-            private static TransitionLibInfo ReadTransitionLibInfo(XmlReader reader)
-            {
-                if (reader.IsStartElement(EL.transition_lib_info))
-                {
-                    var libInfo = new TransitionLibInfo(reader.GetIntAttribute(ATTR.rank),
-                        reader.GetFloatAttribute(ATTR.intensity));
-                    reader.ReadStartElement();
-                    return libInfo;
-                }
-                return null;
-            }
-
-            private static Results<TransitionChromInfo> ReadTransitionResults(XmlReader reader, XmlReadContext context, SrmSettings settings)
-            {
-                if (reader.IsStartElement(EL.transition_results))
-                    return ReadResults(reader, context, settings, EL.transition_peak, ReadTransitionPeak);
-                return null;
-            }
-
-            private static TransitionChromInfo ReadTransitionPeak(XmlReader reader, XmlReadContext context,
-                SrmSettings settings, ChromFileInfoId fileId)
-            {
-                int optimizationStep = reader.GetIntAttribute(ATTR.step);
-                float? massError = reader.GetNullableFloatAttribute(ATTR.mass_error_ppm);
-                float retentionTime = reader.GetFloatAttribute(ATTR.retention_time);
-                float startRetentionTime = reader.GetFloatAttribute(ATTR.start_time);
-                float endRetentionTime = reader.GetFloatAttribute(ATTR.end_time);
-                // Protect against negative areas, since they can cause real problems
-                // for ratio calculations.
-                float area = Math.Max(0, reader.GetFloatAttribute(ATTR.area));
-                float backgroundArea = Math.Max(0, reader.GetFloatAttribute(ATTR.background));
-                float height = reader.GetFloatAttribute(ATTR.height);
-                float fwhm = reader.GetFloatAttribute(ATTR.fwhm);
-                // Strange issue where fwhm got set to NaN
-                if (float.IsNaN(fwhm))
-                    fwhm = 0;
-                bool fwhmDegenerate = reader.GetBoolAttribute(ATTR.fwhm_degenerate);
-                bool? truncated = reader.GetNullableBoolAttribute(ATTR.truncated);
-                var identified = reader.GetEnumAttribute(ATTR.identified,
-                    PeakIdentification.FALSE, XmlUtil.EnumCase.upper);
-                UserSet userSet = reader.GetEnumAttribute(ATTR.user_set, UserSet.FALSE, XmlUtil.EnumCase.upper);
-                var annotations = Annotations.EMPTY;
-                if (!reader.IsEmptyElement)
-                {
-                    reader.ReadStartElement();
-                    annotations = ReadAnnotations(reader, context);
-                }
-                int countRatios = settings.PeptideSettings.Modifications.RatioInternalStandardTypes.Count;
-                return new TransitionChromInfo(fileId,
-                                               optimizationStep,
-                                               massError,
-                                               retentionTime,
-                                               startRetentionTime,
-                                               endRetentionTime,
-                                               area,
-                                               backgroundArea,
-                                               height,
-                                               fwhm,
-                                               fwhmDegenerate,
-                                               truncated,
-                                               identified,
-                                               TransitionChromInfo.GetEmptyRatios(countRatios),
-                                               annotations,
-                                               userSet);
-            }
-        }
-
-        private static Results<TItem> ReadResults<TItem>(XmlReader reader, XmlReadContext context, SrmSettings settings, string start,
-                Func<XmlReader, XmlReadContext, SrmSettings, ChromFileInfoId, TItem> readInfo)
-            where TItem : ChromInfo
-        {
-            // If the results element is empty, then there are no results to read.
-            if (reader.IsEmptyElement)
-            {
-                reader.Read();
-                return null;
-            }
-
-            MeasuredResults results = settings.MeasuredResults;
-            if (results == null)
-                throw new InvalidDataException(Resources.SrmDocument_ReadResults_No_results_information_found_in_the_document_settings);
-
-            reader.ReadStartElement();
-            var arrayListChromInfos = new List<TItem>[results.Chromatograms.Count];
-            ChromatogramSet chromatogramSet = null;
-            int index = -1;
-            while (reader.IsStartElement(start))
-            {
-                string name = reader.GetAttribute(ATTR.replicate);
-                if (chromatogramSet == null || !Equals(name, chromatogramSet.Name))
-                {
-                    if (!results.TryGetChromatogramSet(name, out chromatogramSet, out index))
-                        throw new InvalidDataException(string.Format(Resources.SrmDocument_ReadResults_No_replicate_named__0__found_in_measured_results, name));
-                }
-                string fileId = reader.GetAttribute(ATTR.file);
-                var fileInfoId = (fileId != null
-                    ? chromatogramSet.FindFileById(fileId)
-                    : chromatogramSet.MSDataFileInfos[0].FileId);
-                if (fileInfoId == null)
-                    throw new InvalidDataException(string.Format(Resources.SrmDocument_ReadResults_No_file_with_id__0__found_in_the_replicate__1__, fileId, name));
-
-                TItem chromInfo = readInfo(reader, context, settings, fileInfoId);
-                // Consume the tag
-                reader.Read();
-
-                if (!ReferenceEquals(chromInfo, default(TItem)))
-                {
-                    if (arrayListChromInfos[index] == null)
-                        arrayListChromInfos[index] = new List<TItem>();
-                    // Deal with cache corruption issue where the same results info could
-                    // get written multiple times for the same precursor.
-                    var listChromInfos = arrayListChromInfos[index];
-                    if (listChromInfos.Count == 0 || !Equals(chromInfo, listChromInfos[listChromInfos.Count - 1]))
-                        arrayListChromInfos[index].Add(chromInfo);
-                }
-            }
-            reader.ReadEndElement();
-
-            var arrayChromInfoLists = new ChromInfoList<TItem>[arrayListChromInfos.Length];
-            for (int i = 0; i < arrayListChromInfos.Length; i++)
-            {
-                if (arrayListChromInfos[i] != null)
-                    arrayChromInfoLists[i] = new ChromInfoList<TItem>(arrayListChromInfos[i]);
-            }
-            return new Results<TItem>(arrayChromInfoLists);
-        }
-
-        /// <summary>
-        /// Serializes a tree of document objects to XML.
-        /// </summary>
-        /// <param name="writer">The XML writer</param>
-        public void WriteXml(XmlWriter writer)
-        {
-            writer.WriteAttribute(ATTR.format_version, FORMAT_VERSION);
-            writer.WriteAttribute(ATTR.software_version, Install.ProgramNameAndVersion);
-
-            writer.WriteElement(Settings);
-            foreach (PeptideGroupDocNode nodeGroup in Children)
-            {
-                if (nodeGroup.Id is FastaSequence)
-                    writer.WriteStartElement(EL.protein);
-                else
-                    writer.WriteStartElement(EL.peptide_list);
-                WritePeptideGroupXml(writer, nodeGroup);
-                writer.WriteEndElement();
-            }
-        }
-
-
-        private void WriteProteinMetadataXML(XmlWriter writer, ProteinMetadata proteinMetadata, bool skipNameAndDescription) // Not L10N
-        {
-            if (!skipNameAndDescription)
-            {
-                writer.WriteAttributeIfString(ATTR.name, proteinMetadata.Name); 
-                writer.WriteAttributeIfString(ATTR.description, proteinMetadata.Description); 
-            }
-            writer.WriteAttributeIfString(ATTR.accession, proteinMetadata.Accession);
-            writer.WriteAttributeIfString(ATTR.gene, proteinMetadata.Gene);
-            writer.WriteAttributeIfString(ATTR.species, proteinMetadata.Species);
-            writer.WriteAttributeIfString(ATTR.preferred_name, proteinMetadata.PreferredName);
-            writer.WriteAttributeIfString(ATTR.websearch_status, proteinMetadata.WebSearchInfo.ToString());
-        }
-
-
-        /// <summary>
-        /// Serializes the contents of a single <see cref="PeptideGroupDocNode"/>
-        /// to XML.
-        /// </summary>
-        /// <param name="writer">The XML writer</param>
-        /// <param name="node">The peptide group document node</param>
-        private void WritePeptideGroupXml(XmlWriter writer, PeptideGroupDocNode node)
-        {
-            // save the identity info
-            if (node.PeptideGroup.Name != null)
-            {
-                writer.WriteAttributeString(ATTR.name, node.PeptideGroup.Name); 
-            }
-            if (node.PeptideGroup.Description != null)
-            {
-                writer.WriteAttributeString(ATTR.description, node.PeptideGroup.Description); 
-            }
-            // save any overrides
-            if ((node.ProteinMetadataOverrides.Name != null) && !Equals(node.ProteinMetadataOverrides.Name, node.PeptideGroup.Name))
-            {
-                writer.WriteAttributeString(ATTR.label_name, node.ProteinMetadataOverrides.Name); 
-            }
-            if ((node.ProteinMetadataOverrides.Description != null) && !Equals(node.ProteinMetadataOverrides.Description, node.PeptideGroup.Description))
-            {
-                writer.WriteAttributeString(ATTR.label_description, node.ProteinMetadataOverrides.Description); 
-            }
-            WriteProteinMetadataXML(writer, node.ProteinMetadataOverrides, true); // write the protein metadata, skipping the name and description we already wrote
-            writer.WriteAttribute(ATTR.auto_manage_children, node.AutoManageChildren, true);
-            writer.WriteAttribute(ATTR.decoy, node.IsDecoy);
-
-            // Write child elements
-            WriteAnnotations(writer, node.Annotations);
-
-            FastaSequence seq = node.PeptideGroup as FastaSequence;
-            if (seq != null)
-            {
-                if (seq.Alternatives.Count > 0)
-                {
-                    writer.WriteStartElement(EL.alternatives);
-                    foreach (ProteinMetadata alt in seq.Alternatives)
-                    {
-                        writer.WriteStartElement(EL.alternative_protein);
-                        WriteProteinMetadataXML(writer, alt, false); // don't skip name and description
-                        writer.WriteEndElement();
-                    }
-                    writer.WriteEndElement();
-                }
-
-                writer.WriteStartElement(EL.sequence);
-                writer.WriteString(FormatProteinSequence(seq.Sequence));
-                writer.WriteEndElement();
-            }
-
-            foreach (PeptideDocNode nodePeptide in node.Children)
-            {
-                WritePeptideXml(writer, nodePeptide);
-            }
-        }
-
-        /// <summary>
-        /// Formats a FASTA sequence string for output as XML element content.
-        /// </summary>
-        /// <param name="sequence">An unformated FASTA sequence string</param>
-        /// <returns>A formatted version of the input sequence</returns>
-        private static string FormatProteinSequence(string sequence)
-        {
-            const string lineSeparator = "\r\n        "; // Not L10N
-
-            StringBuilder sb = new StringBuilder();
-            if (sequence.Length > 50)
-                sb.Append(lineSeparator);
-            for (int i = 0; i < sequence.Length; i += 10)
-            {
-                if (sequence.Length - i <= 10)
-                    sb.Append(sequence.Substring(i));
-                else
-                {
-                    sb.Append(sequence.Substring(i, Math.Min(10, sequence.Length - i)));
-                    sb.Append(i % 50 == 40 ? "\r\n        " : " "); // Not L10N
-                }
-            }
-
-            return sb.ToString();
-        }
-
-        /// <summary>
-        /// Serializes any optionally explicitly specified CE, RT and DT information to attributes only
-        /// </summary>
-        private void WriteExplicitTransitionGroupValuesAttributes(XmlWriter writer, ExplicitTransitionGroupValues importedAttributes)
-        {
-            writer.WriteAttributeNullable(ATTR.explicit_collision_energy, importedAttributes.CollisionEnergy);
-            writer.WriteAttributeNullable(ATTR.explicit_drift_time_msec, importedAttributes.DriftTimeMsec);
-            writer.WriteAttributeNullable(ATTR.explicit_drift_time_high_energy_offset_msec, importedAttributes.DriftTimeHighEnergyOffsetMsec);
-            writer.WriteAttributeNullable(ATTR.s_lens, importedAttributes.SLens);
-            writer.WriteAttributeNullable(ATTR.cone_voltage, importedAttributes.ConeVoltage);
-            writer.WriteAttributeNullable(ATTR.explicit_declustering_potential, importedAttributes.DeclusteringPotential);
-            writer.WriteAttributeNullable(ATTR.explicit_compensation_voltage, importedAttributes.CompensationVoltage);
-        }
-
-        /// <summary>
-        /// Serializes the contents of a single <see cref="PeptideDocNode"/>
-        /// to XML.
-        /// </summary>
-        /// <param name="writer">The XML writer</param>
-        /// <param name="node">The peptide (or small molecule) document node</param>
-        private void WritePeptideXml(XmlWriter writer, PeptideDocNode node)
-        {
-            var peptide = node.Peptide;
-            var isCustomIon = peptide.IsCustomIon;
-
-            writer.WriteStartElement(isCustomIon ? EL.molecule : EL.peptide);
-            if (node.ExplicitRetentionTime != null)
-            {
-                writer.WriteAttribute(ATTR.explicit_retention_time, node.ExplicitRetentionTime.RetentionTime);
-                writer.WriteAttributeNullable(ATTR.explicit_retention_time_window, node.ExplicitRetentionTime.RetentionTimeWindow);
-            }
-            double? scoreCalc = null;
-
-            writer.WriteAttribute(ATTR.auto_manage_children, node.AutoManageChildren, true);
-            if (node.GlobalStandardType != null)
-                writer.WriteAttribute(ATTR.standard_type, node.GlobalStandardType);
-
-            writer.WriteAttributeNullable(ATTR.rank, node.Rank);
-            writer.WriteAttributeNullable(ATTR.concentration_multiplier, node.ConcentrationMultiplier);
-            writer.WriteAttributeNullable(ATTR.internal_standard_concentration, node.InternalStandardConcentration);
-
-            if (isCustomIon)
-            {
-                peptide.CustomIon.WriteXml(writer);                
-            }
-            else
-            {
-                string sequence = peptide.Sequence;
-                writer.WriteAttributeString(ATTR.sequence, sequence);
-                string modSeq = Settings.GetModifiedSequence(node);
-                writer.WriteAttributeString(ATTR.modified_sequence, modSeq);
-                if (node.SourceKey != null)
-                    writer.WriteAttributeString(ATTR.lookup_sequence, node.SourceKey.ModifiedSequence);
-                if (peptide.Begin.HasValue && peptide.End.HasValue)
-                {
-                    writer.WriteAttribute(ATTR.start, peptide.Begin.Value);
-                    writer.WriteAttribute(ATTR.end, peptide.End.Value);
-                    writer.WriteAttribute(ATTR.prev_aa, peptide.PrevAA);
-                    writer.WriteAttribute(ATTR.next_aa, peptide.NextAA);
-                }
-                double massH = Settings.GetPrecursorCalc(IsotopeLabelType.light, node.ExplicitMods).GetPrecursorMass(sequence);
-                writer.WriteAttribute(ATTR.calc_neutral_pep_mass,
-                    SequenceMassCalc.PersistentNeutral(massH));
-
-                writer.WriteAttribute(ATTR.num_missed_cleavages, peptide.MissedCleavages);
-                writer.WriteAttribute(ATTR.decoy, node.IsDecoy);
-                var rtPredictor = Settings.PeptideSettings.Prediction.RetentionTime;
-                if(rtPredictor != null)
-                {
-                    scoreCalc = rtPredictor.Calculator.ScoreSequence(modSeq);
-                    if (scoreCalc.HasValue)
-                    {
-                        writer.WriteAttributeNullable(ATTR.rt_calculator_score, scoreCalc);
-                        writer.WriteAttributeNullable(ATTR.predicted_retention_time,
-                            rtPredictor.GetRetentionTime(scoreCalc.Value));
-                    } 
-                }
-            }
-            
-            writer.WriteAttributeNullable(ATTR.avg_measured_retention_time, node.AverageMeasuredRetentionTime);
-
-            // Write child elements
-            WriteAnnotations(writer, node.Annotations);
-            if (!isCustomIon)
-            {
-                WriteExplicitMods(writer, node.Peptide.Sequence, node.ExplicitMods);
-                WriteImplicitMods(writer, node);
-                WriteLookupMods(writer, node);
-            }
-            if (node.HasResults)
-            {
-                WriteResults(writer, Settings, node.Results,
-                    EL.peptide_results, EL.peptide_result, (w, i) => WritePeptideChromInfo(w, i, scoreCalc));
-            }
-
-            foreach (TransitionGroupDocNode nodeGroup in node.Children)
-            {
-                writer.WriteStartElement(EL.precursor);
-                WriteTransitionGroupXml(writer, node, nodeGroup);
-                writer.WriteEndElement();
-            }
-            writer.WriteEndElement();
-        }
-
-        private void WriteLookupMods(XmlWriter writer, PeptideDocNode node)
-        {
-            if (node.SourceKey == null || node.SourceKey.ExplicitMods == null)
-                return;
-            writer.WriteStartElement(EL.lookup_modifications);
-            WriteExplicitMods(writer, node.SourceKey.Sequence, node.SourceKey.ExplicitMods);
-            writer.WriteEndElement();
-        }
-
-        private void WriteExplicitMods(XmlWriter writer, string sequence,  ExplicitMods mods)
-        {
-            if (mods == null)
-                return;
-            if (mods.IsVariableStaticMods)
-            {
-                WriteExplicitMods(writer, EL.variable_modifications,
-                    EL.variable_modification, null, mods.StaticModifications, sequence);
-
-                // If no heavy modifications, then don't write an <explicit_modifications> tag
-                if (!mods.HasHeavyModifications)
-                    return;
-            }
-            writer.WriteStartElement(EL.explicit_modifications);
-            if (!mods.IsVariableStaticMods)
-            {
-                WriteExplicitMods(writer, EL.explicit_static_modifications,
-                    EL.explicit_modification, null, mods.StaticModifications, sequence);
-            }
-            foreach (var heavyMods in mods.GetHeavyModifications())
-            {
-                IsotopeLabelType labelType = heavyMods.LabelType;
-                if (Equals(labelType, IsotopeLabelType.heavy))
-                    labelType = null;
-
-                WriteExplicitMods(writer, EL.explicit_heavy_modifications,
-                    EL.explicit_modification, labelType, heavyMods.Modifications, sequence);
-            }
-            writer.WriteEndElement();
-        }
-
-		private void WriteImplicitMods(XmlWriter writer, PeptideDocNode node)
-        {
-            // Get the implicit  modifications on this peptide.
-            var implicitMods = new ExplicitMods(node,
-                Settings.PeptideSettings.Modifications.StaticModifications, 
-                Properties.Settings.Default.StaticModList,
-                Settings.PeptideSettings.Modifications.GetHeavyModifications(), 
-                Properties.Settings.Default.HeavyModList,
-                true);
-
-            bool hasStaticMods = implicitMods.StaticModifications.Count != 0 && node.CanHaveImplicitStaticMods;
-            bool hasHeavyMods = implicitMods.HasHeavyModifications &&
-                                Settings.PeptideSettings.Modifications.GetHeavyModifications().Any(
-                                     mod => node.CanHaveImplicitHeavyMods(mod.LabelType));
-
-            if (!hasStaticMods && !hasHeavyMods)
-            {
-                return;
-            }
-
-            writer.WriteStartElement(EL.implicit_modifications);
-            
-            // implicit static modifications.
-            if (hasStaticMods)
-            {
-                WriteExplicitMods(writer, EL.implicit_static_modifications,
-                        EL.implicit_modification, null, implicitMods.StaticModifications, 
-                        node.Peptide.Sequence);
-            }
-
-            // implicit heavy modifications
-            foreach (var heavyMods in implicitMods.GetHeavyModifications())
-            {
-                IsotopeLabelType labelType = heavyMods.LabelType;
-                if (!node.CanHaveImplicitHeavyMods(labelType))
-                {
-                    continue;
-                }
-                if (Equals(labelType, IsotopeLabelType.heavy))
-                    labelType = null;
-
-                WriteExplicitMods(writer, EL.implicit_heavy_modifications,
-                                  EL.implicit_modification, labelType, heavyMods.Modifications,
-                                  node.Peptide.Sequence);
-            }
-            writer.WriteEndElement();
-        }
-
-
-        private void WriteExplicitMods(XmlWriter writer, string name,
-            string nameElMod, IsotopeLabelType labelType, IEnumerable<ExplicitMod> mods, 
-            string sequence)
-        {
-            if (mods == null)
-                return;
-            writer.WriteStartElement(name);
-            if (labelType != null)
-                writer.WriteAttribute(ATTR.isotope_label, labelType);
-
-            SequenceMassCalc massCalc = Settings.TransitionSettings.Prediction.PrecursorMassType == MassType.Monoisotopic ?
-                SrmSettings.MonoisotopicMassCalc : SrmSettings.AverageMassCalc;
-            foreach (ExplicitMod mod in mods)
-            {
-                writer.WriteStartElement(nameElMod);
-                writer.WriteAttribute(ATTR.index_aa, mod.IndexAA);
-                writer.WriteAttribute(ATTR.modification_name, mod.Modification.Name);
-
-                double massDiff = massCalc.GetModMass(sequence[mod.IndexAA], mod.Modification);
-
-                writer.WriteAttribute(ATTR.mass_diff,
-                                      string.Format("{0}{1}", (massDiff < 0 ? string.Empty : "+"), Math.Round(massDiff, 1))); // Not L10N
-
-                writer.WriteEndElement();
-            }
-            writer.WriteEndElement();
-        }
-
-        private void WritePeptideChromInfo(XmlWriter writer, PeptideChromInfo chromInfo, double? scoreCalc)
-        {
-            writer.WriteAttribute(ATTR.peak_count_ratio, chromInfo.PeakCountRatio);
-            writer.WriteAttributeNullable(ATTR.retention_time, chromInfo.RetentionTime);
-            if (scoreCalc.HasValue)
-            {
-                double? rt = Settings.PeptideSettings.Prediction.RetentionTime.GetRetentionTime(scoreCalc.Value,
-                                                                                      chromInfo.FileId);
-                writer.WriteAttributeNullable(ATTR.predicted_retention_time, rt);
-            } 
-        }
-
-        /// <summary>
-        /// Serializes the contents of a single <see cref="TransitionGroupDocNode"/>
-        /// to XML.
-        /// </summary>
-        /// <param name="writer">The XML writer</param>
-        /// <param name="nodePep">The parent peptide document node</param>
-        /// <param name="node">The transition group document node</param>
-        private void WriteTransitionGroupXml(XmlWriter writer, PeptideDocNode nodePep, TransitionGroupDocNode node)
-        {
-            TransitionGroup group = node.TransitionGroup;
-            var isCustomIon = nodePep.Peptide.IsCustomIon;
-            writer.WriteAttribute(ATTR.charge, group.PrecursorCharge);
-            if (!group.LabelType.IsLight)
-                writer.WriteAttribute(ATTR.isotope_label, group.LabelType);
-            if (!isCustomIon)
-            {
-                writer.WriteAttribute(ATTR.calc_neutral_mass, node.GetPrecursorIonPersistentNeutralMass());
-            }
-            writer.WriteAttribute(ATTR.precursor_mz, SequenceMassCalc.PersistentMZ(node.PrecursorMz));
-            WriteExplicitTransitionGroupValuesAttributes(writer, node.ExplicitValues);
-
-            writer.WriteAttribute(ATTR.auto_manage_children, node.AutoManageChildren, true);
-            writer.WriteAttributeNullable(ATTR.decoy_mass_shift, group.DecoyMassShift);
-
-
-            TransitionPrediction predict = Settings.TransitionSettings.Prediction;
-            double regressionMz = Settings.GetRegressionMz(nodePep, node);
-            var ce = predict.CollisionEnergy.GetCollisionEnergy(node.TransitionGroup.PrecursorCharge, regressionMz);
-            writer.WriteAttribute(ATTR.collision_energy, ce);
-
-            var dpRegression = predict.DeclusteringPotential;
-            if (dpRegression != null)
-            {
-                var dp = dpRegression.GetDeclustringPotential(regressionMz);
-                writer.WriteAttribute(ATTR.declustering_potential, dp);
-            }
-            
-            if (!isCustomIon)
-            {
-                // modified sequence
-                var calcPre = Settings.GetPrecursorCalc(node.TransitionGroup.LabelType, nodePep.ExplicitMods);
-                string seq = node.TransitionGroup.Peptide.Sequence;
-                writer.WriteAttribute(ATTR.modified_sequence, calcPre.GetModifiedSequence(seq, true));
-            }
-            else
-            {
-                // Custom ion
-                node.CustomIon.WriteXml(writer);
-            }
-            // Write child elements
-            WriteAnnotations(writer, node.Annotations);
-            if (node.HasLibInfo)
-            {
-                var helpers = PeptideLibraries.SpectrumHeaderXmlHelpers;
-                writer.WriteElements(new[] {node.LibInfo}, helpers);
-            }
-
-            if (node.HasResults)
-            {
-                WriteResults(writer, Settings, node.Results,
-                    EL.precursor_results, EL.precursor_peak, WriteTransitionGroupChromInfo);
-            }
-
-            foreach (TransitionDocNode nodeTransition in node.Children)
-            {
-                writer.WriteStartElement(EL.transition);
-                WriteTransitionXml(writer, nodePep, node, nodeTransition);
-                writer.WriteEndElement();
-            }
-        }
-
-        private static void WriteTransitionGroupChromInfo(XmlWriter writer, TransitionGroupChromInfo chromInfo)
-        {
-            if (chromInfo.OptimizationStep != 0)
-                writer.WriteAttribute(ATTR.step, chromInfo.OptimizationStep);
-            writer.WriteAttribute(ATTR.peak_count_ratio, chromInfo.PeakCountRatio);
-            writer.WriteAttributeNullable(ATTR.retention_time, chromInfo.RetentionTime);
-            writer.WriteAttributeNullable(ATTR.start_time, chromInfo.StartRetentionTime);
-            writer.WriteAttributeNullable(ATTR.end_time, chromInfo.EndRetentionTime);
-            writer.WriteAttributeNullable(ATTR.fwhm, chromInfo.Fwhm);
-            writer.WriteAttributeNullable(ATTR.area, chromInfo.Area);
-            writer.WriteAttributeNullable(ATTR.background, chromInfo.BackgroundArea);
-            writer.WriteAttributeNullable(ATTR.height, chromInfo.Height);
-            writer.WriteAttributeNullable(ATTR.mass_error_ppm, chromInfo.MassError);
-            writer.WriteAttributeNullable(ATTR.truncated, chromInfo.Truncated);
-            writer.WriteAttribute(ATTR.identified, chromInfo.Identified.ToString().ToLowerInvariant());
-            writer.WriteAttributeNullable(ATTR.library_dotp, chromInfo.LibraryDotProduct);
-            writer.WriteAttributeNullable(ATTR.isotope_dotp, chromInfo.IsotopeDotProduct);
-            writer.WriteAttribute(ATTR.user_set, chromInfo.UserSet);
-            WriteAnnotations(writer, chromInfo.Annotations);
-        }
-
-        /// <summary>
-        /// Serializes the contents of a single <see cref="TransitionDocNode"/>
-        /// to XML.
-        /// </summary>
-        /// <param name="writer">The XML writer</param>
-        /// <param name="nodePep">The transition group's parent peptide node</param>
-        /// <param name="nodeGroup">The transition node's parent group node</param>
-        /// <param name="nodeTransition">The transition document node</param>
-        private void WriteTransitionXml(XmlWriter writer, PeptideDocNode nodePep, TransitionGroupDocNode nodeGroup, 
-                                        TransitionDocNode nodeTransition)
-        {
-            Transition transition = nodeTransition.Transition;
-            writer.WriteAttribute(ATTR.fragment_type, transition.IonType);
-            if (transition.IsCustom())
-            {
-                if (transition.CustomIon is DocNodeCustomIon)
-                {
-                    transition.CustomIon.WriteXml(writer);
-                }
-                else
-                {
-                    writer.WriteAttributeString(ATTR.measured_ion_name, transition.CustomIon.Name);
-                }
-            }
-            writer.WriteAttributeNullable(ATTR.decoy_mass_shift, transition.DecoyMassShift);
-            // NOTE: MassIndex is the peak index in the isotopic distribution of the precursor.
-            //       0 for monoisotopic peaks and for non "precursor" ion types.
-            if (transition.MassIndex != 0)
-                writer.WriteAttribute(ATTR.mass_index, transition.MassIndex);
-            if (nodeTransition.HasDistInfo)
-            {
-                writer.WriteAttribute(ATTR.isotope_dist_rank, nodeTransition.IsotopeDistInfo.Rank);
-                writer.WriteAttribute(ATTR.isotope_dist_proportion, nodeTransition.IsotopeDistInfo.Proportion);
-            }
-            if (!transition.IsPrecursor())
-            {
-                if (!transition.IsCustom())
-                {
-                    writer.WriteAttribute(ATTR.fragment_ordinal, transition.Ordinal);
-                    writer.WriteAttribute(ATTR.calc_neutral_mass, nodeTransition.GetIonPersistentNeutralMass());
-                }
-                writer.WriteAttribute(ATTR.product_charge, transition.Charge);
-                if (!transition.IsCustom())
-                {
-                    writer.WriteAttribute(ATTR.cleavage_aa, transition.AA.ToString(CultureInfo.InvariantCulture));
-                    writer.WriteAttribute(ATTR.loss_neutral_mass, nodeTransition.LostMass); //po
-                }
-            }
-
-            // Order of elements matters for XSD validation
-            WriteAnnotations(writer, nodeTransition.Annotations);
-            writer.WriteElementString(EL.precursor_mz, SequenceMassCalc.PersistentMZ(nodeGroup.PrecursorMz));
-            writer.WriteElementString(EL.product_mz, SequenceMassCalc.PersistentMZ(nodeTransition.Mz));
-
-            TransitionPrediction predict = Settings.TransitionSettings.Prediction;
-            var optimizationMethod = predict.OptimizedMethodType;
-            double? ce = null;
-            double? dp = null;
-            var lib = predict.OptimizedLibrary;
-            if (lib != null && !lib.IsNone)
-            {
-                var optimization = lib.GetOptimization(OptimizationType.collision_energy,
-                    Settings.GetSourceTextId(nodePep), nodeGroup.PrecursorCharge,
-                    nodeTransition.FragmentIonName, nodeTransition.Transition.Charge);
-                if (optimization != null)
-                {
-                    ce = optimization.Value;
-                }
-            }
-
-            double regressionMz = Settings.GetRegressionMz(nodePep, nodeGroup);
-            var ceRegression = predict.CollisionEnergy;
-            var dpRegression = predict.DeclusteringPotential;
-            if (optimizationMethod == OptimizedMethodType.None)
-            {
-                if (ceRegression != null && !ce.HasValue)
-                {
-                    ce = ceRegression.GetCollisionEnergy(nodeGroup.PrecursorCharge, regressionMz);
-                }
-                if (dpRegression != null)
-                {
-                    dp = dpRegression.GetDeclustringPotential(regressionMz);
-                }
-            }
-            else
-            {
-                if (!ce.HasValue)
-                {
-                    ce = OptimizationStep<CollisionEnergyRegression>.FindOptimizedValue(Settings,
-                    nodePep, nodeGroup, nodeTransition, optimizationMethod, ceRegression, GetCollisionEnergy);
-                }
-
-                dp = OptimizationStep<DeclusteringPotentialRegression>.FindOptimizedValue(Settings,
-                nodePep, nodeGroup, nodeTransition, optimizationMethod, dpRegression, GetDeclusteringPotential);
-            }
-
-            if (nodeGroup.ExplicitValues.CollisionEnergy.HasValue)
-                ce = nodeGroup.ExplicitValues.CollisionEnergy; // Explicitly imported, overrides any calculation
-
-            if (ce.HasValue)
-            {
-                writer.WriteElementString(EL.collision_energy, ce.Value);
-            }
-
-            if (dp.HasValue)
-            {
-                writer.WriteElementString(EL.declustering_potential, dp.Value);
-            }
-            WriteTransitionLosses(writer, nodeTransition.Losses);
-
-            if (nodeTransition.HasLibInfo)
-            {
-                writer.WriteStartElement(EL.transition_lib_info);
-                writer.WriteAttribute(ATTR.rank, nodeTransition.LibInfo.Rank);
-                writer.WriteAttribute(ATTR.intensity, nodeTransition.LibInfo.Intensity);
-                writer.WriteEndElement();
-            }
-
-            if (nodeTransition.HasResults)
-            {
-                WriteResults(writer, Settings, nodeTransition.Results,
-                    EL.transition_results, EL.transition_peak, WriteTransitionChromInfo);
-            }
-
-            var progressWriter = writer as XmlWriterWithProgress;
-            if (progressWriter != null)
-                progressWriter.WroteTransition();
-        }
-
-        public double GetCollisionEnergy(PeptideDocNode nodePep, TransitionGroupDocNode nodeGroup, int step)
-        {
-            return GetCollisionEnergy(Settings, nodePep, nodeGroup,
+            return GetCollisionEnergy(Settings, nodePep, nodeGroup, nodeTran,
                                       Settings.TransitionSettings.Prediction.CollisionEnergy, step);
         }
 
-        private static double GetCollisionEnergy(SrmSettings settings, PeptideDocNode nodePep,
-            TransitionGroupDocNode nodeGroup, CollisionEnergyRegression regression, int step)
+        public static double GetCollisionEnergy(SrmSettings settings, PeptideDocNode nodePep,
+            TransitionGroupDocNode nodeGroup, TransitionDocNode nodeTran, CollisionEnergyRegression regression, int step)
         {
-            var ce = nodeGroup.ExplicitValues.CollisionEnergy;
+            var ce = nodeTran==null // If we're only given a precursor, use the explicit CE of its children if they all agree
+                ? (nodeGroup.Children.Any() && nodeGroup.Children.All( node => ((TransitionDocNode)node).ExplicitValues.CollisionEnergy == ((TransitionDocNode)nodeGroup.Children.First()).ExplicitValues.CollisionEnergy) 
+                    ? ((TransitionDocNode)nodeGroup.Children.First()).ExplicitValues.CollisionEnergy : null)
+                : nodeTran.ExplicitValues.CollisionEnergy;
             if (regression != null)
             {
                 if (!ce.HasValue)
                 {
-                    var charge = nodeGroup.TransitionGroup.PrecursorCharge;
+                    var charge = nodeGroup.TransitionGroup.PrecursorAdduct;
                     var mz = settings.GetRegressionMz(nodePep, nodeGroup);
                     ce = regression.GetCollisionEnergy(charge, mz);
                 }
@@ -3576,17 +2279,14 @@ namespace pwiz.Skyline.Model
 
         public double? GetOptimizedCollisionEnergy(PeptideDocNode nodePep, TransitionGroupDocNode nodeGroup, TransitionDocNode nodeTransition)
         {
-            if (nodeGroup.ExplicitValues.CollisionEnergy.HasValue)
-                return nodeGroup.ExplicitValues.CollisionEnergy.Value;   // Use the explicitly imported CE value
-
             var prediction = Settings.TransitionSettings.Prediction;
             var methodType = prediction.OptimizedMethodType;
             var lib = prediction.OptimizedLibrary;
             if (lib != null && !lib.IsNone)
             {
                 var optimization = lib.GetOptimization(OptimizationType.collision_energy,
-                    Settings.GetSourceTextId(nodePep), nodeGroup.PrecursorCharge,
-                    nodeTransition.FragmentIonName, nodeTransition.Transition.Charge);
+                    Settings.GetSourceTarget(nodePep), nodeGroup.PrecursorAdduct,
+                    nodeTransition.FragmentIonName, nodeTransition.Transition.Adduct);
                 if (optimization != null)
                 {
                     return optimization.Value;
@@ -3595,24 +2295,26 @@ namespace pwiz.Skyline.Model
 
             if (prediction.OptimizedMethodType != OptimizedMethodType.None)
             {
-                var regression = prediction.CollisionEnergy;
                 return OptimizationStep<CollisionEnergyRegression>.FindOptimizedValue(Settings,
-                    nodePep, nodeGroup, nodeTransition, methodType, regression, GetCollisionEnergy);
+                    nodePep, nodeGroup, nodeTransition, methodType, prediction.CollisionEnergy,
+                    GetCollisionEnergy);
             }
 
             return null;
         }
 
         public double GetDeclusteringPotential(PeptideDocNode nodePep,
-            TransitionGroupDocNode nodeGroup, int step)
+            TransitionGroupDocNode nodeGroup, TransitionDocNode nodeTran, int step)
         {
-            return GetDeclusteringPotential(Settings, nodePep, nodeGroup,
+            return GetDeclusteringPotential(Settings, nodePep, nodeGroup, nodeTran,
                                             Settings.TransitionSettings.Prediction.DeclusteringPotential, step);
         }
 
-        private static double GetDeclusteringPotential(SrmSettings settings, PeptideDocNode nodePep,
-            TransitionGroupDocNode nodeGroup, DeclusteringPotentialRegression regression, int step)
+        public static double GetDeclusteringPotential(SrmSettings settings, PeptideDocNode nodePep,
+            TransitionGroupDocNode nodeGroup, TransitionDocNode nodeTran, DeclusteringPotentialRegression regression, int step)
         {
+            if (ExplicitTransitionValues.Get(nodeTran).DeclusteringPotential.HasValue)
+                return nodeTran.ExplicitValues.DeclusteringPotential.Value; // Explicitly set, overrides calculation
             if (regression == null)
                 return 0;
             double mz = settings.GetRegressionMz(nodePep, nodeGroup);
@@ -3621,8 +2323,6 @@ namespace pwiz.Skyline.Model
 
         public double GetOptimizedDeclusteringPotential(PeptideDocNode nodePep, TransitionGroupDocNode nodeGroup, TransitionDocNode nodeTransition)
         {
-            if (nodeGroup.ExplicitValues.DeclusteringPotential.HasValue)
-                return nodeGroup.ExplicitValues.DeclusteringPotential.Value;   // Use the explicitly imported value
             var prediction = Settings.TransitionSettings.Prediction;
             var methodType = prediction.OptimizedMethodType;
             var regression = prediction.DeclusteringPotential;
@@ -3636,48 +2336,41 @@ namespace pwiz.Skyline.Model
             if (tuneLevel.Equals(CompensationVoltageParameters.Tuning.none))
                 yield break;
 
-            var optLib = Settings.HasOptimizationLibrary
+            var lib = Settings.HasOptimizationLibrary
                 ? Settings.TransitionSettings.Prediction.OptimizedLibrary
                 : null;
             var optType = CompensationVoltageParameters.GetOptimizationType(tuneLevel);
 
-            foreach (var seq in MoleculeGroups.Where(seq => seq.TransitionCount > 0))
+            foreach (var nodePep in Molecules)
             {
-                foreach (PeptideDocNode nodePep in seq.Children)
+                foreach (var nodeTranGroup in nodePep.TransitionGroups.Where(nodeGroup => nodeGroup.Children.Any()))
                 {
-                    foreach (TransitionGroupDocNode nodeGroup in nodePep.Children.Where(nodeGroup => ((TransitionGroupDocNode)nodeGroup).Children.Any()))
+                    if (nodeTranGroup.ExplicitValues.CompensationVoltage.HasValue)
+                        break;
+
+                    if (lib != null && !lib.IsNone && lib.GetOptimization(optType, Settings.GetSourceTarget(nodePep),
+                            nodeTranGroup.PrecursorAdduct) != null)
+                        break;
+
+                    double? cov;
+                    switch (tuneLevel)
                     {
-                        double? cov;
-
-                        if (optLib != null)
-                        {
-                            // Check if the optimization library has a value
-                            var optimization = optLib.GetOptimization(optType, Settings.GetSourceTextId(nodePep), nodeGroup.PrecursorCharge);
-                            if (optimization != null)
-                            {
-                                break;
-                            }
-                        }
-
-                        switch (tuneLevel)
-                        {
-                            case CompensationVoltageParameters.Tuning.fine:
-                                cov = OptimizationStep<CompensationVoltageRegressionFine>.FindOptimizedValueFromResults(
-                                    Settings, nodePep, nodeGroup, null, OptimizedMethodType.Precursor, GetCompensationVoltageFine);
-                                break;
-                            case CompensationVoltageParameters.Tuning.medium:
-                                cov = OptimizationStep<CompensationVoltageRegressionMedium>.FindOptimizedValueFromResults(
-                                    Settings, nodePep, nodeGroup, null, OptimizedMethodType.Precursor, GetCompensationVoltageMedium);
-                                break;
-                            default:
-                                cov = OptimizationStep<CompensationVoltageRegressionRough>.FindOptimizedValueFromResults(
-                                    Settings, nodePep, nodeGroup, null, OptimizedMethodType.Precursor, GetCompensationVoltageRough);
-                                break;
-                        }
-                        if (!cov.HasValue || cov.Value.Equals(0))
-                        {
-                            yield return nodeGroup.ToString();
-                        }
+                        case CompensationVoltageParameters.Tuning.fine:
+                            cov = OptimizationStep<CompensationVoltageRegressionFine>.FindOptimizedValueFromResults(
+                                Settings, nodePep, nodeTranGroup, null, OptimizedMethodType.Precursor, GetCompensationVoltageFine);
+                            break;
+                        case CompensationVoltageParameters.Tuning.medium:
+                            cov = OptimizationStep<CompensationVoltageRegressionMedium>.FindOptimizedValueFromResults(
+                                Settings, nodePep, nodeTranGroup, null, OptimizedMethodType.Precursor, GetCompensationVoltageMedium);
+                            break;
+                        default:
+                            cov = OptimizationStep<CompensationVoltageRegressionRough>.FindOptimizedValueFromResults(
+                                Settings, nodePep, nodeTranGroup, null, OptimizedMethodType.Precursor, GetCompensationVoltageRough);
+                            break;
+                    }
+                    if (!cov.HasValue || cov.Value.Equals(0))
+                    {
+                        yield return nodeTranGroup.ToString();
                     }
                 }
             }
@@ -3752,22 +2445,22 @@ namespace pwiz.Skyline.Model
             }
         }
 
-        public double GetCompensationVoltage(PeptideDocNode nodePep, TransitionGroupDocNode nodeGroup, int step, CompensationVoltageParameters.Tuning tuneLevel)
+        public double GetCompensationVoltage(PeptideDocNode nodePep, TransitionGroupDocNode nodeGroup, TransitionDocNode nodeTran, int step, CompensationVoltageParameters.Tuning tuneLevel)
         {
             var cov = Settings.TransitionSettings.Prediction.CompensationVoltage;
             switch (tuneLevel)
             {
                 case CompensationVoltageParameters.Tuning.fine:
-                    return GetCompensationVoltageFine(Settings, nodePep, nodeGroup, cov, step);   
+                    return GetCompensationVoltageFine(Settings, nodePep, nodeGroup, nodeTran, cov, step);   
                 case CompensationVoltageParameters.Tuning.medium:
-                    return GetCompensationVoltageMedium(Settings, nodePep, nodeGroup, cov, step);
+                    return GetCompensationVoltageMedium(Settings, nodePep, nodeGroup, nodeTran, cov, step);
                 default:
-                    return GetCompensationVoltageRough(Settings, nodePep, nodeGroup, cov, step);
+                    return GetCompensationVoltageRough(Settings, nodePep, nodeGroup, nodeTran, cov, step);
             }
         }
 
         private static double GetCompensationVoltageRough(SrmSettings settings, PeptideDocNode nodePep,
-            TransitionGroupDocNode nodeGroup, CompensationVoltageParameters regression, int step)
+            TransitionGroupDocNode nodeGroup, TransitionDocNode nodeTran, CompensationVoltageParameters regression, int step)
         {
             if (regression == null)
                 return 0;
@@ -3776,7 +2469,7 @@ namespace pwiz.Skyline.Model
         }
 
         private static double GetCompensationVoltageMedium(SrmSettings settings, PeptideDocNode nodePep,
-            TransitionGroupDocNode nodeGroup, CompensationVoltageParameters regression, int step)
+            TransitionGroupDocNode nodeGroup, TransitionDocNode nodeTran, CompensationVoltageParameters regression, int step)
         {
             if (regression == null)
                 return 0;
@@ -3787,7 +2480,7 @@ namespace pwiz.Skyline.Model
         }
 
         public static double GetCompensationVoltageFine(SrmSettings settings, PeptideDocNode nodePep,
-            TransitionGroupDocNode nodeGroup, CompensationVoltageParameters regression, int step)
+            TransitionGroupDocNode nodeGroup, TransitionDocNode nodeTran, CompensationVoltageParameters regression, int step)
         {
             if (regression == null)
                 return 0;
@@ -3797,7 +2490,7 @@ namespace pwiz.Skyline.Model
             return covMedium.HasValue && covMedium.Value > 0 ? covMedium.Value + regression.StepSizeFine*step : 0;
         }
 
-        public double GetOptimizedCompensationVoltage(PeptideDocNode nodePep, TransitionGroupDocNode nodeGroup)
+        public double? GetOptimizedCompensationVoltage(PeptideDocNode nodePep, TransitionGroupDocNode nodeGroup, CompensationVoltageParameters.Tuning tuneLevel)
         {
             if (nodeGroup.ExplicitValues.CompensationVoltage.HasValue)
                 return nodeGroup.ExplicitValues.CompensationVoltage.Value;
@@ -3807,150 +2500,34 @@ namespace pwiz.Skyline.Model
 
             if (lib != null && !lib.IsNone)
             {
-                var optimization = lib.GetOptimization(OptimizationType.compensation_voltage_fine,
-                    Settings.GetSourceTextId(nodePep), nodeGroup.PrecursorCharge);
+                var optimization = lib.GetOptimization(CompensationVoltageParameters.GetOptimizationType(tuneLevel),
+                    Settings.GetSourceTarget(nodePep), nodeGroup.PrecursorAdduct);
                 if (optimization != null)
-                {
                     return optimization.Value;
-                }
             }
 
             var covMain = prediction.CompensationVoltage;
             if (covMain == null)
-                return 0;
+                return null;
 
-            double cov;
-            if ((cov = OptimizationStep<CompensationVoltageRegressionFine>.FindOptimizedValue(
-                Settings, nodePep, nodeGroup, null, OptimizedMethodType.Precursor, covMain.RegressionFine, GetCompensationVoltageFine)) > 0)
+            switch (tuneLevel)
             {
-                return cov;
+                case CompensationVoltageParameters.Tuning.fine:
+                    return OptimizationStep<CompensationVoltageRegressionFine>.FindOptimizedValue(Settings, nodePep,
+                        nodeGroup, null, OptimizedMethodType.Precursor, covMain.RegressionFine,
+                        GetCompensationVoltageFine);
+                case CompensationVoltageParameters.Tuning.medium:
+                    return OptimizationStep<CompensationVoltageRegressionMedium>.FindOptimizedValue(Settings, nodePep,
+                        nodeGroup, null, OptimizedMethodType.Precursor, covMain.RegressionMedium,
+                        GetCompensationVoltageMedium);
+                case CompensationVoltageParameters.Tuning.rough:
+                    return OptimizationStep<CompensationVoltageRegressionRough>.FindOptimizedValue(Settings, nodePep,
+                        nodeGroup, null, OptimizedMethodType.Precursor, covMain.RegressionRough,
+                        GetCompensationVoltageRough);
             }
-            else if ((cov = OptimizationStep<CompensationVoltageRegressionMedium>.FindOptimizedValue(
-                Settings, nodePep, nodeGroup, null, OptimizedMethodType.Precursor, covMain.RegressionMedium, GetCompensationVoltageMedium)) > 0)
-            {
-                return cov;
-            }
-            return OptimizationStep<CompensationVoltageRegressionRough>.FindOptimizedValue(
-                Settings, nodePep, nodeGroup, null, OptimizedMethodType.Precursor, covMain.RegressionRough, GetCompensationVoltageRough);
+            return null;
         }
 
-        private static void WriteTransitionLosses(XmlWriter writer, TransitionLosses losses)
-        {
-            if (losses == null)
-                return;
-            writer.WriteStartElement(EL.losses);
-            foreach (var loss in losses.Losses)
-            {
-                writer.WriteStartElement(EL.neutral_loss);
-                if (loss.PrecursorMod == null)                                                                      
-                {
-                    // Custom neutral losses are not yet implemented to cause this case
-                    // TODO: Implement custome neutral losses, and remove this comment.
-                    loss.Loss.WriteXml(writer);
-                }
-                else
-                {
-                    writer.WriteAttribute(ATTR.modification_name, loss.PrecursorMod.Name);
-                    int indexLoss = loss.LossIndex;
-                    if (indexLoss != 0)
-                        writer.WriteAttribute(ATTR.loss_index, indexLoss);
-                }
-                writer.WriteEndElement();
-            }
-            writer.WriteEndElement();
-        }
-
-        private static void WriteTransitionChromInfo(XmlWriter writer, TransitionChromInfo chromInfo)
-        {
-            if (chromInfo.OptimizationStep != 0)
-                writer.WriteAttribute(ATTR.step, chromInfo.OptimizationStep);
-
-            // Only write peak information, if it is not empty
-            if (!chromInfo.IsEmpty)
-            {
-                writer.WriteAttributeNullable(ATTR.mass_error_ppm, chromInfo.MassError);
-                writer.WriteAttribute(ATTR.retention_time, chromInfo.RetentionTime);
-                writer.WriteAttribute(ATTR.start_time, chromInfo.StartRetentionTime);
-                writer.WriteAttribute(ATTR.end_time, chromInfo.EndRetentionTime);
-                writer.WriteAttribute(ATTR.area, chromInfo.Area);
-                writer.WriteAttribute(ATTR.background, chromInfo.BackgroundArea);
-                writer.WriteAttribute(ATTR.height, chromInfo.Height);
-                writer.WriteAttribute(ATTR.fwhm, chromInfo.Fwhm);
-                writer.WriteAttribute(ATTR.fwhm_degenerate, chromInfo.IsFwhmDegenerate);
-                writer.WriteAttributeNullable(ATTR.truncated, chromInfo.IsTruncated);
-                writer.WriteAttribute(ATTR.identified, chromInfo.Identified.ToString().ToLowerInvariant());
-                writer.WriteAttribute(ATTR.rank, chromInfo.Rank);
-            }
-            writer.WriteAttribute(ATTR.user_set, chromInfo.UserSet);
-            WriteAnnotations(writer, chromInfo.Annotations);
-        }
-
-        public static void WriteAnnotations(XmlWriter writer, Annotations annotations)
-        {
-            if (annotations.IsEmpty)
-                return;
-
-            if (annotations.Note != null || annotations.ColorIndex > 0)
-            {
-                if (annotations.ColorIndex == 0)
-                    writer.WriteElementString(EL.note, annotations.Note);
-                else
-                {
-                    writer.WriteStartElement(EL.note);
-                    writer.WriteAttribute(ATTR.category, annotations.ColorIndex);
-                    if (annotations.Note != null)
-                    {
-                        writer.WriteString(annotations.Note);
-                    }
-                    writer.WriteEndElement();
-                }
-            }
-            foreach (var entry in annotations.ListAnnotations())
-            {
-                writer.WriteStartElement(EL.annotation);
-                writer.WriteAttribute(ATTR.name, entry.Key);
-                writer.WriteString(entry.Value);
-                writer.WriteEndElement();
-            }
-        }
-
-        private static void WriteResults<TItem>(XmlWriter writer, SrmSettings settings,
-                IEnumerable<ChromInfoList<TItem>> results, string start, string startChild,
-                Action<XmlWriter, TItem> writeChromInfo)
-            where TItem : ChromInfo
-        {
-            bool started = false;
-            var enumReplicates = settings.MeasuredResults.Chromatograms.GetEnumerator();
-            foreach (var listChromInfo in results)
-            {
-// ReSharper disable RedundantAssignment
-                bool success = enumReplicates.MoveNext();
-                Debug.Assert(success);
-// ReSharper restore RedundantAssignment
-                if (listChromInfo == null)
-                    continue;
-                var chromatogramSet = enumReplicates.Current;
-                if (chromatogramSet == null)
-                    continue;
-                string name = chromatogramSet.Name;
-                foreach (var chromInfo in listChromInfo)
-                {
-                    if (!started)
-                    {
-                        writer.WriteStartElement(start);
-                        started = true;                        
-                    }
-                    writer.WriteStartElement(startChild);
-                    writer.WriteAttribute(ATTR.replicate, name);
-                    if (chromatogramSet.FileCount > 1)
-                        writer.WriteAttribute(ATTR.file, chromatogramSet.GetFileSaveId(chromInfo.FileId));
-                    writeChromInfo(writer, chromInfo);
-                    writer.WriteEndElement();
-                }
-            }
-            if (started)
-                writer.WriteEndElement();
-        }
 
         #endregion
 
@@ -3960,7 +2537,13 @@ namespace pwiz.Skyline.Model
         {
             if (ReferenceEquals(null, obj)) return false;
             if (ReferenceEquals(this, obj)) return true;
-            return base.Equals(obj) && Equals(obj.Settings, Settings);
+            if (!base.Equals(obj))
+                return false;
+            if (!Equals(obj.Settings, Settings))
+                return false;
+            if (!Equals(obj.DeferSettingsChanges, DeferSettingsChanges))
+                return false;
+            return true;
         }
 
         public override bool Equals(object obj)
@@ -3979,5 +2562,54 @@ namespace pwiz.Skyline.Model
         }
 
         #endregion
+    }
+
+
+    public class SrmDocumentPair : ObjectPair<SrmDocument>
+    {
+        protected SrmDocumentPair(SrmDocument oldDoc, SrmDocument newDoc, SrmDocument.DOCUMENT_TYPE defaultDocumentTypeForAuditLog)
+            : base(oldDoc, newDoc)
+        {
+            NewDocumentType = newDoc != null && newDoc.DocumentType != SrmDocument.DOCUMENT_TYPE.none 
+                ? newDoc.DocumentType
+                : defaultDocumentTypeForAuditLog;
+            OldDocumentType = oldDoc != null && oldDoc.DocumentType != SrmDocument.DOCUMENT_TYPE.none 
+                ? oldDoc.DocumentType
+                : NewDocumentType;
+        }
+
+        public static SrmDocumentPair Create(SrmDocument oldDoc, SrmDocument newDoc, 
+            SrmDocument.DOCUMENT_TYPE defaultDocumentTypeForLogging)
+        {
+            return new SrmDocumentPair(oldDoc, newDoc, defaultDocumentTypeForLogging);
+        }
+
+        public ObjectPair<object> ToObjectType()
+        {
+            return Transform(doc => (object) doc);
+        }
+
+        public SrmDocument OldDoc { get { return OldObject; } }
+        public SrmDocument NewDoc { get { return NewObject; } }
+
+        // Used for "peptide"->"molecule" translation cue in human readable logs
+        public SrmDocument.DOCUMENT_TYPE OldDocumentType { get; private set; } // Useful when something in document is being removed, which might cause a change from mixed to proteomic but you want to log event as "molecule" rather than "peptide"
+        public SrmDocument.DOCUMENT_TYPE NewDocumentType { get; private set; } // Useful when something is being added, which might cause a change from proteomic to mixed so you want to log event as "molecule" rather than "peptide"
+
+    }
+
+    public class Targets
+    {
+        private readonly SrmDocument _doc;
+        public Targets(SrmDocument doc)
+        {
+            _doc = doc;
+        }
+
+        [TrackChildren(ignoreName:true)]
+        public IList<DocNode> Children
+        {
+            get { return _doc.Children; }
+        }
     }
 }

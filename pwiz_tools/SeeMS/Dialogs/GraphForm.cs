@@ -33,6 +33,7 @@ using pwiz.MSGraph;
 using ZedGraph;
 
 using System.Diagnostics;
+using System.Linq;
 using SpyTools;
 
 namespace seems
@@ -137,6 +138,13 @@ namespace seems
             }
         }
 
+        /// <summary>
+        /// If true, the legend will always be shown in all panes in this GraphForm.
+        /// If false, the legend will never be shown in any pane in this GraphForm.
+        /// If null, the legend will be shown if there is more than one but less than 10 items in a pane.
+        /// </summary>
+        public bool? ShowPaneLegends { get; set; }
+
 		public GraphForm(Manager manager)
 		{
 			InitializeComponent();
@@ -167,6 +175,8 @@ namespace seems
             msGraphControl.PanButtons2 = MouseButtons.None;
 
             msGraphControl.ContextMenuBuilder += new MSGraphControl.ContextMenuBuilderEventHandler( GraphForm_ContextMenuBuilder );
+
+            msGraphControl.GraphPane.YAxis.ScaleFormatEvent += YAxis_ScaleFormatEvent;
 
             ContextMenuStrip dummyMenu = new ContextMenuStrip();
             dummyMenu.Opening += new CancelEventHandler( foo_Opening );
@@ -260,6 +270,12 @@ namespace seems
         void GraphForm_SyncZoomPan( object sender, EventArgs e )
         {
             msGraphControl.IsSynchronizeXAxes = !msGraphControl.IsSynchronizeXAxes;
+            if (msGraphControl.IsSynchronizeXAxes)
+            {
+                msGraphControl.ZoomPane(msGraphControl.MasterPane.PaneList[0], 1, msGraphControl.GraphPane.Chart.Rect.Location, false);
+                msGraphControl.ApplyToAllPanes(msGraphControl.MasterPane.PaneList[0]);
+            }
+            Refresh();
         }
 
         void GraphForm_ShowDataProcessing (object sender, EventArgs e)
@@ -286,6 +302,7 @@ namespace seems
                     MSGraphPane pane = new MSGraphPane();
                     pane.Border.IsVisible = false;
                     pane.IsFontsScaled = false;
+                    pane.YAxis.ScaleFormatEvent += YAxis_ScaleFormatEvent;
                     mp.Add( pane );
                 }
                 //mp.SetLayout( msGraphControl.CreateGraphics(), paneLayout );
@@ -307,26 +324,34 @@ namespace seems
                 pane.IsFontsScaled = false;
                 pane.Border.IsVisible = false;
 
-                foreach( GraphItem item in logicalPane )
+                bool needSourceNamePrefix = logicalPane.Select(o => o.Source).Distinct().Count() > 1;
+                int maxAutoLegendItems = needSourceNamePrefix ? 5 : 10;
+
+                foreach( GraphItem item in logicalPane.Take(logicalPane.Count-1) )
                 {
-                    msGraphControl.AddGraphItem( pane, item );
+                    //item.AddSourceToId = needSourceNamePrefix;
+                    msGraphControl.AddGraphItem( pane, item, false );
                 }
+                //logicalPane.Last().AddSourceToId = needSourceNamePrefix;
+                msGraphControl.AddGraphItem(pane, logicalPane.Last(), true);
 
                 if( mp.PaneList.Count > 1 )
                 {
-                    //if( i < paneList.Count - 1 )
+                    if(msGraphControl.IsSynchronizeXAxes && i < paneList.Count - 1 )
                     {
                         pane.XAxis.Title.IsVisible = false;
                         pane.XAxis.Scale.IsVisible = false;
                         pane.Margin.Bottom = 0;
-                        pane.Margin.Top = 2;
-                    }/* else
+                        //pane.Margin.Top = 0;
+                    } else
                     {
+                        //pane.Margin.Top = 0;
                         pane.XAxis.Title.IsVisible = true;
                         pane.XAxis.Scale.IsVisible = true;
-                    }*/
-                    pane.YAxis.Title.IsVisible = false;
-                    pane.YAxis.Scale.IsVisible = false;
+                    }
+                    pane.YAxis.Title.IsVisible = true;
+                    pane.YAxis.Scale.IsVisible = true;
+                    pane.YAxis.Title.Text = String.Join(", ", logicalPane.Select(o => o.Title)) + "\n" + pane.YAxis.Title.Text.Split('\n').Last();
                     pane.YAxis.Scale.SetupScaleData( pane, pane.YAxis );
                 } else
                 {
@@ -342,7 +367,7 @@ namespace seems
                     pane.Legend.IsVisible = false;
                 } else
                 {
-                    pane.Legend.IsVisible = true;
+                    pane.Legend.IsVisible = ShowPaneLegends ?? (logicalPane.Count < maxAutoLegendItems);
                     pane.Legend.Position = ZedGraph.LegendPos.TopCenter;
 
                     ZedGraph.ColorSymbolRotator rotator = new ColorSymbolRotator();
@@ -356,13 +381,39 @@ namespace seems
                 {
                     this.Text = paneList[0][0].Id;
                     if (paneList[0][0].IsMassSpectrum)
-                        this.TabText = pwiz.CLI.msdata.id.abbreviate(paneList[0][0].Id);
+                        this.TabText = (paneList[0][0] as MassSpectrum).AbbreviatedId;
                     else
                         this.TabText = this.Text;
                 }
 
-                if( pane.XAxis.Scale.MaxAuto )
-                    msGraphControl.RestoreScale( pane );
+                if (pane.XAxis.Scale.MaxAuto)
+                {
+                    using (Graphics g = msGraphControl.CreateGraphics())
+                    {
+                        if (msGraphControl.IsSynchronizeXAxes || msGraphControl.IsSynchronizeYAxes)
+                        {
+                            foreach (GraphPane p in msGraphControl.MasterPane.PaneList)
+                            {
+                                p.XAxis.ResetAutoScale(p, g);
+                                p.X2Axis.ResetAutoScale(p, g);
+                                foreach (YAxis axis in p.YAxisList)
+                                    axis.ResetAutoScale(p, g);
+                                foreach (Y2Axis axis in p.Y2AxisList)
+                                    axis.ResetAutoScale(p, g);
+                            }
+                        }
+                        else
+                        {
+                            pane.XAxis.ResetAutoScale(pane, g);
+                            pane.X2Axis.ResetAutoScale(pane, g);
+                            foreach (YAxis axis in pane.YAxisList)
+                                axis.ResetAutoScale(pane, g);
+                            foreach (Y2Axis axis in pane.Y2AxisList)
+                                axis.ResetAutoScale(pane, g);
+                        }
+                    }
+                    //msGraphControl.RestoreScale(pane);
+                }
                 else
                     pane.AxisChange();
             }
@@ -404,12 +455,17 @@ namespace seems
             if( mp.PaneList.Count > 0 &&
                 mp.PaneList[0].CurveList.Count > 0 &&
                 ( focusedItem == null ||
-                  !focusedPane.CurveList.Contains( focusedItem ) ) )
+                  //!focusedPane.CurveList.Contains( focusedItem ) ) ) // somehow focusedItem.Tag can be the same as one of focusedPane.CurveList's Tags, but Contains returns false
+                  !focusedPane.CurveList.Any(o => o.Tag == focusedItem.Tag)))
                 setFocusedItem( mp.PaneList[0].CurveList[0] );
 
             msGraphControl.Refresh();
         }
 
+        private string YAxis_ScaleFormatEvent(GraphPane pane, Axis axis, double val, int index)
+        {
+            return val.ToString("0.#e+0");
+        }
 
 		private Color[] overlayColors = new Color[]
 		{
@@ -432,10 +488,16 @@ namespace seems
 		}
     }
 
+    /// <summary>
+    /// A list of GraphItems.
+    /// </summary>
     public class Pane : List<GraphItem>
     {
     }
 
+    /// <summary>
+    /// A list of GraphForm.Panes.
+    /// </summary>
     public class PaneList : List<Pane>
     {
     }

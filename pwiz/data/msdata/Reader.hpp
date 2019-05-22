@@ -25,6 +25,7 @@
 #define _READER_HPP_
 
 #include "pwiz/utility/misc/Export.hpp"
+#include "pwiz/utility/misc/IterationListener.hpp"
 #include "MSData.hpp"
 #include <string>
 #include <stdexcept>
@@ -42,12 +43,17 @@ class PWIZ_API_DECL Reader
     /// Reader configuration
     struct PWIZ_API_DECL Config
     {
-        /// when true, sets certain vendor readers to produce SIM/SRM transitions as spectra instead of chromatograms
+        /// when true, sets certain vendor readers to produce SIM transitions as spectra instead of chromatograms
         bool simAsSpectra;
+
+        /// when true, sets certain vendor readers to produce SRM transitions as spectra instead of chromatograms
         bool srmAsSpectra;
 
-		/// when true, allows for skipping 0 length checks (and thus skip re-reading data for ABI)
+		/// when true, allows for skipping 0 length checks (and thus skip re-reading data for Sciex)
 		bool acceptZeroLengthSpectra;
+
+        /// when true, allows certain vendor readers to produce profile data without zero intensity samples flanking each peak profile
+        bool ignoreZeroIntensityPoints;
 
         /// when true, all drift bins/scans in a frame/block are written in combined form instead of as individual spectra
         bool combineIonMobilitySpectra;
@@ -58,6 +64,17 @@ class PWIZ_API_DECL Reader
         /// when true, if a reader does not know what time zone was used to record a time, it will assume the time refers to the host's local time;
         /// when false, the reader will treat times with unknown time zone as UTC
         bool adjustUnknownTimeZonesToHostTimeZone;
+
+        /// progress listener for when initializing a file takes a long time,
+        /// or the reader has to run a long process before continuing,
+        /// such as centroiding all spectra at once instead of one at a time
+        pwiz::util::IterationListenerRegistry* iterationListenerRegistry;
+
+        /// when nonzero, if reader can enumerate only spectra of ms level, it will (currently only supported by Bruker TDF)
+        int preferOnlyMsLevel;
+
+        /// when true, MS2 spectra without precursor/isolation information will be included in the output (currently only affects Bruker PASEF data)
+        bool allowMsMsWithoutPrecursor;
 
         Config();
         Config(const Config& rhs);
@@ -103,8 +120,16 @@ class PWIZ_API_DECL Reader
     /// returns a unique string identifying the reader type
 	virtual const char* getType() const = 0;
 
+    /// returns a unique CVID identifying the raw file format the reader supports
+    virtual CVID getCvType() const = 0;
+
+    /// returns the file extensions, if any, that this reader supports, including the leading period;
+    /// note that comparing file extensions is not as robust as using the identify() method
+    virtual std::vector<std::string> getFileExtensions() const = 0;
+
     virtual ~Reader(){}
 };
+
 
 class PWIZ_API_DECL ReaderFail : public std::runtime_error // reader failure exception
 {
@@ -142,6 +167,11 @@ class PWIZ_API_DECL ReaderList : public Reader,
     /// returns child name iff some child identifies, else empty string
 	virtual std::string identify(const std::string& filename,
                                  const std::string& head) const;
+
+    /// tries to identify the specified filepath using the contained Readers;
+    /// returns the ReaderPtr that identified the filepath,
+    /// or a null ReaderPtr if the file format has no CV term or the filepath doesn't exist
+    virtual ReaderPtr identifyAsReader(const std::string& filename) const;
 
     /// delegates to first child that identifies
     virtual void read(const std::string& filename,
@@ -215,17 +245,26 @@ class PWIZ_API_DECL ReaderList : public Reader,
     }
 
 	virtual const char* getType() const {return "ReaderList";} // satisfy inheritance
+    virtual CVID getCvType() const {return CVID_Unknown;} // satisfy inheritance
+
+    /// returns getType() for all contained Readers
+    std::vector<std::string> getTypes() const;
+
+    /// returns getCvType() for all contained readers
+    std::vector<CVID> getCvTypes() const;
+
+    /// returns the file extensions, if any, that the contained Readers support, including the leading period;
+    /// note that comparing file extensions is not as robust as using the identify() method
+    virtual std::vector<std::string> getFileExtensions() const;
+
+    /// returns a map of Reader types to file extensions, if any, that the contained Readers support, including the leading period;
+    /// note that comparing file extensions is not as robust as using the identify() method
+    std::map<std::string, std::vector<std::string>> getFileExtensionsByType() const;
 };
 
 
 /// returns a list containing the lhs and rhs as readers
 PWIZ_API_DECL ReaderList operator +(const ReaderPtr& lhs, const ReaderPtr& rhs);
-
-
-/// tries to identify a filepath using the provided Reader or ReaderList;
-/// returns the CVID file format of the specified filepath,
-/// or CVID_Unknown if the file format has no CV term or the filepath doesn't exist
-PWIZ_API_DECL CVID identifyFileFormat(const ReaderPtr& reader, const std::string& filepath);
 
 
 } // namespace msdata

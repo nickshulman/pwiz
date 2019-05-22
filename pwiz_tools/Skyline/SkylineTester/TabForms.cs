@@ -53,12 +53,12 @@ namespace SkylineTester
             if (MainWindow.ShowFormNames.Checked)
                 args.Append(" showformnames=on");
 
-            MainWindow.AddTestRunner(args.ToString());
-            MainWindow.RunCommands();
-
             _updateTimer = new Timer { Interval = 1000 };
             _updateTimer.Tick += (s, a) => UpdateForms();
             _updateTimer.Start();
+
+            MainWindow.AddTestRunner(args.ToString());
+            MainWindow.RunCommands();
 
             return true;
         }
@@ -150,21 +150,27 @@ namespace SkylineTester
             ((DataGridViewLinkColumn) MainWindow.FormsGrid.Columns[1]).LinkBehavior = LinkBehavior.NeverUnderline;
 
             var skylinePath = Path.Combine(MainWindow.ExeDir, "Skyline.exe");
-            var skylineDailyPath = Path.Combine(MainWindow.ExeDir, "Skyline-daily.exe");
+            var skylineDailyPath = Path.Combine(MainWindow.ExeDir, "Skyline-daily.exe"); // Keep -daily
             skylinePath = File.Exists(skylinePath) ? skylinePath : skylineDailyPath;
             var assembly = Assembly.LoadFrom(skylinePath);
-            var types = assembly.GetTypes();
+            var types = assembly.GetTypes().ToList();
+            var commonPath = Path.Combine(MainWindow.ExeDir, "pwiz.Common.dll");
+            var dll = Assembly.LoadFrom(commonPath);
+            types.AddRange(dll.GetTypes());
             var formLookup = new FormLookup();
 
             foreach (var type in types)
             {
-                if (IsForm(type) && !HasSubclasses(types, type))
+                if (IsForm(type))
                 {
                     var typeName = SkylineTesterWindow.Implements(type, "IFormView") && type.DeclaringType != null
                         ? type.DeclaringType.Name + "." + type.Name
                         : type.Name;
                     var test = formLookup.GetTest(typeName);
                     if (test == "*")
+                        continue;
+                    // Skip subclassed forms unless there is an explicit test for them
+                    if (HasSubclasses(types, type) && string.IsNullOrEmpty(test))
                         continue;
                     MainWindow.FormsGrid.Rows.Add(typeName, test, 0);
                 }

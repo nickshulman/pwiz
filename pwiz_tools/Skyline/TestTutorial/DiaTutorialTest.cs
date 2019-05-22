@@ -31,6 +31,7 @@ using pwiz.Skyline.Model;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.SettingsUI;
+using pwiz.Skyline.Util;
 using pwiz.SkylineTestUtil;
 
 namespace pwiz.SkylineTestTutorial
@@ -173,7 +174,7 @@ namespace pwiz.SkylineTestTutorial
                 importPeptideSearchDlg.BuildPepSearchLibControl.AddSearchFiles(new[] {GetTestPath("interact-20130311_DDA_Pit01.pep.xml")}); // Not L10N
                 importPeptideSearchDlg.BuildPepSearchLibControl.WorkflowType = ImportPeptideSearchDlg.Workflow.dia;
             });
-            PauseForScreenShot<BuildLibraryDlg>("Build Library form - input files", 10);
+            PauseForScreenShot<BuildLibraryDlg>("Build Library form - input files", 24);
 
             const string prefixKeep = "DIA_Pit0";
             if (IsFullImportMode)
@@ -181,6 +182,8 @@ namespace pwiz.SkylineTestTutorial
                 SrmDocument doc = SkylineWindow.Document;
                 RunUI(() => Assert.IsTrue(importPeptideSearchDlg.ClickNextButton()));
                 doc = WaitForDocumentChange(doc);
+
+                PauseForScreenShot<ImportPeptideSearchDlg.ChromatogramsDiaPage>("Import Results page", 25);
 
                 // "Extract Chromatograms" page
                 RunUI(() =>
@@ -219,9 +222,9 @@ namespace pwiz.SkylineTestTutorial
                 RunUI(() =>
                 {
                     Assert.IsTrue(importPeptideSearchDlg.CurrentPage == ImportPeptideSearchDlg.Pages.transition_settings_page);
-                    importPeptideSearchDlg.TransitionSettingsControl.PrecursorCharges = new[] {1, 2, 3, 4};
-                    importPeptideSearchDlg.TransitionSettingsControl.IonCharges = new[] {1, 2};
-                    importPeptideSearchDlg.TransitionSettingsControl.IonTypes = new[] { IonType.y, IonType.b, IonType.precursor };
+                    importPeptideSearchDlg.TransitionSettingsControl.PeptidePrecursorCharges = Adduct.ProtonatedFromCharges(1, 2, 3, 4);
+                    importPeptideSearchDlg.TransitionSettingsControl.PeptideIonCharges = Adduct.ProtonatedFromCharges(1, 2);
+                    importPeptideSearchDlg.TransitionSettingsControl.PeptideIonTypes = new[] { IonType.y, IonType.b, IonType.precursor };
                     importPeptideSearchDlg.TransitionSettingsControl.ExclusionUseDIAWindow = true;
                     importPeptideSearchDlg.TransitionSettingsControl.IonCount = 5;
                     importPeptideSearchDlg.TransitionSettingsControl.IonMatchTolerance = 0.05;
@@ -288,7 +291,7 @@ namespace pwiz.SkylineTestTutorial
                 SkylineWindow.AutoZoomBestPeak();
                 var graphChrom = SkylineWindow.GetGraphChrom(prefixKeep + "1");
                 var labelStrings = graphChrom.GetAnnotationLabelStrings().ToArray();
-                Assert.IsTrue(labelStrings.Contains(string.Format("{0}\n+{1} ppm\n(idotp {2})", 75.4, 3, 0.59)),
+                Assert.IsTrue(labelStrings.Contains(string.Format("{0}\n+{1} ppm", 75.4, 3)),
                     string.Format("Missing expected label in {0}", string.Join("|", labelStrings)));
                 SkylineWindow.Width = 1250;
             });

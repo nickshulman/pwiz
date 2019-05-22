@@ -43,10 +43,33 @@ namespace pwiz.SkylineTest
             TestDsvFields(TextUtil.SEPARATOR_CSV_INTL, TextUtil.SEPARATOR_CSV_INTL);
             TestDsvFields(TextUtil.SEPARATOR_TSV, TextUtil.SEPARATOR_TSV);
 
+            // N.B. Excel's behavior around these admittedly weird uses of quotes has changed since this test was written
+            // (For what it's worth, Google Spreadsheets largely agrees with Excel) - bpratt March 2018
             Assert.AreEqual("End in quote", "\"End in quote".ParseCsvFields()[0]);
             Assert.AreEqual("Internal quotes", "Intern\"al quot\"es,9.7".ParseCsvFields()[0]);
             Assert.AreEqual("Multiple \"quote\" blocks",
                 "\"Mult\"iple \"\"\"quote\"\"\" bl\"ocks\",testing,#N/A".ParseCsvFields()[0]);
+
+            // Make sure we can read in small molecule transition lists that use  our isotope nomenclature eg C12H5O"7
+            // We can reasonably expect this to meet modern standards and and be escaped as C12H5O""7 (though excel/google  accept C12H5O"7)
+            Assert.AreEqual("C12H5O\"7", "C12H5O\"\"7,1".ParseCsvFields()[0]);
+            Assert.AreEqual("1", "C12H5O\"\"7,1".ParseCsvFields()[1]);
+            Assert.AreEqual("C12H5O\"", "C12H5O\"\",1".ParseCsvFields()[0]);
+            Assert.AreEqual("1", "C12H5O\"\",1".ParseCsvFields()[1]);
+            // N.B. it would be nice if this unescaped quote worked too, as it does in Excel and Google Spreadsheets even though it's not "standard"
+            // Assert.AreEqual("C12H5O\"7", "C12H5O\"7,1".ParseCsvFields()[0]); 
+
+            var testStr = "c:\\tmp\\foo\tbar\r\n\\r\\n";
+            var escaped = testStr.EscapeTabAndCrLf();
+            var escapedTwice = escaped.EscapeTabAndCrLf();
+            Assert.AreNotEqual(testStr, escaped);
+            Assert.AreEqual(testStr, escaped.UnescapeTabAndCrLf());
+            Assert.AreEqual(testStr, escapedTwice.UnescapeTabAndCrLf().UnescapeTabAndCrLf());
+            var testStrs = new[] { testStr, "c:\\tmp2\\foo2\tbar2\r\n" };
+            var escaped2 = TextUtil.ToEscapedTSV(testStrs);
+            var unescaped2 = escaped2.FromEscapedTSV();
+            for (int i =0; i < testStrs.Length; i++)
+                Assert.AreEqual(testStrs[i], unescaped2[i]);
         }
 
         private static void TestDsvFields(char punctuation, char separator)
@@ -66,7 +89,7 @@ namespace pwiz.SkylineTest
                 writer.WriteDsvField(field, separator);
             }
             var fieldsOut = sb.ToString().ParseDsvFields(separator);
-            Assert.IsTrue(ArrayUtil.EqualsDeep(fields, fieldsOut));
+            Assert.IsTrue(ArrayUtil.EqualsDeep(fields, fieldsOut), "while parsing:\n"+sb+"\nexpected:\n" + string.Join("\n", fields) + "\n\ngot:\n" + string.Join("\n", fieldsOut));
         }
 
         [TestMethod]
@@ -176,6 +199,15 @@ namespace pwiz.SkylineTest
             var directory = Environment.CurrentDirectory;
             AssertEx.ThrowsException<IOException>(() => FileEx.SafeDelete(directory));
             AssertEx.NoExceptionThrown<IOException>(() => FileEx.SafeDelete(directory, true));
+        }
+
+        /// <summary>
+        /// Makes sure nobody accidentally checked in a change to <see cref="ParallelEx.SINGLE_THREADED"/>.
+        /// </summary>
+        [TestMethod]
+        public void TestParallelExNotSingleThreaded()
+        {
+            Assert.IsFalse(ParallelEx.SINGLE_THREADED);
         }
     }
 }

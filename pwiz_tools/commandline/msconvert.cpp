@@ -27,7 +27,9 @@
 #include "pwiz/data/msdata/IO.hpp"
 #include "pwiz/data/msdata/SpectrumInfo.hpp"
 #include "pwiz/utility/misc/IterationListener.hpp"
+#include "pwiz/utility/misc/IntegerSet.hpp"
 #include "pwiz/analysis/spectrum_processing/SpectrumListFactory.hpp"
+#include "pwiz/analysis/chromatogram_processing/ChromatogramListFactory.hpp"
 #include "pwiz/Version.hpp"
 #include "pwiz/data/msdata/Version.hpp"
 #include "pwiz/analysis/Version.hpp"
@@ -51,6 +53,7 @@ struct Config : public Reader::Config
 {
     vector<string> filenames;
     vector<string> filters;
+    vector<string> chromatogramFilters;
     string outputPath;
     string extension;
     string outputFile;
@@ -58,6 +61,10 @@ struct Config : public Reader::Config
     MSDataFile::WriteConfig writeConfig;
     string contactFilename;
     bool merge;
+    IntegerSet runIndexSet;
+    bool stripLocationFromSourceFiles;
+    bool stripVersionFromSoftware;
+    bool singleThreaded;
 
     Config()
         : outputPath("."), verbose(false), merge(false)
@@ -66,6 +73,9 @@ struct Config : public Reader::Config
         srmAsSpectra = false;
         combineIonMobilitySpectra = false;
         unknownInstrumentIsError = true;
+        stripLocationFromSourceFiles = false;
+        stripVersionFromSoftware = false;
+        singleThreaded = false;
     }
 
     string outputFilename(const string& inputFilename, const MSData& inputMSData) const;
@@ -100,7 +110,7 @@ string Config::outputFilename(const string& filename, const MSData& msd) const
 
     // this list is for Windows; it's a superset of the POSIX list
     string illegalFilename = "\\/*:?<>|\"";
-    BOOST_FOREACH(char& c, runId)
+    for(char& c : runId)
         if (illegalFilename.find(c) != string::npos)
             c = '_';
 
@@ -116,10 +126,15 @@ ostream& operator<<(ostream& os, const Config& config)
     os << "outputPath: " << config.outputPath << endl;
     os << "extension: " << config.extension << endl; 
     os << "contactFilename: " << config.contactFilename << endl;
+    os << "runIndexSet: " << config.runIndexSet << endl;
     os << endl;
 
-    os << "filters:\n  ";
+    os << "spectrum list filters:\n  ";
     copy(config.filters.begin(), config.filters.end(), ostream_iterator<string>(os,"\n  "));
+    os << endl;
+
+    os << "chromatogram list filters:\n  ";
+    copy(config.chromatogramFilters.begin(), config.chromatogramFilters.end(), ostream_iterator<string>(os, "\n  "));
     os << endl;
 
     os << "filenames:\n  ";
@@ -185,16 +200,16 @@ Config parseCommandLine(int argc, char** argv)
     bool gzip = false;
     bool ms_numpress_all = false; // if true, use this numpress compression with default tolerance
     double ms_numpress_linear = -1; // if >= 0, use this numpress linear compression with this tolerance
-	std::string ms_numpress_linear_str; // input as text, to help with the "msconvert --numpresslinear foo.raw" case
-    stringstream ss;
-    ss << boost::format("%4.2g") % BinaryDataEncoder_default_numpressLinearErrorTolerance;
-    std::string ms_numpress_linear_default = ss.str();
+	string ms_numpress_linear_str; // input as text, to help with the "msconvert --numpresslinear foo.raw" case
+    string ms_numpress_linear_default = (boost::format("%4.2g") % BinaryDataEncoder_default_numpressLinearErrorTolerance).str();
     bool ms_numpress_pic = false; // if true, use this numpress Pic compression
     double ms_numpress_slof = -1; // if >= 0, use this numpress slof compression with this tolerance
-	std::string ms_numpress_slof_str; // input as text, to help with the "msconvert --numpressslof foo.raw" case
-    stringstream ss2;
-    ss2 << boost::format("%4.2g") % BinaryDataEncoder_default_numpressSlofErrorTolerance;
-    std::string ms_numpress_slof_default = ss2.str();
+    double ms_numpress_linear_abs_tolerance = -1; // if >= 0, use this numpress linear compression with this absolute Th tolerance
+	string ms_numpress_linear_abs_tolerance_str; // input as text
+	string ms_numpress_linear_abs_tolerance_str_default("-1"); // input as text
+	string ms_numpress_slof_str; // input as text, to help with the "msconvert --numpressslof foo.raw" case
+    string ms_numpress_slof_default = (boost::format("%4.2g") % BinaryDataEncoder_default_numpressSlofErrorTolerance).str();
+    string runIndexSet;
     bool detailedHelp = false;
 
     pair<int, int> consoleBounds = get_console_bounds(); // get platform-specific console bounds, or default values if an error occurs
@@ -282,6 +297,9 @@ Config parseCommandLine(int argc, char** argv)
         ("numpressLinear",
             po::value<std::string>(&ms_numpress_linear_str)->implicit_value(ms_numpress_linear_default),
             ": use numpress linear prediction compression for binary mz and rt data (relative accuracy loss will not exceed given tolerance arg, unless set to 0)")
+        ("numpressLinearAbsTol",
+            po::value<std::string>(&ms_numpress_linear_abs_tolerance_str)->implicit_value(ms_numpress_linear_abs_tolerance_str_default),
+            ": desired absolute tolerance for linear numpress prediction (e.g. use 1e-4 for a mass accuracy of 0.2 ppm at 500 m/z, default uses -1.0 for maximal accuracy). Note: setting this value may substantially reduce file size, this overrides relative accuracy tolerance.")
         ("numpressPic",
             po::value<bool>(&ms_numpress_pic)->zero_tokens(),
             ": use numpress positive integer compression for binary intensities (absolute accuracy loss will not exceed 0.5)")
@@ -297,9 +315,15 @@ Config parseCommandLine(int argc, char** argv)
         ("filter",
             po::value< vector<string> >(&config.filters),
             ": add a spectrum list filter")
+        ("chromatogramFilter",
+            po::value< vector<string> >(&config.chromatogramFilters),
+            ": add a chromatogram list filter")
         ("merge",
             po::value<bool>(&config.merge)->zero_tokens(),
             ": create a single output file from multiple input files by merging file-level metadata and concatenating spectrum lists")
+        ("runIndexSet",
+            po::value<string>(&runIndexSet),
+            ": for multi-run sources, select only the specified run indices")
         ("simAsSpectra",
             po::value<bool>(&config.simAsSpectra)->zero_tokens(),
             ": write selected ion monitoring as spectra, not chromatograms")
@@ -314,7 +338,16 @@ Config parseCommandLine(int argc, char** argv)
             ": some vendor readers have an efficient way of filtering out empty spectra, but it takes more time to open the file")
         ("ignoreUnknownInstrumentError",
             po::value<bool>(&config.unknownInstrumentIsError)->zero_tokens()->default_value(!config.unknownInstrumentIsError),
-            ": if true, if an instrument cannot be determined from a vendor file, it will not be an error ")
+            ": if true, if an instrument cannot be determined from a vendor file, it will not be an error")
+        ("stripLocationFromSourceFiles",
+            po::value<bool>(&config.stripLocationFromSourceFiles)->zero_tokens(),
+            ": if true, sourceFile elements will be stripped of location information, so the same file converted from different locations will produce the same mzML")
+        ("stripVersionFromSoftware",
+            po::value<bool>(&config.stripVersionFromSoftware)->zero_tokens(),
+            ": if true, software elements will be stripped of version information, so the same file converted with different versions will produce the same mzML")
+        ("singleThreaded",
+            po::value<bool>(&config.singleThreaded)->zero_tokens(),
+            ": if true, reading and writing spectra will be done on a single thread")
         ("help",
             po::value<bool>(&detailedHelp)->zero_tokens(),
             ": show this message, with extra detail on filter options")
@@ -342,6 +375,9 @@ Config parseCommandLine(int argc, char** argv)
 
     // negate unknownInstrumentIsError value since command-line parameter (ignoreUnknownInstrumentError) and the Config parameters use inverse semantics
     config.unknownInstrumentIsError = !config.unknownInstrumentIsError;
+
+    if (!runIndexSet.empty())
+        config.runIndexSet.parse(runIndexSet);
 
     // append options description to usage string
 
@@ -416,12 +452,10 @@ Config parseCommandLine(int argc, char** argv)
           << endl
 
           << "Questions, comments, and bug reports:\n"
-          << "http://proteowizard.sourceforge.net\n"
+          << "https://github.com/ProteoWizard\n"
           << "support@proteowizard.org\n"
           << "\n"
           << "ProteoWizard release: " << pwiz::Version::str() << " (" << pwiz::Version::LastModified() << ")" << endl
-          << "ProteoWizard MSData: " << pwiz::msdata::Version::str() << " (" << pwiz::msdata::Version::LastModified() << ")" << endl
-          << "ProteoWizard Analysis: " << pwiz::analysis::Version::str() << " (" << pwiz::analysis::Version::LastModified() << ")" << endl
           << "Build date: " << __DATE__ << " " << __TIME__ << endl;
 
     if ((argc <= 1) || detailedHelp)
@@ -453,12 +487,16 @@ Config parseCommandLine(int argc, char** argv)
 
         // expand the filenames by globbing to handle wildcards
         vector<bfs::path> globbedFilenames;
-        BOOST_FOREACH(const string& filename, config.filenames)
-            if (expand_pathmask(bfs::path(filename), globbedFilenames) == 0)
-                cout <<  "[msconvert] no files found matching \"" << filename << "\"" << endl;
+        for(const string& filename : config.filenames)
+        {
+            if (isHTTP(filename))
+                globbedFilenames.push_back(filename);
+            else if (expand_pathmask(bfs::path(filename), globbedFilenames) == 0)
+                cout << "[msconvert] no files found matching \"" << filename << "\"" << endl;
+        }
 
         config.filenames.clear();
-        BOOST_FOREACH(const bfs::path& filename, globbedFilenames)
+        for(const bfs::path& filename : globbedFilenames)
             config.filenames.push_back(filename.string());
     }
 
@@ -487,6 +525,10 @@ Config parseCommandLine(int argc, char** argv)
 			config.filenames.push_back(ms_numpress_slof_str); // actually that was a filename
             ms_numpress_slof = BinaryDataEncoder_default_numpressSlofErrorTolerance;
 		}
+	}
+	if (ms_numpress_linear_abs_tolerance_str.length()) // this argument needs to be numerical
+	{
+		ms_numpress_linear_abs_tolerance = string_to_double(ms_numpress_linear_abs_tolerance_str);
 	}
 	if (ms_numpress_linear_str.length()) // was that a numerical arg to --numpressLinear, or a filename?
 	{
@@ -605,6 +647,8 @@ Config parseCommandLine(int argc, char** argv)
     if (zlib)
         config.writeConfig.binaryDataEncoderConfig.compression = BinaryDataEncoder::Compression_Zlib;
 
+    config.writeConfig.useWorkerThreads = !config.singleThreaded;
+
     if ((ms_numpress_slof>=0) && ms_numpress_pic)
         throw user_error("[msconvert] Incompatible compression flags 'numpressPic' and 'numpressSlof'.");
 
@@ -633,6 +677,14 @@ Config parseCommandLine(int argc, char** argv)
         config.writeConfig.binaryDataEncoderConfig.numpressOverrides[MS_time_array] = BinaryDataEncoder::Numpress_Linear;
         config.writeConfig.binaryDataEncoderConfig.numpressLinearErrorTolerance = ms_numpress_linear;
     }
+    if (ms_numpress_linear_abs_tolerance>=0) 
+    {
+        config.writeConfig.binaryDataEncoderConfig.numpressOverrides[MS_m_z_array] = BinaryDataEncoder::Numpress_Linear;
+        config.writeConfig.binaryDataEncoderConfig.numpressOverrides[MS_time_array] = BinaryDataEncoder::Numpress_Linear;
+        config.writeConfig.binaryDataEncoderConfig.numpressLinearAbsMassAcc = ms_numpress_linear_abs_tolerance;
+        // this overrides any relative guarantees as the user specifically wants an absolute mass error guarantee
+        config.writeConfig.binaryDataEncoderConfig.numpressLinearErrorTolerance = 0;
+    }
 
     return config;
 }
@@ -653,14 +705,43 @@ void addContactInfo(MSData& msd, const string& contactFilename)
 }
 
 
+void stripSourceFileLocation(MSData& msd)
+{
+    for (const auto& sourceFilePtr : msd.fileDescription.sourceFilePtrs)
+        sourceFilePtr->location = "file:///";
+}
+
+
+void stripSoftwareVersion(MSData& msd)
+{
+    for (const auto& softwarePtr : msd.softwarePtrs)
+        softwarePtr->version = "";
+}
+
+
 class UserFeedbackIterationListener : public IterationListener
 {
+    std::streamoff longestMessage;
+
     public:
+
+    UserFeedbackIterationListener()
+    {
+        longestMessage = 0;
+    }
 
     virtual Status update(const UpdateMessage& updateMessage)
     {
-        // add tabs to erase all of the previous line
-        *os_ << updateMessage.iterationIndex+1 << "/" << updateMessage.iterationCount << "\t\t\t\r" << flush;
+        
+        stringstream updateString;
+        if (updateMessage.message.empty())
+            updateString << updateMessage.iterationIndex + 1 << "/" << updateMessage.iterationCount;
+        else
+            updateString << updateMessage.message << ": " << updateMessage.iterationIndex + 1 << "/" << updateMessage.iterationCount;
+
+        longestMessage = max(longestMessage, (std::streamoff) updateString.tellp());
+        updateString << string(longestMessage - updateString.tellp(), ' '); // add whitespace to erase all of the previous line
+        *os_ << updateString.str() << "\r" << flush;
 
         // spectrum and chromatogram lists both iterate; put them on different lines
         if (updateMessage.iterationIndex+1 == updateMessage.iterationCount)
@@ -686,7 +767,7 @@ int mergeFiles(const vector<string>& filenames, const Config& config, const Read
     ReaderList::Config readerConfig(config);
 
     // Each file is read in separately in MSData objects in the msdList list.
-    BOOST_FOREACH(const string& filename, filenames)
+    for(const string& filename : filenames)
     {
         try
         {
@@ -708,6 +789,18 @@ int mergeFiles(const vector<string>& filenames, const Config& config, const Read
     iterationListenerRegistry.addListener(IterationListenerPtr(new UserFeedbackIterationListener), iterationPeriod);
     IterationListenerRegistry* pILR = config.verbose ? &iterationListenerRegistry : 0;
 
+    if (!config.runIndexSet.empty())
+    {
+        vector<MSDataPtr> msdListFiltered;
+        for (int i = 0; i < msdList.size(); ++i)
+            if (config.runIndexSet.contains(i))
+                msdListFiltered.push_back(msdList[i]);
+        msdList.swap(msdListFiltered);
+
+        if (msdList.empty())
+            throw user_error("[msconvert] No runs correspond to the specified indices");
+    }
+
     // MSDataMerger handles combining all files in msdList into a single MSDataFile object.
     try
     {
@@ -719,10 +812,17 @@ int mergeFiles(const vector<string>& filenames, const Config& config, const Read
         if (!config.contactFilename.empty())
             addContactInfo(msd, config.contactFilename);
 
-        SpectrumListFactory::wrap(msd, config.filters);
+        SpectrumListFactory::wrap(msd, config.filters, pILR);
+        ChromatogramListFactory::wrap(msd, config.chromatogramFilters, pILR);
 
         string outputFilename = config.outputFilename("merged-spectra", msd);
         *os_ << "writing output file: " << outputFilename << endl;
+
+        if (config.stripLocationFromSourceFiles)
+            stripSourceFileLocation(msd);
+
+        if (config.stripVersionFromSoftware)
+            stripSoftwareVersion(msd);
 
         if (config.outputPath == "-")
             MSDataFile::write(msd, cout, config.writeConfig);
@@ -746,17 +846,40 @@ void processFile(const string& filename, const Config& config, const ReaderList&
 
     *os_ << "processing file: " << filename << endl;
 
+    // handle progress updates if requested
+
+    IterationListenerRegistry iterationListenerRegistry;
+    // update on the first spectrum, the last spectrum, the 100th spectrum, the 200th spectrum, etc.
+    //const size_t iterationPeriod = 100;
+    iterationListenerRegistry.addListenerWithTimer(IterationListenerPtr(new UserFeedbackIterationListener), 0.5);
+    IterationListenerRegistry* pILR = config.verbose ? &iterationListenerRegistry : 0;
+
     ReaderList::Config readerConfig(config);
+
+    readerConfig.iterationListenerRegistry = pILR;
 
     vector<MSDataPtr> msdList;
     readers.read(filename, msdList, readerConfig);
+
+    if (!config.runIndexSet.empty())
+    {
+        vector<MSDataPtr> msdListFiltered;
+        for (int i = 0; i < msdList.size(); ++i)
+            if (config.runIndexSet.contains(i))
+                msdListFiltered.push_back(msdList[i]);
+        msdList.swap(msdListFiltered);
+
+        if (msdList.empty())
+            throw user_error("[msconvert] No runs correspond to the specified indices");
+    }
 
     for (size_t i=0; i < msdList.size(); ++i)
     {
         MSData& msd = *msdList[i];
         try
         {
-            // calculate SHA1 checksums
+            *os_ << "calculating source file checksums" << endl;
+            os_->flush();
             calculateSHA1Checksums(msd);
 
             // process the data 
@@ -764,28 +887,27 @@ void processFile(const string& filename, const Config& config, const ReaderList&
             if (!config.contactFilename.empty())
                 addContactInfo(msd, config.contactFilename);
 
-            SpectrumListFactory::wrap(msd, config.filters);
-
-            // handle progress updates if requested
-
-            IterationListenerRegistry iterationListenerRegistry;
-            // update on the first spectrum, the last spectrum, the 100th spectrum, the 200th spectrum, etc.
-            const size_t iterationPeriod = 100;
-            iterationListenerRegistry.addListener(IterationListenerPtr(new UserFeedbackIterationListener), iterationPeriod);
-            IterationListenerRegistry* pILR = config.verbose ? &iterationListenerRegistry : 0; 
+            SpectrumListFactory::wrap(msd, config.filters, pILR);
+            ChromatogramListFactory::wrap(msd, config.chromatogramFilters, pILR);
 
             // write out the new data file
             string outputFilename = config.outputFilename(filename, msd);
             *os_ << "writing output file: " << outputFilename << endl;
+
+            if (config.stripLocationFromSourceFiles)
+                stripSourceFileLocation(msd);
+
+            if (config.stripVersionFromSoftware)
+                stripSoftwareVersion(msd);
 
             if (config.outputPath == "-")
                 MSDataFile::write(msd, cout, config.writeConfig, pILR);
             else
             {
                 // String compare of filenames is case-sensitive, which is a problem on Windows. bfs::equivalent() fixes this.
-                if (filename == outputFilename || bfs::equivalent(filename, outputFilename))
+                if (!isHTTP(filename) && (filename == outputFilename || bfs::equivalent(filename, outputFilename)))
                 {
-                    throw user_error("Output filepath is the same as input filepath");
+                    throw user_error("[msconvert] Output filepath is the same as input filepath");
                 }
                 MSDataFile::write(msd, outputFilename, config.writeConfig, pILR);
             }
@@ -806,7 +928,8 @@ int go(const Config& config)
 {
     *os_ << config;
 
-    boost::filesystem::create_directories(config.outputPath);
+    if (config.outputPath != "-" && !bfs::exists(config.outputPath))
+        boost::filesystem::create_directories(config.outputPath);
 
     FullReaderList readers;
 
@@ -844,6 +967,8 @@ int main(int argc, char* argv[])
     std::locale global_loc = std::locale();
     std::locale loc(global_loc, new bfs::detail::utf8_codecvt_facet);
     bfs::path::imbue(loc);
+    cout.imbue(loc);
+    cerr.imbue(loc);
 
     try
     {
@@ -883,8 +1008,6 @@ int main(int argc, char* argv[])
          << "Attach the command output and this version information in your report:\n"
          << "\n"
          << "ProteoWizard release: " << pwiz::Version::str() << " (" << pwiz::Version::LastModified() << ")" << endl
-         << "ProteoWizard MSData: " << pwiz::msdata::Version::str() << " (" << pwiz::msdata::Version::LastModified() << ")" << endl
-         << "ProteoWizard Analysis: " << pwiz::analysis::Version::str() << " (" << pwiz::analysis::Version::LastModified() << ")" << endl
          << "Build date: " << __DATE__ << " " << __TIME__ << endl;
 
     return 1;

@@ -62,9 +62,10 @@ namespace TestPerf // Note: tests in the "TestPerf" namespace only run when the 
                 document = SkylineWindow.DocumentUI;
             });
 
-            var curatedDTs = document.Settings.PeptideSettings.Prediction.DriftTimePredictor.MeasuredDriftTimePeptides;
-            var measuredDTs = new List<IDictionary<LibKey, DriftTimeInfo>>();
-            var precursors = document.MoleculePrecursorPairs.Select(p => new LibKey(p.NodePep.RawTextId, p.NodeGroup.PrecursorCharge)).ToArray();
+            var curatedDTs = document.Settings.PeptideSettings.Prediction.IonMobilityPredictor.MeasuredMobilityIons;
+            var measuredDTs = new List<IDictionary<LibKey, IonMobilityAndCCS>>();
+            var precursors = new LibKeyIndex(document.MoleculePrecursorPairs.Select(
+                p => p.NodePep.ModifiedTarget.GetLibKey(p.NodeGroup.PrecursorAdduct).LibraryKey));
             for (var pass = 0; pass < 2; pass++)
             {
                 // Verify ability to extract predictions from raw data
@@ -75,8 +76,9 @@ namespace TestPerf // Note: tests in the "TestPerf" namespace only run when the 
                 var driftTimePredictorDlg = ShowDialog<EditDriftTimePredictorDlg>(peptideSettingsDlg.EditDriftTimePredictor);
                 RunUI(() =>
                 {
+                    driftTimePredictorDlg.SetOffsetHighEnergySpectraCheckbox(true);
                     driftTimePredictorDlg.GetDriftTimesFromResults();
-                    driftTimePredictorDlg.OkDialog();
+                    driftTimePredictorDlg.OkDialog(true); // Force overwrite if a named predictor already exists
                 });
                 WaitForClosedForm(driftTimePredictorDlg);
                 RunUI(() =>
@@ -86,17 +88,17 @@ namespace TestPerf // Note: tests in the "TestPerf" namespace only run when the 
                 WaitForClosedForm(peptideSettingsDlg);
                 
                 document = SkylineWindow.Document;
-                measuredDTs.Add(document.Settings.PeptideSettings.Prediction.DriftTimePredictor.MeasuredDriftTimePeptides);
+                measuredDTs.Add(document.Settings.PeptideSettings.Prediction.IonMobilityPredictor.MeasuredMobilityIons);
                 var count = 0;
                 foreach (var key in curatedDTs.Keys)
                 {
-                    if (precursors.Contains(key))
+                    if (precursors.ItemsMatching(key.LibraryKey, true).Any())
                     {
                         count++;
-                        Assert.AreNotEqual(curatedDTs[key].DriftTimeMsec(false).Value, measuredDTs[pass][key].DriftTimeMsec(false).Value, "measured drift time should differ somewhat for "+key);
+                        Assert.AreNotEqual(curatedDTs[key].IonMobility.Mobility, measuredDTs[pass][key].IonMobility.Mobility, "measured drift time should differ somewhat for "+key);
                     }
-                    Assert.AreEqual(curatedDTs[key].DriftTimeMsec(false).Value, measuredDTs[pass][key].DriftTimeMsec(false).Value, 1.0, "measured drift time differs too much for " + key);
-                    Assert.AreEqual(curatedDTs[key].HighEnergyDriftTimeOffsetMsec, measuredDTs[pass][key].HighEnergyDriftTimeOffsetMsec, 2.0, "measured drift time high energy offset differs too much for " + key);
+                    Assert.AreEqual(curatedDTs[key].IonMobility.Mobility.Value, measuredDTs[pass][key].IonMobility.Mobility.Value, 1.0, "measured drift time differs too much for " + key);
+                    Assert.AreEqual(curatedDTs[key].HighEnergyIonMobilityValueOffset, measuredDTs[pass][key].HighEnergyIonMobilityValueOffset, 2.0, "measured drift time high energy offset differs too much for " + key);
                 }
                 Assert.AreEqual(document.MoleculeTransitionGroupCount, count, "did not find drift times for all precursors"); // Expect to find a value for each precursor
 
@@ -122,17 +124,55 @@ namespace TestPerf // Note: tests in the "TestPerf" namespace only run when the 
             var noChange = new List<LibKey>();
             foreach (var key in measuredDTs[0].Keys)
             {
-                if (precursors.Contains(key))
+                if (precursors.ItemsMatching(key, true).Any())
                 {
                     ccount++;
-                    if (measuredDTs[0][key].DriftTimeMsec(true).Value == measuredDTs[1][key].DriftTimeMsec(true).Value)
+                    if (measuredDTs[0][key].GetHighEnergyDriftTimeMsec().Value == measuredDTs[1][key].GetHighEnergyDriftTimeMsec().Value)
                         noChange.Add(key);
                 }
-                Assert.AreEqual(measuredDTs[0][key].DriftTimeMsec(false).Value, measuredDTs[1][key].DriftTimeMsec(false).Value, 1.0, "averaged measured drift time differs for " + key);
-                Assert.AreEqual(measuredDTs[0][key].HighEnergyDriftTimeOffsetMsec, measuredDTs[1][key].HighEnergyDriftTimeOffsetMsec, 2.0, "averaged measured drift time high energy offset differs for " + key);
+                Assert.AreEqual(measuredDTs[0][key].IonMobility.Mobility.Value, measuredDTs[1][key].IonMobility.Mobility.Value, 1.0, "averaged measured drift time differs for " + key);
+                Assert.AreEqual(measuredDTs[0][key].HighEnergyIonMobilityValueOffset, measuredDTs[1][key].HighEnergyIonMobilityValueOffset, 2.0, "averaged measured drift time high energy offset differs for " + key);
+                Assert.AreEqual(measuredDTs[0][key].CollisionalCrossSectionSqA.Value, measuredDTs[1][key].CollisionalCrossSectionSqA.Value, 1.0, "averaged measured CCS differs for " + key);
             }
             Assert.AreEqual(document.MoleculeTransitionGroupCount, ccount, "did not find drift times for all precursors"); // Expect to find a value for each precursor
             Assert.IsTrue(noChange.Count < ccount/2,"expected most values to shift a little without the nice clean training data");
+
+
+            // And finally verify ability to reimport with altered drift filter (would formerly fail on an erroneous Assume)
+
+            // Simulate user picking Edit Current from the Drift Time Predictor combo control, and messing with all the measured drift time values
+            var peptideSettingsDlg2 = ShowDialog<PeptideSettingsUI>(
+                () => SkylineWindow.ShowPeptideSettingsUI(PeptideSettingsUI.TABS.Prediction));
+            var driftTimePredictorDlg2 = ShowDialog<EditDriftTimePredictorDlg>(peptideSettingsDlg2.EditDriftTimePredictor);
+            RunUI(() =>
+            {
+                var oldPredictor = driftTimePredictorDlg2.Predictor;
+                var dict = new Dictionary<LibKey, IonMobilityAndCCS>();
+                foreach (var entry in oldPredictor.MeasuredMobilityIons)
+                {
+                    dict.Add(entry.Key, entry.Value.ChangeIonMobilityValue(entry.Value.IonMobility.ChangeIonMobility(entry.Value.IonMobility.Mobility??0 + .5)));
+                }
+                driftTimePredictorDlg2.Predictor = oldPredictor.ChangeMeasuredMobilityIons(dict).ChangeName("test") as IonMobilityPredictor;
+                driftTimePredictorDlg2.OkDialog(true); // Force overwrite if a named predictor already exists
+            });
+            WaitForClosedForm(driftTimePredictorDlg2);
+            RunUI(() =>
+            {
+                peptideSettingsDlg2.OkDialog();
+            });
+            WaitForClosedForm(peptideSettingsDlg2);
+            var docChangedDriftTimePredictor = WaitForDocumentChange(document);
+
+            // Reimport data for a replicate - without the fix this will throw
+            RunDlg<ManageResultsDlg>(SkylineWindow.ManageResults, dlg =>
+            {
+                var chromatograms = docChangedDriftTimePredictor.Settings.MeasuredResults.Chromatograms;
+                dlg.SelectedChromatograms = new[] { chromatograms[0] };
+                dlg.ReimportResults();
+                dlg.OkDialog();
+            });
+
+            WaitForDocumentChangeLoaded(docChangedDriftTimePredictor, WAIT_TIME*2);
         }  
     }
 }

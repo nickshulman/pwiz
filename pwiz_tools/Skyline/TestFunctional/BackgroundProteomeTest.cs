@@ -34,6 +34,7 @@ namespace pwiz.SkylineTestFunctional
     /// <summary>
     /// Functional tests for the Background Proteome.
     /// </summary>
+    // ReSharper disable LocalizableElement
     [TestClass]
     public class BackgroundProteomeTest : AbstractFunctionalTest
     {
@@ -61,37 +62,53 @@ namespace pwiz.SkylineTestFunctional
                 {
                     SequenceTree sequenceTree = SkylineWindow.SequenceTree;
                     sequenceTree.BeginEdit(false);
-// ReSharper disable LocalizableElement
                     sequenceTree.StatementCompletionEditBox.TextBox.Text = "Y18D10A.20";    // Not L10N
-// ReSharper restore LocalizableElement
                     sequenceTree.CommitEditBox(false);
                 });
             WaitForProteinMetadataBackgroundLoaderCompleted();
             RunUI(() =>
-                {
-                    SequenceTree sequenceTree = SkylineWindow.SequenceTree;
-                    sequenceTree.BeginEdit(false);
-// ReSharper disable LocalizableElement
-                    sequenceTree.StatementCompletionEditBox.TextBox.Text = "TISEVIAQGK";    // Not L10N
-// ReSharper restore LocalizableElement
-                });
-            var statementCompletionForm = WaitForOpenForm<StatementCompletionForm>();
-            Assert.IsNotNull(statementCompletionForm);
+            {
+                SequenceTree sequenceTree = SkylineWindow.SequenceTree;
+                sequenceTree.BeginEdit(false);
+                sequenceTree.StatementCompletionEditBox.TextBox.Text = "AccessionWithout";
+            });
+            WaitForOpenForm<StatementCompletionForm>();
+            Assert.IsNotNull(FindOpenForm<StatementCompletionForm>());
+            RunUI(() =>
+            {
+                var statementCompletionForm = FindOpenForm<StatementCompletionForm>();
+                Assert.IsNotNull(statementCompletionForm);
+                SequenceTree sequenceTree = SkylineWindow.SequenceTree;
+                Assert.IsNotNull(sequenceTree.StatementCompletionEditBox);
+                sequenceTree.StatementCompletionEditBox.OnSelectionMade(
+                    (StatementCompletionItem) statementCompletionForm.ListView.Items[0].Tag);
+            });
+            WaitForProteinMetadataBackgroundLoaderCompleted();
+            RunUI(() =>
+            {
+                SequenceTree sequenceTree = SkylineWindow.SequenceTree;
+                sequenceTree.BeginEdit(false);
+                sequenceTree.StatementCompletionEditBox.TextBox.Text = "TISEVIAQGK"; // Not L10N
+            });
+            WaitForOpenForm<StatementCompletionForm>();
 
             RunUI(() =>
-                {
-                    SequenceTree sequenceTree = SkylineWindow.SequenceTree;
-                    Assert.IsNotNull(sequenceTree.StatementCompletionEditBox);
-                    sequenceTree.StatementCompletionEditBox.OnSelectionMade(
-                        (StatementCompletionItem) statementCompletionForm.ListView.Items[0].Tag);
-                });
-            WaitForProteinMetadataBackgroundLoaderCompleted();
+            {
+                var statementCompletionForm = FindOpenForm<StatementCompletionForm>();
+                Assert.IsNotNull(statementCompletionForm);
+                SequenceTree sequenceTree = SkylineWindow.SequenceTree;
+                Assert.IsNotNull(sequenceTree.StatementCompletionEditBox);
+                sequenceTree.StatementCompletionEditBox.OnSelectionMade(
+                    (StatementCompletionItem) statementCompletionForm.ListView.Items[0].Tag);
+            });
             var peptideGroups = new List<PeptideGroupDocNode>(Program.ActiveDocument.PeptideGroups);
-            Assert.AreEqual(2, peptideGroups.Count);
+            Assert.AreEqual(3, peptideGroups.Count);
             Assert.AreEqual("Y18D10A.20", peptideGroups[0].Name);
             Assert.IsTrue(peptideGroups[0].AutoManageChildren);
-            Assert.AreEqual("C37A2.7", peptideGroups[1].Name);
-            Assert.IsFalse(peptideGroups[1].AutoManageChildren);
+            Assert.AreEqual("AccessionWithoutDescription", peptideGroups[1].Name);
+            Assert.IsTrue(peptideGroups[1].AutoManageChildren);
+            Assert.AreEqual("C37A2.7", peptideGroups[2].Name);
+            Assert.IsFalse(peptideGroups[2].AutoManageChildren);
 
             // Save and re-open with prot db moved to see MissingFileDlg
             int pepCount = SkylineWindow.Document.PeptideCount;
@@ -112,18 +129,25 @@ namespace pwiz.SkylineTestFunctional
             Assert.AreEqual(0, SkylineWindow.Document.PeptideCount);
         }
 
-        public static void CreateBackgroundProteome(string protdbPath, string basename, string fastaFilePath)
+        public static void CreateBackgroundProteome(string protdbPath, string basename, string fastaFilePath, string enzyme = null)
         {
             var peptideSettingsUI = ShowDialog<PeptideSettingsUI>(SkylineWindow.ShowPeptideSettingsUI);
-            var buildBackgroundProteomeDlg = ShowDialog<BuildBackgroundProteomeDlg>(
-                peptideSettingsUI.ShowBuildBackgroundProteomeDlg);
-            RunUI(() =>
+            if (enzyme != null)
             {
-                buildBackgroundProteomeDlg.BackgroundProteomeName = basename;
-                buildBackgroundProteomeDlg.BackgroundProteomePath = protdbPath;
-                buildBackgroundProteomeDlg.AddFastaFile(fastaFilePath);
-            });
-            OkDialog(buildBackgroundProteomeDlg, buildBackgroundProteomeDlg.OkDialog);
+                RunUI(() => { peptideSettingsUI.ComboEnzymeSelected = enzyme; });  // Enzyme change to existing protdb
+            }
+            else
+            {
+                var buildBackgroundProteomeDlg = ShowDialog<BuildBackgroundProteomeDlg>(
+                    peptideSettingsUI.ShowBuildBackgroundProteomeDlg);
+                RunUI(() =>
+                {
+                    buildBackgroundProteomeDlg.BackgroundProteomeName = basename;
+                    buildBackgroundProteomeDlg.BackgroundProteomePath = protdbPath;
+                    buildBackgroundProteomeDlg.AddFastaFile(fastaFilePath);
+                });
+                OkDialog(buildBackgroundProteomeDlg, buildBackgroundProteomeDlg.OkDialog);
+            }
             RunUI(() => { peptideSettingsUI.MissedCleavages = 3; });
             OkDialog(peptideSettingsUI, peptideSettingsUI.OkDialog);
             // Wait until proteome digestion is done
@@ -131,8 +155,7 @@ namespace pwiz.SkylineTestFunctional
             {
                 var peptideSettings = Program.ActiveDocument.Settings.PeptideSettings;
                 var backgroundProteome = peptideSettings.BackgroundProteome;
-                return backgroundProteome.HasDigestion(peptideSettings) &&
-                    !backgroundProteome.NeedsProteinMetadataSearch;
+                return !backgroundProteome.NeedsProteinMetadataSearch;
             });
         }
     }

@@ -17,65 +17,15 @@
  */
 using System;
 using System.IO;
-using MSFileReaderLib;
 
 namespace AutoQC
 {
-    public enum Status { Ready, Waiting, ExceedMaximumAcquiTime }
+    public enum FileStatus { Ready, Waiting, ExceedMaximumAcquiTime}
     
     interface IResultFileStatus
     {
         /// <exception cref="FileStatusException"></exception>
-        Status CheckStatus(string filePath) ;
-    }
-
-    class XRawFileStatus : IResultFileStatus
-    {
-        // Acquision time in minutes. This is how long we will wait till we consider the file ready for import.
-        private readonly int _acquisitionTime;
-
-        public XRawFileStatus(int acquisitionTime)
-        {
-            _acquisitionTime = acquisitionTime;
-        }
-
-        public Status CheckStatus(string filePath)
-        {
-            IXRawfile rawFile = null;
-            // Get the time elapsed since the file was first created.
-            DateTime createTime;
-
-            var inAcq = 1;
-            try
-            {
-                createTime = File.GetCreationTime(filePath);
-
-                rawFile = new MSFileReader_XRawfileClass();
-                rawFile.Open(filePath);
-                rawFile.InAcquisition(ref inAcq);          
-            }
-            catch (Exception e)
-            {
-                throw new FileStatusException(string.Format("Error getting status of file {0}", filePath), e);
-            }
-            finally
-            {
-                if (rawFile != null)
-                {
-                    rawFile.Close();
-                }
-            }
-
-            if (inAcq == 1)
-            {
-                // Check whether we have exceeded the expected acquisition time
-                return createTime.AddMinutes(_acquisitionTime) < DateTime.Now
-                    ? Status.ExceedMaximumAcquiTime
-                    : Status.Waiting;
-            }
-
-            return Status.Ready;
-        }
+        FileStatus CheckStatus(string filePath) ;
     }
 
     class AcquisitionTimeFileStatus : IResultFileStatus
@@ -88,7 +38,20 @@ namespace AutoQC
             _acquisitionTime = acquisitionTime;
         }
 
-        public Status CheckStatus(string filePath)
+        public FileStatus CheckStatus(string filePath)
+        {
+            if (File.Exists(filePath))
+            {
+                return GetFileStatus(filePath);
+            }
+            if (Directory.Exists(filePath))
+            {
+                return GetDirectoryStatus(filePath);
+            }
+            throw new FileStatusException(string.Format("Error getting status for {0}", filePath));
+        }
+
+        private FileStatus GetFileStatus(string filePath)
         {
             // Get the time elapsed since the file was first created.
             DateTime createTime;
@@ -108,10 +71,20 @@ namespace AutoQC
                 // If the file was copied to the directory, its "creation time" will be later than the 
                 // "last write time". In this case use the "last write time" otherwise we will have to 
                 // wait for "acquisition time" to elapse before the file is considered "ready" to import.
-                createTime = lastModifiedTime;
+                return FileStatus.Ready;
             }
 
-            return createTime.AddMinutes(_acquisitionTime) < DateTime.Now ? Status.Ready : Status.Waiting;
+            return createTime.AddMinutes(_acquisitionTime) < DateTime.Now ? FileStatus.Ready : FileStatus.Waiting;    
+        }
+
+        private FileStatus GetDirectoryStatus(string filePath)
+        {
+            var files = Directory.GetFiles(filePath, "*", SearchOption.AllDirectories);
+            return files.Length > 0 ?
+                GetFileStatus(files[0]) : // Check only for one file. If this directory was copied
+                                          // The "creation time" for the first one we encounter should be later
+                                          // that the "last write time". 
+                FileStatus.Waiting;
         }
     }
 }

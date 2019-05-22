@@ -21,11 +21,12 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Windows.Forms;
-using NHibernate.Util;
+using pwiz.Common.SystemUtil;
 using pwiz.ProteowizardWrapper;
 using pwiz.Skyline.Alerts;
 using pwiz.Skyline.Controls;
 using pwiz.Skyline.Model;
+using pwiz.Skyline.Model.AuditLog;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.Results;
 using pwiz.Skyline.Properties;
@@ -34,7 +35,7 @@ using pwiz.Skyline.Util.Extensions;
 
 namespace pwiz.Skyline.FileUI
 {
-    public partial class ImportResultsDlg : FormEx
+    public partial class ImportResultsDlg : FormEx, IAuditLogModifier<ImportResultsDlg.ImportResultsSettings>
     {
         public const int MIN_COMMON_PREFIX_LENGTH = 3;
 
@@ -89,7 +90,9 @@ namespace pwiz.Skyline.FileUI
             }
             comboOptimizing.SelectedIndex = 0;
 
+            comboSimultaneousFiles.SelectedIndex = Settings.Default.ImportResultsSimultaneousFiles;
             cbShowAllChromatograms.Checked = Settings.Default.AutoShowAllChromatogramsGraph;
+            cbAutoRetry.Checked = Settings.Default.ImportResultsDoAutoRetry;
         }
 
         private string DefaultNewName
@@ -154,6 +157,13 @@ namespace pwiz.Skyline.FileUI
                     comboOptimizing.SelectedItem = value;
                 }
             }
+        }
+
+        protected override void OnClosed(EventArgs e)
+        {
+            Settings.Default.ImportResultsSimultaneousFiles = comboSimultaneousFiles.SelectedIndex;
+            Settings.Default.ImportResultsDoAutoRetry = cbAutoRetry.Checked;
+            base.OnClosed(e);
         }
 
         public void OkDialog()
@@ -227,25 +237,24 @@ namespace pwiz.Skyline.FileUI
 
             if (NamedPathSets.Length > 1)
             {
-                string prefix = GetCommonPrefix(Array.ConvertAll(NamedPathSets, ns => ns.Key));
-                if (prefix.Length >= MIN_COMMON_PREFIX_LENGTH)
+                var resultNames = NamedPathSets.Select(ns => ns.Key).ToArray();
+                string prefix = GetCommonPrefix(resultNames);
+                string suffix = GetCommonSuffix(resultNames);
+                if (!String.IsNullOrEmpty(prefix) || !String.IsNullOrEmpty(suffix))
                 {
-                    using (var dlgName = new ImportResultsNameDlg(prefix))
+                    using (var dlgName = new ImportResultsNameDlg(prefix, suffix, resultNames))
                     {
                         var result = dlgName.ShowDialog(this);
                         if (result == DialogResult.Cancel)
                         {
                             return;
                         }
-                        if (result == DialogResult.Yes)
+                        if (dlgName.IsRemove)
                         {
-                            // Rename all the replicates to remove the specified prefix.
-                            for (int i = 0; i < NamedPathSets.Length; i++)
-                            {
-                                var namedSet = NamedPathSets[i];
-                                NamedPathSets[i] = new KeyValuePair<string, MsDataFileUri[]>(
-                                    namedSet.Key.Substring(dlgName.Prefix.Length), namedSet.Value);
-                            }
+                            dlgName.ApplyNameChange(NamedPathSets);
+
+                            Prefix = string.IsNullOrEmpty(prefix) ? null : prefix;
+                            Suffix = string.IsNullOrEmpty(suffix) ? null : suffix;
                         }
                     }
                 }
@@ -257,6 +266,39 @@ namespace pwiz.Skyline.FileUI
                 EnsureUniqueNames();
             
             DialogResult = DialogResult.OK;
+        }
+
+        public string Prefix { get; private set; }
+        public string Suffix { get; private set; }
+
+        public static string GetCommonPrefix(IEnumerable<string> names)
+        {
+            return names.GetCommonPrefix(MIN_COMMON_PREFIX_LENGTH);
+        }
+
+        private static readonly string[] SUFFIX_COMMON_CONCENTRATIONS = 
+        {
+            @"amol", @"fmol", @"pmol", @"nmol", @"umol", @"mol"
+        };
+
+        public static string GetCommonSuffix(IEnumerable<string> names)
+        {
+            string suffix = names.GetCommonSuffix(MIN_COMMON_PREFIX_LENGTH);
+            // Ignore common concentration suffixes
+            string prefixOfSuffix = SUFFIX_COMMON_CONCENTRATIONS.FirstOrDefault(s => suffix.Contains(s));
+            if (prefixOfSuffix != null)
+            {
+                int start = suffix.IndexOf(prefixOfSuffix, StringComparison.Ordinal);
+                if (IsNumericOrSeperator(suffix.Substring(0, start)))
+                    suffix = suffix.Substring(start + prefixOfSuffix.Length);
+            }
+            return suffix;
+        }
+
+        private static bool IsNumericOrSeperator(string s)
+        {
+            const string allowedChars = "0123456789.-_";
+            return s.All(c => allowedChars.Contains(c));
         }
 
         private bool CanCreateMultiInjectionMethods()
@@ -274,40 +316,53 @@ namespace pwiz.Skyline.FileUI
         public KeyValuePair<string, MsDataFileUri[]>[] GetDataSourcePathsFile(string name)
         {
             CheckDisposed();
-            using (var dlgOpen = new OpenDataSourceDialog(Settings.Default.ChorusAccountList)
+
+            var dataSources = GetDataSourcePaths(this, _documentSavedPath);
+            if (dataSources == null || dataSources.Length == 0)
+            {
+                // Above call will have shown a message if necessary, or not if canceled
+                return null;
+            }
+
+            if (name != null)
+                return GetDataSourcePathsFileSingle(name, dataSources);
+
+            return GetDataSourcePathsFileReplicates(dataSources);
+        }
+
+        public static MsDataFileUri[] GetDataSourcePaths(Control parent, string documentSavedPath)
+        {
+            using (var dlgOpen = new OpenDataSourceDialog(Settings.Default.RemoteAccountList)
                 {
                     Text = Resources.ImportResultsDlg_GetDataSourcePathsFile_Import_Results_Files
                 })
             {
                 // The dialog expects null to mean no directory was supplied, so don't assign
                 // an empty string.
-                string initialDir = Path.GetDirectoryName(_documentSavedPath);
+                string initialDir = Path.GetDirectoryName(documentSavedPath) ?? Settings.Default.SrmResultsDirectory;
+                if (string.IsNullOrEmpty(initialDir))
+                    initialDir = null;
                 dlgOpen.InitialDirectory = new MsDataFilePath(initialDir);
                 // Use saved source type, if there is one.
                 string sourceType = Settings.Default.SrmResultsSourceType;
                 if (!string.IsNullOrEmpty(sourceType))
                     dlgOpen.SourceTypeName = sourceType;
 
-                if (dlgOpen.ShowDialog(this) != DialogResult.OK)
+                if (dlgOpen.ShowDialog(parent) != DialogResult.OK)
                     return null;
 
-                Settings.Default.SrmResultsDirectory = !Equals(new MsDataFilePath(_documentSavedPath), dlgOpen.CurrentDirectory)
-                                                           ? dlgOpen.CurrentDirectory.ToString()
-                                                           : string.Empty;
+                Settings.Default.SrmResultsDirectory = dlgOpen.CurrentDirectory.ToString();
                 Settings.Default.SrmResultsSourceType = dlgOpen.SourceTypeName;
 
                 var dataSources = dlgOpen.DataSources;
 
                 if (dataSources == null || dataSources.Length == 0)
                 {
-                    MessageBox.Show(this, Resources.ImportResultsDlg_GetDataSourcePathsFile_No_results_files_chosen, Program.Name);
+                    MessageDlg.Show(parent, Resources.ImportResultsDlg_GetDataSourcePathsFile_No_results_files_chosen);
                     return null;
                 }
 
-                if (name != null)
-                    return GetDataSourcePathsFileSingle(name, dataSources);
-
-                return GetDataSourcePathsFileReplicates(dataSources);
+                return dataSources;
             }
         }
 
@@ -431,33 +486,6 @@ namespace pwiz.Skyline.FileUI
             }
         }
 
-        public static string GetCommonPrefix(IEnumerable<string> values)
-        {
-            string prefix = null;
-            foreach (string value in values)
-            {
-                if (prefix == null)
-                {
-                    prefix = value;
-                    continue;
-                }
-                if (prefix == string.Empty)
-                {
-                    break;
-                }
-
-                for (int i = 0; i < prefix.Length; i++)
-                {
-                    if (i >= value.Length || prefix[i] != value[i])
-                    {
-                        prefix = prefix.Substring(0, i);
-                        break;
-                    }
-                }
-            }
-            return prefix ?? string.Empty;
-        }
-
         private bool ResultsExist(string name)
         {
             foreach (var item in comboName.Items)
@@ -468,24 +496,37 @@ namespace pwiz.Skyline.FileUI
             return false;
         }
 
+        public static List<string> EnsureUniqueNames(List<string> names, HashSet<string> reservedNames = null)
+        {
+            var setUsedNames = reservedNames ?? new HashSet<string>();
+            var result = new List<string>();
+            for (int i = 0; i < names.Count; i++)
+            {
+                string baseName = names[i];
+                // Make sure the next name added is unique
+                string name = (baseName.Length != 0 ? baseName : @"1");
+                for (int suffix = 2; setUsedNames.Contains(name); suffix++)
+                    name = baseName + suffix;
+                result.Add(name);
+                // Add this name to the used set
+                setUsedNames.Add(name);
+            }
+            return result;
+        }
+
         private void EnsureUniqueNames()
         {
             var setUsedNames = new HashSet<string>();
             foreach (var item in comboName.Items)
                 setUsedNames.Add(item.ToString());
+            var names = EnsureUniqueNames(NamedPathSets.Select(n => n.Key).ToList(), setUsedNames);
             for (int i = 0; i < NamedPathSets.Length; i++)
             {
                 var namedPathSet = NamedPathSets[i];
                 string baseName = namedPathSet.Key;
-                // Make sure the next name added is unique
-                string name = (baseName.Length != 0 ? baseName : "1"); // Not L10N
-                for (int suffix = 2; setUsedNames.Contains(name); suffix++)
-                    name = baseName + suffix;
-                // If a change was made, update the named path sets
+                string name = names[i];
                 if (!Equals(name, baseName))
                     NamedPathSets[i] = new KeyValuePair<string, MsDataFileUri[]>(name, namedPathSet.Value);
-                // Add this name to the used set
-                setUsedNames.Add(name);
             }
         }
 
@@ -597,16 +638,97 @@ namespace pwiz.Skyline.FileUI
             else
             {
                 comboOptimizing.Enabled = labelOptimizing.Enabled = comboTuning.Enabled = labelTuning.Enabled = true;
-                if (comboTuning.Items.Any())
+                if (comboTuning.Items.Count > 0)
                 {
                     comboOptimizing.SelectedIndex = comboTuning.SelectedIndex = 0;
                 }
             }
         }
 
+        public int ImportSimultaneousIndex
+        {
+            get { return comboSimultaneousFiles.SelectedIndex;}
+            set { comboSimultaneousFiles.SelectedIndex = value;}
+        }
+
+        public class ImportResultsSettings : AuditLogOperationSettings<ImportResultsSettings>, IAuditLogComparable
+        {
+            public static ImportResultsSettings EMPTY = new ImportResultsSettings(null, false, false, false, string.Empty, false,
+                () => ExportOptimize.NONE, MultiFileLoader.ImportResultsSimultaneousFileOptions.one_at_a_time, null, null);
+
+            private readonly Func<string> _optimizeFunc;
+
+            public ImportResultsSettings(List<string> fileNames, bool singleInjectionReplicates, bool multiInjectionReplicates,
+                bool addNewReplicate, string replicateName, bool addToExistingReplicate, Func<string> optimizeFunc,
+                MultiFileLoader.ImportResultsSimultaneousFileOptions fileImportOption, string prefix, string suffix)
+            {
+                FileNames = fileNames == null
+                    ? new List<AuditLogPath>()
+                    : fileNames.Select(AuditLogPath.Create).ToList();
+                SingleInjectionReplicates = singleInjectionReplicates;
+                MultiInjectionReplicates = multiInjectionReplicates;
+                AddNewReplicate = addNewReplicate;
+                ReplicateName = replicateName;
+                AddToExistingReplicate = addToExistingReplicate;
+                _optimizeFunc = optimizeFunc;
+                FileImportOption = fileImportOption;
+                Prefix = prefix;
+                Suffix = suffix;
+            }
+
+            protected override AuditLogEntry CreateEntry(SrmDocumentPair docPair)
+            {
+                var entry = AuditLogEntry.CreateCountChangeEntry(MessageType.imported_result,
+                    MessageType.imported_results, docPair.NewDocumentType, FileNames, MessageArgs.DefaultSingular, null);
+
+                return entry.Merge(base.CreateEntry(docPair), false);
+            }
+
+            [Track]
+            public List<AuditLogPath> FileNames { get; private set; }
+            [Track]
+            public bool SingleInjectionReplicates { get; private set; }
+            [Track]
+            public bool MultiInjectionReplicates { get; private set; }
+            [Track]
+            public bool AddNewReplicate { get; private set; }
+            [Track]
+            public string ReplicateName { get; private set; }
+            [Track]
+            public bool AddToExistingReplicate { get; private set; }
+            [Track]
+            public string Optimization { get {return _optimizeFunc();} }
+            [Track(ignoreDefaultParent:true)]
+            public MultiFileLoader.ImportResultsSimultaneousFileOptions FileImportOption { get; private set; }
+            [Track]
+            public string Prefix { get; private set; }
+            [Track]
+            public string Suffix { get; private set; }
+
+            public object GetDefaultObject(ObjectInfo<object> info)
+            {
+                return EMPTY;
+            }
+        }
+
+        public ImportResultsSettings FormSettings
+        {
+            get
+            {
+                var name = ImportResultsSettings.EMPTY.ReplicateName;
+                if ((RadioAddNewChecked || RadioAddExistingChecked) && NamedPathSets.Length == 1)
+                    name = NamedPathSets[0].Key;
+
+                return new ImportResultsSettings(NamedPathSets.SelectMany(pair => pair.Value.Select(fileUri => fileUri.GetFilePath())).ToList(), RadioCreateMultipleChecked, RadioCreateMultipleMultiChecked,
+                    RadioAddNewChecked, name, RadioAddExistingChecked, () => OptimizationName,
+                    (MultiFileLoader.ImportResultsSimultaneousFileOptions) ImportSimultaneousIndex,
+                    Prefix, Suffix);
+            }
+        }
+
         public bool RadioAddNewChecked
         {
-            get { return radioCreateNew.Checked;}
+            get { return radioCreateNew.Checked; }
             set { radioCreateNew.Checked = value; }
         }
 
@@ -614,6 +736,12 @@ namespace pwiz.Skyline.FileUI
         {
             get { return radioAddExisting.Checked; }
             set { radioAddExisting.Checked = value; }
+        }
+
+        public bool RadioCreateMultipleChecked
+        {
+            get { return radioCreateMultiple.Checked; }
+            set { radioCreateMultiple.Checked = value; }
         }
 
         public bool RadioCreateMultipleMultiChecked

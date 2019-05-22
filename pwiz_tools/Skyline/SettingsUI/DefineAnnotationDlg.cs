@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Original author: Nick Shulman <nicksh .at. u.washington.edu>,
  *                  MacCoss Lab, Department of Genome Sciences, UW
  *
@@ -21,6 +21,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Windows.Forms;
 using pwiz.Skyline.Controls;
+using pwiz.Skyline.Model;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
@@ -39,7 +40,6 @@ namespace pwiz.Skyline.SettingsUI
         public DefineAnnotationDlg(IEnumerable<AnnotationDef> existing)
         {
             InitializeComponent();
-
             Icon = Resources.Skyline;
             checkedListBoxAppliesTo.Items.Clear();
             foreach (var annotationTarget in new[]
@@ -53,9 +53,11 @@ namespace pwiz.Skyline.SettingsUI
                                                      AnnotationDef.AnnotationTarget.transition_result,
                                                  })
             {
-                checkedListBoxAppliesTo.Items.Add(new AnnotationTargetItem(annotationTarget));
+                checkedListBoxAppliesTo.Items.Add(new AnnotationTargetItem(annotationTarget, GetModeUIHelper().ModeUI));
             }
-
+            comboType.Items.AddRange(ListPropertyType.ListPropertyTypes().ToArray());
+            comboType.SelectedIndex = 0;
+            ComboHelper.AutoSizeDropDown(comboType);
             _existing = existing;
         }
 
@@ -72,7 +74,7 @@ namespace pwiz.Skyline.SettingsUI
             else
             {
                 AnnotationName = annotationDef.Name;
-                AnnotationType = annotationDef.Type;
+                ListPropertyType = annotationDef.ListPropertyType;
                 AnnotationTargets = annotationDef.AnnotationTargets;
                 Items = annotationDef.Items;
             }
@@ -94,12 +96,21 @@ namespace pwiz.Skyline.SettingsUI
         {
             get
             {
-                return (AnnotationDef.AnnotationType) comboType.SelectedIndex;
+                return ListPropertyType == null ? AnnotationDef.AnnotationType.text : ListPropertyType.AnnotationType;
             }
             set
             {
-                comboType.SelectedIndex = (int) value;
+                if (!Equals(value, AnnotationType))
+                {
+                    ListPropertyType = new ListPropertyType(value, null);
+                }
             }
+        }
+
+        public ListPropertyType ListPropertyType
+        {
+            get { return (ListPropertyType) comboType.SelectedItem; }
+            set { comboType.SelectedItem = value; }
         }
 
         public AnnotationDef.AnnotationTargetSet AnnotationTargets
@@ -134,7 +145,8 @@ namespace pwiz.Skyline.SettingsUI
                 {
                     return new string[0];
                 }
-                return tbxValues.Text.Split(new[] {"\r\n"}, StringSplitOptions.None); // Not L10N
+                // ReSharper disable once LocalizableElement
+                return tbxValues.Text.Split(new[] {"\r\n"}, StringSplitOptions.None);
             }
             set
             {
@@ -144,7 +156,7 @@ namespace pwiz.Skyline.SettingsUI
 
         public AnnotationDef GetAnnotationDef()
         {
-            return new AnnotationDef(AnnotationName, AnnotationTargets, AnnotationType, Items);
+            return new AnnotationDef(AnnotationName, AnnotationTargets, ListPropertyType, Items);
         }
 
         private void comboType_SelectedIndexChanged(object sender, EventArgs e)
@@ -187,15 +199,17 @@ namespace pwiz.Skyline.SettingsUI
 
         internal class AnnotationTargetItem
         {
-            public AnnotationTargetItem(AnnotationDef.AnnotationTarget annotationTarget)
+            public AnnotationTargetItem(AnnotationDef.AnnotationTarget annotationTarget, SrmDocument.DOCUMENT_TYPE modeUI)
             {
                 AnnotationTarget = annotationTarget;
+                ModeUI = modeUI;
             }
 
             public AnnotationDef.AnnotationTarget AnnotationTarget { get; private set; }
+            public SrmDocument.DOCUMENT_TYPE ModeUI { get; private set; }
             public override string ToString()
             {
-                return AnnotationDef.AnnotationTargetPluralName(AnnotationTarget);
+                return Helpers.PeptideToMoleculeTextMapper.Translate(AnnotationDef.AnnotationTargetPluralName(AnnotationTarget), ModeUI);
             }
         }
     }

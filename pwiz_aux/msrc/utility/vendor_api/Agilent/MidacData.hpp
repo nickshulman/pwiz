@@ -56,12 +56,12 @@ class MidacDataImpl : public MassHunterData
 {
     public:
     MidacDataImpl(const std::string& path);
-    ~MidacDataImpl();
+    ~MidacDataImpl() noexcept(false);
 
     virtual std::string getVersion() const;
     virtual DeviceType getDeviceType() const;
     virtual std::string getDeviceName(DeviceType deviceType) const;
-    virtual blt::local_date_time getAcquisitionTime() const;
+    virtual blt::local_date_time getAcquisitionTime(bool adjustToHostTime) const;
     virtual IonizationMode getIonModes() const;
     virtual MSScanType getScanTypes() const;
     virtual MSStorageMode getSpectraFormat() const;
@@ -71,6 +71,9 @@ class MidacDataImpl : public MassHunterData
     virtual bool hasIonMobilityData() const;
     virtual int getTotalIonMobilityFramesPresent() const;
     virtual FramePtr getIonMobilityFrame(int frameIndex) const;
+    virtual bool canConvertDriftTimeAndCCS() const;
+    virtual double driftTimeToCCS(double driftTimeInMilliseconds, double mz, int charge) const;
+    virtual double ccsToDriftTime(double ccs, double mz, int charge) const;
 
     virtual const std::set<Transition>& getTransitions() const;
     virtual ChromatogramPtr getChromatogram(const Transition& transition) const;
@@ -89,6 +92,7 @@ class MidacDataImpl : public MassHunterData
 
     private:
     gcroot<MIDAC::IMidacImsReader^> imsReader_;
+    gcroot<MIDAC::IImsCcsInfoReader^> imsCcsReader_;
     gcroot<MHDAC::IBDAMSScanFileInformation^> scanFileInfo_;
     automation_vector<double> ticTimes_, bpcTimes_;
     automation_vector<float> ticIntensities_, bpcIntensities_;

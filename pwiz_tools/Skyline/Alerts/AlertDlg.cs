@@ -37,8 +37,10 @@ namespace pwiz.Skyline.Alerts
         private readonly int _originalFormHeight;
         private readonly int _originalMessageHeight;
         private readonly int _labelPadding;
+        private string _message;
+        private string _detailMessage;
 
-        public AlertDlg() : this("Alert dialog for Forms designer") // Not L10N
+        public AlertDlg() : this(@"Alert dialog for Forms designer")
         {
         }
 
@@ -51,6 +53,7 @@ namespace pwiz.Skyline.Alerts
             Message = message;
             btnMoreInfo.Parent.Controls.Remove(btnMoreInfo);
             Text = Program.Name;
+            toolStrip1.Renderer = new NoBorderSystemRenderer();
         }
 
         public AlertDlg(string message, MessageBoxButtons messageBoxButtons) : this(message)
@@ -60,10 +63,11 @@ namespace pwiz.Skyline.Alerts
 
         public string Message
         {
-            get { return labelMessage.Text; }
+            get { return _message; }
             set
             {
-                labelMessage.Text = value;
+                _message = value;
+                labelMessage.Text = TruncateMessage(_message);
                 int formGrowth = Math.Max(labelMessage.Height - _originalMessageHeight * 3, 0);
                 formGrowth = Math.Max(formGrowth, 0);
                 formGrowth = Math.Min(formGrowth, MAX_HEIGHT);
@@ -75,11 +79,12 @@ namespace pwiz.Skyline.Alerts
         {
             get
             {
-                return tbxDetail.Text;
+                return _detailMessage;
             }
             set
             {
-                tbxDetail.Text = value ?? string.Empty;
+                _detailMessage = value;
+                tbxDetail.Text = TruncateMessage(_detailMessage);
                 if (string.IsNullOrEmpty(DetailMessage))
                 {
                     if (btnMoreInfo.Parent != null)
@@ -117,7 +122,7 @@ namespace pwiz.Skyline.Alerts
         {
             using (this)
             {
-                return ShowWithTimeout(parent, Message);
+                return ShowWithTimeout(parent, GetTitleAndMessageDetail());
             }
         }
 
@@ -136,7 +141,18 @@ namespace pwiz.Skyline.Alerts
 
         public void CopyMessage()
         {
-            const string separator = "---------------------------"; // Not L10N
+            Clipboard.Clear();
+            Clipboard.SetText(GetTitleAndMessageDetail());
+        }
+
+        public override string DetailedMessage
+        {
+            get { return GetTitleAndMessageDetail();  }
+        }
+
+        private string GetTitleAndMessageDetail()
+        {
+            const string separator = "---------------------------";
             List<string> lines = new List<String>();
             lines.Add(separator);
             lines.Add(Text);
@@ -151,7 +167,7 @@ namespace pwiz.Skyline.Alerts
             }
             lines.Add(separator);
             lines.Add(string.Empty);
-            ClipboardEx.SetText(TextUtil.LineSeparate(lines));
+            return TextUtil.LineSeparate(lines);
         }
 
         private void btnMoreInfo_Click(object sender, EventArgs e)
@@ -309,6 +325,38 @@ namespace pwiz.Skyline.Alerts
             int newMaxWidth = messageScrollPanel.Width - _labelPadding;
             newMaxWidth = Math.Max(newMaxWidth, 100);
             labelMessage.MaximumSize = new Size(newMaxWidth, 0);
+        }
+
+        private const int MAX_MESSAGE_LENGTH = 50000;
+        /// <summary>
+        /// Labels have difficulty displaying text longer than 50,000 characters, and SetWindowText
+        /// replaces strings longer than 520,000 characters with the empty string.
+        /// If the message is too long, and append a line saying it was truncated.
+        /// </summary>
+        private string TruncateMessage(string message)
+        {
+            if (message == null)
+            {
+                return string.Empty;
+            }
+            if (message.Length < MAX_MESSAGE_LENGTH)
+            {
+                return message;
+            }
+            return TextUtil.LineSeparate(message.Substring(0, MAX_MESSAGE_LENGTH),
+                Resources.AlertDlg_TruncateMessage_Message_truncated__Press_Ctrl_C_to_copy_entire_message_to_the_clipboard_);
+        }
+
+        private void toolStripButtonCopy_Click(object sender, EventArgs e)
+        {
+            CopyMessage();
+        }
+
+        private class NoBorderSystemRenderer : ToolStripSystemRenderer
+        {
+            protected override void OnRenderToolStripBorder(ToolStripRenderEventArgs e)
+            {
+            }
         }
     }
 }

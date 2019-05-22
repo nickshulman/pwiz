@@ -56,8 +56,6 @@
             this.textName = new System.Windows.Forms.TextBox();
             this.label4 = new System.Windows.Forms.Label();
             this.rbPrespecified = new System.Windows.Forms.RadioButton();
-            this.textRightPrecursorFilterMz = new System.Windows.Forms.TextBox();
-            this.cbAsymIsolation = new System.Windows.Forms.CheckBox();
             this.labelTh = new System.Windows.Forms.Label();
             this.textPrecursorFilterMz = new System.Windows.Forms.TextBox();
             this.labelIsolationWidth = new System.Windows.Forms.Label();
@@ -69,6 +67,8 @@
             this.colStartMargin = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.colEndMargin = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.colCERange = new System.Windows.Forms.DataGridViewTextBoxColumn();
+            this.comboIsolationWidth = new System.Windows.Forms.ComboBox();
+            this.btnImport = new System.Windows.Forms.Button();
             ((System.ComponentModel.ISupportInitialize)(this.editIsolationWindowBindingSource)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.gridIsolationWindows)).BeginInit();
             this.SuspendLayout();
@@ -175,18 +175,6 @@
             resources.ApplyResources(this.rbPrespecified, "rbPrespecified");
             this.rbPrespecified.Name = "rbPrespecified";
             this.rbPrespecified.UseVisualStyleBackColor = true;
-            // 
-            // textRightPrecursorFilterMz
-            // 
-            resources.ApplyResources(this.textRightPrecursorFilterMz, "textRightPrecursorFilterMz");
-            this.textRightPrecursorFilterMz.Name = "textRightPrecursorFilterMz";
-            // 
-            // cbAsymIsolation
-            // 
-            resources.ApplyResources(this.cbAsymIsolation, "cbAsymIsolation");
-            this.cbAsymIsolation.Name = "cbAsymIsolation";
-            this.cbAsymIsolation.UseVisualStyleBackColor = true;
-            this.cbAsymIsolation.CheckedChanged += new System.EventHandler(this.cbAsymIsolation_CheckedChanged);
             // 
             // labelTh
             // 
@@ -312,12 +300,29 @@
             resources.ApplyResources(this.colCERange, "colCERange");
             this.colCERange.Name = "colCERange";
             // 
+            // comboIsolationWidth
+            // 
+            this.comboIsolationWidth.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.comboIsolationWidth.FormattingEnabled = true;
+            resources.ApplyResources(this.comboIsolationWidth, "comboIsolationWidth");
+            this.comboIsolationWidth.Name = "comboIsolationWidth";
+            this.comboIsolationWidth.SelectedIndexChanged += new System.EventHandler(this.comboIsolationWidth_SelectedIndexChanged);
+            // 
+            // btnImport
+            // 
+            resources.ApplyResources(this.btnImport, "btnImport");
+            this.btnImport.Name = "btnImport";
+            this.btnImport.UseVisualStyleBackColor = true;
+            this.btnImport.Click += new System.EventHandler(this.btnImport_Click);
+            // 
             // EditIsolationSchemeDlg
             // 
             this.AcceptButton = this.btnOk;
             resources.ApplyResources(this, "$this");
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.CancelButton = this.btnCancel;
+            this.Controls.Add(this.btnImport);
+            this.Controls.Add(this.comboIsolationWidth);
             this.Controls.Add(this.cbSpecifyMargin);
             this.Controls.Add(this.comboIsolation);
             this.Controls.Add(this.labelDeconvPre);
@@ -333,8 +338,6 @@
             this.Controls.Add(this.textName);
             this.Controls.Add(this.label4);
             this.Controls.Add(this.rbPrespecified);
-            this.Controls.Add(this.textRightPrecursorFilterMz);
-            this.Controls.Add(this.cbAsymIsolation);
             this.Controls.Add(this.labelTh);
             this.Controls.Add(this.textPrecursorFilterMz);
             this.Controls.Add(this.labelIsolationWidth);
@@ -358,8 +361,6 @@
         private System.Windows.Forms.Button btnCancel;
         private System.Windows.Forms.Button btnOk;
         private System.Windows.Forms.RadioButton rbUseResultsData;
-        private System.Windows.Forms.TextBox textRightPrecursorFilterMz;
-        private System.Windows.Forms.CheckBox cbAsymIsolation;
         private System.Windows.Forms.Label labelTh;
         private System.Windows.Forms.TextBox textPrecursorFilterMz;
         private System.Windows.Forms.Label labelIsolationWidth;
@@ -385,5 +386,7 @@
         private System.Windows.Forms.DataGridViewTextBoxColumn colStartMargin;
         private System.Windows.Forms.DataGridViewTextBoxColumn colEndMargin;
         private System.Windows.Forms.DataGridViewTextBoxColumn colCERange;
+        private System.Windows.Forms.ComboBox comboIsolationWidth;
+        private System.Windows.Forms.Button btnImport;
     }
 }

@@ -45,7 +45,7 @@ namespace pwiz.Skyline.Controls
             InitializeComponent();
             // Execute the undo/redo actions when the mouse is released
             listBox.MouseUp += listBox_MouseUp;
-            
+
             // Update the selected items whenever the mouse moves or is clicked
             listBox.MouseMove += listBox_MouseMove;
             listBox.MouseDown += listBox_MouseMove;
@@ -73,12 +73,20 @@ namespace pwiz.Skyline.Controls
             _undoManager = undoManager;
             listBox.Items.Clear();
             IEnumerable<String> descriptions = undo ? undoManager.UndoDescriptions : undoManager.RedoDescriptions;
-            foreach (String description in descriptions)
+
+            var width = Width;
+            using (var g = listBox.CreateGraphics())
             {
-                listBox.Items.Add(description);
+                foreach (String description in descriptions)
+                {
+                    listBox.Items.Add(description);
+                    width = Math.Max(TextRenderer.MeasureText(g, description, listBox.Font).Width, width);
+                }
             }
+
             UpdateSelectedIndex(0);
 
+            Width = width;
             Height = listBox.ItemHeight * Math.Min(MAX_DISPLAY_ITEMS, listBox.Items.Count) + label.Height + TOTAL_BORDER_WIDTH;
             Show(dropDownButton.Owner);
             listBox.Focus();
@@ -204,12 +212,9 @@ namespace pwiz.Skyline.Controls
                 base.WndProc(ref m);
                 if (m.Msg == WM_VSCROLL)
                 {
-                    if (Scroll != null)
-                    {
-                        ScrollEventArgs scrollEventArgs = 
-                            new ScrollEventArgs{ScrollPosition = GetScrollPos(m.HWnd, SB_VERT)};
+                    var scrollEventArgs = new ScrollEventArgs{ScrollPosition = GetScrollPos(m.HWnd, SB_VERT)};
+                    if (Scroll != null) // For ReSharper
                         Scroll.Invoke(this, scrollEventArgs);
-                    }
                 }
             }
             public event EventHandler<ScrollEventArgs> Scroll;

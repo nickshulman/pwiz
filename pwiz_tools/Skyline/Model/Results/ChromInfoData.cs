@@ -66,13 +66,13 @@ namespace pwiz.Skyline.Model.Results
                 return list;
             }
            Assume.IsTrue(transitionResults.Count == measuredResults.Chromatograms.Count,
-                string.Format("Unexpected mismatch between transition results {0} and chromatogram sets {1}", transitionResults.Count, measuredResults.Chromatograms.Count)); // Not L10N?
+                string.Format(@"Unexpected mismatch between transition results {0} and chromatogram sets {1}", transitionResults.Count, measuredResults.Chromatograms.Count)); // CONSIDER: localize?
             for (int replicateIndex = 0; replicateIndex < transitionResults.Count; replicateIndex++)
             {
                 var datas = new List<TransitionChromInfoData>();
                 var chromatograms = measuredResults.Chromatograms[replicateIndex];
                 var transitionChromInfos = transitionResults[replicateIndex];
-                if (transitionChromInfos == null)
+                if (transitionChromInfos.IsEmpty)
                     datas.Add(new TransitionChromInfoData(measuredResults, replicateIndex, null, null));
                 else
                 {
@@ -115,13 +115,13 @@ namespace pwiz.Skyline.Model.Results
                 return list;
             }
             Assume.IsTrue(transitionGroupResults.Count == measuredResults.Chromatograms.Count,
-                string.Format("Unexpected mismatch between precursor results {0} and chromatogram sets {1}", transitionGroupResults.Count, measuredResults.Chromatograms.Count)); // Not L10N? Will users see this?
+                string.Format(@"Unexpected mismatch between precursor results {0} and chromatogram sets {1}", transitionGroupResults.Count, measuredResults.Chromatograms.Count)); // CONSIDER: localize? Will users see this?
             for (int replicateIndex = 0; replicateIndex < transitionGroupResults.Count; replicateIndex++)
             {
                 var datas = new List<TransitionGroupChromInfoData>();
                 var chromatograms = measuredResults.Chromatograms[replicateIndex];
                 var transitionGroupChromInfos = transitionGroupResults[replicateIndex];
-                if (transitionGroupChromInfos == null)
+                if (transitionGroupChromInfos.IsEmpty)
                     datas.Add(new TransitionGroupChromInfoData(measuredResults, replicateIndex, null, null));
                 else
                 {

@@ -1,5 +1,6 @@
 
 using System;
+using pwiz.Skyline.Model;
 using pwiz.Skyline.Properties;
 
 namespace pwiz.Skyline
@@ -48,6 +49,7 @@ namespace pwiz.Skyline
             this.setStandardTypeContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.noStandardContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.normStandardContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.surrogateStandardContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.qcStandardContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.irtStandardContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.modifyPeptideContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
@@ -66,6 +68,7 @@ namespace pwiz.Skyline
             this.xionsContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.yionsContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.zionsContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.fragmentionsContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.precursorIonContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.toolStripSeparator11 = new System.Windows.Forms.ToolStripSeparator();
             this.chargesContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
@@ -93,12 +96,15 @@ namespace pwiz.Skyline
             this.toolStripSeparator33 = new System.Windows.Forms.ToolStripSeparator();
             this.legendChromContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.peakBoundariesContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.originalPeakMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.massErrorContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.retentionTimesContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.allRTContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.bestRTContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.thresholdRTContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.noneRTContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.rawTimesMenuItemSplitter = new System.Windows.Forms.ToolStripSeparator();
+            this.rawTimesContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.retentionTimePredContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.peptideIDTimesContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.idTimesNoneContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
@@ -115,10 +121,13 @@ namespace pwiz.Skyline
             this.toolStripSeparatorTran = new System.Windows.Forms.ToolStripSeparator();
             this.basePeakContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.ticContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.toolStripSeparatorOnlyQuantitative = new System.Windows.Forms.ToolStripSeparator();
+            this.onlyQuantitativeContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.toolStripSeparatorSplitGraph = new System.Windows.Forms.ToolStripSeparator();
             this.splitGraphContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.transformChromContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.transformChromNoneContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.transformChromInterpolatedContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.secondDerivativeContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.firstDerivativeContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.smoothSGChromContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
@@ -139,11 +148,18 @@ namespace pwiz.Skyline
             this.timeGraphContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.replicateComparisonContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.timePeptideComparisonContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-            this.linearRegressionContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.regressionContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.scoreToRunToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.runToRunToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.schedulingContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.timePlotContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.timeCorrelationContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.timeResidualsContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.timePointsContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.timeTargetsContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.targetsAt1FDRToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.timeStandardsContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.timeDecoysContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.rtValueMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.allRTValueContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.timeRTValueContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
@@ -151,6 +167,7 @@ namespace pwiz.Skyline
             this.fwbRTValueContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.showRTLegendContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.selectionContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.synchronizeSummaryZoomingContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.refineRTContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.predictionRTContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.replicatesRTContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
@@ -158,6 +175,10 @@ namespace pwiz.Skyline
             this.singleReplicateRTContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.bestReplicateRTContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.setRTThresholdContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.setRegressionMethodContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.linearRegressionContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.kernelDensityEstimationContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.loessContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.toolStripSeparator22 = new System.Windows.Forms.ToolStripSeparator();
             this.createRTRegressionContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.chooseCalculatorContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
@@ -177,10 +198,16 @@ namespace pwiz.Skyline
             this.areaGraphContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.areaReplicateComparisonContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.areaPeptideComparisonContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.areaCVHistogramContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.areaCVHistogram2DContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.graphTypeToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.barAreaGraphDisplayTypeMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.lineAreaGraphDisplayTypeMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.peptideOrderContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.peptideOrderDocumentContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.peptideOrderRTContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.peptideOrderAreaContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.peptideOrderMassErrorContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.replicateOrderContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.replicateOrderDocumentContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.replicateOrderAcqTimeContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
@@ -202,6 +229,28 @@ namespace pwiz.Skyline
             this.areaPropsContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.groupReplicatesByContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.groupByReplicateContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.areaCVbinWidthToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.areaCV05binWidthToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.areaCV10binWidthToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.areaCV15binWidthToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.areaCV20binWidthToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.pointsToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.areaCVtargetsToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.areaCVdecoysToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.areaCVTransitionsToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.areaCVAllTransitionsToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.areaCVBestTransitionsToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.toolStripSeparator58 = new System.Windows.Forms.ToolStripSeparator();
+            this.areaCVPrecursorsToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.areaCVProductsToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.areaCVNormalizedToToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.areaCVGlobalStandardsToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.areaCVMediansToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.toolStripSeparator54 = new System.Windows.Forms.ToolStripSeparator();
+            this.areaCVNoneToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.areaCVLogScaleToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.removeAboveCVCutoffToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.toolStripSeparator57 = new System.Windows.Forms.ToolStripSeparator();
             this.panel1 = new System.Windows.Forms.Panel();
             this.dockPanel = new DigitalRune.Windows.Docking.DockPanel();
             this.statusStrip = new System.Windows.Forms.StatusStrip();
@@ -224,6 +273,8 @@ namespace pwiz.Skyline
             this.toolStripSeparator21 = new System.Windows.Forms.ToolStripSeparator();
             this.undoToolBarButton = new System.Windows.Forms.ToolStripSplitButton();
             this.redoToolBarButton = new System.Windows.Forms.ToolStripSplitButton();
+            this.toolStripSeparatorSelectUI = new System.Windows.Forms.ToolStripSeparator();
+            this.modeUIToolBarDropDownButton = new System.Windows.Forms.ToolStripDropDownButton();
             this.menuMain = new System.Windows.Forms.MenuStrip();
             this.fileToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.startPageMenuItem = new System.Windows.Forms.ToolStripMenuItem();
@@ -243,8 +294,10 @@ namespace pwiz.Skyline
             this.importPeptideSearchMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.toolStripSeparator52 = new System.Windows.Forms.ToolStripSeparator();
             this.importFASTAMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.importAssayLibraryMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.importMassListMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.importDocumentMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.importAnnotationsMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.exportToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.exportTransitionListMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.exportIsolationListMenuItem = new System.Windows.Forms.ToolStripMenuItem();
@@ -253,9 +306,11 @@ namespace pwiz.Skyline
             this.exportReportMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.toolStripSeparator50 = new System.Windows.Forms.ToolStripSeparator();
             this.eSPFeaturesMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-            this.mProphetFeaturesMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.exportSpectralLibraryMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.chromatogramsToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.mProphetFeaturesMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.chorusRequestToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.exportAnnotationsMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.mruBeforeToolStripSeparator = new System.Windows.Forms.ToolStripSeparator();
             this.mruAfterToolStripSeparator = new System.Windows.Forms.ToolStripSeparator();
             this.exitMenuItem = new System.Windows.Forms.ToolStripMenuItem();
@@ -274,32 +329,15 @@ namespace pwiz.Skyline
             this.toolStripSeparator8 = new System.Windows.Forms.ToolStripSeparator();
             this.editNoteToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.toolStripSeparator42 = new System.Windows.Forms.ToolStripSeparator();
+            this.integrationToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.applyPeakAllToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.applyPeakSubsequentToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.removePeakToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.insertToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.insertFASTAMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.insertProteinsMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.insertPeptidesMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.insertTransitionListMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-            this.refineToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-            this.removeEmptyProteinsMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-            this.removeEmptyPeptidesMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-            this.removeDuplicatePeptidesMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-            this.removeRepeatedPeptidesMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-            this.removeMissingResultsMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-            this.toolStripSeparator45 = new System.Windows.Forms.ToolStripSeparator();
-            this.acceptProteinsMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-            this.renameProteinsMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-            this.sortProteinsMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-            this.sortProteinsByNameToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-            this.sortProteinsByAccessionToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-            this.sortProteinsByPreferredNameToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-            this.sortProteinsByGeneToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-            this.toolStripSeparator43 = new System.Windows.Forms.ToolStripSeparator();
-            this.acceptPeptidesMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-            this.generateDecoysMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-            this.reintegrateToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-            this.compareModelsToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-            this.toolStripSeparator35 = new System.Windows.Forms.ToolStripSeparator();
-            this.refineAdvancedMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.toolStripSeparator6 = new System.Windows.Forms.ToolStripSeparator();
             this.expandAllToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.expandProteinsMenuItem = new System.Windows.Forms.ToolStripMenuItem();
@@ -313,12 +351,36 @@ namespace pwiz.Skyline
             this.setStandardTypeMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.noStandardMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.normStandardMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.surrogateStandardMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.qcStandardMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.irtStandardMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.modifyPeptideMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.manageUniquePeptidesMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.toolStripSeparator30 = new System.Windows.Forms.ToolStripSeparator();
             this.manageResultsMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.refineToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.reintegrateToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.generateDecoysMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.compareModelsToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.toolStripSeparator59 = new System.Windows.Forms.ToolStripSeparator();
+            this.removeMissingResultsMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.toolStripSeparator45 = new System.Windows.Forms.ToolStripSeparator();
+            this.acceptProteinsMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.removeEmptyProteinsMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.associateFASTAMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.renameProteinsMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.sortProteinsMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.sortProteinsByNameToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.sortProteinsByAccessionToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.sortProteinsByPreferredNameToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.sortProteinsByGeneToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.toolStripSeparator43 = new System.Windows.Forms.ToolStripSeparator();
+            this.acceptPeptidesMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.removeEmptyPeptidesMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.removeDuplicatePeptidesMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.removeRepeatedPeptidesMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.toolStripSeparator35 = new System.Windows.Forms.ToolStripSeparator();
+            this.refineAdvancedMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.viewToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.peptidesMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.showTargetsByNameToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
@@ -347,6 +409,7 @@ namespace pwiz.Skyline
             this.xMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.yMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.zMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.fragmentsMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.precursorIonMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.chargesMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.charge1MenuItem = new System.Windows.Forms.ToolStripMenuItem();
@@ -371,10 +434,13 @@ namespace pwiz.Skyline
             this.toolStripSeparatorTranMain = new System.Windows.Forms.ToolStripSeparator();
             this.basePeakMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.ticMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.toolStripSeparator56 = new System.Windows.Forms.ToolStripSeparator();
+            this.onlyQuantitativeMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.toolStripSeparator48 = new System.Windows.Forms.ToolStripSeparator();
             this.splitGraphMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.transformChromMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.transformChromNoneMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.transformChromInterploatedMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.secondDerivativeMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.firstDerivativeMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.smoothSGChromMenuItem = new System.Windows.Forms.ToolStripMenuItem();
@@ -387,18 +453,31 @@ namespace pwiz.Skyline
             this.retentionTimesMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.replicateComparisonMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.timePeptideComparisonMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-            this.linearRegressionMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-            this.schedulingMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.regressionMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.scoreToRunMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.runToRunMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.retentionTimeAlignmentsToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.schedulingMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.peakAreasMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.areaReplicateComparisonMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.areaPeptideComparisonMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.areaCVHistogramMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.areaCVHistogram2DMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.massErrorsMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.massErrorReplicateComparisonMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.massErrorPeptideComparisonMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.massErrorHistogramMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.massErrorHistogram2DMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.calibrationCurveMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.documentGridMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.otherGridsMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.resultsGridMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.groupComparisonsMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.addGroupComparisonMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.editGroupComparisonListMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-            this.resultsGridMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-            this.documentGridMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.listsMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.defineNewListMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.auditLogMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.toolStripSeparator36 = new System.Windows.Forms.ToolStripSeparator();
             this.toolBarToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.statusToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
@@ -428,11 +507,46 @@ namespace pwiz.Skyline
             this.helpToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.homeMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.videosMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.webinarsMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.tutorialsMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.supportMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.issuesMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.checkForUpdatesSeparator = new System.Windows.Forms.ToolStripSeparator();
+            this.checkForUpdatesMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.toolStripSeparator29 = new System.Windows.Forms.ToolStripSeparator();
             this.aboutMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.contextMenuMassErrors = new System.Windows.Forms.ContextMenuStrip(this.components);
+            this.massErrorGraphContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.massErrorReplicateComparisonContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.massErrorPeptideComparisonContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.massErrorHistogramContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.massErrorHistogram2DContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.massErrorPropsContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.showMassErrorLegendContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.massErrorPointsContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.massErrorTargetsContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.massErrorTargets1FDRContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.massErrorDecoysContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.binCountContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.ppm05ContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.ppm10ContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.ppm15ContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.ppm20ContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.massErrorTransitionsContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.massErrorAllTransitionsContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.massErrorBestTransitionsContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.toolStripSeparator55 = new System.Windows.Forms.ToolStripSeparator();
+            this.MassErrorPrecursorsContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.MassErrorProductsContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.massErrorXAxisContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.massErorrRetentionTimeContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.massErrorMassToChargContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.massErrorlogScaleContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            ((System.ComponentModel.ISupportInitialize)(this.modeUIHandler)).BeginInit();
+            this.documentationToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.reportsHelpMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.commandLineHelpMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.otherDocsHelpMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.contextMenuTreeNode.SuspendLayout();
             this.contextMenuSpectrum.SuspendLayout();
             this.contextMenuChromatogram.SuspendLayout();
@@ -442,6 +556,7 @@ namespace pwiz.Skyline
             this.statusStrip.SuspendLayout();
             this.mainToolStrip.SuspendLayout();
             this.menuMain.SuspendLayout();
+            this.contextMenuMassErrors.SuspendLayout();
             this.SuspendLayout();
             // 
             // contextMenuTreeNode
@@ -529,13 +644,14 @@ namespace pwiz.Skyline
             // 
             this.removePeakContextMenuItem.Name = "removePeakContextMenuItem";
             resources.ApplyResources(this.removePeakContextMenuItem, "removePeakContextMenuItem");
-            this.removePeakContextMenuItem.Click += new System.EventHandler(this.removePeakContextMenuItem_Click);
+            this.removePeakContextMenuItem.Click += new System.EventHandler(this.removePeakMenuItem_Click);
             // 
             // setStandardTypeContextMenuItem
             // 
             this.setStandardTypeContextMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.noStandardContextMenuItem,
             this.normStandardContextMenuItem,
+            this.surrogateStandardContextMenuItem,
             this.qcStandardContextMenuItem,
             this.irtStandardContextMenuItem});
             this.setStandardTypeContextMenuItem.Name = "setStandardTypeContextMenuItem";
@@ -553,6 +669,12 @@ namespace pwiz.Skyline
             this.normStandardContextMenuItem.Name = "normStandardContextMenuItem";
             resources.ApplyResources(this.normStandardContextMenuItem, "normStandardContextMenuItem");
             this.normStandardContextMenuItem.Click += new System.EventHandler(this.normStandardMenuItem_Click);
+            // 
+            // surrogateStandardContextMenuItem
+            // 
+            this.surrogateStandardContextMenuItem.Name = "surrogateStandardContextMenuItem";
+            resources.ApplyResources(this.surrogateStandardContextMenuItem, "surrogateStandardContextMenuItem");
+            this.surrogateStandardContextMenuItem.Click += new System.EventHandler(this.surrogateStandardMenuItem_Click);
             // 
             // qcStandardContextMenuItem
             // 
@@ -632,6 +754,7 @@ namespace pwiz.Skyline
             this.xionsContextMenuItem,
             this.yionsContextMenuItem,
             this.zionsContextMenuItem,
+            this.fragmentionsContextMenuItem,
             this.precursorIonContextMenuItem,
             this.toolStripSeparator11,
             this.chargesContextMenuItem,
@@ -692,6 +815,13 @@ namespace pwiz.Skyline
             this.zionsContextMenuItem.Name = "zionsContextMenuItem";
             resources.ApplyResources(this.zionsContextMenuItem, "zionsContextMenuItem");
             this.zionsContextMenuItem.Click += new System.EventHandler(this.zMenuItem_Click);
+            // 
+            // fragmentionsContextMenuItem
+            // 
+            this.fragmentionsContextMenuItem.CheckOnClick = true;
+            this.fragmentionsContextMenuItem.Name = "fragmentionsContextMenuItem";
+            resources.ApplyResources(this.fragmentionsContextMenuItem, "fragmentionsContextMenuItem");
+            this.fragmentionsContextMenuItem.Click += new System.EventHandler(this.fragmentsMenuItem_Click);
             // 
             // precursorIonContextMenuItem
             // 
@@ -826,6 +956,7 @@ namespace pwiz.Skyline
             this.toolStripSeparator33,
             this.legendChromContextMenuItem,
             this.peakBoundariesContextMenuItem,
+            this.originalPeakMenuItem,
             this.massErrorContextMenuItem,
             this.retentionTimesContextMenuItem,
             this.retentionTimePredContextMenuItem,
@@ -849,20 +980,20 @@ namespace pwiz.Skyline
             // 
             this.applyPeakAllGraphMenuItem.Name = "applyPeakAllGraphMenuItem";
             resources.ApplyResources(this.applyPeakAllGraphMenuItem, "applyPeakAllGraphMenuItem");
-            this.applyPeakAllGraphMenuItem.Click += new System.EventHandler(this.applyPeakAllContextMenuItem_Click);
+            this.applyPeakAllGraphMenuItem.Click += new System.EventHandler(this.applyPeakAllMenuItem_Click);
             // 
             // applyPeakSubsequentGraphMenuItem
             // 
             this.applyPeakSubsequentGraphMenuItem.Name = "applyPeakSubsequentGraphMenuItem";
             resources.ApplyResources(this.applyPeakSubsequentGraphMenuItem, "applyPeakSubsequentGraphMenuItem");
-            this.applyPeakSubsequentGraphMenuItem.Click += new System.EventHandler(this.applyPeakSubsequentContextMenuItem_Click);
+            this.applyPeakSubsequentGraphMenuItem.Click += new System.EventHandler(this.applyPeakSubsequentMenuItem_Click);
             // 
             // removePeakGraphMenuItem
             // 
             this.removePeakGraphMenuItem.Name = "removePeakGraphMenuItem";
             resources.ApplyResources(this.removePeakGraphMenuItem, "removePeakGraphMenuItem");
-            this.removePeakGraphMenuItem.DropDownOpening += new System.EventHandler(this.removePeakGraphMenuItem_DropDownOpening);
-            this.removePeakGraphMenuItem.Click += new System.EventHandler(this.removePeakContextMenuItem_Click);
+            this.removePeakGraphMenuItem.DropDownOpening += new System.EventHandler(this.removePeakMenuItem_DropDownOpening);
+            this.removePeakGraphMenuItem.Click += new System.EventHandler(this.removePeakMenuItem_Click);
             // 
             // toolStripSeparator33
             // 
@@ -883,6 +1014,13 @@ namespace pwiz.Skyline
             resources.ApplyResources(this.peakBoundariesContextMenuItem, "peakBoundariesContextMenuItem");
             this.peakBoundariesContextMenuItem.Click += new System.EventHandler(this.peakBoundariesContextMenuItem_Click);
             // 
+            // originalPeakMenuItem
+            // 
+            this.originalPeakMenuItem.CheckOnClick = true;
+            this.originalPeakMenuItem.Name = "originalPeakMenuItem";
+            resources.ApplyResources(this.originalPeakMenuItem, "originalPeakMenuItem");
+            this.originalPeakMenuItem.Click += new System.EventHandler(this.originalPeakContextMenuItem_Click);
+            // 
             // massErrorContextMenuItem
             // 
             this.massErrorContextMenuItem.CheckOnClick = true;
@@ -897,7 +1035,9 @@ namespace pwiz.Skyline
             this.allRTContextMenuItem,
             this.bestRTContextMenuItem,
             this.thresholdRTContextMenuItem,
-            this.noneRTContextMenuItem});
+            this.noneRTContextMenuItem,
+            this.rawTimesMenuItemSplitter,
+            this.rawTimesContextMenuItem});
             this.retentionTimesContextMenuItem.Name = "retentionTimesContextMenuItem";
             resources.ApplyResources(this.retentionTimesContextMenuItem, "retentionTimesContextMenuItem");
             this.retentionTimesContextMenuItem.DropDownOpening += new System.EventHandler(this.retentionTimesContextMenuItem_DropDownOpening);
@@ -925,6 +1065,17 @@ namespace pwiz.Skyline
             this.noneRTContextMenuItem.Name = "noneRTContextMenuItem";
             resources.ApplyResources(this.noneRTContextMenuItem, "noneRTContextMenuItem");
             this.noneRTContextMenuItem.Click += new System.EventHandler(this.noneRTContextMenuItem_Click);
+            // 
+            // rawTimesMenuItemSplitter
+            // 
+            this.rawTimesMenuItemSplitter.Name = "rawTimesMenuItemSplitter";
+            resources.ApplyResources(this.rawTimesMenuItemSplitter, "rawTimesMenuItemSplitter");
+            // 
+            // rawTimesContextMenuItem
+            // 
+            this.rawTimesContextMenuItem.Name = "rawTimesContextMenuItem";
+            resources.ApplyResources(this.rawTimesContextMenuItem, "rawTimesContextMenuItem");
+            this.rawTimesContextMenuItem.Click += new System.EventHandler(this.rawTimesContextMenuItem_Click);
             // 
             // retentionTimePredContextMenuItem
             // 
@@ -986,6 +1137,8 @@ namespace pwiz.Skyline
             this.toolStripSeparatorTran,
             this.basePeakContextMenuItem,
             this.ticContextMenuItem,
+            this.toolStripSeparatorOnlyQuantitative,
+            this.onlyQuantitativeContextMenuItem,
             this.toolStripSeparatorSplitGraph,
             this.splitGraphContextMenuItem});
             this.transitionsContextMenuItem.Name = "transitionsContextMenuItem";
@@ -1039,6 +1192,17 @@ namespace pwiz.Skyline
             resources.ApplyResources(this.ticContextMenuItem, "ticContextMenuItem");
             this.ticContextMenuItem.Click += new System.EventHandler(this.ticMenuItem_Click);
             // 
+            // toolStripSeparatorOnlyQuantitative
+            // 
+            this.toolStripSeparatorOnlyQuantitative.Name = "toolStripSeparatorOnlyQuantitative";
+            resources.ApplyResources(this.toolStripSeparatorOnlyQuantitative, "toolStripSeparatorOnlyQuantitative");
+            // 
+            // onlyQuantitativeContextMenuItem
+            // 
+            this.onlyQuantitativeContextMenuItem.Name = "onlyQuantitativeContextMenuItem";
+            resources.ApplyResources(this.onlyQuantitativeContextMenuItem, "onlyQuantitativeContextMenuItem");
+            this.onlyQuantitativeContextMenuItem.Click += new System.EventHandler(this.onlyQuantitativeMenuItem_Click);
+            // 
             // toolStripSeparatorSplitGraph
             // 
             this.toolStripSeparatorSplitGraph.Name = "toolStripSeparatorSplitGraph";
@@ -1054,6 +1218,7 @@ namespace pwiz.Skyline
             // 
             this.transformChromContextMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.transformChromNoneContextMenuItem,
+            this.transformChromInterpolatedContextMenuItem,
             this.secondDerivativeContextMenuItem,
             this.firstDerivativeContextMenuItem,
             this.smoothSGChromContextMenuItem});
@@ -1066,6 +1231,12 @@ namespace pwiz.Skyline
             this.transformChromNoneContextMenuItem.Name = "transformChromNoneContextMenuItem";
             resources.ApplyResources(this.transformChromNoneContextMenuItem, "transformChromNoneContextMenuItem");
             this.transformChromNoneContextMenuItem.Click += new System.EventHandler(this.transformChromNoneMenuItem_Click);
+            // 
+            // transformChromInterpolatedContextMenuItem
+            // 
+            this.transformChromInterpolatedContextMenuItem.Name = "transformChromInterpolatedContextMenuItem";
+            resources.ApplyResources(this.transformChromInterpolatedContextMenuItem, "transformChromInterpolatedContextMenuItem");
+            this.transformChromInterpolatedContextMenuItem.Click += new System.EventHandler(this.transformInterpolatedMenuItem_Click);
             // 
             // secondDerivativeContextMenuItem
             // 
@@ -1171,13 +1342,16 @@ namespace pwiz.Skyline
             this.contextMenuRetentionTimes.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.timeGraphContextMenuItem,
             this.timePlotContextMenuItem,
+            this.timePointsContextMenuItem,
             this.rtValueMenuItem,
             this.showRTLegendContextMenuItem,
             this.selectionContextMenuItem,
+            this.synchronizeSummaryZoomingContextMenuItem,
             this.refineRTContextMenuItem,
             this.predictionRTContextMenuItem,
             this.replicatesRTContextMenuItem,
             this.setRTThresholdContextMenuItem,
+            this.setRegressionMethodContextMenuItem,
             this.toolStripSeparator22,
             this.createRTRegressionContextMenuItem,
             this.chooseCalculatorContextMenuItem,
@@ -1197,7 +1371,7 @@ namespace pwiz.Skyline
             this.timeGraphContextMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.replicateComparisonContextMenuItem,
             this.timePeptideComparisonContextMenuItem,
-            this.linearRegressionContextMenuItem,
+            this.regressionContextMenuItem,
             this.schedulingContextMenuItem});
             this.timeGraphContextMenuItem.Name = "timeGraphContextMenuItem";
             resources.ApplyResources(this.timeGraphContextMenuItem, "timeGraphContextMenuItem");
@@ -1216,12 +1390,25 @@ namespace pwiz.Skyline
             resources.ApplyResources(this.timePeptideComparisonContextMenuItem, "timePeptideComparisonContextMenuItem");
             this.timePeptideComparisonContextMenuItem.Click += new System.EventHandler(this.timePeptideComparisonMenuItem_Click);
             // 
-            // linearRegressionContextMenuItem
+            // regressionContextMenuItem
             // 
-            this.linearRegressionContextMenuItem.CheckOnClick = true;
-            this.linearRegressionContextMenuItem.Name = "linearRegressionContextMenuItem";
-            resources.ApplyResources(this.linearRegressionContextMenuItem, "linearRegressionContextMenuItem");
-            this.linearRegressionContextMenuItem.Click += new System.EventHandler(this.linearRegressionMenuItem_Click);
+            this.regressionContextMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.scoreToRunToolStripMenuItem,
+            this.runToRunToolStripMenuItem});
+            this.regressionContextMenuItem.Name = "regressionContextMenuItem";
+            resources.ApplyResources(this.regressionContextMenuItem, "regressionContextMenuItem");
+            // 
+            // scoreToRunToolStripMenuItem
+            // 
+            this.scoreToRunToolStripMenuItem.Name = "scoreToRunToolStripMenuItem";
+            resources.ApplyResources(this.scoreToRunToolStripMenuItem, "scoreToRunToolStripMenuItem");
+            this.scoreToRunToolStripMenuItem.Click += new System.EventHandler(this.regressionMenuItem_Click);
+            // 
+            // runToRunToolStripMenuItem
+            // 
+            this.runToRunToolStripMenuItem.Name = "runToRunToolStripMenuItem";
+            resources.ApplyResources(this.runToRunToolStripMenuItem, "runToRunToolStripMenuItem");
+            this.runToRunToolStripMenuItem.Click += new System.EventHandler(this.fullReplicateComparisonToolStripMenuItem_Click);
             // 
             // schedulingContextMenuItem
             // 
@@ -1248,6 +1435,40 @@ namespace pwiz.Skyline
             this.timeResidualsContextMenuItem.Name = "timeResidualsContextMenuItem";
             resources.ApplyResources(this.timeResidualsContextMenuItem, "timeResidualsContextMenuItem");
             this.timeResidualsContextMenuItem.Click += new System.EventHandler(this.timeResidualsContextMenuItem_Click);
+            // 
+            // timePointsContextMenuItem
+            // 
+            this.timePointsContextMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.timeTargetsContextMenuItem,
+            this.targetsAt1FDRToolStripMenuItem,
+            this.timeStandardsContextMenuItem,
+            this.timeDecoysContextMenuItem});
+            this.timePointsContextMenuItem.Name = "timePointsContextMenuItem";
+            resources.ApplyResources(this.timePointsContextMenuItem, "timePointsContextMenuItem");
+            // 
+            // timeTargetsContextMenuItem
+            // 
+            this.timeTargetsContextMenuItem.Name = "timeTargetsContextMenuItem";
+            resources.ApplyResources(this.timeTargetsContextMenuItem, "timeTargetsContextMenuItem");
+            this.timeTargetsContextMenuItem.Click += new System.EventHandler(this.timeTargetsContextMenuItem_Click);
+            // 
+            // targetsAt1FDRToolStripMenuItem
+            // 
+            this.targetsAt1FDRToolStripMenuItem.Name = "targetsAt1FDRToolStripMenuItem";
+            resources.ApplyResources(this.targetsAt1FDRToolStripMenuItem, "targetsAt1FDRToolStripMenuItem");
+            this.targetsAt1FDRToolStripMenuItem.Click += new System.EventHandler(this.targetsAt1FDRToolStripMenuItem_Click);
+            // 
+            // timeStandardsContextMenuItem
+            // 
+            this.timeStandardsContextMenuItem.Name = "timeStandardsContextMenuItem";
+            resources.ApplyResources(this.timeStandardsContextMenuItem, "timeStandardsContextMenuItem");
+            this.timeStandardsContextMenuItem.Click += new System.EventHandler(this.timeStandardsContextMenuItem_Click);
+            // 
+            // timeDecoysContextMenuItem
+            // 
+            this.timeDecoysContextMenuItem.Name = "timeDecoysContextMenuItem";
+            resources.ApplyResources(this.timeDecoysContextMenuItem, "timeDecoysContextMenuItem");
+            this.timeDecoysContextMenuItem.Click += new System.EventHandler(this.timeDecoysContextMenuItem_Click);
             // 
             // rtValueMenuItem
             // 
@@ -1297,6 +1518,13 @@ namespace pwiz.Skyline
             resources.ApplyResources(this.selectionContextMenuItem, "selectionContextMenuItem");
             this.selectionContextMenuItem.Click += new System.EventHandler(this.selectionContextMenuItem_Click);
             // 
+            // synchronizeSummaryZoomingContextMenuItem
+            // 
+            this.synchronizeSummaryZoomingContextMenuItem.CheckOnClick = true;
+            this.synchronizeSummaryZoomingContextMenuItem.Name = "synchronizeSummaryZoomingContextMenuItem";
+            resources.ApplyResources(this.synchronizeSummaryZoomingContextMenuItem, "synchronizeSummaryZoomingContextMenuItem");
+            this.synchronizeSummaryZoomingContextMenuItem.Click += new System.EventHandler(this.synchronizeSummaryZoomingContextMenuItem_Click);
+            // 
             // refineRTContextMenuItem
             // 
             this.refineRTContextMenuItem.CheckOnClick = true;
@@ -1344,6 +1572,33 @@ namespace pwiz.Skyline
             this.setRTThresholdContextMenuItem.Name = "setRTThresholdContextMenuItem";
             resources.ApplyResources(this.setRTThresholdContextMenuItem, "setRTThresholdContextMenuItem");
             this.setRTThresholdContextMenuItem.Click += new System.EventHandler(this.setRTThresholdContextMenuItem_Click);
+            // 
+            // setRegressionMethodContextMenuItem
+            // 
+            this.setRegressionMethodContextMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.linearRegressionContextMenuItem,
+            this.kernelDensityEstimationContextMenuItem,
+            this.loessContextMenuItem});
+            this.setRegressionMethodContextMenuItem.Name = "setRegressionMethodContextMenuItem";
+            resources.ApplyResources(this.setRegressionMethodContextMenuItem, "setRegressionMethodContextMenuItem");
+            // 
+            // linearRegressionContextMenuItem
+            // 
+            this.linearRegressionContextMenuItem.Name = "linearRegressionContextMenuItem";
+            resources.ApplyResources(this.linearRegressionContextMenuItem, "linearRegressionContextMenuItem");
+            this.linearRegressionContextMenuItem.Click += new System.EventHandler(this.linearRegressionContextMenuItem_Click);
+            // 
+            // kernelDensityEstimationContextMenuItem
+            // 
+            this.kernelDensityEstimationContextMenuItem.Name = "kernelDensityEstimationContextMenuItem";
+            resources.ApplyResources(this.kernelDensityEstimationContextMenuItem, "kernelDensityEstimationContextMenuItem");
+            this.kernelDensityEstimationContextMenuItem.Click += new System.EventHandler(this.kernelDensityEstimationContextMenuItem_Click);
+            // 
+            // loessContextMenuItem
+            // 
+            this.loessContextMenuItem.Name = "loessContextMenuItem";
+            resources.ApplyResources(this.loessContextMenuItem, "loessContextMenuItem");
+            this.loessContextMenuItem.Click += new System.EventHandler(this.loessContextMenuItem_Click);
             // 
             // toolStripSeparator22
             // 
@@ -1436,6 +1691,7 @@ namespace pwiz.Skyline
             // 
             this.contextMenuPeakAreas.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.areaGraphContextMenuItem,
+            this.graphTypeToolStripMenuItem,
             this.peptideOrderContextMenuItem,
             this.replicateOrderContextMenuItem,
             this.areaNormalizeContextMenuItem,
@@ -1447,7 +1703,14 @@ namespace pwiz.Skyline
             this.peptideCvsContextMenuItem,
             this.toolStripSeparator28,
             this.areaPropsContextMenuItem,
-            this.groupReplicatesByContextMenuItem});
+            this.groupReplicatesByContextMenuItem,
+            this.areaCVbinWidthToolStripMenuItem,
+            this.pointsToolStripMenuItem,
+            this.areaCVTransitionsToolStripMenuItem,
+            this.areaCVNormalizedToToolStripMenuItem,
+            this.areaCVLogScaleToolStripMenuItem,
+            this.removeAboveCVCutoffToolStripMenuItem,
+            this.toolStripSeparator57});
             this.contextMenuPeakAreas.Name = "contextMenuStrip1";
             resources.ApplyResources(this.contextMenuPeakAreas, "contextMenuPeakAreas");
             // 
@@ -1455,7 +1718,9 @@ namespace pwiz.Skyline
             // 
             this.areaGraphContextMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.areaReplicateComparisonContextMenuItem,
-            this.areaPeptideComparisonContextMenuItem});
+            this.areaPeptideComparisonContextMenuItem,
+            this.areaCVHistogramContextMenuItem,
+            this.areaCVHistogram2DContextMenuItem});
             this.areaGraphContextMenuItem.Name = "areaGraphContextMenuItem";
             resources.ApplyResources(this.areaGraphContextMenuItem, "areaGraphContextMenuItem");
             this.areaGraphContextMenuItem.DropDownOpening += new System.EventHandler(this.areaGraphMenuItem_DropDownOpening);
@@ -1472,12 +1737,47 @@ namespace pwiz.Skyline
             resources.ApplyResources(this.areaPeptideComparisonContextMenuItem, "areaPeptideComparisonContextMenuItem");
             this.areaPeptideComparisonContextMenuItem.Click += new System.EventHandler(this.areaPeptideComparisonMenuItem_Click);
             // 
+            // areaCVHistogramContextMenuItem
+            // 
+            this.areaCVHistogramContextMenuItem.Name = "areaCVHistogramContextMenuItem";
+            resources.ApplyResources(this.areaCVHistogramContextMenuItem, "areaCVHistogramContextMenuItem");
+            this.areaCVHistogramContextMenuItem.Click += new System.EventHandler(this.areaCVHistogramToolStripMenuItem1_Click);
+            // 
+            // areaCVHistogram2DContextMenuItem
+            // 
+            this.areaCVHistogram2DContextMenuItem.Name = "areaCVHistogram2DContextMenuItem";
+            resources.ApplyResources(this.areaCVHistogram2DContextMenuItem, "areaCVHistogram2DContextMenuItem");
+            this.areaCVHistogram2DContextMenuItem.Click += new System.EventHandler(this.areaCVHistogram2DToolStripMenuItem1_Click);
+            // 
+            // graphTypeToolStripMenuItem
+            // 
+            this.graphTypeToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.barAreaGraphDisplayTypeMenuItem,
+            this.lineAreaGraphDisplayTypeMenuItem});
+            this.graphTypeToolStripMenuItem.Name = "graphTypeToolStripMenuItem";
+            resources.ApplyResources(this.graphTypeToolStripMenuItem, "graphTypeToolStripMenuItem");
+            // 
+            // barAreaGraphDisplayTypeMenuItem
+            // 
+            this.barAreaGraphDisplayTypeMenuItem.Checked = true;
+            this.barAreaGraphDisplayTypeMenuItem.CheckState = System.Windows.Forms.CheckState.Checked;
+            this.barAreaGraphDisplayTypeMenuItem.Name = "barAreaGraphDisplayTypeMenuItem";
+            resources.ApplyResources(this.barAreaGraphDisplayTypeMenuItem, "barAreaGraphDisplayTypeMenuItem");
+            this.barAreaGraphDisplayTypeMenuItem.Click += new System.EventHandler(this.barAreaGraphTypeMenuItem_Click);
+            // 
+            // lineAreaGraphDisplayTypeMenuItem
+            // 
+            this.lineAreaGraphDisplayTypeMenuItem.Name = "lineAreaGraphDisplayTypeMenuItem";
+            resources.ApplyResources(this.lineAreaGraphDisplayTypeMenuItem, "lineAreaGraphDisplayTypeMenuItem");
+            this.lineAreaGraphDisplayTypeMenuItem.Click += new System.EventHandler(this.lineAreaGraphTypeMenuItem_Click);
+            // 
             // peptideOrderContextMenuItem
             // 
             this.peptideOrderContextMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.peptideOrderDocumentContextMenuItem,
             this.peptideOrderRTContextMenuItem,
-            this.peptideOrderAreaContextMenuItem});
+            this.peptideOrderAreaContextMenuItem,
+            this.peptideOrderMassErrorContextMenuItem});
             this.peptideOrderContextMenuItem.Name = "peptideOrderContextMenuItem";
             resources.ApplyResources(this.peptideOrderContextMenuItem, "peptideOrderContextMenuItem");
             this.peptideOrderContextMenuItem.DropDownOpening += new System.EventHandler(this.peptideOrderContextMenuItem_DropDownOpening);
@@ -1499,6 +1799,12 @@ namespace pwiz.Skyline
             this.peptideOrderAreaContextMenuItem.Name = "peptideOrderAreaContextMenuItem";
             resources.ApplyResources(this.peptideOrderAreaContextMenuItem, "peptideOrderAreaContextMenuItem");
             this.peptideOrderAreaContextMenuItem.Click += new System.EventHandler(this.peptideOrderAreaContextMenuItem_Click);
+            // 
+            // peptideOrderMassErrorContextMenuItem
+            // 
+            this.peptideOrderMassErrorContextMenuItem.Name = "peptideOrderMassErrorContextMenuItem";
+            resources.ApplyResources(this.peptideOrderMassErrorContextMenuItem, "peptideOrderMassErrorContextMenuItem");
+            this.peptideOrderMassErrorContextMenuItem.Click += new System.EventHandler(this.peptideOrderMassErrorContextMenuItem_Click);
             // 
             // replicateOrderContextMenuItem
             // 
@@ -1639,6 +1945,150 @@ namespace pwiz.Skyline
             resources.ApplyResources(this.groupByReplicateContextMenuItem, "groupByReplicateContextMenuItem");
             this.groupByReplicateContextMenuItem.Click += new System.EventHandler(this.groupByReplicateContextMenuItem_Click);
             // 
+            // areaCVbinWidthToolStripMenuItem
+            // 
+            this.areaCVbinWidthToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.areaCV05binWidthToolStripMenuItem,
+            this.areaCV10binWidthToolStripMenuItem,
+            this.areaCV15binWidthToolStripMenuItem,
+            this.areaCV20binWidthToolStripMenuItem});
+            this.areaCVbinWidthToolStripMenuItem.Name = "areaCVbinWidthToolStripMenuItem";
+            resources.ApplyResources(this.areaCVbinWidthToolStripMenuItem, "areaCVbinWidthToolStripMenuItem");
+            // 
+            // areaCV05binWidthToolStripMenuItem
+            // 
+            this.areaCV05binWidthToolStripMenuItem.Name = "areaCV05binWidthToolStripMenuItem";
+            resources.ApplyResources(this.areaCV05binWidthToolStripMenuItem, "areaCV05binWidthToolStripMenuItem");
+            this.areaCV05binWidthToolStripMenuItem.Click += new System.EventHandler(this.areaCV05binWidthToolStripMenuItem_Click);
+            // 
+            // areaCV10binWidthToolStripMenuItem
+            // 
+            this.areaCV10binWidthToolStripMenuItem.Name = "areaCV10binWidthToolStripMenuItem";
+            resources.ApplyResources(this.areaCV10binWidthToolStripMenuItem, "areaCV10binWidthToolStripMenuItem");
+            this.areaCV10binWidthToolStripMenuItem.Click += new System.EventHandler(this.areaCV10binWidthToolStripMenuItem_Click);
+            // 
+            // areaCV15binWidthToolStripMenuItem
+            // 
+            this.areaCV15binWidthToolStripMenuItem.Name = "areaCV15binWidthToolStripMenuItem";
+            resources.ApplyResources(this.areaCV15binWidthToolStripMenuItem, "areaCV15binWidthToolStripMenuItem");
+            this.areaCV15binWidthToolStripMenuItem.Click += new System.EventHandler(this.areaCV15binWidthToolStripMenuItem_Click);
+            // 
+            // areaCV20binWidthToolStripMenuItem
+            // 
+            this.areaCV20binWidthToolStripMenuItem.Name = "areaCV20binWidthToolStripMenuItem";
+            resources.ApplyResources(this.areaCV20binWidthToolStripMenuItem, "areaCV20binWidthToolStripMenuItem");
+            this.areaCV20binWidthToolStripMenuItem.Click += new System.EventHandler(this.areaCV20binWidthToolStripMenuItem_Click);
+            // 
+            // pointsToolStripMenuItem
+            // 
+            this.pointsToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.areaCVtargetsToolStripMenuItem,
+            this.areaCVdecoysToolStripMenuItem});
+            this.pointsToolStripMenuItem.Name = "pointsToolStripMenuItem";
+            resources.ApplyResources(this.pointsToolStripMenuItem, "pointsToolStripMenuItem");
+            // 
+            // areaCVtargetsToolStripMenuItem
+            // 
+            this.areaCVtargetsToolStripMenuItem.Name = "areaCVtargetsToolStripMenuItem";
+            resources.ApplyResources(this.areaCVtargetsToolStripMenuItem, "areaCVtargetsToolStripMenuItem");
+            this.areaCVtargetsToolStripMenuItem.Click += new System.EventHandler(this.areaCVtargetsToolStripMenuItem_Click);
+            // 
+            // areaCVdecoysToolStripMenuItem
+            // 
+            this.areaCVdecoysToolStripMenuItem.Name = "areaCVdecoysToolStripMenuItem";
+            resources.ApplyResources(this.areaCVdecoysToolStripMenuItem, "areaCVdecoysToolStripMenuItem");
+            this.areaCVdecoysToolStripMenuItem.Click += new System.EventHandler(this.areaCVdecoysToolStripMenuItem_Click);
+            // 
+            // areaCVTransitionsToolStripMenuItem
+            // 
+            this.areaCVTransitionsToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.areaCVAllTransitionsToolStripMenuItem,
+            this.areaCVBestTransitionsToolStripMenuItem,
+            this.toolStripSeparator58,
+            this.areaCVPrecursorsToolStripMenuItem,
+            this.areaCVProductsToolStripMenuItem});
+            this.areaCVTransitionsToolStripMenuItem.Name = "areaCVTransitionsToolStripMenuItem";
+            resources.ApplyResources(this.areaCVTransitionsToolStripMenuItem, "areaCVTransitionsToolStripMenuItem");
+            // 
+            // areaCVAllTransitionsToolStripMenuItem
+            // 
+            this.areaCVAllTransitionsToolStripMenuItem.Name = "areaCVAllTransitionsToolStripMenuItem";
+            resources.ApplyResources(this.areaCVAllTransitionsToolStripMenuItem, "areaCVAllTransitionsToolStripMenuItem");
+            this.areaCVAllTransitionsToolStripMenuItem.Click += new System.EventHandler(this.areaCVAllTransitionsToolStripMenuItem_Click);
+            // 
+            // areaCVBestTransitionsToolStripMenuItem
+            // 
+            this.areaCVBestTransitionsToolStripMenuItem.Name = "areaCVBestTransitionsToolStripMenuItem";
+            resources.ApplyResources(this.areaCVBestTransitionsToolStripMenuItem, "areaCVBestTransitionsToolStripMenuItem");
+            this.areaCVBestTransitionsToolStripMenuItem.Click += new System.EventHandler(this.areaCVBestTransitionsToolStripMenuItem_Click);
+            // 
+            // toolStripSeparator58
+            // 
+            this.toolStripSeparator58.Name = "toolStripSeparator58";
+            resources.ApplyResources(this.toolStripSeparator58, "toolStripSeparator58");
+            // 
+            // areaCVPrecursorsToolStripMenuItem
+            // 
+            this.areaCVPrecursorsToolStripMenuItem.Name = "areaCVPrecursorsToolStripMenuItem";
+            resources.ApplyResources(this.areaCVPrecursorsToolStripMenuItem, "areaCVPrecursorsToolStripMenuItem");
+            this.areaCVPrecursorsToolStripMenuItem.Click += new System.EventHandler(this.areaCVPrecursorsToolStripMenuItem_Click);
+            // 
+            // areaCVProductsToolStripMenuItem
+            // 
+            this.areaCVProductsToolStripMenuItem.Name = "areaCVProductsToolStripMenuItem";
+            resources.ApplyResources(this.areaCVProductsToolStripMenuItem, "areaCVProductsToolStripMenuItem");
+            this.areaCVProductsToolStripMenuItem.Click += new System.EventHandler(this.areaCVProductsToolStripMenuItem_Click);
+            // 
+            // areaCVNormalizedToToolStripMenuItem
+            // 
+            this.areaCVNormalizedToToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.areaCVGlobalStandardsToolStripMenuItem,
+            this.areaCVMediansToolStripMenuItem,
+            this.toolStripSeparator54,
+            this.areaCVNoneToolStripMenuItem});
+            this.areaCVNormalizedToToolStripMenuItem.Name = "areaCVNormalizedToToolStripMenuItem";
+            resources.ApplyResources(this.areaCVNormalizedToToolStripMenuItem, "areaCVNormalizedToToolStripMenuItem");
+            // 
+            // areaCVGlobalStandardsToolStripMenuItem
+            // 
+            this.areaCVGlobalStandardsToolStripMenuItem.Name = "areaCVGlobalStandardsToolStripMenuItem";
+            resources.ApplyResources(this.areaCVGlobalStandardsToolStripMenuItem, "areaCVGlobalStandardsToolStripMenuItem");
+            this.areaCVGlobalStandardsToolStripMenuItem.Click += new System.EventHandler(this.areaCVGlobalStandardsToolStripMenuItem_Click);
+            // 
+            // areaCVMediansToolStripMenuItem
+            // 
+            this.areaCVMediansToolStripMenuItem.Name = "areaCVMediansToolStripMenuItem";
+            resources.ApplyResources(this.areaCVMediansToolStripMenuItem, "areaCVMediansToolStripMenuItem");
+            this.areaCVMediansToolStripMenuItem.Click += new System.EventHandler(this.areaCVMediansToolStripMenuItem_Click);
+            // 
+            // toolStripSeparator54
+            // 
+            this.toolStripSeparator54.Name = "toolStripSeparator54";
+            resources.ApplyResources(this.toolStripSeparator54, "toolStripSeparator54");
+            // 
+            // areaCVNoneToolStripMenuItem
+            // 
+            this.areaCVNoneToolStripMenuItem.Name = "areaCVNoneToolStripMenuItem";
+            resources.ApplyResources(this.areaCVNoneToolStripMenuItem, "areaCVNoneToolStripMenuItem");
+            this.areaCVNoneToolStripMenuItem.Click += new System.EventHandler(this.areaCVNoneToolStripMenuItem_Click);
+            // 
+            // areaCVLogScaleToolStripMenuItem
+            // 
+            this.areaCVLogScaleToolStripMenuItem.Name = "areaCVLogScaleToolStripMenuItem";
+            resources.ApplyResources(this.areaCVLogScaleToolStripMenuItem, "areaCVLogScaleToolStripMenuItem");
+            this.areaCVLogScaleToolStripMenuItem.Click += new System.EventHandler(this.areaCVLogScaleToolStripMenuItem_Click);
+            // 
+            // removeAboveCVCutoffToolStripMenuItem
+            // 
+            this.removeAboveCVCutoffToolStripMenuItem.Name = "removeAboveCVCutoffToolStripMenuItem";
+            resources.ApplyResources(this.removeAboveCVCutoffToolStripMenuItem, "removeAboveCVCutoffToolStripMenuItem");
+            this.removeAboveCVCutoffToolStripMenuItem.Click += new System.EventHandler(this.removeAboveCVCutoffToolStripMenuItem_Click);
+            // 
+            // toolStripSeparator57
+            // 
+            this.toolStripSeparator57.Name = "toolStripSeparator57";
+            resources.ApplyResources(this.toolStripSeparator57, "toolStripSeparator57");
+            // 
             // panel1
             // 
             this.panel1.Controls.Add(this.dockPanel);
@@ -1654,6 +2104,7 @@ namespace pwiz.Skyline
             // 
             // statusStrip
             // 
+            resources.ApplyResources(this.statusStrip, "statusStrip");
             this.statusStrip.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.statusGeneral,
             this.statusProgress,
@@ -1662,7 +2113,6 @@ namespace pwiz.Skyline
             this.statusPeptides,
             this.statusPrecursors,
             this.statusIons});
-            resources.ApplyResources(this.statusStrip, "statusStrip");
             this.statusStrip.Name = "statusStrip";
             // 
             // statusGeneral
@@ -1723,7 +2173,9 @@ namespace pwiz.Skyline
             this.pasteToolBarButton,
             this.toolStripSeparator21,
             this.undoToolBarButton,
-            this.redoToolBarButton});
+            this.redoToolBarButton,
+            this.toolStripSeparatorSelectUI,
+            this.modeUIToolBarDropDownButton});
             resources.ApplyResources(this.mainToolStrip, "mainToolStrip");
             this.mainToolStrip.Name = "mainToolStrip";
             // 
@@ -1807,11 +2259,25 @@ namespace pwiz.Skyline
             this.redoToolBarButton.Image = global::pwiz.Skyline.Properties.Resources.Edit_Redo;
             this.redoToolBarButton.Name = "redoToolBarButton";
             // 
+            // toolStripSeparatorSelectUI
+            // 
+            this.toolStripSeparatorSelectUI.Name = "toolStripSeparatorSelectUI";
+            resources.ApplyResources(this.toolStripSeparatorSelectUI, "toolStripSeparatorSelectUI");
+            // 
+            // modeUIToolBarDropDownButton
+            // 
+            this.modeUIToolBarDropDownButton.Alignment = System.Windows.Forms.ToolStripItemAlignment.Right;
+            this.modeUIToolBarDropDownButton.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Image;
+            this.modeUIToolBarDropDownButton.Image = global::pwiz.Skyline.Properties.Resources.UIModeProteomic;
+            resources.ApplyResources(this.modeUIToolBarDropDownButton, "modeUIToolBarDropDownButton");
+            this.modeUIToolBarDropDownButton.Name = "modeUIToolBarDropDownButton";
+            // 
             // menuMain
             // 
             this.menuMain.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.fileToolStripMenuItem,
             this.editToolStripMenuItem,
+            this.refineToolStripMenuItem,
             this.viewToolStripMenuItem,
             this.settingsToolStripMenuItem,
             this.toolsMenu,
@@ -1913,8 +2379,10 @@ namespace pwiz.Skyline
             this.importPeptideSearchMenuItem,
             this.toolStripSeparator52,
             this.importFASTAMenuItem,
+            this.importAssayLibraryMenuItem,
             this.importMassListMenuItem,
-            this.importDocumentMenuItem});
+            this.importDocumentMenuItem,
+            this.importAnnotationsMenuItem});
             this.importToolStripMenuItem.Name = "importToolStripMenuItem";
             resources.ApplyResources(this.importToolStripMenuItem, "importToolStripMenuItem");
             // 
@@ -1934,11 +2402,13 @@ namespace pwiz.Skyline
             // 
             this.toolStripSeparator51.Name = "toolStripSeparator51";
             resources.ApplyResources(this.toolStripSeparator51, "toolStripSeparator51");
+            this.modeUIHandler.SetUIMode(this.toolStripSeparator51, pwiz.Skyline.Util.Helpers.ModeUIExtender.MODE_UI_HANDLING_TYPE.proteomic);
             // 
             // importPeptideSearchMenuItem
             // 
             this.importPeptideSearchMenuItem.Name = "importPeptideSearchMenuItem";
             resources.ApplyResources(this.importPeptideSearchMenuItem, "importPeptideSearchMenuItem");
+            this.modeUIHandler.SetUIMode(this.importPeptideSearchMenuItem, pwiz.Skyline.Util.Helpers.ModeUIExtender.MODE_UI_HANDLING_TYPE.proteomic);
             this.importPeptideSearchMenuItem.Click += new System.EventHandler(this.importPeptideSearchMenuItem_Click);
             // 
             // toolStripSeparator52
@@ -1950,7 +2420,14 @@ namespace pwiz.Skyline
             // 
             this.importFASTAMenuItem.Name = "importFASTAMenuItem";
             resources.ApplyResources(this.importFASTAMenuItem, "importFASTAMenuItem");
+            this.modeUIHandler.SetUIMode(this.importFASTAMenuItem, pwiz.Skyline.Util.Helpers.ModeUIExtender.MODE_UI_HANDLING_TYPE.proteomic);
             this.importFASTAMenuItem.Click += new System.EventHandler(this.importFASTAMenuItem_Click);
+            // 
+            // importAssayLibraryMenuItem
+            // 
+            this.importAssayLibraryMenuItem.Name = "importAssayLibraryMenuItem";
+            resources.ApplyResources(this.importAssayLibraryMenuItem, "importAssayLibraryMenuItem");
+            this.importAssayLibraryMenuItem.Click += new System.EventHandler(this.importAssayLibraryMenuItem_Click);
             // 
             // importMassListMenuItem
             // 
@@ -1964,6 +2441,12 @@ namespace pwiz.Skyline
             resources.ApplyResources(this.importDocumentMenuItem, "importDocumentMenuItem");
             this.importDocumentMenuItem.Click += new System.EventHandler(this.importDocumentMenuItem_Click);
             // 
+            // importAnnotationsMenuItem
+            // 
+            this.importAnnotationsMenuItem.Name = "importAnnotationsMenuItem";
+            resources.ApplyResources(this.importAnnotationsMenuItem, "importAnnotationsMenuItem");
+            this.importAnnotationsMenuItem.Click += new System.EventHandler(this.importAnnotationsMenuItem_Click);
+            // 
             // exportToolStripMenuItem
             // 
             this.exportToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
@@ -1974,9 +2457,11 @@ namespace pwiz.Skyline
             this.exportReportMenuItem,
             this.toolStripSeparator50,
             this.eSPFeaturesMenuItem,
-            this.mProphetFeaturesMenuItem,
+            this.exportSpectralLibraryMenuItem,
             this.chromatogramsToolStripMenuItem,
-            this.chorusRequestToolStripMenuItem});
+            this.mProphetFeaturesMenuItem,
+            this.chorusRequestToolStripMenuItem,
+            this.exportAnnotationsMenuItem});
             this.exportToolStripMenuItem.Name = "exportToolStripMenuItem";
             resources.ApplyResources(this.exportToolStripMenuItem, "exportToolStripMenuItem");
             // 
@@ -2018,13 +2503,14 @@ namespace pwiz.Skyline
             // 
             this.eSPFeaturesMenuItem.Name = "eSPFeaturesMenuItem";
             resources.ApplyResources(this.eSPFeaturesMenuItem, "eSPFeaturesMenuItem");
+            this.modeUIHandler.SetUIMode(this.eSPFeaturesMenuItem, pwiz.Skyline.Util.Helpers.ModeUIExtender.MODE_UI_HANDLING_TYPE.proteomic);
             this.eSPFeaturesMenuItem.Click += new System.EventHandler(this.espFeaturesMenuItem_Click);
             // 
-            // mProphetFeaturesMenuItem
+            // exportSpectralLibraryMenuItem
             // 
-            this.mProphetFeaturesMenuItem.Name = "mProphetFeaturesMenuItem";
-            resources.ApplyResources(this.mProphetFeaturesMenuItem, "mProphetFeaturesMenuItem");
-            this.mProphetFeaturesMenuItem.Click += new System.EventHandler(this.mProphetFeaturesMenuItem_Click);
+            this.exportSpectralLibraryMenuItem.Name = "exportSpectralLibraryMenuItem";
+            resources.ApplyResources(this.exportSpectralLibraryMenuItem, "exportSpectralLibraryMenuItem");
+            this.exportSpectralLibraryMenuItem.Click += new System.EventHandler(this.exportSpectralLibraryMenuItem_Click);
             // 
             // chromatogramsToolStripMenuItem
             // 
@@ -2032,11 +2518,23 @@ namespace pwiz.Skyline
             resources.ApplyResources(this.chromatogramsToolStripMenuItem, "chromatogramsToolStripMenuItem");
             this.chromatogramsToolStripMenuItem.Click += new System.EventHandler(this.chromatogramsToolStripMenuItem_Click);
             // 
+            // mProphetFeaturesMenuItem
+            // 
+            this.mProphetFeaturesMenuItem.Name = "mProphetFeaturesMenuItem";
+            resources.ApplyResources(this.mProphetFeaturesMenuItem, "mProphetFeaturesMenuItem");
+            this.mProphetFeaturesMenuItem.Click += new System.EventHandler(this.mProphetFeaturesMenuItem_Click);
+            // 
             // chorusRequestToolStripMenuItem
             // 
             this.chorusRequestToolStripMenuItem.Name = "chorusRequestToolStripMenuItem";
             resources.ApplyResources(this.chorusRequestToolStripMenuItem, "chorusRequestToolStripMenuItem");
             this.chorusRequestToolStripMenuItem.Click += new System.EventHandler(this.chorusRequestToolStripMenuItem_Click);
+            // 
+            // exportAnnotationsMenuItem
+            // 
+            this.exportAnnotationsMenuItem.Name = "exportAnnotationsMenuItem";
+            resources.ApplyResources(this.exportAnnotationsMenuItem, "exportAnnotationsMenuItem");
+            this.exportAnnotationsMenuItem.Click += new System.EventHandler(this.exportAnnotationsMenuItem_Click);
             // 
             // mruBeforeToolStripSeparator
             // 
@@ -2071,8 +2569,8 @@ namespace pwiz.Skyline
             this.toolStripSeparator8,
             this.editNoteToolStripMenuItem,
             this.toolStripSeparator42,
+            this.integrationToolStripMenuItem,
             this.insertToolStripMenuItem,
-            this.refineToolStripMenuItem,
             this.toolStripSeparator6,
             this.expandAllToolStripMenuItem,
             this.collapseAllToolStripMenuItem,
@@ -2084,6 +2582,7 @@ namespace pwiz.Skyline
             this.manageResultsMenuItem});
             resources.ApplyResources(this.editToolStripMenuItem, "editToolStripMenuItem");
             this.editToolStripMenuItem.Name = "editToolStripMenuItem";
+            this.editToolStripMenuItem.DropDownOpening += new System.EventHandler(this.editToolStripMenuItem_DropDownOpening);
             // 
             // undoMenuItem
             // 
@@ -2170,6 +2669,33 @@ namespace pwiz.Skyline
             this.toolStripSeparator42.Name = "toolStripSeparator42";
             resources.ApplyResources(this.toolStripSeparator42, "toolStripSeparator42");
             // 
+            // integrationToolStripMenuItem
+            // 
+            this.integrationToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.applyPeakAllToolStripMenuItem,
+            this.applyPeakSubsequentToolStripMenuItem,
+            this.removePeakToolStripMenuItem});
+            this.integrationToolStripMenuItem.Name = "integrationToolStripMenuItem";
+            resources.ApplyResources(this.integrationToolStripMenuItem, "integrationToolStripMenuItem");
+            // 
+            // applyPeakAllToolStripMenuItem
+            // 
+            this.applyPeakAllToolStripMenuItem.Name = "applyPeakAllToolStripMenuItem";
+            resources.ApplyResources(this.applyPeakAllToolStripMenuItem, "applyPeakAllToolStripMenuItem");
+            this.applyPeakAllToolStripMenuItem.Click += new System.EventHandler(this.applyPeakAllMenuItem_Click);
+            // 
+            // applyPeakSubsequentToolStripMenuItem
+            // 
+            this.applyPeakSubsequentToolStripMenuItem.Name = "applyPeakSubsequentToolStripMenuItem";
+            resources.ApplyResources(this.applyPeakSubsequentToolStripMenuItem, "applyPeakSubsequentToolStripMenuItem");
+            this.applyPeakSubsequentToolStripMenuItem.Click += new System.EventHandler(this.applyPeakSubsequentMenuItem_Click);
+            // 
+            // removePeakToolStripMenuItem
+            // 
+            this.removePeakToolStripMenuItem.Name = "removePeakToolStripMenuItem";
+            resources.ApplyResources(this.removePeakToolStripMenuItem, "removePeakToolStripMenuItem");
+            this.removePeakToolStripMenuItem.Click += new System.EventHandler(this.removePeakMenuItem_Click);
+            // 
             // insertToolStripMenuItem
             // 
             this.insertToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
@@ -2184,18 +2710,21 @@ namespace pwiz.Skyline
             // 
             this.insertFASTAMenuItem.Name = "insertFASTAMenuItem";
             resources.ApplyResources(this.insertFASTAMenuItem, "insertFASTAMenuItem");
+            this.modeUIHandler.SetUIMode(this.insertFASTAMenuItem, pwiz.Skyline.Util.Helpers.ModeUIExtender.MODE_UI_HANDLING_TYPE.proteomic);
             this.insertFASTAMenuItem.Click += new System.EventHandler(this.insertFASTAToolStripMenuItem_Click);
             // 
             // insertProteinsMenuItem
             // 
             this.insertProteinsMenuItem.Name = "insertProteinsMenuItem";
             resources.ApplyResources(this.insertProteinsMenuItem, "insertProteinsMenuItem");
+            this.modeUIHandler.SetUIMode(this.insertProteinsMenuItem, pwiz.Skyline.Util.Helpers.ModeUIExtender.MODE_UI_HANDLING_TYPE.proteomic);
             this.insertProteinsMenuItem.Click += new System.EventHandler(this.insertProteinsToolStripMenuItem_Click);
             // 
             // insertPeptidesMenuItem
             // 
             this.insertPeptidesMenuItem.Name = "insertPeptidesMenuItem";
             resources.ApplyResources(this.insertPeptidesMenuItem, "insertPeptidesMenuItem");
+            this.modeUIHandler.SetUIMode(this.insertPeptidesMenuItem, pwiz.Skyline.Util.Helpers.ModeUIExtender.MODE_UI_HANDLING_TYPE.proteomic);
             this.insertPeptidesMenuItem.Click += new System.EventHandler(this.insertPeptidesToolStripMenuItem_Click);
             // 
             // insertTransitionListMenuItem
@@ -2203,149 +2732,6 @@ namespace pwiz.Skyline
             this.insertTransitionListMenuItem.Name = "insertTransitionListMenuItem";
             resources.ApplyResources(this.insertTransitionListMenuItem, "insertTransitionListMenuItem");
             this.insertTransitionListMenuItem.Click += new System.EventHandler(this.insertTransitionListMenuItem_Click);
-            // 
-            // refineToolStripMenuItem
-            // 
-            this.refineToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
-            this.removeEmptyProteinsMenuItem,
-            this.removeEmptyPeptidesMenuItem,
-            this.removeDuplicatePeptidesMenuItem,
-            this.removeRepeatedPeptidesMenuItem,
-            this.removeMissingResultsMenuItem,
-            this.toolStripSeparator45,
-            this.acceptProteinsMenuItem,
-            this.renameProteinsMenuItem,
-            this.sortProteinsMenuItem,
-            this.toolStripSeparator43,
-            this.acceptPeptidesMenuItem,
-            this.generateDecoysMenuItem,
-            this.reintegrateToolStripMenuItem,
-            this.compareModelsToolStripMenuItem,
-            this.toolStripSeparator35,
-            this.refineAdvancedMenuItem});
-            this.refineToolStripMenuItem.Name = "refineToolStripMenuItem";
-            resources.ApplyResources(this.refineToolStripMenuItem, "refineToolStripMenuItem");
-            // 
-            // removeEmptyProteinsMenuItem
-            // 
-            this.removeEmptyProteinsMenuItem.Name = "removeEmptyProteinsMenuItem";
-            resources.ApplyResources(this.removeEmptyProteinsMenuItem, "removeEmptyProteinsMenuItem");
-            this.removeEmptyProteinsMenuItem.Click += new System.EventHandler(this.removeEmptyProteinsMenuItem_Click);
-            // 
-            // removeEmptyPeptidesMenuItem
-            // 
-            this.removeEmptyPeptidesMenuItem.Name = "removeEmptyPeptidesMenuItem";
-            resources.ApplyResources(this.removeEmptyPeptidesMenuItem, "removeEmptyPeptidesMenuItem");
-            this.removeEmptyPeptidesMenuItem.Click += new System.EventHandler(this.removeEmptyPeptidesMenuItem_Click);
-            // 
-            // removeDuplicatePeptidesMenuItem
-            // 
-            this.removeDuplicatePeptidesMenuItem.Name = "removeDuplicatePeptidesMenuItem";
-            resources.ApplyResources(this.removeDuplicatePeptidesMenuItem, "removeDuplicatePeptidesMenuItem");
-            this.removeDuplicatePeptidesMenuItem.Click += new System.EventHandler(this.removeDuplicatePeptidesMenuItem_Click);
-            // 
-            // removeRepeatedPeptidesMenuItem
-            // 
-            this.removeRepeatedPeptidesMenuItem.Name = "removeRepeatedPeptidesMenuItem";
-            resources.ApplyResources(this.removeRepeatedPeptidesMenuItem, "removeRepeatedPeptidesMenuItem");
-            this.removeRepeatedPeptidesMenuItem.Click += new System.EventHandler(this.removeRepeatedPeptidesMenuItem_Click);
-            // 
-            // removeMissingResultsMenuItem
-            // 
-            this.removeMissingResultsMenuItem.Name = "removeMissingResultsMenuItem";
-            resources.ApplyResources(this.removeMissingResultsMenuItem, "removeMissingResultsMenuItem");
-            this.removeMissingResultsMenuItem.Click += new System.EventHandler(this.removeMissingResultsMenuItem_Click);
-            // 
-            // toolStripSeparator45
-            // 
-            this.toolStripSeparator45.Name = "toolStripSeparator45";
-            resources.ApplyResources(this.toolStripSeparator45, "toolStripSeparator45");
-            // 
-            // acceptProteinsMenuItem
-            // 
-            this.acceptProteinsMenuItem.Name = "acceptProteinsMenuItem";
-            resources.ApplyResources(this.acceptProteinsMenuItem, "acceptProteinsMenuItem");
-            this.acceptProteinsMenuItem.Click += new System.EventHandler(this.acceptProteinsMenuItem_Click);
-            // 
-            // renameProteinsMenuItem
-            // 
-            this.renameProteinsMenuItem.Name = "renameProteinsMenuItem";
-            resources.ApplyResources(this.renameProteinsMenuItem, "renameProteinsMenuItem");
-            this.renameProteinsMenuItem.Click += new System.EventHandler(this.renameProteinsToolStripMenuItem_Click);
-            // 
-            // sortProteinsMenuItem
-            // 
-            this.sortProteinsMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
-            this.sortProteinsByNameToolStripMenuItem,
-            this.sortProteinsByAccessionToolStripMenuItem,
-            this.sortProteinsByPreferredNameToolStripMenuItem,
-            this.sortProteinsByGeneToolStripMenuItem});
-            this.sortProteinsMenuItem.Name = "sortProteinsMenuItem";
-            resources.ApplyResources(this.sortProteinsMenuItem, "sortProteinsMenuItem");
-            // 
-            // sortProteinsByNameToolStripMenuItem
-            // 
-            this.sortProteinsByNameToolStripMenuItem.Name = "sortProteinsByNameToolStripMenuItem";
-            resources.ApplyResources(this.sortProteinsByNameToolStripMenuItem, "sortProteinsByNameToolStripMenuItem");
-            this.sortProteinsByNameToolStripMenuItem.Click += new System.EventHandler(this.sortProteinsByNameToolStripMenuItem_Click);
-            // 
-            // sortProteinsByAccessionToolStripMenuItem
-            // 
-            this.sortProteinsByAccessionToolStripMenuItem.Name = "sortProteinsByAccessionToolStripMenuItem";
-            resources.ApplyResources(this.sortProteinsByAccessionToolStripMenuItem, "sortProteinsByAccessionToolStripMenuItem");
-            this.sortProteinsByAccessionToolStripMenuItem.Click += new System.EventHandler(this.sortProteinsByAccessionToolStripMenuItem_Click);
-            // 
-            // sortProteinsByPreferredNameToolStripMenuItem
-            // 
-            this.sortProteinsByPreferredNameToolStripMenuItem.Name = "sortProteinsByPreferredNameToolStripMenuItem";
-            resources.ApplyResources(this.sortProteinsByPreferredNameToolStripMenuItem, "sortProteinsByPreferredNameToolStripMenuItem");
-            this.sortProteinsByPreferredNameToolStripMenuItem.Click += new System.EventHandler(this.sortProteinsByPreferredNameToolStripMenuItem_Click);
-            // 
-            // sortProteinsByGeneToolStripMenuItem
-            // 
-            this.sortProteinsByGeneToolStripMenuItem.Name = "sortProteinsByGeneToolStripMenuItem";
-            resources.ApplyResources(this.sortProteinsByGeneToolStripMenuItem, "sortProteinsByGeneToolStripMenuItem");
-            this.sortProteinsByGeneToolStripMenuItem.Click += new System.EventHandler(this.sortProteinsByGeneToolStripMenuItem_Click);
-            // 
-            // toolStripSeparator43
-            // 
-            this.toolStripSeparator43.Name = "toolStripSeparator43";
-            resources.ApplyResources(this.toolStripSeparator43, "toolStripSeparator43");
-            // 
-            // acceptPeptidesMenuItem
-            // 
-            this.acceptPeptidesMenuItem.Name = "acceptPeptidesMenuItem";
-            resources.ApplyResources(this.acceptPeptidesMenuItem, "acceptPeptidesMenuItem");
-            this.acceptPeptidesMenuItem.Click += new System.EventHandler(this.acceptPeptidesMenuItem_Click);
-            // 
-            // generateDecoysMenuItem
-            // 
-            this.generateDecoysMenuItem.Name = "generateDecoysMenuItem";
-            resources.ApplyResources(this.generateDecoysMenuItem, "generateDecoysMenuItem");
-            this.generateDecoysMenuItem.Click += new System.EventHandler(this.generateDecoysMenuItem_Click);
-            // 
-            // reintegrateToolStripMenuItem
-            // 
-            this.reintegrateToolStripMenuItem.Name = "reintegrateToolStripMenuItem";
-            resources.ApplyResources(this.reintegrateToolStripMenuItem, "reintegrateToolStripMenuItem");
-            this.reintegrateToolStripMenuItem.Click += new System.EventHandler(this.reintegrateToolStripMenuItem_Click);
-            // 
-            // compareModelsToolStripMenuItem
-            // 
-            this.compareModelsToolStripMenuItem.Name = "compareModelsToolStripMenuItem";
-            resources.ApplyResources(this.compareModelsToolStripMenuItem, "compareModelsToolStripMenuItem");
-            this.compareModelsToolStripMenuItem.Click += new System.EventHandler(this.compareModelsToolStripMenuItem_Click);
-            // 
-            // toolStripSeparator35
-            // 
-            this.toolStripSeparator35.Name = "toolStripSeparator35";
-            resources.ApplyResources(this.toolStripSeparator35, "toolStripSeparator35");
-            // 
-            // refineAdvancedMenuItem
-            // 
-            this.refineAdvancedMenuItem.Name = "refineAdvancedMenuItem";
-            resources.ApplyResources(this.refineAdvancedMenuItem, "refineAdvancedMenuItem");
-            this.refineAdvancedMenuItem.Click += new System.EventHandler(this.refineMenuItem_Click);
             // 
             // toolStripSeparator6
             // 
@@ -2416,6 +2802,7 @@ namespace pwiz.Skyline
             this.setStandardTypeMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.noStandardMenuItem,
             this.normStandardMenuItem,
+            this.surrogateStandardMenuItem,
             this.qcStandardMenuItem,
             this.irtStandardMenuItem});
             this.setStandardTypeMenuItem.Name = "setStandardTypeMenuItem";
@@ -2433,6 +2820,12 @@ namespace pwiz.Skyline
             this.normStandardMenuItem.Name = "normStandardMenuItem";
             resources.ApplyResources(this.normStandardMenuItem, "normStandardMenuItem");
             this.normStandardMenuItem.Click += new System.EventHandler(this.normStandardMenuItem_Click);
+            // 
+            // surrogateStandardMenuItem
+            // 
+            this.surrogateStandardMenuItem.Name = "surrogateStandardMenuItem";
+            resources.ApplyResources(this.surrogateStandardMenuItem, "surrogateStandardMenuItem");
+            this.surrogateStandardMenuItem.Click += new System.EventHandler(this.surrogateStandardMenuItem_Click);
             // 
             // qcStandardMenuItem
             // 
@@ -2470,6 +2863,170 @@ namespace pwiz.Skyline
             resources.ApplyResources(this.manageResultsMenuItem, "manageResultsMenuItem");
             this.manageResultsMenuItem.Click += new System.EventHandler(this.manageResultsMenuItem_Click);
             // 
+            // refineToolStripMenuItem
+            // 
+            this.refineToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.reintegrateToolStripMenuItem,
+            this.generateDecoysMenuItem,
+            this.compareModelsToolStripMenuItem,
+            this.toolStripSeparator59,
+            this.removeMissingResultsMenuItem,
+            this.toolStripSeparator45,
+            this.acceptProteinsMenuItem,
+            this.removeEmptyProteinsMenuItem,
+            this.associateFASTAMenuItem,
+            this.renameProteinsMenuItem,
+            this.sortProteinsMenuItem,
+            this.toolStripSeparator43,
+            this.acceptPeptidesMenuItem,
+            this.removeEmptyPeptidesMenuItem,
+            this.removeDuplicatePeptidesMenuItem,
+            this.removeRepeatedPeptidesMenuItem,
+            this.toolStripSeparator35,
+            this.refineAdvancedMenuItem});
+            this.refineToolStripMenuItem.Name = "refineToolStripMenuItem";
+            resources.ApplyResources(this.refineToolStripMenuItem, "refineToolStripMenuItem");
+            // 
+            // reintegrateToolStripMenuItem
+            // 
+            this.reintegrateToolStripMenuItem.Name = "reintegrateToolStripMenuItem";
+            resources.ApplyResources(this.reintegrateToolStripMenuItem, "reintegrateToolStripMenuItem");
+            this.reintegrateToolStripMenuItem.Click += new System.EventHandler(this.reintegrateToolStripMenuItem_Click);
+            // 
+            // generateDecoysMenuItem
+            // 
+            this.generateDecoysMenuItem.Name = "generateDecoysMenuItem";
+            resources.ApplyResources(this.generateDecoysMenuItem, "generateDecoysMenuItem");
+            this.modeUIHandler.SetUIMode(this.generateDecoysMenuItem, pwiz.Skyline.Util.Helpers.ModeUIExtender.MODE_UI_HANDLING_TYPE.proteomic);
+            this.generateDecoysMenuItem.Click += new System.EventHandler(this.generateDecoysMenuItem_Click);
+            // 
+            // compareModelsToolStripMenuItem
+            // 
+            this.compareModelsToolStripMenuItem.Name = "compareModelsToolStripMenuItem";
+            resources.ApplyResources(this.compareModelsToolStripMenuItem, "compareModelsToolStripMenuItem");
+            this.compareModelsToolStripMenuItem.Click += new System.EventHandler(this.compareModelsToolStripMenuItem_Click);
+            // 
+            // toolStripSeparator59
+            // 
+            this.toolStripSeparator59.Name = "toolStripSeparator59";
+            resources.ApplyResources(this.toolStripSeparator59, "toolStripSeparator59");
+            // 
+            // removeMissingResultsMenuItem
+            // 
+            this.removeMissingResultsMenuItem.Name = "removeMissingResultsMenuItem";
+            resources.ApplyResources(this.removeMissingResultsMenuItem, "removeMissingResultsMenuItem");
+            this.removeMissingResultsMenuItem.Click += new System.EventHandler(this.removeMissingResultsMenuItem_Click);
+            // 
+            // toolStripSeparator45
+            // 
+            this.toolStripSeparator45.Name = "toolStripSeparator45";
+            resources.ApplyResources(this.toolStripSeparator45, "toolStripSeparator45");
+            // 
+            // acceptProteinsMenuItem
+            // 
+            this.acceptProteinsMenuItem.Name = "acceptProteinsMenuItem";
+            resources.ApplyResources(this.acceptProteinsMenuItem, "acceptProteinsMenuItem");
+            this.modeUIHandler.SetUIMode(this.acceptProteinsMenuItem, pwiz.Skyline.Util.Helpers.ModeUIExtender.MODE_UI_HANDLING_TYPE.proteomic);
+            this.acceptProteinsMenuItem.Click += new System.EventHandler(this.acceptProteinsMenuItem_Click);
+            // 
+            // removeEmptyProteinsMenuItem
+            // 
+            this.removeEmptyProteinsMenuItem.Name = "removeEmptyProteinsMenuItem";
+            resources.ApplyResources(this.removeEmptyProteinsMenuItem, "removeEmptyProteinsMenuItem");
+            this.removeEmptyProteinsMenuItem.Click += new System.EventHandler(this.removeEmptyProteinsMenuItem_Click);
+            // 
+            // associateFASTAMenuItem
+            // 
+            this.associateFASTAMenuItem.Name = "associateFASTAMenuItem";
+            resources.ApplyResources(this.associateFASTAMenuItem, "associateFASTAMenuItem");
+            this.modeUIHandler.SetUIMode(this.associateFASTAMenuItem, pwiz.Skyline.Util.Helpers.ModeUIExtender.MODE_UI_HANDLING_TYPE.proteomic);
+            this.associateFASTAMenuItem.Click += new System.EventHandler(this.associateFASTAMenuItem_Click);
+            // 
+            // renameProteinsMenuItem
+            // 
+            this.renameProteinsMenuItem.Name = "renameProteinsMenuItem";
+            resources.ApplyResources(this.renameProteinsMenuItem, "renameProteinsMenuItem");
+            this.modeUIHandler.SetUIMode(this.renameProteinsMenuItem, pwiz.Skyline.Util.Helpers.ModeUIExtender.MODE_UI_HANDLING_TYPE.proteomic);
+            this.renameProteinsMenuItem.Click += new System.EventHandler(this.renameProteinsToolStripMenuItem_Click);
+            // 
+            // sortProteinsMenuItem
+            // 
+            this.sortProteinsMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.sortProteinsByNameToolStripMenuItem,
+            this.sortProteinsByAccessionToolStripMenuItem,
+            this.sortProteinsByPreferredNameToolStripMenuItem,
+            this.sortProteinsByGeneToolStripMenuItem});
+            this.sortProteinsMenuItem.Name = "sortProteinsMenuItem";
+            resources.ApplyResources(this.sortProteinsMenuItem, "sortProteinsMenuItem");
+            // 
+            // sortProteinsByNameToolStripMenuItem
+            // 
+            this.sortProteinsByNameToolStripMenuItem.Name = "sortProteinsByNameToolStripMenuItem";
+            resources.ApplyResources(this.sortProteinsByNameToolStripMenuItem, "sortProteinsByNameToolStripMenuItem");
+            this.sortProteinsByNameToolStripMenuItem.Click += new System.EventHandler(this.sortProteinsByNameToolStripMenuItem_Click);
+            // 
+            // sortProteinsByAccessionToolStripMenuItem
+            // 
+            this.sortProteinsByAccessionToolStripMenuItem.Name = "sortProteinsByAccessionToolStripMenuItem";
+            resources.ApplyResources(this.sortProteinsByAccessionToolStripMenuItem, "sortProteinsByAccessionToolStripMenuItem");
+            this.modeUIHandler.SetUIMode(this.sortProteinsByAccessionToolStripMenuItem, pwiz.Skyline.Util.Helpers.ModeUIExtender.MODE_UI_HANDLING_TYPE.proteomic);
+            this.sortProteinsByAccessionToolStripMenuItem.Click += new System.EventHandler(this.sortProteinsByAccessionToolStripMenuItem_Click);
+            // 
+            // sortProteinsByPreferredNameToolStripMenuItem
+            // 
+            this.sortProteinsByPreferredNameToolStripMenuItem.Name = "sortProteinsByPreferredNameToolStripMenuItem";
+            resources.ApplyResources(this.sortProteinsByPreferredNameToolStripMenuItem, "sortProteinsByPreferredNameToolStripMenuItem");
+            this.modeUIHandler.SetUIMode(this.sortProteinsByPreferredNameToolStripMenuItem, pwiz.Skyline.Util.Helpers.ModeUIExtender.MODE_UI_HANDLING_TYPE.proteomic);
+            this.sortProteinsByPreferredNameToolStripMenuItem.Click += new System.EventHandler(this.sortProteinsByPreferredNameToolStripMenuItem_Click);
+            // 
+            // sortProteinsByGeneToolStripMenuItem
+            // 
+            this.sortProteinsByGeneToolStripMenuItem.Name = "sortProteinsByGeneToolStripMenuItem";
+            resources.ApplyResources(this.sortProteinsByGeneToolStripMenuItem, "sortProteinsByGeneToolStripMenuItem");
+            this.modeUIHandler.SetUIMode(this.sortProteinsByGeneToolStripMenuItem, pwiz.Skyline.Util.Helpers.ModeUIExtender.MODE_UI_HANDLING_TYPE.proteomic);
+            this.sortProteinsByGeneToolStripMenuItem.Click += new System.EventHandler(this.sortProteinsByGeneToolStripMenuItem_Click);
+            // 
+            // toolStripSeparator43
+            // 
+            this.toolStripSeparator43.Name = "toolStripSeparator43";
+            resources.ApplyResources(this.toolStripSeparator43, "toolStripSeparator43");
+            // 
+            // acceptPeptidesMenuItem
+            // 
+            this.acceptPeptidesMenuItem.Name = "acceptPeptidesMenuItem";
+            resources.ApplyResources(this.acceptPeptidesMenuItem, "acceptPeptidesMenuItem");
+            this.modeUIHandler.SetUIMode(this.acceptPeptidesMenuItem, pwiz.Skyline.Util.Helpers.ModeUIExtender.MODE_UI_HANDLING_TYPE.proteomic);
+            this.acceptPeptidesMenuItem.Click += new System.EventHandler(this.acceptPeptidesMenuItem_Click);
+            // 
+            // removeEmptyPeptidesMenuItem
+            // 
+            this.removeEmptyPeptidesMenuItem.Name = "removeEmptyPeptidesMenuItem";
+            resources.ApplyResources(this.removeEmptyPeptidesMenuItem, "removeEmptyPeptidesMenuItem");
+            this.removeEmptyPeptidesMenuItem.Click += new System.EventHandler(this.removeEmptyPeptidesMenuItem_Click);
+            // 
+            // removeDuplicatePeptidesMenuItem
+            // 
+            this.removeDuplicatePeptidesMenuItem.Name = "removeDuplicatePeptidesMenuItem";
+            resources.ApplyResources(this.removeDuplicatePeptidesMenuItem, "removeDuplicatePeptidesMenuItem");
+            this.removeDuplicatePeptidesMenuItem.Click += new System.EventHandler(this.removeDuplicatePeptidesMenuItem_Click);
+            // 
+            // removeRepeatedPeptidesMenuItem
+            // 
+            this.removeRepeatedPeptidesMenuItem.Name = "removeRepeatedPeptidesMenuItem";
+            resources.ApplyResources(this.removeRepeatedPeptidesMenuItem, "removeRepeatedPeptidesMenuItem");
+            this.removeRepeatedPeptidesMenuItem.Click += new System.EventHandler(this.removeRepeatedPeptidesMenuItem_Click);
+            // 
+            // toolStripSeparator35
+            // 
+            this.toolStripSeparator35.Name = "toolStripSeparator35";
+            resources.ApplyResources(this.toolStripSeparator35, "toolStripSeparator35");
+            // 
+            // refineAdvancedMenuItem
+            // 
+            this.refineAdvancedMenuItem.Name = "refineAdvancedMenuItem";
+            resources.ApplyResources(this.refineAdvancedMenuItem, "refineAdvancedMenuItem");
+            this.refineAdvancedMenuItem.Click += new System.EventHandler(this.refineMenuItem_Click);
+            // 
             // viewToolStripMenuItem
             // 
             this.viewToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
@@ -2492,10 +3049,10 @@ namespace pwiz.Skyline
             this.toolStripSeparator10,
             this.retentionTimesMenuItem,
             this.peakAreasMenuItem,
+            this.massErrorsMenuItem,
             this.calibrationCurveMenuItem,
-            this.groupComparisonsMenuItem,
-            this.resultsGridMenuItem,
             this.documentGridMenuItem,
+            this.otherGridsMenuItem,
             this.toolStripSeparator36,
             this.toolBarToolStripMenuItem,
             this.statusToolStripMenuItem});
@@ -2526,18 +3083,21 @@ namespace pwiz.Skyline
             // 
             this.showTargetsByAccessionToolStripMenuItem.Name = "showTargetsByAccessionToolStripMenuItem";
             resources.ApplyResources(this.showTargetsByAccessionToolStripMenuItem, "showTargetsByAccessionToolStripMenuItem");
+            this.modeUIHandler.SetUIMode(this.showTargetsByAccessionToolStripMenuItem, pwiz.Skyline.Util.Helpers.ModeUIExtender.MODE_UI_HANDLING_TYPE.proteomic);
             this.showTargetsByAccessionToolStripMenuItem.Click += new System.EventHandler(this.showTargetsByAccessionToolStripMenuItem_Click);
             // 
             // showTargetsByPreferredNameToolStripMenuItem
             // 
             this.showTargetsByPreferredNameToolStripMenuItem.Name = "showTargetsByPreferredNameToolStripMenuItem";
             resources.ApplyResources(this.showTargetsByPreferredNameToolStripMenuItem, "showTargetsByPreferredNameToolStripMenuItem");
+            this.modeUIHandler.SetUIMode(this.showTargetsByPreferredNameToolStripMenuItem, pwiz.Skyline.Util.Helpers.ModeUIExtender.MODE_UI_HANDLING_TYPE.proteomic);
             this.showTargetsByPreferredNameToolStripMenuItem.Click += new System.EventHandler(this.showTargetsByPreferredNameToolStripMenuItem_Click);
             // 
             // showTargetsByGeneToolStripMenuItem
             // 
             this.showTargetsByGeneToolStripMenuItem.Name = "showTargetsByGeneToolStripMenuItem";
             resources.ApplyResources(this.showTargetsByGeneToolStripMenuItem, "showTargetsByGeneToolStripMenuItem");
+            this.modeUIHandler.SetUIMode(this.showTargetsByGeneToolStripMenuItem, pwiz.Skyline.Util.Helpers.ModeUIExtender.MODE_UI_HANDLING_TYPE.proteomic);
             this.showTargetsByGeneToolStripMenuItem.Click += new System.EventHandler(this.showTargetsByGeneToolStripMenuItem_Click);
             // 
             // textZoomToolStripMenuItem
@@ -2644,6 +3204,7 @@ namespace pwiz.Skyline
             this.xMenuItem,
             this.yMenuItem,
             this.zMenuItem,
+            this.fragmentsMenuItem,
             this.precursorIonMenuItem});
             resources.ApplyResources(this.ionTypesMenuItem, "ionTypesMenuItem");
             this.ionTypesMenuItem.Name = "ionTypesMenuItem";
@@ -2692,6 +3253,13 @@ namespace pwiz.Skyline
             this.zMenuItem.Name = "zMenuItem";
             resources.ApplyResources(this.zMenuItem, "zMenuItem");
             this.zMenuItem.Click += new System.EventHandler(this.zMenuItem_Click);
+            // 
+            // fragmentsMenuItem
+            // 
+            this.fragmentsMenuItem.CheckOnClick = true;
+            this.fragmentsMenuItem.Name = "fragmentsMenuItem";
+            resources.ApplyResources(this.fragmentsMenuItem, "fragmentsMenuItem");
+            this.fragmentsMenuItem.Click += new System.EventHandler(this.fragmentsMenuItem_Click);
             // 
             // precursorIonMenuItem
             // 
@@ -2809,6 +3377,8 @@ namespace pwiz.Skyline
             this.toolStripSeparatorTranMain,
             this.basePeakMenuItem,
             this.ticMenuItem,
+            this.toolStripSeparator56,
+            this.onlyQuantitativeMenuItem,
             this.toolStripSeparator48,
             this.splitGraphMenuItem});
             resources.ApplyResources(this.transitionsMenuItem, "transitionsMenuItem");
@@ -2862,6 +3432,17 @@ namespace pwiz.Skyline
             resources.ApplyResources(this.ticMenuItem, "ticMenuItem");
             this.ticMenuItem.Click += new System.EventHandler(this.ticMenuItem_Click);
             // 
+            // toolStripSeparator56
+            // 
+            this.toolStripSeparator56.Name = "toolStripSeparator56";
+            resources.ApplyResources(this.toolStripSeparator56, "toolStripSeparator56");
+            // 
+            // onlyQuantitativeMenuItem
+            // 
+            this.onlyQuantitativeMenuItem.Name = "onlyQuantitativeMenuItem";
+            resources.ApplyResources(this.onlyQuantitativeMenuItem, "onlyQuantitativeMenuItem");
+            this.onlyQuantitativeMenuItem.Click += new System.EventHandler(this.onlyQuantitativeMenuItem_Click);
+            // 
             // toolStripSeparator48
             // 
             this.toolStripSeparator48.Name = "toolStripSeparator48";
@@ -2877,6 +3458,7 @@ namespace pwiz.Skyline
             // 
             this.transformChromMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.transformChromNoneMenuItem,
+            this.transformChromInterploatedMenuItem,
             this.secondDerivativeMenuItem,
             this.firstDerivativeMenuItem,
             this.smoothSGChromMenuItem});
@@ -2889,6 +3471,12 @@ namespace pwiz.Skyline
             this.transformChromNoneMenuItem.Name = "transformChromNoneMenuItem";
             resources.ApplyResources(this.transformChromNoneMenuItem, "transformChromNoneMenuItem");
             this.transformChromNoneMenuItem.Click += new System.EventHandler(this.transformChromNoneMenuItem_Click);
+            // 
+            // transformChromInterploatedMenuItem
+            // 
+            this.transformChromInterploatedMenuItem.Name = "transformChromInterploatedMenuItem";
+            resources.ApplyResources(this.transformChromInterploatedMenuItem, "transformChromInterploatedMenuItem");
+            this.transformChromInterploatedMenuItem.Click += new System.EventHandler(this.transformInterpolatedMenuItem_Click);
             // 
             // secondDerivativeMenuItem
             // 
@@ -2953,9 +3541,9 @@ namespace pwiz.Skyline
             this.retentionTimesMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.replicateComparisonMenuItem,
             this.timePeptideComparisonMenuItem,
-            this.linearRegressionMenuItem,
-            this.schedulingMenuItem,
-            this.retentionTimeAlignmentsToolStripMenuItem});
+            this.regressionMenuItem,
+            this.retentionTimeAlignmentsToolStripMenuItem,
+            this.schedulingMenuItem});
             resources.ApplyResources(this.retentionTimesMenuItem, "retentionTimesMenuItem");
             this.retentionTimesMenuItem.Name = "retentionTimesMenuItem";
             this.retentionTimesMenuItem.DropDownOpening += new System.EventHandler(this.timeGraphMenuItem_DropDownOpening);
@@ -2972,17 +3560,25 @@ namespace pwiz.Skyline
             resources.ApplyResources(this.timePeptideComparisonMenuItem, "timePeptideComparisonMenuItem");
             this.timePeptideComparisonMenuItem.Click += new System.EventHandler(this.timePeptideComparisonMenuItem_Click);
             // 
-            // linearRegressionMenuItem
+            // regressionMenuItem
             // 
-            this.linearRegressionMenuItem.Name = "linearRegressionMenuItem";
-            resources.ApplyResources(this.linearRegressionMenuItem, "linearRegressionMenuItem");
-            this.linearRegressionMenuItem.Click += new System.EventHandler(this.linearRegressionMenuItem_Click);
+            this.regressionMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.scoreToRunMenuItem,
+            this.runToRunMenuItem});
+            this.regressionMenuItem.Name = "regressionMenuItem";
+            resources.ApplyResources(this.regressionMenuItem, "regressionMenuItem");
             // 
-            // schedulingMenuItem
+            // scoreToRunMenuItem
             // 
-            this.schedulingMenuItem.Name = "schedulingMenuItem";
-            resources.ApplyResources(this.schedulingMenuItem, "schedulingMenuItem");
-            this.schedulingMenuItem.Click += new System.EventHandler(this.schedulingMenuItem_Click);
+            this.scoreToRunMenuItem.Name = "scoreToRunMenuItem";
+            resources.ApplyResources(this.scoreToRunMenuItem, "scoreToRunMenuItem");
+            this.scoreToRunMenuItem.Click += new System.EventHandler(this.regressionMenuItem_Click);
+            // 
+            // runToRunMenuItem
+            // 
+            this.runToRunMenuItem.Name = "runToRunMenuItem";
+            resources.ApplyResources(this.runToRunMenuItem, "runToRunMenuItem");
+            this.runToRunMenuItem.Click += new System.EventHandler(this.fullReplicateComparisonToolStripMenuItem_Click);
             // 
             // retentionTimeAlignmentsToolStripMenuItem
             // 
@@ -2990,11 +3586,19 @@ namespace pwiz.Skyline
             resources.ApplyResources(this.retentionTimeAlignmentsToolStripMenuItem, "retentionTimeAlignmentsToolStripMenuItem");
             this.retentionTimeAlignmentsToolStripMenuItem.Click += new System.EventHandler(this.retentionTimeAlignmentToolStripMenuItem_Click);
             // 
+            // schedulingMenuItem
+            // 
+            this.schedulingMenuItem.Name = "schedulingMenuItem";
+            resources.ApplyResources(this.schedulingMenuItem, "schedulingMenuItem");
+            this.schedulingMenuItem.Click += new System.EventHandler(this.schedulingMenuItem_Click);
+            // 
             // peakAreasMenuItem
             // 
             this.peakAreasMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.areaReplicateComparisonMenuItem,
-            this.areaPeptideComparisonMenuItem});
+            this.areaPeptideComparisonMenuItem,
+            this.areaCVHistogramMenuItem,
+            this.areaCVHistogram2DMenuItem});
             resources.ApplyResources(this.peakAreasMenuItem, "peakAreasMenuItem");
             this.peakAreasMenuItem.Name = "peakAreasMenuItem";
             this.peakAreasMenuItem.DropDownOpening += new System.EventHandler(this.areaGraphMenuItem_DropDownOpening);
@@ -3011,11 +3615,80 @@ namespace pwiz.Skyline
             resources.ApplyResources(this.areaPeptideComparisonMenuItem, "areaPeptideComparisonMenuItem");
             this.areaPeptideComparisonMenuItem.Click += new System.EventHandler(this.areaPeptideComparisonMenuItem_Click);
             // 
+            // areaCVHistogramMenuItem
+            // 
+            this.areaCVHistogramMenuItem.Name = "areaCVHistogramMenuItem";
+            resources.ApplyResources(this.areaCVHistogramMenuItem, "areaCVHistogramMenuItem");
+            this.areaCVHistogramMenuItem.Click += new System.EventHandler(this.areaCVHistogramToolStripMenuItem1_Click);
+            // 
+            // areaCVHistogram2DMenuItem
+            // 
+            this.areaCVHistogram2DMenuItem.Name = "areaCVHistogram2DMenuItem";
+            resources.ApplyResources(this.areaCVHistogram2DMenuItem, "areaCVHistogram2DMenuItem");
+            this.areaCVHistogram2DMenuItem.Click += new System.EventHandler(this.areaCVHistogram2DToolStripMenuItem1_Click);
+            // 
+            // massErrorsMenuItem
+            // 
+            this.massErrorsMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.massErrorReplicateComparisonMenuItem,
+            this.massErrorPeptideComparisonMenuItem,
+            this.massErrorHistogramMenuItem,
+            this.massErrorHistogram2DMenuItem});
+            resources.ApplyResources(this.massErrorsMenuItem, "massErrorsMenuItem");
+            this.massErrorsMenuItem.Name = "massErrorsMenuItem";
+            this.massErrorsMenuItem.DropDownOpening += new System.EventHandler(this.massErrorMenuItem_DropDownOpening);
+            // 
+            // massErrorReplicateComparisonMenuItem
+            // 
+            this.massErrorReplicateComparisonMenuItem.Name = "massErrorReplicateComparisonMenuItem";
+            resources.ApplyResources(this.massErrorReplicateComparisonMenuItem, "massErrorReplicateComparisonMenuItem");
+            this.massErrorReplicateComparisonMenuItem.Click += new System.EventHandler(this.massErrorReplicateComparisonMenuItem_Click);
+            // 
+            // massErrorPeptideComparisonMenuItem
+            // 
+            this.massErrorPeptideComparisonMenuItem.Name = "massErrorPeptideComparisonMenuItem";
+            resources.ApplyResources(this.massErrorPeptideComparisonMenuItem, "massErrorPeptideComparisonMenuItem");
+            this.massErrorPeptideComparisonMenuItem.Click += new System.EventHandler(this.massErrorPeptideComparisonMenuItem_Click);
+            // 
+            // massErrorHistogramMenuItem
+            // 
+            this.massErrorHistogramMenuItem.Name = "massErrorHistogramMenuItem";
+            resources.ApplyResources(this.massErrorHistogramMenuItem, "massErrorHistogramMenuItem");
+            this.massErrorHistogramMenuItem.Click += new System.EventHandler(this.massErrorHistogramMenuItem_Click);
+            // 
+            // massErrorHistogram2DMenuItem
+            // 
+            this.massErrorHistogram2DMenuItem.Name = "massErrorHistogram2DMenuItem";
+            resources.ApplyResources(this.massErrorHistogram2DMenuItem, "massErrorHistogram2DMenuItem");
+            this.massErrorHistogram2DMenuItem.Click += new System.EventHandler(this.massErrorHistogram2DMenuItem_Click);
+            // 
             // calibrationCurveMenuItem
             // 
             this.calibrationCurveMenuItem.Name = "calibrationCurveMenuItem";
             resources.ApplyResources(this.calibrationCurveMenuItem, "calibrationCurveMenuItem");
             this.calibrationCurveMenuItem.Click += new System.EventHandler(this.calibrationCurvesMenuItem_Click);
+            // 
+            // documentGridMenuItem
+            // 
+            this.documentGridMenuItem.Name = "documentGridMenuItem";
+            resources.ApplyResources(this.documentGridMenuItem, "documentGridMenuItem");
+            this.documentGridMenuItem.Click += new System.EventHandler(this.documentGridMenuItem_Click);
+            // 
+            // otherGridsMenuItem
+            // 
+            this.otherGridsMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.resultsGridMenuItem,
+            this.groupComparisonsMenuItem,
+            this.listsMenuItem,
+            this.auditLogMenuItem});
+            this.otherGridsMenuItem.Name = "otherGridsMenuItem";
+            resources.ApplyResources(this.otherGridsMenuItem, "otherGridsMenuItem");
+            // 
+            // resultsGridMenuItem
+            // 
+            resources.ApplyResources(this.resultsGridMenuItem, "resultsGridMenuItem");
+            this.resultsGridMenuItem.Name = "resultsGridMenuItem";
+            this.resultsGridMenuItem.Click += new System.EventHandler(this.resultsGridMenuItem_Click);
             // 
             // groupComparisonsMenuItem
             // 
@@ -3038,17 +3711,25 @@ namespace pwiz.Skyline
             resources.ApplyResources(this.editGroupComparisonListMenuItem, "editGroupComparisonListMenuItem");
             this.editGroupComparisonListMenuItem.Click += new System.EventHandler(this.editGroupComparisonListMenuItem_Click);
             // 
-            // resultsGridMenuItem
+            // listsMenuItem
             // 
-            resources.ApplyResources(this.resultsGridMenuItem, "resultsGridMenuItem");
-            this.resultsGridMenuItem.Name = "resultsGridMenuItem";
-            this.resultsGridMenuItem.Click += new System.EventHandler(this.resultsGridMenuItem_Click);
+            this.listsMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.defineNewListMenuItem});
+            this.listsMenuItem.Name = "listsMenuItem";
+            resources.ApplyResources(this.listsMenuItem, "listsMenuItem");
+            this.listsMenuItem.DropDownOpening += new System.EventHandler(this.listsMenuItem_DropDownOpening);
             // 
-            // documentGridMenuItem
+            // defineNewListMenuItem
             // 
-            this.documentGridMenuItem.Name = "documentGridMenuItem";
-            resources.ApplyResources(this.documentGridMenuItem, "documentGridMenuItem");
-            this.documentGridMenuItem.Click += new System.EventHandler(this.documentGridMenuItem_Click);
+            this.defineNewListMenuItem.Name = "defineNewListMenuItem";
+            resources.ApplyResources(this.defineNewListMenuItem, "defineNewListMenuItem");
+            this.defineNewListMenuItem.Click += new System.EventHandler(this.defineNewListMenuItem_Click);
+            // 
+            // auditLogMenuItem
+            // 
+            this.auditLogMenuItem.Name = "auditLogMenuItem";
+            resources.ApplyResources(this.auditLogMenuItem, "auditLogMenuItem");
+            this.auditLogMenuItem.Click += new System.EventHandler(this.auditLogMenuItem_Click);
             // 
             // toolStripSeparator36
             // 
@@ -3231,9 +3912,13 @@ namespace pwiz.Skyline
             this.helpToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.homeMenuItem,
             this.videosMenuItem,
+            this.webinarsMenuItem,
             this.tutorialsMenuItem,
+            this.documentationToolStripMenuItem,
             this.supportMenuItem,
             this.issuesMenuItem,
+            this.checkForUpdatesSeparator,
+            this.checkForUpdatesMenuItem,
             this.toolStripSeparator29,
             this.aboutMenuItem});
             this.helpToolStripMenuItem.Name = "helpToolStripMenuItem";
@@ -3250,6 +3935,12 @@ namespace pwiz.Skyline
             this.videosMenuItem.Name = "videosMenuItem";
             resources.ApplyResources(this.videosMenuItem, "videosMenuItem");
             this.videosMenuItem.Click += new System.EventHandler(this.videosMenuItem_Click);
+            // 
+            // webinarsMenuItem
+            // 
+            this.webinarsMenuItem.Name = "webinarsMenuItem";
+            resources.ApplyResources(this.webinarsMenuItem, "webinarsMenuItem");
+            this.webinarsMenuItem.Click += new System.EventHandler(this.webinarsMenuItem_Click);
             // 
             // tutorialsMenuItem
             // 
@@ -3269,6 +3960,17 @@ namespace pwiz.Skyline
             resources.ApplyResources(this.issuesMenuItem, "issuesMenuItem");
             this.issuesMenuItem.Click += new System.EventHandler(this.issuesMenuItem_Click);
             // 
+            // checkForUpdatesSeparator
+            // 
+            this.checkForUpdatesSeparator.Name = "checkForUpdatesSeparator";
+            resources.ApplyResources(this.checkForUpdatesSeparator, "checkForUpdatesSeparator");
+            // 
+            // checkForUpdatesMenuItem
+            // 
+            this.checkForUpdatesMenuItem.Name = "checkForUpdatesMenuItem";
+            resources.ApplyResources(this.checkForUpdatesMenuItem, "checkForUpdatesMenuItem");
+            this.checkForUpdatesMenuItem.Click += new System.EventHandler(this.checkForUpdatesMenuItem_Click);
+            // 
             // toolStripSeparator29
             // 
             this.toolStripSeparator29.Name = "toolStripSeparator29";
@@ -3279,6 +3981,225 @@ namespace pwiz.Skyline
             this.aboutMenuItem.Name = "aboutMenuItem";
             resources.ApplyResources(this.aboutMenuItem, "aboutMenuItem");
             this.aboutMenuItem.Click += new System.EventHandler(this.aboutMenuItem_Click);
+            // 
+            // contextMenuMassErrors
+            // 
+            this.contextMenuMassErrors.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.massErrorGraphContextMenuItem,
+            this.massErrorPropsContextMenuItem,
+            this.showMassErrorLegendContextMenuItem,
+            this.massErrorPointsContextMenuItem,
+            this.binCountContextMenuItem,
+            this.massErrorTransitionsContextMenuItem,
+            this.massErrorXAxisContextMenuItem,
+            this.massErrorlogScaleContextMenuItem});
+            this.contextMenuMassErrors.Name = "contextMenuMassErrors";
+            resources.ApplyResources(this.contextMenuMassErrors, "contextMenuMassErrors");
+            // 
+            // massErrorGraphContextMenuItem
+            // 
+            this.massErrorGraphContextMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.massErrorReplicateComparisonContextMenuItem,
+            this.massErrorPeptideComparisonContextMenuItem,
+            this.massErrorHistogramContextMenuItem,
+            this.massErrorHistogram2DContextMenuItem});
+            this.massErrorGraphContextMenuItem.Name = "massErrorGraphContextMenuItem";
+            resources.ApplyResources(this.massErrorGraphContextMenuItem, "massErrorGraphContextMenuItem");
+            this.massErrorGraphContextMenuItem.DropDownOpening += new System.EventHandler(this.massErrorMenuItem_DropDownOpening);
+            // 
+            // massErrorReplicateComparisonContextMenuItem
+            // 
+            this.massErrorReplicateComparisonContextMenuItem.CheckOnClick = true;
+            this.massErrorReplicateComparisonContextMenuItem.Name = "massErrorReplicateComparisonContextMenuItem";
+            resources.ApplyResources(this.massErrorReplicateComparisonContextMenuItem, "massErrorReplicateComparisonContextMenuItem");
+            this.massErrorReplicateComparisonContextMenuItem.Click += new System.EventHandler(this.massErrorReplicateComparisonMenuItem_Click);
+            // 
+            // massErrorPeptideComparisonContextMenuItem
+            // 
+            this.massErrorPeptideComparisonContextMenuItem.Name = "massErrorPeptideComparisonContextMenuItem";
+            resources.ApplyResources(this.massErrorPeptideComparisonContextMenuItem, "massErrorPeptideComparisonContextMenuItem");
+            this.massErrorPeptideComparisonContextMenuItem.Click += new System.EventHandler(this.massErrorPeptideComparisonMenuItem_Click);
+            // 
+            // massErrorHistogramContextMenuItem
+            // 
+            this.massErrorHistogramContextMenuItem.Name = "massErrorHistogramContextMenuItem";
+            resources.ApplyResources(this.massErrorHistogramContextMenuItem, "massErrorHistogramContextMenuItem");
+            this.massErrorHistogramContextMenuItem.Click += new System.EventHandler(this.massErrorHistogramMenuItem_Click);
+            // 
+            // massErrorHistogram2DContextMenuItem
+            // 
+            this.massErrorHistogram2DContextMenuItem.Name = "massErrorHistogram2DContextMenuItem";
+            resources.ApplyResources(this.massErrorHistogram2DContextMenuItem, "massErrorHistogram2DContextMenuItem");
+            this.massErrorHistogram2DContextMenuItem.Click += new System.EventHandler(this.massErrorHistogram2DMenuItem_Click);
+            // 
+            // massErrorPropsContextMenuItem
+            // 
+            this.massErrorPropsContextMenuItem.Name = "massErrorPropsContextMenuItem";
+            resources.ApplyResources(this.massErrorPropsContextMenuItem, "massErrorPropsContextMenuItem");
+            this.massErrorPropsContextMenuItem.Click += new System.EventHandler(this.massErrorPropsContextMenuItem_Click);
+            // 
+            // showMassErrorLegendContextMenuItem
+            // 
+            this.showMassErrorLegendContextMenuItem.Name = "showMassErrorLegendContextMenuItem";
+            resources.ApplyResources(this.showMassErrorLegendContextMenuItem, "showMassErrorLegendContextMenuItem");
+            this.showMassErrorLegendContextMenuItem.Click += new System.EventHandler(this.showMassErrorLegendContextMenuItem_Click);
+            // 
+            // massErrorPointsContextMenuItem
+            // 
+            this.massErrorPointsContextMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.massErrorTargetsContextMenuItem,
+            this.massErrorTargets1FDRContextMenuItem,
+            this.massErrorDecoysContextMenuItem});
+            this.massErrorPointsContextMenuItem.Name = "massErrorPointsContextMenuItem";
+            resources.ApplyResources(this.massErrorPointsContextMenuItem, "massErrorPointsContextMenuItem");
+            // 
+            // massErrorTargetsContextMenuItem
+            // 
+            this.massErrorTargetsContextMenuItem.Name = "massErrorTargetsContextMenuItem";
+            resources.ApplyResources(this.massErrorTargetsContextMenuItem, "massErrorTargetsContextMenuItem");
+            this.massErrorTargetsContextMenuItem.Click += new System.EventHandler(this.massErrorTargetsContextMenuItem_Click);
+            // 
+            // massErrorTargets1FDRContextMenuItem
+            // 
+            this.massErrorTargets1FDRContextMenuItem.Name = "massErrorTargets1FDRContextMenuItem";
+            resources.ApplyResources(this.massErrorTargets1FDRContextMenuItem, "massErrorTargets1FDRContextMenuItem");
+            this.massErrorTargets1FDRContextMenuItem.Click += new System.EventHandler(this.massErrorTargets1FDRContextMenuItem_Click);
+            // 
+            // massErrorDecoysContextMenuItem
+            // 
+            this.massErrorDecoysContextMenuItem.Name = "massErrorDecoysContextMenuItem";
+            resources.ApplyResources(this.massErrorDecoysContextMenuItem, "massErrorDecoysContextMenuItem");
+            this.massErrorDecoysContextMenuItem.Click += new System.EventHandler(this.massErrorDecoysContextMenuItem_Click);
+            // 
+            // binCountContextMenuItem
+            // 
+            this.binCountContextMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.ppm05ContextMenuItem,
+            this.ppm10ContextMenuItem,
+            this.ppm15ContextMenuItem,
+            this.ppm20ContextMenuItem});
+            this.binCountContextMenuItem.Name = "binCountContextMenuItem";
+            resources.ApplyResources(this.binCountContextMenuItem, "binCountContextMenuItem");
+            this.binCountContextMenuItem.DropDownOpening += new System.EventHandler(this.binCountContextMenuItem_DropDownOpening);
+            // 
+            // ppm05ContextMenuItem
+            // 
+            this.ppm05ContextMenuItem.Name = "ppm05ContextMenuItem";
+            resources.ApplyResources(this.ppm05ContextMenuItem, "ppm05ContextMenuItem");
+            this.ppm05ContextMenuItem.Click += new System.EventHandler(this.ppm05ContextMenuItem_Click);
+            // 
+            // ppm10ContextMenuItem
+            // 
+            this.ppm10ContextMenuItem.Name = "ppm10ContextMenuItem";
+            resources.ApplyResources(this.ppm10ContextMenuItem, "ppm10ContextMenuItem");
+            this.ppm10ContextMenuItem.Click += new System.EventHandler(this.ppm10ContextMenuItem_Click);
+            // 
+            // ppm15ContextMenuItem
+            // 
+            this.ppm15ContextMenuItem.Name = "ppm15ContextMenuItem";
+            resources.ApplyResources(this.ppm15ContextMenuItem, "ppm15ContextMenuItem");
+            this.ppm15ContextMenuItem.Click += new System.EventHandler(this.ppm15ContextMenuItem_Click);
+            // 
+            // ppm20ContextMenuItem
+            // 
+            this.ppm20ContextMenuItem.Name = "ppm20ContextMenuItem";
+            resources.ApplyResources(this.ppm20ContextMenuItem, "ppm20ContextMenuItem");
+            this.ppm20ContextMenuItem.Click += new System.EventHandler(this.ppm20ContextMenuItem_Click);
+            // 
+            // massErrorTransitionsContextMenuItem
+            // 
+            this.massErrorTransitionsContextMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.massErrorAllTransitionsContextMenuItem,
+            this.massErrorBestTransitionsContextMenuItem,
+            this.toolStripSeparator55,
+            this.MassErrorPrecursorsContextMenuItem,
+            this.MassErrorProductsContextMenuItem});
+            this.massErrorTransitionsContextMenuItem.Name = "massErrorTransitionsContextMenuItem";
+            resources.ApplyResources(this.massErrorTransitionsContextMenuItem, "massErrorTransitionsContextMenuItem");
+            this.massErrorTransitionsContextMenuItem.DropDownOpening += new System.EventHandler(this.massErrorTransitionsContextMenuItem_DropDownOpening);
+            // 
+            // massErrorAllTransitionsContextMenuItem
+            // 
+            this.massErrorAllTransitionsContextMenuItem.Name = "massErrorAllTransitionsContextMenuItem";
+            resources.ApplyResources(this.massErrorAllTransitionsContextMenuItem, "massErrorAllTransitionsContextMenuItem");
+            this.massErrorAllTransitionsContextMenuItem.Click += new System.EventHandler(this.massErrorAllTransitionsContextMenuItem_Click);
+            // 
+            // massErrorBestTransitionsContextMenuItem
+            // 
+            this.massErrorBestTransitionsContextMenuItem.Name = "massErrorBestTransitionsContextMenuItem";
+            resources.ApplyResources(this.massErrorBestTransitionsContextMenuItem, "massErrorBestTransitionsContextMenuItem");
+            this.massErrorBestTransitionsContextMenuItem.Click += new System.EventHandler(this.massErrorBestTransitionsContextMenuItem_Click);
+            // 
+            // toolStripSeparator55
+            // 
+            this.toolStripSeparator55.Name = "toolStripSeparator55";
+            resources.ApplyResources(this.toolStripSeparator55, "toolStripSeparator55");
+            // 
+            // MassErrorPrecursorsContextMenuItem
+            // 
+            this.MassErrorPrecursorsContextMenuItem.Name = "MassErrorPrecursorsContextMenuItem";
+            resources.ApplyResources(this.MassErrorPrecursorsContextMenuItem, "MassErrorPrecursorsContextMenuItem");
+            this.MassErrorPrecursorsContextMenuItem.Click += new System.EventHandler(this.MassErrorPrecursorsContextMenuItem_Click);
+            // 
+            // MassErrorProductsContextMenuItem
+            // 
+            this.MassErrorProductsContextMenuItem.Name = "MassErrorProductsContextMenuItem";
+            resources.ApplyResources(this.MassErrorProductsContextMenuItem, "MassErrorProductsContextMenuItem");
+            this.MassErrorProductsContextMenuItem.Click += new System.EventHandler(this.MassErrorProductsContextMenuItem_Click);
+            // 
+            // massErrorXAxisContextMenuItem
+            // 
+            this.massErrorXAxisContextMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.massErorrRetentionTimeContextMenuItem,
+            this.massErrorMassToChargContextMenuItem});
+            this.massErrorXAxisContextMenuItem.Name = "massErrorXAxisContextMenuItem";
+            resources.ApplyResources(this.massErrorXAxisContextMenuItem, "massErrorXAxisContextMenuItem");
+            this.massErrorXAxisContextMenuItem.DropDownOpening += new System.EventHandler(this.massErrorXAxisContextMenuItem_DropDownOpening);
+            // 
+            // massErorrRetentionTimeContextMenuItem
+            // 
+            this.massErorrRetentionTimeContextMenuItem.Name = "massErorrRetentionTimeContextMenuItem";
+            resources.ApplyResources(this.massErorrRetentionTimeContextMenuItem, "massErorrRetentionTimeContextMenuItem");
+            this.massErorrRetentionTimeContextMenuItem.Click += new System.EventHandler(this.massErorrRetentionTimeContextMenuItem_Click);
+            // 
+            // massErrorMassToChargContextMenuItem
+            // 
+            this.massErrorMassToChargContextMenuItem.Name = "massErrorMassToChargContextMenuItem";
+            resources.ApplyResources(this.massErrorMassToChargContextMenuItem, "massErrorMassToChargContextMenuItem");
+            this.massErrorMassToChargContextMenuItem.Click += new System.EventHandler(this.massErrorMassToChargContextMenuItem_Click);
+            // 
+            // massErrorlogScaleContextMenuItem
+            // 
+            this.massErrorlogScaleContextMenuItem.Name = "massErrorlogScaleContextMenuItem";
+            resources.ApplyResources(this.massErrorlogScaleContextMenuItem, "massErrorlogScaleContextMenuItem");
+            this.massErrorlogScaleContextMenuItem.Click += new System.EventHandler(this.massErrorlogScaleContextMenuItem_Click);
+            // 
+            // documentationToolStripMenuItem
+            // 
+            this.documentationToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.reportsHelpMenuItem,
+            this.commandLineHelpMenuItem,
+            this.otherDocsHelpMenuItem});
+            this.documentationToolStripMenuItem.Name = "documentationToolStripMenuItem";
+            resources.ApplyResources(this.documentationToolStripMenuItem, "documentationToolStripMenuItem");
+            // 
+            // reportsHelpMenuItem
+            // 
+            this.reportsHelpMenuItem.Name = "reportsHelpMenuItem";
+            resources.ApplyResources(this.reportsHelpMenuItem, "reportsHelpMenuItem");
+            this.reportsHelpMenuItem.Click += new System.EventHandler(this.reportsHelpMenuItem_Click);
+            // 
+            // commandLineHelpMenuItem
+            // 
+            this.commandLineHelpMenuItem.Name = "commandLineHelpMenuItem";
+            resources.ApplyResources(this.commandLineHelpMenuItem, "commandLineHelpMenuItem");
+            this.commandLineHelpMenuItem.Click += new System.EventHandler(this.commandLineHelpMenuItem_Click);
+            // 
+            // otherDocsHelpMenuItem
+            // 
+            this.otherDocsHelpMenuItem.Name = "otherDocsHelpMenuItem";
+            resources.ApplyResources(this.otherDocsHelpMenuItem, "otherDocsHelpMenuItem");
+            this.otherDocsHelpMenuItem.Click += new System.EventHandler(this.otherDocsHelpMenuItem_Click);
             // 
             // SkylineWindow
             // 
@@ -3294,6 +4215,7 @@ namespace pwiz.Skyline
             this.Activated += new System.EventHandler(this.SkylineWindow_Activated);
             this.Move += new System.EventHandler(this.SkylineWindow_Move);
             this.Resize += new System.EventHandler(this.SkylineWindow_Resize);
+            ((System.ComponentModel.ISupportInitialize)(this.modeUIHandler)).EndInit();
             this.contextMenuTreeNode.ResumeLayout(false);
             this.contextMenuSpectrum.ResumeLayout(false);
             this.contextMenuChromatogram.ResumeLayout(false);
@@ -3306,6 +4228,7 @@ namespace pwiz.Skyline
             this.mainToolStrip.PerformLayout();
             this.menuMain.ResumeLayout(false);
             this.menuMain.PerformLayout();
+            this.contextMenuMassErrors.ResumeLayout(false);
             this.ResumeLayout(false);
             this.PerformLayout();
 
@@ -3379,6 +4302,7 @@ namespace pwiz.Skyline
         private System.Windows.Forms.ToolStripMenuItem xMenuItem;
         private System.Windows.Forms.ToolStripMenuItem yMenuItem;
         private System.Windows.Forms.ToolStripMenuItem zMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem fragmentsMenuItem;
         private System.Windows.Forms.ToolStripMenuItem chargesMenuItem;
         private System.Windows.Forms.ToolStripMenuItem charge1MenuItem;
         private System.Windows.Forms.ToolStripMenuItem charge2MenuItem;
@@ -3390,6 +4314,7 @@ namespace pwiz.Skyline
         private System.Windows.Forms.ToolStripMenuItem xionsContextMenuItem;
         private System.Windows.Forms.ToolStripMenuItem yionsContextMenuItem;
         private System.Windows.Forms.ToolStripMenuItem zionsContextMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem fragmentionsContextMenuItem;
         private System.Windows.Forms.ToolStripSeparator toolStripSeparator11;
         private System.Windows.Forms.ToolStripSeparator toolStripSeparator12;
         private System.Windows.Forms.ToolStripMenuItem ranksContextMenuItem;
@@ -3417,7 +4342,7 @@ namespace pwiz.Skyline
         private System.Windows.Forms.ToolStripMenuItem autoZoomNoneContextMenuItem;
         private System.Windows.Forms.ToolStripMenuItem autoZoomBestPeakContextMenuItem;
         private System.Windows.Forms.ToolStripMenuItem autoZoomRTWindowContextMenuItem;
-        private System.Windows.Forms.ToolStrip mainToolStrip;        
+        private System.Windows.Forms.ToolStrip mainToolStrip;
         private System.Windows.Forms.ToolStripButton newToolBarButton;        
         private System.Windows.Forms.ToolStripSplitButton undoToolBarButton;        
         private System.Windows.Forms.ToolStripSplitButton redoToolBarButton;        
@@ -3453,7 +4378,7 @@ namespace pwiz.Skyline
         private System.Windows.Forms.ToolStripMenuItem exportTransitionListMenuItem;
         private System.Windows.Forms.ToolStripMenuItem exportReportMenuItem;
         private System.Windows.Forms.ToolStripMenuItem timeGraphContextMenuItem;
-        private System.Windows.Forms.ToolStripMenuItem linearRegressionContextMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem regressionContextMenuItem;
         private System.Windows.Forms.ToolStripMenuItem replicateComparisonContextMenuItem;
         private System.Windows.Forms.ToolStripMenuItem chromPropsContextMenuItem;
         private System.Windows.Forms.ToolStripSeparator toolStripSeparator26;
@@ -3475,7 +4400,7 @@ namespace pwiz.Skyline
         private System.Windows.Forms.ToolStripMenuItem autoZoomRTWindowMenuItem;
         private System.Windows.Forms.ToolStripMenuItem autoZoomBothMenuItem;
         private System.Windows.Forms.ToolStripMenuItem retentionTimesMenuItem;
-        private System.Windows.Forms.ToolStripMenuItem linearRegressionMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem regressionMenuItem;
         private System.Windows.Forms.ToolStripMenuItem replicateComparisonMenuItem;
         private System.Windows.Forms.ToolStripMenuItem schedulingMenuItem;
         private System.Windows.Forms.ToolStripMenuItem supportMenuItem;
@@ -3539,6 +4464,7 @@ namespace pwiz.Skyline
         private System.Windows.Forms.ToolStripMenuItem refineToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem legendChromContextMenuItem;
         private System.Windows.Forms.ToolStripMenuItem selectionContextMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem synchronizeSummaryZoomingContextMenuItem;
         private System.Windows.Forms.ToolStripMenuItem shareDocumentMenuItem;
         private System.Windows.Forms.ToolStripSeparator toolStripSeparator37;
         private System.Windows.Forms.ToolStripMenuItem removeDuplicatePeptidesMenuItem;
@@ -3712,6 +4638,115 @@ namespace pwiz.Skyline
         private System.Windows.Forms.ToolStripMenuItem timeCorrelationContextMenuItem;
         private System.Windows.Forms.ToolStripMenuItem timeResidualsContextMenuItem;
         private System.Windows.Forms.ToolStripMenuItem removeEmptyPeptidesMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem associateFASTAMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem timePointsContextMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem timeTargetsContextMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem timeStandardsContextMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem timeDecoysContextMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem massErrorsMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem massErrorReplicateComparisonMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem massErrorPeptideComparisonMenuItem;
+        private System.Windows.Forms.ContextMenuStrip contextMenuMassErrors;
+        private System.Windows.Forms.ToolStripMenuItem massErrorGraphContextMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem massErrorReplicateComparisonContextMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem massErrorPeptideComparisonContextMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem peptideOrderMassErrorContextMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem massErrorPropsContextMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem showMassErrorLegendContextMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem massErrorHistogramMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem massErrorHistogramContextMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem massErrorPointsContextMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem massErrorTargetsContextMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem massErrorDecoysContextMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem binCountContextMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem ppm05ContextMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem ppm10ContextMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem ppm15ContextMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem ppm20ContextMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem massErrorTransitionsContextMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem massErrorAllTransitionsContextMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem massErrorBestTransitionsContextMenuItem;
+        private System.Windows.Forms.ToolStripSeparator toolStripSeparator55;
+        private System.Windows.Forms.ToolStripMenuItem MassErrorPrecursorsContextMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem MassErrorProductsContextMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem massErrorHistogram2DMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem massErrorHistogram2DContextMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem massErrorXAxisContextMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem massErorrRetentionTimeContextMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem massErrorMassToChargContextMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem massErrorlogScaleContextMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem massErrorTargets1FDRContextMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem surrogateStandardMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem surrogateStandardContextMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem scoreToRunToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem runToRunToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem scoreToRunMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem runToRunMenuItem;
+        private System.Windows.Forms.ToolStripSeparator checkForUpdatesSeparator;
+        private System.Windows.Forms.ToolStripMenuItem checkForUpdatesMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem exportSpectralLibraryMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem transformChromInterploatedMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem transformChromInterpolatedContextMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem setRegressionMethodContextMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem linearRegressionContextMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem kernelDensityEstimationContextMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem loessContextMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem integrationToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem applyPeakAllToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem applyPeakSubsequentToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem removePeakToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem rawTimesContextMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem importAssayLibraryMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem areaCVHistogramMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem areaCVHistogram2DMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem areaCVHistogramContextMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem areaCVHistogram2DContextMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem areaCVbinWidthToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem areaCV05binWidthToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem areaCV10binWidthToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem areaCV15binWidthToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem areaCV20binWidthToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem pointsToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem areaCVtargetsToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem areaCVdecoysToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem areaCVNormalizedToToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem areaCVGlobalStandardsToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem areaCVMediansToolStripMenuItem;
+        private System.Windows.Forms.ToolStripSeparator toolStripSeparator54;
+        private System.Windows.Forms.ToolStripMenuItem areaCVNoneToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem areaCVLogScaleToolStripMenuItem;
+        private System.Windows.Forms.ToolStripSeparator rawTimesMenuItemSplitter;
+        private System.Windows.Forms.ToolStripMenuItem onlyQuantitativeContextMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem onlyQuantitativeMenuItem;
+        private System.Windows.Forms.ToolStripSeparator toolStripSeparatorOnlyQuantitative;
+        private System.Windows.Forms.ToolStripSeparator toolStripSeparator56;
+        private System.Windows.Forms.ToolStripMenuItem originalPeakMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem removeAboveCVCutoffToolStripMenuItem;
+        private System.Windows.Forms.ToolStripSeparator toolStripSeparator57;
+        private System.Windows.Forms.ToolStripMenuItem listsMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem defineNewListMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem graphTypeToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem barAreaGraphDisplayTypeMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem lineAreaGraphDisplayTypeMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem exportAnnotationsMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem importAnnotationsMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem areaCVTransitionsToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem areaCVAllTransitionsToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem areaCVBestTransitionsToolStripMenuItem;
+        private System.Windows.Forms.ToolStripSeparator toolStripSeparator58;
+        private System.Windows.Forms.ToolStripMenuItem areaCVPrecursorsToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem areaCVProductsToolStripMenuItem;
+        private System.Windows.Forms.ToolStripSeparator toolStripSeparatorSelectUI;
+        private System.Windows.Forms.ToolStripDropDownButton modeUIToolBarDropDownButton;
+        private System.Windows.Forms.ToolStripMenuItem targetsAt1FDRToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem otherGridsMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem auditLogMenuItem;
+        private System.Windows.Forms.ToolStripSeparator toolStripSeparator59;
+        private System.Windows.Forms.ToolStripMenuItem webinarsMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem documentationToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem reportsHelpMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem commandLineHelpMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem otherDocsHelpMenuItem;
     }
 }
 

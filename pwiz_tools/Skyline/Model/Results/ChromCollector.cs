@@ -20,6 +20,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using pwiz.Common.Collections;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
 
@@ -49,6 +50,8 @@ namespace pwiz.Skyline.Model.Results
                 MassErrors = new BlockedList<float>();
         }
 
+        public bool IsSetTimes { get { return Times != null; } }
+
         /// <summary>
         /// Set a shared reference to a list of Times that is allocated independently.
         /// </summary>
@@ -66,18 +69,23 @@ namespace pwiz.Skyline.Model.Results
         }
 
         /// <summary>
-        /// Add an intensity value to the given chromatogram.
+        /// Add intensity and mass error (if needed) to the given chromatogram.
         /// </summary>
-        public void AddIntensity(int chromatogramIndex, float intensity, BlockWriter writer)
+        public void AddPoint(int chromatogramIndex, float intensity, float? massError, BlockWriter writer)
         {
+            if (MassErrors != null)
+                // ReSharper disable once PossibleInvalidOperationException
+                MassErrors.Add(chromatogramIndex, massError.Value, writer); // If massError is required, this won't be null (and if it is, we want to hear about it)
             Intensities.Add(chromatogramIndex, intensity, writer);
         }
 
         /// <summary>
-        /// Fill a number of intensity values for the given chromatogram with zeroes.
+        /// Fill a number of intensity and mass error values for the given chromatogram with zeroes.
         /// </summary>
-        public void FillIntensities(int chromatogramIndex, int count, BlockWriter writer)
+        public void FillZeroes(int chromatogramIndex, int count, BlockWriter writer)
         {
+            if (MassErrors != null)
+                MassErrors.FillZeroes(chromatogramIndex, count, writer);
             Intensities.FillZeroes(chromatogramIndex, count, writer);
         }
 
@@ -89,36 +97,23 @@ namespace pwiz.Skyline.Model.Results
             Times.Add(chromatogramIndex, time, writer);
         }
 
-        /// <summary>
-        /// Add a mass error to the given chromatogram.
-        /// </summary>
-        public void AddMassError(int chromatogramIndex, float massError, BlockWriter writer)
-        {
-            MassErrors.Add(chromatogramIndex, massError, writer);
-        }
-
         public int Count { get { return Intensities.Count; } }
+
+        public int? MassErrorsCount { get { return MassErrors == null ? (int?)null : MassErrors.Count; } }
 
         /// <summary>
         /// Get a chromatogram with properly sorted time values.
         /// </summary>
-        public void ReleaseChromatogram(byte[] bytesFromDisk, out float[] times, out float[] intensities, out float[] massErrors, out int[] scanIds)
+        public void ReleaseChromatogram(byte[] bytesFromDisk, out TimeIntensities timeIntensities)
         {
-            times = Times.ToArray(bytesFromDisk);
-            intensities = Intensities.ToArray(bytesFromDisk);
-            massErrors = MassErrors != null
+            var times = Times.ToArray(bytesFromDisk);
+            var intensities = Intensities.ToArray(bytesFromDisk);
+            var massErrors = MassErrors != null
                 ? MassErrors.ToArray(bytesFromDisk)
                 : null;
-            scanIds = Scans != null
+            var scanIds = Scans != null
                 ? Scans.ToArray(bytesFromDisk)
                 : null;
-            
-            // Release memory.
-            Times = null;
-            Intensities = null;
-            MassErrors = null;
-            Scans = null;
-
             // Make sure times and intensities match in length.
             if (times.Length != intensities.Length)
             {
@@ -126,6 +121,18 @@ namespace pwiz.Skyline.Model.Results
                     string.Format(Resources.ChromCollected_ChromCollected_Times__0__and_intensities__1__disagree_in_point_count,
                     times.Length, intensities.Length));
             }
+            if (massErrors != null && massErrors.Length != intensities.Length)
+            {
+                throw new InvalidDataException(
+                    string.Format(Resources.ChromCollector_ReleaseChromatogram_Intensities___0___and_mass_errors___1___disagree_in_point_count_,
+                    intensities.Length, massErrors.Length));
+            }
+            timeIntensities = new TimeIntensities(times, intensities, massErrors, scanIds);
+            // Release memory.
+            Times = null;
+            Intensities = null;
+            MassErrors = null;
+            Scans = null;
         }
     }
 
@@ -134,7 +141,7 @@ namespace pwiz.Skyline.Model.Results
     /// </summary>
     public interface IBlockedList
     {
-        void WriteBlock(FileStream fileStream);
+        void WriteBlock(Stream fileStream);
     }
 
     /// <summary>
@@ -245,9 +252,16 @@ namespace pwiz.Skyline.Model.Results
 
             if (writer != null)
             {
-                // Clear out re-used block.
-                for (int i = 0; i < _blockSize; i++)
-                    _block._data[i] = default(TData);
+                if (_block == null)
+                {
+                    NewBlock();
+                }
+                else
+                {
+                    // Clear out re-used block.
+                    for (int i = 0; i < _blockSize; i++)
+                        _block._data[i] = default(TData);
+                }
 
                 // Write zeroed blocks to disk.
                 while (count >= _blockSize)
@@ -272,29 +286,21 @@ namespace pwiz.Skyline.Model.Results
         /// <summary>
         /// Write finished block to disk.
         /// </summary>
-        public void WriteBlock(FileStream fileStream)
+        public void WriteBlock(Stream fileStream)
         {
             Assume.IsTrue(_blocksInMemory == 1);
             WriteData(_block, fileStream);
             _blocksOnDisk++;
         }
 
-        private void WriteData(Block block, FileStream fileStream)
+        private void WriteData(Block block, Stream fileStream)
         {
             // Create back link to previous spilled block.
-            var lastFilePosition = new[] {_filePosition};
+            var lastFilePosition = _filePosition;
             _filePosition = (int) fileStream.Position;
-            FastWrite.WriteInts(fileStream.SafeFileHandle, lastFilePosition, 0, 1);
+            PrimitiveArrays.WriteOneValue(fileStream, lastFilePosition);
 
-            // Write one data block.
-            if (typeof (TData) == typeof (short))
-                FastWrite.WriteShorts(fileStream.SafeFileHandle, (short[]) (object) block._data, 0, _blockSize);
-            else if (typeof (TData) == typeof (int))
-                FastWrite.WriteInts(fileStream.SafeFileHandle, (int[])(object) block._data, 0, _blockSize);
-            else if (typeof (TData) == typeof (float))
-                FastWrite.WriteFloats(fileStream.SafeFileHandle, (float[])(object) block._data, 0, _blockSize);
-            else
-                Assume.Fail();
+            PrimitiveArrays.Write(fileStream, block._data);
         }
 
         /// <summary>
@@ -446,12 +452,15 @@ namespace pwiz.Skyline.Model.Results
     /// </summary>
     public class ChromGroups : IDisposable
     {
-        private const int MAX_SPILL_FILE_SIZE = 200 * 1024 * 1024;
-        private const int SPILL_FILE_OVER_ESTIMATION_FACTOR = 4;
-        private static readonly float[] EMPTY_FLOAT_ARRAY = new float[0];
+        // We try to make our spill files approximately 200MB
+        private const long TARGET_SPILL_FILE_SIZE = 200 * 1024 * 1024;
+        // Errors occur if the spill file is more than 2GB, so we make sure that the
+        // most pessimistic estimate of the data size is less than this
+        private const long MAX_SPILL_FILE_SIZE = 1L << 32 - 1;
 
         private readonly IList<ChromKey> _chromKeys;
         private readonly float _maxRetentionTime;
+        private readonly int _spectrumCount;
         private readonly string _cachePath;
         private readonly SpillFile[] _spillFiles;
         private readonly int[] _idToGroupId;
@@ -462,11 +471,13 @@ namespace pwiz.Skyline.Model.Results
             IList<IList<int>> chromatogramRequestOrder,
             IList<ChromKey> chromKeys,
             float maxRetentionTime,
+            int spectrumCount,
             string cachePath)
         {
             RequestOrder = chromatogramRequestOrder;
             _chromKeys = chromKeys;
             _maxRetentionTime = maxRetentionTime;
+            _spectrumCount = spectrumCount;
             _cachePath = cachePath;
             if (RequestOrder == null)
                 return;
@@ -487,17 +498,21 @@ namespace pwiz.Skyline.Model.Results
             }
 
             // Decide how groups will be allocated to spill files.
-            int spillFileSize = 0;
+            long maxSpillFileSize = 0;
+            long estimateSpillFileSize = 0;
             SpillFile spillFile = new SpillFile();
             _spillFiles = new SpillFile[chromatogramRequestOrder.Count];
             for (int groupId = 0; groupId < _spillFiles.Length; groupId++)
             {
-                int groupSize = GetMaxSize(groupId);
-                spillFileSize += groupSize;
-                if (spillFileSize > MAX_SPILL_FILE_SIZE * SPILL_FILE_OVER_ESTIMATION_FACTOR)
+                long maxGroupSize = GetMaxSize(groupId);
+                long estimateGroupSize = EstimateGroupSize(groupId);
+                maxSpillFileSize += maxGroupSize;
+                estimateSpillFileSize += estimateGroupSize;
+                if (maxSpillFileSize > MAX_SPILL_FILE_SIZE || estimateSpillFileSize > TARGET_SPILL_FILE_SIZE)
                 {
                     spillFile = new SpillFile();
-                    spillFileSize = groupSize;
+                    maxSpillFileSize = maxGroupSize;
+                    estimateSpillFileSize = estimateGroupSize;
                 }
                 _spillFiles[groupId] = spillFile;
                 spillFile.MaxTime = Math.Max(spillFile.MaxTime, GetMaxTime(groupId));
@@ -517,11 +532,13 @@ namespace pwiz.Skyline.Model.Results
                 string cachePath = null;
                 for (int i = 0; i < _spillFiles.Length; i++)
                 {
-                    var stream = _spillFiles[i].Stream;
-                    if (stream != null)
+                    if (_spillFiles[i].FileName != null)
                     {
-                        cachePath = stream.Name;
-                        stream.Dispose();
+                        cachePath = _spillFiles[i].FileName;
+                    }
+                    if (_spillFiles[i].Stream != null)
+                    {
+                        _spillFiles[i].Stream.Dispose();
                     }
                 }
 
@@ -557,7 +574,7 @@ namespace pwiz.Skyline.Model.Results
         /// <summary>
         /// Return (or possibly create) a spill file stream for the given group.
         /// </summary>
-        public FileStream GetFileStream(int chromIndex)
+        public Stream GetFileStream(int chromIndex)
         {
             int groupIndex = GetGroupIndex(chromIndex);
             return _spillFiles[groupIndex].CreateFileStream(_cachePath);
@@ -569,29 +586,35 @@ namespace pwiz.Skyline.Model.Results
         /// <returns>-1 if chromatogram is not finished yet.</returns>
         public int ReleaseChromatogram(
             int chromatogramIndex, float retentionTime, ChromCollector collector,
-            out float[] times, out float[] intensities, out float[] massErrors, out int[] scanIds)
+            out TimeIntensities timeIntensities)
         {
             int groupIndex = GetGroupIndex(chromatogramIndex);
             var spillFile = _spillFiles[groupIndex];
 
             // Not done reading yet.
-            if (retentionTime < spillFile.MaxTime)
+            if (retentionTime < spillFile.MaxTime || (collector != null && !collector.IsSetTimes))
             {
-                times = null;
-                intensities = null;
-                massErrors = null;
-                scanIds = null;
+                timeIntensities = null;
                 return -1;
             }
 
             // No chromatogram information collected.
             if (collector == null)
             {
-                times = EMPTY_FLOAT_ARRAY;
-                intensities = EMPTY_FLOAT_ARRAY;
-                massErrors = null;
-                scanIds = null;
+                timeIntensities = TimeIntensities.EMPTY;
                 return 0;
+            }
+
+            if (ReferenceEquals(_cachedSpillFile, spillFile))
+            {
+                if (spillFile.Stream != null)
+                {
+                    if (_bytesFromSpillFile == null || spillFile.Stream.Length != _bytesFromSpillFile.Length)
+                    {
+                        // Need to reread spill file if more bytes were written since the time it was cached.
+                        _cachedSpillFile = null;
+                    }
+                }
             }
 
             if (!ReferenceEquals(_cachedSpillFile, spillFile))
@@ -610,7 +633,7 @@ namespace pwiz.Skyline.Model.Results
                     // spillFile.CloseStream();
                 }
             }
-            collector.ReleaseChromatogram(_bytesFromSpillFile, out times, out intensities, out massErrors, out scanIds);
+            collector.ReleaseChromatogram(_bytesFromSpillFile, out timeIntensities);
                 
             return collector.StatusId;
         }
@@ -619,19 +642,41 @@ namespace pwiz.Skyline.Model.Results
         /// Get the maximum possible size (in bytes) of a group, including all the chromatograms that are 
         /// included in the group.
         /// </summary>
-        public int GetMaxSize(int groupIndex)
+        private long GetMaxSize(int groupIndex)
         {
-            int maxSize = 0;
+            int recordSize = sizeof(float) + sizeof(float) + sizeof(float) + sizeof(int); // time, intensity, mass error, scan index
+            return _spectrumCount * RequestOrder[groupIndex].Count * recordSize;
+        }
+
+        /// <summary>
+        /// Returns the most likely size that the data for this group will take on disk.
+        /// </summary>
+        private long EstimateGroupSize(int groupIndex)
+        {
+            const int SPILL_FILE_OVERESTIMATION_FACTOR = 4;
+            long maxSize = 0;
             foreach (var index in RequestOrder[groupIndex])
             {
                 var key = _chromKeys[index];
-                double duration = key.OptionalMaxTime.HasValue && key.OptionalMinTime.HasValue
-                    ? key.OptionalMaxTime.Value - key.OptionalMinTime.Value
-                    : _maxRetentionTime;
-                maxSize += (int) Math.Ceiling(duration/PeptideChromDataSets.TIME_MIN_DELTA);
+                maxSize += EstimateSpectrumCount(key.OptionalMinTime, key.OptionalMaxTime);
             }
-            maxSize *= sizeof (float) + sizeof (float) + sizeof (int); // Size of intensity, mass error, scan id
+            maxSize *= sizeof(float) + sizeof(float) + sizeof(int); // Size of intensity, mass error, scan id
+            maxSize /= SPILL_FILE_OVERESTIMATION_FACTOR;
             return maxSize;
+        }
+
+        private int EstimateSpectrumCount(double? minTime, double? maxTime)
+        {
+            if (!minTime.HasValue || !maxTime.HasValue)
+            {
+                return _spectrumCount;
+            }
+            double duration = maxTime.Value - minTime.Value;
+            if (duration >= _maxRetentionTime || duration <= 0)
+            {
+                return _spectrumCount;
+            }
+            return (int)Math.Ceiling(duration * _spectrumCount / _maxRetentionTime);
         }
 
         /// <summary>
@@ -642,20 +687,23 @@ namespace pwiz.Skyline.Model.Results
         /// </summary>
         private class SpillFile
         {
-            public FileStream Stream { get; private set; }
+            public BufferedStream Stream { get; private set; }
             public float MaxTime { get; set; }
             
-            public FileStream CreateFileStream(string cachePath)
+            public BufferedStream CreateFileStream(string cachePath)
             {
                 if (Stream == null)
                 {
                     // We make some effort to generate unique file names so that more than one instance
                     // of Skyline can load the same raw data file simultaneously.
                     var xicDir = GetSpillDirectory(cachePath);
-                    Directory.CreateDirectory(xicDir);
-                    string fileName = Path.Combine(xicDir,
-                        "xic" + "_" + DateTime.Now.ToString("yyyyMMddHHmmssfff") + "_" + Guid.NewGuid() + ".tmp"); // Not L10N
-                    Stream = File.Create(fileName, ushort.MaxValue, FileOptions.DeleteOnClose);
+                    Helpers.Try<Exception>(() =>
+                    {
+                        string fileName = FileStreamManager.Default.GetTempFileName(xicDir, @"xic");
+                        Stream = new BufferedStream(File.Create(fileName, ushort.MaxValue, FileOptions.DeleteOnClose));
+                        FileName = fileName;
+                    },
+                    2, 100);
                 }
                 return Stream;
             }
@@ -664,20 +712,23 @@ namespace pwiz.Skyline.Model.Results
             {
                 Stream.Dispose();
                 Stream = null;
+                FileName = null;
             }
 
             private static string GetSpillDirectory(string cachePath)
             {
                 string cacheDir = Path.GetDirectoryName(cachePath) ?? string.Empty;
-                return Path.Combine(cacheDir, "xic"); // Not L10N
+                return Path.Combine(cacheDir, @"xic");
             }
 
             public override string ToString()
             {
-                return Stream == null
-                    ? "(none)" // Not L10N
-                    : Stream.Name.Substring(Stream.Name.Length - 8);
+                return FileName == null
+                    ? @"(none)"
+                    : FileName.Substring(FileName.Length - 8);
             }
+
+            public string FileName { get; private set; }
         }
     }
 }

@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Original author: Brendan MacLean <brendanx .at. u.washington.edu>,
  *                  MacCoss Lab, Department of Genome Sciences, UW
  *
@@ -24,6 +24,7 @@ using System.Linq;
 using pwiz.Skyline.Model;
 using pwiz.Skyline.Model.DocSettings.Extensions;
 using pwiz.Skyline.Properties;
+using pwiz.Skyline.Util;
 using ZedGraph;
 using pwiz.Skyline.Util.Extensions;
 
@@ -31,7 +32,7 @@ namespace pwiz.Skyline.Controls.Graphs
 {
     internal class RTScheduleGraphPane : SummaryGraphPane
     {
-        private static readonly Color[] COLORS_WINDOW = GraphChromatogram.COLORS_LIBRARY;
+        private static readonly IList<Color> COLORS_WINDOW = GraphChromatogram.COLORS_LIBRARY;
 
         public static double[] ScheduleWindows
         {
@@ -50,7 +51,7 @@ namespace pwiz.Skyline.Controls.Graphs
 
             set
             {
-                Settings.Default.RTScheduleWindows = string.Join(",", // Not L10N
+                Settings.Default.RTScheduleWindows = string.Join(@",",
                     value.Select(v => v.ToString(CultureInfo.InvariantCulture)).ToArray());
             }
         }
@@ -61,6 +62,9 @@ namespace pwiz.Skyline.Controls.Graphs
             set { Settings.Default.PrimaryTransitionCountGraph = value; }
         }
 
+        private SrmDocument _documentShowing;
+        private double[] _windowsShowing;
+
         public RTScheduleGraphPane(GraphSummary graphSummary)
             : base(graphSummary)
         {
@@ -69,9 +73,16 @@ namespace pwiz.Skyline.Controls.Graphs
             YAxis.Scale.Min = 0;
         }
 
-        public override void UpdateGraph(bool checkData)
+        public override void UpdateGraph(bool selectionChanged)
         {
             SrmDocument document = GraphSummary.DocumentUIContainer.DocumentUI;
+            var windows = ScheduleWindows;
+            // No need to re-graph for a selection change
+            if (ReferenceEquals(document, _documentShowing) && ArrayUtil.EqualsDeep(windows, _windowsShowing))
+                return;
+
+            _documentShowing = document;
+            _windowsShowing = windows;
 
             // TODO: Make it possible to see transition scheduling when full-scan enabled.
             YAxis.Title.Text = document.Settings.TransitionSettings.FullScan.IsEnabledMsMs
@@ -81,7 +92,6 @@ namespace pwiz.Skyline.Controls.Graphs
             CurveList.Clear();
 
             AddCurve(document, Color.Blue);
-            var windows = ScheduleWindows;
             for (int i = 0; i < windows.Length; i++)
             {
                 double window = windows[i];
@@ -97,7 +107,7 @@ namespace pwiz.Skyline.Controls.Graphs
                 }
                 var docWindow = document.ChangeSettings(settings);
 
-                AddCurve(docWindow, COLORS_WINDOW[(i+1)%COLORS_WINDOW.Length]);
+                AddCurve(docWindow, COLORS_WINDOW[(i+1)%COLORS_WINDOW.Count]);
             }
 
             AxisChange();

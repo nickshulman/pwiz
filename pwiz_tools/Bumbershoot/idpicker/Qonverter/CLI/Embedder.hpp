@@ -56,9 +56,12 @@ public ref struct Embedder abstract
 ref struct QuantitationConfiguration
 {
     QuantitationConfiguration(/*QuantitationMethod::None, MZTolerance(10, MZTolerance::PPM)*/);
+    QuantitationConfiguration(QuantitationMethod quantitationMethod, String^ settingsString);
+    virtual String^ ToString() override;
 
     property QuantitationMethod QuantitationMethod;
     property pwiz::CLI::chemistry::MZTolerance^ ReporterIonMzTolerance;
+    property bool NormalizeIntensities;
 };
 
 ref struct XICConfiguration
@@ -111,6 +114,12 @@ static void EmbedScanTime(String^ idpDbFilepath,
                           String^ sourceExtensionPriorityList,
                           IDictionary<int, QuantitationConfiguration^>^ quantitationMethodBySource,
                           pwiz::CLI::util::IterationListenerRegistry^ ilr);
+
+/// adds a mapping of source group to sample names; the sample names are in ascending order of isobaric quantitation channel reporter ion mass
+static void EmbedIsobaricSampleMapping(String^ idpDbFilepath, IDictionary<String^, IList<String^>^>^ isobaricSampleMap);
+
+/// retrieves the mapping of source group to sample names; the sample names are in ascending order of isobaric quantitation channel reporter ion mass
+static IDictionary<String^, IList<String^>^>^ GetIsobaricSampleMapping(String^ idpDbFilepath);
 
 /// checks whether the given idpDB has embedded gene metadata (although it may not necessarily be the most up-to-date)
 static bool HasGeneMetadata(String^ idpDbFilepath);

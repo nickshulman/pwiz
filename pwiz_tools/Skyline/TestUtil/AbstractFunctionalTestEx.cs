@@ -18,8 +18,10 @@
  */
 
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using pwiz.Skyline.Controls.Graphs;
 using System.Windows.Forms;
@@ -28,8 +30,12 @@ using pwiz.Common.DataBinding.Controls.Editor;
 using pwiz.ProteowizardWrapper;
 using pwiz.Skyline.Alerts;
 using pwiz.Skyline.Controls.Databinding;
+using pwiz.Skyline.Controls.GroupComparison;
 using pwiz.Skyline.FileUI;
 using pwiz.Skyline.Model;
+using pwiz.Skyline.Model.DocSettings.Extensions;
+using pwiz.Skyline.Model.GroupComparison;
+using pwiz.Skyline.Model.Lib;
 using pwiz.Skyline.Model.Results;
 using pwiz.Skyline.Model.Tools;
 using pwiz.Skyline.Properties;
@@ -66,15 +72,48 @@ namespace pwiz.SkylineTestUtil
             WaitForDocumentLoaded();
         }
 
-        public void ConvertDocumentToSmallMolecules(RefinementSettings.ConvertToSmallMoleculesMode mode = RefinementSettings.ConvertToSmallMoleculesMode.formulas, 
-            bool invertCharges = false, bool ignoreDecoys = false)
+        public void OpenDocumentNoWait(string documentPath)
         {
-            WaitForDocumentLoaded();
+            var documentFile = TestFilesDir.GetTestPath(documentPath);
+            WaitForCondition(() => File.Exists(documentFile));
+            SkylineWindow.BeginInvoke((Action) (() => SkylineWindow.OpenFile(documentFile)));
+        }
+
+        public static void CheckConsistentLibraryInfo(SrmDocument doc = null)
+        {
+            foreach (var nodeGroup in (doc ?? SkylineWindow.Document).MoleculeTransitionGroups)
+            {
+                if (nodeGroup.HasLibInfo && nodeGroup.Transitions.Any() && nodeGroup.Transitions.All(nodeTran => !nodeTran.HasLibInfo))
+                    Assert.Fail("Inconsistent library information");
+            }
+        }
+
+        public void ConvertDocumentToSmallMolecules(RefinementSettings.ConvertToSmallMoleculesMode mode = RefinementSettings.ConvertToSmallMoleculesMode.formulas,
+            RefinementSettings.ConvertToSmallMoleculesChargesMode invertCharges =  RefinementSettings.ConvertToSmallMoleculesChargesMode.none, 
+            bool ignoreDecoys = false)
+        {
+            var doc = WaitForDocumentLoaded();
             RunUI(() => SkylineWindow.ModifyDocument("Convert to small molecules", document =>
             {
                 var refine = new RefinementSettings();
-                return refine.ConvertToSmallMolecules(document, mode, invertCharges, ignoreDecoys);
+                var path = Path.GetDirectoryName(SkylineWindow.DocumentFilePath);
+                var smallMolDoc = refine.ConvertToSmallMolecules(document, path, mode, invertCharges, ignoreDecoys);
+                CheckConsistentLibraryInfo(smallMolDoc);
+                return smallMolDoc;
             }));
+            WaitForDocumentChange(doc);
+
+            var newDocFileName =
+                SkylineWindow.DocumentFilePath.Contains(BiblioSpecLiteSpec.DotConvertedToSmallMolecules) ?
+                SkylineWindow.DocumentFilePath :
+                SkylineWindow.DocumentFilePath.Replace(".sky", BiblioSpecLiteSpec.DotConvertedToSmallMolecules + ".sky");
+            RunUI(() => SkylineWindow.SaveDocument(newDocFileName));
+            WaitForCondition(() => File.Exists(newDocFileName));
+            RunUI(() => SkylineWindow.OpenFile(newDocFileName));
+            WaitForDocumentLoaded();
+            CheckConsistentLibraryInfo();
+
+            Thread.Sleep(1000);
         }
 
         /// <summary>
@@ -86,7 +125,9 @@ namespace pwiz.SkylineTestUtil
         /// <param name="expectedErrorMessage">anticipated error dialog message, if any</param>
         public void ImportResults(string[] dataFiles, LockMassParameters lockMassParameters, int waitForLoadSeconds = 420, string expectedErrorMessage = null)
         {
-            ImportResultsAsync(dataFiles, lockMassParameters);
+            ImportResultsAsync(dataFiles, lockMassParameters, expectedErrorMessage);
+            if (expectedErrorMessage != null)
+                return;
             WaitForConditionUI(waitForLoadSeconds*1000,
                 () => {
                     var document = SkylineWindow.DocumentUI;
@@ -109,7 +150,7 @@ namespace pwiz.SkylineTestUtil
             ImportResultsAsync(dataFiles, null);
         }
 
-        public void ImportResultsAsync(string[] dataFiles, LockMassParameters lockMassParameters, string expectedErrorMessage = null)
+        public void ImportResultsAsync(string[] dataFiles, LockMassParameters lockMassParameters, string expectedErrorMessage = null, bool? removeFix = null)
         {
             var importResultsDlg = ShowDialog<ImportResultsDlg>(SkylineWindow.ImportResults);
             RunUI(() =>
@@ -118,6 +159,7 @@ namespace pwiz.SkylineTestUtil
                 importResultsDlg.NamedPathSets =
                     importResultsDlg.GetDataSourcePathsFileReplicates(filePaths.Select(MsDataFileUri.Parse));
             });
+            var doc = SkylineWindow.Document;
             if (expectedErrorMessage != null)
             {
                 var dlg = WaitForOpenForm<MessageDlg>();
@@ -126,12 +168,25 @@ namespace pwiz.SkylineTestUtil
             }
             else if (lockMassParameters == null)
             {
-                OkDialog(importResultsDlg, importResultsDlg.OkDialog);
+                if (removeFix.HasValue)
+                {
+                    RunDlg<ImportResultsNameDlg>(importResultsDlg.OkDialog, resultsNames =>
+                    {
+                        if (removeFix.Value)
+                            resultsNames.YesDialog();
+                        else
+                            resultsNames.NoDialog();
+                    });
+                }
+                else
+                {
+                    OkDialog(importResultsDlg, importResultsDlg.OkDialog);
+                }
             }
             else
             {
                 // Expect a Waters lockmass dialog to appear on OK
-                WaitForConditionUI(() => importResultsDlg.NamedPathSets.Count() == dataFiles.Count());
+                WaitForConditionUI(() => importResultsDlg.NamedPathSets.Length == dataFiles.Length);
                 var lockmassDlg = ShowDialog<ImportResultsLockMassDlg>(importResultsDlg.OkDialog);
                 RunUI(() =>
                 {
@@ -141,6 +196,15 @@ namespace pwiz.SkylineTestUtil
                 });
                 OkDialog(lockmassDlg, lockmassDlg.OkDialog);
             }
+            if (expectedErrorMessage == null)
+                WaitForDocumentChange(doc);
+        }
+
+        public void WaitForRegression()
+        {
+            WaitForGraphs();
+            WaitForConditionUI(() => SkylineWindow.RTGraphController != null);
+            WaitForPaneCondition<RTLinearRegressionGraphPane>(SkylineWindow.RTGraphController.GraphSummary, pane => !pane.IsCalculating);
         }
 
         /// <summary>
@@ -159,6 +223,21 @@ namespace pwiz.SkylineTestUtil
             });
         }
 
+        public static void AddLibrary(LibrarySpec libSpec, Library lib)
+        {
+            // ReSharper disable once UseObjectOrCollectionInitializer
+            var libspecList = new List<LibrarySpec>(SkylineWindow.Document.Settings.PeptideSettings.Libraries.LibrarySpecs);
+            libspecList.Add(libSpec);
+            // ReSharper disable once UseObjectOrCollectionInitializer
+            var liblist = new List<Library>(SkylineWindow.Document.Settings.PeptideSettings.Libraries.Libraries);
+            liblist.Add(lib);
+
+            RunUI(() => SkylineWindow.ModifyDocument("Add lib", doc =>
+                doc.ChangeSettings(SkylineWindow.Document.Settings.ChangePeptideLibraries(libs => libs.ChangeLibrarySpecs(libspecList).ChangeLibraries(liblist)))));
+
+            SkylineWindow.Document.Settings.UpdateLists(SkylineWindow.DocumentFilePath);
+        }
+
         public TransitionSettingsUI ShowTransitionSettings(TransitionSettingsUI.TABS tab)
         {
             var fullScanDlg = ShowDialog<TransitionSettingsUI>(SkylineWindow.ShowTransitionSettingsUI);
@@ -175,21 +254,24 @@ namespace pwiz.SkylineTestUtil
             return documentGrid.FindColumn(PropertyPath.Parse(colName));
         }
 
-        public void EnableDocumentGridColumns(DocumentGridForm documentGrid, string viewName, int expectedRows, string[] colNames)
+        public void EnableDocumentGridColumns(DocumentGridForm documentGrid, string viewName, int expectedRows, string[] colNames, string newViewName = null)
         {
             RunUI(() => documentGrid.ChooseView(viewName));
             WaitForCondition(() => (documentGrid.RowCount == expectedRows)); // Let it initialize
-            RunDlg<ViewEditor>(documentGrid.NavBar.CustomizeView,
-                viewEditor =>
-                {
-                    foreach (var colName in colNames)
+            if (colNames != null)
+            {
+                RunDlg<ViewEditor>(documentGrid.NavBar.CustomizeView,
+                    viewEditor =>
                     {
-                        Assert.IsTrue(viewEditor.ChooseColumnsTab.TrySelect(PropertyPath.Parse(colName)));
-                        viewEditor.ChooseColumnsTab.AddSelectedColumn();
-                    }
-                    viewEditor.ViewName = viewName;
-                    viewEditor.OkDialog();
-                });
+                        foreach (var colName in colNames)
+                        {
+                            Assert.IsTrue(viewEditor.ChooseColumnsTab.TrySelect(PropertyPath.Parse(colName)));
+                            viewEditor.ChooseColumnsTab.AddSelectedColumn();
+                        }
+                        viewEditor.ViewName = newViewName ?? viewName;
+                        viewEditor.OkDialog();
+                    });
+            }
         }
 
         /// <summary>
@@ -209,6 +291,97 @@ namespace pwiz.SkylineTestUtil
         {
             RunUI(() => SkylineWindow.ShowGraphSpectrum(false));
             WaitForGraphs();
+        }
+
+        public void OpenAndChangeAreaCVProperties(GraphSummary graphSummary, Action<AreaCVToolbarProperties> action)
+        {
+            RunDlg<AreaCVToolbarProperties>(() => SkylineWindow.ShowAreaCVPropertyDlg(graphSummary), d =>
+            {
+                action(d);
+                d.OK();
+            });
+            UpdateGraphAndWait(SkylineWindow.GraphPeakArea);
+        }
+
+        public void UpdateGraphAndWait(GraphSummary graph)
+        {
+            RunUI(() => { graph.UpdateUI(); });
+            WaitForGraphs();
+        }
+
+        public int GetRowCount(FoldChangeGrid grid)
+        {
+            var count = -1;
+            RunUI(() => count = grid.DataboundGridControl.RowCount);
+            return count;
+        }
+
+        public void WaitForVolcanoPlotPointCount(FoldChangeGrid grid, int expected)
+        {
+            WaitForConditionUI(() => expected == grid.DataboundGridControl.RowCount && grid.DataboundGridControl.IsComplete,
+                string.Format("Expecting {0} points found {1}", expected, GetRowCount(grid)));
+        }
+
+        public GroupComparisonDef FindGroupComparison(string name)
+        {
+            GroupComparisonDef def = null;
+            RunUI(() =>
+            {
+                def = SkylineWindow.DocumentUI.Settings.DataSettings.GroupComparisonDefs.FirstOrDefault(g =>
+                    g.Name == name);
+            });
+
+            return def;
+        }
+
+        public GroupComparisonDef CreateGroupComparison(string name, string controlGroupAnnotation, string controlGroupValue, string compareValue)
+        {
+            var dialog = ShowDialog<EditGroupComparisonDlg>(SkylineWindow.AddGroupComparison);
+
+            RunUI(() =>
+            {
+                dialog.TextBoxName.Text = name;
+                dialog.ComboControlAnnotation.SelectedItem = controlGroupAnnotation;
+            });
+
+            WaitForConditionUI(() => dialog.ComboControlValue.Items.Count > 0);
+
+            RunUI(() =>
+            {
+                dialog.ComboControlValue.SelectedItem = controlGroupValue;
+                dialog.ComboCaseValue.SelectedItem = compareValue;
+                dialog.RadioScopePerProtein.Checked = false;
+            });
+
+            OkDialog(dialog, dialog.OkDialog);
+
+            return FindGroupComparison(name);
+        }
+
+        public void ChangeGroupComparison(Control owner, string name, Action<EditGroupComparisonDlg> action)
+        {
+            GroupComparisonDef def = null;
+            RunDlg<EditGroupComparisonDlg>(() => def = Settings.Default.GroupComparisonDefList.EditItem(owner,
+                FindGroupComparison(name),
+                Settings.Default.GroupComparisonDefList, SkylineWindow), d =>
+            {
+                action(d);
+                d.OkDialog();
+            });
+
+            RunUI(() =>
+            {
+                int index = Settings.Default.GroupComparisonDefList.ToList().FindIndex(g => g.Name == name);
+                if (index >= 0)
+                {
+                    Settings.Default.GroupComparisonDefList[index] = def;
+                    SkylineWindow.ModifyDocument(Resources.SkylineWindow_AddGroupComparison_Add_Fold_Change,
+                        doc => doc.ChangeSettings(
+                            doc.Settings.ChangeDataSettings(
+                                doc.Settings.DataSettings.AddGroupComparisonDef(
+                                    def))));
+                }
+            });
         }
 
         public class Tool : IDisposable
@@ -260,21 +433,54 @@ namespace pwiz.SkylineTestUtil
 
         public static void ClickChromatogram(double x, double y, PaneKey? paneKey = null)
         {
-            var graphChromatogram = SkylineWindow.GraphChromatograms.First();
+            ClickChromatogram(null, x, y, paneKey);
+        }
+
+        public static void ClickChromatogram(string graphName, double x, double y, PaneKey? paneKey = null)
+        {
+            WaitForGraphs();
+            var graphChromatogram = GetGraphChrom(graphName);
             RunUI(() =>
             {
                 graphChromatogram.TestMouseMove(x, y, paneKey);
                 graphChromatogram.TestMouseDown(x, y, paneKey);
             });
             WaitForGraphs();
-            CheckFullScanSelection(x, y, paneKey);
+            CheckFullScanSelection(graphName, x, y, paneKey);
         }
 
         public static void CheckFullScanSelection(double x, double y, PaneKey? paneKey = null)
         {
-            var graphChromatogram = SkylineWindow.GraphChromatograms.First();
+            CheckFullScanSelection(null, x, y, paneKey);
+        }
+
+        public static void CheckFullScanSelection(string graphName, double x, double y, PaneKey? paneKey = null)
+        {
+            var graphChromatogram = GetGraphChrom(graphName);
             WaitForConditionUI(() => SkylineWindow.GraphFullScan != null && SkylineWindow.GraphFullScan.IsLoaded);
-            Assert.IsTrue(graphChromatogram.TestFullScanSelection(x, y, paneKey));
+            if (!graphChromatogram.TestFullScanSelection(x, y, paneKey))
+                Assert.IsTrue(graphChromatogram.TestFullScanSelection(x, y, paneKey));
+        }
+
+        private static GraphChromatogram GetGraphChrom(string graphName)
+        {
+            return graphName != null
+                ? SkylineWindow.GetGraphChrom(graphName)
+                : SkylineWindow.GraphChromatograms.First();
+        }
+
+        public void AddFastaToBackgroundProteome(BuildBackgroundProteomeDlg proteomeDlg, string fastaFile, int repeats)
+        {
+            RunDlg<MessageDlg>(
+                () => proteomeDlg.AddFastaFile(TestFilesDirs[0].GetTestPath(fastaFile)),
+                messageDlg =>
+                {
+                    Assert.AreEqual(
+                        string.Format(Resources.BuildBackgroundProteomeDlg_AddFastaFile_The_added_file_included__0__repeated_protein_sequences__Their_names_were_added_as_aliases_to_ensure_the_protein_list_contains_only_one_copy_of_each_sequence_,
+                        repeats), messageDlg.Message);
+                    messageDlg.OkDialog();
+                });
+            
         }
     }
 }

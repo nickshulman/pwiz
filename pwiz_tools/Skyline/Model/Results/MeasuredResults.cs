@@ -36,14 +36,20 @@ namespace pwiz.Skyline.Model.Results
     {
         public static readonly MeasuredResults EMPTY = new MeasuredResults(new ChromatogramSet[0]);
 
+        private static readonly HashSet<MsDataFileUri> EMPTY_FILES = new HashSet<MsDataFileUri>();
+
         private ImmutableList<ChromatogramSet> _chromatograms;
+        private ImmutableDictionary<string, int> _dictNameToIndex;
+        private ImmutableDictionary<int, int> _dictIdToIndex;
+        private HashSet<MsDataFileUri> _setFiles;
+
         private int _countUnloaded;
 
         private ChromatogramCache _cacheFinal;
         private ChromatogramCache _cacheRecalc;
         private ImmutableList<ChromatogramCache> _listPartialCaches;
         private ImmutableList<string> _listSharedCachePaths;
-        private ProgressStatus _statusLoading;
+        private HashSet<MsDataFileUri> _setCachedFiles = EMPTY_FILES;
 
         public MeasuredResults(IList<ChromatogramSet> chromatograms, bool disableJoining = false)
         {
@@ -55,21 +61,44 @@ namespace pwiz.Skyline.Model.Results
             IsTimeNormalArea = true;
         }
 
+        public bool IsEmpty
+        {
+            get { return _chromatograms == null || _chromatograms.Count == 0; }
+        }
+
+        [TrackChildren]
         public IList<ChromatogramSet> Chromatograms
         {
             get { return _chromatograms; }
             private set
             {
                 _chromatograms = MakeReadOnly(value.ToArray());
+                var dictNameToIndex = new Dictionary<string, int>();
+                var dictIdToIndex = new Dictionary<int, int>();
+                _setFiles = new HashSet<MsDataFileUri>();
+                for (int i = 0; i < _chromatograms.Count; i++)
+                {
+                    var set = _chromatograms[i];
+                    dictNameToIndex.Add(set.Name, i);
+                    dictIdToIndex.Add(set.Id.GlobalIndex, i);
+                    foreach (var path in set.MSDataFilePaths)
+                        _setFiles.Add(path);
+                }
+                _dictNameToIndex = new ImmutableDictionary<string, int>(dictNameToIndex);
+                _dictIdToIndex = new ImmutableDictionary<int, int>(dictIdToIndex);
                 _countUnloaded = _chromatograms.Count(c => !c.IsLoaded);
+                HasGlobalStandardArea = MSDataFileInfos.Any(chromFileInfo =>
+                    chromFileInfo.ExplicitGlobalStandardArea.HasValue);
             }
         }
 
+        public IDictionary<int, int> IdToIndexDictionary { get { return _dictIdToIndex; } }
+
         public bool IsTimeNormalArea { get; private set; }
 
-        public int? CacheVersion
+        public CacheFormatVersion? CacheVersion
         {
-            get { return _cacheFinal != null ? _cacheFinal.Version : (int?) null; }
+            get { return _cacheFinal != null ? _cacheFinal.Version : (CacheFormatVersion?) null; }
         }
 
         public bool IsLoaded
@@ -89,14 +118,14 @@ namespace pwiz.Skyline.Model.Results
                 // All the chromatogram sets are loaded, and the cache has not been modified
                 if (Chromatograms.Contains(c => !c.IsLoaded))
                 {
-                    return "Not all chromatogram sets are loaded - " + string.Join(";", Chromatograms.Where(c => !c.IsLoaded).Select(i => i.IsLoadedExplained()));  // Not L10N
+                    return @"Not all chromatogram sets are loaded - " + string.Join(@";", Chromatograms.Where(c => !c.IsLoaded).Select(i => i.IsLoadedExplained()));
                 }
                 if (!IsJoiningDisabled)
                 {
                     if (_cacheFinal == null)
-                        return "No final cache";  // Not L10N
+                        return @"No final cache";
                     if (_cacheFinal.ReadStream.IsModified)
-                        return string.Format("Cache has been modified ({0})", _cacheFinal.ReadStream.ModifiedExplanation);  // Not L10N
+                        return string.Format(@"Cache has been modified ({0})", _cacheFinal.ReadStream.ModifiedExplanation);
                 }
                 return null;
             }
@@ -104,13 +133,13 @@ namespace pwiz.Skyline.Model.Results
 
         public bool IsJoiningDisabled { get; private set; }
         public bool IsResultsUpdateRequired { get; private set; }
+        public bool IsDeserialized { get; private set; }
+        public bool HasGlobalStandardArea { get; private set; }
 
         public bool IsChromatogramSetLoaded(int index)
         {
             return Chromatograms[index].IsLoaded;
         }
-
-        public ProgressStatus StatusLoading { get { return _statusLoading; } }
 
         public IEnumerable<IPooledStream> ReadStreams
         {
@@ -134,7 +163,7 @@ namespace pwiz.Skyline.Model.Results
 
         public bool IsCachedFile(MsDataFileUri filePath)
         {
-            return CachedFilePaths.Contains(filePath);
+            return _setCachedFiles.Contains(filePath);
         }
 
         public IEnumerable<Type> CachedScoreTypes
@@ -153,6 +182,20 @@ namespace pwiz.Skyline.Model.Results
                     foreach (var cache in _listPartialCaches)
                         yield return cache;
                 }
+            }
+        }
+
+        /// <summary>
+        /// List of caches with _cacheRecalc as backstop during reloading
+        /// </summary>
+        private IEnumerable<ChromatogramCache> CachesEx
+        {
+            get
+            {
+                foreach (var cache in Caches)
+                    yield return cache;
+                if (_cacheRecalc != null)
+                    yield return _cacheRecalc;
             }
         }
 
@@ -191,15 +234,20 @@ namespace pwiz.Skyline.Model.Results
             }
         }
 
+        public bool IsDataFilePath(MsDataFileUri path)
+        {
+            return _setFiles.Contains(path);
+        }
+
         public ChromFileInfo GetChromFileInfo<TChromInfo>(Results<TChromInfo> results, int replicateIndex)
             where TChromInfo : ChromInfo
         {
-            OneOrManyList<TChromInfo> replicateChromInfos = null;
+            ChromInfoList<TChromInfo> replicateChromInfos = default(ChromInfoList<TChromInfo>);
             if (results != null && replicateIndex >= 0 && replicateIndex < results.Count)
             {
                 replicateChromInfos = results[replicateIndex];
             }
-            if (replicateChromInfos != null)
+            if (!replicateChromInfos.IsEmpty)
             {
                 var chromatograms = Chromatograms[replicateIndex];
                 foreach (var replicateChromInfo in replicateChromInfos)
@@ -233,21 +281,6 @@ namespace pwiz.Skyline.Model.Results
             }
         }
 
-        public ChromSetFileMatch FindExactMatchingMSDataFile(MsDataFileUri filePathFind)
-        {
-            int fileOrder = 0;
-            foreach (ChromatogramSet chromSet in Chromatograms)
-            {
-                foreach (var filePath in chromSet.MSDataFilePaths)
-                {
-                    if (Equals(filePath, filePathFind))
-                        return new ChromSetFileMatch(chromSet, filePath, fileOrder);
-                    fileOrder++;
-                }
-            }
-            return null;
-        }
-
         public ChromSetFileMatch FindMatchingMSDataFile(MsDataFileUri filePathFind)
         {
             // First look for an exact match
@@ -269,6 +302,42 @@ namespace pwiz.Skyline.Model.Results
             return null;
         }
 
+        public ChromSetFileMatch FindMatchingOrExistingMSDataFile(MsDataFileUri filePathFind)
+        {
+            // First look for an exact match
+            var exactMatch = FindExactMatchingMSDataFile(filePathFind);
+            if (exactMatch != null)
+                return exactMatch;
+            // Then look for an existing file
+            int fileOrder = 0;
+            foreach (ChromatogramSet chromSet in Chromatograms)
+            {
+                foreach (var filePath in chromSet.MSDataFilePaths)
+                {
+                    var filePathMatching = ChromatogramSet.GetExistingDataFilePath(filePathFind.ToString(), filePath);
+                    if (filePathMatching != null)
+                        return new ChromSetFileMatch(chromSet, filePathMatching, fileOrder);
+                    fileOrder++;
+                }
+            }
+            return null;
+        }
+
+        private ChromSetFileMatch FindExactMatchingMSDataFile(MsDataFileUri filePathFind)
+        {
+            int fileOrder = 0;
+            foreach (ChromatogramSet chromSet in Chromatograms)
+            {
+                foreach (var filePath in chromSet.MSDataFilePaths)
+                {
+                    if (Equals(filePath, filePathFind))
+                        return new ChromSetFileMatch(chromSet, filePath, fileOrder);
+                    fileOrder++;
+                }
+            }
+            return null;
+        }
+
         public static bool IsBaseNameMatch(string baseName1, string baseName2)
         {
             return IsPrefixToExtension(baseName1, baseName2) ||
@@ -283,7 +352,7 @@ namespace pwiz.Skyline.Model.Results
             // has a pipeline that generates mzML files all uppercase
             if (!name.ToLower().StartsWith(prefix.ToLower()))
                 return false;
-            if (name.Length == prefix.Length || name[prefix.Length] == '.') // Not L10N
+            if (name.Length == prefix.Length || name[prefix.Length] == '.')
                 return true;
             // Check for Waters MSe
             string suffix = name.Substring(prefix.Length);
@@ -294,8 +363,8 @@ namespace pwiz.Skyline.Model.Results
 
         public static bool IsUnderscoreSuffix(string name)
         {
-            return name.ToLowerInvariant().EndsWith("_ia_final_fragment") || // Not L10N
-                   name.EndsWith("_final_fragment"); // Not L10N
+            return name.ToLowerInvariant().EndsWith(@"_ia_final_fragment") ||
+                   name.EndsWith(@"_final_fragment");
         }
 
 // ReSharper disable MemberCanBeMadeStatic.Local
@@ -321,18 +390,33 @@ namespace pwiz.Skyline.Model.Results
 
             _cacheFinal.CommitCache(fs);
             // Now the cach needs to be reloaded.
-            return ChangeProp(ImClone(this), im => im._cacheFinal = null);
+            return ChangeProp(ImClone(this), im => im.SetClonedCacheState(null));
         }
 
         public MeasuredResults OptimizeCache(string documentPath, IStreamManager streamManager, ILongWaitBroker progress = null)
         {
+            // No optimizing until we have a joined final cache
+            if (IsJoiningDisabled)
+                return this;
+
             if (!IsLoaded)
                 throw new InvalidOperationException(Resources.MeasuredResults_OptimizeCache_The_chromatogram_cache_must_be_loaded_before_it_is_optimized);
 
             var cacheOptimized = _cacheFinal.Optimize(documentPath, MSDataFilePaths, streamManager, progress);
             if (ReferenceEquals(cacheOptimized, _cacheFinal))
                 return this;
-            return ChangeProp(ImClone(this), im => im._cacheFinal = cacheOptimized);
+            return ChangeProp(ImClone(this), im => im.SetClonedCacheState(cacheOptimized));
+        }
+
+        /// <summary>
+        /// Used on a clone during a change operation on a cloned object to set the state of its
+        /// <see cref="ChromatogramCache"/> files
+        /// </summary>
+        private void SetClonedCacheState(ChromatogramCache cacheFinal, IList<ChromatogramCache> partialCaches = null)
+        {
+            _cacheFinal = cacheFinal;
+            _listPartialCaches = MakeReadOnly(partialCaches);
+            _setCachedFiles = new HashSet<MsDataFileUri>(CachedFilePaths);
         }
 
         public MeasuredResults UpdateCaches(string documentPath, MeasuredResults resultsCache)
@@ -346,32 +430,11 @@ namespace pwiz.Skyline.Model.Results
             {
                 results.Chromatograms = results.GetRescoredChromatograms(resultsCache);
             }
-            
-            results._statusLoading = resultsCache._statusLoading;
-            results._listPartialCaches = resultsCache._listPartialCaches;
-            results._cacheFinal = resultsCache._cacheFinal;
-            results.IsResultsUpdateRequired = resultsCache.IsResultsUpdateRequired;
 
-            // If both sets have partial caches, merge them
-            if (_listPartialCaches != null && results._listPartialCaches != null)
-            {
-                // CONSIDER: It is hypothetically possible that the two sets
-                //           may contain overlapping caches with multiple
-                //           cached files that are not the same, but very
-                //           unlikely.  So, ignored for the moment.
-                var listUnionCaches = new List<ChromatogramCache>(
-                    results._listPartialCaches.Union(_listPartialCaches, ChromatogramCache.PathComparer));
-                if (listUnionCaches.Count != results._listPartialCaches.Count)
-                {
-                    // Use the more advanced status
-                    if (_statusLoading != null && results._statusLoading.PercentComplete <
-                            _statusLoading.PercentComplete)
-                    {
-                        results._statusLoading = _statusLoading;
-                    }
-                    results._listPartialCaches = MakeReadOnly(listUnionCaches);
-                }
-            }
+            results.UpdateClonedCaches(resultsCache);
+
+            results.IsResultsUpdateRequired = resultsCache.IsResultsUpdateRequired;
+            results.IsDeserialized = false;
 
             string cachePath = ChromatogramCache.FinalPathForName(documentPath, null);
             var cachedFiles = results.CachedFileInfos.Distinct(new PathComparer<ChromCachedFile>()).ToArray();
@@ -389,6 +452,49 @@ namespace pwiz.Skyline.Model.Results
                 results.Chromatograms = chromatogramSets;
 
             return results;
+        }
+
+        private void UpdateClonedCaches(MeasuredResults resultsCache)
+        {
+            var cacheFinal = resultsCache._cacheFinal;
+            IList<ChromatogramCache> partialCaches = resultsCache._listPartialCaches;
+
+            // Preserve partial caches in this, if none to add and not final
+            if (partialCaches == null)
+            {
+                if (cacheFinal == null)
+                    partialCaches = _listPartialCaches;
+            }
+            // If both sets have partial caches, merge them
+            else if (_listPartialCaches != null)
+            {
+                // CONSIDER: It is hypothetically possible that the two sets
+                //           may contain overlapping caches with multiple
+                //           cached files that are not the same, but very
+                //           unlikely.  So, ignored for the moment.
+                var listUnionCaches = new List<ChromatogramCache>(
+                    _listPartialCaches.Union(partialCaches, ChromatogramCache.PathComparer));
+                if (listUnionCaches.Count != partialCaches.Count)
+                {
+                    partialCaches = MakeReadOnly(listUnionCaches);
+                }
+            }
+            SetClonedCacheState(cacheFinal, partialCaches);
+        }
+
+        public MeasuredResults ApplyChromatogramSetRemovals(MeasuredResults resultsLoad, MeasuredResults resultsPrevious)
+        {
+            // If nothing changed, then leave the current results alone
+            if (ReferenceEquals(resultsLoad.Chromatograms, resultsPrevious.Chromatograms))
+                return this;
+
+            var setRemove = new HashSet<int>(resultsPrevious.Chromatograms.Select(c => c.Id.GlobalIndex));
+            foreach (var chromatogramSet in resultsLoad.Chromatograms)
+                setRemove.Remove(chromatogramSet.Id.GlobalIndex);
+            var chromatogramSetsNew = Chromatograms.Where(c => !setRemove.Contains(c.Id.GlobalIndex)).ToArray();
+            if (chromatogramSetsNew.Length == 0)
+                return null;
+            return ChangeChromatograms(chromatogramSetsNew);
         }
 
         /// <summary>
@@ -418,13 +524,15 @@ namespace pwiz.Skyline.Model.Results
 
         public bool TryGetChromatogramSet(string name, out ChromatogramSet chromatogramSet, out int index)
         {
-            index = _chromatograms.IndexOf(chrom => Equals(name, chrom.Name));
+            if (!_dictNameToIndex.TryGetValue(name, out index))
+                index = -1;
             return ChromatogramSetForIndex(index, out chromatogramSet);
         }
 
         public bool TryGetChromatogramSet(int setId, out ChromatogramSet chromatogramSet, out int index)
         {
-            index = _chromatograms.IndexOf(chrom => Equals(setId, chrom.Id.GlobalIndex));
+            if (!_dictIdToIndex.TryGetValue(setId, out index))
+                index = -1;
             return ChromatogramSetForIndex(index, out chromatogramSet);
         }
 
@@ -464,16 +572,10 @@ namespace pwiz.Skyline.Model.Results
                                                out ChromatogramGroupInfo[] infoSet)
         {
             var listChrom = new List<ChromatogramGroupInfo>();
-            foreach (var cache in Caches)
+            foreach (var cache in CachesEx)
             {
-                ChromatogramGroupInfo[] info;
-                if (!cache.TryLoadAllIonsChromatogramInfo(extractor, out info))
-                    continue;
-
-                foreach (var chromInfo in info)
+                foreach (var chromInfo in cache.LoadAllIonsChromatogramInfo(extractor, chromatogram))
                 {
-                    if (!ContainsInfo(chromatogram, chromInfo) || chromInfo.Header.Extractor != extractor)
-                        continue;
                     if (loadPoints)
                         chromInfo.ReadChromatogram(cache);
                     listChrom.Add(chromInfo);
@@ -490,8 +592,19 @@ namespace pwiz.Skyline.Model.Results
                                         bool loadPoints,
                                         out ChromatogramGroupInfo[] infoSet)
         {
-            return TryLoadChromatogram(_chromatograms[index], nodePep, nodeGroup,
-                                       tolerance, loadPoints, out infoSet);
+            return TryLoadChromatogram(_chromatograms[index], nodePep, nodeGroup, tolerance, loadPoints, out infoSet);
+        }
+
+        private static readonly ChromatogramGroupInfo[] EMPTY_GROUP_INFOS = new ChromatogramGroupInfo[0];
+
+        public bool TryLoadChromatogram(ChromatogramSet chromatogram,
+                                        PeptideDocNode nodePep,
+                                        TransitionGroupDocNode nodeGroup,
+                                        float tolerance,
+                                        bool loadPoints,
+                                        out ChromatogramGroupInfo[] infoSet)
+        {
+            return TryLoadChromatogram(chromatogram, nodePep, nodeGroup, tolerance, loadPoints, null, out infoSet);
         }
 
         public bool TryLoadChromatogram(ChromatogramSet chromatogram,
@@ -499,6 +612,7 @@ namespace pwiz.Skyline.Model.Results
                                         TransitionGroupDocNode nodeGroup,
                                         float tolerance,
                                         bool loadPoints,
+                                        List<ChromatogramGroupInfo> listChromBuffer,   // List can be used to avoid extra allocation
                                         out ChromatogramGroupInfo[] infoSet)
         {
             // Add precursor matches to a list, if they match at least 1 transition
@@ -509,27 +623,48 @@ namespace pwiz.Skyline.Model.Results
             // TODO: But it messes up when there are 2 sets of transitions for
             //       the same precursor covering different numbers of transitions.
             //       Skyline never creates this case, but it has been reported
+            // In small molecule SRM, it's not at all unusual to have the same Q1>Q3
+            // pair repeatedly, at different retention times, so we use explicit RT to disambiguate if available
             int maxTranMatch = 1;
 
-            var listChrom = new List<ChromatogramGroupInfo>();
-            foreach (var cache in Caches)
+            IList<ChromatogramGroupInfo> listChrom = EMPTY_GROUP_INFOS;
+            foreach (var cache in CachesEx)
             {
-                ChromatogramGroupInfo[] info;
-                if (!cache.TryLoadChromatogramInfo(nodePep, nodeGroup, tolerance, out info))
-                    continue;
-
+                var infoEnum = cache.LoadChromatogramInfos(nodePep, nodeGroup, tolerance, chromatogram);
+                IList<ChromatogramGroupInfo> info = listChromBuffer;
+                infoSet = null;
+                if (info == null)
+                    info = infoSet = infoEnum.ToArray();
+                else
+                {
+                    listChromBuffer.Clear();
+                    listChromBuffer.AddRange(infoEnum);
+                }
                 foreach (var chromInfo in info)
                 {
-                    if (!ContainsInfo(chromatogram, chromInfo))
-                        continue;
+                    // Short-circuit further processing for common case in label free data
+                    if (_cacheFinal != null && info.Count == 1)
+                    {
+                        if (loadPoints)
+                            info[0].ReadChromatogram(cache);
+                        return true;
+                    }
 
                     // If the chromatogram set has an optimization function, then the number
                     // of matching chromatograms per transition is a reflection of better
                     // matching.  Otherwise, we only expect one match per transition.
+                    //
+                    // For small molecules we will likely have to select from several chromInfos all with same Q1>Q3,
+                    // so we examine peaks for match with explicitRT if provided
                     bool multiMatch = chromatogram.OptimizationFunction != null;
-                    int tranMatch = chromInfo.MatchTransitions(nodeGroup, tolerance, multiMatch);
+                    int tranMatch = chromInfo.MatchTransitions(nodePep, nodeGroup, tolerance, multiMatch);
+                    // CONSIDER: This is pretty tricky code, and we are currently favoring
+                    //           peak proximity to explicit retention time over number of matching
+                    //           transitions.
                     if (tranMatch >= maxTranMatch)
                     {
+                        if (ReferenceEquals(listChrom, EMPTY_GROUP_INFOS))
+                            listChrom = new List<ChromatogramGroupInfo>();
                         // If new maximum, clear anything collected at the previous maximum
                         if (tranMatch > maxTranMatch)
                             listChrom.Clear();
@@ -547,10 +682,12 @@ namespace pwiz.Skyline.Model.Results
             // is only one precursor match per file.
             if (listChrom.Count > 1)
             {
-                double precursorMz = nodeGroup.PrecursorMz;
+                var precursorMz = nodeGroup.PrecursorMz;
                 var listChromFinal = new List<ChromatogramGroupInfo>();
                 foreach (var chromInfo in listChrom)
                 {
+                    // Polarity matching should have happened in the TryLoad
+                    Assume.IsTrue(chromInfo.PrecursorMz.IsNegative == precursorMz.IsNegative);
                     var filePath = chromInfo.FilePath;
                     int fileIndex = listChromFinal.IndexOf(info => Equals(filePath, info.FilePath));
                     if (fileIndex == -1)
@@ -564,24 +701,29 @@ namespace pwiz.Skyline.Model.Results
                 }
                 listChrom = listChromFinal;
             }
-            infoSet = listChrom.ToArray();
-            return infoSet.Length > 0;
-        }
-
-        private static bool ContainsInfo(ChromatogramSet chromatogram, ChromatogramGroupInfo chromInfo)
-        {
-            return chromatogram.MSDataFilePaths.Contains(chromInfo.FilePath);
+            if (listChromBuffer != null)
+            {
+                listChromBuffer.Clear();
+                listChromBuffer.AddRange(listChrom);
+                infoSet = null;
+            }
+            else
+            {
+                infoSet = ReferenceEquals(listChrom, EMPTY_GROUP_INFOS)
+                    ? EMPTY_GROUP_INFOS : listChrom.ToArray();
+            }
+            return listChrom.Count > 0;
         }
 
         public bool ContainsChromatogram(string name)
         {
-            return _chromatograms.Contains(set => Equals(name, set.Name));
+            return _dictNameToIndex.ContainsKey(name);
         }
 
-        public void Load(SrmDocument document, string documentPath, ILoadMonitor loadMonitor,
-            Action<string, MeasuredResults, bool> completed)
+        public void Load(SrmDocument document, string documentPath, MultiFileLoadMonitor loadMonitor, MultiFileLoader multiFileLoader,
+            Action<string, MeasuredResults, MeasuredResults> completed)
         {
-            var loader = new Loader(ImClone(this), document, documentPath, loadMonitor, completed);
+            var loader = new Loader(ImClone(this), document, documentPath, loadMonitor, multiFileLoader, completed);
             loader.Load();
         }
 
@@ -596,6 +738,11 @@ namespace pwiz.Skyline.Model.Results
 
         #region Property change methods
 
+        public MeasuredResults ClearDeserialized()
+        {
+            return ChangeProp(ImClone(this), im => im.IsDeserialized = false);
+        }
+
         public MeasuredResults ChangeIsJoiningDisabled(bool prop)
         {
             return ChangeProp(ImClone(this), im =>
@@ -606,10 +753,10 @@ namespace pwiz.Skyline.Model.Results
             });
         }
 
-        public MeasuredResults ChangeChromatograms(IList<ChromatogramSet> prop, bool forceUpdate = false)
+        public MeasuredResults ChangeChromatograms(IList<ChromatogramSet> prop)
         {
             var results = ChangeProp(ImClone(this), im => im.Chromatograms = prop);
-            if (forceUpdate || RequiresCacheUpdate(results))
+            if (RequiresCacheUpdate(results))
             {
                 // Cache is no longer final
                 var listPartialCaches = new List<ChromatogramCache>();
@@ -628,13 +775,33 @@ namespace pwiz.Skyline.Model.Results
                     }
                 }
                 // Always take the existing final cache forward.  It will be optimized
-                // on save.
-                if (results._cacheFinal != null)
+                // on save.  Unless it has already been modified, in which case it needs
+                // to be reloaded to know what is now in it.
+                if (results._cacheFinal != null && !results._cacheFinal.ReadStream.IsModified)
                     listPartialCaches.Insert(0, results._cacheFinal);
-                results._cacheFinal = null;
-                results._listPartialCaches = ImmutableList.ValueOf(listPartialCaches.Count == 0 ? null : listPartialCaches);
+                results.SetClonedCacheState(null, listPartialCaches.Count != 0 ? listPartialCaches : null);
             }
             return results;
+        }
+
+        public MeasuredResults AddDataFile(MsDataFileUri dataFile, IEnumerable<string> replicateNames)
+        {
+            var newChromatograms = new List<ChromatogramSet>(Chromatograms);
+            foreach (var replicateName in replicateNames)
+            {
+                var name = replicateName;
+                int indexSet = newChromatograms.IndexOf(set => set.Name == name);
+                if (indexSet == -1)
+                    newChromatograms.Add(new ChromatogramSet(name, new[] { dataFile }));
+                else
+                {
+                    var chromSet = newChromatograms[indexSet];
+                    var listPaths = chromSet.MSDataFilePaths.ToList();
+                    listPaths.Add(dataFile);
+                    newChromatograms[indexSet] = chromSet.ChangeMSDataFilePaths(listPaths);
+                }
+            }
+            return ChangeChromatograms(newChromatograms);
         }
 
         private bool RequiresCacheUpdate(MeasuredResults results)
@@ -690,6 +857,10 @@ namespace pwiz.Skyline.Model.Results
         public static MeasuredResults MergeResults(MeasuredResults resultsOrig, MeasuredResults resultsImport,
             string documentPath, MergeAction mergeAction, out MeasuredResults resultsBase)
         {
+            // Code below expects 'remove' when there are no measured results to import
+            if (resultsImport == null)
+                mergeAction = MergeAction.remove;
+
             MeasuredResults resultsNew;
             if (resultsOrig != null)
             {
@@ -701,6 +872,7 @@ namespace pwiz.Skyline.Model.Results
 
                 if (mergeAction == MergeAction.remove)
                     resultsNew = null;
+                // ReSharper disable once PossibleNullReferenceException
                 else if (resultsBase._cacheFinal != null || resultsBase._listPartialCaches != null)
                     resultsNew = resultsBase;
                 else
@@ -748,8 +920,7 @@ namespace pwiz.Skyline.Model.Results
             }
 
             var results = ImClone(this);
-            results._cacheFinal = null;
-            results._listPartialCaches = MakeReadOnly(listPartialCaches);
+            results.SetClonedCacheState(null, listPartialCaches);
             results._listSharedCachePaths = MakeReadOnly(listSharedCachePaths);
 
             // Calculate the replicates to cover the merge
@@ -868,11 +1039,16 @@ namespace pwiz.Skyline.Model.Results
             if (_cacheFinal == null)
                 throw new InvalidOperationException(Resources.MeasuredResults_ChangeRecalcStatus_Attempting_to_recalculate_peak_integration_without_first_completing_raw_data_import_);
 
-            return ChangeProp(ImClone(this), im =>
-                                                 {
-                                                     im._cacheRecalc = im._cacheFinal;
-                                                     im._cacheFinal = null;
-                                                 });
+            return ChangeProp(ImClone(this), im => im.SetClonedCacheRecalc());
+        }
+
+        /// <summary>
+        /// Sets cache recalc to current catch on a cloned object
+        /// </summary>
+        private void SetClonedCacheRecalc()
+        {
+            _cacheRecalc = _cacheFinal;
+            SetClonedCacheState(null);
         }
 
         #endregion
@@ -888,7 +1064,8 @@ namespace pwiz.Skyline.Model.Results
 
         private enum ATTR
         {
-            time_normal_area
+            time_normal_area,
+            joining_disabled
         }
 
         public static MeasuredResults Deserialize(XmlReader reader)
@@ -905,6 +1082,7 @@ namespace pwiz.Skyline.Model.Results
         {
             // Consume tag
             IsTimeNormalArea = reader.GetBoolAttribute(ATTR.time_normal_area);
+            bool unjoinedResults = reader.GetBoolAttribute(ATTR.joining_disabled);
             reader.Read();
 
             // Read chromatogram sets
@@ -914,11 +1092,14 @@ namespace pwiz.Skyline.Model.Results
 
             // Read end tag
             reader.ReadEndElement();
+
+            IsDeserialized = !unjoinedResults && Chromatograms.Count > 0;
         }
 
         public void WriteXml(XmlWriter writer)
         {
             writer.WriteAttribute(ATTR.time_normal_area, IsTimeNormalArea);
+            writer.WriteAttribute(ATTR.joining_disabled, IsJoiningDisabled);
             writer.WriteElements(Chromatograms);
         }
 
@@ -948,62 +1129,56 @@ namespace pwiz.Skyline.Model.Results
 
         #endregion
 
-
         private class Loader
         {
             private readonly MeasuredResults _resultsClone;
             private readonly SrmDocument _document;
             private readonly string _documentPath;
-            private readonly Action<string, MeasuredResults, bool> _completed;
-            private readonly ILoadMonitor _loader;
-            private ProgressStatus _status;
+            private readonly Action<string, MeasuredResults, MeasuredResults> _completed;
+            private readonly MultiFileLoadMonitor _loadMonitor;
+            private readonly MultiFileLoader _multiFileLoader;
 
             public Loader(MeasuredResults resultsClone, SrmDocument document, string documentPath,
-                ILoadMonitor loader, Action<string, MeasuredResults, bool> completed)
+                MultiFileLoadMonitor loadMonitor, MultiFileLoader multiFileLoader, Action<string, MeasuredResults, MeasuredResults> completed)
             {
                 _resultsClone = resultsClone;
                 _document = document;
                 _documentPath = documentPath;
                 _completed = completed;
-                _loader = loader;
+                _loadMonitor = loadMonitor;
+                _multiFileLoader = multiFileLoader;
             }
-
+            
             public void Load()
             {
-                if (_resultsClone._statusLoading == null)
-                {
-                    var fileName = Path.GetFileName(_documentPath);
-                    // Avoid repeatedly reporting that results are loading for the file if joining is disabled, i.e. command line
-                    string initialMessage = _resultsClone.IsJoiningDisabled
-                        ? string.Empty
-                        : string.Format(Resources.Loader_Load_Loading_results_for__0__, fileName);
-                    _status = new ChromatogramLoadingStatus(initialMessage);
-                    _loader.UpdateProgress(_status);
-                }
-                else
-                {
-                    _status = _resultsClone._statusLoading.NextSegment();
-                }
+                // Turn of deserialized flag
+                _resultsClone.IsDeserialized = false;
 
-                // It is not possible to be here with a valid final cache.
-                _resultsClone._cacheFinal = null;
-
+                // If there is a final cache, move it to partial and let it prove itself usable.
+                if (_resultsClone._cacheFinal != null)
+                {
+                    _resultsClone._listPartialCaches = MakeReadOnly(new[] { _resultsClone._cacheFinal });
+                    _resultsClone._cacheFinal = null;
+                }
+                    
                 // Try loading the final cache from disk, if progressive loading has not started
-                string cachePath = ChromatogramCache.FinalPathForName(_documentPath, null);
+                string cachePath = FinalCachePath;
                 if (!CheckFinalCache(cachePath))
-                    return;
+                    return; // Error reported
 
                 // Attempt to load any shared caches that have not been loaded yet
                 LoadSharedCaches();
 
+                bool allowLoadingPartialCaches = !_multiFileLoader.IsLoading(_document);
+
                 // Create a set of the paths for which existing caches contain results
-                var cachedPaths = GetCachedPaths();
+                var cachedPaths = GetCachedPaths(allowLoadingPartialCaches);
 
                 // Create a set of paths for nonexistent caches.
-                var msDataFilePaths = _resultsClone.MSDataFilePaths.ToArray();
-                var uncachedPaths = GetUncachedPaths(msDataFilePaths, cachedPaths, cachePath);
+                var dataFiles = GetDataFiles();
+                var uncachedPaths = GetUncachedPaths(dataFiles, cachedPaths, cachePath, allowLoadingPartialCaches);
                 if (uncachedPaths == null)
-                    return;
+                    return; // Error reported
 
                 // If there are uncached paths, then initialize state for loading them,
                 // and start the load for the first one.
@@ -1011,33 +1186,20 @@ namespace pwiz.Skyline.Model.Results
                 if (uncachedCount > 0)
                 {
                     // Checkpoint any partial cache changes, in case subsequent builds fail
-                    if (!ArrayUtil.ReferencesEqual(_resultsClone._listPartialCaches,
-                                                   _document.Settings.MeasuredResults._listPartialCaches))
+                    var resultsCurrent = _document.Settings.MeasuredResults;
+                    if (!ArrayUtil.ReferencesEqual(_resultsClone._listPartialCaches, resultsCurrent._listPartialCaches))
                     {
-                        Complete(false);
-                        return;
+                        // Only if this will change the MeasuredResults, causing us to return here
+                        var resultsMerged = resultsCurrent.UpdateCaches(_documentPath, _resultsClone);
+                        if (!ReferenceEquals(resultsMerged._listPartialCaches, resultsCurrent._listPartialCaches))
+                        {
+                            Complete(_resultsClone, false);
+                            return;
+                        }
                     }
 
-                    // If more than just a single file will be cached, then create a segmented
-                    // status object for marking progress.
-                    if (msDataFilePaths.Length > 1 && _status.SegmentCount < uncachedCount)
-                    {
-                        int joinAddition = _resultsClone.IsJoiningDisabled ? 0 : 1; // +1 for join
-                        _status = _status.ChangeSegments(0, uncachedCount + joinAddition);
-                    }
-
-                    // CONSIDER: In theory concurrent builds should be possible, and could
-                    //           improve resource utilization to speed up cache creation.  Initial
-                    //           tests, however, expose issues with coordinating progress status
-                    //           and even successful completion.
-                    var uncached = uncachedPaths[0];
-                    ChromatogramCache.Build(_document,
-                                            _resultsClone._cacheRecalc,
-                                            uncached.Value,
-                                            MsDataFileUri.Parse(uncached.Key),
-                                            _status,
-                                            _loader,
-                                            FinishCacheBuild);
+                    // Start loading uncached paths in parallel.
+                    _multiFileLoader.Load(uncachedPaths, _document, _documentPath, _resultsClone._cacheRecalc, _loadMonitor, FinishCacheBuild);
                     return;
                 }
 
@@ -1047,31 +1209,31 @@ namespace pwiz.Skyline.Model.Results
                 if (_resultsClone._listPartialCaches == null)
                     return;
 
+                // Only finish if the multi-file loader is done with the document
+                if (!_multiFileLoader.CompleteDocument(_document, _loadMonitor))
+                    return;
+
                 // If joining is not allowed just finish
+                var firstCache = _resultsClone._listPartialCaches[0];
                 if (_resultsClone.IsJoiningDisabled)
                 {
-                    _loader.UpdateProgress(_status.ChangeSegments(0, 0).Complete());
-
-                    Complete(true);
+                    Complete(_resultsClone, true);
                 }
                 // Once everything is represented, if there is only one cache, then it is final
                 // As long as it is not a shared cache
                 else if (_resultsClone._listPartialCaches.Count == 1 &&
-                        !_resultsClone.IsSharedCache(_resultsClone._listPartialCaches[0]))
+                            !_resultsClone.IsSharedCache(firstCache) &&
+                            firstCache.CachePath == cachePath)
                 {
-                    _resultsClone._cacheFinal = _resultsClone._listPartialCaches[0];
-                    _resultsClone._cacheRecalc = null;
-                    _resultsClone._listPartialCaches = null;
+                    _resultsClone.SetClonedCacheState(firstCache);
                     _resultsClone.IsResultsUpdateRequired = false;
 
-                    _loader.UpdateProgress(_status.ChangeSegments(0, 0).Complete());
-
-                    Complete(true);
+                    ReleaseCacheRecalc();
+                    Complete(_resultsClone, true);
                 }
-                // Otherwise start the join
+                // Otherwise perform join
                 else
                 {
-                    _status = _status.NextSegment();
                     var listPaths = new List<string>();
                     IPooledStream streamDestination = null;
                     foreach (var cache in _resultsClone._listPartialCaches)
@@ -1080,8 +1242,58 @@ namespace pwiz.Skyline.Model.Results
                         if (Equals(cachePath, cache.CachePath))
                             streamDestination = cache.ReadStream;
                     }
+
+                    var streamRecalc = ReleaseCacheRecalc();
+                    if (streamRecalc != null)
+                    {
+                        // It should not be possible to be both adding to an existing final cache
+                        // and re-scoring the existing final cache at the same time.
+                        Assume.IsNull(streamDestination);
+                        streamDestination = streamRecalc;
+                    }
+                    var assumeNegativeChargeInPreV11Caches = _document.MoleculeTransitionGroups.All(tg => tg.PrecursorMz.IsNegative);
                     ChromatogramCache.Join(cachePath, streamDestination,
-                        listPaths, _status, _loader, FinishCacheJoin);
+                        listPaths, _loadMonitor, FinishCacheJoin, assumeNegativeChargeInPreV11Caches);
+                }
+            }
+
+            private IPooledStream ReleaseCacheRecalc()
+            {
+                if (_resultsClone._cacheRecalc == null)
+                    return null;
+                var recalcStream = _resultsClone._cacheRecalc.ReadStream;
+                _resultsClone._cacheRecalc = null;
+                recalcStream.CloseStream();
+                return recalcStream;
+            }
+
+            private List<DataFileReplicates> GetDataFiles()
+            {
+                var dataFiles = new List<DataFileReplicates>();
+                foreach (var dataFilePath in _resultsClone.MSDataFilePaths)
+                {
+                    var dataFileReplicate = new DataFileReplicates
+                    {
+                        DataFile = dataFilePath,
+                        ReplicateList = new List<string>()
+                    };
+                    dataFiles.Add(dataFileReplicate);
+                    foreach (var chromatogramSet in _resultsClone.Chromatograms)
+                    {
+                        if (chromatogramSet.MSDataFilePaths.Contains(dataFilePath))
+                        {
+                            dataFileReplicate.ReplicateList.Add(chromatogramSet.Name);
+                        }
+                    }
+                }
+                return dataFiles;
+            }
+
+            private string FinalCachePath
+            {
+                get
+                {
+                    return Program.ReplicateCachePath ?? ChromatogramCache.FinalPathForName(_documentPath, null);
                 }
             }
 
@@ -1090,32 +1302,34 @@ namespace pwiz.Skyline.Model.Results
                 // If the final cache exists and it is not in the partial caches or partial caches
                 // contain the final cache, but it is not open (Undo-Redo case), then make sure it
                 // is reloaded from scratch, as it may have changed since it was last open.
-                bool cacheExists = File.Exists(cachePath);
-                if (_resultsClone._listPartialCaches != null && _resultsClone._cacheRecalc == null && cacheExists)
+                if (_resultsClone._cacheRecalc == null && File.Exists(cachePath))
                 {
-                    int finalIndex = _resultsClone._listPartialCaches.IndexOf(cache =>
-                        Equals(cache.CachePath, cachePath));
-                    if (finalIndex == -1 || _resultsClone._listPartialCaches[finalIndex].ReadStream.IsModified)
+                    if (_resultsClone._listPartialCaches != null)
                     {
-                        foreach (var cache in _resultsClone._listPartialCaches)
-                            cache.ReadStream.CloseStream();
-                        _resultsClone._listPartialCaches = null;
+                        int finalIndex = _resultsClone._listPartialCaches.IndexOf(cache =>
+                            Equals(cache.CachePath, cachePath));
+                        if (finalIndex == -1 || _resultsClone._listPartialCaches[finalIndex].ReadStream.IsModified)
+                        {
+                            foreach (var cache in _resultsClone._listPartialCaches)
+                                cache.ReadStream.CloseStream();
+                            _resultsClone._listPartialCaches = null;    // Drop through and reload
+                        }
                     }
-                }
-                if (_resultsClone._listPartialCaches == null && _resultsClone._cacheRecalc == null)
-                {
-                    if (cacheExists)
+                    if (_resultsClone._listPartialCaches == null)
                     {
+                        var status = new ProgressStatus();
                         try
                         {
-                            var cache = ChromatogramCache.Load(cachePath, _status, _loader);
+                            // Watch out for older caches that didn't record chromatogram polarity.  We can only reliably handle this for completely negative docs.
+                            bool assumeNegativeChargesInPreV11Caches = _document.MoleculeTransitionGroups.All(p => p.PrecursorMz.IsNegative);
+                            var cache = ChromatogramCache.Load(cachePath, status, _loadMonitor, assumeNegativeChargesInPreV11Caches);
                             if (_resultsClone.IsValidCache(cache, false))
                                 _resultsClone._listPartialCaches = ImmutableList.Singleton(cache);
                             else
                             {
                                 // Otherwise, get rid of this cache, since it will need to be
                                 // replaced.
-                                cache.ReadStream.CloseStream();
+                                cache.Dispose();
                                 FileEx.SafeDelete(cache.CachePath);
                             }
                         }
@@ -1123,7 +1337,7 @@ namespace pwiz.Skyline.Model.Results
                         {
                             string message = TextUtil.LineSeparate(string.Format(Resources.Loader_Load_Failure_reading_the_data_file__0__, cachePath),
                                                                    x.Message);
-                            Fail(new IOException(message, x));
+                            Fail(status.ChangeErrorException(new IOException(message, x)));
                             return false;
                         }
                     }
@@ -1131,7 +1345,7 @@ namespace pwiz.Skyline.Model.Results
                 return true;
             }
 
-            private HashSet<MsDataFileUri> GetCachedPaths()
+            private HashSet<MsDataFileUri> GetCachedPaths(bool allowLoading)
             {
                 var cachedPaths = new HashSet<MsDataFileUri>();
                 if (_resultsClone._listPartialCaches != null)
@@ -1157,7 +1371,7 @@ namespace pwiz.Skyline.Model.Results
                 }
                 // Otherwise, try loading replicate caches from before implementation
                 // of single cache per replicate.
-                else
+                else if (allowLoading)
                 {
                     var listPartialCaches = new List<ChromatogramCache>();
                     foreach (var chromSet in _resultsClone.Chromatograms)
@@ -1182,7 +1396,11 @@ namespace pwiz.Skyline.Model.Results
                         }
                     }
                     if (listPartialCaches.Count > 0)
+                    {
                         _resultsClone._listPartialCaches = ImmutableList.ValueOf(listPartialCaches);
+                        // Use recursion to get the cached paths from the new partial caches
+                        return GetCachedPaths(true);
+                    }
                 }
                 return cachedPaths;
             }
@@ -1191,6 +1409,7 @@ namespace pwiz.Skyline.Model.Results
             {
                 if (_resultsClone._listSharedCachePaths != null)
                 {
+                    var status = new ProgressStatus();
                     var listAddCaches = new List<ChromatogramCache>();
                     foreach (var sharedCachePath in _resultsClone._listSharedCachePaths)
                     {
@@ -1201,9 +1420,14 @@ namespace pwiz.Skyline.Model.Results
                         {
                             try
                             {
-                                var cache = ChromatogramCache.Load(sharedCachePath, _status, _loader);
+                                var assumeNegativeChargeInPreV11Caches = _document.MoleculeTransitionGroups.All(t => t.PrecursorMz.IsNegative);
+                                var cache = ChromatogramCache.Load(sharedCachePath, status, _loadMonitor, assumeNegativeChargeInPreV11Caches);
                                 if (cache.IsSupportedVersion)
                                     listAddCaches.Add(cache);
+                                else
+                                {
+                                    cache.Dispose();
+                                }
                             }
                             catch (UnauthorizedAccessException) {}
                             catch (IOException) {}
@@ -1228,22 +1452,23 @@ namespace pwiz.Skyline.Model.Results
                 }
             }
 
-            private List<KeyValuePair<string, string>> GetUncachedPaths(MsDataFileUri[] msDataFilePaths, HashSet<MsDataFileUri> cachedPaths, string cachePath)
+            private List<DataFileReplicates> GetUncachedPaths(ICollection<DataFileReplicates> dataFileReplicatesList,
+                ICollection<MsDataFileUri> cachedPaths, string cachePath, bool allowLoading)
             {
                 // Keep a record of files which have been found in a new location
                 // on the local system, and need to be updated in these results.
                 Dictionary<MsDataFileUri, MsDataFileUri> dictReplace = null;
                 // Find the next file not represented in the list of partial caches
-                var uncachedPaths = new List<KeyValuePair<string, string>>();
-                foreach (var path in msDataFilePaths)
+                var uncachedPaths = new List<DataFileReplicates>();
+                foreach (var dataFileReplicates in dataFileReplicatesList)
                 {
-                    if (!cachedPaths.Contains(path))
+                    if (!cachedPaths.Contains(dataFileReplicates.DataFile))
                     {
                         // First make sure the file wasn't found and loaded locally
-                        if (cachedPaths.Count > 0 && path is MsDataFilePath)
+                        var path = dataFileReplicates.DataFile;
+                        if (cachedPaths.Count > 0 &&  path is MsDataFilePath)
                         {
-                            string dataFilePathPart;
-                            var dataFilePath = ChromatogramSet.GetExistingDataFilePath(cachePath, (MsDataFilePath) path, out dataFilePathPart);
+                            var dataFilePath = ChromatogramSet.GetExistingDataFilePath(cachePath, path);
                             if (cachedPaths.Contains(dataFilePath))
                             {
                                 if (dictReplace == null)
@@ -1253,40 +1478,49 @@ namespace pwiz.Skyline.Model.Results
                             }
                         }
 
-                        string partPath;
                         // If there is only one result path, then just create the cache directly to its
                         // final destination.
-                        if (msDataFilePaths.Length == 1 && !_resultsClone.IsJoiningDisabled)
-                            partPath = cachePath;
+                        if (dataFileReplicatesList.Count == 1 && !_resultsClone.IsJoiningDisabled)
+                            dataFileReplicates.PartPath = cachePath;
                         else
                         {
-                            partPath = ChromatogramCache.PartPathForName(_documentPath, path);
+                            dataFileReplicates.PartPath = ChromatogramCache.PartPathForName(_documentPath, path);
                             // If the partial cache exists, try to load it.
-                            if (File.Exists(partPath))
+                            if (allowLoading && File.Exists(dataFileReplicates.PartPath) && !_resultsClone.IsCachePath(dataFileReplicates.PartPath))
                             {
+                                var status = new ProgressStatus();
                                 try
                                 {
-                                    var cache = ChromatogramCache.Load(partPath, _status, _loader);
-                                    if (cache.IsSupportedVersion)
+                                    // Deal with older cache formats where we did not record chromatogram polarity
+                                    var assumeNegativeChargeInPreV11Caches = _document.MoleculeTransitionGroups.All(tg => tg.PrecursorMz.IsNegative);
+                                    var cache = ChromatogramCache.Load(dataFileReplicates.PartPath, status, _loadMonitor, assumeNegativeChargeInPreV11Caches);
+                                    if (cache.IsSupportedVersion && EnsurePathsMatch(cache))
                                     {
-                                        EnsurePathsMatch(cache);
-
                                         var listPartialCaches = new List<ChromatogramCache>();
                                         if (_resultsClone._listPartialCaches != null)
                                             listPartialCaches.AddRange(_resultsClone._listPartialCaches);
-                                        listPartialCaches.Add(cache);
+                                        listPartialCaches.Add(EnsureOptimalMemoryUse(cache));
                                         _resultsClone._listPartialCaches = ImmutableList.ValueOf(listPartialCaches);
                                         continue;
+                                    }
+                                    else
+                                    {
+                                        // If not getting added to the partial caches close the file and delete
+                                        // it, so it won't get tried again.
+                                        cache.Dispose();
+                                        FileEx.SafeDelete(dataFileReplicates.PartPath);
                                     }
                                 }
                                 catch (Exception x)
                                 {
-                                    Fail(new IOException(string.Format(Resources.Loader_Load_Failure_attempting_to_load_the_data_cache_file__0_, partPath), x));
+                                    Fail(status.ChangeErrorException(new IOException(
+                                        string.Format(Resources.Loader_Load_Failure_attempting_to_load_the_data_cache_file__0_,
+                                        dataFileReplicates.PartPath), x)));
                                     return null;
                                 }
                             }
                         }
-                        uncachedPaths.Add(new KeyValuePair<string, string>(path.ToString(), partPath));
+                        uncachedPaths.Add(dataFileReplicates);
                     }
                 }
                 return uncachedPaths;
@@ -1294,52 +1528,46 @@ namespace pwiz.Skyline.Model.Results
 
             private bool LoadAndAdd(string replicatePath, List<ChromatogramCache> listPartialCaches)
             {
+                var status = new ProgressStatus();
                 try
                 {
-                    var cache = ChromatogramCache.Load(replicatePath, _status, _loader);
+                    // Deal with older cache formats where we did not record chromatogram polarity
+                    var assumeNegativeChargeInPreV11Caches = _document.MoleculeTransitionGroups.All(tg => tg.PrecursorMz.IsNegative);
+                    var cache = ChromatogramCache.Load(replicatePath, status, _loadMonitor, assumeNegativeChargeInPreV11Caches);
                     if (cache.IsSupportedVersion)
-                        listPartialCaches.Add(cache);
+                        listPartialCaches.Add(EnsureOptimalMemoryUse(cache));
+                    else
+                    {
+                        cache.Dispose();
+                        FileEx.SafeDelete(replicatePath);
+                    }
                 }
                 catch (Exception x)
                 {
-                    Fail(x);
+                    Fail(status.ChangeErrorException(x));
                     return false;
                 }
                 return true;
             }
 
-            private void Complete(bool final)
+            private void Complete(MeasuredResults results, bool final)
             {
-                _resultsClone._statusLoading = (final ? null : _status);
-                bool setsChanged = !ArrayUtil.ReferencesEqual(_resultsClone.Chromatograms,
-                    _document.Settings.MeasuredResults.Chromatograms);
-                _completed(_documentPath, _resultsClone, setsChanged);
+                _completed(_documentPath, results, _document.Settings.MeasuredResults);
             }
 
-            private void Fail(Exception x)
+            private void Fail(IProgressStatus status)
             {
-                MeasuredResults newMeasuredResults = null;
-                var xBuild = x as ChromCacheBuildException;
+                var x = status.ErrorException;
+                
+                var xBuild = x as DataFileException;
                 if (xBuild != null)
                 {
-                    var response = _loader.UpdateProgress(_status.ChangeErrorException(x));
-                    var measuredResults = _document.Settings.MeasuredResults;
-                    switch (response)
-                    {
-                        case UpdateProgressResponse.option1:
-                            newMeasuredResults = measuredResults.ChangeChromatograms(measuredResults.Chromatograms, true);
-                            break;
-                        case UpdateProgressResponse.option2:
-                            newMeasuredResults = measuredResults.FilterFiles(info => !Equals(info.FilePath, xBuild.ImportPath));
-                            break;
-                        default:
-                            // cancel and normal remove everything not already imported
-                            newMeasuredResults = measuredResults.FilterFiles(info => measuredResults.IsCachedFile(info.FilePath)) ?? EMPTY;
-                            break;
-                    }                    
+                    var newMeasuredResults = _document.Settings.MeasuredResults.FilterFiles(info => !Equals(info.FilePath, xBuild.ImportPath));
+                    _completed(_documentPath, newMeasuredResults, _document.Settings.MeasuredResults);
                 }
-                else if (x is IOException || x is InvalidDataException)
-                    _loader.UpdateProgress(_status.ChangeErrorException(x));
+
+                if (x is ChromCacheBuildException || x is IOException || x is InvalidDataException)
+                    _loadMonitor.UpdateProgress(status);
                 else
                 {
 //                    var sb = new StringBuilder(x.Message);
@@ -1352,31 +1580,40 @@ namespace pwiz.Skyline.Model.Results
                     var message = TextUtil.LineSeparate(string.Format(Resources.Loader_Fail_Failed_importing_results_into___0___, _documentPath),
                                                         xMessage);
                     x = new Exception(message, x);
-                    _loader.UpdateProgress(_status.ChangeErrorException(x));
+                    _loadMonitor.UpdateProgress(status.ChangeErrorException(x));
                 }
-
-                _completed(_documentPath, newMeasuredResults, true);
             }
 
-            private void FinishCacheBuild(ChromatogramCache cache, Exception x)
+            private void FinishCacheBuild(ChromatogramCache cache, IProgressStatus status)
             {
-                if (x != null)
+                if (status.IsError)
                 {
-                    Fail(x);
+                    Fail(status);
                     return;
                 }
 
+                var results = _resultsClone;
                 if (cache != null && EnsurePathsMatch(cache))
                 {
                     // Add this to the list of partial caches
+                    results = ImClone(results); // Clone because many files may come through here
                     var listPartialCaches = new List<ChromatogramCache>();
-                    if (_resultsClone._listPartialCaches != null)
-                        listPartialCaches.AddRange(_resultsClone._listPartialCaches);
-                    listPartialCaches.Add(cache);
-                    _resultsClone._listPartialCaches = ImmutableList.ValueOf(listPartialCaches);
+                    if (results._listPartialCaches != null)
+                        listPartialCaches.AddRange(results._listPartialCaches);
+                    listPartialCaches.Add(EnsureOptimalMemoryUse(cache));
+                    results.SetClonedCacheState(null, listPartialCaches);
                 }
 
-                Complete(false);
+                Complete(results, false);
+            }
+
+            private ChromatogramCache EnsureOptimalMemoryUse(ChromatogramCache cache)
+            {
+                if (!_resultsClone.IsJoiningDisabled || cache.CachePath == FinalCachePath)
+                    return cache;
+                // Free cache memory required for maintaining UI for partial caches, if this is the command-line
+                // The final join will pull everything from disk
+                return cache.ReleaseMemory();
             }
 
             private bool EnsurePathsMatch(ChromatogramCache cache)
@@ -1385,32 +1622,18 @@ namespace pwiz.Skyline.Model.Results
                 // loading will go into an infinite loop.
                 foreach (var cachedFilePath in cache.CachedFilePaths)
                 {
-                    var match = _resultsClone.FindExactMatchingMSDataFile(cachedFilePath);
+                    var match = _resultsClone.FindMatchingOrExistingMSDataFile(cachedFilePath);
                     if (match == null)
-                    {
-                        // If not exact match, try a location match, which may not yet have processing
-                        // parameters added yet
-                        var pathMatch = cachedFilePath.GetLocation();
-                        match = _resultsClone.FindExactMatchingMSDataFile(pathMatch);
-                        if (match == null)
-                            return false;
-                        int i = _resultsClone.Chromatograms.IndexOf(match.Chromatograms);
-                        var arrayChrom = _resultsClone.Chromatograms.ToArray();
-                        var chrom = arrayChrom[i];
-                        var arrayPaths = chrom.MSDataFilePaths.ToArray();
-                        arrayPaths[chrom.IndexOfPath(pathMatch)] = cachedFilePath;
-                        arrayChrom[i] = chrom.ChangeMSDataFilePaths(arrayPaths);
-                        _resultsClone.Chromatograms = arrayChrom;
-                    }
+                        return false;
                 }
                 return true;
             }
 
-            private void FinishCacheJoin(ChromatogramCache cache, Exception x)
+            private void FinishCacheJoin(ChromatogramCache cache, IProgressStatus status)
             {
-                if (x != null)
+                if (status.IsError)
                 {
-                    Fail(x);
+                    Fail(status);
                     return;
                 }
 
@@ -1427,18 +1650,48 @@ namespace pwiz.Skyline.Model.Results
 
                         // Remove from disk if not shared and not the final cache
                         if (!isSharedCache && !Equals(cache.CachePath, cachePath))
-                            _loader.StreamManager.Delete(cachePartial.CachePath);
+                            _loadMonitor.StreamManager.Delete(cachePartial.CachePath);
                     }
 
-                    _resultsClone._listPartialCaches = null;
-                    _resultsClone._cacheFinal = cache;
-
-                    _loader.UpdateProgress(_status.ChangeSegments(0, 0).Complete());
+                    _resultsClone.SetClonedCacheState(cache);
                 }
 
-                Complete(true);
+                Complete(_resultsClone, true);
             }
         }
+
+        public static bool HasResults(IEnumerable<string> filePaths)
+        {
+            foreach (string filePath in filePaths)
+            {
+                try
+                {
+                    using (var reader = new StreamReader(filePath))
+                    {
+                        string line;
+                        while ((line = reader.ReadLine()) != null)
+                        {
+                            // If there is a measured results tag before the settings_summary end
+                            // tag, then this document contains results.  Otherwise not.
+                            if (line.Contains(@"<measured_results"))
+                                return true;
+                            if (line.Contains(@"</settings_summary>"))
+                                return false;
+                        }
+                    }
+                }
+                catch (UnauthorizedAccessException) { }
+                catch (IOException) { }
+            }
+            return false;
+        }
+    }
+
+    public sealed class DataFileReplicates
+    {
+        public MsDataFileUri DataFile;
+        public List<string> ReplicateList;
+        public string PartPath;
     }
 
     public sealed class ChromSetFileMatch

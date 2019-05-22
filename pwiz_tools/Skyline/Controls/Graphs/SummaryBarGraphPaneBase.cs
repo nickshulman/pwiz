@@ -16,6 +16,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+using System.Collections.Generic;
 using System.Drawing;
 using System.Windows.Forms;
 using pwiz.Skyline.Model;
@@ -35,10 +37,10 @@ namespace pwiz.Skyline.Controls.Graphs
             }
         }
 
-        protected static readonly Color[] COLORS_TRANSITION = GraphChromatogram.COLORS_LIBRARY;
-        protected static readonly Color[] COLORS_GROUPS = GraphChromatogram.COLORS_GROUPS;
+        protected static IList<Color> COLORS_TRANSITION {get { return GraphChromatogram.COLORS_LIBRARY; }}
+        protected static IList<Color> COLORS_GROUPS {get { return GraphChromatogram.COLORS_GROUPS; }}
 
-        protected static int GetColorIndex(TransitionGroupDocNode nodeGroup, int countLabelTypes, ref int? charge, ref int iCharge)
+        protected static int GetColorIndex(TransitionGroupDocNode nodeGroup, int countLabelTypes, ref Adduct charge, ref int iCharge)
         {
             return GraphChromatogram.GetColorIndex(nodeGroup, countLabelTypes, ref charge, ref iCharge);
         }
@@ -88,6 +90,12 @@ namespace pwiz.Skyline.Controls.Graphs
             int iNearest;
             if (!FindNearestPoint(new PointF(mouseEventArgs.X, mouseEventArgs.Y), out nearestCurve, out iNearest))
             {
+                var axis = GetNearestXAxis(sender, mouseEventArgs);
+                if (axis != null)
+                {
+                    GraphSummary.Cursor = Cursors.Hand;
+                    return true;
+                }
                 return false;
             }
             IdentityPath identityPath = GetIdentityPath(nearestCurve, iNearest);
@@ -99,10 +107,36 @@ namespace pwiz.Skyline.Controls.Graphs
             return true;
         }
 
+        private XAxis GetNearestXAxis(ZedGraphControl sender, MouseEventArgs mouseEventArgs)
+        {
+            using (Graphics g = sender.CreateGraphics())
+            {
+                object nearestObject;
+                int index;
+                if (FindNearestObject(new PointF(mouseEventArgs.X, mouseEventArgs.Y), g, out nearestObject, out index))
+                {
+                    var axis = nearestObject as XAxis;
+                    if (axis != null)
+                        return axis;
+                }
+            }
+
+            return null;
+        }
+
         public override bool HandleMouseDownEvent(ZedGraphControl sender, MouseEventArgs mouseEventArgs)
         {
             CurveItem nearestCurve;
             int iNearest;
+            var axis = GetNearestXAxis(sender, mouseEventArgs);
+            if (axis != null)
+            {
+                iNearest = (int)axis.Scale.ReverseTransform(mouseEventArgs.X - axis.MajorTic.Size);
+                if (iNearest < 0)
+                    return false;
+                ChangeSelection(iNearest, GraphSummary.StateProvider.SelectedPath);
+                return true;
+            }
             if (!FindNearestPoint(new PointF(mouseEventArgs.X, mouseEventArgs.Y), out nearestCurve, out iNearest))
             {
                 return false;
@@ -153,6 +187,12 @@ namespace pwiz.Skyline.Controls.Graphs
         {
             _axisLabelScaler.FirstDataIndex = FirstDataIndex;
             _axisLabelScaler.ScaleAxisLabels();
+        }
+
+        protected bool IsRepeatRemovalAllowed
+        {
+            get { return _axisLabelScaler.IsRepeatRemovalAllowed; }
+            set { _axisLabelScaler.IsRepeatRemovalAllowed = value; }
         }
     }
 }

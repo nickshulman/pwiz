@@ -82,6 +82,7 @@ InstrumentSource translateInstrumentSource(int instrumentSourceId)
 PerSpectrumVariables:
 Summation = 2
 IsolationMass = 7
+IsolationWidth = 8
 DeviceTemp1 = 9
 DeviceTemp2 = 10
 
@@ -113,15 +114,28 @@ namespace Bruker {
 Baf2SqlImpl::Baf2SqlImpl(const string& rawpath) : rawpath_(rawpath), bafFilepath_((bfs::path(rawpath) / "analysis.baf").string()), bafStorage_(new BinaryStorage(bafFilepath_))
 {
     sqlite::database db(baf2sql::getSQLiteCacheFilename(bafFilepath_));
+
+    sqlite::query count(db, "SELECT COUNT(*) FROM Spectra");
+    int numSpectra = count.begin()->get<int>(0);
+
     sqlite::query q(db, "SELECT s.Id, ak.MsLevel+1, Rt, Segment, AcquisitionKey, "
                         "MzAcqRangeLower, MzAcqRangeUpper, SumIntensity, MaxIntensity, Polarity, "
                         "ProfileMzId, ProfileIntensityId, LineMzId, LineIntensityId, "
                         "Parent, Mass, IsolationType, ReactionType, ScanMode "
+                        ", IFNULL(iw.Value, 0) AS IsolationWidth "
                         "FROM Spectra s, AcquisitionKeys ak "
+                        "LEFT JOIN PerSpectrumVariables iw ON iw.Spectrum=s.Id AND iw.Variable=8 "
                         "LEFT JOIN Steps step ON s.Id=TargetSpectrum "
                         "WHERE ak.Id=s.AcquisitionKey "
                         "ORDER BY Rt");
 
+    tic_.reset(new Chromatogram);
+    bpi_.reset(new Chromatogram);
+    tic_->times.reserve(numSpectra);
+    tic_->intensities.reserve(numSpectra);
+    bpi_->times.reserve(numSpectra);
+    bpi_->intensities.reserve(numSpectra);
+    spectra_.reserve(numSpectra);
     for (sqlite::query::iterator itr = q.begin(); itr != q.end(); ++itr)
     {
         sqlite::query::rows row = *itr;
@@ -131,8 +145,8 @@ Baf2SqlImpl::Baf2SqlImpl(const string& rawpath) : rawpath_(rawpath), bafFilepath
         double rt = row.get<double>(++idx);
         int segment = row.get<int>(++idx);
         int ak = row.get<int>(++idx);
-        double startMz = row.get<double>(++idx);
-        double endMz = row.get<double>(++idx);
+        int startMz = row.get<int>(++idx);
+        int endMz = row.get<int>(++idx);
         double tic = row.get<double>(++idx);
         double bpi = row.get<double>(++idx);
         IonPolarity polarity = (IonPolarity) row.get<int>(++idx);
@@ -145,12 +159,18 @@ Baf2SqlImpl::Baf2SqlImpl(const string& rawpath) : rawpath_(rawpath), bafFilepath
         optional<int> isolationMode(row.get<optional<int> >(++idx));
         optional<int> reactionMode(row.get<optional<int> >(++idx));
         int scanMode = row.get<int>(++idx);
+        optional<double> isolationWidth(row.get<optional<double> >(++idx));
 
-        spectra_.push_back(MSSpectrumPtr(new Baf2SqlSpectrum(bafStorage_, id,
-                                                             msLevel, rt, segment, ak, startMz, endMz,
-                                                             tic, bpi, polarity, scanMode,
-                                                             profileMzId, profileIntensityId, lineMzId, lineIntensityId,
-                                                             parentId, precursorMz, isolationMode, reactionMode)));
+        tic_->times.push_back(rt);
+        bpi_->times.push_back(rt);
+        tic_->intensities.push_back(tic);
+        bpi_->intensities.push_back(bpi);
+
+        spectra_.emplace_back(MSSpectrumPtr(new Baf2SqlSpectrum(bafStorage_, id,
+                                                                msLevel, rt, segment, ak, startMz, endMz,
+                                                                tic, bpi, polarity, scanMode,
+                                                                profileMzId, profileIntensityId, lineMzId, lineIntensityId,
+                                                                parentId, precursorMz, isolationMode, reactionMode, isolationWidth)));
     }
 
     sqlite::query properties(db, "SELECT Key, Value FROM Properties");
@@ -164,8 +184,12 @@ Baf2SqlImpl::Baf2SqlImpl(const string& rawpath) : rawpath_(rawpath), bafFilepath
             acquisitionSoftwareVersion_.swap(value);
         else if (key == "InstrumentFamily")
             instrumentFamily_ = translateInstrumentFamily(lexical_cast<int>(value));
+        else if (key == "InstrumentRevision")
+            instrumentRevision_ = lexical_cast<int>(value);
         else if (key == "InstrumentSourceType")
             instrumentSource_ = translateInstrumentSource(lexical_cast<int>(value));
+        else if (key == "InstrumentSerialNumber")
+            serialNumber_.swap(value);
         else if (key == "AcquisitionDateTime")
             acquisitionDateTime_.swap(value);
         else if (key == "OperatorName")
@@ -184,13 +208,18 @@ size_t Baf2SqlImpl::getLCSpectrumCount(int source) const { return 0; }
 LCSpectrumSourcePtr Baf2SqlImpl::getLCSource(int source) const { return 0; }
 LCSpectrumPtr Baf2SqlImpl::getLCSpectrum(int source, int scan) const { return LCSpectrumPtr(); }
 
+ChromatogramPtr Baf2SqlImpl::getTIC() const { return tic_; }
+ChromatogramPtr Baf2SqlImpl::getBPC() const { return bpi_; }
+
 std::string Baf2SqlImpl::getOperatorName() const { return operatorName_; }
 std::string Baf2SqlImpl::getAnalysisName() const { return ""; }
 boost::local_time::local_date_time Baf2SqlImpl::getAnalysisDateTime() const { return parse_date_time("%Y-%m-%dT%H:%M:%S%Q", acquisitionDateTime_); }
 std::string Baf2SqlImpl::getSampleName() const { return ""; }
 std::string Baf2SqlImpl::getMethodName() const { return ""; }
 InstrumentFamily Baf2SqlImpl::getInstrumentFamily() const { return instrumentFamily_; }
+int Baf2SqlImpl::getInstrumentRevision() const { return instrumentRevision_; }
 std::string Baf2SqlImpl::getInstrumentDescription() const { return ""; }
+std::string Baf2SqlImpl::getInstrumentSerialNumber() const { return serialNumber_; }
 InstrumentSource Baf2SqlImpl::getInstrumentSource() const { return instrumentSource_; }
 std::string Baf2SqlImpl::getAcquisitionSoftware() const { return acquisitionSoftware_; }
 std::string Baf2SqlImpl::getAcquisitionSoftwareVersion() const { return acquisitionSoftwareVersion_; }
@@ -208,6 +237,7 @@ Baf2SqlSpectrum::Baf2SqlSpectrum(BinaryStoragePtr storage, int index,
       polarity_(polarity), scanRange_(startMz, endMz), scanMode_(scanMode),
       storage_(storage)
 {
+	handleAllIons(); // Deal with all-ions MS1 data by presenting it as MS2 with a wide isolation window
 }
 
 Baf2SqlSpectrum::Baf2SqlSpectrum(BinaryStoragePtr storage, int index,
@@ -217,14 +247,17 @@ Baf2SqlSpectrum::Baf2SqlSpectrum(BinaryStoragePtr storage, int index,
                                  const optional<uint64_t>& profileMzArrayId, const optional<uint64_t>& profileIntensityArrayId,
                                  const optional<uint64_t>& lineMzarrayId, const optional<uint64_t>& lineIntensityArrayId,
                                  const optional<uint64_t>& parentId, const optional<double>& precursorMz,
-                                 const optional<int>& isolationMode, const optional<int>& reactionMode)
+                                 const optional<int>& isolationMode, const optional<int>& reactionMode,
+                                 const optional<double>& isolationWidth)
     : index_(index), msLevel_(msLevel), rt_(rt), segment_(segment), acqKey_(acqKey), parentId_(parentId), tic_(tic), bpi_(bpi),
       profileMzArrayId_(profileMzArrayId), profileIntensityArrayId_(profileIntensityArrayId),
       lineMzArrayId_(lineMzarrayId), lineIntensityArrayId_(lineIntensityArrayId),
       polarity_(polarity), scanRange_(startMz, endMz),
       isolationMode_(isolationMode), reactionMode_(reactionMode), precursorMz_(precursorMz), scanMode_(scanMode),
+      isolationWidth_(isolationWidth),
       storage_(storage)
 {
+	handleAllIons(); // Deal with all-ions MS1 data by presenting it as MS2 with a wide isolation window
 }
 
 bool Baf2SqlSpectrum::hasLineData() const { return getLineDataSize() > 0; }
@@ -292,6 +325,17 @@ void Baf2SqlSpectrum::getProfileData(automation_vector<double>& mz, automation_v
 
 int Baf2SqlSpectrum::getMSMSStage() const { return msLevel_; }
 double Baf2SqlSpectrum::getRetentionTime() const { return rt_; }
+
+void Baf2SqlSpectrum::handleAllIons() // Deal with all-ions MS1 data by presenting it as MS2 with a wide isolation window
+{
+    if (msLevel_ == 1 && translateScanMode(scanMode_) == FragmentationMode_ISCID)
+    {
+        // all-ions scan - report it as MS2 with a single precursor and a huge selection window
+        msLevel_ = 2;
+        isolationWidth_ = (scanRange_.second - scanRange_.first);
+        precursorMz_ = scanRange_.first + 0.5*isolationWidth_.get();
+    }
+}
 
 void Baf2SqlSpectrum::getIsolationData(std::vector<double>& isolatedMZs, std::vector<IsolationMode>& isolationModes) const
 {

@@ -24,6 +24,8 @@
 #include "pwiz/utility/misc/Std.hpp"
 #include "pwiz/data/msdata/SpectrumWorkerThreads.hpp"
 #include "pwiz/data/msdata/SpectrumListWrapper.hpp"
+#include "pwiz/analysis/spectrum_processing/SpectrumList_Demux.hpp"
+#include "pwiz/analysis/demux/DemuxDataProcessingStrings.hpp"
 #include "pwiz/utility/misc/mru_list.hpp"
 #include <boost/thread.hpp>
 #include <deque>
@@ -31,7 +33,7 @@
 
 using std::deque;
 using namespace pwiz::util;
-
+using namespace pwiz::analysis;
 
 namespace pwiz {
 namespace msdata {
@@ -40,7 +42,7 @@ class SpectrumWorkerThreads::Impl
 {
     public:
 
-    Impl(const SpectrumList& sl)
+    Impl(const SpectrumList& sl, bool useWorkerThreads)
         : sl_(sl)
         , numThreads_(boost::thread::hardware_concurrency())
         , maxProcessedTaskCount_(numThreads_ * 4)
@@ -55,7 +57,28 @@ class SpectrumWorkerThreads::Impl
         }
 
         bool isBruker = icPtr.get() && icPtr->hasCVParamChild(MS_Bruker_Daltonics_instrument_model);
-        useThreads_ = !isBruker; // Bruker library is not thread-friendly
+        bool isShimadzu = icPtr.get() && icPtr->hasCVParamChild(MS_Shimadzu_instrument_model);
+
+        bool isDemultiplexed = false;
+        const boost::shared_ptr<const DataProcessing> dp = sl.dataProcessingPtr();
+        if (dp)
+        {
+            BOOST_FOREACH(const ProcessingMethod& pm, dp->processingMethods)
+            {
+                if (!pm.hasCVParam(MS_data_processing)) continue;
+                BOOST_FOREACH(const UserParam& up, pm.userParams)
+                {
+                    if (up.name.find(DemuxDataProcessingStrings::kDEMUX_NAME) != std::string::npos)
+                    {
+                        isDemultiplexed = true;
+                    }
+                }
+                if (isDemultiplexed) break;
+            }
+        }
+
+        useThreads_ = useWorkerThreads && !(isBruker || isShimadzu || isDemultiplexed); // Bruker library is not thread-friendly
+        //useThreads_ = !(isBruker); // Bruker library is not thread-friendly
 
         if (sl.size() > 0 && useThreads_)
         {
@@ -260,7 +283,7 @@ class SpectrumWorkerThreads::Impl
 };
 
 
-SpectrumWorkerThreads::SpectrumWorkerThreads(const SpectrumList& sl) : impl_(new Impl(sl)) {}
+SpectrumWorkerThreads::SpectrumWorkerThreads(const SpectrumList& sl, bool useWorkerThreads) : impl_(new Impl(sl, useWorkerThreads)) {}
 
 SpectrumWorkerThreads::~SpectrumWorkerThreads() {}
 

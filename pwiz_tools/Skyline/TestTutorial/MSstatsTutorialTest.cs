@@ -39,6 +39,7 @@ namespace pwiz.SkylineTestTutorial
     public class MSstatsTutorialTest : AbstractFunctionalTest
     {
         [TestMethod, NoLocalization]
+        [Timeout(36000000)]  // These can take a long time in code coverage mode
         public void TestMSstatsTutorial()
         {
             // Set true to look at tutorial screenshots.
@@ -169,7 +170,6 @@ namespace pwiz.SkylineTestTutorial
                 RunArgsCollector(1, "GroupComparisonUi", "p. 9 - Group Comparison Ui"); // Not L10
                 RunArgsCollector(2, "SampleSizeUi", "p. 10 - Sample Size Ui"); // Not L10
             }
-
         }
 
         private void RunArgsCollector(int index, string formName, string screenshotDescription)

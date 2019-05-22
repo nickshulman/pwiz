@@ -24,10 +24,10 @@ using System.Text;
 using pwiz.Common.SystemUtil;
 using pwiz.MSGraph;
 using pwiz.Skyline.Model;
-using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.Lib;
 using ZedGraph;
 using pwiz.Skyline.Properties;
+using pwiz.Skyline.Util;
 using pwiz.Skyline.Util.Extensions;
 
 namespace pwiz.Skyline.Controls.Graphs
@@ -57,14 +57,20 @@ namespace pwiz.Skyline.Controls.Graphs
             {
                 string libraryNamePrefix = LibraryName;
                 if (!string.IsNullOrEmpty(libraryNamePrefix))
-                    libraryNamePrefix += " - "; // Not L10N
+                    libraryNamePrefix += @" - ";
 
                 TransitionGroup transitionGroup = TransitionGroupNode.TransitionGroup;
-                string sequence = transitionGroup.Peptide.IsCustomIon
-                    ? TransitionGroupNode.CustomIon.DisplayName
-                    : transitionGroup.Peptide.Sequence;
-                int charge = transitionGroup.PrecursorCharge;
+                string sequence = transitionGroup.Peptide.IsCustomMolecule
+                    ? TransitionGroupNode.CustomMolecule.DisplayName
+                    : transitionGroup.Peptide.Target.Sequence;
+                var charge = transitionGroup.PrecursorAdduct.ToString(); // Something like "2" or "-3" for protonation, or "[M+Na]" for small molecules
                 var labelType = SpectrumInfo.LabelType;
+                if (transitionGroup.Peptide.IsCustomMolecule)
+                {
+                    return labelType.IsLight
+                        ? string.Format(@"{0}{1}{2}", libraryNamePrefix, transitionGroup.Peptide.CustomMolecule.DisplayName, charge)
+                        : string.Format(@"{0}{1}{2} ({3})", libraryNamePrefix, sequence, charge, labelType);
+                }
                 return labelType.IsLight
                     ? string.Format(Resources.SpectrumGraphItem_Title__0__1__Charge__2__, libraryNamePrefix, sequence, charge)
                     : string.Format(Resources.SpectrumGraphItem_Title__0__1__Charge__2__3__, libraryNamePrefix, sequence, charge, labelType);
@@ -74,13 +80,14 @@ namespace pwiz.Skyline.Controls.Graphs
     
     public abstract class AbstractSpectrumGraphItem : AbstractMSGraphItem
     {
-        private const string FONT_FACE = "Arial"; // Not L10N
+        private const string FONT_FACE = "Arial";
         private static readonly Color COLOR_A = Color.YellowGreen;
         private static readonly Color COLOR_X = Color.Green;
         private static readonly Color COLOR_B = Color.BlueViolet;
         private static readonly Color COLOR_Y = Color.Blue;
         private static readonly Color COLOR_C = Color.Orange;
         private static readonly Color COLOR_Z = Color.OrangeRed;
+        private static readonly Color COLOR_OTHER_IONS = Color.DodgerBlue; // Other ion types, as in small molecule
         private static readonly Color COLOR_PRECURSOR = Color.DarkCyan;
         private static readonly Color COLOR_NONE = Color.Gray;
         public static readonly Color COLOR_SELECTED = Color.Red;
@@ -91,7 +98,7 @@ namespace pwiz.Skyline.Controls.Graphs
         public int PeaksMatchedCount { get { return SpectrumInfo.PeaksMatched.Count(); } }
         public int PeaksRankedCount { get { return SpectrumInfo.PeaksRanked.Count(); } }
         public ICollection<IonType> ShowTypes { get; set; }
-        public ICollection<int> ShowCharges { get; set; }
+        public ICollection<int> ShowCharges { get; set; } // List of absolute charge values to display CONSIDER(bspratt): may want finer per-adduct control for small mol use
         public bool ShowRanks { get; set; }
         public bool ShowMz { get; set; }
         public bool ShowObservedMz { get; set; }
@@ -113,6 +120,8 @@ namespace pwiz.Skyline.Controls.Graphs
         private FontSpec FONT_SPEC_PRECURSOR { get { return GetFontSpec(COLOR_PRECURSOR, ref _fontSpecPrecursor); } }
         private FontSpec _fontSpecPrecursor;
         private FontSpec FONT_SPEC_Z { get { return GetFontSpec(COLOR_Z, ref _fontSpecZ); } }
+        private FontSpec _fontSpecOtherIons;
+        private FontSpec FONT_SPEC_OTHER_IONS { get { return GetFontSpec(COLOR_OTHER_IONS, ref _fontSpecOtherIons); } } // Small molecule fragments etc
         private FontSpec _fontSpecNone;
         private FontSpec FONT_SPEC_NONE { get { return GetFontSpec(COLOR_NONE, ref _fontSpecNone); } }
         private FontSpec _fontSpecSelected;
@@ -137,7 +146,7 @@ namespace pwiz.Skyline.Controls.Graphs
 
         private static FontSpec CreateFontSpec(Color color, float size)
         {
-            return new FontSpec(FONT_FACE, size, color, false, false, false) { Border = { IsVisible = false } };
+            return new FontSpec(FONT_FACE, size, color, false, false, false) { Border = { IsVisible = false }, Fill = new Fill(Color.FromArgb(180, Color.White)) };
         }
 
         private FontSpec GetFontSpec(Color color, ref FontSpec fontSpec)
@@ -172,11 +181,10 @@ namespace pwiz.Skyline.Controls.Graphs
                 if (!IsVisibleIon(rmi))
                     continue;
 
-                IonType type = IsVisibleIon(rmi.IonType, rmi.Ordinal, rmi.Charge) ?
-                                                                                      rmi.IonType : rmi.IonType2;
+                var matchedIon = rmi.MatchedIons.First(IsVisibleIon);
 
                 Color color;
-                switch (type)
+                switch (matchedIon.IonType)
                 {
                     default: color = COLOR_NONE; break;
                     case IonType.a: color = COLOR_A; break;
@@ -185,11 +193,11 @@ namespace pwiz.Skyline.Controls.Graphs
                     case IonType.y: color = COLOR_Y; break;
                     case IonType.c: color = COLOR_C; break;
                     case IonType.z: color = COLOR_Z; break;
-                    // FUTURE: Add custom ions when LibraryRankedSpectrumInfo can support them
+                    case IonType.custom: color = (rmi.Rank > 0) ? COLOR_OTHER_IONS : COLOR_NONE; break; // Small molecule fragments - only color if ranked
                     case IonType.precursor: color = COLOR_PRECURSOR; break;
                 }
 
-                if (IsMatch(rmi.PredictedMz))
+                if (rmi.MatchedIons.Any(mfi => IsMatch(mfi.PredictedMz)))
                 {
                     color = COLOR_SELECTED;
                 }
@@ -210,8 +218,10 @@ namespace pwiz.Skyline.Controls.Graphs
             if (!_ionMatches.TryGetValue(point.X, out rmi) || !IsVisibleIon(rmi))
                 return null;
 
+            var matchedIon = rmi.MatchedIons.First(IsVisibleIon);
+
             FontSpec fontSpec;
-            switch (rmi.IonType)
+            switch (matchedIon.IonType)
             {
                 default: fontSpec = FONT_SPEC_NONE; break;
                 case IonType.a: fontSpec = FONT_SPEC_A; break;
@@ -220,12 +230,18 @@ namespace pwiz.Skyline.Controls.Graphs
                 case IonType.y: fontSpec = FONT_SPEC_Y; break;
                 case IonType.c: fontSpec = FONT_SPEC_C; break;
                 case IonType.z: fontSpec = FONT_SPEC_Z; break;
-                // FUTURE: Add custom ions when LibraryRankedSpectrumInfo can support them
+                case IonType.custom:
+                    {
+                    if (rmi.Rank == 0 && !rmi.HasAnnotations)
+                        return null; // Small molecule fragments - only force annotation if ranked
+                    fontSpec = FONT_SPEC_OTHER_IONS;
+                    }
+                    break;
                 case IonType.precursor: fontSpec = FONT_SPEC_PRECURSOR; break;
             }
-            if (IsMatch(rmi.PredictedMz))
+            if (rmi.MatchedIons.Any(mfi => IsMatch(mfi.PredictedMz)))
                 fontSpec = FONT_SPEC_SELECTED;
-            return new PointAnnotation(GetLabel(rmi), fontSpec);
+            return new PointAnnotation(GetLabel(rmi), fontSpec, rmi.Rank);
         }
 
         public IEnumerable<string> IonLabels
@@ -239,43 +255,26 @@ namespace pwiz.Skyline.Controls.Graphs
        
         private string GetLabel(LibraryRankedSpectrumInfo.RankedMI rmi)
         {
-            string[] parts = new string[2];
-            int i = 0;
-            bool visible1 = IsVisibleIon(rmi.IonType, rmi.Ordinal, rmi.Charge);
-            bool visible2 = IsVisibleIon(rmi.IonType2, rmi.Ordinal2, rmi.Charge2);
-            // Show the m/z values in the labels, if they should both be visible, and
+            // Show the m/z values in the labels, if multiple should be visible, and
             // they have different display values.
-            bool showMzInLabel = ShowMz && visible1 && visible2 &&
-                GetDisplayMz(rmi.PredictedMz) != GetDisplayMz(rmi.PredictedMz2);
-
-            if (visible1)
-            {
-                parts[i++] = GetLabel(rmi.IonType, rmi.Ordinal, rmi.Losses,
-                    rmi.Charge, rmi.PredictedMz, rmi.Rank, showMzInLabel);
-            }
-            if (visible2)
-            {
-                parts[i] = GetLabel(rmi.IonType2, rmi.Ordinal2, rmi.Losses2,
-                    rmi.Charge2, rmi.PredictedMz2, 0, showMzInLabel);
-            }
+            bool showMzInLabel = ShowMz &&
+                                 rmi.MatchedIons.Where(IsVisibleIon)
+                                     .Select(mfi => GetDisplayMz(mfi.PredictedMz))
+                                     .Distinct()
+                                     .Count() > 1;
+                
             StringBuilder sb = new StringBuilder();
-            foreach (string part in parts)
+            foreach (var mfi in rmi.MatchedIons.Where(IsVisibleIon))
             {
-                if (part == null)
-                    continue;
                 if (sb.Length > 0)
-                {
-                    if (showMzInLabel)
-                        sb.AppendLine();
-                    else
-                        sb.Append(", "); // Not L10N
-                }
-                sb.Append(part);
+                    sb.AppendLine();
+
+                sb.Append(GetLabel(mfi, sb.Length == 0 ? rmi.Rank : 0, showMzInLabel));
             }
             // If predicted m/z should be displayed, but hasn't been yet, then display now.
             if (ShowMz && !showMzInLabel)
             {
-                sb.AppendLine().Append(GetDisplayMz(rmi.PredictedMz));
+                sb.AppendLine().Append(GetDisplayMz(rmi.MatchedIons.First().PredictedMz));
             }
             // If showing observed m/z, and it is different from the predicted m/z, then display it last.
             if (ShowObservedMz)
@@ -285,22 +284,22 @@ namespace pwiz.Skyline.Controls.Graphs
             return sb.ToString();
         }
 
-        private string GetLabel(IonType type, int ordinal, TransitionLosses losses, int charge, double mz, int rank, bool showMz)
+        private string GetLabel(MatchedFragmentIon mfi, int rank, bool showMz)
         {
-            var label = new StringBuilder(type.GetLocalizedString());
-            if (!Transition.IsPrecursor(type))
-                label.Append(ordinal.ToString(LocalizationHelper.CurrentCulture));
-            if (losses != null)
+            var label = new StringBuilder(string.IsNullOrEmpty(mfi.FragmentName) ? mfi.IonType.GetLocalizedString() : mfi.FragmentName);
+            if (string.IsNullOrEmpty(mfi.FragmentName) && !Transition.IsPrecursor(mfi.IonType))
+                label.Append(mfi.Ordinal.ToString(LocalizationHelper.CurrentCulture));
+            if (mfi.Losses != null)
             {
-                label.Append(" -"); // Not L10N
-                label.Append(Math.Round(losses.Mass, 1));
+                label.Append(@" -");
+                label.Append(Math.Round(mfi.Losses.Mass, 1));
             }
-            string chargeIndicator = (charge == 1 ? string.Empty : Transition.GetChargeIndicator(charge));
+            var chargeIndicator = mfi.Charge.Equals(Adduct.SINGLY_PROTONATED) ? string.Empty : Transition.GetChargeIndicator(mfi.Charge);
             label.Append(chargeIndicator);
             if (showMz)
-                label.Append(string.Format(" = {0:F01}", mz)); // Not L10N
+                label.Append(string.Format(@" = {0:F01}", mfi.PredictedMz));
             if (rank > 0 && ShowRanks)
-                label.Append(TextUtil.SEPARATOR_SPACE).Append(string.Format("({0})",string.Format(Resources.AbstractSpectrumGraphItem_GetLabel_rank__0__, rank))); // Not L10N
+                label.Append(TextUtil.SEPARATOR_SPACE).Append(string.Format(@"({0})",string.Format(Resources.AbstractSpectrumGraphItem_GetLabel_rank__0__, rank)));
             return label.ToString();
         }
 
@@ -315,17 +314,18 @@ namespace pwiz.Skyline.Controls.Graphs
 
         private bool IsVisibleIon(LibraryRankedSpectrumInfo.RankedMI rmi)
         {
-            bool singleIon = (rmi.Ordinal2 == 0);
+            bool singleIon = (rmi.MatchedIons.Count == 1);
             if (ShowDuplicates && singleIon)
                 return false;
-            return IsVisibleIon(rmi.IonType, rmi.Ordinal, rmi.Charge) ||
-                   IsVisibleIon(rmi.IonType2, rmi.Ordinal2, rmi.Charge2);
+            return rmi.MatchedIons.Any(IsVisibleIon);
         }
 
-        private bool IsVisibleIon(IonType type, int ordinal, int charge)
+        private bool IsVisibleIon(MatchedFragmentIon mfi)
         {
             // Show precursor ions when they are supposed to be shown, regardless of charge
-            return ordinal > 0 && ShowTypes.Contains(type) && (type == IonType.precursor || ShowCharges.Contains(charge));
+            // N.B. for fragments, we look at abs value of charge. CONSIDER(bspratt): for small mol libs we may want finer per-adduct control
+            return mfi.Ordinal > 0 && ShowTypes.Contains(mfi.IonType) &&
+                (mfi.IonType == IonType.precursor || ShowCharges.Contains(Math.Abs(mfi.Charge.AdductCharge)));
         }
     }
 
@@ -415,7 +415,7 @@ namespace pwiz.Skyline.Controls.Graphs
 
         private static void CustomizeAxis(Axis axis, string title)
         {
-            axis.Title.FontSpec.Family = "Arial"; // Not L10N
+            axis.Title.FontSpec.Family = @"Arial";
             axis.Title.FontSpec.Size = 14;
             axis.Color = axis.Title.FontSpec.FontColor = Color.Black;
             axis.Title.FontSpec.Border.IsVisible = false;
@@ -429,7 +429,7 @@ namespace pwiz.Skyline.Controls.Graphs
         /// </summary>
         public static void SetAxisText(Axis axis, string title)
         {
-            if (string.Equals(title, "m/z")) // Not L10N
+            if (string.Equals(title, @"m/z"))
                 axis.Title.FontSpec.IsItalic = true;
             axis.Title.Text = title;
         }

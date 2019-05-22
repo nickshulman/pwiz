@@ -18,12 +18,15 @@
  */
 
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Windows.Forms;
+using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Alerts;
 using pwiz.Skyline.Controls;
 using pwiz.Skyline.Model;
+using pwiz.Skyline.Model.AuditLog;
 using pwiz.Skyline.Model.DocSettings.Extensions;
 using pwiz.Skyline.Model.Results.Scoring;
 using pwiz.Skyline.Properties;
@@ -33,12 +36,17 @@ using pwiz.Skyline.Util.Extensions;
 
 namespace pwiz.Skyline.EditUI
 {
-    public partial class ReintegrateDlg : FormEx
+    public partial class ReintegrateDlg : FormEx, IAuditLogModifier<ReintegrateDlg.ReintegrateDlgSettings>, IFeatureScoreProvider
     {
         /// <summary>
         /// For performance tests only: add an annotation for combined score?
         /// </summary>
         private bool _scoreAnnotation;
+
+        // Cached scores
+        private IList<IPeakFeatureCalculator> _cacheCalculators;
+
+        private PeakTransitionGroupFeatureSet _cachedFeatureScores;
 
         public SrmDocument Document { get; private set; }
 
@@ -51,8 +59,28 @@ namespace pwiz.Skyline.EditUI
             Document = document;
             _scoreAnnotation = false;
             _driverPeakScoringModel = new SettingsListComboDriver<PeakScoringModelSpec>(comboBoxScoringModel, Settings.Default.PeakScoringModelList);
+            _driverPeakScoringModel.EditItemEvent += comboBoxScoringModel_EditItem;
             var peakScoringModel = document.Settings.PeptideSettings.Integration.PeakScoringModel;
             _driverPeakScoringModel.LoadList(peakScoringModel != null ? peakScoringModel.Name : null);
+        }
+
+        private void comboBoxScoringModel_EditItem(object sender, SettingsListComboDriver<PeakScoringModelSpec>.EditItemEventArgs e)
+        {
+            e.Tag = this;
+        }
+
+        public PeakTransitionGroupFeatureSet GetFeatureScores(SrmDocument document, IPeakScoringModel scoringModel,
+            IProgressMonitor progressMonitor)
+        {
+            if (!ReferenceEquals(document, Document) ||
+                !ArrayUtil.EqualsDeep(_cacheCalculators, scoringModel.PeakFeatureCalculators))
+            {
+                Document = document;
+                _cacheCalculators = scoringModel.PeakFeatureCalculators;
+                _cachedFeatureScores = document.GetPeakFeatures(_cacheCalculators, progressMonitor);
+            }
+
+            return _cachedFeatureScores;
         }
 
         private void btnOk_Click(object sender, EventArgs e)
@@ -78,17 +106,22 @@ namespace pwiz.Skyline.EditUI
             {
                 try
                 {
-                    if (_driverPeakScoringModel.SelectedItem == null || !_driverPeakScoringModel.SelectedItem.IsTrained)
+                    var scoringModel = _driverPeakScoringModel.SelectedItem;
+                    if (Equals(scoringModel, LegacyScoringModel.DEFAULT_UNTRAINED_MODEL))
+                    {
+                        scoringModel = LegacyScoringModel.DEFAULT_MODEL;
+                    }
+                    if (scoringModel == null || !scoringModel.IsTrained)
                     {
                         throw new InvalidDataException(Resources.ReintegrateDlg_OkDialog_You_must_train_and_select_a_model_in_order_to_reintegrate_peaks_);
                     }
-                    var scoringModel = _driverPeakScoringModel.SelectedItem;
-                    var resultsHandler = new MProphetResultsHandler(Document, scoringModel)
+                    PeakTransitionGroupFeatureSet featureScores = null;
+                    if (ArrayUtil.EqualsDeep(_cacheCalculators, scoringModel.PeakFeatureCalculators))
+                        featureScores = _cachedFeatureScores;
+                    var resultsHandler = new MProphetResultsHandler(Document, scoringModel, featureScores)
                     {
                         QValueCutoff = qCutoff,
                         OverrideManual = checkBoxOverwrite.Checked,
-                        AddAnnotation = checkBoxAnnotation.Checked,
-                        AddMAnnotation = checkBoxAnnotation.Checked
                     };
                     longWaitDlg.PerformWork(this, 1000, pm =>
                         {
@@ -97,7 +130,6 @@ namespace pwiz.Skyline.EditUI
                             {
                                 throw new InvalidDataException(Resources.ReintegrateDlg_OkDialog_The_current_peak_scoring_model_is_incompatible_with_one_or_more_peptides_in_the_document___Please_train_a_new_model_);
                             }
-                            // TODO: Add a checkbox for including decoys.  Probably most of the time real users won't want to bother with reintegrating decoys
                             Document = resultsHandler.ChangePeaks(pm);
                         });
                     if (longWaitDlg.IsCanceled)
@@ -122,6 +154,67 @@ namespace pwiz.Skyline.EditUI
             DialogResult = DialogResult.OK;
         }
 
+        public ReintegrateDlgSettings FormSettings
+        {
+            get { return new ReintegrateDlgSettings(this); }
+        }
+
+        public class ReintegrateDlgSettings : AuditLogOperationSettings<ReintegrateDlgSettings>, IAuditLogComparable
+        {
+            public override MessageInfo MessageInfo
+            {
+                get { return new MessageInfo(MessageType.reintegrated_peaks, SrmDocument.DOCUMENT_TYPE.none, PeakScoringModel.Name); }
+            }
+
+            public ReintegrateDlgSettings(ReintegrateDlg dlg)
+                : this(dlg._driverPeakScoringModel.SelectedItem, dlg.ReintegrateAll, !dlg.ReintegrateAll, dlg.QValueCutoff, dlg.OverwriteManual)
+            {
+            }
+
+            public ReintegrateDlgSettings(IPeakScoringModel peakScoringModel, bool reintegrateAll, bool reintegrateQCutoff,
+                double? cutoff, bool overwriteManualIntegration)
+            {
+                PeakScoringModel = peakScoringModel;
+                ReintegrateAll = reintegrateAll;
+                ReintegrateQCutoff = reintegrateQCutoff;
+                Cutoff = cutoff;
+                OverwriteManualIntegration = overwriteManualIntegration;
+            }
+
+            [TrackChildren]
+            public IPeakScoringModel PeakScoringModel { get; private set; }
+
+            [Track]
+            public bool ReintegrateAll { get; private set; }
+            [Track]
+            public bool ReintegrateQCutoff { get; private set; }
+            [Track]
+            public double? Cutoff { get; private set; }
+            [Track]
+            public bool OverwriteManualIntegration { get; private set; }
+
+            public object GetDefaultObject(ObjectInfo<object> info)
+            {
+                return new ReintegrateDlgSettings(null, false, false, null, false);
+            }
+        }
+
+        public double? QValueCutoff
+        {
+            get
+            {
+                if (!ReintegrateAll)
+                {
+                    var helper = new MessageBoxHelper(this);
+                    double result;
+                    if (helper.ValidateDecimalTextBox(textBoxCutoff, 0.0, 1.0, out result))
+                        return result;
+                }
+
+                return null;
+            }
+        }
+
         #region TestHelpers
 
         public double Cutoff
@@ -134,12 +227,6 @@ namespace pwiz.Skyline.EditUI
         {
             get { return checkBoxOverwrite.Checked; }
             set { checkBoxOverwrite.Checked = value; }
-        }
-
-        public bool AddAnnotation
-        {
-            get { return checkBoxAnnotation.Checked; }
-            set { checkBoxAnnotation.Checked = value; }
         }
 
         public bool ReintegrateAll
@@ -207,6 +294,5 @@ namespace pwiz.Skyline.EditUI
             }
             _driverPeakScoringModel.SelectedIndexChangedEvent(sender, e);
         }
-
     }
 }

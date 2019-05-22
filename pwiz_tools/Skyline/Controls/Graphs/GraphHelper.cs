@@ -32,7 +32,8 @@ namespace pwiz.Skyline.Controls.Graphs
     {
         private DisplayState _displayState;
         private bool _zoomLocked;
-        public const string scientificNotationFormatString = "0.0#####e0"; // Not L10N
+
+        public const string SCIENTIFIC_NOTATION_FORMAT_STRING = "0.0#####e0";
 
         public GraphHelper(MSGraphControl msGraphControl)
         {
@@ -51,6 +52,7 @@ namespace pwiz.Skyline.Controls.Graphs
 
         public MSGraphControl GraphControl { get; private set; }
         public IEnumerable<MSGraphPane> GraphPanes { get { return GraphControl.MasterPane.PaneList.OfType<MSGraphPane>(); } }
+        public PaneKey GetPaneKey(GraphPane graphPane) { return _displayState.GraphPaneKeys.FirstOrDefault(paneKey => ReferenceEquals(GetGraphPane(paneKey), graphPane)); }
         public IEnumerable<KeyValuePair<PaneKey, ChromGraphItem>> ListPrimaryGraphItems()
         {
             var chromDisplayState = _displayState as ChromDisplayState;
@@ -292,9 +294,18 @@ namespace pwiz.Skyline.Controls.Graphs
 
         public CurveItem AddChromatogram(PaneKey paneKey, ChromGraphItem chromGraphItem)
         {
-            var chromDisplayState = (ChromDisplayState) _displayState;
-            chromDisplayState.ChromGraphItems.Add(new KeyValuePair<PaneKey, ChromGraphItem>(paneKey, chromGraphItem));
-            return GraphControl.AddGraphItem(chromDisplayState.GetOrCreateGraphPane(GraphControl, paneKey), chromGraphItem, false);
+            var chromDisplayState = _displayState as ChromDisplayState;
+            if (chromDisplayState != null)
+            {
+                chromDisplayState.ChromGraphItems.Add(
+                    new KeyValuePair<PaneKey, ChromGraphItem>(paneKey, chromGraphItem));
+                return GraphControl.AddGraphItem(chromDisplayState.GetOrCreateGraphPane(GraphControl, paneKey),
+                    chromGraphItem, false);
+            }
+            else
+            {
+                return null;
+            }
         }
 
         public MSGraphPane GetGraphPane(PaneKey paneKey)
@@ -354,7 +365,6 @@ namespace pwiz.Skyline.Controls.Graphs
             public List<PaneKey> GraphPaneKeys { get; private set; }
             public bool AllowSplitPanes { get; protected set; }
             public bool ShowLegend { get; protected set; }
-            public bool AllowLabelOverlap { get; protected set; }
             public MSGraphPane GetGraphPane(MSGraphControl graphControl, PaneKey graphPaneKey)
             {
                 if (!AllowSplitPanes)
@@ -420,7 +430,7 @@ namespace pwiz.Skyline.Controls.Graphs
                 graphPane.Legend.IsVisible = ShowLegend;
                 graphPane.Title.IsVisible = true;
                 graphPane.Title.Text = null;
-                graphPane.AllowLabelOverlap = AllowLabelOverlap;
+                graphPane.AllowLabelOverlap = true; // Always allow labels to overlap - they're transparent so it's OK to do so
             }
         }
 
@@ -438,7 +448,6 @@ namespace pwiz.Skyline.Controls.Graphs
                 AllowSplitPanes = settings.SplitChromatogramGraph;
                 ChromGraphItems = new List<KeyValuePair<PaneKey, ChromGraphItem>>();
                 ShowLegend = settings.ShowChromatogramLegend;
-                AllowLabelOverlap = settings.AllowLabelOverlap;
                 _proteinSelected = proteinSelected;
             }
             
@@ -504,13 +513,13 @@ namespace pwiz.Skyline.Controls.Graphs
             {
                 if (Settings.Default.UsePowerOfTen)
                 {
-                    zedGraphPane.YAxis.Scale.Format = scientificNotationFormatString;
+                    zedGraphPane.YAxis.Scale.Format = SCIENTIFIC_NOTATION_FORMAT_STRING;
                     zedGraphPane.YAxis.Scale.MagAuto = false;
                     zedGraphPane.YAxis.Scale.Mag = 0;
                 }
                 else
                 {
-                    zedGraphPane.YAxis.Scale.Format = "g"; // Not L10N
+                    zedGraphPane.YAxis.Scale.Format = @"g";
                     zedGraphPane.YAxis.Scale.MagAuto = true;
                 }
             }
@@ -584,37 +593,37 @@ namespace pwiz.Skyline.Controls.Graphs
 
     public struct PaneKey : IComparable
     {
-        public static readonly PaneKey PRECURSORS = new PaneKey(null, null, false);
-        public static readonly PaneKey PRODUCTS = new PaneKey(null, null, true);
-        public static readonly PaneKey DEFAULT = new PaneKey(null, null, null);
+        public static readonly PaneKey PRECURSORS = new PaneKey(Adduct.EMPTY, null, false);
+        public static readonly PaneKey PRODUCTS = new PaneKey(Adduct.EMPTY, null, true);
+        public static readonly PaneKey DEFAULT = new PaneKey(Adduct.EMPTY, null, null);
 
         public PaneKey(TransitionGroupDocNode nodeGroup)
-            : this(nodeGroup != null ? nodeGroup.TransitionGroup.PrecursorCharge : (int?)null,
+            : this(nodeGroup != null ? nodeGroup.TransitionGroup.PrecursorAdduct : Adduct.EMPTY,
                    nodeGroup != null ? nodeGroup.TransitionGroup.LabelType : null,
                    false)
         {
         }
 
         public PaneKey(IsotopeLabelType isotopeLabelType)
-            : this(null, isotopeLabelType, false)
+            : this(Adduct.EMPTY, isotopeLabelType, false)
         {
         }
 
-        private PaneKey(int? precusorCharge, IsotopeLabelType isotopeLabelType, bool? isProducts)
+        private PaneKey(Adduct precursorAdduct, IsotopeLabelType isotopeLabelType, bool? isProducts)
             : this()
         {
-            PrecursorCharge = precusorCharge;
+            PrecursorAdduct = precursorAdduct.Unlabeled; // Interested only in the "+2Na" part of "M3C13+2Na"
             IsotopeLabelType = isotopeLabelType;
             IsProducts = isProducts;
         }
 
-        public int? PrecursorCharge { get; private set; }
+        public Adduct PrecursorAdduct { get; private set; }
         public IsotopeLabelType IsotopeLabelType { get; private set; }
         public bool? IsProducts { get; private set; }
 
-        private Tuple<int?, IsotopeLabelType, bool?> AsTuple()
+        private Tuple<Adduct, IsotopeLabelType, bool?> AsTuple()
         {
-            return new Tuple<int?, IsotopeLabelType, bool?>(PrecursorCharge, IsotopeLabelType, IsProducts);
+            return new Tuple<Adduct, IsotopeLabelType, bool?>(PrecursorAdduct, IsotopeLabelType, IsProducts);
         }
 
         public int CompareTo(object other)
@@ -624,8 +633,8 @@ namespace pwiz.Skyline.Controls.Graphs
 
         public bool IncludesTransitionGroup(TransitionGroupDocNode transitionGroupDocNode)
         {
-            if (PrecursorCharge.HasValue &&
-                PrecursorCharge != transitionGroupDocNode.TransitionGroup.PrecursorCharge)
+            if (!PrecursorAdduct.IsEmpty &&
+                !Equals(PrecursorAdduct, transitionGroupDocNode.TransitionGroup.PrecursorAdduct.Unlabeled)) // Compare adducts without any embedded isotope info
             {
                 return false;
             }

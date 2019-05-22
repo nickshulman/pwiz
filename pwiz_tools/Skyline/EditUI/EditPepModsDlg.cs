@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Original author: Brendan MacLean <brendanx .at. u.washington.edu>,
  *                  MacCoss Lab, Department of Genome Sciences, UW
  *
@@ -36,12 +36,12 @@ namespace pwiz.Skyline.EditUI
         private const int VSPACE = 3;
         private const int HSPACE = 10;
 
-        private const string PREFIX_STATIC_NAME = "comboStatic";    // Not L10N
-        private const string PREFIX_HEAVY_NAME = "comboHeavy";    // Not L10N
+        private const string PREFIX_STATIC_NAME = "comboStatic";
+        private const string PREFIX_HEAVY_NAME = "comboHeavy";
 
-        private const string PREFIX_LABEL_NAME = "labelHeavy1";    // Not L10N
+        private const string PREFIX_LABEL_NAME = "labelHeavy1";
 
-        private static readonly Regex REGEX_HEAVY_NAME = new Regex(PREFIX_HEAVY_NAME + @"(\d+)_(\d+)"); // Not L10N
+        private static readonly Regex REGEX_HEAVY_NAME = new Regex(PREFIX_HEAVY_NAME + @"(\d+)_(\d+)");
 
         private readonly List<ComboBox> _listComboStatic = new List<ComboBox>();
         private readonly List<int> _listSelectedIndexStatic = new List<int>();
@@ -52,17 +52,17 @@ namespace pwiz.Skyline.EditUI
 
         public static string GetStaticName(int row)
         {
-            return string.Format("{0}{1}", PREFIX_STATIC_NAME, row); // Not L10N
+            return string.Format(@"{0}{1}", PREFIX_STATIC_NAME, row);
         }
 
         public static string GetHeavyName(int row, int col)
         {
-            return string.Format("{0}{1}_{2}", PREFIX_HEAVY_NAME, row, col); // Not L10N
+            return string.Format(@"{0}{1}_{2}", PREFIX_HEAVY_NAME, row, col);
         }
 
         private static string GetIsotopeLabelName(int col)
         {
-            return string.Format("{0}{1}", PREFIX_LABEL_NAME, col); // Not L10N
+            return string.Format(@"{0}{1}", PREFIX_LABEL_NAME, col);
         }
 
         private static string GetIsotopeLabelText(IsotopeLabelType labelType)
@@ -85,7 +85,7 @@ namespace pwiz.Skyline.EditUI
             List<ComboBox> listComboHeavyLast = null;
             List<Label> listLabelHeavyLast = null;
             Label labelAALast = null;
-            string seq = nodePeptide.Peptide.Sequence;
+            var seq = nodePeptide.Peptide.Target.Sequence;
             var modsDoc = DocSettings.PeptideSettings.Modifications;
 
             _listLabelTypeHeavy.AddRange(from typedMods in modsDoc.GetHeavyModifications()
@@ -139,7 +139,7 @@ namespace pwiz.Skyline.EditUI
                     int top = Top = comboStaticLast.Bottom + VSPACE;
                     panelMain.Controls.Add(labelAALast = new Label
                     {
-                        Name = ("labelAA" + row), // Not L10N
+                        Name = (@"labelAA" + row),
                         AutoSize = true,
                         Font = labelAA1.Font,
                         Left = labelAA1.Left,
@@ -301,7 +301,7 @@ namespace pwiz.Skyline.EditUI
             IList<ExplicitMod> listExplicitMods, IList<StaticMod> listDocMods, int indexAA,
             bool selectEither, bool select)
         {
-            string seq = NodePeptide.Peptide.Sequence;
+            string seq = NodePeptide.Peptide.Target.Sequence;
             char aa = seq[indexAA];
             int iSelected = -1;
             string explicitName = null;

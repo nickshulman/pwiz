@@ -34,8 +34,9 @@ Information for getting spec filenames from .xtan files
 
 #include "TandemNativeParser.h"
 #include "BlibMaker.h"
+#include "AminoAcidMasses.h"
+#include "pwiz/utility/misc/Std.hpp"
 
-using namespace std;
 
 namespace BiblioSpec {
 
@@ -58,6 +59,8 @@ TandemNativeParser::TandemNativeParser(BlibBuilder& maker,
    // point to self as spec reader
    delete specReader_;
    specReader_ = this;
+
+   AminoAcidMasses::initializeMass(aaMasses_, 1);
 }
 
 TandemNativeParser::~TandemNativeParser() {
@@ -156,7 +159,12 @@ void TandemNativeParser::parseGroup(const XML_Char** attr){
         } else {
             newState(NESTED_GROUP_STATE);
         }
-    } // type == something else, (e.g. parameter)
+    } else if( strcmp(type, "parameters") == 0){
+        if (strcmp(label, "residue mass parameters") == 0) {
+            newState(RESIDUE_MASS_PARAMETERS_STATE);
+        }
+    }
+    // type == something else, (e.g. parameter)
 }
 
 /**
@@ -175,9 +183,11 @@ void TandemNativeParser::parseSpectraFile(const XML_Char** attr){
  * element.
  */
 void TandemNativeParser::parseNote(const XML_Char** attr){
-    if (curFilename_.empty()) {
-        const char* label = getAttrValue("label", attr);
-        if( curState_ == PEAKS_STATE && (strcmp(label, "Description") == 0)){
+    const char* label = getAttrValue("label", attr);
+    bool description = strcmp(label, "Description") == 0;
+    if (description) {
+        retentionTimeStr_.clear();
+        if (curFilename_.empty() && curState_ == PEAKS_STATE) {
             newState(DESCRIPTION_STATE);
         }
     }
@@ -193,6 +203,7 @@ void TandemNativeParser::parseDomain(const XML_Char** attr){
                             "without an accompanying model group.");
     } else if( curPSM_->unmodSeq.empty() ){
         curPSM_->unmodSeq = getRequiredAttrValue("seq", attr);
+        applyResidueMassParameters(curPSM_);
         seqStart_ = getIntRequiredAttrValue("start", attr);
     } else {
         // can we assume that the sequences at other domains are the same?
@@ -210,13 +221,22 @@ void TandemNativeParser::parseDomain(const XML_Char** attr){
  * the first domain element encountered.
  */
 void TandemNativeParser::parseMod(const XML_Char** attr){
+    const char* aa = getRequiredAttrValue("type", attr);
+
+    if (curState_ == RESIDUE_MASS_PARAMETERS_STATE) {
+        double mass = getDoubleRequiredAttrValue("mass", attr);
+        double diff = mass - aaMasses_[*aa];
+        if (abs(diff) > 0.1) {
+            aaMods_[*aa] = diff;
+        }
+        return;
+    }
 
     if( curPSM_ == NULL ){
         throw BlibException(false, "TandemNativeParser encountered a mod"
                             "ification without an accompanying model group.");
     }
 
-    const char* aa = getRequiredAttrValue("type", attr);
     int protPosition = getIntRequiredAttrValue("at", attr);
     double deltaMass = getDoubleRequiredAttrValue("modified", attr);
 
@@ -293,27 +313,15 @@ void TandemNativeParser::parseValues(const XML_Char** attr){
  * Use curState to determine if we are there.
  */
 void TandemNativeParser::characters(const XML_Char *s, int len){
-    if( curState_ != PEAKS_MZ_STATE && curState_ != PEAKS_INTENSITY_STATE
-        && curState_ != DESCRIPTION_STATE  ){
-        return;
-    }
-
-    // grab the data
-    char* buf = new char[len + 1];
-    strncpy(buf, s, len);
-    buf[len] = '\0';  
-
     // concatinate it on to the appropriate string
     if( curState_ == PEAKS_MZ_STATE){
-        mzStr_ += buf;
+        mzStr_.append(s, len);
     } else if( curState_ == PEAKS_INTENSITY_STATE){
-        intensityStr_ += buf;
+        intensityStr_.append(s, len);
     } else if( curState_ == DESCRIPTION_STATE ){
-        descriptionStr_ += buf;
+        retentionTimeStr_.append(s, len);
+        descriptionStr_.append(s, len);
     }
-
-    // clean up
-    delete [] buf;
 }
 
 void TandemNativeParser::getPeaks(
@@ -388,6 +396,14 @@ void TandemNativeParser::endGroup(){
         clearCurPeaks();
         
         curFilename_.clear();
+    } else if( curState_ == RESIDUE_MASS_PARAMETERS_STATE ){
+        curState_ = getLastState();
+
+        for (map<string, vector<PSM*> >::iterator i = fileMap_.begin(); i != fileMap_.end(); i++) {
+            for (vector<PSM*>::iterator j = i->second.begin(); j != i->second.end(); j++) {
+                applyResidueMassParameters(*j);
+            }
+        }
     }
 }
 
@@ -397,6 +413,35 @@ void TandemNativeParser::endGroup(){
 void TandemNativeParser::endNote(){
     if( curState_ == DESCRIPTION_STATE ){
         curState_ = getLastState();
+
+        const string rtStr = "RTINSECONDS=";
+        size_t rtStart = retentionTimeStr_.find(rtStr);
+        if (rtStart != string::npos) {
+            rtStart += rtStr.length();
+            size_t rtEnd = retentionTimeStr_.find_first_not_of("0123456789.", rtStart);
+            string rt = (rtEnd != string::npos) ? retentionTimeStr_.substr(rtStart, rtEnd - rtStart) : retentionTimeStr_.substr(rtStart);
+            retentionTime_ = atof(rt.c_str()) / 60;
+        }
+
+        // File: "F:\QE\07-14-16\QE02179.raw"; SpectrumID: "287"; ...
+        size_t fileStart = descriptionStr_.find("File:");
+        if (fileStart != string::npos) {
+            fileStart += 5;
+            while (descriptionStr_[fileStart] != '"') {
+                if (fileStart++ >= descriptionStr_.length()) {
+                    curFilename_.clear();
+                    return;
+                }
+            }
+            fileStart++;
+            size_t fileEnd = descriptionStr_.find('"', fileStart + 1);
+            if (fileEnd == string::npos) {
+                curFilename_.clear();
+                return;
+            }
+            curFilename_ = descriptionStr_.substr(fileStart, fileEnd - fileStart);
+            return;
+        }
 
         // parse the filename out of the description
         size_t end = descriptionStr_.find(" ");
@@ -498,7 +543,7 @@ void TandemNativeParser::saveSpectrum(){
     stringsToPeaks();
 
     // confirm that we have the same number of m/z's and intensities
-    if( numIntensities_ != numMzs_ ){
+   if( numIntensities_ != numMzs_ ){
         // TODO get line number
         throw BlibException(false, "Different numbers of peaks. Spectrum %d "
                             "has %d fragment m/z values and %d intensities.",
@@ -526,6 +571,19 @@ void TandemNativeParser::saveSpectrum(){
     // check to see if it is already there?
     spectra_[curPSM_->specKey] = curSpec;    
 
+}
+
+void TandemNativeParser::applyResidueMassParameters(PSM* psm) {
+    if (aaMods_.empty()) {
+        return;
+    }
+    const string& seq = psm->unmodSeq;
+    for (size_t i = 0; i < seq.length(); i++) {
+        map<char, double>::const_iterator aaMod = aaMods_.find(seq[i]);
+        if (aaMod != aaMods_.end()) {
+            psm->mods.push_back(SeqMod(i + 1, aaMod->second));
+        }
+    }
 }
 
 // SpecFileReader methods

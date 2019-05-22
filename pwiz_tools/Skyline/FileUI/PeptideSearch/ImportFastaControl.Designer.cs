@@ -35,13 +35,20 @@ namespace pwiz.Skyline.FileUI.PeptideSearch
             this.panelError = new System.Windows.Forms.Panel();
             this.tbxError = new System.Windows.Forms.TextBox();
             this.helpTipFasta = new System.Windows.Forms.ToolTip(this.components);
+            this.txtNumDecoys = new System.Windows.Forms.TextBox();
             this.clearBtn = new System.Windows.Forms.Button();
             this.label1 = new System.Windows.Forms.Label();
             this.label2 = new System.Windows.Forms.Label();
             this.cbMissedCleavages = new System.Windows.Forms.ComboBox();
             this.label3 = new System.Windows.Forms.Label();
             this.comboEnzyme = new System.Windows.Forms.ComboBox();
+            this.label4 = new System.Windows.Forms.Label();
+            this.label5 = new System.Windows.Forms.Label();
+            this.cbDecoyMethod = new System.Windows.Forms.ComboBox();
+            this.panelDecoys = new System.Windows.Forms.Panel();
+            this.cbAutoTrain = new System.Windows.Forms.CheckBox();
             this.panelError.SuspendLayout();
+            this.panelDecoys.SuspendLayout();
             this.SuspendLayout();
             // 
             // tbxFasta
@@ -67,10 +74,22 @@ namespace pwiz.Skyline.FileUI.PeptideSearch
             // 
             // tbxError
             // 
-            this.tbxError.BackColor = System.Drawing.SystemColors.Window;
             resources.ApplyResources(this.tbxError, "tbxError");
+            this.tbxError.BackColor = System.Drawing.SystemColors.Window;
             this.tbxError.Name = "tbxError";
             this.tbxError.ReadOnly = true;
+            // 
+            // helpTipFasta
+            // 
+            this.helpTipFasta.AutoPopDelay = 32767;
+            this.helpTipFasta.InitialDelay = 500;
+            this.helpTipFasta.ReshowDelay = 100;
+            // 
+            // txtNumDecoys
+            // 
+            resources.ApplyResources(this.txtNumDecoys, "txtNumDecoys");
+            this.txtNumDecoys.Name = "txtNumDecoys";
+            this.helpTipFasta.SetToolTip(this.txtNumDecoys, resources.GetString("txtNumDecoys.ToolTip"));
             // 
             // clearBtn
             // 
@@ -120,11 +139,46 @@ namespace pwiz.Skyline.FileUI.PeptideSearch
             this.comboEnzyme.Name = "comboEnzyme";
             this.comboEnzyme.SelectedIndexChanged += new System.EventHandler(this.enzyme_SelectedIndexChanged);
             // 
+            // label4
+            // 
+            resources.ApplyResources(this.label4, "label4");
+            this.label4.Name = "label4";
+            // 
+            // label5
+            // 
+            resources.ApplyResources(this.label5, "label5");
+            this.label5.Name = "label5";
+            // 
+            // cbDecoyMethod
+            // 
+            this.cbDecoyMethod.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.cbDecoyMethod.FormattingEnabled = true;
+            resources.ApplyResources(this.cbDecoyMethod, "cbDecoyMethod");
+            this.cbDecoyMethod.Name = "cbDecoyMethod";
+            this.cbDecoyMethod.SelectedIndexChanged += new System.EventHandler(this.cbDecoyMethod_SelectedIndexChanged);
+            // 
+            // panelDecoys
+            // 
+            resources.ApplyResources(this.panelDecoys, "panelDecoys");
+            this.panelDecoys.Controls.Add(this.cbAutoTrain);
+            this.panelDecoys.Controls.Add(this.label5);
+            this.panelDecoys.Controls.Add(this.txtNumDecoys);
+            this.panelDecoys.Controls.Add(this.cbDecoyMethod);
+            this.panelDecoys.Controls.Add(this.label4);
+            this.panelDecoys.Name = "panelDecoys";
+            // 
+            // cbAutoTrain
+            // 
+            resources.ApplyResources(this.cbAutoTrain, "cbAutoTrain");
+            this.cbAutoTrain.Name = "cbAutoTrain";
+            this.cbAutoTrain.UseVisualStyleBackColor = true;
+            // 
             // ImportFastaControl
             // 
             resources.ApplyResources(this, "$this");
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.BackColor = System.Drawing.Color.Transparent;
+            this.Controls.Add(this.panelDecoys);
             this.Controls.Add(this.comboEnzyme);
             this.Controls.Add(this.label3);
             this.Controls.Add(this.cbMissedCleavages);
@@ -137,6 +191,8 @@ namespace pwiz.Skyline.FileUI.PeptideSearch
             this.Name = "ImportFastaControl";
             this.panelError.ResumeLayout(false);
             this.panelError.PerformLayout();
+            this.panelDecoys.ResumeLayout(false);
+            this.panelDecoys.PerformLayout();
             this.ResumeLayout(false);
             this.PerformLayout();
 
@@ -155,5 +211,11 @@ namespace pwiz.Skyline.FileUI.PeptideSearch
         private System.Windows.Forms.ComboBox cbMissedCleavages;
         private System.Windows.Forms.Label label3;
         private System.Windows.Forms.ComboBox comboEnzyme;
+        private System.Windows.Forms.Label label4;
+        private System.Windows.Forms.Label label5;
+        private System.Windows.Forms.ComboBox cbDecoyMethod;
+        private System.Windows.Forms.TextBox txtNumDecoys;
+        private System.Windows.Forms.Panel panelDecoys;
+        private System.Windows.Forms.CheckBox cbAutoTrain;
     }
 }

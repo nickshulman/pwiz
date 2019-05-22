@@ -33,12 +33,17 @@
             System.Windows.Forms.DataGridViewCellStyle dataGridViewCellStyle1 = new System.Windows.Forms.DataGridViewCellStyle();
             System.Windows.Forms.DataGridViewCellStyle dataGridViewCellStyle2 = new System.Windows.Forms.DataGridViewCellStyle();
             System.Windows.Forms.DataGridViewCellStyle dataGridViewCellStyle3 = new System.Windows.Forms.DataGridViewCellStyle();
-            this.dataGridView1 = new System.Windows.Forms.DataGridView();
+            this.dataGridView1 = new pwiz.Common.Controls.CommonDataGridView();
+            this.PeptideIncludedColumn = new System.Windows.Forms.DataGridViewCheckBoxColumn();
+            this.PeptideColumn = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.contextMenuStrip1 = new System.Windows.Forms.ContextMenuStrip(this.components);
             this.includeToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.excludeToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.toolStripSeparator1 = new System.Windows.Forms.ToolStripSeparator();
             this.uniqueOnlyToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.uniqueProteinsToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.uniqueGenesToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.uniqueSpeciesToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.excludeBackgroundProteomeToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.toolStripSeparator2 = new System.Windows.Forms.ToolStripSeparator();
             this.includeAllToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
@@ -53,8 +58,6 @@
             this.richTextBoxSequence = new System.Windows.Forms.RichTextBox();
             this.tbxProteinDetails = new System.Windows.Forms.TextBox();
             this.labelProteinDetails = new System.Windows.Forms.Label();
-            this.PeptideIncludedColumn = new System.Windows.Forms.DataGridViewCheckBoxColumn();
-            this.PeptideColumn = new System.Windows.Forms.DataGridViewTextBoxColumn();
             ((System.ComponentModel.ISupportInitialize)(this.dataGridView1)).BeginInit();
             this.contextMenuStrip1.SuspendLayout();
             this.SuspendLayout();
@@ -84,6 +87,7 @@
             dataGridViewCellStyle2.SelectionForeColor = System.Drawing.SystemColors.HighlightText;
             dataGridViewCellStyle2.WrapMode = System.Windows.Forms.DataGridViewTriState.False;
             this.dataGridView1.DefaultCellStyle = dataGridViewCellStyle2;
+            this.dataGridView1.MaximumColumnCount = 2000;
             this.dataGridView1.Name = "dataGridView1";
             dataGridViewCellStyle3.Alignment = System.Windows.Forms.DataGridViewContentAlignment.MiddleLeft;
             dataGridViewCellStyle3.BackColor = System.Drawing.SystemColors.Control;
@@ -95,6 +99,19 @@
             this.dataGridView1.RowHeadersDefaultCellStyle = dataGridViewCellStyle3;
             this.dataGridView1.RowHeadersVisible = false;
             this.dataGridView1.CurrentCellDirtyStateChanged += new System.EventHandler(this.dataGridView1_CurrentCellDirtyStateChanged);
+            // 
+            // PeptideIncludedColumn
+            // 
+            this.PeptideIncludedColumn.FillWeight = 1F;
+            resources.ApplyResources(this.PeptideIncludedColumn, "PeptideIncludedColumn");
+            this.PeptideIncludedColumn.Name = "PeptideIncludedColumn";
+            this.PeptideIncludedColumn.SortMode = System.Windows.Forms.DataGridViewColumnSortMode.Automatic;
+            // 
+            // PeptideColumn
+            // 
+            this.PeptideColumn.FillWeight = 1F;
+            resources.ApplyResources(this.PeptideColumn, "PeptideColumn");
+            this.PeptideColumn.Name = "PeptideColumn";
             // 
             // contextMenuStrip1
             // 
@@ -129,9 +146,30 @@
             // 
             // uniqueOnlyToolStripMenuItem
             // 
+            this.uniqueOnlyToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.uniqueProteinsToolStripMenuItem,
+            this.uniqueGenesToolStripMenuItem,
+            this.uniqueSpeciesToolStripMenuItem});
             this.uniqueOnlyToolStripMenuItem.Name = "uniqueOnlyToolStripMenuItem";
             resources.ApplyResources(this.uniqueOnlyToolStripMenuItem, "uniqueOnlyToolStripMenuItem");
-            this.uniqueOnlyToolStripMenuItem.Click += new System.EventHandler(this.uniqueOnlyToolStripMenuItem_Click);
+            // 
+            // uniqueProteinsToolStripMenuItem
+            // 
+            this.uniqueProteinsToolStripMenuItem.Name = "uniqueProteinsToolStripMenuItem";
+            resources.ApplyResources(this.uniqueProteinsToolStripMenuItem, "uniqueProteinsToolStripMenuItem");
+            this.uniqueProteinsToolStripMenuItem.Click += new System.EventHandler(this.uniqueProteinsOnlyToolStripMenuItem_Click);
+            // 
+            // uniqueGenesToolStripMenuItem
+            // 
+            this.uniqueGenesToolStripMenuItem.Name = "uniqueGenesToolStripMenuItem";
+            resources.ApplyResources(this.uniqueGenesToolStripMenuItem, "uniqueGenesToolStripMenuItem");
+            this.uniqueGenesToolStripMenuItem.Click += new System.EventHandler(this.uniqueGenesOnlyToolStripMenuItem_Click);
+            // 
+            // uniqueSpeciesToolStripMenuItem
+            // 
+            this.uniqueSpeciesToolStripMenuItem.Name = "uniqueSpeciesToolStripMenuItem";
+            resources.ApplyResources(this.uniqueSpeciesToolStripMenuItem, "uniqueSpeciesToolStripMenuItem");
+            this.uniqueSpeciesToolStripMenuItem.Click += new System.EventHandler(this.uniqueSpeciesOnlyToolStripMenuItem_Click);
             // 
             // excludeBackgroundProteomeToolStripMenuItem
             // 
@@ -215,17 +253,6 @@
             resources.ApplyResources(this.labelProteinDetails, "labelProteinDetails");
             this.labelProteinDetails.Name = "labelProteinDetails";
             // 
-            // PeptideIncludedColumn
-            // 
-            resources.ApplyResources(this.PeptideIncludedColumn, "PeptideIncludedColumn");
-            this.PeptideIncludedColumn.Name = "PeptideIncludedColumn";
-            this.PeptideIncludedColumn.SortMode = System.Windows.Forms.DataGridViewColumnSortMode.Automatic;
-            // 
-            // PeptideColumn
-            // 
-            resources.ApplyResources(this.PeptideColumn, "PeptideColumn");
-            this.PeptideColumn.Name = "PeptideColumn";
-            // 
             // UniquePeptidesDlg
             // 
             this.AcceptButton = this.btnOK;
@@ -257,7 +284,7 @@
 
         #endregion
 
-        private System.Windows.Forms.DataGridView dataGridView1;
+        private pwiz.Common.Controls.CommonDataGridView dataGridView1;
         private System.Windows.Forms.ContextMenuStrip contextMenuStrip1;
         private System.Windows.Forms.ToolStripMenuItem includeToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem excludeToolStripMenuItem;
@@ -277,6 +304,9 @@
         private System.Windows.Forms.ToolStripSeparator toolStripSeparator2;
         private System.Windows.Forms.ToolStripMenuItem includeAllToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem excludeAllToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem uniqueProteinsToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem uniqueGenesToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem uniqueSpeciesToolStripMenuItem;
         private System.Windows.Forms.DataGridViewCheckBoxColumn PeptideIncludedColumn;
         private System.Windows.Forms.DataGridViewTextBoxColumn PeptideColumn;
     }

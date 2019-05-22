@@ -22,7 +22,7 @@ namespace pwiz.Skyline.Model.Hibernate
 {
     public static class Formats
     {
-        // ReSharper disable NonLocalizedString
+        // ReSharper disable LocalizableElement
         public const String RETENTION_TIME = "0.##";
         public const String PEAK_FOUND_RATIO = "0.##";
         public const String STANDARD_RATIO = "0.####";
@@ -36,6 +36,8 @@ namespace pwiz.Skyline.Model.Hibernate
         public const string FoldChange = "0.####";
         public const string CalibrationCurve = "0.0000E+0";
         public const string Concentration = "0.####";
-        // ReSharper enable NonLocalizedString
+        public const string RoundTrip = "R";
+        public const string Mz = "0.####";
+        // ReSharper restore LocalizableElement
     }
 }

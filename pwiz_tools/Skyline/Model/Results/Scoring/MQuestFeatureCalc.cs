@@ -41,6 +41,18 @@ namespace pwiz.Skyline.Model.Results.Scoring
         public double Window { get; private set; }
     }
 
+    sealed class MaxPossibleShift
+    {
+        public MaxPossibleShift(double? analyte, double? standard)
+        {
+            Analyte = analyte;
+            Standard = standard;
+        }
+
+        public double? Analyte { get; private set; }
+        public double? Standard { get; private set; }
+    }
+
     public abstract class AbstractMQuestRetentionTimePredictionCalc : SummaryPeakFeatureCalculator
     {
         protected AbstractMQuestRetentionTimePredictionCalc(string headerName) : base(headerName) {}
@@ -82,14 +94,18 @@ namespace pwiz.Skyline.Model.Results.Scoring
                     var fileId = summaryPeakData.FileInfo != null ? summaryPeakData.FileInfo.FileId : null;
                     var settings = context.Document.Settings;
                     var predictor = settings.PeptideSettings.Prediction.RetentionTime;
-                    string seqModified = settings.GetSourceTextId(summaryPeakData.NodePep);
+                    var fullScan = settings.TransitionSettings.FullScan;
+                    var seqModified = settings.GetSourceTarget(summaryPeakData.NodePep); 
                     if (predictor != null)
                     {
+                        double window = predictor.TimeWindow;
+                        if (fullScan.IsEnabled && fullScan.RetentionTimeFilterType == RetentionTimeFilterType.scheduling_windows)
+                            window = fullScan.RetentionTimeFilterLength*2;
+
                         prediction = new RetentionTimePrediction(predictor.GetRetentionTime(seqModified, fileId),
-                            predictor.TimeWindow);
+                            window);
                     }
 
-                    var fullScan = settings.TransitionSettings.FullScan;
                     if (prediction == null && fullScan.IsEnabled && fullScan.RetentionTimeFilterType == RetentionTimeFilterType.ms2_ids)
                     {
                         var filePath = summaryPeakData.FileInfo != null ? summaryPeakData.FileInfo.FilePath : null;
@@ -109,8 +125,21 @@ namespace pwiz.Skyline.Model.Results.Scoring
             }
             if (prediction == null || !prediction.Time.HasValue)
                 return float.NaN;
-            // CONSIDER: Do the division first, and then the cast
-            return ((float) RtScoreFunction(measuredRT.Value - prediction.Time.Value) / (float) RtScoreNormalizer(prediction.Window));
+            double rtDelta = Math.Abs(measuredRT.Value - prediction.Time.Value);
+            double maxDelta = prediction.Window / 2;
+            if (rtDelta > maxDelta)
+            {
+                // For full-scan extraction based on the predicted retention time, the vast majority of
+                // delta-RT values will be less than 1/2 the window, but if iRT starndards are included
+                // in the targets, they may be extracted with full-gradient chromatograms.
+                // This can really mess up training and peak picking for the standards, since something
+                // like a negative coefficient for delta-RT^2 can result in far away peaks having huge scores.
+                // So, here we limit the delta scores. But, this was too invasive to do for everything.
+                var fullScan = context.Document.Settings.TransitionSettings.FullScan;
+                if (fullScan.IsEnabled && fullScan.RetentionTimeFilterType == RetentionTimeFilterType.scheduling_windows)
+                    rtDelta = maxDelta;
+            }
+            return (float) RtScoreFunction(rtDelta) / (float) RtScoreNormalizer(prediction.Window);
         }
 
         public double RtScoreNormalizer(double timeWindow)
@@ -126,7 +155,7 @@ namespace pwiz.Skyline.Model.Results.Scoring
 
     public class MQuestRetentionTimePredictionCalc : AbstractMQuestRetentionTimePredictionCalc
     {
-        public MQuestRetentionTimePredictionCalc() : base("Retention time difference") { }  // Not L10N
+        public MQuestRetentionTimePredictionCalc() : base(@"Retention time difference") { }
 
         public override string Name
         {
@@ -135,13 +164,13 @@ namespace pwiz.Skyline.Model.Results.Scoring
 
         public override double RtScoreFunction(double rtValue)
         {
-            return Math.Abs(rtValue);
+            return rtValue;
         }
     }
 
     public class MQuestRetentionTimeSquaredPredictionCalc : AbstractMQuestRetentionTimePredictionCalc
     {
-        public MQuestRetentionTimeSquaredPredictionCalc() : base("Retention time squared difference") { }  // Not L10N
+        public MQuestRetentionTimeSquaredPredictionCalc() : base(@"Retention time squared difference") { }
 
         public override string Name
         {
@@ -188,7 +217,13 @@ namespace pwiz.Skyline.Model.Results.Scoring
         /// <returns></returns>
         public static IList<ITransitionPeakData<TData>> GetMs1IonTypes<TData>(IList<ITransitionGroupPeakData<TData>> tranGroupPeakDatas)
         {
-            return GetIonTypes(tranGroupPeakDatas, tg => tg.Ms1TranstionPeakData);
+            // Copied because using a lambda/delegate causes allocation in this case (profiled)
+            if (tranGroupPeakDatas.Count == 1)
+                return tranGroupPeakDatas[0].Ms1TranstionPeakData;
+            var listTrans = new List<ITransitionPeakData<TData>>();
+            foreach (var transitionGroupPeakData in tranGroupPeakDatas)
+                listTrans.AddRange(transitionGroupPeakData.Ms1TranstionPeakData);
+            return listTrans;
         }
 
         /// <summary>
@@ -199,7 +234,13 @@ namespace pwiz.Skyline.Model.Results.Scoring
         /// <returns></returns>
         public static IList<ITransitionPeakData<TData>> GetMs2IonTypes<TData>(IList<ITransitionGroupPeakData<TData>> tranGroupPeakDatas)
         {
-            return GetIonTypes(tranGroupPeakDatas, tg => tg.Ms2TranstionPeakData);
+            // Copied because using a lambda/delegate causes allocation in this case (profiled)
+            if (tranGroupPeakDatas.Count == 1)
+                return tranGroupPeakDatas[0].Ms2TranstionPeakData;
+            var listTrans = new List<ITransitionPeakData<TData>>();
+            foreach (var transitionGroupPeakData in tranGroupPeakDatas)
+                listTrans.AddRange(transitionGroupPeakData.Ms2TranstionPeakData);
+            return listTrans;
         }
 
         /// <summary>
@@ -210,19 +251,12 @@ namespace pwiz.Skyline.Model.Results.Scoring
         /// <returns></returns>
         public static IList<ITransitionPeakData<TData>> GetDefaultIonTypes<TData>(IList<ITransitionGroupPeakData<TData>> tranGroupPeakDatas)
         {
-            return GetIonTypes(tranGroupPeakDatas, tg => tg.DefaultTranstionPeakData);
-        }
-
-        private static IList<ITransitionPeakData<TData>> GetIonTypes<TData>(IList<ITransitionGroupPeakData<TData>> tranGroupPeakDatas,
-            Func<ITransitionGroupPeakData<TData>, IList<ITransitionPeakData<TData>>> getTrans)
-        {
+            // Copied because using a lambda/delegate causes allocation in this case (profiled)
             if (tranGroupPeakDatas.Count == 1)
-                return getTrans(tranGroupPeakDatas[0]);
+                return tranGroupPeakDatas[0].DefaultTranstionPeakData;
             var listTrans = new List<ITransitionPeakData<TData>>();
             foreach (var transitionGroupPeakData in tranGroupPeakDatas)
-            {
-                listTrans.AddRange(getTrans(transitionGroupPeakData));
-            }
+                listTrans.AddRange(transitionGroupPeakData.DefaultTranstionPeakData);
             return listTrans;
         }
 
@@ -251,23 +285,25 @@ namespace pwiz.Skyline.Model.Results.Scoring
             //           by multiple high scoring charge states, but not decreased by the addition
             //           of low scoring charge states. For now we just take the maximum score, since
             //           this is fast and easy to code correctly.
-            float maxDotProduct = 0;
+            float maxDotProduct = float.MinValue;
             foreach (var pdGroup in tranGroupPeakDatas)
             {
-                var pds = pdGroup.TransitionPeakData.Where(pd => pd.NodeTran != null && pd.NodeTran.HasDistInfo).ToList();
-                if (!pds.Any())
+                var pds = pdGroup.Ms1TranstionPeakData;
+                if (!pds.Any(pd => pd.NodeTran.HasDistInfo))
                     continue;
                 var peakAreas = pds.Select(pd => (double)pd.PeakData.Area);
-                var isotopeProportions = pds.Select(pd => (double)pd.NodeTran.IsotopeDistInfo.Proportion);
+                var isotopeProportions = pds.Select(pd => pd.NodeTran.HasDistInfo ? pd.NodeTran.IsotopeDistInfo.Proportion : 0.0);
                 var statPeakAreas = new Statistics(peakAreas);
+                if (statPeakAreas.Length < TransitionGroupDocNode.MIN_DOT_PRODUCT_MS1_TRANSITIONS)
+                    continue;
                 var statIsotopeProportions = new Statistics(isotopeProportions);
                 var isotopeDotProduct = (float)statPeakAreas.NormalizedContrastAngleSqrt(statIsotopeProportions);
                 if (double.IsNaN(isotopeDotProduct))
-                    isotopeDotProduct = 0;
+                    isotopeDotProduct = float.MinValue;
                 if (isotopeDotProduct > maxDotProduct)
                     maxDotProduct = isotopeDotProduct;
             }
-            if (maxDotProduct == 0)
+            if (maxDotProduct == float.MinValue)
                 return float.NaN;
             return maxDotProduct;
         }
@@ -282,7 +318,9 @@ namespace pwiz.Skyline.Model.Results.Scoring
 
         protected override float Calculate(PeakScoringContext context, IPeptidePeakData<ISummaryPeakData> summaryPeakData)
         {
-            double lightArea = GetIonTypes(GetTransitionGroups(summaryPeakData)).Sum(p => p.PeakData.Area);
+            double lightArea = 0;
+            foreach (var pd in GetIonTypes(GetTransitionGroups(summaryPeakData)))
+                lightArea += pd.PeakData.Area;
             return (float)Math.Max(0, Math.Log10(lightArea));
         }
 
@@ -299,7 +337,7 @@ namespace pwiz.Skyline.Model.Results.Scoring
 
     public class MQuestIntensityCalc : AbstractMQuestIntensityCalc
     {
-        public MQuestIntensityCalc() : base("Intensity") { }  // Not L10N
+        public MQuestIntensityCalc() : base(@"Intensity") { }
 
         public override string Name
         {
@@ -314,7 +352,7 @@ namespace pwiz.Skyline.Model.Results.Scoring
 
     public class MQuestStandardIntensityCalc : AbstractMQuestIntensityCalc
     {
-        public MQuestStandardIntensityCalc() : base("Standard Intensity") { }  // Not L10N
+        public MQuestStandardIntensityCalc() : base(@"Standard Intensity") { }
 
         public override string Name
         {
@@ -326,11 +364,16 @@ namespace pwiz.Skyline.Model.Results.Scoring
         {
             return MQuestHelpers.GetStandardGroups(peptidePeakData);
         }
+
+        public override bool IsReferenceScore
+        {
+            get { return true; }
+    }
     }
 
     public class MQuestDefaultIntensityCalc : AbstractMQuestIntensityCalc
     {
-       public MQuestDefaultIntensityCalc() : base("Default Intensity") { }  // Not L10N
+       public MQuestDefaultIntensityCalc() : base(@"Default Intensity") { }
 
         public override string Name
         {
@@ -354,11 +397,11 @@ namespace pwiz.Skyline.Model.Results.Scoring
         
         protected override float Calculate(PeakScoringContext context, IPeptidePeakData<ISummaryPeakData> summaryPeakData)
         {
-            var tranGroupPeakDatas = GetTransitionGroups(summaryPeakData).ToArray();
+            var tranGroupPeakDatas = GetTransitionGroups(summaryPeakData);
 
             // If there are no light transition groups with library intensities,
             // then this score does not apply.
-            if (tranGroupPeakDatas.Length == 0 || tranGroupPeakDatas.All(pd => pd.NodeGroup == null || pd.NodeGroup.LibInfo == null))
+            if (tranGroupPeakDatas.Count == 0 || tranGroupPeakDatas.All(pd => pd.NodeGroup == null || pd.NodeGroup.LibInfo == null))
                 return float.NaN;
 
             // CONSIDER: With dot-products, when one charge state performs very well, and another
@@ -374,6 +417,8 @@ namespace pwiz.Skyline.Model.Results.Scoring
                     continue;
                 var transitionPeakData = GetIonTypes(new[] {pdGroup});
                 int count = transitionPeakData.Count;
+                if (count < TransitionGroupDocNode.MIN_DOT_PRODUCT_TRANSITIONS)
+                    continue;
                 var peakAreas = new double[count];
                 var libIntensities = new double[count];
                 for (int i = 0; i < count; i++)
@@ -407,7 +452,7 @@ namespace pwiz.Skyline.Model.Results.Scoring
 
     public class MQuestIntensityCorrelationCalc : AbstractMQuestIntensityCorrelationCalc
     {
-        public MQuestIntensityCorrelationCalc() : base("Library intensity dot-product") { }  // Not L10N
+        public MQuestIntensityCorrelationCalc() : base(@"Library intensity dot-product") { }
 
         public override string Name
         {
@@ -429,7 +474,7 @@ namespace pwiz.Skyline.Model.Results.Scoring
 
     public class MQuestStandardIntensityCorrelationCalc : AbstractMQuestIntensityCorrelationCalc
     {
-        public MQuestStandardIntensityCorrelationCalc() : base("Standard library dot-product") { }  // Not L10N
+        public MQuestStandardIntensityCorrelationCalc() : base(@"Standard library dot-product") { }
 
         public override string Name
         {
@@ -447,11 +492,15 @@ namespace pwiz.Skyline.Model.Results.Scoring
             return MQuestHelpers.GetStandardGroups(summaryPeakData);
         }
 
+        public override bool IsReferenceScore
+        {
+            get { return true; }
+    }
     }
 
     public class MQuestDefaultIntensityCorrelationCalc : AbstractMQuestIntensityCorrelationCalc
     {
-        public MQuestDefaultIntensityCorrelationCalc() : base("Default dotp or idotp") { }  // Not L10N
+        public MQuestDefaultIntensityCorrelationCalc() : base(@"Default dotp or idotp") { }
 
         public override string Name
         {
@@ -489,15 +538,8 @@ namespace pwiz.Skyline.Model.Results.Scoring
 
         protected override float Calculate(PeakScoringContext context, IPeptidePeakData<ISummaryPeakData> summaryPeakData)
         {
-            var analyteGroups = new List<ITransitionGroupPeakData<ISummaryPeakData>>();
-            var referenceGroups = new List<ITransitionGroupPeakData<ISummaryPeakData>>();
-            foreach (var pdGroup in summaryPeakData.TransitionGroupPeakData)
-            {
-                if (pdGroup.IsStandard)
-                    referenceGroups.Add(pdGroup);
-                else
-                    analyteGroups.Add(pdGroup);
-            }
+            var analyteGroups = MQuestHelpers.GetAnalyteGroups(summaryPeakData);
+            var referenceGroups = MQuestHelpers.GetStandardGroups(summaryPeakData);
             if (analyteGroups.Count == 0 || referenceGroups.Count == 0)
                 return float.NaN;
 
@@ -507,8 +549,8 @@ namespace pwiz.Skyline.Model.Results.Scoring
             {
                 foreach (var referenceGroup in referenceGroups)
                 {
-                    if (analyteGroup.NodeGroup.TransitionGroup.PrecursorCharge !=
-                            referenceGroup.NodeGroup.TransitionGroup.PrecursorCharge)
+                    if (analyteGroup.NodeGroup.TransitionGroup.PrecursorAdduct !=
+                            referenceGroup.NodeGroup.TransitionGroup.PrecursorAdduct)
                         continue;
 
                     foreach (var tranPeakDataPair in TransitionPeakDataPair<ISummaryPeakData>
@@ -530,12 +572,14 @@ namespace pwiz.Skyline.Model.Results.Scoring
 
         public override bool IsReversedScore { get { return false; } }
 
+        public override bool IsReferenceScore { get { return true; } }
+
         protected abstract bool IsIonType(TransitionDocNode nodeTran);
     }
 
     public class MQuestReferenceCorrelationCalc : AbstractMQuestReferenceCorrelationCalc
     {
-        public MQuestReferenceCorrelationCalc() : base("Reference intensity dot-product") { }  // Not L10N
+        public MQuestReferenceCorrelationCalc() : base(@"Reference intensity dot-product") { }
 
         public override string Name
         {
@@ -582,12 +626,11 @@ namespace pwiz.Skyline.Model.Results.Scoring
                 context.AddInfo(crossCorrMatrix);
             }
             if (!crossCorrMatrix.CrossCorrelations.Any())
-                return DefaultScore;
-            MaxPossibleShift = lightTransitionPeakData.Max(pd => pd.PeakData.Length);
+                return GetDefaultScore(context);
 
             var statValues = crossCorrMatrix.GetStats(GetValue);
             var statWeights = crossCorrMatrix.GetStats(GetWeight);
-            return statValues.Length == 0 ? float.NaN : Calculate(statValues, statWeights);
+            return statValues.Length == 0 ? GetDefaultScore(context) : Calculate(context, statValues, statWeights);
         }
 
         protected abstract float? GetCachedScore(PeakScoringContext context,
@@ -596,7 +639,7 @@ namespace pwiz.Skyline.Model.Results.Scoring
         protected abstract float SetCachedScore(PeakScoringContext context,
             IList<ITransitionGroupPeakData<IDetailedPeakData>> tranGroups, float score);
 
-        protected abstract float Calculate(Statistics statValues, Statistics statWeigths);
+        protected abstract float Calculate(PeakScoringContext context, Statistics statValues, Statistics statWeigths);
         
         protected abstract double GetValue(MQuestCrossCorrelation xcorr);
 
@@ -605,12 +648,10 @@ namespace pwiz.Skyline.Model.Results.Scoring
             return xcorr.AreaSum;
         }
 
-        /// <summary>
-        /// For assigning the worst possible score when all weights are zero
-        /// </summary>
-        protected int MaxPossibleShift { get; set; }
-
-        protected virtual float DefaultScore { get { return float.NaN; } }
+        protected virtual float GetDefaultScore(PeakScoringContext context)
+        {
+            return float.NaN;
+        }
 
         protected abstract IList<ITransitionGroupPeakData<TDetails>> GetTransitionGroups<TDetails>(
             IPeptidePeakData<TDetails> summaryPeakData);
@@ -712,11 +753,11 @@ namespace pwiz.Skyline.Model.Results.Scoring
     {
         protected AbstractMQuestWeightedShapeCalc(string headerName) : base(headerName) { }
 
-        protected override float Calculate(Statistics statValues, Statistics statWeigths)
+        protected override float Calculate(PeakScoringContext context, Statistics statValues, Statistics statWeigths)
         {
             double result = statValues.Mean(statWeigths);
             if (double.IsNaN(result))
-                return DefaultScore;
+                return GetDefaultScore(context);
             return (float) result;
         }
 
@@ -727,7 +768,7 @@ namespace pwiz.Skyline.Model.Results.Scoring
             return xcorr.MaxCorr;
         }
 
-        protected override float DefaultScore { get { return 0; } }
+        protected override float GetDefaultScore(PeakScoringContext context) { return 0; }
 
         protected override float? GetCachedScore(PeakScoringContext context, IList<ITransitionGroupPeakData<IDetailedPeakData>> tranGroups)
         {
@@ -751,7 +792,7 @@ namespace pwiz.Skyline.Model.Results.Scoring
 
     public class MQuestWeightedShapeCalc : AbstractMQuestWeightedShapeCalc<MQuestAnalyteCrossCorrelations>
     {
-        public MQuestWeightedShapeCalc() : base("Shape (weighted)") { }  // Not L10N
+        public MQuestWeightedShapeCalc() : base(@"Shape (weighted)") { }
         protected MQuestWeightedShapeCalc(string headerName) : base(headerName) { }
 
         public override string Name
@@ -768,7 +809,7 @@ namespace pwiz.Skyline.Model.Results.Scoring
 
     public class MQuestStandardWeightedShapeCalc : AbstractMQuestWeightedShapeCalc<MQuestStandardCrossCorrelations>
     {
-        public MQuestStandardWeightedShapeCalc() : base("Standard shape (weighted)") { }  // Not L10N
+        public MQuestStandardWeightedShapeCalc() : base(@"Standard shape (weighted)") { }
 
         public override string Name
         {
@@ -780,11 +821,16 @@ namespace pwiz.Skyline.Model.Results.Scoring
         {
             return MQuestHelpers.GetStandardGroups(summaryPeakData);
         }
+
+        public override bool IsReferenceScore
+        {
+            get { return true; }
+    }
     }
 
     public class MQuestDefaultWeightedShapeCalc : AbstractMQuestWeightedShapeCalc<MQuestDefaultCrossCorrelations>
     {
-        public MQuestDefaultWeightedShapeCalc() : base("Default shape (weighted)") { }  // Not L10N
+        public MQuestDefaultWeightedShapeCalc() : base(@"Default shape (weighted)") { }
 
         public override string Name
         {
@@ -803,7 +849,7 @@ namespace pwiz.Skyline.Model.Results.Scoring
     /// </summary>
     public class MQuestShapeCalc : MQuestWeightedShapeCalc
     {
-        public MQuestShapeCalc() : base("Shape")  // Not L10N
+        public MQuestShapeCalc() : base(@"Shape")
         {
         }
 
@@ -842,13 +888,13 @@ namespace pwiz.Skyline.Model.Results.Scoring
     /// </summary>
     public abstract class AbstractMQuestWeightedCoElutionCalc<TData> : MQuestWeightedLightCalc<TData> where TData : MQuestAnalyteCrossCorrelations, new()
     {
-         protected AbstractMQuestWeightedCoElutionCalc(string headerName) : base(headerName) { }
+        protected AbstractMQuestWeightedCoElutionCalc(string headerName) : base(headerName) { }
 
-        protected override float Calculate(Statistics statValues, Statistics statWeigths)
+        protected override float Calculate(PeakScoringContext context, Statistics statValues, Statistics statWeigths)
         {
             double result = statValues.Mean(statWeigths) + statValues.StdDev(statWeigths);
             if (double.IsNaN(result))
-                return DefaultScore;
+                return GetDefaultScore(context);
             return (float) result;
         }
 
@@ -859,7 +905,13 @@ namespace pwiz.Skyline.Model.Results.Scoring
             return Math.Abs(xcorr.MaxShift);
         }
 
-        protected override float DefaultScore { get { return MaxPossibleShift; } }
+        protected override float GetDefaultScore(PeakScoringContext context)
+        {
+            MaxPossibleShift shift;
+            if (context.TryGetInfo(out shift) && shift.Analyte.HasValue)
+                return (float) shift.Analyte.Value;
+            return base.GetDefaultScore(context);
+        }
 
         protected override float? GetCachedScore(PeakScoringContext context, IList<ITransitionGroupPeakData<IDetailedPeakData>> tranGroups)
         {
@@ -883,7 +935,7 @@ namespace pwiz.Skyline.Model.Results.Scoring
 
     public class MQuestWeightedCoElutionCalc : AbstractMQuestWeightedCoElutionCalc<MQuestAnalyteCrossCorrelations>
     {
-        public MQuestWeightedCoElutionCalc() : base("Co-elution (weighted)") { }  // Not L10N
+        public MQuestWeightedCoElutionCalc() : base(@"Co-elution (weighted)") { }
         protected MQuestWeightedCoElutionCalc(string headerName) : base(headerName) { }
 
         public override string Name
@@ -900,7 +952,7 @@ namespace pwiz.Skyline.Model.Results.Scoring
 
     public class MQuestStandardWeightedCoElutionCalc : AbstractMQuestWeightedCoElutionCalc<MQuestStandardCrossCorrelations>
     {
-        public MQuestStandardWeightedCoElutionCalc() : base("Standard co-elution (weighted)") { }  // Not L10N
+        public MQuestStandardWeightedCoElutionCalc() : base(@"Standard co-elution (weighted)") { }
 
         public override string Name
         {
@@ -912,11 +964,16 @@ namespace pwiz.Skyline.Model.Results.Scoring
         {
             return MQuestHelpers.GetStandardGroups(summaryPeakData);
         }
+
+        public override bool IsReferenceScore
+        {
+            get { return true; }
+    }
     }
 
     public class MQuestDefaultWeightedCoElutionCalc : AbstractMQuestWeightedCoElutionCalc<MQuestDefaultCrossCorrelations>
     {
-        public MQuestDefaultWeightedCoElutionCalc() : base("Default co-elution (weighted)") { }  // Not L10N
+        public MQuestDefaultWeightedCoElutionCalc() : base(@"Default co-elution (weighted)") { }
 
         public override string Name
         {
@@ -935,7 +992,7 @@ namespace pwiz.Skyline.Model.Results.Scoring
     /// </summary>
     public class MQuestCoElutionCalc : MQuestWeightedCoElutionCalc
     {
-        public MQuestCoElutionCalc() : base("Co-elution")  // Not L10N
+        public MQuestCoElutionCalc() : base(@"Co-elution")
         {
         }
 
@@ -1080,17 +1137,16 @@ namespace pwiz.Skyline.Model.Results.Scoring
                 context.AddInfo(crossCorrMatrix);
             }
             if (!crossCorrMatrix.CrossCorrelations.Any())
-                return float.NaN;
-
-            var transitionPeakDatas = summaryPeakData.TransitionGroupPeakData.SelectMany(pd => pd.TransitionPeakData);
-            MaxPossibleShift = transitionPeakDatas.Max(pd => pd.PeakData.Length);
+                return GetDefaultScore(context);
 
             var statValues = crossCorrMatrix.GetStats(GetValue, FilterIons);
             var statWeights = crossCorrMatrix.GetStats(GetWeight, FilterIons);
-            return statValues.Length == 0 ? float.NaN : Calculate(statValues, statWeights);
+            return statValues.Length == 0 ? GetDefaultScore(context) : Calculate(context, statValues, statWeights);
         }
 
-        protected abstract float Calculate(Statistics statValues, Statistics statWeigths);
+        public override bool IsReferenceScore { get { return true; } }
+
+        protected abstract float Calculate(PeakScoringContext context, Statistics statValues, Statistics statWeigths);
 
         protected abstract double GetValue(MQuestCrossCorrelation xcorr);
 
@@ -1105,10 +1161,10 @@ namespace pwiz.Skyline.Model.Results.Scoring
                                   .Where(xcorr => !xcorr.TranPeakData1.NodeTran.IsMs1 && !xcorr.TranPeakData2.NodeTran.IsMs1);
         }
 
-        /// <summary>
-        /// For assigning the worst possible score when all weights are zero
-        /// </summary>
-        protected int MaxPossibleShift { get; private set; }
+        protected virtual float GetDefaultScore(PeakScoringContext context)
+        {
+            return float.NaN;
+        }
     }
 
     /// <summary>
@@ -1116,7 +1172,7 @@ namespace pwiz.Skyline.Model.Results.Scoring
     /// </summary>
     public class MQuestWeightedReferenceShapeCalc : MQuestWeightedReferenceCalc
     {
-        public MQuestWeightedReferenceShapeCalc() : base("Reference shape (weighted)") { }  // Not L10N
+        public MQuestWeightedReferenceShapeCalc() : base(@"Reference shape (weighted)") { }
         public MQuestWeightedReferenceShapeCalc(string headerName) : base(headerName) {}
 
         public override string Name
@@ -1124,7 +1180,7 @@ namespace pwiz.Skyline.Model.Results.Scoring
             get { return Resources.MQuestWeightedReferenceShapeCalc_MQuestWeightedReferenceShapeCalc_mProphet_weighted_reference_shape; }
         }
 
-        protected override float Calculate(Statistics statValues, Statistics statWeigths)
+        protected override float Calculate(PeakScoringContext context, Statistics statValues, Statistics statWeigths)
         {
             double result = statValues.Mean(statWeigths);
             if (double.IsNaN(result))
@@ -1145,7 +1201,7 @@ namespace pwiz.Skyline.Model.Results.Scoring
     /// </summary>
     public class MQuestReferenceShapeCalc : MQuestWeightedReferenceShapeCalc
     {
-        public MQuestReferenceShapeCalc() : base("Reference shape") { }  // Not L10N
+        public MQuestReferenceShapeCalc() : base(@"Reference shape") { }
 
         public override string Name
         {
@@ -1164,7 +1220,7 @@ namespace pwiz.Skyline.Model.Results.Scoring
     /// </summary>
     public class MQuestWeightedReferenceCoElutionCalc : MQuestWeightedReferenceCalc
     {
-        public MQuestWeightedReferenceCoElutionCalc() : base("Reference co-elution (weighted)") { }  // Not L10N
+        public MQuestWeightedReferenceCoElutionCalc() : base(@"Reference co-elution (weighted)") { }
         public MQuestWeightedReferenceCoElutionCalc(string headerName) : base(headerName) { }
 
         public override string Name
@@ -1172,11 +1228,11 @@ namespace pwiz.Skyline.Model.Results.Scoring
             get { return Resources.MQuestWeightedReferenceCoElutionCalc_MQuestWeightedReferenceCoElutionCalc_mQuest_weighted_reference_coelution; }
         }
 
-        protected override float Calculate(Statistics statValues, Statistics statWeigths)
+        protected override float Calculate(PeakScoringContext context, Statistics statValues, Statistics statWeigths)
         {
             double result = statValues.Mean(statWeigths) + statValues.StdDev(statWeigths);
             if (double.IsNaN(result))
-                return MaxPossibleShift;
+                return GetDefaultScore(context);
             return (float) result;
         }
 
@@ -1186,6 +1242,14 @@ namespace pwiz.Skyline.Model.Results.Scoring
         {
             return Math.Abs(xcorr.MaxShift);
         }
+
+        protected override float GetDefaultScore(PeakScoringContext context)
+        {
+            MaxPossibleShift shift;
+            if (context.TryGetInfo(out shift) && shift.Standard.HasValue)
+                return (float)shift.Standard.Value;
+            return base.GetDefaultScore(context);
+        }
     }
 
     /// <summary>
@@ -1194,7 +1258,7 @@ namespace pwiz.Skyline.Model.Results.Scoring
     public class MQuestReferenceCoElutionCalc : MQuestWeightedReferenceCoElutionCalc
     {
         public MQuestReferenceCoElutionCalc()
-            : base("Reference co-elution")  // Not L10N
+            : base(@"Reference co-elution")
         {
         }
 
@@ -1236,8 +1300,8 @@ namespace pwiz.Skyline.Model.Results.Scoring
             {
                 foreach (var referenceGroup in referenceGroups)
                 {
-                    if (analyteGroup.NodeGroup.TransitionGroup.PrecursorCharge !=
-                            referenceGroup.NodeGroup.TransitionGroup.PrecursorCharge)
+                    if (analyteGroup.NodeGroup.TransitionGroup.PrecursorAdduct !=
+                            referenceGroup.NodeGroup.TransitionGroup.PrecursorAdduct)
                         continue;
 
                     foreach (var tranPeakDataPair in TransitionPeakDataPair<IDetailedPeakData>
@@ -1274,12 +1338,12 @@ namespace pwiz.Skyline.Model.Results.Scoring
                 TranPeakData2 = tranPeakData2;
 
             if (ReferenceEquals(tranPeakData1, tranPeakData2))
-                throw new ArgumentException("Cross-correlation attempted on a single transition with itself");  // Not L10N
+                throw new ArgumentException(@"Cross-correlation attempted on a single transition with itself");
             int len1 = tranPeakData1.PeakData.Length, len2 = tranPeakData2.PeakData.Length;
             if (len1 == 0 || len2 == 0)
                 XcorrDict = new Dictionary<int, double> { {0, 0.0} };
             else if (len1 != len2)
-                throw new ArgumentException(string.Format("Cross-correlation attempted on peaks of different lengths {0} and {1}", len1, len2)); // Not L10N
+                throw new ArgumentException(string.Format(@"Cross-correlation attempted on peaks of different lengths {0} and {1}", len1, len2));
             else
             {
                 var stat1 = GetStatistics(tranPeakData1.PeakData.Intensities, tranPeakData1.PeakData.StartIndex, len1);
@@ -1329,7 +1393,7 @@ namespace pwiz.Skyline.Model.Results.Scoring
             }
         }
 
-        private static Statistics GetStatistics(float[] intensities, int startIndex, int count)
+        private static Statistics GetStatistics(IList<float> intensities, int startIndex, int count)
         {
             var result = new double[count];
             for (int i = 0; i < count; i++)
@@ -1359,7 +1423,7 @@ namespace pwiz.Skyline.Model.Results.Scoring
                                      ITransitionGroupPeakData<TData> standardGroup)
         {
             // Enumerate as many elements as match by position
-            Assume.IsTrue(lightGroup.NodeGroup.TransitionGroup.PrecursorCharge == standardGroup.NodeGroup.TransitionGroup.PrecursorCharge);
+            Assume.IsTrue(lightGroup.NodeGroup.TransitionGroup.PrecursorAdduct == standardGroup.NodeGroup.TransitionGroup.PrecursorAdduct);
             int i = 0;
             while (i < lightGroup.TransitionPeakData.Count && i < standardGroup.TransitionPeakData.Count)
             {

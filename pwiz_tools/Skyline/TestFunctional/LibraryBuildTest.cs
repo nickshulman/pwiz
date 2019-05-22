@@ -28,9 +28,11 @@ using pwiz.Skyline.Controls.SeqNode;
 using pwiz.Skyline.EditUI;
 using pwiz.Skyline.Model;
 using pwiz.Skyline.Model.DocSettings;
+using pwiz.Skyline.Model.Irt;
 using pwiz.Skyline.Model.Lib;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.SettingsUI;
+using pwiz.Skyline.SettingsUI.Irt;
 using pwiz.Skyline.Util;
 using pwiz.SkylineTestUtil;
 
@@ -46,7 +48,7 @@ namespace pwiz.SkylineTestFunctional
         
         public LibraryBuildTest()
         {
-            _libraryName = "library_test";
+            _libraryName = "library_test_试验";
         }
 
         private PeptideSettingsUI PeptideSettingsUI { get; set; }
@@ -64,13 +66,80 @@ namespace pwiz.SkylineTestFunctional
             RunUI(() => SkylineWindow.ModifyDocument("Set default settings",
                             doc => doc.ChangeSettings(SrmSettingsList.GetDefault())));
 
+            // Check using libkey with small molecules
+            var adduct = Adduct.FromStringAssumeProtonated("M+3Na");
+            var z = adduct.AdductCharge;
+            const string caffeineFormula = "C8H10N4O2";
+            const string caffeineInChiKey = "RYYVLZVUVIJVGH-UHFFFAOYSA-N";
+            const string caffeineHMDB = "HMDB01847";
+            const string caffeineInChi = "InChI=1S/C8H10N4O2/c1-10-4-9-6-5(10)7(13)12(3)8(14)11(6)2/h4H,1-3H3";
+            const string caffeineCAS = "58-08-2";
+            const string caffeineSMILES = "Cn1cnc2n(C)c(=O)n(C)c(=O)c12";
+
+            var mId = new MoleculeAccessionNumbers(string.Join("\t", MoleculeAccessionNumbers.TagHMDB + ":" + caffeineHMDB, 
+                MoleculeAccessionNumbers.TagInChI + ":" + caffeineInChi, MoleculeAccessionNumbers.TagCAS + ":" + caffeineCAS, MoleculeAccessionNumbers.TagInChiKey + ":" + caffeineInChiKey,
+                MoleculeAccessionNumbers.TagSMILES + ":" + caffeineSMILES));
+            Assert.AreEqual(caffeineInChiKey, mId.GetInChiKey());
+            Assert.AreEqual(caffeineCAS, mId.GetCAS());
+
+            var moleculeName = "caffeine";
+            var smallMolAttributes = SmallMoleculeLibraryAttributes.Create(moleculeName, caffeineFormula, caffeineInChiKey,
+                string.Join("\t", MoleculeAccessionNumbers.TagHMDB + ":" + caffeineHMDB, 
+                MoleculeAccessionNumbers.TagInChI + ":" + caffeineInChi, MoleculeAccessionNumbers.TagCAS + ":" + caffeineCAS,
+                MoleculeAccessionNumbers.TagSMILES + ":" + caffeineSMILES));
+            LibKey key;
+            for (var loop = 0; loop++ < 2;)
+            {
+                key = new LibKey(smallMolAttributes, adduct);
+                Assert.IsFalse(key.IsPrecursorKey);
+                Assert.IsFalse(key.IsProteomicKey);
+                Assert.IsTrue(key.IsSmallMoleculeKey);
+                Assert.IsFalse(key.IsModified);
+                Assert.AreEqual(0, key.ModificationCount);
+                Assert.AreEqual(z, key.Charge);
+                Assert.AreEqual(adduct, key.Adduct);
+                Assert.AreEqual(caffeineInChiKey, key.Target.ToString());
+                var viewLibPepInfo = new ViewLibraryPepInfo(key);
+                Assert.AreEqual(key, viewLibPepInfo.Key);
+                var smallMolInfo = viewLibPepInfo.GetSmallMoleculeLibraryAttributes();
+                Assert.AreEqual(moleculeName, smallMolInfo.MoleculeName);
+                Assert.AreEqual(caffeineInChiKey, smallMolInfo.InChiKey);
+                Assert.AreEqual(caffeineFormula, smallMolInfo.ChemicalFormula);
+                Assert.IsTrue(smallMolInfo.OtherKeys.Contains(caffeineCAS));
+                Assert.IsTrue(smallMolInfo.OtherKeys.Contains(caffeineInChi));
+                Assert.IsTrue(smallMolInfo.OtherKeys.Contains(caffeineHMDB));
+                Assert.IsTrue(smallMolInfo.OtherKeys.Contains(caffeineSMILES));
+                adduct = Adduct.FromString("M+3Si", Adduct.ADDUCT_TYPE.non_proteomic, z = -17); // Not realistic, but let's see if it's handled consistently
+            }
+
+            // Check general libkey operation
+            var seq = "YTQSNSVC[+57.0]YAK";
+            key = new LibKey(seq, Adduct.DOUBLY_PROTONATED);
+            Assert.IsFalse(key.IsPrecursorKey);
+            Assert.IsTrue(key.IsProteomicKey);
+            Assert.IsFalse(key.IsSmallMoleculeKey);
+            Assert.IsTrue(key.IsModified);
+            Assert.AreEqual(2, key.Charge);
+            Assert.AreEqual(1, key.ModificationCount);
+            Assert.AreEqual(Adduct.DOUBLY_PROTONATED, key.Adduct);
+            Assert.AreEqual(seq, key.Target.ToString());
+
             // Test error conditions
-            BuildLibraryError("missing_charge.pep.XML", TestFilesDir.FullPath, "uw.edu");
-            BuildLibraryError("non_int_charge.pep.XML");
-            BuildLibraryError("zero_charge.pep.XML");
-            BuildLibraryError("truncated.pep.XML");
-            BuildLibraryError("no_such_file.pep.XML", "Failed to open");
-            BuildLibraryError("missing_mzxml.pep.XML", "Could not find spectrum file");
+            BuildLibraryError("missing_charge.pep.XML", TestFilesDir.FullPath);
+            BuildLibraryError("non_int_charge.pep.XML", null);
+            BuildLibraryError("zero_charge.pep.XML", null);
+            BuildLibraryError("truncated.pep.XML", null);
+            BuildLibraryError("no_such_file.pep.XML", null, "Failed to open");
+            BuildLibraryError("missing_mzxml.pep.XML", null, "Could not find spectrum file");
+
+            // Check for proper handling of labeled addducts in small molecule files 
+            // (formerly this would throw on a null object, fixed with the use of ExplicitMods.EMPTY)
+            BuildLibraryValid("heavy_adduct.ssl", true, false, false, 1);
+            // Make sure explorer handles this adduct type
+            var viewLibUI = ShowDialog<ViewLibraryDlg>(SkylineWindow.ViewSpectralLibraries);
+            RunUI(() => Assume.IsTrue(viewLibUI.GraphItem.IonLabels.Any()));
+            RunUI(viewLibUI.CancelDialog);
+
             // Barbara added code to ProteoWizard to rebuild a missing or invalid mzXML index
             // BuildLibraryError("bad_mzxml.pep.XML", "<index> not found");
             BuildLibraryValid(TestFilesDir.GetTestPath("library_errors"), new[] { "bad_mzxml.pep.XML" }, false, false, false, 1);
@@ -201,7 +270,8 @@ namespace pwiz.SkylineTestFunctional
 
             // New document
             var docNew = new SrmDocument(SrmSettingsList.GetDefault());
-            RunUI(() => SkylineWindow.SwitchDocument(docNew, null));
+            var docNewCopy = docNew;
+            RunUI(() => SkylineWindow.SwitchDocument(docNewCopy, null));
 
             const string idpList3 = "FHYKTDQGIK\n" +
                                     "WCAIGHQER\n" +
@@ -243,7 +313,8 @@ namespace pwiz.SkylineTestFunctional
             PastePeptideList(idpList, false, idpCount - idpCount3 + 1 /* missing cleavage*/, 0);
 
             // New document
-            RunUI(() => SkylineWindow.SwitchDocument(docNew, null));
+            var docNewCopy2 = docNew;
+            RunUI(() => SkylineWindow.SwitchDocument(docNewCopy2, null));
 
             _libraryName = libraryBaseName + "_cpas1";
             string libraryCpas1 = _libraryName + BiblioSpecLiteSpec.EXT;
@@ -283,15 +354,15 @@ namespace pwiz.SkylineTestFunctional
 
             // Get the set of peptides to paste from the library, since there
             // are a lot.
-            HashSet<string> setPeptides = new HashSet<string>();
+            var setPeptides = new HashSet<Target>();
             var library = SkylineWindow.Document.Settings.PeptideSettings.Libraries.Libraries[0];
             foreach (var libKey in library.Keys)
             {
                 if (!libKey.IsModified)
-                    setPeptides.Add(libKey.Sequence);                
+                    setPeptides.Add(libKey.Target);                
             }
 
-            string cpasPeptides = string.Join("\n", setPeptides.ToArray());
+            string cpasPeptides = string.Join("\n", setPeptides.Select(p => p.ToString()).ToArray());
             
             var pasteFilteredPeptideDlg = ShowDialog<PasteFilteredPeptidesDlg>(
                 () => SkylineWindow.Paste(cpasPeptides));
@@ -300,6 +371,43 @@ namespace pwiz.SkylineTestFunctional
                 string.Format("Expecting {0} peptides, found {1}.", setPeptides.Count, SkylineWindow.Document.PeptideCount));
             Assert.AreEqual(setPeptides.Count, SkylineWindow.Document.PeptideTransitionGroupCount,
                 "Expecting precursors for peptides matched to library spectrum.");
+
+            // New document
+            docNew = new SrmDocument(SrmSettingsList.GetDefault());
+            RunUI(() => SkylineWindow.SwitchDocument(docNew, null));
+
+            // Tests for adding iRTs to spectral library after building
+            // 1. ask to recalibrate iRTs
+            // 2. ask to add iRTs
+            // 3. if added iRTs, ask to add RT predictor
+
+            // no recalibrate, add iRTs, no add predictor
+            _libraryName = libraryBaseName + "_irt1"; // library_test_irt1
+            BuildLibraryIrt(true, false, false);
+            RunUI(() => Assert.IsTrue(PeptideSettingsUI.Prediction.RetentionTime == null));
+
+            // no recalibrate, add iRTs, add predictor
+            _libraryName = libraryBaseName + "_irt2"; // library_test_irt2
+            BuildLibraryIrt(true, false, true);
+            RunUI(() => Assert.IsTrue(PeptideSettingsUI.Prediction.RetentionTime.Name.Equals(_libraryName)));
+            var editIrtDlg2 = ShowDialog<EditIrtCalcDlg>(PeptideSettingsUI.EditCalculator);
+            RunUI(() => Assert.IsTrue(editIrtDlg2.IrtStandards == IrtStandard.BIOGNOSYS_10));
+            OkDialog(editIrtDlg2, editIrtDlg2.CancelDialog);
+
+            // recalibrate, add iRTs, no add predictor
+            _libraryName = libraryBaseName + "_irt3"; // library_test_irt3
+            BuildLibraryIrt(true, true, false);
+            RunUI(() => Assert.IsTrue(PeptideSettingsUI.Prediction.RetentionTime.Name.Equals(libraryBaseName + "_irt2")));
+
+            // recalibrate, add iRTs, add predictor
+            _libraryName = libraryBaseName + "_irt4"; // library_test_irt4
+            BuildLibraryIrt(true, true, true);
+            RunUI(() => Assert.IsTrue(PeptideSettingsUI.Prediction.RetentionTime.Name.Equals(_libraryName)));
+            var editIrtDlg4 = ShowDialog<EditIrtCalcDlg>(PeptideSettingsUI.EditCalculator);
+            RunUI(() => Assert.IsTrue(editIrtDlg4.IrtStandards == IrtStandard.EMPTY));
+            OkDialog(editIrtDlg4, editIrtDlg4.CancelDialog);
+
+            OkDialog(PeptideSettingsUI, PeptideSettingsUI.CancelDialog);
         }
 
         private static void PastePeptideList(string peptideList, bool keep,
@@ -379,15 +487,14 @@ namespace pwiz.SkylineTestFunctional
         private void BuildLibraryValid(string inputDir, IEnumerable<string> inputFiles,
             bool keepRedundant, bool filterPeptides, bool append, int expectedSpectra, int expectedAmbiguous = 0)
         {
-            BuildLibrary(inputDir, inputFiles,
-                null, null, keepRedundant, filterPeptides, append);
+            BuildLibrary(inputDir, inputFiles, null, keepRedundant, filterPeptides, append, null);
 
             if (expectedAmbiguous > 0)
             {
                 var ambiguousDlg = WaitForOpenForm<MessageDlg>();
                 RunUI(() =>
                 {
-                    Assert.AreEqual(expectedAmbiguous, ambiguousDlg.Message.Split('\n').Count() - 1);
+                    Assert.AreEqual(expectedAmbiguous, ambiguousDlg.Message.Split('\n').Length - 1, ambiguousDlg.Message);
                     ambiguousDlg.OkDialog();
                 });
             }
@@ -406,21 +513,14 @@ namespace pwiz.SkylineTestFunctional
             Assert.AreEqual(expectedSpectra, librarySettings.Libraries[0].Keys.Count());
         }
 
-        private void BuildLibraryError(string inputFile, params string[] messageParts)
-        {
-            BuildLibraryError(inputFile, null, null, messageParts);
-        }
-
-        private void BuildLibraryError(string inputFile, string libraryPath, string libraryAuth,
-            params string[] messageParts)
+        private void BuildLibraryError(string inputFile, string libraryPath, params string[] messageParts)
         {
             string redundantBuildPath = TestFilesDir.GetTestPath(_libraryName + BiblioSpecLiteSpec.EXT_REDUNDANT);
             FileEx.SafeDelete(redundantBuildPath);
             string nonredundantBuildPath = TestFilesDir.GetTestPath(_libraryName + BiblioSpecLiteSpec.EXT);
             FileEx.SafeDelete(nonredundantBuildPath);
 
-            BuildLibrary(TestFilesDir.GetTestPath("library_errors"), new[] { inputFile },
-                libraryPath, libraryAuth, false, false, false);
+            BuildLibrary(TestFilesDir.GetTestPath("library_errors"), new[] { inputFile }, libraryPath, false, false, false, null);
 
             var messageDlg = WaitForOpenForm<MessageDlg>();
             Assert.IsNotNull(messageDlg, "No message box shown");
@@ -434,6 +534,25 @@ namespace pwiz.SkylineTestFunctional
             CheckLibraryExistence(nonredundantBuildPath, false);
         }
 
+        private void BuildLibraryIrt(bool addIrts, bool recalibrate, bool addPredictor)
+        {
+            BuildLibrary(TestFilesDir.GetTestPath("maxquant_irt"), new[] { "irt_test.msms.txt" }, null, false, false, false, IrtStandard.BIOGNOSYS_10);
+            var addIrtDlg = WaitForOpenForm<AddIrtPeptidesDlg>();
+            if (!addIrts)
+            {
+                OkDialog(addIrtDlg, addIrtDlg.CancelDialog);
+                return;
+            }
+            var recalibrateDlg = ShowDialog<MultiButtonMsgDlg>(addIrtDlg.OkDialog);
+            var addPredictorDlg = recalibrate
+                ? ShowDialog<AddRetentionTimePredictorDlg>(recalibrateDlg.BtnYesClick)
+                : ShowDialog<AddRetentionTimePredictorDlg>(recalibrateDlg.BtnCancelClick);
+            if (addPredictor)
+                OkDialog(addPredictorDlg, addPredictorDlg.OkDialog);
+            else
+                OkDialog(addPredictorDlg, addPredictorDlg.NoDialog);
+        }
+
         private void EnsurePeptideSettings()
         {
             PeptideSettingsUI = FindOpenForm<PeptideSettingsUI>() ??
@@ -441,7 +560,7 @@ namespace pwiz.SkylineTestFunctional
         }
 
         private void BuildLibrary(string inputDir, IEnumerable<string> inputFiles,
-            string libraryPath, string libraryAuth, bool keepRedundant, bool filterPeptides, bool append)
+            string libraryPath, bool keepRedundant, bool filterPeptides, bool append, IrtStandard irtStandard)
         {
             EnsurePeptideSettings();
 
@@ -450,20 +569,18 @@ namespace pwiz.SkylineTestFunctional
             if (inputFiles != null)
                 inputPaths = new List<string>(inputFiles).ConvertAll(f => Path.Combine(inputDir, f));
             string autoLibPath = null;
-            string autoLibId = null;
             RunUI(() =>
             {
                 if (libraryPath != null)
                     buildLibraryDlg.LibraryPath = libraryPath;
                 buildLibraryDlg.LibraryName = _libraryName;
                 autoLibPath = buildLibraryDlg.LibraryPath;
-                autoLibId = buildLibraryDlg.LibraryId;
                 buildLibraryDlg.LibraryKeepRedundant = keepRedundant;
                 buildLibraryDlg.LibraryFilterPeptides = filterPeptides;
                 buildLibraryDlg.LibraryBuildAction = (append ?
                     LibraryBuildAction.Append : LibraryBuildAction.Create);
-                if (libraryAuth != null)
-                    buildLibraryDlg.LibraryAuthority = libraryAuth;
+                if (irtStandard != null && !irtStandard.Equals(IrtStandard.EMPTY))
+                    buildLibraryDlg.IrtStandard = irtStandard;
                 buildLibraryDlg.OkWizardPage();
                 if (inputPaths != null)
                     buildLibraryDlg.AddInputFiles(inputPaths);
@@ -471,9 +588,17 @@ namespace pwiz.SkylineTestFunctional
                     buildLibraryDlg.AddDirectory(inputDir);
             });
             OkDialog(buildLibraryDlg, buildLibraryDlg.OkWizardPage);
+
+            if (inputPaths != null)
+                foreach (var inputFile in inputPaths)
+                    if (BiblioSpecLiteBuilder.HasEmbeddedSpectra(inputFile))
+                    {
+                        var embeddedSpectraDlg = WaitForOpenForm<MultiButtonMsgDlg>();
+                        OkDialog(embeddedSpectraDlg, embeddedSpectraDlg.BtnYesClick);
+                    }
+
             Assert.AreEqual(TestFilesDir.GetTestPath(_libraryName + BiblioSpecLiteSpec.EXT),
                 autoLibPath);
-            Assert.AreEqual(_libraryName, autoLibId);
         }
 
         private static void CheckLibraryExistence(string libPath, bool libExist)

@@ -57,6 +57,7 @@
         <property name="TotalIonCurrentMS1"/>
         <property name="TotalIonCurrentMS2"/>
         <property name="QuantitationMethod"/>
+        <property name="QuantitationSettings"/>
         <join optional="true" table="SpectrumSourceMetadata"><key column="Id"/><property name="Metadata" column="MsDataBytes" lazy="true" type="SpectrumSourceMetadataUserType"/></join>
     </class>
 
@@ -131,6 +132,7 @@
         <join optional="true" table="ProteinMetadata">
             <key column="Id"/>
             <property name="Description"/>
+            <property name="Hash"/>
             <property name="TaxonomyId"/>
             <property name="GeneName"/>
             <property name="Chromosome"/>
@@ -256,7 +258,7 @@
     <id name="Id">
       <generator class="native"/>
     </id>
-    <property name="DistinctMatch" />
+    <property name="DistinctMatch" unique="true"/>
     <many-to-one name="Source" column="SpectrumSource" fetch="join"/>
     <many-to-one name="Peptide" fetch="join"/>
     <property name="PeakIntensity"/>

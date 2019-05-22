@@ -126,13 +126,13 @@
     <value>14, 201</value>
   </data>
   <data name="linkProteome.Size" type="System.Drawing.Size, System.Drawing">
-    <value>131, 13</value>
+    <value>55, 13</value>
   </data>
   <data name="linkProteome.TabIndex" type="System.Int32, mscorlib">
     <value>0</value>
   </data>
   <data name="linkProteome.Text" xml:space="preserve">
-    <value>skyline.gs.washington.edu</value>
+    <value>skyline.ms</value>
   </data>
   <data name="&gt;&gt;linkProteome.Name" xml:space="preserve">
     <value>linkProteome</value>
@@ -297,10 +297,10 @@ http://www.nhibernate.org
 
 ProteoWizard
 質量分析データのインポート
-http://proteowizard.sourceforge.net
+https://github.com/ProteoWizard
 
-Shimadzu Corporation
-Shimadzu's ファイルコンバータソフトウェア
+島津製作所
+島津製作所のファイルコンバータソフトウェア
 Copyright © 2014 by Shimadzu Coporation
 著作権所有。
 http://www.shimadzu.com
@@ -359,7 +359,7 @@ http://www.zlib.net</value>
     <value>6</value>
   </data>
   <data name="label2.Text" xml:space="preserve">
-    <value>ソフトウェア依存性クレジット：</value>
+    <value>ソフトウェアの著作権の所属先：</value>
   </data>
   <data name="&gt;&gt;label2.Name" xml:space="preserve">
     <value>label2</value>
@@ -410,7 +410,7 @@ http://www.zlib.net</value>
     <value>8</value>
   </data>
   <data name="linkProteoWizard.Text" xml:space="preserve">
-    <value>proteowizard.sourceforge.net</value>
+    <value>github.com/ProteoWizard</value>
   </data>
   <data name="&gt;&gt;linkProteoWizard.Name" xml:space="preserve">
     <value>linkProteoWizard</value>
@@ -467,7 +467,7 @@ http://www.zlib.net</value>
     <value>10</value>
   </data>
   <data name="linkLabel1.Text" xml:space="preserve">
-    <value>Copyright © 2008-2015 University of Washington, 著作権所有
+    <value>Copyright © 2008-2019 University of Washington, 禁無断転載。
 
 MacCoss Lab, Department of Genome Sciences, UW
 

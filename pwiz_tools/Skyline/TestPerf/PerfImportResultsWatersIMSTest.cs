@@ -110,9 +110,10 @@ namespace TestPerf // Note: tests in the "TestPerf" namespace only run when the 
                 // just be able to move to the next page.
                 RunUI(() => Assert.IsTrue(importPeptideSearchDlg.CurrentPage == ImportPeptideSearchDlg.Pages.chromatograms_page));
                 RunUI(() => importPeptideSearchDlg.ClickNextButton());
-
                 // Modifications are already set up, so that page should get skipped.
-                var lockmassDlg = ShowDialog<ImportResultsLockMassDlg>(() => importPeptideSearchDlg.ClickNextButton()); // Accept the full scan settings, lockmass correction dialog should appear
+                // Accept the full scan settings, lockmass correction dialog should appear
+                var lockmassDlg = ShowDialog<ImportResultsLockMassDlg>(() => importPeptideSearchDlg.ClickNextButton()); 
+                /* Lockmass correction for IMS data added to Waters DLL limitations Oct 2016, but this data does not need it
                 RunUI(() =>
                 {
                     var mz = 785.8426;  // Glu-Fib ESI 2+, per Will T
@@ -120,9 +121,9 @@ namespace TestPerf // Note: tests in the "TestPerf" namespace only run when the 
                     lockmassDlg.LockmassNegative = mz;
                     lockmassDlg.LockmassTolerance = 10.0;
                 });
+                */
                 RunUI(lockmassDlg.OkDialog);
                 WaitForClosedForm<ImportResultsLockMassDlg>();
-
 
                 // Add FASTA also skipped because filter for document peptides was chosen.
 
@@ -139,7 +140,7 @@ namespace TestPerf // Note: tests in the "TestPerf" namespace only run when the 
                 double maxHeight = 0;
                 var results = doc1.Settings.MeasuredResults;
 
-                var numPeaks = new[] {8, 10, 10, 10, 10, 10, 10};
+                var numPeaks = new[] {10, 10, 10, 10, 10, 10, 10};
                 int npIndex = 0;
                 var errmsg = "";
                 foreach (var pair in doc1.PeptidePrecursorPairs)

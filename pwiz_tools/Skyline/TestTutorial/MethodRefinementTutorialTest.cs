@@ -45,7 +45,7 @@ namespace pwiz.SkylineTestTutorial
     /// Testing the tutorial for Skyline Targeted Method Refinement
     /// </summary>
     [TestClass]
-    public class MethodRefinementTutorialTest : AbstractFunctionalTest
+    public class MethodRefinementTutorialTest : AbstractFunctionalTestEx
     {
         [TestMethod]
         public void TestMethodRefinementTutorial()
@@ -53,9 +53,10 @@ namespace pwiz.SkylineTestTutorial
             // Set true to look at tutorial screenshots.
             //IsPauseForScreenShots = true;
 
-            ForceMzml = true;   // 2-3x faster than raw files for this test.
+            // Multi-file import has problems with mzML on this test
+            ForceMzml = true; // (Settings.Default.ImportResultsSimultaneousFiles == 0);   // 2-3x faster than raw files for this test.
 
-            LinkPdf = "https://skyline.gs.washington.edu/labkey/_webdav/home/software/Skyline/%40files/tutorials/MethodRefine-1_4.pdf";
+            LinkPdf = "https://skyline.gs.washington.edu/labkey/_webdav/home/software/Skyline/%40files/tutorials/MethodRefine-3_7.pdf";
 
             // Set to use MzML for speed, especially during debugging.
             //Skyline.Program.NoVendorReaders = true;
@@ -181,8 +182,9 @@ namespace pwiz.SkylineTestTutorial
                 SkylineWindow.AutoZoomNone();
                 SkylineWindow.AutoZoomBestPeak();
                 SkylineWindow.EditDelete();
-                SkylineWindow.ShowRTLinearRegressionGraph();
+                SkylineWindow.ShowRTRegressionGraphScoreToRun();
             });
+            WaitForRegression();
             Assert.AreEqual(SkylineWindow.SequenceTree.Nodes[0].GetNodeCount(false), startingNodeCount - 1);
             Assert.AreEqual("VLEAGGLDCDMENANSVVDALK", SkylineWindow.SequenceTree.Nodes[0].Nodes[0].Text); // Not L10N
             PauseForScreenShot("Retention Times Regression plot metafile", 8);
@@ -192,13 +194,16 @@ namespace pwiz.SkylineTestTutorial
                 rtThresholdDlg.Threshold = 0.95;
                 rtThresholdDlg.OkDialog();
             });
-            WaitForConditionUI(() => SkylineWindow.RTGraphController.RegressionRefined != null);
-            WaitForGraphs();
+            WaitForRegression();
             PauseForScreenShot("Retention Times Regression plot metafile with 0.95 threshold", 9); // Not L10N
 
             TestRTResidualsSwitch();
 
-            RunDlg<EditRTDlg>(SkylineWindow.CreateRegression, editRTDlg => editRTDlg.OkDialog());
+            RunDlg<EditRTDlg>(SkylineWindow.CreateRegression, editRTDlg =>
+            {
+                Assert.AreEqual(146, editRTDlg.PeptideCount);
+                editRTDlg.OkDialog();
+            });
 
             RunUI(() => SkylineWindow.ShowGraphRetentionTime(false));
             RunUI(SkylineWindow.AutoZoomNone);
@@ -279,7 +284,8 @@ namespace pwiz.SkylineTestTutorial
                     dotpExpect.ToString(LocalizationHelper.CurrentCulture));
                 SkylineWindow.EditDelete();
 
-                dotpExpect = 0.34; // Math.Round(Statistics.AngleToNormalizedContrastAngle(0.633), 2);  // 0.44
+                // TODO(nicksh): Update tutorial document to reflect this dotp value (was 0.34)
+                dotpExpect = 0.53; // Math.Round(Statistics.AngleToNormalizedContrastAngle(0.633), 2);  // 0.44
                 SkylineWindow.SequenceTree.SelectedNode = SkylineWindow.SequenceTree.Nodes[0].Nodes[0];
                 AssertEx.Contains(SkylineWindow.SequenceTree.SelectedNode.Nodes[0].Text,
                     dotpExpect.ToString(LocalizationHelper.CurrentCulture));
@@ -339,10 +345,12 @@ namespace pwiz.SkylineTestTutorial
                 refineDlg.PreferLargerIons = true;
                 refineDlg.RemoveMissingResults = true;
                 refineDlg.RTRegressionThreshold = 0.95;
-                refineDlg.DotProductThreshold = Statistics.AngleToNormalizedContrastAngle(0.95);    // Convert from original cos(angle) dot-product
+                refineDlg.DotProductThreshold = 0.8;
                 refineDlg.OkDialog();
             });
-            WaitForCondition(() => SkylineWindow.Document.PeptideCount < 73);
+            // TODO(nicksh): Update tutorial document: we used to expect 75 peptides
+            const int expectedRefinedPeptideCount = 80;
+            WaitForCondition(() => SkylineWindow.Document.PeptideCount <= expectedRefinedPeptideCount);
 //            foreach (var peptideDocNode in SkylineWindow.Document.Peptides)
 //            {
 //                var nodeGroup = ((TransitionGroupDocNode) peptideDocNode.Children[0]);
@@ -351,8 +359,8 @@ namespace pwiz.SkylineTestTutorial
 //            }
             RunUI(() =>
             {
-                Assert.AreEqual(72, SkylineWindow.Document.PeptideCount);
-                Assert.AreEqual(216, SkylineWindow.Document.PeptideTransitionCount);
+                Assert.AreEqual(expectedRefinedPeptideCount, SkylineWindow.Document.PeptideCount);   // TODO: Tutorial says 71 and 213
+                Assert.AreEqual(240, SkylineWindow.Document.PeptideTransitionCount);
                 SkylineWindow.CollapsePeptides();
                 SkylineWindow.Undo();
             });
@@ -361,14 +369,14 @@ namespace pwiz.SkylineTestTutorial
                 refineDlg.MaxTransitionPeakRank = 6;
                 refineDlg.RemoveMissingResults = true;
                 refineDlg.RTRegressionThreshold = 0.90;
-                refineDlg.DotProductThreshold = Statistics.AngleToNormalizedContrastAngle(0.90);    // Convert from original cos(angle) dot-product
+                refineDlg.DotProductThreshold = 0.712;
                 refineDlg.OkDialog();
             });
-
-            WaitForCondition(() => SkylineWindow.Document.PeptideCount < 120);
+            const int expectedPeptideCount = 127;
+            WaitForCondition(() => SkylineWindow.Document.PeptideCount <= expectedPeptideCount);
             RunUI(() =>
             {
-                Assert.AreEqual(113, SkylineWindow.Document.PeptideCount);
+                Assert.AreEqual(expectedPeptideCount, SkylineWindow.Document.PeptideCount);   // TODO: Tutorial says 113
 
                 // Scheduling for Efficient Acquisition, p. 17 
                 SkylineWindow.Undo();
@@ -398,6 +406,15 @@ namespace pwiz.SkylineTestTutorial
                                                                           Path.GetFileName(TestFilesDirs[1].FullPath) ??
                                                                           string.Empty)).ToArray();
             });
+            // This test fails regularly on certain test machines - is it a filesystem problem?
+            WaitForConditionUI(() => importResultsDlg0.NamedPathSets != null,
+                    "Failure in DataSourceUtil.GetDataSourcesInSubdirs - no filesets found");
+            WaitForConditionUI(() => importResultsDlg0.NamedPathSets.Length == 2,
+                    "Failure in DataSourceUtil.GetDataSourcesInSubdirs - expected 2 filesets");
+            WaitForConditionUI(() => importResultsDlg0.NamedPathSets[0].Value.Length == 2,
+                    "Failure in DataSourceUtil.GetDataSourcesInSubdirs - expected 2 files in fileset 0");
+            WaitForConditionUI(() => importResultsDlg0.NamedPathSets[1].Value.Length == 2,
+                    "Failure in DataSourceUtil.GetDataSourcesInSubdirs - expected 2 files in fileset 1");
             var importResultsNameDlg = ShowDialog<ImportResultsNameDlg>(importResultsDlg0.OkDialog);
             RunUI(importResultsNameDlg.NoDialog);
             WaitForCondition(15*60*1000, () => SkylineWindow.Document.Settings.HasResults && SkylineWindow.Document.Settings.MeasuredResults.IsLoaded); // 15 minutes
@@ -407,6 +424,10 @@ namespace pwiz.SkylineTestTutorial
             WaitForDocumentChange(docCurrent);
             Assert.AreEqual(86, SkylineWindow.Document.PeptideCount);
             Assert.AreEqual(255, SkylineWindow.Document.PeptideTransitionCount);
+
+            RunUI(SkylineWindow.ShowRTRegressionGraphScoreToRun);
+            WaitForGraphs();
+            WaitForRegression();
 
             TestRTResidualsSwitch();
 

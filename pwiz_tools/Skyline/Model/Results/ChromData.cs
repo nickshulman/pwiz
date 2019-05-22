@@ -21,17 +21,34 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Drawing;
 using System.Linq;
-using pwiz.Crawdad;
+using pwiz.Common.Collections;
+using pwiz.Common.PeakFinding;
+using pwiz.Skyline.Model.Lib;
+using pwiz.Skyline.Model.Results.Crawdad;
 using pwiz.Skyline.Model.Results.Scoring;
+using pwiz.Skyline.Util;
 
 namespace pwiz.Skyline.Model.Results
 {
-    internal sealed class ChromData
+    internal sealed class ChromData : IComparable<ChromData>
     {
         /// <summary>
         /// Maximum number of peaks to label on a graph
         /// </summary>
         private const int MAX_PEAKS = 20;
+
+        /// <summary>
+        /// Minimum number of points required to determine a forced peak integration
+        /// actually coelutes with the dominant peak.
+        /// </summary>
+        private const int MIN_COELUTION_RESCUE_POINTS = 5;
+
+        /// <summary>
+        /// Minimum value of R (Pearson's) to determine a forced peak integration
+        /// actually coelutes with the dominant peak.
+        /// </summary>
+        private const double MIN_COELUTION_RESCUE_CORRELATION = 0.95;
+
 
         public ChromData(ChromKey key, int providerId)
         {
@@ -53,20 +70,19 @@ namespace pwiz.Skyline.Model.Results
             return clone;
         }
 
-        public bool Load(ChromDataProvider provider, string modifiedSequence, Color peptideColor)
+        public bool Load(ChromDataProvider provider, Target modifiedSequence, Color peptideColor)
         {
             ChromExtra extra;
-            float[] times, intensities;
-            float[] massErrors;
-            int[] scanIds;
+            TimeIntensities timeIntensities;
             bool result = provider.GetChromatogram(
                 ProviderId, modifiedSequence, peptideColor,
-                out extra, out times, out scanIds, out intensities, out massErrors);
+                out extra, out timeIntensities);
             Extra = extra;
-            RawTimes = Times = times;
-            RawIntensities = Intensities = intensities;
-            RawMassErrors = massErrors;
-            RawScanIds = ScanIndexes = scanIds;
+            TimeIntensities = RawTimeIntensities = timeIntensities;
+            if (result && RawTimes.Any())
+            {
+                Key = Key.ChangeOptionalTimes(RawTimes.First(), RawTimes.Last(), RawCenterOfGravityTime);
+            }
             return result;
         }
 
@@ -74,33 +90,33 @@ namespace pwiz.Skyline.Model.Results
         {
             if (!ReferenceEquals(Times, RawTimes))
             {
-                throw new InvalidOperationException("Cannot truncate data set after interpolation"); // Not L10N
+                throw new InvalidOperationException(@"Cannot truncate data set after interpolation");
             }
             if (Peaks.Count > 0)
             {
-                throw new InvalidOperationException("Cannot truncate after peak detection"); // Not L10N
+                throw new InvalidOperationException(@"Cannot truncate after peak detection");
             }
             // Avoid truncating chromatograms down to something less than half the window width.
             double minLength = (maxTime - minTime)/2;
-            minTime = Math.Min(minTime, Times[Times.Length - 1] - minLength);
+            minTime = Math.Min(minTime, Times[Times.Count - 1] - minLength);
             maxTime = Math.Max(maxTime, Times[0] + minLength);
-            int firstIndex = Array.BinarySearch(Times, (float) minTime);
+            int firstIndex = CollectionUtil.BinarySearch(Times, (float) minTime);
             if (firstIndex < 0)
             {
                 firstIndex = ~firstIndex;
                 firstIndex = Math.Max(firstIndex, 0);
             }
-            int lastIndex = Array.BinarySearch(Times, (float) maxTime);
+            int lastIndex = CollectionUtil.BinarySearch(Times, (float)maxTime);
             if (lastIndex < 0)
             {
                 lastIndex = ~lastIndex + 1;
-                lastIndex = Math.Min(lastIndex, Times.Length - 1);
+                lastIndex = Math.Min(lastIndex, Times.Count- 1);
             }
             if (firstIndex >= lastIndex)
             {
                 return this;
             }
-            if (firstIndex == 0 && lastIndex == Times.Length - 1)
+            if (firstIndex == 0 && lastIndex == Times.Count - 1)
             {
                 return this;
             }
@@ -108,37 +124,33 @@ namespace pwiz.Skyline.Model.Results
             {
                 Extra = Extra,
             };
-            newChromData.Times = newChromData.RawTimes = SubArray(RawTimes, firstIndex, lastIndex);
-            newChromData.ScanIndexes = newChromData.RawScanIds = SubArray(RawScanIds, firstIndex, lastIndex);
-            newChromData.Intensities = newChromData.RawIntensities = SubArray(RawIntensities, firstIndex, lastIndex);
-            newChromData.RawMassErrors = SubArray(RawMassErrors, firstIndex, lastIndex);
+            newChromData.TimeIntensities = newChromData.RawTimeIntensities =
+                    RawTimeIntensities.Truncate(Times[firstIndex], Times[lastIndex]);
             newChromData.DocNode = DocNode;
             return newChromData;
         }
 
-        private T[] SubArray<T>(T[] array, int firstIndex, int lastIndex)
+        public void FindPeaks(double[] retentionTimes)
         {
-            if (null == array)
-            {
-                return null;
-            }
-            T[] result = new T[lastIndex - firstIndex + 1];
-            Array.Copy(array, firstIndex, result, 0, result.Length);
-            return result;
+            Finder = Crawdads.NewCrawdadPeakFinder();
+            Finder.SetChromatogram(Times, Intensities);
+            RawPeaks = Finder.CalcPeaks(MAX_PEAKS, TimesToIndices(retentionTimes));
+            // Calculate smoothing for later use in extending the Crawdad peaks
+            IntensitiesSmooth = ChromatogramInfo.SavitzkyGolaySmooth(Intensities.ToArray());
         }
 
-        public void FindPeaks(double[] retentionTimes, bool requireDocNode)
+        public void SkipFindingPeaks(double[] retentionTimes)
         {
-            Finder = new CrawdadPeakFinder();
+            Finder = Crawdads.NewCrawdadPeakFinder();
             Finder.SetChromatogram(Times, Intensities);
-            if (requireDocNode && DocNode == null)
-                RawPeaks = new CrawdadPeak[0];
-            else
-            {
-                RawPeaks = Finder.CalcPeaks(MAX_PEAKS, TimesToIndices(retentionTimes));
-                // Calculate smoothing for later use in extending the Crawdad peaks
-                IntensitiesSmooth = ChromatogramInfo.SavitzkyGolaySmooth(Intensities);
-            }
+            RawPeaks = new IFoundPeak[0];
+        }
+
+        public void SetExplicitPeakBounds(ExplicitPeakBounds peakBounds)
+        {
+            Finder = Crawdads.NewCrawdadPeakFinder();
+            Finder.SetChromatogram(Times, Intensities);
+            RawPeaks = new [] {Finder.GetPeak(TimeToIndex(peakBounds.StartTime), TimeToIndex(peakBounds.EndTime))};
         }
 
         private int[] TimesToIndices(double[] retentionTimes)
@@ -151,70 +163,67 @@ namespace pwiz.Skyline.Model.Results
 
         private int TimeToIndex(double retentionTime)
         {
-            var index = Array.BinarySearch(Times, (float) retentionTime);
+            var index = CollectionUtil.BinarySearch(Times, (float) retentionTime);
             if (index < 0)
             {
                 index = ~index;
-                if (index > 0 && index < Times.Length &&
+                if (index > 0 && index < Times.Count &&
                         retentionTime - Times[index - 1] < Times[index] - retentionTime)
                     index--;
             }
             return index;
         }
 
-        private CrawdadPeakFinder Finder { get; set; }
+        private IPeakFinder Finder { get; set; }
 
         public ChromKey Key { get; private set; }
         public ChromExtra Extra { get; private set; }
         public TransitionDocNode DocNode { get; set; }
         public int ProviderId { get; private set; }
-        public float[] RawTimes { get; private set; }
-        private float[] RawIntensities { get; set; }
-        private float[] RawMassErrors { get; set; }
-        private int[] RawScanIds { get; set; }
-        public IEnumerable<CrawdadPeak> RawPeaks { get; private set; }
+        public TimeIntensities RawTimeIntensities { get; private set; }
+        public TimeIntensities TimeIntensities { get; private set; }
+        public IList<float> RawTimes { get{return RawTimeIntensities == null ? null : RawTimeIntensities.Times;} }
+        public IList<float> RawIntensities { get { return RawTimeIntensities == null ? null : RawTimeIntensities.Intensities; } }
+        public IList<float> RawMassErrors { get { return RawTimeIntensities == null ? null : RawTimeIntensities.MassErrors; } }
+        public IList<int> RawScanIds { get { return RawTimeIntensities == null ? null : RawTimeIntensities.ScanIds; } }
+        public IEnumerable<IFoundPeak> RawPeaks { get; private set; }
 
+        public float RawCenterTime
+        {
+            get { return (float) (0.5*(RawTimes.Last() + RawTimes.First())); }
+        }
+
+        /// <summary>
+        /// Many chromatograms are largely empty at one end or the other, this finds the time at the center of gravity,
+        /// which is a cheap way of getting close to some big peak
+        /// </summary>
+        public float RawCenterOfGravityTime
+        {
+            get
+            {
+                var sum = RawIntensities.Sum();
+                if (sum <= 0)
+                    return RawCenterTime;
+                var mi = RawTimes.Zip(RawIntensities, (d1, d2) => d1 * d2).Sum();
+                return mi / sum;
+            }
+        }
+        
         /// <summary>
         /// Time array shared by all transitions of a precursor, and on the
         /// same scale as all other precursors of a peptide.
         /// </summary>
-        public float[] Times { get; private set; }
+        public IList<float> Times { get { return TimeIntensities.Times; } }
 
         /// <summary>
         /// Intensity array linear-interpolated to the shared time scale.
         /// </summary>
-        public float[] Intensities { get; private set; }
+        public IList<float> Intensities { get { return TimeIntensities.Intensities; } }
 
         /// <summary>
         /// Intensities with Savitzky-Golay smoothing applied.
         /// </summary>
         public float[] IntensitiesSmooth { get; private set; }
-
-        /// <summary>
-        /// Mass error array averaged base on interpolated intensities
-        /// to the shared time scale.  Defered setting backing variable
-        /// to avoid doing unnecessary work when interpolation is necessary.
-        /// When no interpolation is necessary, field will be calculated on
-        /// the first access and stored.
-        /// </summary>
-        public short[] MassErrors10X
-        {
-            get
-            {
-                if (_massErrors10X == null && RawMassErrors != null)
-                {
-                    int len = RawMassErrors.Length;
-                    _massErrors10X = new short[len];
-                    for (int i = 0; i < len; i++)
-                        _massErrors10X[i] = ChromPeak.To10x(RawMassErrors[i]);
-                }
-                return _massErrors10X;
-            }
-            private set { _massErrors10X = value; }
-        }
-        private short[] _massErrors10X;
-
-        public int[] ScanIndexes { get; private set; }
 
         public IList<ChromPeak> Peaks { get; private set; }
         public int MaxPeakIndex { get; set; }
@@ -223,17 +232,15 @@ namespace pwiz.Skyline.Model.Results
 
         public void FixChromatogram(float[] timesNew, float[] intensitiesNew, int[] scanIndexesNew)
         {
-            RawTimes = Times = timesNew;
-            RawIntensities = Intensities = intensitiesNew;
-            RawScanIds = ScanIndexes = scanIndexesNew;
+            TimeIntensities = RawTimeIntensities = new TimeIntensities(timesNew, intensitiesNew, null, scanIndexesNew);
         }
 
-        public CrawdadPeak CalcPeak(int startIndex, int endIndex)
+        public IFoundPeak CalcPeak(int startIndex, int endIndex)
         {
             return Finder.GetPeak(startIndex, endIndex);
         }
 
-        public ChromPeak CalcChromPeak(CrawdadPeak peakMax, ChromPeak.FlagValues flags, out CrawdadPeak peak)
+        public ChromPeak CalcChromPeak(IFoundPeak peakMax, ChromPeak.FlagValues flags, out IFoundPeak peak)
         {
             // Reintegrate all peaks to the max peak, even the max peak itself, since its boundaries may
             // have been extended from the Crawdad originals.
@@ -244,166 +251,78 @@ namespace pwiz.Skyline.Model.Results
             }
 
             peak = CalcPeak(peakMax.StartIndex, peakMax.EndIndex);
-            return new ChromPeak(Finder, peak, flags, Times, Intensities, MassErrors10X);
+            // If a forced peak is found to be sufficiently coeluting with the max peak, then clear the forced flag
+            if ((flags & ChromPeak.FlagValues.forced_integration) != 0 && AreCoeluting(peakMax, peak))
+                flags &= ~ChromPeak.FlagValues.forced_integration;
+            return new ChromPeak(Finder, peak, flags, TimeIntensities, RawTimes);
         }
 
-        public void Interpolate(float[] timesNew, double intervalDelta, bool inferZeros)
+        private bool AreCoeluting(IFoundPeak peakMax, IFoundPeak peak)
         {
-            if (timesNew.Length == 0)
-                return;
-
-            var timesMeasured = RawTimes;
-            var intensMeasured = RawIntensities;
-            var massErrorsMeasured = RawMassErrors;
-
-            var intensNew = new List<float>();
-            var massErrorsNew = massErrorsMeasured != null ? new List<short>() : null;
-
-            int iTime = 0;
-            double timeLast = timesNew[0];
-            double intenLast = 0;
-            double massErrorLast = 0;
-            if (!inferZeros && intensMeasured.Length != 0)
+            if (peak.Area == 0)
+                return false;
+            int start = peakMax.StartIndex, end = peakMax.EndIndex;
+            if (peak.StartIndex != start || peak.EndIndex != end)
+                return false;
+            int len = peakMax.Length;
+            if (len < MIN_COELUTION_RESCUE_POINTS)
+                return false;
+            double maxBaseline = Math.Min(peakMax.SafeGetIntensity(start), peakMax.SafeGetIntensity(end));
+            double peakBaseline = Math.Min(peak.SafeGetIntensity(start), peak.SafeGetIntensity(end));
+            double[] maxIntens = new double[len];
+            double[] peakIntens = new double[len];
+            bool seenUnequal = false;
+            for (int i = 0; i < len; i++)
             {
-                intenLast = intensMeasured[0];
-                if (massErrorsMeasured != null)
-                    massErrorLast = massErrorsMeasured[0];
+                double maxI = maxIntens[i] = peakMax.SafeGetIntensity(i + start) - maxBaseline;
+                double peakI = peakIntens[i] = peak.SafeGetIntensity(i + start) - peakBaseline;
+                if (maxI != peakI)
+                    seenUnequal = true;
             }
-            for (int i = 0; i < timesMeasured.Length && iTime < timesNew.Length; i++)
-            {
-                double intenNext;
-                float time = timesMeasured[i];
-                float inten = intensMeasured[i];
-                double totalInten = inten;
-                double massError = 0;
-                if (massErrorsMeasured != null)
-                    massError = massErrorsMeasured[i];
+            // Avoid self-rescue
+            if (!seenUnequal)
+                return false;
+            var statMax = new Statistics(maxIntens);
+            var statPeak = new Statistics(peakIntens);
+            double r = statMax.R(statPeak);
+            if (r < MIN_COELUTION_RESCUE_CORRELATION)
+                return false;
 
-                // Continue enumerating points until one is encountered
-                // that has a greater time value than the point being assigned.
-                while (i < timesMeasured.Length - 1 && time < timesNew[iTime])
-                {
-                    i++;
-                    time = timesMeasured[i];
-                    inten = intensMeasured[i];
-
-                    if (massErrorsMeasured != null)
-                    {
-                        // Average the mass error in these points weigthed by intensity
-                        // into the next mass error value
-                        totalInten += inten;
-                        // TODO: Figure out whether this is an appropriate estimation method
-                        massError += (massErrorsMeasured[i] - massError)*inten/totalInten;
-                    }
-                }
-
-                if (i >= timesMeasured.Length)
-                    break;
-
-                // If the next measured intensity is more than the new delta
-                // away from the intensity being assigned, then interpolate
-                // the next point toward zero, and set the last intensity to
-                // zero.
-                if (inferZeros && intenLast > 0 && timesNew[iTime] + intervalDelta < time)
-                {
-                    intenNext = intenLast + (timesNew[iTime] - timeLast) * (0 - intenLast) / (timesNew[iTime] + intervalDelta - timeLast);
-                    intensNew.Add((float)intenNext);
-                    AddMassError(massErrorsNew, massError);
-                    timeLast = timesNew[iTime++];
-                    intenLast = 0;
-                }
-
-                if (inferZeros)
-                {
-                    // If the last intensity was zero, and the next measured time
-                    // is more than a delta away, assign zeros until within a
-                    // delta of the measured intensity.
-                    while (intenLast == 0 && iTime < timesNew.Length && timesNew[iTime] + intervalDelta < time)
-                    {
-                        intensNew.Add(0);
-                        AddMassError(massErrorsNew, massError);
-                        timeLast = timesNew[iTime++];
-                    }
-                }
-                else
-                {
-                    // Up to just before the current point, project the line from the
-                    // last point to the current point at each interval.
-                    while (iTime < timesNew.Length && timesNew[iTime] + intervalDelta < time)
-                    {
-                        intenNext = intenLast + (timesNew[iTime] - timeLast) * (inten - intenLast) / (time - timeLast);
-                        intensNew.Add((float)intenNext);
-                        AddMassError(massErrorsNew, massError);
-                        iTime++;
-                    }
-                }
-
-                if (iTime >= timesNew.Length)
-                    break;
-
-                // Interpolate from the last intensity toward the measured
-                // intenisty now within a delta of the point being assigned.
-                if (time == timeLast)
-                    intenNext = intenLast;
-                else
-                    intenNext = intenLast + (timesNew[iTime] - timeLast) * (inten - intenLast) / (time - timeLast);
-                intensNew.Add((float)intenNext);
-                massErrorLast = AddMassError(massErrorsNew, massError);
-                iTime++;
-                intenLast = inten;
-                timeLast = time;
-            }
-
-            // Fill any unassigned intensities with zeros.
-            while (intensNew.Count < timesNew.Length)
-            {
-                intensNew.Add(0);
-                AddMassError(massErrorsNew, massErrorLast);
-            }
-
-            // Reassign times and intensities.
-            Times = timesNew;
-            Intensities = intensNew.ToArray();
-            MassErrors10X = massErrorsNew != null ? massErrorsNew.ToArray() : null;
-
-            // Replicate scan ids to match new times.
-            if (RawScanIds != null)
-            {
-                ScanIndexes = new int[timesNew.Length];
-                int rawIndex = 0;
-                for (int i = 0; i < timesNew.Length; i++)
-                {
-                    // Choose the RawScanId corresponding to the closest RawTime to the new time.
-                    float newTime = Times[i];
-                    while (rawIndex < RawTimes.Length && RawTimes[rawIndex] <= newTime)
-                        rawIndex++;
-                    if (rawIndex >= RawTimes.Length)
-                        rawIndex--;
-                    if (rawIndex > 0 && newTime - RawTimes[rawIndex - 1] < RawTimes[rawIndex] - newTime)
-                        rawIndex--;
-                    ScanIndexes[i] = RawScanIds[rawIndex];
-                }
-            }
+            return true;    // For debugging
         }
 
-        private static short AddMassError(ICollection<short> massErrors10X, double massError)
+        public void Interpolate(float[] timesNew, bool inferZeros)
         {
-            if (massErrors10X != null)
+            var chromatogramTimeIntensities = new TimeIntensities(RawTimes, RawIntensities, RawMassErrors, RawScanIds);
+            TimeIntensities = chromatogramTimeIntensities.Interpolate(timesNew, inferZeros);
+        }
+
+        public int CompareTo(ChromData other)
+        {
+            if (null == other)
             {
-                short massError10X = ChromPeak.To10x(massError);
-                massErrors10X.Add(massError10X);
-                return massError10X;
+                return 1;
             }
-            return 0;
+            var result = Key.CompareTo(other.Key);
+            if (result == 0)
+            {
+                result = ProviderId.CompareTo(other.ProviderId);
+            }
+            return result;
+        }
+
+        public override string ToString()
+        {
+            return Key + string.Format(@" ({0})", ProviderId);
         }
     }
 
     internal sealed class ChromDataPeak : ITransitionPeakData<IDetailedPeakData>, IDetailedPeakData
     {
         private ChromPeak _chromPeak;
-        private CrawdadPeak _crawPeak;
+        private IFoundPeak _crawPeak;
 
-        public ChromDataPeak(ChromData data, CrawdadPeak peak)
+        public ChromDataPeak(ChromData data, IFoundPeak peak)
         {
             Data = data;
             _crawPeak = peak;
@@ -411,7 +330,7 @@ namespace pwiz.Skyline.Model.Results
 
         public ChromData Data { get; private set; }
         public ChromPeak DataPeak {get { return _chromPeak; }}
-        public CrawdadPeak Peak { get { return _crawPeak; } }
+        public IFoundPeak Peak { get { return _crawPeak; } }
 
         public TransitionDocNode NodeTran { get { return Data.DocNode; } }
         public IDetailedPeakData PeakData { get { return this; } }
@@ -419,15 +338,15 @@ namespace pwiz.Skyline.Model.Results
         public override string ToString()
         {
             return Peak == null ? Data.Key.ToString() :
-                String.Format("{0} - area = {1:F0}{2}{3}, start = {4}, end = {5}, rt = {6}-{7}",  // Not L10N : For debugging
+                String.Format(@"{0} - area = {1:F0}{2}{3}, start = {4}, end = {5}, rt = {6}-{7}>{8}",  // : For debugging
                     Data.Key, Peak.Area,
-                    Peak.Identified ? "+" : string.Empty, // Not L10N
-                    DataPeak.IsForcedIntegration ? "*" : string.Empty, // Not L10N
+                    Peak.Identified ? @"+" : string.Empty,
+                    DataPeak.IsForcedIntegration ? @"*" : string.Empty,
                     Peak.StartIndex, Peak.EndIndex,
-                    Data.Times[Peak.StartIndex], Data.Times[Peak.EndIndex]);
+                    Data.Times[Peak.StartIndex], Data.Times[Peak.EndIndex], Data.Times[Peak.TimeIndex]);
         }
 
-        public ChromPeak CalcChromPeak(CrawdadPeak peakMax, ChromPeak.FlagValues flags)
+        public ChromPeak CalcChromPeak(IFoundPeak peakMax, ChromPeak.FlagValues flags)
         {
             _chromPeak = Data.CalcChromPeak(peakMax, flags, out _crawPeak);
             return _chromPeak;
@@ -528,15 +447,17 @@ namespace pwiz.Skyline.Model.Results
 
         public bool IsRightBound
         {
-            get { return EndIndex == Times.Length - 1; }
+            get { return EndIndex == Times.Count - 1; }
         }
 
-        public float[] Times
+        public IList<float> Times
         {
             get { return Data.Times; }
         }
 
-        public float[] Intensities
+        public IList<float> RawTimes { get { return Data.RawTimes; } }
+
+        public IList<float> Intensities
         {
             get { return Data.Intensities; }
         }
@@ -571,6 +492,23 @@ namespace pwiz.Skyline.Model.Results
                 if (!ReferenceEquals(chromData, peak.Data))
                     Add(new ChromDataPeak(chromData, null));
             }
+        }
+
+        public ChromDataPeakList FilterToIndices(ISet<int> indexes)
+        {
+            if (indexes.Count == 0)
+            {
+                return EMPTY;
+            }
+            var newPeaks = this.Cast<ChromDataPeak>().Select((peak, index) => Tuple.Create(peak, index))
+                .Where(tuple => indexes.Contains(tuple.Item2))
+                .ToArray();
+            var chromDataPeakList = new ChromDataPeakList(newPeaks[0].Item1);
+            for (int i = 1; i < newPeaks.Length; i++)
+            {
+                chromDataPeakList.Add(newPeaks[i].Item1);
+            }
+            return chromDataPeakList;
         }
 
         /// <summary>
@@ -680,7 +618,7 @@ namespace pwiz.Skyline.Model.Results
             float maxIntensity, deltaIntensity;
             GetIntensityMetrics(indexBoundary, useRaw, out maxIntensity, out deltaIntensity);
 
-            int lenIntensities = peakPrimary.Data.Intensities.Length;
+            int lenIntensities = peakPrimary.Data.Intensities.Count;
             // Look for a descent proportional to the height of the peak.  Because, SRM data is
             // so low noise, just looking for any descent can lead to boundaries very far away from
             // the peak.
@@ -720,7 +658,7 @@ namespace pwiz.Skyline.Model.Results
             float maxIntensity, deltaIntensity;
             GetIntensityMetrics(indexBoundary, useRaw, out maxIntensity, out deltaIntensity);
 
-            int lenIntensities = peakPrimary.Data.Intensities.Length;
+            int lenIntensities = peakPrimary.Data.Intensities.Count;
             // Look for a descent proportional to the height of the peak.  Because, SRM data is
             // so low noise, just looking for any descent can lead to boundaries very far away from
             // the peak.

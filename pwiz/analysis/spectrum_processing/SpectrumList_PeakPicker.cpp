@@ -26,12 +26,15 @@
 #include "SpectrumList_PeakPicker.hpp"
 #include "pwiz/utility/misc/Container.hpp"
 #include <boost/range/algorithm/remove_if.hpp>
+#include <boost/range/algorithm/remove.hpp>
 
 #include "pwiz/data/vendor_readers/ABI/SpectrumList_ABI.hpp"
 #include "pwiz/data/vendor_readers/ABI/T2D/SpectrumList_ABI_T2D.hpp"
 #include "pwiz/data/vendor_readers/Agilent/SpectrumList_Agilent.hpp"
 #include "pwiz/data/vendor_readers/Bruker/SpectrumList_Bruker.hpp"
+#include "pwiz/data/vendor_readers/Shimadzu/SpectrumList_Shimadzu.hpp"
 #include "pwiz/data/vendor_readers/Thermo/SpectrumList_Thermo.hpp"
+#include "pwiz/data/vendor_readers/Waters/SpectrumList_Waters.hpp"
 
 
 namespace pwiz {
@@ -84,6 +87,18 @@ SpectrumList_PeakPicker::SpectrumList_PeakPicker(
         {
             mode_ = 5;
         }
+
+        detail::SpectrumList_Waters* waters = dynamic_cast<detail::SpectrumList_Waters*>(&*inner);
+        if (waters)
+        {
+            mode_ = 6;
+        }
+
+        detail::SpectrumList_Shimadzu* shimadzu = dynamic_cast<detail::SpectrumList_Shimadzu*>(&*inner);
+        if (shimadzu)
+        {
+            mode_ = 7;
+        }
     }
 
     // add processing methods to the copy of the inner SpectrumList's data processing
@@ -104,6 +119,10 @@ SpectrumList_PeakPicker::SpectrumList_PeakPicker(
         method.userParams.push_back(UserParam("Agilent/MassHunter peak picking"));
     else if (mode_ == 5)
         method.userParams.push_back(UserParam("ABI/DataExplorer peak picking"));
+    else if (mode_ == 6)
+        method.userParams.push_back(UserParam("Waters/MassLynx peak picking"));
+    else if (mode_ == 7)
+        method.userParams.push_back(UserParam("Shimadzu peak picking"));
     //else
     //    method.userParams.push_back(algorithm->name());
     if (preferVendorPeakPicking && !mode_ && (algorithm_ != NULL)) // VendorOnlyPeakPicker sets algorithm null, we deal with this at get binary data time
@@ -159,6 +178,14 @@ PWIZ_API_DECL SpectrumPtr SpectrumList_PeakPicker::spectrum(size_t index, bool g
             s = dynamic_cast<detail::SpectrumList_ABI_T2D*>(&*inner_)->spectrum(index, getBinaryData, msLevelsToPeakPick_);
             break;
 
+        case 6:
+            s = dynamic_cast<detail::SpectrumList_Waters*>(&*inner_)->spectrum(index, getBinaryData, msLevelsToPeakPick_);
+            break;
+
+        case 7:
+            s = dynamic_cast<detail::SpectrumList_Shimadzu*>(&*inner_)->spectrum(index, getBinaryData, msLevelsToPeakPick_);
+            break;
+
         case 0:
         default:
             s = inner_->spectrum(index, true); // TODO you'd think this would be "getBinaryData" instead of "true" but that breaks SpectrumListFactoryTest
@@ -168,43 +195,74 @@ PWIZ_API_DECL SpectrumPtr SpectrumList_PeakPicker::spectrum(size_t index, bool g
     if (!getBinaryData || !msLevelsToPeakPick_.contains(s->cvParam(MS_ms_level).valueAs<int>()))
         return s;
 
+    bool isCentroided = s->hasCVParam(MS_centroid_spectrum);
     vector<CVParam>& cvParams = s->cvParams;
-    vector<CVParam>::iterator itr = std::find(cvParams.begin(), cvParams.end(), MS_centroid_spectrum);
+    vector<CVParam>::iterator itr;
 
     // return non-profile spectra as-is
     // (could have been acquired as centroid, or vendor may have done the centroiding)
-    if (itr != cvParams.end())
+    if (isCentroided)
     {
         // the vendor spectrum lists must put "profile spectrum" if they actually performed centroiding
-        vector<CVParam>::iterator itr2 = boost::range::remove_if(cvParams, CVParamIs(MS_profile_spectrum));
-        if (itr2 != cvParams.end())
-            cvParams.erase(itr2);
+        itr = boost::range::remove_if(cvParams, CVParamIs(MS_profile_spectrum));
+        if (itr != cvParams.end())
+            cvParams.erase(itr);
         else
             this->warn_once("[SpectrumList_PeakPicker]: one or more spectra are already centroided, no processing needed");
         return s;
     }
 
     // is this declared as profile?
-    itr = std::find(cvParams.begin(), cvParams.end(), MS_profile_spectrum);
-    if (cvParams.end() == itr)
+    bool isProfile = s->hasCVParam(MS_profile_spectrum);
+    ParamGroupPtr specRepParamGroup;
+    if (!isProfile)
     {
         this->warn_once("[SpectrumList_PeakPicker]: one or more spectra have undeclared profile/centroid status, assuming profile data and that peakpicking is needed");
         itr = std::find(cvParams.begin(), cvParams.end(), MS_spectrum_representation); // this should be there if nothing else
+        if (itr == cvParams.end() && !s->hasCVParam(MS_spectrum_representation))
+            this->warn_once("[SpectrumList_PeakPicker]: spectrum representation cvParam is missing completely");
+    }
+    else
+    {
+        itr = std::find(cvParams.begin(), cvParams.end(), MS_profile_spectrum);
+        if (itr == cvParams.end())
+        {
+            // we know spectrum is profile, so find it in paramGroups; specRepParamGroup does double duty here as a "found" boolean
+            for (const auto& pg : s->paramGroupPtrs)
+            {
+                if (!pg) continue;
+                itr = std::find(pg->cvParams.begin(), pg->cvParams.end(), MS_profile_spectrum);
+                if (itr != pg->cvParams.end())
+                {
+                    specRepParamGroup = pg;
+                    break;
+                }
+            }
+            if (!specRepParamGroup)
+                throw std::runtime_error("[SpectrumList_PeakPicker]: spectrum isProfile==true but could not find profile cvParam (report this bug)");
+        }
     }
 
     // make sure the spectrum has binary data
     if (!s->getMZArray().get() || !s->getIntensityArray().get())
         s = inner_->spectrum(index, true);
 
-    // replace profile or nonspecific term with centroid term
+    // replace profile or nonspecific term with centroid term; if spectrum representation is in a paramGroup, we migrate those parameters to the spectrum itself
+    if (specRepParamGroup)
+    {
+        s->cvParams.insert(s->cvParams.end(), specRepParamGroup->cvParams.begin(), specRepParamGroup->cvParams.end());
+        itr = std::find(cvParams.begin(), cvParams.end(), MS_profile_spectrum);
+        boost::range::remove(s->paramGroupPtrs, specRepParamGroup);
+    }
+
     *itr = MS_centroid_spectrum;
 
     try
     {
         if (algorithm_ == NULL) // As with VendorOnlyPeakPicker
             throw NoVendorPeakPickingException();
-        vector<double>& mzs = s->getMZArray()->data;
-        vector<double>& intensities = s->getIntensityArray()->data;
+        BinaryData<double>& mzs = s->getMZArray()->data;
+        BinaryData<double>& intensities = s->getIntensityArray()->data;
         vector<double> xPeakValues, yPeakValues;
         algorithm_->detect(mzs, intensities, xPeakValues, yPeakValues);
         mzs.swap(xPeakValues);

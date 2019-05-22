@@ -64,8 +64,16 @@ namespace seems
             this.exitFileMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.editToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.viewToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.timeToMzHeatmapsToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.previewAsMzMLToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.eventLogToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.decimalPlacesToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.decimalPlaces0 = new System.Windows.Forms.ToolStripMenuItem();
+            this.decimalPlaces1 = new System.Windows.Forms.ToolStripMenuItem();
+            this.decimalPlaces2 = new System.Windows.Forms.ToolStripMenuItem();
+            this.decimalPlaces3 = new System.Windows.Forms.ToolStripMenuItem();
+            this.decimalPlaces4 = new System.Windows.Forms.ToolStripMenuItem();
+            this.decimalPlaces5 = new System.Windows.Forms.ToolStripMenuItem();
             this.windowToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.cascadeWindowMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.tileVerticalWindowMenuItem = new System.Windows.Forms.ToolStripMenuItem();
@@ -196,25 +204,96 @@ namespace seems
             // viewToolStripMenuItem
             // 
             this.viewToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.timeToMzHeatmapsToolStripMenuItem,
             this.previewAsMzMLToolStripMenuItem,
-            this.eventLogToolStripMenuItem});
+            this.eventLogToolStripMenuItem,
+            this.decimalPlacesToolStripMenuItem});
             this.viewToolStripMenuItem.Name = "viewToolStripMenuItem";
             this.viewToolStripMenuItem.Size = new System.Drawing.Size(44, 20);
             this.viewToolStripMenuItem.Text = "View";
             // 
+            // timeToMzHeatmapsToolStripMenuItem
+            // 
+            this.timeToMzHeatmapsToolStripMenuItem.Name = "timeToMzHeatmapsToolStripMenuItem";
+            this.timeToMzHeatmapsToolStripMenuItem.Size = new System.Drawing.Size(196, 22);
+            this.timeToMzHeatmapsToolStripMenuItem.Text = "Time to m/z Heatmaps";
+            this.timeToMzHeatmapsToolStripMenuItem.Click += new System.EventHandler(this.timeToMzHeatmapsToolStripMenuItem_Click);
+            // 
             // previewAsMzMLToolStripMenuItem
             // 
             this.previewAsMzMLToolStripMenuItem.Name = "previewAsMzMLToolStripMenuItem";
-            this.previewAsMzMLToolStripMenuItem.Size = new System.Drawing.Size(165, 22);
+            this.previewAsMzMLToolStripMenuItem.Size = new System.Drawing.Size(196, 22);
             this.previewAsMzMLToolStripMenuItem.Text = "Preview as mzML";
+            this.previewAsMzMLToolStripMenuItem.Visible = false;
             this.previewAsMzMLToolStripMenuItem.Click += new System.EventHandler(this.previewAsMzMLToolStripMenuItem_Click);
             // 
             // eventLogToolStripMenuItem
             // 
             this.eventLogToolStripMenuItem.Name = "eventLogToolStripMenuItem";
-            this.eventLogToolStripMenuItem.Size = new System.Drawing.Size(165, 22);
+            this.eventLogToolStripMenuItem.Size = new System.Drawing.Size(196, 22);
             this.eventLogToolStripMenuItem.Text = "Event Log";
             this.eventLogToolStripMenuItem.Click += new System.EventHandler(this.eventLogToolStripMenuItem_Click);
+            // 
+            // decimalPlacesToolStripMenuItem
+            // 
+            this.decimalPlacesToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.decimalPlaces0,
+            this.decimalPlaces1,
+            this.decimalPlaces2,
+            this.decimalPlaces3,
+            this.decimalPlaces4,
+            this.decimalPlaces5});
+            this.decimalPlacesToolStripMenuItem.Name = "decimalPlacesToolStripMenuItem";
+            this.decimalPlacesToolStripMenuItem.Size = new System.Drawing.Size(196, 22);
+            this.decimalPlacesToolStripMenuItem.Text = "Decimal places";
+            // 
+            // decimalPlaces0
+            // 
+            this.decimalPlaces0.CheckOnClick = true;
+            this.decimalPlaces0.Name = "decimalPlaces0";
+            this.decimalPlaces0.Size = new System.Drawing.Size(180, 22);
+            this.decimalPlaces0.Text = "0";
+            this.decimalPlaces0.Click += new System.EventHandler(this.decimalPlaces_Click);
+            // 
+            // decimalPlaces1
+            // 
+            this.decimalPlaces1.CheckOnClick = true;
+            this.decimalPlaces1.Name = "decimalPlaces1";
+            this.decimalPlaces1.Size = new System.Drawing.Size(180, 22);
+            this.decimalPlaces1.Text = "1";
+            this.decimalPlaces1.Click += new System.EventHandler(this.decimalPlaces_Click);
+            // 
+            // decimalPlaces2
+            // 
+            this.decimalPlaces2.CheckOnClick = true;
+            this.decimalPlaces2.Name = "decimalPlaces2";
+            this.decimalPlaces2.Size = new System.Drawing.Size(180, 22);
+            this.decimalPlaces2.Text = "2";
+            this.decimalPlaces2.Click += new System.EventHandler(this.decimalPlaces_Click);
+            // 
+            // decimalPlaces3
+            // 
+            this.decimalPlaces3.CheckOnClick = true;
+            this.decimalPlaces3.Name = "decimalPlaces3";
+            this.decimalPlaces3.Size = new System.Drawing.Size(180, 22);
+            this.decimalPlaces3.Text = "3";
+            this.decimalPlaces3.Click += new System.EventHandler(this.decimalPlaces_Click);
+            // 
+            // decimalPlaces4
+            // 
+            this.decimalPlaces4.CheckOnClick = true;
+            this.decimalPlaces4.Name = "decimalPlaces4";
+            this.decimalPlaces4.Size = new System.Drawing.Size(180, 22);
+            this.decimalPlaces4.Text = "4";
+            this.decimalPlaces4.Click += new System.EventHandler(this.decimalPlaces_Click);
+            // 
+            // decimalPlaces5
+            // 
+            this.decimalPlaces5.CheckOnClick = true;
+            this.decimalPlaces5.Name = "decimalPlaces5";
+            this.decimalPlaces5.Size = new System.Drawing.Size(180, 22);
+            this.decimalPlaces5.Text = "5";
+            this.decimalPlaces5.Click += new System.EventHandler(this.decimalPlaces_Click);
             // 
             // windowToolStripMenuItem
             // 
@@ -306,7 +385,7 @@ namespace seems
             this.openFileToolStripButton.AutoSize = false;
             this.openFileToolStripButton.BackColor = System.Drawing.SystemColors.Control;
             this.openFileToolStripButton.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Image;
-            this.openFileToolStripButton.Image = ((System.Drawing.Image) (resources.GetObject("openFileToolStripButton.Image")));
+            this.openFileToolStripButton.Image = ((System.Drawing.Image)(resources.GetObject("openFileToolStripButton.Image")));
             this.openFileToolStripButton.ImageTransparentColor = System.Drawing.Color.Magenta;
             this.openFileToolStripButton.Name = "openFileToolStripButton";
             this.openFileToolStripButton.Overflow = System.Windows.Forms.ToolStripItemOverflow.Never;
@@ -357,7 +436,6 @@ namespace seems
             // 
             this.dockPanel.ActiveAutoHideContent = null;
             this.dockPanel.BackColor = System.Drawing.SystemColors.AppWorkspace;
-            this.dockPanel.DefaultFloatingWindowSize = new System.Drawing.Size(300, 300);
             this.dockPanel.Dock = System.Windows.Forms.DockStyle.Fill;
             this.dockPanel.Location = new System.Drawing.Point(0, 49);
             this.dockPanel.Name = "dockPanel";
@@ -373,7 +451,7 @@ namespace seems
             this.Controls.Add(this.toolStripPanel2);
             this.Controls.Add(this.toolStripPanel1);
             this.DoubleBuffered = true;
-            this.Icon = ((System.Drawing.Icon) (resources.GetObject("$this.Icon")));
+            this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
             this.IsMdiContainer = true;
             this.MainMenuStrip = this.menuStrip1;
             this.MinimumSize = new System.Drawing.Size(400, 150);
@@ -381,10 +459,10 @@ namespace seems
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
             this.Text = "SeeMS";
             this.WindowState = System.Windows.Forms.FormWindowState.Maximized;
-            this.ResizeBegin += new System.EventHandler(this.seems_ResizeBegin);
             this.FormClosing += new System.Windows.Forms.FormClosingEventHandler(this.seems_FormClosing);
-            this.Resize += new System.EventHandler(this.seems_Resize);
+            this.ResizeBegin += new System.EventHandler(this.seems_ResizeBegin);
             this.ResizeEnd += new System.EventHandler(this.seems_ResizeEnd);
+            this.Resize += new System.EventHandler(this.seems_Resize);
             this.statusStrip1.ResumeLayout(false);
             this.statusStrip1.PerformLayout();
             this.toolStripPanel1.ResumeLayout(false);
@@ -433,5 +511,13 @@ namespace seems
         private System.Windows.Forms.ToolStripSeparator toolStripSeparator4;
         private System.Windows.Forms.ToolStripMenuItem eventLogToolStripMenuItem;
         private DigitalRune.Windows.Docking.DockPanel dockPanel;
-	}
+        private System.Windows.Forms.ToolStripMenuItem timeToMzHeatmapsToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem decimalPlacesToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem decimalPlaces0;
+        private System.Windows.Forms.ToolStripMenuItem decimalPlaces1;
+        private System.Windows.Forms.ToolStripMenuItem decimalPlaces2;
+        private System.Windows.Forms.ToolStripMenuItem decimalPlaces3;
+        private System.Windows.Forms.ToolStripMenuItem decimalPlaces4;
+        private System.Windows.Forms.ToolStripMenuItem decimalPlaces5;
+    }
 }

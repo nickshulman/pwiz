@@ -18,13 +18,16 @@
  */
 
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Model.IonMobility;
 using pwiz.Skyline.Model.Irt;
 using pwiz.Skyline.Model.Lib;
+using pwiz.Skyline.Model.Optimization;
 using pwiz.Skyline.Model.Results;
 using pwiz.Skyline.Model.RetentionTimes;
+using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
 
 namespace pwiz.Skyline.Model
@@ -33,7 +36,8 @@ namespace pwiz.Skyline.Model
     {
         private SrmDocument _document;
         private event EventHandler<DocumentChangedEventArgs> DocumentChangedEvent;
-
+        private readonly List<BackgroundLoader> _backgroundLoaders = new List<BackgroundLoader>();
+             
         private static readonly object CHANGE_EVENT_LOCK = new object();
 
         public SrmDocument Document
@@ -62,7 +66,7 @@ namespace pwiz.Skyline.Model
                 {
                     DocumentChangedEvent(this, new DocumentChangedEventArgs(docOriginal));
 
-                    bool complete = docNew.IsLoaded || (LastProgress != null && LastProgress.IsError);
+                    bool complete = IsFinal(docNew);
                     if (wait)
                     {
                         if (!complete)
@@ -78,21 +82,43 @@ namespace pwiz.Skyline.Model
             return true;
         }
 
-        public void ResetProgress()
+        public void WaitForComplete()
+        {
+            lock (CHANGE_EVENT_LOCK)
+            {
+                while (!IsFinal(Document))
+                    Monitor.Wait(CHANGE_EVENT_LOCK);    // Wait until next DocumentChangedEvent
+            }
+        }
+
+        private bool IsFinal(SrmDocument doc)
+        {
+            // Either the document is loaded or the status is final and in an error state
+            return doc.IsLoaded || (LastProgress != null && LastProgress.IsFinal && LastProgress.IsError);
+        }
+
+        public virtual void ResetProgress()
         {
             LastProgress = null;
         }
 
-        public ProgressStatus LastProgress { get; private set; }
+        public IProgressStatus LastProgress { get; private set; }
 
         private void UpdateProgress(object sender, ProgressUpdateEventArgs e)
         {
             // Unblock the waiting thread, if there was a cancel or error
             lock (CHANGE_EVENT_LOCK)
             {
-                // Keep track of last progress, but do not overwrite an error
-                if (LastProgress == null || !LastProgress.IsError)
-                    LastProgress = (!e.Progress.IsComplete ? e.Progress : null);
+                // Keep track of last progress, but do not overwrite an error, unless
+                // this is a MultiProgressStatus, where useful information may be added
+                // even after the first error.
+                var multiProgress = e.Progress as MultiProgressStatus;
+                if (multiProgress != null || LastProgress == null || !LastProgress.IsError)
+                {
+                    // Keep MultiProgressStatus around, even when it is completed
+                    LastProgress = multiProgress != null || !e.Progress.IsComplete
+                        ? e.Progress : null;
+                }
                 if (e.Progress.IsCanceled || e.Progress.IsError)
                     Monitor.Pulse(CHANGE_EVENT_LOCK);
             }
@@ -120,9 +146,30 @@ namespace pwiz.Skyline.Model
         {
             DocumentChangedEvent -= listener;
         }
+
+        public bool IsClosing { get { return false; } }
+
+        /// <summary>
+        /// Tracking active background loaders for a container - helps in test harness teardown
+        /// </summary>
+        public IEnumerable<BackgroundLoader> BackgroundLoaders
+        {
+            get {  return _backgroundLoaders; }
+        }
+        
+        public void AddBackgroundLoader(BackgroundLoader loader)
+        {
+            _backgroundLoaders.Add(loader);
+        }
+
+        public void RemoveBackgroundLoader(BackgroundLoader loader)
+        {
+            _backgroundLoaders.Remove(loader);
+        }
+
     }
 
-    public class ResultsMemoryDocumentContainer : MemoryDocumentContainer
+    public class ResultsMemoryDocumentContainer : MemoryDocumentContainer, IDisposable
     {
         public ResultsMemoryDocumentContainer(SrmDocument docInitial, string pathInitial)
             : this(docInitial, pathInitial, false)
@@ -135,7 +182,7 @@ namespace pwiz.Skyline.Model
             // Chromatogram loader needs file path to know how to place the .skyd file
             DocumentFilePath = pathInitial;
 
-            ChromatogramManager = new ChromatogramManager();
+            ChromatogramManager = new ChromatogramManager(false);
             ChromatogramManager.Register(this);
             Register(ChromatogramManager);
 
@@ -154,6 +201,10 @@ namespace pwiz.Skyline.Model
             IrtDbManager = new IrtDbManager();
             IrtDbManager.Register(this);
             Register(IrtDbManager);
+
+            OptimizationDbManager = new OptimizationDbManager();
+            OptimizationDbManager.Register(this);
+            Register(OptimizationDbManager);
         }
 
         public ChromatogramManager ChromatogramManager { get; private set; }
@@ -165,5 +216,31 @@ namespace pwiz.Skyline.Model
         public IonMobilityLibraryManager IonMobilityManager { get; private set; }
 
         public IrtDbManager IrtDbManager { get; private set; }
+
+        public OptimizationDbManager OptimizationDbManager { get; private set; }
+
+
+        public override void ResetProgress()
+        {
+            base.ResetProgress();
+
+            ChromatogramManager.ResetProgress(Document);
+            LibraryManager.ResetProgress(Document);
+            RetentionTimeManager.ResetProgress(Document);
+            IonMobilityManager.ResetProgress(Document);
+            IrtDbManager.ResetProgress(Document);
+        }
+
+        public virtual void Dispose()
+        {
+            ChromatogramManager.Dispose();
+
+            // Release current document to ensure the streams are closed on it
+            SetDocument(new SrmDocument(SrmSettingsList.GetDefault()), Document);
+            foreach (var loader in BackgroundLoaders)
+            {
+                loader.ClearCache();
+            }
+        }
     }
 }

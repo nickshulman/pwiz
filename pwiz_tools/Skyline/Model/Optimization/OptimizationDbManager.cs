@@ -32,11 +32,20 @@ namespace pwiz.Skyline.Model.Optimization
             {
                 return null;
             }
-            return "OptimizationDbManager: GetOptimizationLibrary(document) not usable and not none"; // Not L10N
+            return @"OptimizationDbManager: GetOptimizationLibrary(document) not usable and not none";
         }
 
         private readonly Dictionary<string, OptimizationLibrary> _loadedLibraries =
             new Dictionary<string, OptimizationLibrary>();
+
+        // For use on container shutdown, clear caches to restore minimal memory footprint
+        public override void ClearCache()
+        {
+            lock (_loadedLibraries)
+            {
+                _loadedLibraries.Clear();
+            }
+        }
 
         protected override bool StateChanged(SrmDocument document, SrmDocument previous)
         {
@@ -80,7 +89,10 @@ namespace pwiz.Skyline.Model.Optimization
                 // Change the document to use the new library
                 docCurrent = container.Document;
                 if (!ReferenceEquals(GetOptimizationLibrary(docCurrent), GetOptimizationLibrary(container.Document)))
+                {
+                    EndProcessing(document);
                     return false;
+                }
                 docNew = docCurrent.ChangeSettings(docCurrent.Settings.ChangeTransitionPrediction(predict =>
                     predict.ChangeOptimizationLibrary(lib)));
             }

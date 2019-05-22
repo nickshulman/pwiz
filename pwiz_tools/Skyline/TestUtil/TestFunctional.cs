@@ -19,7 +19,7 @@
 using System;
 using System.Collections.Generic;
 using System.Data;
-using System.Data.OleDb;
+using System.Data.SQLite;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -28,21 +28,32 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 using System.Windows.Forms;
+using Excel;
+using JetBrains.Annotations;
+// using Microsoft.Diagnostics.Runtime; only needed for stack dump logic, which is currently disabled
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using pwiz.Common.Controls;
+using pwiz.Common.DataBinding;
 using pwiz.Common.SystemUtil;
 using pwiz.ProteomeDatabase.Fasta;
 using pwiz.ProteowizardWrapper;
 using pwiz.Skyline;
 using pwiz.Skyline.Alerts;
+using pwiz.Skyline.Controls.Databinding;
+using pwiz.Skyline.Controls.Graphs;
+using pwiz.Skyline.Controls.SeqNode;
 using pwiz.Skyline.Controls.Startup;
 using pwiz.Skyline.EditUI;
 using pwiz.Skyline.FileUI;
 using pwiz.Skyline.Model;
+using pwiz.Skyline.Model.AuditLog;
 using pwiz.Skyline.Model.DocSettings;
+using pwiz.Skyline.Model.DocSettings.AbsoluteQuantification;
 using pwiz.Skyline.Model.Find;
+using pwiz.Skyline.Model.Lib.BlibData;
 using pwiz.Skyline.Model.Proteome;
 using pwiz.Skyline.Model.Results;
+using pwiz.Skyline.Model.Results.Scoring;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.SettingsUI;
 using pwiz.Skyline.Util;
@@ -59,6 +70,17 @@ namespace pwiz.SkylineTestUtil
     {
     }
 
+    [AttributeUsage(AttributeTargets.Method)]
+    public sealed class MinidumpLeakThresholdAttribute : Attribute
+    {
+        public MinidumpLeakThresholdAttribute(int thresholdMB)
+        {
+            ThresholdMB = thresholdMB;
+        }
+
+        public int ThresholdMB { get; private set; }
+    }
+
     /// <summary>
     /// All Skyline functional tests MUST derive from this base class.
     /// Perf tests (long running, huge-data-downloading) should be declared
@@ -68,7 +90,7 @@ namespace pwiz.SkylineTestUtil
     public abstract class AbstractFunctionalTest : AbstractUnitTest
     {
         private const int SLEEP_INTERVAL = 100;
-        private const int WAIT_TIME = 3 * 60 * 1000;    // 3 minutes (was 1 minute, but in code coverage testing that may be too impatient)
+        public const int WAIT_TIME = 3 * 60 * 1000;    // 3 minutes (was 1 minute, but in code coverage testing that may be too impatient)
 
         static AbstractFunctionalTest()
         {
@@ -81,7 +103,9 @@ namespace pwiz.SkylineTestUtil
 
         protected bool ForceMzml { get; set; }
 
-        protected bool UseRawFiles
+        protected static bool LaunchDebuggerOnWaitForConditionTimeout { get; set; } // Use with caution - this will prevent scheduled tests from completing, so we can investigate a problem
+
+        protected virtual bool UseRawFiles
         {
             get
             {
@@ -108,6 +132,11 @@ namespace pwiz.SkylineTestUtil
             get { return UseRawFiles ? ExtensionTestContext.ExtAgilentRaw : ExtensionTestContext.ExtMzml; }
         }
 
+        protected string ExtWatersRaw
+        {
+            get { return UseRawFiles ? ExtensionTestContext.ExtWatersRaw : ExtensionTestContext.ExtMzml; }
+        }
+
         protected void RunWithOldReports(Action test)
         {
             TestContext.Properties["LiveReports"] = false.ToString();
@@ -126,7 +155,7 @@ namespace pwiz.SkylineTestUtil
             return dlg;
         }
 
-        protected static void RunUI(Action act)
+        protected static void RunUI([InstantHandle] Action act)
         {
             SkylineInvoke(() =>
             {
@@ -168,7 +197,7 @@ namespace pwiz.SkylineTestUtil
             }
         }
 
-        protected static void RunDlg<TDlg>(Action show, Action<TDlg> act = null, bool pause = false) where TDlg : Form
+        protected static void RunDlg<TDlg>(Action show, [InstantHandle] Action<TDlg> act = null, bool pause = false) where TDlg : Form
         {
             RunDlg(show, false, act, pause);
         }
@@ -202,6 +231,78 @@ namespace pwiz.SkylineTestUtil
             RunUI(() => SkylineWindow.ActivateReplicate(name));
         }
 
+        protected void ChangePeakBounds(string chromName,
+            double startDisplayTime,
+            double endDisplayTime)
+        {
+            Assert.IsTrue(startDisplayTime < endDisplayTime,
+                string.Format("Start time {0} must be less than end time {1}.", startDisplayTime, endDisplayTime));
+
+            ActivateReplicate(chromName);
+
+            WaitForGraphs();
+
+            RunUIWithDocumentWait(() => // adjust integration
+            {
+                var graphChrom = SkylineWindow.GetGraphChrom(chromName);
+
+                var nodeGroupTree = SkylineWindow.SequenceTree.GetNodeOfType<TransitionGroupTreeNode>();
+                IdentityPath pathGroup;
+                if (nodeGroupTree != null)
+                    pathGroup = nodeGroupTree.Path;
+                else
+                {
+                    var nodePepTree = SkylineWindow.SequenceTree.GetNodeOfType<PeptideTreeNode>();
+                    pathGroup = new IdentityPath(nodePepTree.Path, nodePepTree.ChildDocNodes[0].Id);
+                }
+                var listChanges = new List<ChangedPeakBoundsEventArgs>
+                {
+                    new ChangedPeakBoundsEventArgs(pathGroup,
+                        null,
+                        graphChrom.NameSet,
+                        graphChrom.ChromGroupInfos[0].FilePath,
+                        graphChrom.GraphItems.First().GetNearestDisplayTime(startDisplayTime),
+                        graphChrom.GraphItems.First().GetNearestDisplayTime(endDisplayTime),
+                        PeakIdentification.ALIGNED,
+                        PeakBoundsChangeType.both)
+                };
+                graphChrom.SimulateChangedPeakBounds(listChanges);
+            });
+            WaitForGraphs();
+        }
+
+        private void RunUIWithDocumentWait(Action act)
+        {
+            var doc = SkylineWindow.Document;
+            RunUI(act);
+            WaitForDocumentChange(doc); // make sure the action changes the document
+        }
+
+        protected void SetDocumentGridSampleTypesAndConcentrations(IDictionary<string, Tuple<SampleType, double?>> sampleTypes)
+        {
+            RunUI(() => SkylineWindow.ShowDocumentGrid(true));
+            var documentGrid = FindOpenForm<DocumentGridForm>();
+            RunUI(() => documentGrid.DataboundGridControl.ChooseView(Resources.SkylineViewContext_GetDocumentGridRowSources_Replicates));
+            WaitForCondition(() => documentGrid.IsComplete);
+            RunUI(() =>
+            {
+                var colReplicate = documentGrid.FindColumn(PropertyPath.Root);
+                var colSampleType = documentGrid.FindColumn(PropertyPath.Root.Property("SampleType"));
+                var colConcentration = documentGrid.FindColumn(PropertyPath.Root.Property("AnalyteConcentration"));
+                for (int iRow = 0; iRow < documentGrid.RowCount; iRow++)
+                {
+                    var row = documentGrid.DataGridView.Rows[iRow];
+                    var replicateName = row.Cells[colReplicate.Index].Value.ToString();
+                    Tuple<SampleType, double?> tuple;
+                    if (sampleTypes.TryGetValue(replicateName, out tuple))
+                    {
+                        row.Cells[colSampleType.Index].Value = tuple.Item1;
+                        row.Cells[colConcentration.Index].Value = tuple.Item2;
+                    }
+                }
+            });
+        }
+
         /// <summary>
         /// Sets the clipboard text, failing with a useful message if the
         /// SetText() method throws an exception, invoking the UI thread first.
@@ -227,7 +328,7 @@ namespace pwiz.SkylineTestUtil
             }
             catch (ExternalException)
             {
-                Assert.Fail(ClipboardHelper.GetOpenClipboardMessage("Failed to set text to the clipboard.")); // Not L10N
+                Assert.Fail(ClipboardHelper.GetPasteErrorMessage());
             }
         }
 
@@ -275,67 +376,66 @@ namespace pwiz.SkylineTestUtil
 
         protected static string GetExcelFileText(string filePath, string page, int columns, bool hasHeader)
         {
-            bool legacyFile = filePath.EndsWith(".xls");
-            try
+            bool[] legacyFileValues = new[] {false};
+            if (filePath.EndsWith(".xls"))
             {
-                string connectionString = GetExcelConnectionString(filePath, hasHeader, legacyFile);
-                return GetExcelFileText(connectionString, page, columns);
+                legacyFileValues = new[] {true, false};
             }
-            catch (Exception)
-            {
-                if (!legacyFile)
-                    throw;
 
-                // In case the system running this does not have the legacy adapter
-                string connectionString = GetExcelConnectionString(filePath, hasHeader, false);
-                return GetExcelFileText(connectionString, page, columns);
-            }
-        }
-
-        private static string GetExcelFileText(string connectionString, string page, int columns)
-        {
-            var adapter = new OleDbDataAdapter(String.Format("SELECT * FROM [{0}$]", page), connectionString); // Not L10N
-            var ds = new DataSet();
-            adapter.Fill(ds, "TransitionListTable");
-            DataTable data = ds.Tables["TransitionListTable"];
-            var sb = new StringBuilder();
-            foreach (DataRow row in data.Rows)
+            foreach (bool legacyFile in legacyFileValues)
             {
-                for (int i = 0; i < columns; i++)
+                using (var stream = File.OpenRead(filePath))
                 {
-                    if (i > 0)
-                        sb.Append('\t');
-                    sb.Append(row[i] ?? String.Empty);
+                    IExcelDataReader excelDataReader;
+                    if (legacyFile)
+                    {
+                        excelDataReader = ExcelReaderFactory.CreateBinaryReader(stream);
+                    }
+                    else
+                    {
+                        excelDataReader = ExcelReaderFactory.CreateOpenXmlReader(stream);
+                    }
+                    if (excelDataReader == null)
+                    {
+                        continue;
+                    }
+                    return GetExcelReaderText(excelDataReader, page, columns, hasHeader);
                 }
-                sb.AppendLine();
             }
-            return sb.ToString();
+            throw new InvalidDataException("Unable to read Excel file " + filePath);
         }
 
-        private static string GetExcelConnectionString(string filePath, bool hasHeader, bool legacyFile)
+        private static string GetExcelReaderText(IExcelDataReader excelDataReader, string page, int columns, bool hasHeader)
         {
-            string connectionFormat = legacyFile // Not L10N
-                ? "Provider=Microsoft.Jet.OLEDB.4.0; data source={0}; Extended Properties=\"Excel 8.0;HDR={1}\""
-                : "Provider=Microsoft.ACE.OLEDB.12.0;Password=\"\";User ID=Admin;Data Source={0};Mode=Share Deny Write;Extended Properties=\"HDR={1};\";Jet OLEDB:Engine Type=37";
-            return String.Format(connectionFormat, filePath, hasHeader ? "YES" : "NO");
+            var dataSet = excelDataReader.AsDataSet();
+            foreach (DataTable dataTable in dataSet.Tables)
+            {
+                if (dataTable.TableName != page)
+                {
+                    continue;
+                }
+                var sb = new StringBuilder();
+                for (int iRow = hasHeader ? 1 : 0; iRow < dataTable.Rows.Count; iRow++)
+                {
+                    DataRow row = dataTable.Rows[iRow];
+                    for (int i = 0; i < columns; i++)
+                    {
+                        if (i > 0)
+                            sb.Append('\t');
+                        sb.Append(row[i] ?? String.Empty);
+                    }
+                    sb.AppendLine();
+                }
+                return sb.ToString();
+            }
+            throw new ArgumentException("Could not find page " + page);
         }
 
         private static IEnumerable<Form> OpenForms
         {
             get
             {
-                while (true)
-                {
-                    try
-                    {
-                        return Application.OpenForms.Cast<Form>().ToArray();
-                    }
-                    catch (InvalidOperationException)
-                    {
-                        // Application.OpenForms might be modified during the iteration.
-                        // If that happens, go through the list again.
-                    }
-                }
+                return FormUtil.OpenForms;
             }
         }
 
@@ -374,18 +474,18 @@ namespace pwiz.SkylineTestUtil
                 waitCycles *= Program.UnitTestTimeoutMultiplier;
             }
 
-            // Wait a little longer for debug build.
+            // Wait a little longer for debug build. (This may also imply code coverage testing, slower yet)
             if (ExtensionTestContext.IsDebugMode)
             {
-                waitCycles = waitCycles * 150 / 100;
+                waitCycles = waitCycles * 4;
             }
 
             return waitCycles;
         }
 
-        public static TDlg WaitForOpenForm<TDlg>() where TDlg : Form
+        public static TDlg TryWaitForOpenForm<TDlg>(int millis = WAIT_TIME, Func<bool> stopCondition = null) where TDlg : Form
         {
-            int waitCycles = GetWaitCycles();
+            int waitCycles = GetWaitCycles(millis);
             for (int i = 0; i < waitCycles; i++)
             {
                 Assert.IsFalse(Program.TestExceptions.Any(), "Exception while running test");
@@ -421,11 +521,23 @@ namespace pwiz.SkylineTestUtil
                     return tForm;
                 }
 
+                if (stopCondition != null && stopCondition())
+                    break;
+
                 Thread.Sleep(SLEEP_INTERVAL);
-                if (i == waitCycles - 1)
-                    Assert.Fail("Timeout {0} seconds exceeded in WaitForOpenForm({1}). Open forms: {2}", waitCycles * SLEEP_INTERVAL / 1000, typeof(TDlg).Name, GetOpenFormsString()); // Not L10N
             }
             return null;
+        }
+
+        public static TDlg WaitForOpenForm<TDlg>(int millis = WAIT_TIME) where TDlg : Form
+        {
+            var result = TryWaitForOpenForm<TDlg>(millis);
+            if (result == null)
+            {
+                int waitCycles = GetWaitCycles(millis);
+                Assert.Fail(@"Timeout {0} seconds exceeded in WaitForOpenForm({1}). Open forms: {2}", waitCycles * SLEEP_INTERVAL / 1000, typeof(TDlg).Name, GetOpenFormsString());
+            }
+            return result;
         }
 
         private void PauseForForm(Type formType)
@@ -474,7 +586,20 @@ namespace pwiz.SkylineTestUtil
                 Thread.Sleep(SLEEP_INTERVAL);
             }
 
-            Assert.Fail("Timeout {0} seconds exceeded in WaitForClosedForm. Open forms: {1}", waitCycles * SLEEP_INTERVAL / 1000, GetOpenFormsString()); // Not L10N
+            Assert.Fail(@"Timeout {0} seconds exceeded in WaitForClosedForm. Open forms: {1}", waitCycles * SLEEP_INTERVAL / 1000, GetOpenFormsString());
+        }
+
+        public static void WaitForClosedAllChromatogramsGraph()
+        {
+            WaitForConditionUI(() =>
+            {
+                var acg = FindOpenForm<AllChromatogramsGraph>();
+                if (acg == null)
+                    return true;
+                if (acg.HasErrors)
+                    Assert.Fail(TextUtil.LineSeparate("Unexpected import errors:", TextUtil.LineSeparate(acg.GetErrorMessages())));
+                return false;
+            });
         }
 
         private static string GetTextForForm(Control form)
@@ -484,9 +609,30 @@ namespace pwiz.SkylineTestUtil
             if (threadExceptionDialog != null)
             {
                 // Locate the details text box, return the contents - much more informative than the dialog title
-                result = threadExceptionDialog.Controls.Cast<Control>().Where(control => control.GetType() == typeof (TextBox)).Aggregate(result, (current, control) => current + (": " + control.Text));
+                result = threadExceptionDialog.Controls.Cast<Control>()
+                    .Where(control => control is TextBox)
+                    .Aggregate(result, (current, control) => current + ": " + GetExceptionText(control));
+            }
+           
+            FormEx formEx = form as FormEx;
+            if (formEx != null)
+            {
+                String detailedMessage = formEx.DetailedMessage;
+                if (detailedMessage != null)
+                {
+                    result = detailedMessage;
+                }
             }
             return result;
+        }
+
+        private static string GetExceptionText(Control control)
+        {
+            string text = control.Text;
+            int assembliesIndex = text.IndexOf("************** Loaded Assemblies **************", StringComparison.Ordinal);
+            if (assembliesIndex != -1)
+                text = TextUtil.LineSeparate(text.Substring(0, assembliesIndex).Trim(), "------------- End ThreadExceptionDialog Stack -------------");
+            return text;
         }
 
         private static string GetOpenFormsString()
@@ -498,8 +644,65 @@ namespace pwiz.SkylineTestUtil
                 if (!string.IsNullOrEmpty(state))
                    result += " Also, document is not fully loaded: \"" + state + "\"";
             }
+            // Without line numbers, this isn't terribly useful.  Disable for now.
+            // result += GetAllThreadsStackTraces();
             return result;
         }
+
+        /*
+         * Without line numbers, this turns out to be not all that useful, so disable for now at least.  
+         * See https://github.com/Microsoft/clrmd/blob/master/src/FileAndLineNumbers/Program.cs if you want to make that work.
+         * I (bspratt) stopped short of that only because it looked like it *might* introduce config issues but did not investigatge to see if that was actually a problem.
+         * 
+        private static string GetAllThreadsStackTraces()
+        {
+            // Adapted from:
+            // http://stackoverflow.com/questions/2057781/is-there-a-way-to-get-the-stacktraces-for-all-threads-in-c-like-java-lang-thre
+            //
+            // Requires NuGet package ClrMd from Microsoft (prerelease version 0.8.31-beta as of 5/25/2016)
+            //
+            // N.B. this doesn't show line numbers - that apparently can be done using the techniques at
+            // https://github.com/Microsoft/clrmd/blob/master/src/FileAndLineNumbers/Program.cs
+
+            var result = "\r\nCould not get stack traces of running threads.\r\n";
+            try
+            {
+                var pid = System.Diagnostics.Process.GetCurrentProcess().Id;
+
+                using (var dataTarget = DataTarget.AttachToProcess(pid, 5000, AttachFlag.Passive))
+                {
+                    var runtime = dataTarget.ClrVersions[0].CreateRuntime();
+                    if (runtime != null)
+                    {
+                        result = string.Empty;
+                        foreach (var t in runtime.Threads)
+                        {
+                            result += "Thread Id " + t.ManagedThreadId + "\r\n";
+                            var exception = t.CurrentException;
+                            if (exception != null)
+                            {
+                                result += string.Format("  CurrentException: {0:X} ({1}), HRESULT={2:X}\r\n", exception.Address, exception.Type.Name, exception.HResult);
+                            }
+                            if (t.StackTrace.Any())
+                            {
+                                result += "   Stacktrace:\r\n";
+                                foreach (var frame in t.StackTrace)
+                                {
+                                    result += String.Format("    {0,12:x} {1,12:x} {2}\r\n", frame.InstructionPointer, frame.StackPointer, frame.DisplayString);
+                                }
+                            }
+                        }
+                    }
+                    result += "End of managed threads list.\r\n";
+                }
+            }
+            catch
+            {
+                // ignored
+            }
+            return "\r\nCurrent managed thread stack traces: \r\n" + result;
+        }
+        */
 
         public static SrmDocument WaitForDocumentChange(SrmDocument docCurrent)
         {
@@ -513,8 +716,14 @@ namespace pwiz.SkylineTestUtil
 
         public static SrmDocument WaitForDocumentLoaded(int millis = WAIT_TIME)
         {
-            WaitForConditionUI(millis, () => SkylineWindow.DocumentUI.IsLoaded);
-            WaitForProteinMetadataBackgroundLoaderCompleted(millis);  // make sure document is stable
+            WaitForConditionUI(millis, () =>
+            {
+                var alertDlg = FindOpenForm<AlertDlg>();
+                if (alertDlg != null)
+                    Assert.Fail("Unexpected alert found: {0}", TextUtil.LineSeparate(alertDlg.Message, alertDlg.DetailMessage));
+                return SkylineWindow.DocumentUI.IsLoaded;
+            });
+            WaitForProteinMetadataBackgroundLoaderCompletedUI(millis);  // make sure document is stable
             return SkylineWindow.Document;
         }
 
@@ -544,33 +753,46 @@ namespace pwiz.SkylineTestUtil
             return WaitForCondition(millis, func, null, false);
         }
 
-        public static bool WaitForCondition(int millis, Func<bool> func, string timeoutMessage = null, bool failOnTimeout = true)
+        public static bool WaitForCondition(int millis, Func<bool> func, string timeoutMessage = null, bool failOnTimeout = true, bool throwOnProgramException = true)
         {
             int waitCycles = GetWaitCycles(millis);
             for (int i = 0; i < waitCycles; i++)
             {
-                Assert.IsFalse(Program.TestExceptions.Any(), "Exception while running test");
+                if (throwOnProgramException)
+                    Assert.IsFalse(Program.TestExceptions.Any(), "Exception while running test");
 
                 if (func())
                     return true;
                 Thread.Sleep(SLEEP_INTERVAL);
-                if (failOnTimeout && (i == waitCycles - 1))
+                // Assistance in chasing down intermittent timeout problems
+                if (i == waitCycles - 1 && LaunchDebuggerOnWaitForConditionTimeout)
                 {
-                    var msg = (timeoutMessage == null)
-                        ? string.Empty
-                        : " (" + timeoutMessage + ")";
-                    Assert.Fail("Timeout {0} seconds exceeded in WaitForCondition{1}. Open forms: {2}", waitCycles * SLEEP_INTERVAL / 1000, msg, GetOpenFormsString()); // Not L10N
+                    System.Diagnostics.Debugger.Launch(); // Try again, under the debugger
+                    System.Diagnostics.Debugger.Break();
+                    i = 0; // For debugging ease - stay in loop
                 }
+            }
+            if (failOnTimeout)
+            {
+                var msg = (timeoutMessage == null)
+                    ? string.Empty
+                    : " (" + timeoutMessage + ")";
+                Assert.Fail(@"Timeout {0} seconds exceeded in WaitForCondition{1}. Open forms: {2}", waitCycles * SLEEP_INTERVAL / 1000, msg, GetOpenFormsString());
             }
             return false;
         }
 
-        public static bool WaitForConditionUI(Func<bool> func)
+        public static bool WaitForConditionUI([InstantHandle] Func<bool> func)
         {
             return WaitForConditionUI(WAIT_TIME, func);
         }
 
         public static bool WaitForConditionUI(Func<bool> func, string timeoutMessage)
+        {
+            return WaitForConditionUI(func, () => timeoutMessage);
+        }
+
+        public static bool WaitForConditionUI(Func<bool> func, Func<string> timeoutMessage)
         {
             return WaitForConditionUI(WAIT_TIME, func, timeoutMessage);
         }
@@ -585,38 +807,80 @@ namespace pwiz.SkylineTestUtil
             return WaitForConditionUI(millis, func, null, false);
         }
 
-        public static bool WaitForConditionUI(int millis, Func<bool> func, string timeoutMessage = null, bool failOnTimeout = true)
+        public static bool WaitForConditionUI(int millis, Func<bool> func, Func<string> timeoutMessage = null, bool failOnTimeout = true, bool throwOnProgramException = true)
         {
             int waitCycles = GetWaitCycles(millis);
             for (int i = 0; i < waitCycles; i++)
             {
-                Assert.IsFalse(Program.TestExceptions.Any(), "Exception while running test");
+                if (throwOnProgramException)
+                    Assert.IsFalse(Program.TestExceptions.Any(), "Exception while running test");
 
                 bool isCondition = false;
                 Program.MainWindow.Invoke(new Action(() => isCondition = func()));
                 if (isCondition)
                     return true;
                 Thread.Sleep(SLEEP_INTERVAL);
-                if (failOnTimeout && (i == waitCycles - 1))
+
+                // Assistance in chasing down intermittent timeout problems
+                if (i==waitCycles-1 && LaunchDebuggerOnWaitForConditionTimeout)
                 {
-                    var msg = (timeoutMessage == null) 
-                        ? string.Empty
-                        : " (" + timeoutMessage + ")";
-                    Assert.Fail("Timeout {0} seconds exceeded in WaitForConditionUI{1}. Open forms: {2}", waitCycles * SLEEP_INTERVAL / 1000, msg, GetOpenFormsString()); // Not L10N
+                    System.Diagnostics.Debugger.Launch(); // Try again, under the debugger
+                    System.Diagnostics.Debugger.Break();
+                    i = 0; // For debugging ease - stay in loop
                 }
+            }
+            if (failOnTimeout)
+            {
+                var msg = string.Empty;
+                if (timeoutMessage != null)
+                    RunUI(() => msg = " (" + timeoutMessage() + ")");
+
+                Assert.Fail(@"Timeout {0} seconds exceeded in WaitForConditionUI{1}. Open forms: {2}", waitCycles * SLEEP_INTERVAL / 1000, msg, GetOpenFormsString());
             }
             return false;
         }
 
-        public static void WaitForGraphs()
+        public static void WaitForPaneCondition<TPane>(GraphSummary summary, Func<TPane, bool> condition) where TPane : class
         {
-            WaitForConditionUI(() => !SkylineWindow.IsGraphUpdatePending);
+            WaitForConditionUI(() =>
+            {
+                TPane pane;
+                summary.TryGetGraphPane(out pane);
+                return condition(pane);
+            });
+            WaitForGraphs();
+        }
+
+        public static void WaitForGraphs(bool throwOnProgramException = true)
+        {
+            WaitForConditionUI(WAIT_TIME, () => !SkylineWindow.IsGraphUpdatePending, null, true, false);
+        }
+
+        private static void WaitForBackgroundLoaders()
+        {
+            if (!WaitForCondition(WAIT_TIME, () => !SkylineWindow.BackgroundLoaders.Any(bgl => bgl.AnyProcessing()), null, false))
+            {
+                var activeLoaders = new List<string>();
+                foreach (var loader in SkylineWindow.BackgroundLoaders)
+                {
+                    if (loader.AnyProcessing())
+                    {
+                        activeLoaders.Add(loader.GetType().FullName);
+                    }
+                }
+                if (activeLoaders.Any())
+                {
+                    activeLoaders.Add(@"Open forms: " + GetOpenFormsString());
+                    Assert.Fail(@"One or more background loaders did not exit properly: " + TextUtil.LineSeparate(activeLoaders));
+                }
+            }
         }
 
         // Pause a test so we can play with the UI manually.
-        public static void PauseTest()
+        public static void PauseTest(string description = null)
         {
-            PauseAndContinueForm.Show();
+            if (!Program.SkylineOffscreen)
+                PauseAndContinueForm.Show(description);
         }
 
         /// <summary>
@@ -626,7 +890,7 @@ namespace pwiz.SkylineTestUtil
         /// </summary>
         private static bool _isPauseForScreenShots;
 
-        public static bool IsPauseForScreenShots
+        public bool IsPauseForScreenShots
         {
             get { return _isPauseForScreenShots || Program.PauseSeconds < 0; }
             set
@@ -635,14 +899,40 @@ namespace pwiz.SkylineTestUtil
                 if (_isPauseForScreenShots)
                 {
                     Program.PauseSeconds = -1;
-                    Settings.Default.TestSmallMolecules = false; // Extra test node will mess up the pretty pictures
+                    TestSmallMolecules = false; // Extra test node will mess up the pretty pictures
                 }
             }
+        }
+
+        public static bool IsPauseForAuditLog { get; set; }
+
+        private bool IsTutorial
+        {
+            get { return TestContext.TestName.Contains("Tutorial"); }
+        }
+
+        public virtual bool AuditLogCompareLogs
+        {
+            get { return IsTutorial && !IsFullData; }   // Logs were recorded with partial data and not in Pass0
+        }
+
+        public virtual bool AuditLogConvertPathsToFileNames
+        {
+            get { return IsTutorial; }
+        }
+
+        public bool IsRecordAuditLogForTutorials
+        {
+            get { return IsTutorial && RecordAuditLogs; }
         }
 
         public static bool IsShowMatchingTutorialPages { get; set; }
 
         public static bool IsDemoMode { get { return Program.DemoMode; } }
+
+        public static bool IsPass0 { get { return Program.IsPassZero; } }
+
+        public bool IsFullData { get { return IsPauseForScreenShots || IsDemoMode || IsPass0; } }
 
         public static bool IsCheckLiveReportsCompatibility { get; set; }
 
@@ -668,6 +958,9 @@ namespace pwiz.SkylineTestUtil
 
         private void PauseForScreenShot(string description, int? pageNum, Type formType)
         {
+            if (Program.SkylineOffscreen)
+                return;
+
             if (IsCheckLiveReportsCompatibility)
                 CheckReportCompatibility.CheckAll(SkylineWindow.Document);
             if (IsDemoMode)
@@ -678,8 +971,6 @@ namespace pwiz.SkylineTestUtil
             {
                 var formSeen = new FormSeen();
                 formSeen.Saw(formType);
-                if (pageNum.HasValue)
-                    description = string.Format("page {0} - {1}", pageNum, description);
                 bool showMathingPages = IsShowMatchingTutorialPages || Program.ShowMatchingPages;
                 PauseAndContinueForm.Show(description, LinkPage(pageNum), showMathingPages);
             }
@@ -687,6 +978,15 @@ namespace pwiz.SkylineTestUtil
             {
                 PauseForForm(formType);
             }
+        }
+
+        public void PauseForAuditLog()
+        {
+            if (IsPauseForAuditLog)
+            {
+                RunUI(() => SkylineWindow.ShowAuditLog());
+                PauseTest();
+            } 
         }
 
         public static void OkDialog(Form form, Action okAction)
@@ -707,6 +1007,7 @@ namespace pwiz.SkylineTestUtil
                 {
                     return;  // Don't want to run this lengthy test right now
                 }
+
                 Program.FunctionalTest = true;
                 Program.TestExceptions = new List<Exception>();
                 LocalizationHelper.InitThread();
@@ -717,10 +1018,10 @@ namespace pwiz.SkylineTestUtil
                     TestFilesDirs = new TestFilesDir[TestFilesZipPaths.Length];
                     for (int i = 0; i < TestFilesZipPaths.Length; i++)
                     {
-                        TestFilesDirs[i] = new TestFilesDir(TestContext, TestFilesZipPaths[i], TestDirectoryName, TestFilesPersistent);
+                        TestFilesDirs[i] = new TestFilesDir(TestContext, TestFilesZipPaths[i], TestDirectoryName,
+                            TestFilesPersistent, IsExtractHere(i));
                     }
                 }
-
                 // Run test in new thread (Skyline on main thread).
                 Program.Init();
                 Settings.Default.SrmSettingsList[0] = SrmSettingsList.GetDefault();
@@ -733,7 +1034,7 @@ namespace pwiz.SkylineTestUtil
                 // For automated demos, start with the main window maximized
                 if (IsDemoMode)
                     Settings.Default.MainWindowMaximized = true;
-                var threadTest = new Thread(WaitForSkyline) { Name = "Functional test thread" }; // Not L10N
+                var threadTest = new Thread(WaitForSkyline) { Name = @"Functional test thread" };
                 LocalizationHelper.InitThread(threadTest);
                 threadTest.Start();
                 Program.Main();
@@ -764,13 +1065,14 @@ namespace pwiz.SkylineTestUtil
                     catch (Exception x)
                     {
                         Program.AddTestException(x);
+                        FileStreamManager.Default.CloseAllStreams();
                     }
                 }
             }
 
             if (Program.TestExceptions.Count > 0)
             {
-                //Log<AbstractFunctionalTest>.Exception("Functional test exception", Program.TestExceptions[0]); // Not L10N
+                //Log<AbstractFunctionalTest>.Exception(@"Functional test exception", Program.TestExceptions[0]);
                 const string errorSeparator = "------------------------------------------------------";
                 Assert.Fail("{0}{1}{2}{3}",
                     Environment.NewLine + Environment.NewLine,
@@ -781,9 +1083,159 @@ namespace pwiz.SkylineTestUtil
 
             if (!_testCompleted)
             {
-                //Log<AbstractFunctionalTest>.Fail("Functional test did not complete"); // Not L10N
+                //Log<AbstractFunctionalTest>.Fail(@"Functional test did not complete");
                 Assert.Fail("Functional test did not complete");
             }
+        }
+
+        private void BeginAuditLogging()
+        {
+            if (ShowStartPage)
+                return;
+            CleanupAuditLogs(); // Clean-up before to avoid appending to an existing autid log
+            SkylineWindow.DocumentChangedEvent += OnDocumentChangedLogging;
+            AuditLogEntry.ConvertPathsToFileNames = AuditLogConvertPathsToFileNames;
+        }
+
+        private void EndAuditLogging()
+        {
+            if (ShowStartPage)
+                return;
+            AuditLogEntry.ConvertPathsToFileNames = false;
+            SkylineWindow.DocumentChangedEvent -= OnDocumentChangedLogging;
+            VerifyAuditLogCorrect();
+            CleanupAuditLogs(); // Clean-up after to avoid appending to an existing autid log - if passed, then it matches expected
+        }
+
+        private string AuditLogDir
+        {
+            get { return Path.Combine(TestContext.TestRunResultsDirectory ?? TestContext.TestDir, "AuditLog"); }
+        }
+
+        private string AuditLogTutorialDir
+        {
+            get { return TestContext.GetProjectDirectory(@"TestTutorial\TutorialAuditLogs"); }
+        }
+
+        private readonly HashSet<AuditLogEntry> _setSeenEntries = new HashSet<AuditLogEntry>();
+
+        private void OnDocumentChangedLogging(object sender, DocumentChangedEventArgs e)
+        {
+            var log = SkylineWindow.Document.AuditLog;
+            if (e.IsOpeningFile)
+            {
+                _setSeenEntries.Clear();
+                for (var entry = log.AuditLogEntries; !entry.IsRoot; entry = entry.Parent)
+                    _setSeenEntries.Add(entry);
+                // Avoid logging newly deserialized entries
+                return;
+            }
+            LogNewEntries(log.AuditLogEntries);
+        }
+
+        private void LogNewEntries(AuditLogEntry entry)
+        {
+            if (entry.IsRoot || _setSeenEntries.Contains(entry))
+                return;
+            _setSeenEntries.Add(entry);
+
+            LogNewEntries(entry.Parent);
+            WriteEntryToFile(AuditLogDir, entry);
+        }
+
+        private void VerifyAuditLogCorrect()
+        {
+            var recordedFile = GetLogFilePath(AuditLogDir);
+            if (!AuditLogCompareLogs)
+                return;
+
+            // Ensure expected tutorial log file exists unless recording
+            var projectFile = GetLogFilePath(AuditLogTutorialDir);
+            bool existsInProject = File.Exists(projectFile);
+            if (!IsRecordAuditLogForTutorials)
+            {
+                Assert.IsTrue(existsInProject,
+                    "Log file for test \"{0}\" does not exist, set IsRecordAuditLogForTutorials=true to create it",
+                    TestContext.TestName);
+            }
+
+            // Compare file contents
+            var expected = existsInProject ? ReadTextWithNormalizedLineEndings(projectFile) : string.Empty;
+            var actual = ReadTextWithNormalizedLineEndings(recordedFile);
+            if (Equals(expected, actual))
+                return;
+
+            // They are not equal. So, report an intelligible error and potentially copy
+            // a new expected file to the project if in record mode.
+            if (!IsRecordAuditLogForTutorials)
+                AssertEx.NoDiff(expected, actual);
+            else
+            {
+                // Copy the just recorded file to the project for comparison or commit
+                File.Copy(recordedFile, projectFile, true);
+                if (!existsInProject)
+                    Console.WriteLine(@"Successfully recorded tutorial audit log");
+                else
+                    Console.WriteLine(@"Successfully recorded changed tutorial audit log");
+            }
+        }
+
+        private string ReadTextWithNormalizedLineEndings(string filePath)
+        {
+            // Mimic what AssertEx.NoDiff() does, which turns out to produce results
+            // somewhat different from File.ReadAllLines()
+            using (var reader = new StreamReader(filePath, Encoding.UTF8))
+            {
+                var sb = new StringBuilder();
+                string line;
+                while ((line = reader.ReadLine()) != null)
+                    sb.AppendLine(line);
+                return sb.ToString();
+            }
+        }
+
+        private void CleanupAuditLogs()
+        {
+            var recordedFile = GetLogFilePath(AuditLogDir);
+            if (File.Exists(recordedFile))
+                Helpers.TryTwice(() => File.Delete(recordedFile));    // Avoid appending to the same file on multiple runs
+        }
+
+        private string GetLogFilePath(string folderPath)
+        {
+            var language = CultureInfo.CurrentCulture.TwoLetterISOLanguageName;
+            var path = Path.Combine(folderPath, language);
+            if (!Directory.Exists(path))
+                Directory.CreateDirectory(path);
+
+            return Path.Combine(path, TestContext.TestName + ".log");
+        }
+
+        private void WriteEntryToFile(string folderPath, AuditLogEntry entry)
+        {
+            var filePath = GetLogFilePath(folderPath);
+            using (var fs = File.Open(filePath, FileMode.Append))
+            {
+                using (var sw = new StreamWriter(fs))
+                {
+                    sw.WriteLine(AuditLogEntryToString(entry));
+                }
+            }
+        }
+
+        private string AuditLogEntryToString(AuditLogEntry entry)
+        {
+            var result = string.Format("Undo Redo : {0}\r\n", entry.UndoRedo);
+            result += string.Format("Summary   : {0}\r\n", entry.Summary);
+            result += "All Info  :\r\n";
+
+            foreach (var allInfoItem in entry.AllInfo)
+                result += allInfoItem + "\r\n";
+
+            if (entry.ExtraInfo != null)
+                result += string.Format("Extra Info: {0}\r\n", LogMessage.ParseLogString(entry.ExtraInfo, LogLevel.all_info, entry.DocumentType));
+
+            return result;
         }
 
         private void WaitForSkyline()
@@ -803,10 +1255,15 @@ namespace pwiz.SkylineTestUtil
                 if (!ShowStartPage) 
                 {
                     Assert.IsTrue(Program.MainWindow != null && Program.MainWindow.IsHandleCreated,
-                    "Timeout {0} seconds exceeded in WaitForSkyline", waitCycles * SLEEP_INTERVAL / 1000); // Not L10N
+                    @"Timeout {0} seconds exceeded in WaitForSkyline", waitCycles * SLEEP_INTERVAL / 1000);
                 }
                 Settings.Default.Reset();
+                Settings.Default.TestSmallMolecules = TestSmallMolecules;
+                Settings.Default.ImportResultsAutoCloseWindow = true;
+                Settings.Default.ImportResultsSimultaneousFiles = (int)MultiFileLoader.ImportResultsSimultaneousFileOptions.many;    // use maximum threads for multiple file import
+                BeginAuditLogging();
                 RunTest();
+                EndAuditLogging();
             }
             catch (Exception x)
             {
@@ -814,6 +1271,7 @@ namespace pwiz.SkylineTestUtil
                 Program.AddTestException(x);
             }
 
+            Settings.Default.Reset();
             EndTest();
         }
 
@@ -842,8 +1300,8 @@ namespace pwiz.SkylineTestUtil
             ClipboardEx.UseInternalClipboard();
             ClipboardEx.Clear();
 
-            var doClipboardCheck = TestContext.Properties.Contains("ClipboardCheck"); // Not L10N
-            string clipboardCheckText = doClipboardCheck ? (string)TestContext.Properties["ClipboardCheck"] : String.Empty; // Not L10N
+            var doClipboardCheck = TestContext.Properties.Contains(@"ClipboardCheck");
+            string clipboardCheckText = doClipboardCheck ? (string)TestContext.Properties[@"ClipboardCheck"] : String.Empty;
             if (doClipboardCheck)
             {
                 RunUI(() => Clipboard.SetText(clipboardCheckText));
@@ -865,7 +1323,16 @@ namespace pwiz.SkylineTestUtil
         {
             var skylineWindow = Program.MainWindow;
             if (skylineWindow == null || skylineWindow.IsDisposed || !IsFormOpen(skylineWindow))
+            {
+                if (Program.StartWindow != null)
+                {
+                    CloseOpenForms(typeof(StartPage));
+                    _testCompleted = true;
+                    RunUI(Program.StartWindow.Close);
+                }
+
                 return;
+            }
 
             try
             {
@@ -873,8 +1340,19 @@ namespace pwiz.SkylineTestUtil
                 // holds no file handles.
                 var docNew = new SrmDocument(SrmSettingsList.GetDefault());
                 RunUI(() => SkylineWindow.SwitchDocument(docNew, null));
-                WaitForGraphs();
 
+                WaitForCondition(1000, () => !FileStreamManager.Default.HasPooledStreams, string.Empty, false);
+                if (FileStreamManager.Default.HasPooledStreams)
+                {
+                    // Just write to console to provide more information. This should cause a failure
+                    // trying to remove the test directory, which will provide a path to the problem file
+                    Console.WriteLine(TextUtil.LineSeparate("Streams left open:", string.Empty,
+                        FileStreamManager.Default.ReportPooledStreams()));
+                }
+
+                WaitForGraphs(false);
+                // Wait for any background loaders to notice the change and stop what they're doing
+                WaitForBackgroundLoaders();
                 // Restore minimal View to close dock windows.
                 RestoreMinimalView();
 
@@ -893,53 +1371,72 @@ namespace pwiz.SkylineTestUtil
                 Program.AddTestException(x);
             }
 
-            foreach (var messageDlg in OpenForms.OfType<MessageDlg>())
-            {
-// ReSharper disable LocalizableElement
-                Console.WriteLine("\n\nOpen MessageDlg: {0}\n", messageDlg.Message); // Not L10N
-// ReSharper restore LocalizableElement
-            }
-
-            // Actually throwing an exception can cause an infinite loop in MSTest
-            var openForms = OpenForms.Where(form => !(form is SkylineWindow)).ToList();
-            Program.TestExceptions.AddRange(
-                from form in openForms
-                select new AssertFailedException(
-                    String.Format("Form of type {0} left open at end of test", form.GetType()))); // Not L10N
-            RunUI(() =>
-            {
-                foreach (var form in openForms)
-                {
-                    try
-                    {
-                        form.Close();
-                    }
-// ReSharper disable EmptyGeneralCatchClause
-                    catch
-// ReSharper restore EmptyGeneralCatchClause
-                    {
-                    }
-                }
-            });
+            CloseOpenForms(typeof(SkylineWindow));
 
             _testCompleted = true;
 
-            // Clear the clipboard to avoid the appearance of a memory leak.
-            ClipboardEx.Release();
-
             try
             {
+                // Clear the clipboard to avoid the appearance of a memory leak.
+                ClipboardEx.Release();
                 // Occasionally this causes an InvalidOperationException during stress testing.
                 RunUI(SkylineWindow.Close);
             }
 // ReSharper disable EmptyGeneralCatchClause
+            catch (System.ComponentModel.InvalidAsynchronousStateException)
+            {
+                // This gets thrown a lot during nightly tests under Windows 10
+            }
             catch (InvalidOperationException)
 // ReSharper restore EmptyGeneralCatchClause
             {
             }
         }
 
-        
+        private void CloseOpenForms(Type exceptType)
+        {
+            // Actually throwing an exception can cause an infinite loop in MSTest
+            var openForms = OpenForms.Where(form => form.GetType() != exceptType).ToList();
+            Program.TestExceptions.AddRange(
+                from form in openForms
+                select new AssertFailedException(
+                    String.Format(@"Form of type {0} left open at end of test", form.GetType())));
+            while (openForms.Count > 0)
+                CloseOpenForm(openForms.First(), openForms);
+        }
+
+        private void CloseOpenForm(Form formToClose, List<Form> openForms)
+        {
+            openForms.Remove(formToClose);
+            // Close any owned forms, since they may be pushing message loops that would keep this form
+            // from closing.
+            foreach (var ownedForm in formToClose.OwnedForms)
+            {
+                CloseOpenForm(ownedForm, openForms);
+            }
+
+            var messageDlg = formToClose as AlertDlg;
+            // ReSharper disable LocalizableElement
+            if (messageDlg == null)
+                Console.WriteLine("\n\nClosing open form of type {0}\n", formToClose.GetType()); // Not L10N
+            else
+                Console.WriteLine("\n\nClosing open MessageDlg: {0}\n", TextUtil.LineSeparate(messageDlg.Message, messageDlg.DetailMessage)); // Not L10N
+            // ReSharper restore LocalizableElement
+
+            RunUI(() =>
+            {
+                try
+                {
+                    formToClose.Close();
+                }
+                catch
+                {
+                    // Ignore exceptions
+                }
+            });
+        }
+
+
         /// <summary>
         /// Restore minimal view layout in order to close extra windows. 
         /// </summary>
@@ -950,7 +1447,7 @@ namespace pwiz.SkylineTestUtil
                 typeof(AbstractFunctionalTest).Namespace + ".minimal.sky.view"); // Not L10N
             Assert.IsNotNull(layoutStream);
             RunUI(() => SkylineWindow.LoadLayout(layoutStream));
-            WaitForConditionUI(() => true);
+            WaitForConditionUI(WAIT_TIME, () => true, null, true, false);
         }
 
         public void RestoreViewOnScreen(int pageNum)
@@ -987,16 +1484,31 @@ namespace pwiz.SkylineTestUtil
 
         public static void RemovePeptide(string peptideSequence, bool isDecoy = false)
         {
+            RemovePeptide(new Target(peptideSequence), isDecoy);
+        }
+
+        public static void RemoveTargetByDisplayName(string targetName)
+        {
             var docStart = SkylineWindow.Document;
-            var nodePeptide = docStart.Peptides.FirstOrDefault(nodePep =>
-                Equals(peptideSequence, nodePep.Peptide.Sequence) &&
+            var nodePeptide = docStart.Molecules.FirstOrDefault(nodePep =>
+                Equals(targetName, nodePep.Peptide.Target.DisplayName));
+
+            Assert.IsNotNull(nodePeptide);
+            RemovePeptide(nodePeptide.Target);
+        }
+
+        public static void RemovePeptide(Target peptideSequence, bool isDecoy = false)
+        {
+            var docStart = SkylineWindow.Document;
+            var nodePeptide = docStart.Molecules.FirstOrDefault(nodePep =>
+                Equals(peptideSequence, nodePep.Peptide.Target) &&
                 isDecoy == nodePep.IsDecoy);
 
             Assert.IsNotNull(nodePeptide);
 
             RunDlg<FindNodeDlg>(SkylineWindow.ShowFindNodeDlg, findPeptideDlg =>
             {
-                findPeptideDlg.SearchString = peptideSequence;
+                findPeptideDlg.SearchString = peptideSequence.DisplayName;
                 findPeptideDlg.FindNext();
                 while (!SkylineWindow.SequenceTree.SelectedDocNodes.Contains(nodePeptide))
                     findPeptideDlg.FindNext();
@@ -1006,15 +1518,15 @@ namespace pwiz.SkylineTestUtil
             RunUI(SkylineWindow.EditDelete);
 
             Assert.IsTrue(WaitForCondition(() => !SkylineWindow.Document.Peptides.Any(nodePep =>
-                Equals(peptideSequence, nodePep.Peptide.Sequence) &&
+                Equals(peptideSequence, nodePep.Peptide.Target) &&
                 isDecoy == nodePep.IsDecoy)));
             if (nodePeptide == null)
                 Assert.Fail(); // Resharper
             AssertEx.IsDocumentState(SkylineWindow.Document, null,
-                                     docStart.PeptideGroupCount,
-                                     docStart.PeptideCount - 1,
-                                     docStart.PeptideTransitionGroupCount - nodePeptide.TransitionGroupCount,
-                                     docStart.PeptideTransitionCount - nodePeptide.TransitionCount);
+                                     docStart.MoleculeGroupCount,
+                                     docStart.MoleculeCount - 1,
+                                     docStart.MoleculeTransitionGroupCount - nodePeptide.TransitionGroupCount,
+                                     docStart.MoleculeTransitionCount - nodePeptide.TransitionCount);
         }
 
         public static SrmDocument WaitForProteinMetadataBackgroundLoaderCompletedUI(int millis = WAIT_TIME)
@@ -1133,6 +1645,7 @@ namespace pwiz.SkylineTestUtil
         public void ImportResultsFile(string fileName, int waitForLoadSeconds = 420, string expectedErrorMessage = null,
             LockMassParameters lockMassParameters = null)
         {
+            var docBefore = SkylineWindow.Document;
             var importResultsDlg = ShowDialog<ImportResultsDlg>(SkylineWindow.ImportResults);
             RunDlg<OpenDataSourceDialog>(() => importResultsDlg.NamedPathSets = importResultsDlg.GetDataSourcePathsFile(null),
                openDataSourceDialog =>
@@ -1141,15 +1654,20 @@ namespace pwiz.SkylineTestUtil
                    openDataSourceDialog.Open();
                });
             WaitForConditionUI(() => importResultsDlg.NamedPathSets != null);
-            RunUI(importResultsDlg.OkDialog);
-            if (lockMassParameters != null)
+            if (lockMassParameters == null)
             {
-                var dlg = WaitForOpenForm<ImportResultsLockMassDlg>();
-                dlg.LockmassPositive = lockMassParameters.LockmassPositive ?? 0;
-                dlg.LockmassNegative = lockMassParameters.LockmassNegative ?? 0;
-                dlg.LockmassTolerance = lockMassParameters.LockmassTolerance ?? 0;
-                dlg.OkDialog();
-            } 
+                OkDialog(importResultsDlg, importResultsDlg.OkDialog);
+            }
+            else
+            {
+                RunDlg<ImportResultsLockMassDlg>(importResultsDlg.OkDialog, dlg =>
+                {
+                    dlg.LockmassPositive = lockMassParameters.LockmassPositive ?? 0;
+                    dlg.LockmassNegative = lockMassParameters.LockmassNegative ?? 0;
+                    dlg.LockmassTolerance = lockMassParameters.LockmassTolerance ?? 0;
+                    dlg.OkDialog();
+                });
+            }
             if (expectedErrorMessage != null)
             {
                 var dlg = WaitForOpenForm<MessageDlg>();
@@ -1158,8 +1676,8 @@ namespace pwiz.SkylineTestUtil
             }
             else
             {
-                WaitForCondition(waitForLoadSeconds * 1000,
-                    () => SkylineWindow.Document.Settings.HasResults && SkylineWindow.Document.Settings.MeasuredResults.IsLoaded);
+                WaitForDocumentChangeLoaded(docBefore, waitForLoadSeconds*1000);
+                WaitForClosedAllChromatogramsGraph();
             }
         }
 
@@ -1171,13 +1689,14 @@ namespace pwiz.SkylineTestUtil
                 importResultsDlg.RadioAddNewChecked = true;
                 importResultsDlg.OptimizationName = ExportOptimize.CE;
                 importResultsDlg.NamedPathSets = DataSourceUtil.GetDataSourcesInSubdirs(replicatesDirName).ToArray();
-                string prefix = ImportResultsDlg.GetCommonPrefix(Array.ConvertAll(importResultsDlg.NamedPathSets, ns => ns.Key));
-                // Rename all the replicates to remove the specified prefix, so that dialog doesn't pop up.
+                string prefix = importResultsDlg.NamedPathSets.Select(ns => ns.Key).GetCommonPrefix();
+                string suffix = importResultsDlg.NamedPathSets.Select(ns => ns.Key).GetCommonSuffix();
+                // Rename all the replicates to remove the specified prefix and/or suffix, so those dialogs don't pop up.
                 for (int i = 0; i < importResultsDlg.NamedPathSets.Length; i++)
                 {
                     var namedSet = importResultsDlg.NamedPathSets[i];
                     importResultsDlg.NamedPathSets[i] = new KeyValuePair<string, MsDataFileUri[]>(
-                        namedSet.Key.Substring(prefix.Length), namedSet.Value);
+                        namedSet.Key.Substring(prefix.Length, namedSet.Key.Length - (prefix.Length+suffix.Length)), namedSet.Value);
                 }
                 importResultsDlg.OkDialog();
             });
@@ -1191,7 +1710,7 @@ namespace pwiz.SkylineTestUtil
             var importResultsDlg = ShowDialog<ImportResultsDlg>(SkylineWindow.ImportResults);
             RunUI(() => importResultsDlg.NamedPathSets = importResultsDlg.GetDataSourcePathsFileReplicates(fileNames));
 
-            string prefix = ImportResultsDlg.GetCommonPrefix(fileNames.Select(f => f.GetFileName()));
+            string prefix = fileNames.Select(f => f.GetFileName()).GetCommonPrefix();
             if (prefix.Length < ImportResultsDlg.MIN_COMMON_PREFIX_LENGTH)
             {
                 OkDialog(importResultsDlg, importResultsDlg.OkDialog);
@@ -1199,7 +1718,7 @@ namespace pwiz.SkylineTestUtil
             else
             {
                 ImportResultsNameDlg importResultsNameDlg = ShowDialog<ImportResultsNameDlg>(importResultsDlg.OkDialog);
-                RunUI(importResultsNameDlg.YesDialog);
+                OkDialog(importResultsNameDlg, importResultsNameDlg.OkDialog);
             }
             WaitForCondition(waitForLoadSeconds * 1000,
                 () => SkylineWindow.Document.Settings.HasResults && SkylineWindow.Document.Settings.MeasuredResults.IsLoaded);
@@ -1239,6 +1758,76 @@ namespace pwiz.SkylineTestUtil
                     OkDialog(importResultsNameDlg, importResultsNameDlg.NoDialog);
             }
             WaitForDocumentChange(doc);
+        }
+
+        #endregion
+
+        #region Spectral library test helpers
+
+        public static IList<DbRefSpectra> GetRefSpectra(string filename)
+        {
+            using (var connection = new SQLiteConnection(string.Format("Data Source='{0}';Version=3", filename)))
+            {
+                connection.Open();
+                return GetRefSpectra(connection);
+            }
+        }
+
+        private static double? ParseNullable(SQLiteDataReader reader, int ordinal)
+        {
+            if (ordinal < 0)
+                return null;
+            var str = reader[ordinal].ToString();
+            if (string.IsNullOrEmpty(str))
+                return null;
+            return double.Parse(str);
+        }
+
+        public static IList<DbRefSpectra> GetRefSpectra(SQLiteConnection connection)
+        {
+            var list = new List<DbRefSpectra>();
+            using (var select = new SQLiteCommand(connection) {CommandText = "SELECT * FROM RefSpectra"})
+            using (var reader = @select.ExecuteReader())
+            {
+                var iAdduct = reader.GetOrdinal("precursorAdduct");
+                var iIonMobility = reader.GetOrdinal("ionMobility");
+                var iCCS = reader.GetOrdinal("collisionalCrossSectionSqA");
+                while (reader.Read())
+                {
+                    list.Add(new DbRefSpectra
+                    {
+                        PeptideSeq = reader["peptideSeq"].ToString(),
+                        PeptideModSeq = reader["peptideModSeq"].ToString(),
+                        PrecursorCharge = int.Parse(reader["precursorCharge"].ToString()),
+                        PrecursorAdduct = iAdduct < 0 ? string.Empty : reader[iAdduct].ToString(),
+                        PrecursorMZ = double.Parse(reader["precursorMZ"].ToString()),
+                        RetentionTime = double.Parse(reader["retentionTime"].ToString()),
+                        IonMobility = ParseNullable(reader, iIonMobility),
+                        CollisionalCrossSectionSqA = ParseNullable(reader, iCCS),
+                        NumPeaks = ushort.Parse(reader["numPeaks"].ToString())
+                    });
+                }
+                return list;
+            }
+        }
+
+        public static void CheckRefSpectra(IList<DbRefSpectra> spectra, string peptideSeq, string peptideModSeq, int precursorCharge, double precursorMz, ushort numPeaks, double rT, IonMobilityAndCCS im = null)
+        {
+            for (var i = 0; i < spectra.Count; i++)
+            {
+                var spectrum = spectra[i];
+                if (spectrum.PeptideSeq.Equals(peptideSeq) &&
+                    spectrum.PeptideModSeq.Equals(peptideModSeq) &&
+                    spectrum.PrecursorCharge.Equals(precursorCharge) &&
+                    Math.Abs((spectrum.RetentionTime ?? 0) - rT) < 0.001 &&
+                    Math.Abs(spectrum.PrecursorMZ - precursorMz) < 0.001 &&
+                    spectrum.NumPeaks.Equals(numPeaks))
+                {
+                    spectra.RemoveAt(i);
+                    return;
+                }
+            }
+            Assert.Fail("{0} [{1}], precursor charge {2}, precursor m/z {3}, RT {4} with {5} peaks not found", peptideSeq, peptideModSeq, precursorCharge, precursorMz, rT, numPeaks);
         }
 
         #endregion

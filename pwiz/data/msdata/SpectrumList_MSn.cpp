@@ -38,6 +38,7 @@ namespace msdata {
 using boost::iostreams::stream_offset;
 using boost::iostreams::offset_to_position;
 using namespace pwiz::chemistry;
+using namespace pwiz::util;
 
 
 namespace {
@@ -233,8 +234,8 @@ class SpectrumList_MSnImpl : public SpectrumList_MSn
     double basePeakIntensity = 0;
     spectrum.defaultArrayLength = 0;
     spectrum.setMZIntensityArrays(vector<double>(), vector<double>(), MS_number_of_detector_counts);
-    vector<double>& mzArray = spectrum.getMZArray()->data;
-    vector<double>& intensityArray = spectrum.getIntensityArray()->data;
+    BinaryData<double>& mzArray = spectrum.getMZArray()->data;
+    BinaryData<double>& intensityArray = spectrum.getIntensityArray()->data;
     double precursor_mz = 0;
     
     // start reading the file
@@ -313,7 +314,7 @@ class SpectrumList_MSnImpl : public SpectrumList_MSn
             double z_precursor_mz = calculateMassOverCharge(
                 lexical_cast<double>(lineStr.substr(last_space_pos+1, last_num_pos-last_space_pos)), charge, 1);
             stringstream ss;
-            ss << charge << ' ' << z_precursor_mz;
+            ss << charge << ' ' << std::fixed << std::setprecision(4) << z_precursor_mz;
             // Store Z line information in UserParams, in the format "<charge> <m/z calculated from Z line mass>"
             spectrum.userParams.push_back(UserParam("ms2 file charge state", ss.str()));
         }
@@ -586,8 +587,8 @@ class SpectrumList_MSnImpl : public SpectrumList_MSn
     double basePeakIntensity = 0;
     spectrum.defaultArrayLength = 0;
     spectrum.setMZIntensityArrays(vector<double>(), vector<double>(), MS_number_of_detector_counts);
-    vector<double>& mzArray = spectrum.getMZArray()->data;
-    vector<double>& intensityArray = spectrum.getIntensityArray()->data;
+    BinaryData<double>& mzArray = spectrum.getMZArray()->data;
+    BinaryData<double>& intensityArray = spectrum.getIntensityArray()->data;
     double mz = 0;
     float intensity = 0;
 

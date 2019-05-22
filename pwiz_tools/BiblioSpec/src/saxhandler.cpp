@@ -20,7 +20,6 @@
 //
 
 #include "stdafx.h"
-
 #include "saxhandler.h"
 
 namespace BiblioSpec {
@@ -41,24 +40,26 @@ static void charactersCallback(void *data, const XML_Char *s, int len)
     ((SAXHandler*) data)->characters(s, len);
 }
 
-
 SAXHandler::SAXHandler()
 {
-    m_parser_ = XML_ParserCreate(NULL);
     m_strFileName_.clear();
     m_bytes_ = NULL;
     m_bytesLen_ = 0;
-    XML_SetUserData(m_parser_, this);
-    XML_SetElementHandler(m_parser_, startElementCallback, endElementCallback);
-    XML_SetCharacterDataHandler(m_parser_, charactersCallback);
+    initParser();
 }
-
 
 SAXHandler::~SAXHandler()
 {
     XML_ParserFree(m_parser_);
 }
 
+void SAXHandler::initParser()
+{
+    m_parser_ = XML_ParserCreate(NULL);
+    XML_SetUserData(m_parser_, this);
+    XML_SetElementHandler(m_parser_, startElementCallback, endElementCallback);
+    XML_SetCharacterDataHandler(m_parser_, charactersCallback);
+}
 
 void SAXHandler::startElement(const XML_Char *el, const XML_Char **attr)
 {
@@ -68,17 +69,16 @@ void SAXHandler::endElement(const XML_Char *el)
 {
 }
 
-
 void SAXHandler::characters(const XML_Char *s, int len)
 {
 }
 
 bool SAXHandler::parse()
 {
-    FILE* pfIn = NULL;
+    std::unique_ptr<ifstream> pfIn;
     if (!m_strFileName_.empty()) {
-        pfIn = fopen(m_strFileName_.data(), "r");
-        if (pfIn == NULL) {
+        pfIn.reset(new ifstream(m_strFileName_.c_str(), ios::binary));
+        if (!*pfIn) {
             throw BlibException(true, "Failed to open input file '%s'.", 
                                 m_strFileName_.c_str());
         }
@@ -91,21 +91,25 @@ bool SAXHandler::parse()
     string message;
     
     try {
-        if (pfIn == NULL) {
+        if (!pfIn) {
             success = (XML_Parse(m_parser_, m_bytes_, m_bytesLen_, true) != 0);
         } else {
-        // HACK!! I have no idea why this is, but without this string
-        // declaration, the MSVC optimizer removes the catch block below.
-        // Very mysterious.
-        string temp;
-        
-        char buffer[8192];
-        int readBytes = 0;
-        
-        while (success && (readBytes = (int) fread(buffer, 1, sizeof(buffer), pfIn)) != 0) {
-            success = (XML_Parse(m_parser_, buffer, readBytes, false) != 0);
-        }
-        success = success && (XML_Parse(m_parser_, buffer, 0, true) != 0);
+            // HACK!! I have no idea why this is, but without this string
+            // declaration, the MSVC optimizer removes the catch block below.
+            // Very mysterious.
+            string temp;
+
+            char buffer[8192];
+            int readBytes = 0;
+
+            while (success) {
+                pfIn->read(buffer, sizeof(buffer));
+                readBytes = pfIn->gcount();
+                success = (XML_Parse(m_parser_, buffer, readBytes, false) != 0);
+                if (!success || readBytes < sizeof(buffer))
+                    break;
+            }
+            success = success && (XML_Parse(m_parser_, buffer, 0, true) != 0);
         }
     }
     catch(string thrown_msg) { // from parsers
@@ -114,9 +118,6 @@ bool SAXHandler::parse()
     }
     catch(BlibException e) { // probably from BuildParser
         if( e.hasFilename() ){
-            if (pfIn != NULL) {
-                fclose(pfIn);
-            }
             throw e;
         } else {
             message = e.what();
@@ -127,59 +128,36 @@ bool SAXHandler::parse()
         message = e.what();
         success = false;
     }
-    
-    if (pfIn != NULL) {
-        fclose(pfIn);
-    }
-    
+
     if (!success) {
-        XML_Error error = XML_GetErrorCode(m_parser_);
-        int lineNum = XML_GetCurrentLineNumber(m_parser_);
-        ostringstream stringBuilder(ostringstream::out);
-        
-        stringBuilder << m_strFileName_
-                      << "(line " << lineNum
-                      << "): " << message << flush;
-        
-        if (message.length() == 0) {
-            switch (error) {
-            case XML_ERROR_SYNTAX:
-                stringBuilder << "Syntax error parsing XML.";
-                break;
-            case XML_ERROR_INVALID_TOKEN:
-                stringBuilder << "Invalid token error parsing XML.";
-                break;
-            case XML_ERROR_UNCLOSED_TOKEN:
-                stringBuilder << "Unclosed token error parsing XML.";
-                break;
-            case XML_ERROR_NO_ELEMENTS:
-                stringBuilder << "No elements error parsing XML.";
-                break;
-            case XML_ERROR_TAG_MISMATCH:
-                stringBuilder << "Tag mismatch error parsing XML.";
-                break;
-            case XML_ERROR_DUPLICATE_ATTRIBUTE:
-                stringBuilder << "Duplicate attribute error parsing XML.";
-                break;
-            case XML_ERROR_UNKNOWN_ENCODING:
-            case XML_ERROR_INCORRECT_ENCODING:
-                stringBuilder << "Unknown or incorrect encoding XML error.";
-                break;
-            case XML_ERROR_UNCLOSED_CDATA_SECTION:
-                stringBuilder << "Unclosed data section error parsing XML.";
-                break;
-                
-            default:
-                stringBuilder << "XML parsing error.";
-                break;
-            }
-        }
-        
-        string er_msg = stringBuilder.str();
-        throw BlibException(true, er_msg.c_str());
+        string error = generateError(message.empty() ? getParserError() : message);
+        throw BlibException(true, error.c_str());
     }
     
     return true;
+}
+
+string SAXHandler::generateError(const string& message) {
+    stringstream ss;
+    ss << m_strFileName_
+       << "(line " << XML_GetCurrentLineNumber(m_parser_) << "): "
+       << message;
+   return ss.str();
+}
+
+string SAXHandler::getParserError() {
+    switch (XML_GetErrorCode(m_parser_)) {
+        case XML_ERROR_SYNTAX:                 return "Syntax error parsing XML.";
+        case XML_ERROR_INVALID_TOKEN:          return "Invalid token error parsing XML.";
+        case XML_ERROR_UNCLOSED_TOKEN:         return "Unclosed token error parsing XML.";
+        case XML_ERROR_NO_ELEMENTS:            return "No elements error parsing XML.";
+        case XML_ERROR_TAG_MISMATCH:           return "Tag mismatch error parsing XML.";
+        case XML_ERROR_DUPLICATE_ATTRIBUTE:    return "Duplicate attribute error parsing XML.";
+        case XML_ERROR_UNKNOWN_ENCODING:       return "Unknown encoding XML error.";
+        case XML_ERROR_INCORRECT_ENCODING:     return "Incorrect encoding XML error.";
+        case XML_ERROR_UNCLOSED_CDATA_SECTION: return "Unclosed data section error parsing XML.";
+        default:                               return "XML parsing error.";
+    }
 }
 
 } // namespace

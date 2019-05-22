@@ -27,6 +27,7 @@ using pwiz.Skyline.Alerts;
 using pwiz.Skyline.FileUI;
 using pwiz.Skyline.Model;
 using pwiz.Skyline.Model.DocSettings;
+using pwiz.Skyline.Model.DocSettings.Extensions;
 using pwiz.Skyline.Model.Results;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.SettingsUI;
@@ -41,13 +42,15 @@ namespace pwiz.SkylineTestFunctional
     [TestClass]
     public class RetentionTimeFilterTest : AbstractFunctionalTest
     {
-        private const string extension = ".mz5";
+        private readonly string extension = ExtensionTestContext.ExtMz5;
+        
         [TestMethod]
         public void TestRetentionTimeFilter()
         {
             TestFilesZip = @"TestFunctional\RetentionTimeFilterTest.zip";
             RunFunctionalTest();
         }
+
         protected override void DoTest()
         {
             TestUsePredictedTime();
@@ -57,10 +60,10 @@ namespace pwiz.SkylineTestFunctional
         {
             const double FILTER_LENGTH = 2.7;
             RunUI(() => SkylineWindow.OpenFile(TestFilesDir.GetTestPath("RetentionTimeFilterTest.sky")));
-            WaitForDocumentLoaded();
+            var docStart = WaitForDocumentLoaded();
             RunUI(() => SkylineWindow.SaveDocument(TestFilesDir.GetTestPath("TestUsePredictedTime.sky")));
-            SetUiDocument(ChangeFullScanSettings(SkylineWindow.Document, SkylineWindow.Document.Settings.TransitionSettings.FullScan
-                .ChangeRetentionTimeFilter(RetentionTimeFilterType.scheduling_windows, FILTER_LENGTH)));
+            SetUiDocument(docStart.ChangeSettings(docStart.Settings.ChangeTransitionFullScan(f =>
+                f.ChangeRetentionTimeFilter(RetentionTimeFilterType.scheduling_windows, FILTER_LENGTH))));
             Assert.IsNull(SkylineWindow.Document.Settings.PeptideSettings.Prediction.RetentionTime);
             Assert.IsFalse(SkylineWindow.Document.Settings.PeptideSettings.Prediction.UseMeasuredRTs);
             // When we try to import a file, we should get an error about not having a peptide prediction algorithm
@@ -75,8 +78,10 @@ namespace pwiz.SkylineTestFunctional
                 new RetentionScoreCalculator(RetentionTimeRegression.SSRCALC_100_A), .63,
                 5.8, 1.4, new MeasuredRetentionTime[0]);
             // Now give the document a prediction algorithm
-            SetUiDocument(ChangePeptidePrediction(SkylineWindow.Document, SkylineWindow.Document.Settings.PeptideSettings.
-                Prediction.ChangeRetentionTime(ssrCalcRegression)));
+            var docBeforeImport = SkylineWindow.Document;
+            docBeforeImport = docBeforeImport.ChangeSettings(docBeforeImport.Settings.ChangePeptidePrediction(p =>
+                p.ChangeRetentionTime(ssrCalcRegression)));
+            SetUiDocument(docBeforeImport);
             // Now import two result files
             {
                 var importResultsDlg = ShowDialog<ImportResultsDlg>(SkylineWindow.ImportResults);
@@ -88,9 +93,8 @@ namespace pwiz.SkylineTestFunctional
                 });
                 OkDialog(openDataSourceDialog, openDataSourceDialog.Open);
             }
-            WaitForResultsImport();
             {
-                var document = WaitForDocumentLoaded();
+                var document = WaitForDocumentChangeLoaded(docBeforeImport);
                 foreach (var chromatogramSet in document.Settings.MeasuredResults.Chromatograms)
                 {
                     foreach (var tuple in LoadAllChromatograms(document, chromatogramSet))
@@ -100,7 +104,7 @@ namespace pwiz.SkylineTestFunctional
                             continue;
                         var transitionGroup = tuple.Item2;
                         var predictedRetentionTime = ssrCalcRegression.GetRetentionTime(
-                            document.Settings.GetModifiedSequence(peptide.Peptide.Sequence,
+                            document.Settings.GetModifiedSequence(peptide.Peptide.Target,
                                 transitionGroup.TransitionGroup.LabelType, peptide.ExplicitMods)).Value;
                         AssertChromatogramWindow(document, chromatogramSet, 
                             predictedRetentionTime - FILTER_LENGTH, 
@@ -111,11 +115,11 @@ namespace pwiz.SkylineTestFunctional
             ChromatogramSet chromSetForScheduling = SkylineWindow.Document.Settings.MeasuredResults.Chromatograms[1];
             // Create a SrmDocument with just the one ChromatogramSet that we are going to use for scheduling, so that
             // we can assert later that the chromatogram windows are where this document says they should be.
-            SrmDocument documentForScheduling =
-                SkylineWindow.Document.ChangeMeasuredResults(
+            var docForScheduling = SkylineWindow.Document.ChangeMeasuredResults(
                     SkylineWindow.Document.Settings.MeasuredResults.ChangeChromatograms(new[] {chromSetForScheduling}));
-            SetUiDocument(ChangePeptidePrediction(SkylineWindow.Document, SkylineWindow.Document.Settings.PeptideSettings
-                .Prediction.ChangeUseMeasuredRTs(true).ChangeRetentionTime(null)));
+            docForScheduling = docForScheduling.ChangeSettings(docForScheduling.Settings.ChangePeptidePrediction(p =>
+                p.ChangeUseMeasuredRTs(true).ChangeRetentionTime(null)));
+            SetUiDocument(docForScheduling);
             {
                 var chooseSchedulingReplicatesDlg = ShowDialog<ChooseSchedulingReplicatesDlg>(SkylineWindow.ImportResults);
                 // Choose a scheduling replicate (the one saved above)
@@ -123,23 +127,23 @@ namespace pwiz.SkylineTestFunctional
                     chromSetForScheduling, true)));
                 var importResultsDlg = ShowDialog<ImportResultsDlg>(chooseSchedulingReplicatesDlg.OkDialog);
                 var openDataSourceDialog = ShowDialog<OpenDataSourceDialog>(importResultsDlg.OkDialog);
-                RunUI(()=>openDataSourceDialog.SelectFile("40fmol" + extension));
+                RunUI(() => openDataSourceDialog.SelectFile("40fmol" + extension));
                 OkDialog(openDataSourceDialog, openDataSourceDialog.Open);
             }
-            WaitForResultsImport();
             {
-                var document = WaitForDocumentLoaded();
+                WaitForCondition(() => SkylineWindow.Document.Settings.MeasuredResults.Chromatograms.Any(cs => cs.Name == "40fmol")); 
+                var document = WaitForDocumentChangeLoaded(docForScheduling);
                 var chromatogramSet = document.Settings.MeasuredResults.Chromatograms.First(cs => cs.Name == "40fmol");
                 int countNull = 0;
                 foreach (var tuple in LoadAllChromatograms(document, chromatogramSet))
                 {
-                    var prediction = new PeptidePrediction(null, null, true, 1, false, 0);
+                    var prediction = new PeptidePrediction(null, null, true, 1, false, IonMobilityWindowWidthCalculator.EMPTY);
                     double windowRtIgnored;
 
                     var schedulingPeptide =
-                        documentForScheduling.Molecules.First(pep => ReferenceEquals(pep.Peptide, tuple.Item1.Peptide));
+                        docForScheduling.Molecules.First(pep => ReferenceEquals(pep.Peptide, tuple.Item1.Peptide));
                     var schedulingTransitionGroup = (TransitionGroupDocNode) schedulingPeptide.FindNode(tuple.Item2.TransitionGroup);
-                    double? predictedRt = prediction.PredictRetentionTime(documentForScheduling, 
+                    double? predictedRt = prediction.PredictRetentionTime(docForScheduling, 
                         schedulingPeptide, 
                         schedulingTransitionGroup, 
                         null, ExportSchedulingAlgorithm.Average, true, out windowRtIgnored);
@@ -155,6 +159,7 @@ namespace pwiz.SkylineTestFunctional
 
             // Test using iRT with auto-calculated regression
             {
+                var docBeforeSettingsChange = SkylineWindow.Document;
                 const string calcName = "TestCalculator";
                 const string regressionName = "TestCalculatorAutoCalcRegression";
                 var peptideSettingsDlg = ShowDialog<PeptideSettingsUI>(SkylineWindow.ShowPeptideSettingsUI);
@@ -183,13 +188,13 @@ namespace pwiz.SkylineTestFunctional
                     peptideSettingsDlg.UseMeasuredRT(false);
                 });
                 OkDialog(peptideSettingsDlg, peptideSettingsDlg.OkDialog);
+                docBeforeImport = WaitForDocumentChange(docBeforeSettingsChange);
                 Assert.IsFalse(SkylineWindow.Document.Settings.PeptideSettings.Prediction.UseMeasuredRTs);
                 var importResultsDlg = ShowDialog<ImportResultsDlg>(SkylineWindow.ImportResults);
                 var openDataSourceDialog = ShowDialog<OpenDataSourceDialog>(importResultsDlg.OkDialog);
                 RunUI(() => openDataSourceDialog.SelectFile("8fmol" + extension));
                 OkDialog(openDataSourceDialog, openDataSourceDialog.Open);
-                WaitForResultsImport();
-                var document = WaitForDocumentLoaded();
+                var document = WaitForDocumentChangeLoaded(docBeforeImport);
                 var chromatogramSet = document.Settings.MeasuredResults.Chromatograms.First(cs => cs.Name == "8fmol");
                 
                 var regressionLine =
@@ -209,7 +214,7 @@ namespace pwiz.SkylineTestFunctional
                     if (tuple.Item1.GlobalStandardType != PeptideDocNode.STANDARD_TYPE_IRT)
                     {
                         double? score =
-                            calculator.ScoreSequence(document.Settings.GetModifiedSequence(tuple.Item1.Peptide.Sequence,
+                            calculator.ScoreSequence(document.Settings.GetModifiedSequence(tuple.Item1.Peptide.Target,
                                 tuple.Item2.TransitionGroup.LabelType, tuple.Item1.ExplicitMods));
                         if (score.HasValue)
                         {
@@ -232,20 +237,6 @@ namespace pwiz.SkylineTestFunctional
             RunUI(() => Assert.IsTrue(SkylineWindow.SetDocument(newDocument, SkylineWindow.DocumentUI)));
         }
 
-        private SrmDocument ChangeFullScanSettings(SrmDocument document, TransitionFullScan transitionFullScan)
-        {
-            return document.ChangeSettings(
-                document.Settings.ChangeTransitionSettings(
-                    document.Settings.TransitionSettings.ChangeFullScan(transitionFullScan)));
-        }
-
-        private SrmDocument ChangePeptidePrediction(SrmDocument document, PeptidePrediction peptidePrediction)
-        {
-            return document.ChangeSettings(
-                document.Settings.ChangePeptideSettings(
-                    document.Settings.PeptideSettings.ChangePrediction(peptidePrediction)));
-        }
-
         private IEnumerable<Tuple<PeptideDocNode, TransitionGroupDocNode, ChromatogramGroupInfo[]>> 
             LoadAllChromatograms(SrmDocument document, ChromatogramSet chromatogramSet)
         {
@@ -261,15 +252,6 @@ namespace pwiz.SkylineTestFunctional
             }
         }
 
-        private void WaitForResultsImport()
-        {
-            WaitForConditionUI(() =>
-            {
-                SrmDocument document = SkylineWindow.DocumentUI;
-                return document.Settings.HasResults && document.Settings.MeasuredResults.IsLoaded;
-            });
-        }
-
         private void AssertChromatogramWindow(SrmDocument document, ChromatogramSet chromatogramSet,
             double expectedStartTime, double expectedEndTime, params ChromatogramGroupInfo[] chromGroupInfos)
         {
@@ -278,17 +260,17 @@ namespace pwiz.SkylineTestFunctional
                 out basePeakChromatograms));
             if (basePeakChromatograms.Length > 0)
             {
-                double runStartTime = basePeakChromatograms.Min(chromGroup => chromGroup.Times[0]);
+                double runStartTime = basePeakChromatograms.Min(chromGroup => chromGroup.TimeIntensitiesGroup.MinTime);
                 double runEndTime =
-                    basePeakChromatograms.Max(chromGroup => chromGroup.Times[chromGroup.Times.Length - 1]);
+                    basePeakChromatograms.Max(chromGroup => chromGroup.TimeIntensitiesGroup.MaxTime);
                 expectedStartTime = Math.Max(runStartTime, expectedStartTime);
                 expectedEndTime = Math.Min(runEndTime, expectedEndTime);
             }
             const double delta = .15;
             foreach (var chromGroupInfo in chromGroupInfos)
             {
-                double startTime = chromGroupInfo.Times[0];
-                double endTime = chromGroupInfo.Times[chromGroupInfo.Times.Length - 1];
+                double startTime = chromGroupInfo.TimeIntensitiesGroup.MinTime;
+                double endTime = chromGroupInfo.TimeIntensitiesGroup.MaxTime;
                 if (Math.Abs(expectedStartTime - startTime) > delta)
                 {
                     Assert.AreEqual(expectedStartTime, startTime, delta);

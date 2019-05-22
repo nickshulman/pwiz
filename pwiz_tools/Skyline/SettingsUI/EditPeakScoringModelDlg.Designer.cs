@@ -1,4 +1,6 @@
-﻿namespace pwiz.Skyline.SettingsUI
+﻿using pwiz.Skyline.Util;
+
+namespace pwiz.Skyline.SettingsUI
 {
     partial class EditPeakScoringModelDlg
     {
@@ -83,7 +85,7 @@
             // 
             // helpTip
             // 
-            this.helpTip.AutoPopDelay = 15000;
+            this.helpTip.AutoPopDelay = 32767;
             this.helpTip.InitialDelay = 500;
             this.helpTip.ReshowDelay = 100;
             // 
@@ -144,6 +146,7 @@
             this.gridPeakCalculators.ShowEditingIcon = false;
             this.helpTip.SetToolTip(this.gridPeakCalculators, resources.GetString("gridPeakCalculators.ToolTip"));
             this.gridPeakCalculators.SelectionChanged += new System.EventHandler(this.gridPeakCalculators_SelectionChanged);
+            this.gridPeakCalculators.Sorted += new System.EventHandler(this.gridPeakCalculators_Sorted);
             // 
             // IsEnabled
             // 

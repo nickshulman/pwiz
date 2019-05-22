@@ -19,6 +19,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Threading;
 
@@ -28,63 +29,105 @@ namespace AutoQC
     // ReSharper disable once InconsistentNaming
     public class AutoQCFileSystemWatcher
     {
-        private readonly IAutoQCLogger _logger;
+        private readonly IAutoQcLogger _logger;
+        private readonly IConfigRunner _configRunner;
 
         private IResultFileStatus _fileStatusChecker;
 
         // Collection of new mass spec files to be processed.
         private ConcurrentQueue<string> _dataFiles;
         // Collection of mass spec files that resulted in an error while importing
-        private Queue<RawFile> _retryFiles; 
+        private Queue<RawFile> _retryFiles;
+        private HashSet<string> _retryFilePaths;
 
         private FileSystemWatcher _fileWatcher;
+        private bool _dataInDirectories;
 
         private bool _cancelled;
-        private bool _folderAvailable;
+        private ErrorEventArgs _fileWatcherError;
+        private DriveInfo _driveInfo;
+        private DateTime _lastFileEvent;
 
         private int _acquisitionTimeSetting;
+        private FileFilter _fileFilter;
+
+        private string _configName;
 
         private const int WAIT_60SEC = 60000;
 
-        // TODO: We need to support other instrument vendors
         private const string THERMO_EXT = ".raw";
         private const string SCIEX_EXT = ".wiff";
         private const string WATERS_EXT = ".raw";
         private const string AGILENT_EXT = ".d";
+        private const string BRUKER_EXT = ".D";
+        private const string SHIAMDZU_EXT = ".lcd";
 
-        public AutoQCFileSystemWatcher(IAutoQCLogger logger)
+        private bool _includeSubfolders;
+        private string _instrument;
+
+        public AutoQCFileSystemWatcher(IAutoQcLogger logger, IConfigRunner configRunner)
         {
             _fileWatcher = InitFileSystemWatcher();
 
             _logger = logger;
+            _configRunner = configRunner;
         }
 
         private FileSystemWatcher InitFileSystemWatcher()
         {
-            FileSystemWatcher fileWatcher = new FileSystemWatcher();
+            var fileWatcher = new FileSystemWatcher();
             fileWatcher.Created += (s, e) => FileAdded(e);
+            fileWatcher.Renamed += (s, e) => FileRenamed(e);
             fileWatcher.Error += (s, e) => OnFileWatcherError(e);
             return fileWatcher;
         }
 
-        public void Init(MainSettings mainSettings)
+        public void Init(AutoQcConfig config)
         {
+            _configName = config.Name;
+
+            var mainSettings = config.MainSettings;
             _dataFiles = new ConcurrentQueue<string>();
             _retryFiles = new Queue<RawFile>();
+            _retryFilePaths = new HashSet<string>();
 
             _fileStatusChecker = GetFileStatusChecker(mainSettings);
 
             _fileWatcher.EnableRaisingEvents = false;
 
+            if (mainSettings.IncludeSubfolders)
+            {
+                _fileWatcher.IncludeSubdirectories = true;
+                _includeSubfolders = true;
+            }
+
+            _fileWatcher.NotifyFilter = NotifyFilters.FileName | NotifyFilters.DirectoryName | NotifyFilters.CreationTime;
+
+            _instrument = mainSettings.InstrumentType;
+            _dataInDirectories = IsDataInDirectories(_instrument);
+
             _fileWatcher.Filter = GetFileFilter(mainSettings.InstrumentType);
 
             _fileWatcher.Path = mainSettings.FolderToWatch;
 
+            _fileFilter = mainSettings.QcFileFilter;
+
             _acquisitionTimeSetting = mainSettings.AcquisitionTime;
+
+            _driveInfo = new DriveInfo(_fileWatcher.Path);
+        }
+
+        public static bool IsDataInDirectories(string instrument)
+        {
+            return (instrument.Equals(MainSettings.WATERS) // Waters: .raw directory
+                    || instrument.Equals(MainSettings.AGILENT) // Agilent: .d directory
+                    || instrument.Equals(MainSettings.BRUKER)); // Bruker: .D directory
         }
 
         public void StartWatching()
         {
+            _lastFileEvent = DateTime.Now; // In case of an error, if we have to restart FileSystemWatcher, we will look for files added after this time
+
             _cancelled = false;
             // Begin watching.
             _fileWatcher.EnableRaisingEvents = true;
@@ -92,37 +135,82 @@ namespace AutoQC
 
         private static IResultFileStatus GetFileStatusChecker(MainSettings mainSettings)
         {
-            if (mainSettings.InstrumentType.Equals(MainSettings.THERMO))
-            {
-                return new XRawFileStatus(mainSettings.AcquisitionTime);
-            }
             return new AcquisitionTimeFileStatus(mainSettings.AcquisitionTime);
         }
 
         private static string GetFileFilter(string instrument)
         {
-            var ext = ".*";
-            if (instrument.Equals(MainSettings.THERMO))
+            return "*" + GetDataFileExt(instrument);
+        }
+
+        public static string GetDataFileExt(string instrument)
+        {
+            switch (instrument)
             {
-                ext = THERMO_EXT;
+                case MainSettings.THERMO:
+                    return THERMO_EXT;
+                case MainSettings.SCIEX:
+                    return SCIEX_EXT;
+                case MainSettings.WATERS:
+                    return WATERS_EXT; // Waters: .raw directory
+                case MainSettings.AGILENT:
+                    return AGILENT_EXT; // Agilent: .d directory
+                case MainSettings.BRUKER:
+                    return BRUKER_EXT; // Bruker: .D directory
+                case MainSettings.SHIMADZU:
+                    return SHIAMDZU_EXT;
+                default:
+                    return ".*";
             }
-            else if (instrument.Equals(MainSettings.SCIEX))
+        }
+
+        private void Restart()
+        {
+            if (_cancelled)
             {
-                ext = SCIEX_EXT;
+                _logger.Log("FileSystemWatcher cancelled. ");
+                return;
             }
-            else if (instrument.Equals(MainSettings.WATERS))
+
+            _logger.Log("Re-initializing FileSystemWatcher...");
+
+            var filter = _fileWatcher.Filter;
+            var path = _fileWatcher.Path;
+            var notifyFilter = _fileWatcher.NotifyFilter;
+
+            _fileWatcher.Dispose();
+            _fileWatcher = null;
+            _fileWatcher = InitFileSystemWatcher();
+            _fileWatcher.Filter = filter;
+            _fileWatcher.Path = path;
+            _fileWatcher.NotifyFilter = notifyFilter;
+            // _fileWatcher.InternalBufferSize = 64 * 1024;
+            _fileWatcher.IncludeSubdirectories = _includeSubfolders;
+
+            _logger.Log(string.Format("Getting raw data added since {0}.", _lastFileEvent));
+
+            var files = GetExistingFiles();
+
+            _fileWatcherError = null;
+
+            var lastTime = _lastFileEvent;
+            _lastFileEvent = DateTime.Now;
+
+            _fileWatcher.EnableRaisingEvents = true;
+
+            foreach (var file in files)
             {
-                // Waters: .raw directory
-                ext = WATERS_EXT;
+                var fileInfo = new FileInfo(file);
+
+                if (lastTime >= fileInfo.CreationTime)
+                {
+                    continue;
+                }
+
+                _logger.Log("Adding {0}.", fileInfo.Name);
+                _dataFiles.Enqueue(file);
             }
-            else if (instrument.Equals(MainSettings.AGILENT))
-            {
-                // Agilent: .d directory
-                ext = AGILENT_EXT;
-            }
-            // TODO: We need to support other instrument vendors
-           
-            return "*" + ext;
+            _logger.Log("Done");
         }
 
         public void Stop()
@@ -131,21 +219,45 @@ namespace AutoQC
             _fileWatcher.EnableRaisingEvents = false;
         }
 
-        void FileAdded(FileSystemEventArgs e)
+        private void FileRenamed(FileSystemEventArgs e)
         {
-            _logger.Log("File {0} added to directory.", e.Name);
-            _dataFiles.Enqueue(e.FullPath);
+            var name = Path.GetFileName(e.FullPath.TrimEnd(Path.DirectorySeparatorChar));
+            if (name.ToLower(CultureInfo.InvariantCulture).
+                EndsWith(GetDataFileExt(_instrument).ToLower(CultureInfo.InvariantCulture)))
+            {
+                FileAdded(e);
+            }
         }
 
-        void OnFileWatcherError(ErrorEventArgs e)
+        private void FileAdded(FileSystemEventArgs e)
         {
-            _logger.LogError("There was an error watching the folder. {0}", e.GetException().Message);
-            _folderAvailable = false;
+            _lastFileEvent = DateTime.Now;
+
+            var path = e.FullPath;
+
+            if (!PassesFileFilter(path))
+            {
+                return;
+            }
+
+            if ((_dataInDirectories && Directory.Exists(path))
+                || (!_dataInDirectories && File.Exists(path)))
+            {
+                _logger.Log("{0} added to directory.", e.Name);
+                _dataFiles.Enqueue(e.FullPath);   
+            }
         }
 
-        public bool IsFolderAvailable()
+        private void OnFileWatcherError(ErrorEventArgs e)
         {
-            return _folderAvailable;
+            var folder = _fileWatcher != null ? _fileWatcher.Path : "UNKNOWN";
+            _logger.LogException(e.GetException(), "There was an error watching the folder {0}.", folder);
+            _fileWatcherError = e;
+        }
+
+        public bool RawDataExists(string filePath)
+        {
+            return _dataInDirectories ? Directory.Exists(filePath) : File.Exists(filePath);
         }
 
         public void WaitForFileReady(string filePath)
@@ -155,18 +267,20 @@ namespace AutoQC
             var counter = 0;
             while (true)
             {
-                if (!(new FileInfo(filePath).Exists))
+                CheckDrive();
+
+                if (!RawDataExists(filePath))
                 {
-                    throw new FileStatusException(string.Format("{0}: {1}", FileStatusException.DOES_NOT_EXIST, filePath));
+                    throw new FileStatusException(string.Format("{0} {1}", filePath, FileStatusException.DOES_NOT_EXIST));
                 }
 
                 var fileStatus= _fileStatusChecker.CheckStatus(filePath);
-                if (fileStatus.Equals(Status.Ready))
+                if (fileStatus.Equals(FileStatus.Ready))
                 {
                     break;
                 }
 
-                if (fileStatus.Equals(Status.ExceedMaximumAcquiTime))
+                if (fileStatus.Equals(FileStatus.ExceedMaximumAcquiTime))
                 {
                     throw new FileStatusException("Data acquistion has exceeded the expected acquistion time." +
                                         "The instument probably encountered an error.");
@@ -174,7 +288,7 @@ namespace AutoQC
 
                 if (counter % 10 == 0)
                 {
-                    _logger.Log("File {0} is being acquired. Waiting...", Path.GetFileName(filePath));
+                    _logger.Log("{0} is being acquired. Waiting...", Path.GetFileName(filePath));
                 }
                 counter++;
                 // Wait for 60 seconds.
@@ -185,20 +299,14 @@ namespace AutoQC
                     return;
                 }
             }
-            _logger.Log("File {0} is ready", Path.GetFileName(filePath));
+            _logger.Log("{0} is ready", Path.GetFileName(filePath));
         }
 
         public string GetFile()
         {
-            // If we are monitoring a network mapped drive, make sure that we can still connect to it.
-            // If we lose connection to a networked drive, FileSystemWatcher does not fire any new events
-            // even after the connection is re-established.
-            if(!Directory.Exists(_fileWatcher.Path))
-            {
-                _logger.LogError("Folder is not accessible: {0}.", _fileWatcher.Path);
-                WaitToReconnect();
-            }
-            
+            CheckDrive();
+
+
             if (_dataFiles.IsEmpty)
             {
                 return null;
@@ -208,72 +316,239 @@ namespace AutoQC
             _dataFiles.TryDequeue(out filePath);
             return filePath;
         }
-
-        private void WaitToReconnect()
-        {
-            var timeDisconnected = DateTime.Now.AddMilliseconds(-(AutoQCBackgroundWorker.WAIT_FOR_NEW_FILE));
-
-            var filter = _fileWatcher.Filter;
-            var path = _fileWatcher.Path;
-
-            const int waitTime = 10000; // 10 seconds
-
-            _fileWatcher.EnableRaisingEvents = false;
-
-            while (!Directory.Exists(path))
+        
+        public void CheckDrive()
+        {  
+            if (!_driveInfo.IsMappedNetworkDrive())
             {
-                _logger.Log("Waiting to reconnect to folder " + path);
-                Thread.Sleep(waitTime);
-                if (_cancelled)
+                if (!_driveInfo.IsUncPath())
                 {
-                    _logger.Log("FileSystemWatcher cancelled. ");
+                    if (!Directory.Exists(_fileWatcher.Path))
+                    {
+                        throw new FileWatcherException(string.Format("Folder does not exist {0}. Configuration \"{1}\"", _fileWatcher.Path, _configName));
+                    }
+                    if (_fileWatcherError != null)
+                    {
+                        throw new FileWatcherException(
+                            string.Format("There was an error watching the folder {0}. Configuration \"{1}\"",
+                                _fileWatcher.Path, _configName),
+                            _fileWatcherError.GetException());
+                    }
                     return;
+                }
+                
+                // We are watching a path on a network share.  Wait to reconect for up to an hour in case of network interruptions.
+                WaitForNetworkPath(DateTime.Now);
+                
+                return;
+            }
+            
+            // If we are watching a mapped network drive, make sure that we can still connect to it.
+            // If we lose connection to a mapped network drive, FileSystemWatcher does not fire any new events
+            // even after the connection is re-established.
+            try
+            {
+                TryConnect(DateTime.Now);
+            }
+            catch (FileWatcherException)
+            {
+                throw;
+            }
+            catch (Exception e)
+            {
+                throw new FileWatcherException(string.Format("Error connecting to network drive. Message was: {0}.", e.Message), e);  
+            }
+
+            if (_fileWatcherError != null)
+            {
+                // Error may have been caused by the network drive getting disconnected.  If we are here
+                // it means another config watching a folder on the same mapped drive re-mapped the drive.
+                if (Directory.Exists(_fileWatcher.Path))
+                {
+                    Program.LogInfo(string.Format("Restarting file watcher for configuration \"{0}\".", _configName));
+                    RestartFileWatcher();
+                }
+                else
+                {
+                    // Some other error occurred.  Stop the configuration with an error message
+                    throw new FileWatcherException(string.Format("File watcher for configuration \"{0}\" threw an error", _configName), _fileWatcherError.GetException());
                 }
             }
 
-            _logger.Log("Reconnected. Re-initializing FileSystemWatcher...");
-            
-            _fileWatcher.Dispose();
-            _fileWatcher = null;
-            _fileWatcher = InitFileSystemWatcher();
-            _fileWatcher.Filter = filter;
-            _fileWatcher.Path = path;
-            
-            _logger.Log("Looking for files added to directory while the folder was unavailable.");
-
-            var files = GetExistingFiles();
-
-            _folderAvailable = true;
-
-            _fileWatcher.EnableRaisingEvents = true;
-
-            foreach (var file in files)
+            if (!Directory.Exists(_driveInfo.Path))
             {
-                var fileInfo = new FileInfo(file);
-
-                if (fileInfo.CreationTime <= timeDisconnected) continue;
-
-                _logger.Log("Adding file {0}.", fileInfo.Name);
-                _dataFiles.Enqueue(file);
+                // The mapped network drive is accessible but the watched folder is no longer available.
+                throw new FileWatcherException(string.Format("Folder does not exist {0}. Configuration \"{1}\"", _fileWatcher.Path, _configName));
             }
+        }
+
+        private void TryConnect(DateTime startTime)
+        {
+            if (startTime.AddHours(1) < DateTime.Now)
+            {
+                throw new FileWatcherException(string.Format("Unable to connect to network drive for 1 hour. Network Drive: {0}. Configuration \"{1}\".", _driveInfo, _configName));   
+            }
+
+            bool reconnected;
+            var driveAvailable = NetworkDriveUtil.EnsureDrive(_driveInfo, _logger, out reconnected, _configName);
+            if (driveAvailable && _configRunner.IsDisconnected())
+            {
+                _configRunner.ChangeStatus(ConfigRunner.RunnerStatus.Running);
+            }
+
+            if (!driveAvailable)
+            {
+                if (_configRunner.IsRunning())
+                {
+                    _configRunner.ChangeStatus(ConfigRunner.RunnerStatus.Disconnected);
+                }
+                // keep trying every 1 minute for a hour or until the drive is available again.  
+                Thread.Sleep(TimeSpan.FromMinutes(1));
+
+                TryConnect(startTime);
+            }
+
+            if (reconnected)
+            {
+                Program.LogInfo(string.Format("Re-connected drive {0} for configuration \"{1}\".  Restarting file watcher.", _driveInfo,
+                    _configName));
+                RestartFileWatcher();
+            }
+        }
+
+        private void WaitForNetworkPath(DateTime startTime)
+        {
+            var available = Directory.Exists(_driveInfo.Path);
+            if (available)
+            {
+                if (_fileWatcherError != null)
+                {
+                    // There may have been a network interruption before call to CheckDrive()
+                    RestartFileWatcher();
+                }
+                return;
+            }
+
+            if (_fileWatcherError == null)
+            {
+                // Path is unavailable.  Disable raising events
+                _fileWatcher.EnableRaisingEvents = false;
+            }
+            _configRunner.ChangeStatus(ConfigRunner.RunnerStatus.Disconnected);
+
+            while (true)
+            {
+                _logger.LogError("Watched folder is not available: {0}. Waiting...", _driveInfo.Path);
+
+                // keep trying every 1 minute for a hour or until the network share is available again. 
+                Thread.Sleep(TimeSpan.FromMinutes(1));
+
+                available = Directory.Exists(_driveInfo.Path);
+
+                if (!available)
+                {
+                    if (startTime.AddHours(1) < DateTime.Now)
+                    {
+                        throw new FileWatcherException(string.Format("Watched folder has been unavailable for > 1 hour for configuration \"{1}\". {0}", _driveInfo, _configName));
+                    }
+                }
+                else
+                {
+                    _logger.Log("Watched folder is available: {0}.", _driveInfo.Path);
+
+                    if (_configRunner.IsDisconnected())
+                    {
+                        _configRunner.ChangeStatus(ConfigRunner.RunnerStatus.Running);
+                    }
+                    RestartFileWatcher();
+                    break;
+                }   
+            }
+        }
+
+        private void RestartFileWatcher()
+        {
+            try
+            {
+                Restart();
+            }
+            catch (Exception e)
+            {
+                throw new FileWatcherException(string.Format("Error restarting file watcher for configuration \"{0}\"", _configName), e);
+            }   
         }
 
         public List<string> GetExistingFiles()
         {
-            var filesAndDirectories = new List<string>();
-            filesAndDirectories.AddRange(Directory.GetFiles(_fileWatcher.Path, _fileWatcher.Filter));
-            filesAndDirectories.AddRange(Directory.GetDirectories(_fileWatcher.Path, _fileWatcher.Filter));
-            return filesAndDirectories;
+            var rawData = _dataInDirectories ? GetDirectories(_fileWatcher.Path, GetDataFileExt(_instrument)) 
+                                             : GetFiles(_fileWatcher.Path);
+            rawData.RemoveAll(data => !PassesFileFilter(data));
+            return rawData;
         }
 
-        public string GetDirectory()
+        private List<string> GetDirectories(string directory, string dataDirExt)
         {
-            return _fileWatcher.Path;
+            var dataDirs = new List<string>();
+            
+            if (_includeSubfolders)
+            {
+                var subdirs = Directory.GetDirectories(directory);
+                foreach (var subdir in subdirs)
+                {
+                    if (subdir.EndsWith(dataDirExt))
+                    {
+                        dataDirs.Add(subdir);
+                    }
+                    else
+                    {
+                        dataDirs.AddRange(GetDirectories(subdir, dataDirExt));
+                    }
+                }      
+            }
+            else
+            {
+                dataDirs.AddRange(Directory.GetDirectories(directory, _fileWatcher.Filter));  
+            }
+
+            return dataDirs;
+        }
+
+        private List<string> GetFiles(string directory)
+        {
+            var files = new List<string>();
+            files.AddRange(Directory.GetFiles(directory, _fileWatcher.Filter));
+
+            if (!_includeSubfolders) return files;
+
+            var subdirs = Directory.GetDirectories(directory);
+            foreach (var subdir in subdirs)
+            {
+                files.AddRange(GetFiles(subdir));   
+            }
+            return files;
+        }
+
+        private bool PassesFileFilter(string dataPath)
+        {
+            if (_fileFilter == null)
+            {
+                return true;
+            }
+
+            return _fileFilter.Matches(dataPath);
         }
 
         public void AddToReimportQueue(RawFile file)
         {
-            _retryFiles.Enqueue(file);
+            if (!_retryFilePaths.Contains(file.FilePath))
+            {
+                _retryFiles.Enqueue(file);
+                _retryFilePaths.Add(file.FilePath);
+            }
+            else
+            {
+                _logger.Log("File already exists in re-import queue: " + file.FilePath);
+            }
         }
 
         public void AddToReimportQueue(string filePath)
@@ -287,20 +562,24 @@ namespace AutoQC
             return (long) (_acquisitionTimeSetting * 0.1 * 60 * 1000);
         }
 
-        public Queue<RawFile> GetFilesToReimport()
+        public int GetReimportQueueCount()
         {
-            return _retryFiles;
+            return _retryFiles.Count;
         }
 
         public RawFile GetNextFileToReimport()
         {
-            return _retryFiles.Count > 0 ? _retryFiles.Dequeue() : null;
+            if (_retryFiles.Count <= 0) return null;
+            var rawFile = _retryFiles.Dequeue();
+            _retryFilePaths.Remove(rawFile.FilePath);
+
+            return rawFile;
         }
     }
 
     public class FileStatusException : Exception
     {
-        public const string DOES_NOT_EXIST = "File does not exist";
+        public const string DOES_NOT_EXIST = "does not exist";
 
         public FileStatusException(string message) : base(message)
         {
@@ -328,6 +607,71 @@ namespace AutoQC
         public bool TryReimport()
         {
             return LastImportTime.AddMilliseconds(WaitTime) <= DateTime.Now;
+        }
+    }
+
+    public class FileWatcherException : Exception
+    {
+        public FileWatcherException(string message) : base(message)
+        {
+        }
+
+        public FileWatcherException(string message, Exception innerException) : base(message, innerException)
+        {
+        }
+    }
+
+    public class DriveInfo
+    {
+        public string Path { get; }
+        public string DriveLetter { get; }
+        public string NetworkPath { get; }
+
+        public DriveInfo(string path)
+        {
+            Path = path;
+            DriveLetter = NetworkDriveUtil.GetDriveLetter(path);
+            if(DriveLetter != null)
+            { 
+                try
+                {
+                    NetworkPath = NetworkDriveUtil.GetNetworkPath(DriveLetter);
+                }
+                catch (FileWatcherException)
+                {
+                    throw;
+                }
+                catch (Exception e)
+                {
+                    throw new FileWatcherException(string.Format("Unable to read network drive properties for {0}", DriveLetter), e);
+                }
+            }
+            else if (path.StartsWith(@"\\"))
+            {
+                NetworkPath = path;
+            }
+        }
+
+        // Returns true if this is a mapped network drive: we know the drive letter and the network path
+        public bool IsMappedNetworkDrive()
+        {
+            return DriveLetter != null && NetworkPath != null;
+        }
+
+        public bool IsUncPath()
+        {
+            return DriveLetter == null && NetworkPath != null;
+        }
+
+        public override string ToString()
+        {
+            if (IsMappedNetworkDrive())
+            {
+                return string.Format("DriveLetter: {0}; Network Path: {1}; Watched path {2}", DriveLetter, NetworkPath, Path);
+            }
+
+            return IsUncPath() ? string.Format("Network Path: {0}; Watched path {1}", NetworkPath, Path) 
+                : string.Format("DriveLetter: {0}; Watched path {1}", DriveLetter, Path);
         }
     }
 }

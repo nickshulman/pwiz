@@ -85,8 +85,8 @@ namespace pwiz.SkylineTestFunctional
 
             // Check changed result state
             const int pepStandardCount = 13, tranStandardCount = 34;
-            document = SkylineWindow.Document;
-            AssertEx.IsDocumentState(document, null, protCount, pepCount, pepCount*2, tranCount*2);
+            document = WaitForDocumentChange(document);
+            AssertEx.IsDocumentState(document, null, protCount, pepCount, pepCount*2-pepStandardCount, tranCount*2-tranStandardCount);
             int[] missingHeavy = {1, 1, 2, 2};
             for (int i = 0; i < EXPECTED_REPLICATES.Length; i++)
             {
@@ -111,13 +111,6 @@ namespace pwiz.SkylineTestFunctional
 
             VerifyUserSets(document, matchedUserSetGroups, matchedUserSetTrans);
 
-            // Remove heavies from standards
-            RunUI(() => SkylineWindow.RemoveMissingResults());
-            document = WaitForDocumentChange(document);
-
-            AssertEx.IsDocumentState(document, null, protCount, pepCount,
-                pepCount * 2 - pepStandardCount, tranCount * 2 - tranStandardCount);
-
             VerifyMatchingPeakBoundaries(document, true);   // CONSIDER: Strange that these peak times match exactly
 
             // Test limited scoring model
@@ -141,12 +134,11 @@ namespace pwiz.SkylineTestFunctional
             var manageResults = ShowDialog<ManageResultsDlg>(SkylineWindow.ManageResults);
             var rescoreResultsDlg = ShowDialog<RescoreResultsDlg>(manageResults.Rescore);
             RunUI(() => rescoreResultsDlg.Rescore(false));
-            WaitForCondition(5 * 60 * 1000, () => SkylineWindow.Document.Settings.MeasuredResults.IsLoaded);    // 5 minutes
             WaitForClosedForm(rescoreResultsDlg);
             WaitForClosedForm(manageResults);
-            WaitForConditionUI(() => FindOpenForm<AllChromatogramsGraph>() == null);
+            var documentRescore = WaitForDocumentChangeLoaded(document, 5 * 60 * 1000);    // 5 minutes
+            WaitForClosedForm<AllChromatogramsGraph>();
 
-            var documentRescore = SkylineWindow.Document;
             VerifyUserSets(documentRescore, matchedUserSetGroups, matchedUserSetTrans);
 
             // Test corrected scoring model
@@ -173,17 +165,18 @@ namespace pwiz.SkylineTestFunctional
                 });
                 OkDialog(reintegrateDlg, reintegrateDlg.OkDialog);
             }
-            documentRescore = WaitForDocumentChange(documentRescore);
+            WaitForClosedForm<AllChromatogramsGraph>();
+            documentRescore = WaitForDocumentChangeLoaded(documentRescore);
 
             matchedUserSetGroups = new[]
             {
-                new UserSetCount(UserSet.FALSE, 276),
-                new UserSetCount(UserSet.REINTEGRATED, 8),
+                new UserSetCount(UserSet.FALSE, 274),
+                new UserSetCount(UserSet.REINTEGRATED, 10),
             };
             matchedUserSetTrans = new[]
             {
-                new UserSetCount(UserSet.FALSE, 1212),
-                new UserSetCount(UserSet.REINTEGRATED, 36),
+                new UserSetCount(UserSet.FALSE, 1202),
+                new UserSetCount(UserSet.REINTEGRATED, 46),
             };
 
             VerifyUserSets(documentRescore, matchedUserSetGroups, matchedUserSetTrans, true);

@@ -21,7 +21,6 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
 using System.Threading;
-using System.Threading.Tasks;
 using pwiz.Common.DataAnalysis;
 using pwiz.Common.DataBinding;
 using pwiz.Common.DataBinding.Controls;
@@ -36,7 +35,7 @@ namespace pwiz.Skyline.Controls.GroupComparison
     {
         private int _referenceCount;
         private Container _container;
-        private TaskScheduler _taskScheduler;
+        private EventTaskScheduler _taskScheduler;
         private BindingListSource _bindingListSource;
         private SkylineDataSchema _skylineDataSchema;
 
@@ -45,7 +44,7 @@ namespace pwiz.Skyline.Controls.GroupComparison
         {
             _container = new Container();
             GroupComparisonModel = groupComparisonModel;
-            _taskScheduler = TaskScheduler.FromCurrentSynchronizationContext();
+            _taskScheduler = new EventTaskScheduler();
         }
 
         public GroupComparisonModel GroupComparisonModel { get; private set; }
@@ -59,7 +58,7 @@ namespace pwiz.Skyline.Controls.GroupComparison
                     SkylineDataSchema.GetLocalizedSchemaLocalizer());
                 var viewInfo = new ViewInfo(_skylineDataSchema, typeof(FoldChangeRow), GetDefaultViewSpec(new FoldChangeRow[0]))
                     .ChangeViewGroup(ViewGroup.BUILT_IN);
-                var rowSourceInfo = new RowSourceInfo(typeof(FoldChangeRow), new FoldChangeRow[0], new[] { viewInfo });
+                var rowSourceInfo = new RowSourceInfo(typeof(FoldChangeRow), new StaticRowSource(new FoldChangeRow[0]), new[] { viewInfo });
                 ViewContext = new GroupComparisonViewContext(_skylineDataSchema, new[]{rowSourceInfo});
                 _container = new Container();
                 _bindingListSource = new BindingListSource(_container);
@@ -73,17 +72,20 @@ namespace pwiz.Skyline.Controls.GroupComparison
         {
             if (null != _bindingListSource && 0 < _referenceCount)
             {
-                Task.Factory.StartNew(() =>
+                _taskScheduler.Run(() =>
                 {
                     try
                     {
-                        UpdateResults();
+                        if (0 < _referenceCount)
+                        {
+                            UpdateResults();
+                        }
                     }
                     catch (Exception e)
                     {
                         Program.ReportException(e);
                     }
-                }, CancellationToken.None, TaskCreationOptions.None, _taskScheduler);
+                });
             }
         }
 
@@ -93,6 +95,7 @@ namespace pwiz.Skyline.Controls.GroupComparison
             var rows = new List<FoldChangeRow>();
             if (null != results)
             {
+                Dictionary<int, double> criticalValuesByDegreesOfFreedom = new Dictionary<int, double>();
                 var groupComparisonDef = results.GroupComparer.ComparisonDef;
                 var adjustedPValues = PValues.AdjustPValues(results.ResultRows.Select(
                     row => row.LinearFitResult.PValue)).ToArray();
@@ -106,10 +109,18 @@ namespace pwiz.Skyline.Controls.GroupComparison
                         peptide = new Model.Databinding.Entities.Peptide(_skylineDataSchema,
                             new IdentityPath(protein.IdentityPath, resultRow.Selector.Peptide.Id));
                     }
+                    double criticalValue;
+                    if (!criticalValuesByDegreesOfFreedom.TryGetValue(resultRow.LinearFitResult.DegreesOfFreedom,
+                        out criticalValue))
+                    {
+                        criticalValue = FoldChangeResult.GetCriticalValue(groupComparisonDef.ConfidenceLevel,
+                            resultRow.LinearFitResult.DegreesOfFreedom);
+                        criticalValuesByDegreesOfFreedom.Add(resultRow.LinearFitResult.DegreesOfFreedom, criticalValue);
+                    }
+                    FoldChangeResult foldChangeResult = new FoldChangeResult(groupComparisonDef.ConfidenceLevel,
+                        adjustedPValues[iRow], resultRow.LinearFitResult, criticalValue);
                     rows.Add(new FoldChangeRow(protein, peptide, resultRow.Selector.LabelType,
-                        resultRow.Selector.MsLevel, resultRow.Selector.GroupIdentifier, resultRow.ReplicateCount,
-                        new FoldChangeResult(groupComparisonDef.ConfidenceLevel,
-                            adjustedPValues[iRow], resultRow.LinearFitResult)));
+                        resultRow.Selector.MsLevel, resultRow.Selector.GroupIdentifier, resultRow.ReplicateCount, foldChangeResult));
                 }
             }
             var defaultViewSpec = GetDefaultViewSpec(rows);
@@ -118,16 +129,15 @@ namespace pwiz.Skyline.Controls.GroupComparison
                 var viewInfo = new ViewInfo(_skylineDataSchema, typeof (FoldChangeRow), defaultViewSpec).ChangeViewGroup(ViewGroup.BUILT_IN);
                 ViewContext.SetRowSources(new[]
                 {
-                    new RowSourceInfo(
-                        rows, viewInfo)
+                    new RowSourceInfo(new StaticRowSource(rows), viewInfo)
                 });
                 if (null != _bindingListSource.ViewSpec && _bindingListSource.ViewSpec.Name == defaultViewSpec.Name &&
                     !_bindingListSource.ViewSpec.Equals(defaultViewSpec))
                 {
-                    _bindingListSource.SetView(viewInfo, rows);
+                    _bindingListSource.SetView(viewInfo, new StaticRowSource(rows));
                 }
             }
-            _bindingListSource.RowSource = rows;
+            _bindingListSource.RowSource = new StaticRowSource(rows);
         }
 
         private ViewSpec GetDefaultViewSpec(IList<FoldChangeRow> foldChangeRows)
@@ -150,7 +160,7 @@ namespace pwiz.Skyline.Controls.GroupComparison
                 showMsLevel = false;
                 showGroup = false;
             }
-            // ReSharper disable NonLocalizedString
+            // ReSharper disable LocalizableElement
             var columns = new List<PropertyPath>
             {
                 PropertyPath.Root.Property("Protein")
@@ -173,7 +183,7 @@ namespace pwiz.Skyline.Controls.GroupComparison
             }
             columns.Add(PropertyPath.Root.Property("FoldChangeResult"));
             columns.Add(PropertyPath.Root.Property("FoldChangeResult").Property("AdjustedPValue"));
-            // ReSharper restore NonLocalizedString
+            // ReSharper restore LocalizableElement
 
             var viewSpec = new ViewSpec()
                 .SetName(AbstractViewContext.DefaultViewName)
@@ -189,6 +199,7 @@ namespace pwiz.Skyline.Controls.GroupComparison
                 _container.Dispose();
                 _container = null;
                 GroupComparisonModel.ModelChanged -= GroupComparisonModelOnModelChanged;
+                _taskScheduler.Dispose();
             }
         }
 
@@ -196,7 +207,7 @@ namespace pwiz.Skyline.Controls.GroupComparison
         {
             if (_referenceCount <= 0)
             {
-                throw new ObjectDisposedException("FoldChangeBindingSource"); // Not L10N
+                throw new ObjectDisposedException(@"FoldChangeBindingSource");
             }
             return _bindingListSource;
         }

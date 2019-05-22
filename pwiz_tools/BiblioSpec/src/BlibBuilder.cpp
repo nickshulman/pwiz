@@ -29,16 +29,18 @@
 
 #include "BlibBuilder.h"
 #include "SqliteRoutine.h"
+#include "pwiz/utility/misc/Filesystem.hpp"
+#include "boost/filesystem/detail/utf8_codecvt_facet.hpp"
 #include <boost/algorithm/string/predicate.hpp>
+#include <boost/algorithm/string/join.hpp>
 
-using namespace std;
 
 namespace BiblioSpec {
 
 BlibBuilder::BlibBuilder():
 level_compress(3), fileSizeThresholdForCaching(800000000),
 targetSequences(NULL), targetSequencesModified(NULL), stdinStream(&cin),
-forcedPusherInterval(-1)
+forcedPusherInterval(-1), explicitCutoff(-1)
 {
     scoreThresholds[SQT] = 0.01;    // 1% FDR
     scoreThresholds[PEPXML] = 0.95; // peptide prophet probability
@@ -56,6 +58,7 @@ forcedPusherInterval(-1)
     scoreThresholds[PEAKS] = 0.05;  // PEAKS p-value
     scoreThresholds[BYONIC] = 0.05;  // ByOnic PEP
     scoreThresholds[PEPTIDE_SHAKER] = 0.95; // PeptideShaker PSM confidence
+    scoreThresholds[GENERIC_QVALUE_INPUT] = 0.01;
 }
 
 BlibBuilder::~BlibBuilder()
@@ -78,24 +81,55 @@ BlibBuilder::~BlibBuilder()
     }
 }
 
+static vector<string> supportedTypes = {
+    ".blib",
+    ".pep.xml",
+    ".pep.XML",
+    ".pepXML",
+    ".sqt",
+    ".perc.xml",
+    ".dat",
+    ".xtan.xml",
+    ".idpXML",
+    ".group.xml",
+    ".pride.xml",
+    ".msf",
+    ".pdResult",
+    ".mzid",
+    "msms.txt",
+    "final_fragment.csv",
+    ".proxl.xml",
+    ".ssl",
+    ".mlb",
+    ".tsv",
+    ".osw",
+    ".mzTab",
+    "mztab.txt"
+};
+
 void BlibBuilder::usage()
 {
-    const char* usage =
-        "Usage: BlibBuild [options] <*.sqt|*.pep.xml|*.pepXML|*.blib|*.idpXML|*.dat|*.ssl|*.pride.xml|*.msms.txt|*.msf|*.mzid|*.perc.xml|*final_fragment.csv>+ <library_name>\n"
+    std::string usage =
+        "Usage: BlibBuild [options] <*" + boost::algorithm::join(supportedTypes, "|*") + ">+ <library_name>\n"
         "   -o                Overwrite existing library. Default append.\n"
         "   -S  <filename>    Read from file as though it were stdin.\n"
         "   -s                Result file names from stdin. e.g. ls *sqt | BlibBuild -s new.blib.\n"
         "   -u                Ignore peptides except those with the unmodified sequences from stdin.\n"
         "   -U                Ignore peptides except those with the modified sequences from stdin.\n"
+        "   -H                Use more than one decimal place when describing mass modifications.\n"
         "   -C  <file size>   Minimum file size required to use caching for .dat files.  Specifiy units as B,K,G or M.  Default 800M.\n"
+        "   -c <cutoff>       Score threshold (0-1) for PSMs to be included in library. Higher threshold is more exclusive.\n"
         "   -v  <level>       Level of output to stderr (silent, error, status, warn).  Default status.\n"
         "   -L                Write status and warning messages to log file.\n"
         "   -m <size>         SQLite memory cache size in Megs. Default 250M.\n"
         "   -l <level>        ZLib compression level (0-?). Default 3.\n"
         "   -i <library_id>   LSID library ID. Default uses file name.\n"
         "   -a <authority>    LSID authority. Default proteome.gs.washington.edu.\n"
-        "   -x <filename>     Specify the path of XML modifications file for parsing MaxQuant files.\n";
-        "   -P <float>        Specify pusher interval for Waters final_fragment.csv files.\n";
+        "   -x <filename>     Specify the path of XML modifications file for parsing MaxQuant files.\n"
+        "   -p <filename>     Specify the path of XML parameters file for parsing MaxQuant files.\n"
+        "   -P <float>        Specify pusher interval for Waters final_fragment.csv files.\n"
+        "   -d [<filename>]   Document the .blib format by writing SQLite commands to a file, or stdout if no filename is given.\n"
+        "   -E                Prefer reading peaks from embedded spectra (currently only affects MaxQuant msms.txt)\n";
 
     cerr << usage << endl;
     exit(1);
@@ -123,6 +157,10 @@ int BlibBuilder::getCurFile() const {
 
 string BlibBuilder::getMaxQuantModsPath() {
     return maxQuantModsPath;
+}
+
+string BlibBuilder::getMaxQuantParamsPath() {
+    return maxQuantParamsPath;
 }
 
 double BlibBuilder::getPusherInterval() const {
@@ -161,6 +199,7 @@ int BlibBuilder::parseCommandArgs(int argc, char* argv[])
             {
                 string infileName;
                 getline(*stdinStream, infileName);
+                bal::trim(infileName);
                 if (infileName.empty())
                 {
                     break;
@@ -195,7 +234,7 @@ int BlibBuilder::parseCommandArgs(int argc, char* argv[])
         if (nInputs < 1)
         {
             Verbosity::comment(V_ERROR,
-                               "Not enough arguments. Missing input files (.sqt, .pep.xml/.pep.XML/.pepXML, .idpXML, .dat, .xtan.xml, .pride.xml, .mzid, .perc.xml, final_fragment.csv.), or no output file specified.");
+                "Not enough arguments. Missing input files (%s.), or no output file specified.", boost::algorithm::join(supportedTypes, ", ").c_str());
             usage();          // Nothing to add
         }
         else
@@ -204,31 +243,16 @@ int BlibBuilder::parseCommandArgs(int argc, char* argv[])
                 char* file_name = argv[j];
                 //if (has_extension(file_name, ".blib"))
                 //merge_libs[merge_count++] = file_name;
-                if(has_extension(file_name,".blib") ||
-                   has_extension(file_name, ".pep.xml") ||
-                   has_extension(file_name, ".pep.XML") ||
-                   has_extension(file_name, ".pepXML") ||
-                   has_extension(file_name, ".sqt") ||
-                   has_extension(file_name, ".perc.xml") ||
-                   has_extension(file_name, ".dat") ||
-                   has_extension(file_name, ".xtan.xml") ||
-                   has_extension(file_name, ".idpXML") ||
-                   has_extension(file_name, ".group.xml") ||
-                   has_extension(file_name, ".pride.xml") ||
-                   has_extension(file_name, ".msf") ||
-                   has_extension(file_name, ".pdResult") ||
-                   has_extension(file_name, ".mzid") ||
-                   has_extension(file_name, "msms.txt") ||
-                   has_extension(file_name, "final_fragment.csv") ||
-                   has_extension(file_name, ".ssl") ) {
-
+                bool supported = false;
+                for (vector<string>::const_iterator ext = supportedTypes.begin(); !supported && ext != supportedTypes.end(); ++ext)
+                {
+                    supported = has_extension(file_name, ext->c_str());
+                }
+                if (supported) {
                     input_files.push_back(file_name);
                 } else {
-                    Verbosity::error("Unsupported file type '%s'.  Must be .sqt, "
-                                     ".pep.xml/.pep.XML/.pepXML, .idpXML, .dat, "
-                                     ".xtan.xml, .ssl, .group.xml, .pride.xml, .msms.txt, "
-                                     ".msf, .pdResult, .mzid, perc.xml, final_fragment.csv or .blib.",
-                                     file_name);
+                    Verbosity::error("Unsupported file type '%s'.  Must be one of %s.",
+                        file_name, boost::algorithm::join(supportedTypes, ", ").c_str());
                 }
             }
         }
@@ -255,11 +279,19 @@ int BlibBuilder::transferLibrary(int iLib,
                                  const ProgressIndicator* parentProgress)
 {
     // Check to see if library exists
-    struct stat fileStats;
-    int gotStats = stat(input_files.at(iLib), &fileStats);
-    if( gotStats != 0 ){
-        throw BlibException(true, "Library file '%s' cannot be opened for "
-                            "transfering", input_files.at(iLib));
+
+    {
+        auto libPath = input_files.at(iLib);
+        if (!bfs::exists(libPath))
+        {
+            throw BlibException(true, "Library file '%s' cannot be opened for "
+                "transferring: file does not exist", bfs::absolute(libPath).string().c_str());
+        }
+        ifstream test(libPath);
+        if (!test) {
+            throw BlibException(true, "Library file '%s' cannot be opened for "
+                "transferring", libPath);
+        }
     }
 
     // give the incomming library a name
@@ -274,10 +306,20 @@ int BlibBuilder::transferLibrary(int iLib,
     // does the incomming library have retentiontime, score, etc columns
     int tableVersion = 0;
     if (tableColumnExists(schemaTmp, "RefSpectra", "retentionTime")) {
-        if (tableColumnExists(schemaTmp, "RefSpectra", "ionMobilityHighEnergyDriftTimeOffsetMsec")) { // As in Waters MsE IMS
-            tableVersion = 3;
+        if (tableColumnExists(schemaTmp, "RefSpectra", "startTime")) {
+            tableVersion = MIN_VERSION_RT_BOUNDS;
+        } else if (tableExists(schemaTmp, "RefSpectraPeakAnnotations")) {
+            tableVersion = MIN_VERSION_PEAK_ANNOT;
+        } else if (tableColumnExists(schemaTmp, "RefSpectra", "ionMobilityHighEnergyOffset")) {
+            tableVersion = MIN_VERSION_IMS_UNITS;
+        } else if (tableColumnExists(schemaTmp, "RefSpectra", "moleculeName")) {
+            tableVersion = MIN_VERSION_SMALL_MOL;
+        } else if (tableColumnExists(schemaTmp, "RefSpectra", "collisionalCrossSectionSqA")) {
+            tableVersion = MIN_VERSION_CCS;
+        } else if (tableColumnExists(schemaTmp, "RefSpectra", "ionMobilityHighEnergyDriftTimeOffsetMsec")) { // As in Waters MsE IMS
+            tableVersion = MIN_VERSION_IMS_HEOFF;
         } else if (tableColumnExists(schemaTmp, "RefSpectra", "ionMobilityValue")) {
-            tableVersion = 2;
+            tableVersion = MIN_VERSION_IMS;
         } else {
             tableVersion = 1;
         }
@@ -428,21 +470,22 @@ int BlibBuilder::parseNextSwitch(int i, int argc, char* argv[])
             Verbosity::error("Could not open file %s as stdin.", argv[i]);
         }
     } else if (switchName == 'c' && ++i < argc) {
-        double probability_cutoff = atof(argv[i]);
-        scoreThresholds[PEPXML] = probability_cutoff;
-        scoreThresholds[PROT_PILOT] = probability_cutoff;
-        scoreThresholds[SQT] = 1 - probability_cutoff;
-        scoreThresholds[MASCOT] = 1 - probability_cutoff;
-        scoreThresholds[TANDEM] = 1 - probability_cutoff;
-        scoreThresholds[SCAFFOLD] = probability_cutoff;
-        scoreThresholds[OMSSA] = 1 - probability_cutoff;
-        scoreThresholds[PROT_PROSPECT] = 1 - probability_cutoff;
-        scoreThresholds[MAXQUANT] = 1 - probability_cutoff;
-        scoreThresholds[MORPHEUS] = 1 - probability_cutoff;
-        scoreThresholds[MSGF] = 1 - probability_cutoff;
-        scoreThresholds[PEAKS] = probability_cutoff;
-        scoreThresholds[BYONIC] = 1 - probability_cutoff;
-        scoreThresholds[PEPTIDE_SHAKER] = probability_cutoff;
+        explicitCutoff = atof(argv[i]);
+        scoreThresholds[PEPXML] = explicitCutoff;
+        scoreThresholds[PROT_PILOT] = explicitCutoff;
+        scoreThresholds[SQT] = 1 - explicitCutoff;
+        scoreThresholds[MASCOT] = 1 - explicitCutoff;
+        scoreThresholds[TANDEM] = 1 - explicitCutoff;
+        scoreThresholds[SCAFFOLD] = explicitCutoff;
+        scoreThresholds[OMSSA] = 1 - explicitCutoff;
+        scoreThresholds[PROT_PROSPECT] = 1 - explicitCutoff;
+        scoreThresholds[MAXQUANT] = 1 - explicitCutoff;
+        scoreThresholds[MORPHEUS] = 1 - explicitCutoff;
+        scoreThresholds[MSGF] = 1 - explicitCutoff;
+        scoreThresholds[PEAKS] = 1 - explicitCutoff;
+        scoreThresholds[BYONIC] = 1 - explicitCutoff;
+        scoreThresholds[PEPTIDE_SHAKER] = explicitCutoff;
+        scoreThresholds[GENERIC_QVALUE_INPUT] = 1 - explicitCutoff;
     } else if (switchName == 'l' && ++i < argc) {
         level_compress = atoi(argv[i]);
     } else if (switchName == 'C' && ++i < argc) {
@@ -466,6 +509,8 @@ int BlibBuilder::parseNextSwitch(int i, int argc, char* argv[])
         Verbosity::set_verbosity(v_level);
     } else if (switchName == 'x' && ++i < argc) {
         maxQuantModsPath = string(argv[i]);
+    } else if (switchName == 'p' && ++i < argc) {
+        maxQuantParamsPath = string(argv[i]);
     } else if (switchName == 'P' && ++i < argc) {
         forcedPusherInterval = atof(argv[i]);
     } else if (switchName == 'u') {
@@ -478,11 +523,19 @@ int BlibBuilder::parseNextSwitch(int i, int argc, char* argv[])
         ambiguityMessages_ = true;
     } else if (switchName == 'K') {
         keepAmbiguous_ = true;
+    } else if (switchName == 'H') {
+        setHighPrecisionModifications(true);
+    } else if (switchName == 'E') {
+        preferEmbeddedSpectra_ = true;
     } else {
         return BlibMaker::parseNextSwitch(i, argc, argv);
     }
 
     return min(argc, i + 1);
+}
+
+double BlibBuilder::getCutoffScore() const {
+    return explicitCutoff;
 }
 
 int BlibBuilder::readSequences(set<string>** seqSet, bool modified)
@@ -556,7 +609,9 @@ int BlibBuilder::readSequences(set<string>** seqSet, bool modified)
         }
         if (modified)
         {
-            newSeq = generateModifiedSeq(newSeq.c_str(), mods);
+            // We use the low precision form of the sequence for this list.
+            // This needs to match the logic in BuildParser::filterBySequence
+            newSeq = getLowPrecisionModSeq(newSeq.c_str(), mods);
         }
         Verbosity::debug("Adding target sequence %s", newSeq.c_str());
         (*seqSet)->insert(newSeq);
@@ -566,14 +621,31 @@ int BlibBuilder::readSequences(set<string>** seqSet, bool modified)
     return sequencesRead;
 }
 
-/**
- * \brief Create a sequence that includes modifications from an
- * unmodified seq and a list of mods.  Assumes that mods are sorted in
- * increasing order by position and that no two entries in the mods
- * vector are to the same position.
- */
-string BlibBuilder::generateModifiedSeq(const char* unmodSeq,
-                                        const vector<SeqMod>& mods) {
+static const char* getModMassFormat(double mass, bool highPrecision) {
+    if (!highPrecision) {
+        return "[%+.1f]";
+    }
+    double decimal = (mass - (int) mass);
+    int decimalInt = (int) round(decimal * 100000);
+    if (decimalInt == (decimalInt / 10000) * 10000) {
+        return "[%+.1f]";
+    }
+    if (decimalInt == (decimalInt / 1000) * 1000) {
+        return "[%+.2f]";
+    }
+    if (decimalInt == (decimalInt /100) * 100) {
+        return "[%+.3f]";
+    }
+    if (decimalInt == (decimalInt /10) * 10) {
+        return "[%+.4f]";
+    }
+    return "[%+.5f]";
+}
+
+string BlibBuilder::getModifiedSequenceWithPrecision(const char* unmodSeq,
+                                        const vector<SeqMod>& mods,
+                                        bool highPrecision) 
+{
     string modifiedSeq(unmodSeq);
     char modBuffer[SMALL_BUFFER_SIZE];
 
@@ -588,11 +660,23 @@ string BlibBuilder::generateModifiedSeq(const char* unmodSeq,
                              modifiedSeq.size(), mods.back().position);
         }
 
-        sprintf(modBuffer, "[%+.1f]", mods.at(i).deltaMass);
+        double deltaMass = mods.at(i).deltaMass;
+        sprintf(modBuffer, getModMassFormat(deltaMass, highPrecision), deltaMass);
         modifiedSeq.insert(mods.at(i).position, modBuffer);
     }
 
     return modifiedSeq;
+}
+
+/**
+ * \brief Create a sequence that includes modifications from an
+ * unmodified seq and a list of mods.  Assumes that mods are sorted in
+ * increasing order by position and that no two entries in the mods
+ * vector are to the same position.
+ */
+string BlibBuilder::generateModifiedSeq(const char* unmodSeq,
+                                        const vector<SeqMod>& mods) {
+    return getModifiedSequenceWithPrecision(unmodSeq, mods, isHighPrecisionModifications());
 }
 
 string base_name(const char* name)

@@ -17,16 +17,20 @@
  * limitations under the License.
  */
 
+using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using pwiz.Skyline;
 using pwiz.Skyline.Controls;
+using pwiz.Skyline.Controls.Startup;
 using pwiz.Skyline.EditUI;
 using pwiz.Skyline.FileUI;
 using pwiz.Skyline.Model;
 using pwiz.Skyline.Model.Results;
+using pwiz.Skyline.Util.Extensions;
 using pwiz.SkylineTestUtil;
 
 namespace pwiz.SkylineTestTutorial
@@ -34,22 +38,42 @@ namespace pwiz.SkylineTestTutorial
     [TestClass]
     public class SmallMoleculesTutorialTest : AbstractFunctionalTest
     {
+        private bool _inferredLabels;
+
+        protected override bool UseRawFiles
+        {
+            get { return !ForceMzml && ExtensionTestContext.CanImportWatersRaw; }
+        }
+
+        protected override bool ShowStartPage
+        {
+            get { return true; }  // So we can point out the UI mode control
+        }
+
         [TestMethod]
         public void TestSmallMoleculesTutorial()
         {
             // Set true to look at tutorial screenshots.
             // IsPauseForScreenShots = true;
 
-            LinkPdf = "https://skyline.gs.washington.edu/labkey/_webdav/home/software/Skyline/%40files/tutorials/SmallMolecule-3_1.pdf";
+            LinkPdf = "https://skyline.gs.washington.edu/labkey/_webdav/home/software/Skyline/%40files/tutorials/SmallMolecule-3_6.pdf";
 
-            TestFilesZipPaths = new []
+            TestFilesZipPaths = new[]
             {
                 (UseRawFiles
-                   ? @"https://skyline.gs.washington.edu/tutorials/SmallMolecule.zip"
-                   : @"https://skyline.gs.washington.edu/tutorials/SmallMoleculeMzml.zip"),
+                   ? @"https://skyline.gs.washington.edu/tutorials/SmallMolecule_3_6.zip"
+                   : @"https://skyline.gs.washington.edu/tutorials/SmallMoleculeMzml_3_6.zip"),
                 @"TestTutorial\SmallMoleculeViews.zip"
             };
             RunFunctionalTest();
+        }
+
+        [TestMethod]
+        public void TestSmallMoleculesTutorialInferredLabels()
+        {
+            // Verify ability to infer labels from transition list
+            _inferredLabels = true;
+            TestSmallMoleculesTutorial();
         }
 
         private string GetTestPath(string relativePath = null)
@@ -61,60 +85,52 @@ namespace pwiz.SkylineTestTutorial
 
         protected override void DoTest()
         {
-            // Inserting a Transition List, p. 2
+            // Setting the UI mode, p 2  
+            var startPage = WaitForOpenForm<StartPage>();
+            RunUI(()=>startPage.ModeUIButtonClick(SrmDocument.DOCUMENT_TYPE.proteomic));
+            PauseForScreenShot<StartPage>("Start Window proteomic", 2);
+            RunUI(() => startPage.ModeUIButtonClick(SrmDocument.DOCUMENT_TYPE.small_molecules));
+            PauseForScreenShot<StartPage>("Start Window small molecule", 3);
+            RunUI(() => startPage.DoAction(skylineWindow => true));
+            WaitForOpenForm<SkylineWindow>();
+
+            // Inserting a Transition List, p. 5
             {
                 var doc = SkylineWindow.Document;
 
                 var pasteDlg = ShowDialog<PasteDlg>(SkylineWindow.ShowPasteTransitionListDlg);
                 RunUI(() =>
                 {
-                    pasteDlg.IsMolecule = false;  // Default peptide view
-                    pasteDlg.Size = new Size(800, 275);
+                    pasteDlg.Size = new Size(900, 375);
                 });
-                PauseForScreenShot<PasteDlg>("Paste Dialog in peptide mode", 2);
+                PauseForScreenShot<PasteDlg>("Paste Dialog in molecule mode", 5);
 
                 RunUI(() =>
                 {
                     pasteDlg.IsMolecule = true;
                     pasteDlg.SetSmallMoleculeColumns(null);  // Default columns
                 });
-                PauseForScreenShot<PasteDlg>("Paste Dialog in small molecule mode, default columns", 3);
+                PauseForScreenShot<PasteDlg>("Paste Dialog in small molecule mode, default columns - show Columns checklist", 3);
 
-                if (IsPauseForScreenShots)
-                {
-                    var columnsRestricted = new[]
-                    {
-                        // Molecule List Name,Precursor Name,Precursor Formula,Product m/z,Precursor Charge,Product Charge,Precursor RT,Precursor CE
-                        PasteDlg.SmallMoleculeTransitionListColumnHeaders.moleculeGroup,
-                        PasteDlg.SmallMoleculeTransitionListColumnHeaders.namePrecursor,
-                        PasteDlg.SmallMoleculeTransitionListColumnHeaders.formulaPrecursor,
-                        PasteDlg.SmallMoleculeTransitionListColumnHeaders.mzProduct,
-                        PasteDlg.SmallMoleculeTransitionListColumnHeaders.chargePrecursor,
-                        PasteDlg.SmallMoleculeTransitionListColumnHeaders.chargeProduct,
-                        PasteDlg.SmallMoleculeTransitionListColumnHeaders.rtPrecursor,
-                        PasteDlg.SmallMoleculeTransitionListColumnHeaders.cePrecursor,
-                    }.ToList();
-                    RunUI(() =>
-                    {
-                        pasteDlg.SetSmallMoleculeColumns(columnsRestricted);
-                        pasteDlg.Height = 339;
-                    });
-                    WaitForConditionUI(() => pasteDlg.GetUsableColumnCount() == columnsRestricted.Count);
-                    PauseForScreenShot<PasteDlg>("Paste Dialog with selected columns - show Columns checklist", 4);
-                }
 
                 var columnsOrdered = new[]
-                    {
-                        // Molecule List Name,Precursor Name,Precursor Formula,Precursor Charge,Precursor RT,Precursor CE,Product m/z,Product Charge
-                        PasteDlg.SmallMoleculeTransitionListColumnHeaders.moleculeGroup,
-                        PasteDlg.SmallMoleculeTransitionListColumnHeaders.namePrecursor,
-                        PasteDlg.SmallMoleculeTransitionListColumnHeaders.formulaPrecursor,
-                        PasteDlg.SmallMoleculeTransitionListColumnHeaders.chargePrecursor,
-                        PasteDlg.SmallMoleculeTransitionListColumnHeaders.rtPrecursor,
-                        PasteDlg.SmallMoleculeTransitionListColumnHeaders.cePrecursor,
-                        PasteDlg.SmallMoleculeTransitionListColumnHeaders.mzProduct,
-                        PasteDlg.SmallMoleculeTransitionListColumnHeaders.chargeProduct
-                    }.ToList();
+                {
+                    // Molecule List Name,Precursor Name,Precursor Formula,Precursor Charge,Precursor RT,Precursor CE,Product m/z,Product Charge, label type
+                    SmallMoleculeTransitionListColumnHeaders.moleculeGroup,
+                    SmallMoleculeTransitionListColumnHeaders.namePrecursor,
+                    SmallMoleculeTransitionListColumnHeaders.formulaPrecursor,
+                    SmallMoleculeTransitionListColumnHeaders.adductPrecursor,
+                    SmallMoleculeTransitionListColumnHeaders.chargePrecursor,
+                    SmallMoleculeTransitionListColumnHeaders.rtPrecursor,
+                    SmallMoleculeTransitionListColumnHeaders.cePrecursor,
+                    SmallMoleculeTransitionListColumnHeaders.mzProduct,
+                    SmallMoleculeTransitionListColumnHeaders.chargeProduct,
+                    SmallMoleculeTransitionListColumnHeaders.labelType
+                }.ToList();
+                if (_inferredLabels)
+                {
+                    columnsOrdered.Remove(SmallMoleculeTransitionListColumnHeaders.labelType);
+                }
                 RunUI(() => { pasteDlg.SetSmallMoleculeColumns(columnsOrdered); });
                 WaitForConditionUI(() => pasteDlg.GetUsableColumnCount() == columnsOrdered.Count);
                 PauseForScreenShot<PasteDlg>("Paste Dialog with selected and ordered columns", 4);
@@ -127,7 +143,7 @@ namespace pwiz.SkylineTestTutorial
                 OkDialog(pasteDlg, pasteDlg.OkDialog);
                 var docTargets = WaitForDocumentChange(doc);
 
-                AssertEx.IsDocumentState(docTargets, null, 6, 19, 19, 21);
+                AssertEx.IsDocumentState(docTargets, null, 6, 12, 19, 21);
                 Assert.IsFalse(docTargets.MoleculeTransitions.Any(t => t.Transition.IsPrecursor()));
 
                 RunUI(() =>
@@ -140,41 +156,67 @@ namespace pwiz.SkylineTestTutorial
 
                 RunUI(() => SkylineWindow.SaveDocument(GetTestPath("Amino Acid Metabolism.sky")));
 
-                var importResultsDlg1 = ShowDialog<ImportResultsDlg>(SkylineWindow.ImportResults);
-                var openDataSourceDialog1 = ShowDialog<OpenDataSourceDialog>(() => importResultsDlg1.NamedPathSets =
-                                                                            importResultsDlg1.GetDataSourcePathsFile(null));
-                RunUI(() =>
+                using (new WaitDocumentChange(null, true))
                 {
-                    openDataSourceDialog1.CurrentDirectory = new MsDataFilePath(GetTestPath());
-                    openDataSourceDialog1.SelectAllFileType(UseRawFiles
-                        ? ExtensionTestContext.ExtWatersRaw
-                        : ExtensionTestContext.ExtMzml);
-                });
-                PauseForScreenShot<ImportResultsSamplesDlg>("Import Results Files form", 6);
-                OkDialog(openDataSourceDialog1, openDataSourceDialog1.Open);
+                    var importResultsDlg1 = ShowDialog<ImportResultsDlg>(SkylineWindow.ImportResults);
+                    var openDataSourceDialog1 = ShowDialog<OpenDataSourceDialog>(() => importResultsDlg1.NamedPathSets =
+                        importResultsDlg1.GetDataSourcePathsFile(null));
+                    RunUI(() =>
+                    {
+                        openDataSourceDialog1.CurrentDirectory = new MsDataFilePath(GetTestPath());
+                        openDataSourceDialog1.SelectAllFileType(ExtWatersRaw);
+                    });
+                    PauseForScreenShot<ImportResultsSamplesDlg>("Import Results Files form", 6);
+                    OkDialog(openDataSourceDialog1, openDataSourceDialog1.Open);
 
-                var importResultsNameDlg = ShowDialog<ImportResultsNameDlg>(importResultsDlg1.OkDialog);
-                OkDialog(importResultsNameDlg, importResultsNameDlg.NoDialog);
-
-                WaitForCondition(() =>
-                    SkylineWindow.Document.Settings.HasResults && SkylineWindow.Document.Settings.MeasuredResults.IsLoaded);
+                    var importResultsNameDlg = ShowDialog<ImportResultsNameDlg>(importResultsDlg1.OkDialog);
+                    OkDialog(importResultsNameDlg, importResultsNameDlg.NoDialog);
+                }
 
                 SelectNode(SrmDocument.Level.MoleculeGroups, 0);
 
                 PauseForScreenShot<SkylineWindow>("Skyline window multi-target graph", 8);
 
                 var docResults = SkylineWindow.Document;
+
+                var expectedTransCount = new Dictionary<string, int[]>
+                {
+                    // transition groups, heavy transition groups, tranistions, heavy transitions
+                    {"ID15656_01_WAA263_3976_020415", new[] {12, 7, 13, 8}},
+                    {"ID15658_01_WAA263_3976_020415", new[] {12, 6, 13, 7}},
+                    {"ID15659_01_WAA263_3976_020415", new[] {12, 7, 13, 8}},
+                    {"ID15661_01_WAA263_3976_020415", new[] {12, 7, 13, 8}},
+                    {"ID15662_01_WAA263_3976_020415", new[] {12, 7, 13, 8}},
+                    {"ID15663_01_WAA263_3976_020415", new[] {11, 7, 12, 8}},
+                    {"ID15664_01_WAA263_3976_020415", new[] {11, 6, 12, 7}},
+                    {"ID15739_01_WAA263_3976_020415", new[] {10, 6, 10, 7}},
+                    {"ID15740_01_WAA263_3976_020415", new[] {12, 6, 12, 7}},
+                    {"ID15740_02_WAA263_3976_020415", new[] {11, 5, 11, 6}},
+                    {"ID15740_04_WAA263_3976_020415", new[] {12, 6, 12, 7}},
+                    {"ID15741_01_WAA263_3976_020415", new[] {12, 7, 13, 8}},
+                    {"ID15741_02_WAA263_3976_020415", new[] {12, 6, 13, 7}}
+                };
+                var msg = "";
                 foreach (var chromatogramSet in docResults.Settings.MeasuredResults.Chromatograms)
                 {
-                    int trans = chromatogramSet.Name == "ID15741_01_WAA263_3976_020415" ? 20 : 21;
-                    AssertResult.IsDocumentResultsState(docResults, chromatogramSet.Name, 19, 19, 0, trans, 0);
+                    int[] transitions;
+                    if (!expectedTransCount.TryGetValue(chromatogramSet.Name, out transitions))
+                        transitions = new[] {12, 7, 13, 8}; // Most have this value
+                    try
+                    {
+                        AssertResult.IsDocumentResultsState(docResults, chromatogramSet.Name, 12, transitions[0], transitions[1], transitions[2], transitions[3]);
+                    }
+                    catch(Exception x)
+                    {
+                        msg = TextUtil.LineSeparate(msg, x.Message);
+                    }
                 }
-
+                if (!string.IsNullOrEmpty(msg))
+                    Assert.IsTrue(string.IsNullOrEmpty(msg), msg);
                 RestoreViewOnScreen(9);
                 PauseForScreenShot<SkylineWindow>("Skyline window multi-replicate layout", 9);
             }
 
         }
-
     }
 }

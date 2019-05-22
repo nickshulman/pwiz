@@ -31,6 +31,7 @@
 
 #include "pwiz/utility/misc/Export.hpp"
 #include "pwiz/utility/misc/automation_vector.h"
+#include "pwiz/utility/misc/BinaryData.hpp"
 #include <string>
 #include <vector>
 #include <set>
@@ -155,6 +156,7 @@ struct PWIZ_API_DECL Transition
     double Q1;
     double Q3;
     TimeRange acquiredTimeRange;
+    IonPolarity ionPolarity;
 
     bool operator< (const Transition& rhs) const;
 };
@@ -176,6 +178,7 @@ struct PWIZ_API_DECL Chromatogram
     virtual int getTotalDataPoints() const = 0;
     virtual void getXArray(automation_vector<double>& x) const = 0;
     virtual void getYArray(automation_vector<float>& y) const = 0;
+    virtual IonPolarity getIonPolarity() const = 0;
 
     virtual ~Chromatogram() {}
 };
@@ -198,8 +201,8 @@ struct PWIZ_API_DECL Spectrum
     virtual int getScanId() const = 0;
 
     virtual int getTotalDataPoints() const = 0;
-    virtual void getXArray(std::vector<double>& x) const = 0;
-    virtual void getYArray(std::vector<float>& y) const = 0;
+    virtual void getXArray(pwiz::util::BinaryData<double>& x) const = 0;
+    virtual void getYArray(pwiz::util::BinaryData<float>& y) const = 0;
 
     virtual ~Spectrum() {}
 };
@@ -242,8 +245,8 @@ struct PWIZ_API_DECL DriftScan
     virtual int getScanId() const = 0;
 
     virtual int getTotalDataPoints() const = 0;
-    virtual const std::vector<double>& getXArray() const = 0;
-    virtual const std::vector<float>& getYArray() const = 0;
+    virtual const pwiz::util::BinaryData<double>& getXArray() const = 0;
+    virtual const pwiz::util::BinaryData<float>& getYArray() const = 0;
 
     virtual ~DriftScan() {}
 };
@@ -269,6 +272,9 @@ typedef boost::shared_ptr<Frame> FramePtr;
 
 class PWIZ_API_DECL MassHunterData
 {
+    protected:
+    std::string massHunterRootPath_; // path to a .d directory with AcqData in it
+
     public:
     typedef boost::shared_ptr<MassHunterData> Ptr;
     static Ptr create(const std::string& path);
@@ -277,7 +283,8 @@ class PWIZ_API_DECL MassHunterData
     virtual std::string getVersion() const = 0;
     virtual DeviceType getDeviceType() const = 0;
     virtual std::string getDeviceName(DeviceType deviceType) const = 0;
-    virtual boost::local_time::local_date_time getAcquisitionTime() const = 0;
+    virtual std::string getDeviceSerialNumber(DeviceType deviceType) const;
+    virtual boost::local_time::local_date_time getAcquisitionTime(bool adjustToHostTime) const = 0;
     virtual IonizationMode getIonModes() const = 0;
     virtual MSScanType getScanTypes() const = 0;
     virtual MSStorageMode getSpectraFormat() const = 0;
@@ -287,6 +294,10 @@ class PWIZ_API_DECL MassHunterData
     virtual bool hasIonMobilityData() const = 0;
     virtual int getTotalIonMobilityFramesPresent() const = 0;
     virtual FramePtr getIonMobilityFrame(int frameIndex) const = 0;
+
+    virtual bool canConvertDriftTimeAndCCS() const = 0;
+    virtual double driftTimeToCCS(double driftTimeInMilliseconds, double mz, int charge) const = 0;
+    virtual double ccsToDriftTime(double ccs, double mz, int charge) const = 0;
 
     virtual const std::set<Transition>& getTransitions() const = 0;
     virtual ChromatogramPtr getChromatogram(const Transition& transition) const = 0;
@@ -305,7 +316,7 @@ class PWIZ_API_DECL MassHunterData
     virtual SpectrumPtr getProfileSpectrumById(int scanId) const = 0;
     virtual SpectrumPtr getPeakSpectrumById(int scanId, PeakFilterPtr peakFilter = PeakFilterPtr()) const = 0;
 
-    virtual ~MassHunterData() {}
+    virtual ~MassHunterData() noexcept(false) {}
 };
 
 typedef MassHunterData::Ptr MassHunterDataPtr;

@@ -31,6 +31,7 @@
 #include <utility>
 #include <string>
 #include <pwiz/utility/misc/IterationListener.hpp>
+#include <pwiz/utility/chemistry/MZTolerance.hpp>
 #include <boost/scoped_ptr.hpp>
 #include <boost/exception_ptr.hpp>
 #include <boost/optional.hpp>
@@ -56,7 +57,7 @@ using std::pair;
 using std::string;
 
 
-/// an object responsible for merging two or more idpDBs into a single output idpDB
+/// an object responsible for filtering an idpDB according to various thresholds and parsimony
 struct Filter
 {
     Filter();
@@ -81,6 +82,7 @@ struct Filter
         int minSpectra;
         int minAdditionalPeptides;
         bool geneLevelFiltering;
+        boost::optional<pwiz::chemistry::MZTolerance> precursorMzTolerance;
 
         int minSpectraPerDistinctMatch;
         int minSpectraPerDistinctPeptide;

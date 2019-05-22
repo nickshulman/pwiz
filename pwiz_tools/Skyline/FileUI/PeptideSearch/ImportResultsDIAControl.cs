@@ -32,43 +32,66 @@ namespace pwiz.Skyline.FileUI.PeptideSearch
 {
     public partial class ImportResultsDIAControl : UserControl, IImportResultsControl
     {
-        public ImportResultsDIAControl(SkylineWindow skylineWindow)
+        public ImportResultsDIAControl(IModifyDocumentContainer documentContainer)
         {
-            SkylineWindow = skylineWindow;
+            DocumentContainer = documentContainer;
 
             InitializeComponent();
 
             _foundResultsFiles = new BindingList<ImportPeptideSearch.FoundResultsFile>();
             listResultsFiles.DataSource = _foundResultsFiles;
-            listResultsFiles.DisplayMember = "Name"; // Not L10N
+            listResultsFiles.DisplayMember = @"Name";
+            SimultaneousFiles = Settings.Default.ImportResultsSimultaneousFiles;
+            DoAutoRetry = Settings.Default.ImportResultsDoAutoRetry;
         }
 
         private BindingList<ImportPeptideSearch.FoundResultsFile> _foundResultsFiles;
-        private SkylineWindow SkylineWindow { get; set; }
+        private IModifyDocumentContainer DocumentContainer { get; set; }
+
+        public int SimultaneousFiles
+        {
+            get { return comboSimultaneousFiles.SelectedIndex; }
+            set { comboSimultaneousFiles.SelectedIndex = value; }
+        }
+
+        public bool DoAutoRetry
+        {
+            get { return cbAutoRetry.Checked; }
+            set { cbAutoRetry.Checked = value; }
+        }
+
+        public string Prefix { get; set; }
+        public string Suffix { get; set; }
 
         public List<ImportPeptideSearch.FoundResultsFile> FoundResultsFiles
         {
             get { return _foundResultsFiles.ToList(); }
             set
             {
-                _foundResultsFiles = new BindingList<ImportPeptideSearch.FoundResultsFile>(value);
+                var files = ImportResultsControl.EnsureUniqueNames(value); // May change names to ensure uniqueness
+                _foundResultsFiles = new BindingList<ImportPeptideSearch.FoundResultsFile>(files);
                 listResultsFiles.DataSource = _foundResultsFiles;
             }
         }
 
         public bool ResultsFilesMissing { get { return !_foundResultsFiles.Any(); } }
 
+        public ImportResultsSettings ImportSettings
+        {
+            get { return new ImportResultsSettings(false, this); }
+        }
+
         public event EventHandler<ImportResultsControl.ResultsFilesEventArgs> ResultsFilesChanged;
 
         private void btnBrowse_Click(object sender, EventArgs e)
         {
-            using (var dlgOpen = new OpenDataSourceDialog(Settings.Default.ChorusAccountList)
+            using (var dlgOpen = new OpenDataSourceDialog(Settings.Default.RemoteAccountList)
             {
                 Text = Resources.ImportResultsDIAControl_btnBrowse_Click_Browse_for_Results_Files
             })
             {
                 // The dialog expects null to mean no directory was supplied, so don't assign an empty string.
-                string initialDir = Path.GetDirectoryName(SkylineWindow.DocumentFilePath);
+                string initialDir = Path.GetDirectoryName(DocumentContainer.DocumentFilePath);
                 dlgOpen.InitialDirectory = new MsDataFilePath(initialDir);
 
                 // Use saved source type, if there is one.

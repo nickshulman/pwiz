@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Original author: Brendan MacLean <brendanx .at. u.washington.edu>,
  *                  MacCoss Lab, Department of Genome Sciences, UW
  *
@@ -18,6 +18,7 @@
  */
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -57,16 +58,20 @@ namespace pwiz.SkylineTestUtil
         public static void ThrowsException<TEx>(Func<object> throwEx, string message = null)
             where TEx : Exception
         {
+            bool exceptionThrown = false;
             try
             {
                 throwEx();
-                Assert.Fail("Exception expected");
             }
             catch (TEx x)
             {
                 if (message != null)
                     AreComparableStrings(message, x.Message);
+                exceptionThrown = true;
             }
+            // Assert that an exception was thrown. We do this outside of the catch block
+            // so that the AssertFailedException will not get caught if TEx is Exception.
+            Assert.IsTrue(exceptionThrown, "Exception expected");
         }
 
 
@@ -83,19 +88,29 @@ namespace pwiz.SkylineTestUtil
             {
                 throwEx();
             }
-            catch (TEx)
+            catch (TEx x)
             {
-                Assert.Fail("Unexception expected");
+                Assert.Fail(TextUtil.LineSeparate(string.Format("Unexpected exception: {0}", x.Message), x.StackTrace));
             }
+        }
+
+        public static void AreNoExceptions(IList<Exception> exceptions)
+        {
+            if (exceptions.Count == 0)
+                return;
+
+            Assert.Fail(TextUtil.LineSeparate(exceptions.Count == 1 ? "Unexpected exception:" : "Unexpected exceptions:",
+                TextUtil.LineSeparate(exceptions.Select(x => TextUtil.LineSeparate(x.Message, ExceptionUtil.GetStackTraceText(x, null, false), string.Empty)))));
         }
 
         public static void Contains(string value, params string[] parts)
         {
             Assert.IsNotNull(value, "No message found");
+            Assert.AreNotEqual(0, parts.Length, "Must have at least one thing contained");
             foreach (string part in parts)
             {
-                Assert.IsTrue(value.Contains(part),
-                    string.Format("The text '{0}' does not contain '{1}'", value, part));
+                if (!string.IsNullOrEmpty(part) && !value.Contains(part))
+                    Assert.Fail("The text '{0}' does not contain '{1}'", value, part);
             }
         }
 
@@ -198,6 +213,7 @@ namespace pwiz.SkylineTestUtil
         public static void Serializable(SrmDocument doc)
         {
             Serializable(doc, DocumentCloned);
+            VerifyModifiedSequences(doc);
         }
 
         public static void Serializable<TObj>(TObj target, Action<TObj, TObj> validate, bool checkAgainstSkylineSchema = true, string expectedTypeInSkylineSchema = null)
@@ -218,6 +234,50 @@ namespace pwiz.SkylineTestUtil
                 ValidatesAgainstSchema(target, expectedTypeInSkylineSchema);
         }
 
+        public static SrmDocument Serializable(SrmDocument target, string testPath, bool checkAgainstSkylineSchema = true, string expectedTypeInSkylineSchema = null, bool forceFullLoad = false)
+        {
+            string expected = null;
+            var actual = RoundTrip(target, ref expected);
+            DocumentClonedLoadable(ref target, ref actual, testPath, forceFullLoad);
+            VerifyModifiedSequences(target);
+            // Validate documents or document fragments against current schema
+            if (checkAgainstSkylineSchema)
+                ValidatesAgainstSchema(target, expectedTypeInSkylineSchema);
+            return target;
+        }
+
+        /// <summary>
+        /// Verifies that for every peptide and precursor in the document, the
+        /// sequence that the class <see cref="ModifiedSequence" /> behaves
+        /// the same as <see cref="IPrecursorMassCalc"/>.
+        /// </summary>
+        public static void VerifyModifiedSequences(SrmDocument doc)
+        {
+            foreach (var peptide in doc.Peptides)
+            {
+                var peptideModifiedSequence =
+                    ModifiedSequence.GetModifiedSequence(doc.Settings, peptide, IsotopeLabelType.light);
+                Assert.IsNotNull(peptideModifiedSequence);
+                if (peptide.ModifiedSequenceDisplay != peptideModifiedSequence.ToString())
+                {
+                    Assert.AreEqual(peptide.ModifiedSequenceDisplay, peptideModifiedSequence.ToString());
+                }
+                foreach (var precursor in peptide.TransitionGroups)
+                {
+                    var modifiedSequence = ModifiedSequence.GetModifiedSequence(doc.Settings, peptide,
+                        precursor.TransitionGroup.LabelType);
+                    Assert.IsNotNull(modifiedSequence);
+                    var expectedModifiedSequence = doc.Settings.GetPrecursorCalc(
+                            precursor.TransitionGroup.LabelType, peptide.ExplicitMods)
+                        .GetModifiedSequence(peptide.Peptide.Target, true).ToString();
+                    if (expectedModifiedSequence != modifiedSequence.ToString())
+                    {
+                        Assert.AreEqual(expectedModifiedSequence, modifiedSequence.ToString());
+                    }
+                }
+            }
+        }
+
         /// <summary>
         /// Checks validity of a document or document fragment against the current schema
         /// </summary>
@@ -231,24 +291,35 @@ namespace pwiz.SkylineTestUtil
                     writer.Formatting = Formatting.Indented;
                     try
                     {
-                        var ser = new XmlSerializer(obj.GetType());
-                        ser.Serialize(writer, obj);
-                        var xmlText = sb.ToString();
+                        string xmlText;
+                        try
+                        {
+                            var ser = new XmlSerializer(obj.GetType());
+                            ser.Serialize(writer, obj);
+                            xmlText = sb.ToString();
+                        }
+                        catch (OutOfMemoryException x)
+                        {
+                            if (obj.GetType() == typeof (SrmDocument))
+                                return;  // Just a really big document, let it slide
+                            throw new OutOfMemoryException("Strangely large non-document object", x.InnerException);
+                        }
                         var assembly = Assembly.GetAssembly(typeof(AssertEx));
                         var xsdName = typeof(AssertEx).Namespace + String.Format(CultureInfo.InvariantCulture, ".Schemas.Skyline_{0}.xsd", SrmDocument.FORMAT_VERSION);
                         var schemaStream = assembly.GetManifestResourceStream(xsdName);
-                        Assert.IsNotNull(schemaStream);
+                        Assert.IsNotNull(schemaStream, string.Format("Schema {0} not found in TestUtil assembly", xsdName));
                         var schemaText = (new StreamReader(schemaStream)).ReadToEnd();
+                        var xd = new XmlDocument();
+                        xd.Load(new MemoryStream(Encoding.UTF8.GetBytes(schemaText)));
                         string targetXML = null;
                         if (!(obj is SrmDocument))
                         {
                             // XSD validation takes place from the root, so make the object's type a root element for test purposes.
                             // Inspired by http://stackoverflow.com/questions/715626/validating-xml-nodes-not-the-entire-document
                             var elementName = xmlText.Split('<')[2].Split(' ')[0];
-                            var xd = new XmlDocument();
-                            xd.Load(new MemoryStream(Encoding.UTF8.GetBytes(schemaText)));
                             var nodes = xd.GetElementsByTagName("xs:element");
-                            for (var i = 0; i < nodes.Count; i++)
+                            int currentCount = nodes.Count;
+                            for (var i = 0; i < currentCount; i++)
                             {
                                 var xmlAttributeCollection = nodes[i].Attributes;
                                 if (xmlAttributeCollection != null &&
@@ -263,17 +334,14 @@ namespace pwiz.SkylineTestUtil
                                     {
                                         // Don't enter a redundant definition
                                         targetXML = xml;
-                                        var lines = schemaText.Split('\n');
-                                        schemaText = String.Join("\n", lines.Take(lines.Count() - 2));
-                                        schemaText += xml;
-                                        schemaText += lines[lines.Count() - 2];
-                                        schemaText += lines[lines.Count() - 1];
+                                        Assert.IsNotNull(xd.DocumentElement);
+                                        xd.DocumentElement.AppendChild(nodes[i]);
                                     }
                                 }
                             }
                         }
-
-                        using (var schemaReader = new XmlTextReader(new MemoryStream(Encoding.UTF8.GetBytes(schemaText))))
+                        
+                        using (var schemaReader = new XmlNodeReader(xd))
                         {
                             var schema = XmlSchema.Read(schemaReader, ValidationCallBack);
                             var readerSettings = new XmlReaderSettings
@@ -319,12 +387,46 @@ namespace pwiz.SkylineTestUtil
         /// </summary>
         public static void ValidatesAgainstSchema(string xmlText)
         {
-            var verStart = xmlText.IndexOf("format_version=\"", StringComparison.Ordinal) + 16; // Not L10N
-            string schemaVer = xmlText.Substring(verStart, xmlText.Substring(verStart).IndexOf("\"", StringComparison.Ordinal)); // Not L10N
+            // ReSharper disable LocalizableElement
+            var verStart = xmlText.IndexOf("format_version=\"", StringComparison.Ordinal) + 16;
+            string schemaVer = xmlText.Substring(verStart, xmlText.Substring(verStart).IndexOf("\"", StringComparison.Ordinal));
+            // ReSharper restore LocalizableElement
+
+            ValidatesAgainstSchema(xmlText, "Skyline_" + schemaVer);
+        }
+
+        [Localizable(false)]
+        public static void ValidateAuditLogAgainstSchema(string xmlText)
+        {
+            int documentHashIndex = xmlText.IndexOf("document_hash", StringComparison.Ordinal);
+            int formatVersionIndex = xmlText.IndexOf("format_version=\"", StringComparison.Ordinal);
+
+            string version = "0";
+            if (documentHashIndex < 0)
+                Assert.Fail("Invalid Audit Log. No audit_log tag found");
+            if (formatVersionIndex > 0 && formatVersionIndex < documentHashIndex)
+            {
+                version = xmlText.Substring(formatVersionIndex + 16,
+                    xmlText.Substring(formatVersionIndex + 16).IndexOf("\"", StringComparison.Ordinal));
+            }
+
+            // While a change in Skyline schema is often associated with change in audit log
+            // schema, it's not always the case
+            if (double.Parse(version, CultureInfo.InvariantCulture) > 4.21)
+            {
+                version = "4.21";
+            }
+
+            ValidatesAgainstSchema(xmlText, "AuditLog.Skyl_" + version);
+        }
+
+
+        public static void ValidatesAgainstSchema(string xmlText, string xsdName)
+        {
             var assembly = Assembly.GetAssembly(typeof(AssertEx));
-            var schemaFileName = typeof(AssertEx).Namespace + String.Format(CultureInfo.InvariantCulture, ".Schemas.Skyline_{0}.xsd", schemaVer); // Not L10N
-            var schemaFile = assembly.GetManifestResourceStream(schemaFileName);   
-            Assert.IsNotNull(schemaFile, "could not locate a schema file called "+schemaFileName);
+            var schemaFileName = typeof(AssertEx).Namespace + String.Format(CultureInfo.InvariantCulture, @".Schemas.{0}.xsd", xsdName);
+            var schemaFile = assembly.GetManifestResourceStream(schemaFileName);
+            Assert.IsNotNull(schemaFile, "could not locate a schema file called " + schemaFileName);
             using (var schemaReader = new XmlTextReader(schemaFile))
             {
                 var schema = XmlSchema.Read(schemaReader, OldSchemaValidationCallBack);
@@ -459,7 +561,7 @@ namespace pwiz.SkylineTestUtil
             return sb.ToString();
         }
 
-        public static void NoDiff(string target, string actual, string helpMsg=null)
+        public static void NoDiff(string target, string actual, string helpMsg=null, Dictionary<int, double> columnTolerances = null)
         {
             if (helpMsg == null)
                 helpMsg = String.Empty;
@@ -469,6 +571,7 @@ namespace pwiz.SkylineTestUtil
             using (StringReader readerActual = new StringReader(actual))
             {
                 int count = 1;
+                string lineEqualLast = string.Empty;
                 while (true)
                 {
                     string lineTarget = readerTarget.ReadLine();
@@ -476,27 +579,77 @@ namespace pwiz.SkylineTestUtil
                     if (lineTarget == null && lineActual == null)
                         return;
                     if (lineTarget == null)
-                        Assert.Fail(helpMsg + "Target stops at line {0}.", count);
+                        Assert.Fail(GetEarlyEndingMessage(helpMsg, "Expected", count-1, lineEqualLast, lineActual, readerActual));
                     if (lineActual == null)
-                        Assert.Fail(helpMsg + "Actual stops at line {0}.", count);
+                        Assert.Fail(GetEarlyEndingMessage(helpMsg, "Actual", count-1, lineEqualLast, lineTarget, readerTarget));
                     if (lineTarget != lineActual)
-                        Assert.Fail(helpMsg + "Diff found at line {0}:\r\n{1}\r\n>\r\n{2}", count, lineTarget, lineActual);
+                    {
+                        bool failed = true;
+                        if (columnTolerances != null)
+                        {
+                            var colsActual = lineActual.Split('\t');
+                            var colsTarget = lineTarget.Split('\t');
+                            if (colsTarget.Length == colsActual.Length)
+                            {
+                                failed = false; // May yet be saved by tolerance check
+                                for (var c = 0; c < colsActual.Length; c++)
+                                {
+                                    if (colsActual[c] != colsTarget[c])
+                                    {
+                                        double valActual, valTarget;
+                                        if (!columnTolerances.ContainsKey(c) ||
+                                            !(double.TryParse(colsActual[c], out valActual) && 
+                                              double.TryParse(colsTarget[c], out valTarget)) ||
+                                            (Math.Abs(valActual - valTarget) > columnTolerances[c] + columnTolerances[c]/1000)) // Allow for rounding cruft
+                                        {
+                                            failed = true;
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        if (failed)
+                            Assert.Fail(helpMsg + "Diff found at line {0}:\r\n{1}\r\n>\r\n{2}", count, lineTarget, lineActual);
+                    }
+
+                    lineEqualLast = lineTarget;
                     count++;
                 }
 
             }
         }
 
-        public static void FileEquals(string path1, string path2)
+        private static string GetEarlyEndingMessage(string helpMsg, string name, int count, string lineEqualLast, string lineNext, TextReader reader)
+        {
+            int linesRemaining = 0;
+            while (reader.ReadLine() != null)
+                linesRemaining++;
+
+            return string.Format(helpMsg + "{0} stops at line {1}:\r\n{2}\r\n>\r\n+ {3}\r\n{4} more lines",
+                name, count, lineEqualLast, lineNext, linesRemaining);
+        }
+
+        public static void FileEquals(string path1, string path2, Dictionary<int, double> columnTolerances = null )
         {
             string file1 = File.ReadAllText(path1);
             string file2 = File.ReadAllText(path2);
-            NoDiff(file1, file2);
+            NoDiff(file1, file2, null, columnTolerances);
         }
 
         public static void FieldsEqual(string target, string actual, int countFields, bool allowForNumericPrecisionDifferences = false)
         {
             FieldsEqual(target, actual, countFields, null, allowForNumericPrecisionDifferences);
+        }
+
+        public static void FieldsEqual(string target, string actual, double tolerance, int? countFields=null)
+        {
+            using (StringReader readerTarget = new StringReader(target))
+            using (StringReader readerActual = new StringReader(actual))
+            {
+                FieldsEqual(readerTarget, readerActual, countFields, null, false, 0, tolerance);
+            }
         }
 
         public static void FieldsEqual(string target, string actual, int countFields, int? exceptIndex, bool allowForTinyNumericDifferences = false)
@@ -508,7 +661,7 @@ namespace pwiz.SkylineTestUtil
             }
         }
 
-        public static void FieldsEqual(TextReader readerTarget, TextReader readerActual, int countFields, int? exceptIndex, bool allowForTinyNumericDifferences = false, int allowedExtraLinesInActual = 0)
+        public static void FieldsEqual(TextReader readerTarget, TextReader readerActual, int? countFields, int? exceptIndex, bool allowForTinyNumericDifferences = false, int allowedExtraLinesInActual = 0, double? tolerance=null)
         {
 
             int count = 1;
@@ -538,6 +691,10 @@ namespace pwiz.SkylineTestUtil
                         // for the moment at least, we are hardcoded for commas in CSV
                     string[] fieldsTarget = lineTarget.Split(new[] {','});
                     string[] fieldsActual = lineActual.Split(new[] {','});
+                    if (!countFields.HasValue)
+                    {
+                        countFields = Math.Max(fieldsTarget.Length, fieldsActual.Length);
+                    }
                     if (fieldsTarget.Length < countFields || fieldsActual.Length < countFields)
                         Assert.Fail("Diff found at line {0}:\r\n{1}\r\n>\r\n{2}", count, lineTarget, lineActual);
                     for (int i = 0; i < countFields; i++)
@@ -549,7 +706,7 @@ namespace pwiz.SkylineTestUtil
                         {
                             // test numerics with the precision presented in the output text
                             double dTarget, dActual;
-                            if (allowForTinyNumericDifferences &&
+                            if ((allowForTinyNumericDifferences || tolerance.HasValue) &&
                                 Double.TryParse(fieldsTarget[i], NumberStyles.Float, culture, out dTarget) &&
                                 Double.TryParse(fieldsActual[i], NumberStyles.Float, culture, out dActual))
                             {
@@ -557,7 +714,7 @@ namespace pwiz.SkylineTestUtil
                                 var precTarget = fieldsTarget[i].Length - String.Format("{0}.", (int) dTarget).Length;
                                 var precActual = fieldsActual[i].Length - String.Format("{0}.", (int) dActual).Length;
                                 var prec = Math.Max(Math.Min(precTarget, precActual), 0);
-                                double toler = .5*((prec == 0) ? 0 : Math.Pow(10, -prec));
+                                double toler = tolerance ?? .5*((prec == 0) ? 0 : Math.Pow(10, -prec));
                                     // so .001 is seen as close enough to .0009
                                 if (Math.Abs(dTarget - dActual) <= toler)
                                     continue;
@@ -587,7 +744,7 @@ namespace pwiz.SkylineTestUtil
         public static void Cloned(SrmDocument expected, SrmDocument actual)
         {
             DocsEqual(expected, actual);
-            if (!ReferenceEquals(expected, actual))
+            if (ReferenceEquals(expected, actual))
             {
                 Assert.AreNotSame(expected, actual);
             }
@@ -595,11 +752,15 @@ namespace pwiz.SkylineTestUtil
 
         public static void Cloned(object expected, object actual)
         {
+            Cloned(expected, actual, null);
+        }
+        public static void Cloned(object expected, object actual, object def)
+        {
             if (!Equals(expected, actual))
             {
                 Assert.AreEqual(expected, actual);
             }
-            if (!ReferenceEquals(expected, actual))
+            if (ReferenceEquals(expected, actual) && !ReferenceEquals(actual, def))
             {
                 Assert.AreNotSame(expected, actual);
             }
@@ -696,18 +857,18 @@ namespace pwiz.SkylineTestUtil
         }
 
         public static void IsDocumentState(SrmDocument document, int? revision, int? groups, int? peptides,
-                                           int? tranGroups, int? transitions)
+                                           int? tranGroups, int? transitions, string hint = null)
         {
             var errmsg = DocumentStateTestResultString(document, revision, groups, peptides, tranGroups, transitions);
             if (errmsg.Length > 0)
-                Assert.Fail(errmsg);
+                Assert.Fail((hint??string.Empty) + errmsg);
 
             // Verify that no two nodes in the document tree have the same global index
             var setIndexes = new HashSet<int>();
             var nodeDuplicate = FindFirstDuplicateGlobalIndex(document, setIndexes);
             if (nodeDuplicate != null)
             {
-                Assert.Fail("Duplicate global index {0} found in node {1}",
+                Assert.Fail((hint??string.Empty) + "Duplicate global index {0} found in node {1}",
                     nodeDuplicate.Id.GlobalIndex, nodeDuplicate);
             }
         }
@@ -730,28 +891,91 @@ namespace pwiz.SkylineTestUtil
             return null;
         }
 
+        private static SrmDocument ForceDocumentLoad(SrmDocument target, string testDir)
+        {
+            string xmlSaved = null;
+            RoundTrip(target, ref xmlSaved);
+            // Not threadsafe! This is for tests only.
+            string tmpSky;
+            int attempt = 0;
+            do
+            {
+                tmpSky = Path.Combine(testDir, string.Format(@"tmp{0}.sky", attempt++));
+            } 
+            while (File.Exists(tmpSky));
+            File.WriteAllText(tmpSky, xmlSaved);
+            using (var cmd = new Skyline.CommandLine())
+            {
+                Assert.IsTrue(cmd.OpenSkyFile(tmpSky)); // Handles any path shifts in database files, like our .imdb file
+                var docLoad = cmd.Document;
+                using (var docContainer = new ResultsTestDocumentContainer(null, tmpSky))
+                {
+                    docContainer.SetDocument(docLoad, null, true);
+                    docContainer.AssertComplete();
+                    return docContainer.Document;
+                }
+            }
+        }
+
         public static void DocumentCloned(SrmDocument target, SrmDocument actual)
         {
+            DocumentClonedLoadable(ref target, ref actual, null, false);
+        }
+        public static void DocumentClonedLoadable(ref SrmDocument target, ref SrmDocument actual, string testDir, bool forceFullLoad)
+            {
+            for (var retry = 0; retry < 2;)
+            {
+                try
+                {
+                    // When libraries are involved, comparison only succeeds if both sets of libs (or neither) are fully loaded -
+                    // that is, if the libraryspecs agree. When we're just testing serialization, though, we may not have
+                    // that degree of loadedness. So, try saving to disk then doing a full reload
+                    if ((forceFullLoad || retry > 0) && !string.IsNullOrEmpty(testDir))
+                    {
+                        target = ForceDocumentLoad(target, testDir);
+                        actual = ForceDocumentLoad(actual, testDir);
+                    }
+                    SettingsCloned(target.Settings, actual.Settings);
+                    Cloned(target, actual);
+                    return;
+                }
+                catch
+                {
+                    retry++;
+                }
+            }
+            // Do it once more and allow throw
             SettingsCloned(target.Settings, actual.Settings);
             Cloned(target, actual);
         }
 
         public static void SettingsCloned(SrmSettings target, SrmSettings copy)
         {
-            Cloned(target.PeptideSettings.Enzyme, copy.PeptideSettings.Enzyme);
-            Cloned(target.PeptideSettings.DigestSettings, copy.PeptideSettings.DigestSettings);
-            Cloned(target.PeptideSettings.Filter, copy.PeptideSettings.Filter);
-            Cloned(target.PeptideSettings.Libraries, copy.PeptideSettings.Libraries);
-            Cloned(target.PeptideSettings.Modifications, copy.PeptideSettings.Modifications);
-            Cloned(target.PeptideSettings.Prediction, copy.PeptideSettings.Prediction);
+            var defSet = SrmSettingsList.GetDefault();
+            var defPep = defSet.PeptideSettings;
+            Cloned(target.PeptideSettings.Enzyme, copy.PeptideSettings.Enzyme, defPep.Enzyme);
+            Cloned(target.PeptideSettings.DigestSettings, copy.PeptideSettings.DigestSettings, defPep.DigestSettings);
+            Cloned(target.PeptideSettings.Filter, copy.PeptideSettings.Filter, defPep.Filter);
+            Cloned(target.PeptideSettings.Libraries, copy.PeptideSettings.Libraries, defPep.Libraries);
+            Cloned(target.PeptideSettings.Modifications, copy.PeptideSettings.Modifications, defPep.Modifications);
+            Cloned(target.PeptideSettings.Prediction, copy.PeptideSettings.Prediction, defPep.Prediction);
             Cloned(target.PeptideSettings, copy.PeptideSettings);
-            Cloned(target.TransitionSettings.Prediction, copy.TransitionSettings.Prediction);
-            Cloned(target.TransitionSettings.Filter, copy.TransitionSettings.Filter);
-            Cloned(target.TransitionSettings.Libraries, copy.TransitionSettings.Libraries);
-            Cloned(target.TransitionSettings.Integration, copy.TransitionSettings.Integration);
-            Cloned(target.TransitionSettings.Instrument, copy.TransitionSettings.Instrument);
-            Cloned(target.TransitionSettings.FullScan, copy.TransitionSettings.FullScan);
+            var defTran = defSet.TransitionSettings;
+            Cloned(target.TransitionSettings.Prediction, copy.TransitionSettings.Prediction, defTran.Prediction);
+            Cloned(target.TransitionSettings.Filter, copy.TransitionSettings.Filter, defTran.Filter);
+            Cloned(target.TransitionSettings.Libraries, copy.TransitionSettings.Libraries, defTran.Libraries);
+            Cloned(target.TransitionSettings.Integration, copy.TransitionSettings.Integration, defTran.Integration);
+            Cloned(target.TransitionSettings.Instrument, copy.TransitionSettings.Instrument, defTran.Instrument);
+            Cloned(target.TransitionSettings.FullScan, copy.TransitionSettings.FullScan, defTran.FullScan);
             Cloned(target.TransitionSettings, copy.TransitionSettings);
+            var defData = defSet.DataSettings;
+            Cloned(target.DataSettings.AnnotationDefs, copy.DataSettings.AnnotationDefs, defData.AnnotationDefs);
+            Cloned(target.DataSettings.GroupComparisonDefs, copy.DataSettings.GroupComparisonDefs, defData.GroupComparisonDefs);
+            Cloned(target.DataSettings.Lists, copy.DataSettings.Lists, defData.Lists);
+            Cloned(target.DataSettings.ViewSpecList, copy.DataSettings.ViewSpecList, defData.ViewSpecList);
+            Assert.AreEqual(target.DataSettings, copy.DataSettings);  // Might both by DataSettings.DEFAULT
+            if (!DataSettings.DEFAULT.Equals(target.DataSettings))
+                Assert.AreNotSame(target.DataSettings, copy.DataSettings);
             Cloned(target, copy);
         }
 
@@ -805,63 +1029,121 @@ namespace pwiz.SkylineTestUtil
         /// Compares a peptide document with a small molecule document which is presumed to be
         /// derived from the peptide document via RefinementSettings.ConvertToSmallMolecules()
         /// </summary>
-        public static void ConvertedSmallMoleculeDocumentIsSimilar(SrmDocument document, SrmDocument converted)
+        public static void ConvertedSmallMoleculeDocumentIsSimilar(SrmDocument document, SrmDocument converted, string testDir, RefinementSettings.ConvertToSmallMoleculesMode conversionMode)
         {
             // Are both versions valid?
-            Serializable(converted);
-            Serializable(document);
+            converted = Serializable(converted, testDir, true, null, true); // Force a full load to verify library correctness
+            document = Serializable(document, testDir, true, null, true); // Force a full load to verify library correctness
 
-            var convertedMoleculeGroupsIterator = converted.MoleculeGroups.GetEnumerator();
-            foreach (var peptideGroupDocNode in document.MoleculeGroups)
+            using (var convertedMoleculeGroupsIterator = converted.MoleculeGroups.GetEnumerator())
             {
-                convertedMoleculeGroupsIterator.MoveNext();
-                var convertedMoleculeGroupDocNode = convertedMoleculeGroupsIterator.Current;
-                var convertedMoleculesIterator = convertedMoleculeGroupDocNode.Molecules.GetEnumerator();
+                foreach (var peptideGroupDocNode in document.MoleculeGroups)
+                {
+                    convertedMoleculeGroupsIterator.MoveNext();
+                    ConvertedSmallMoleculePeptideGroupIsSimilar(convertedMoleculeGroupsIterator.Current, peptideGroupDocNode, conversionMode);
+                }
+                Assert.IsFalse(convertedMoleculeGroupsIterator.MoveNext());
+            }
+        }
+
+        private static void ConvertedSmallMoleculePeptideGroupIsSimilar(PeptideGroupDocNode convertedMoleculeGroupDocNode,
+            PeptideGroupDocNode peptideGroupDocNode, RefinementSettings.ConvertToSmallMoleculesMode conversionMode)
+        {
+            using (var convertedMoleculesIterator = convertedMoleculeGroupDocNode.Molecules.GetEnumerator())
+            {
                 foreach (var mol in peptideGroupDocNode.Molecules)
                 {
                     convertedMoleculesIterator.MoveNext();
                     var convertedMol = convertedMoleculesIterator.Current;
+                    Assert.IsNotNull(convertedMol);
                     if (convertedMol.Note != null)
-                        Assert.AreEqual(mol.Note ?? string.Empty, convertedMol.Note.Replace(RefinementSettings.TestingConvertedFromProteomic, string.Empty));
+                        Assert.AreEqual(mol.Note ?? string.Empty,
+                            convertedMol.Note.Replace(RefinementSettings.TestingConvertedFromProteomic, string.Empty));
                     else
-                        Assert.AreEqual(mol.CustomIon.InvariantName, SrmDocument.TestingNonProteomicMoleculeName); // This was the magic test molecule
+                        Assert.AreEqual(mol.CustomMolecule.InvariantName, SrmDocument.TestingNonProteomicMoleculeName); // This was the magic test molecule
                     Assert.AreEqual(mol.SourceKey, convertedMol.SourceKey);
                     Assert.AreEqual(mol.Rank, convertedMol.Rank);
                     Assert.AreEqual(mol.Results, convertedMol.Results);
                     Assert.AreEqual(mol.ExplicitRetentionTime, convertedMol.ExplicitRetentionTime);
                     Assert.AreEqual(mol.BestResult, convertedMol.BestResult);
-                    var convertedTransitionGroupIterator = convertedMol.TransitionGroups.GetEnumerator();
-                    foreach (var transitionGroupDocNode in mol.TransitionGroups)
-                    {
-                        convertedTransitionGroupIterator.MoveNext();
-                        var convertedTransitionGroupDocNode = convertedTransitionGroupIterator.Current;
-                        Assert.AreEqual(transitionGroupDocNode.TransitionGroup.PrecursorCharge, convertedTransitionGroupDocNode.TransitionGroup.PrecursorCharge);
-                        Assert.AreEqual(transitionGroupDocNode.TransitionGroup.LabelType, convertedTransitionGroupDocNode.TransitionGroup.LabelType);
-                        Assert.AreEqual(transitionGroupDocNode.PrecursorMz, convertedTransitionGroupDocNode.PrecursorMz, SequenceMassCalc.MassTolerance, "transitiongroup as small molecule");
-                        Assert.AreEqual(transitionGroupDocNode.IsotopeDist, convertedTransitionGroupDocNode.IsotopeDist);
-                        // Remove any library info, since for the moment at least small molecules don't support this and it won't roundtrip
-                        var resultsNew = RefinementSettings.RemoveTransitionGroupChromInfoLibraryInfo(transitionGroupDocNode);
-                        Assert.AreEqual(resultsNew, convertedTransitionGroupDocNode.Results, transitionGroupDocNode + " vs " + convertedTransitionGroupDocNode);
-
-                        Assert.AreEqual(transitionGroupDocNode.TransitionGroup.PrecursorCharge, convertedTransitionGroupDocNode.TransitionGroup.PrecursorCharge);
-                        Assert.AreEqual(transitionGroupDocNode.TransitionGroup.LabelType, convertedTransitionGroupDocNode.TransitionGroup.LabelType);
-
-                        var convertedTransitionIterator = convertedTransitionGroupDocNode.Transitions.GetEnumerator();
-                        foreach (var transition in transitionGroupDocNode.Transitions)
-                        {
-                            convertedTransitionIterator.MoveNext();
-                            var convertedTransition = convertedTransitionIterator.Current;
-                            Assert.AreEqual(transition.Mz, convertedTransition.Mz, SequenceMassCalc.MassTolerance, "transition as small molecule");
-                            Assert.AreEqual(transition.IsotopeDistInfo, convertedTransition.IsotopeDistInfo);
-                            Assert.AreEqual(transition.Results, convertedTransition.Results);
-                        }
-                        Assert.IsFalse(convertedTransitionIterator.MoveNext());
-                    }
-                    Assert.IsFalse(convertedTransitionGroupIterator == null || convertedTransitionGroupIterator.MoveNext());
+                    ConvertedSmallMoleculeIsSimilar(convertedMol, mol, conversionMode);
                 }
                 Assert.IsFalse(convertedMoleculesIterator.MoveNext());
             }
-            Assert.IsFalse(convertedMoleculeGroupsIterator.MoveNext());
+        }
+
+        private static void ConvertedSmallMoleculeTransitionGroupResultIsSimilar(TransitionGroupDocNode convertedGroup,
+            TransitionGroupDocNode group, RefinementSettings.ConvertToSmallMoleculesMode conversionMode)
+        {
+
+            if (convertedGroup.IsotopeDist == null)
+                Assume.IsNull(group.IsotopeDist);
+            else if (conversionMode != RefinementSettings.ConvertToSmallMoleculesMode.masses_only)
+                Assume.IsTrue(convertedGroup.IsotopeDist.IsSimilar(group.IsotopeDist));
+
+            if (conversionMode == RefinementSettings.ConvertToSmallMoleculesMode.masses_only && group.Results != null)
+            {
+                // All we can really expect is that retention times agree - but nothing beyond that, not even the peak width
+                Assume.AreEqual(group.Results.Count, convertedGroup.Results.Count);
+                for (var i = 0; i < group.Results.Count; i++)
+                {
+                    Assume.AreEqual(group.Results[i].Count, convertedGroup.Results[i].Count);
+                    for (var j = 0; j < group.Results[i].Count; j++)
+                    {
+                        Assume.AreEqual(group.Results[i][j].RetentionTime, convertedGroup.Results[i][j].RetentionTime, group + " vs " + convertedGroup);
+                    }
+                }
+                return;
+            }
+            if (!Equals(group.Results, convertedGroup.Results))
+                Assert.AreEqual(group.Results, convertedGroup.Results, group + " vs " + convertedGroup);
+        }
+
+        private static void ConvertedSmallMoleculeIsSimilar(PeptideDocNode convertedMol, PeptideDocNode mol, RefinementSettings.ConvertToSmallMoleculesMode conversionMode)
+        {
+            using (var convertedTransitionGroupIterator = convertedMol.TransitionGroups.GetEnumerator())
+            {
+                foreach (var transitionGroupDocNode in mol.TransitionGroups)
+                {
+                    convertedTransitionGroupIterator.MoveNext();
+                    var convertedTransitionGroupDocNode = convertedTransitionGroupIterator.Current;
+                    ConvertedSmallMoleculePrecursorIsSimilar(convertedTransitionGroupDocNode, transitionGroupDocNode, conversionMode);
+                    Assert.IsNotNull(convertedTransitionGroupDocNode);
+                    Assert.AreEqual(transitionGroupDocNode.TransitionGroup.PrecursorCharge,
+                        convertedTransitionGroupDocNode.TransitionGroup.PrecursorCharge);
+                    Assert.AreEqual(transitionGroupDocNode.TransitionGroup.LabelType,
+                        convertedTransitionGroupDocNode.TransitionGroup.LabelType);
+                    Assert.AreEqual(transitionGroupDocNode.PrecursorMz, convertedTransitionGroupDocNode.PrecursorMz,
+                        SequenceMassCalc.MassTolerance, "transitiongroup as small molecule");
+                    ConvertedSmallMoleculeTransitionGroupResultIsSimilar(convertedTransitionGroupDocNode, transitionGroupDocNode, conversionMode);
+                    Assert.AreEqual(transitionGroupDocNode.TransitionGroup.PrecursorCharge,
+                        convertedTransitionGroupDocNode.TransitionGroup.PrecursorCharge);
+                    Assert.AreEqual(transitionGroupDocNode.TransitionGroup.LabelType,
+                        convertedTransitionGroupDocNode.TransitionGroup.LabelType);
+
+                }
+                Assert.IsFalse(convertedTransitionGroupIterator == null || convertedTransitionGroupIterator.MoveNext());
+            }
+        }
+
+        private static void ConvertedSmallMoleculePrecursorIsSimilar(TransitionGroupDocNode convertedTransitionGroupDocNode, TransitionGroupDocNode transitionGroupDocNode, RefinementSettings.ConvertToSmallMoleculesMode conversionMode)
+        {
+            using (var convertedTransitionIterator = convertedTransitionGroupDocNode.Transitions.GetEnumerator())
+            {
+                foreach (var transition in transitionGroupDocNode.Transitions)
+                {
+                    convertedTransitionIterator.MoveNext();
+                    var convertedTransition = convertedTransitionIterator.Current;
+                    Assert.IsNotNull(convertedTransition);
+                    if (Math.Abs(transition.Mz - convertedTransition.Mz) > SequenceMassCalc.MassTolerance)
+                        Assert.AreEqual(transition.Mz, convertedTransition.Mz, "mz mismatch transition as small molecule");
+                    Assert.AreEqual(transition.IsotopeDistInfo, convertedTransition.IsotopeDistInfo);
+                    if (conversionMode == RefinementSettings.ConvertToSmallMoleculesMode.formulas && 
+                        !Equals(transition.Results, convertedTransition.Results))
+                        Assert.AreEqual(transition.Results, convertedTransition.Results, "results mismatch transition as small molecule");
+                }
+                Assert.IsFalse(convertedTransitionIterator.MoveNext());
+            }
         }
     }
 }

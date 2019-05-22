@@ -19,6 +19,7 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.Linq;
 using pwiz.Skyline.Controls.SeqNode;
 using pwiz.Skyline.Model;
@@ -26,6 +27,7 @@ using pwiz.Skyline.Model.Results;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
 using ZedGraph;
+using Array = System.Array;
 
 namespace pwiz.Skyline.Controls.Graphs
 {
@@ -57,7 +59,6 @@ namespace pwiz.Skyline.Controls.Graphs
 
                 Array.Copy(labels, 0, withLibLabel, 1, labels.Length);
                
-
                 XAxis.Scale.TextLabels = withLibLabel;
                 ScaleAxisLabels();
             }
@@ -95,6 +96,8 @@ namespace pwiz.Skyline.Controls.Graphs
 
         public bool IsDotProductVisible { get { return CanShowDotProduct && Settings.Default.ShowDotProductPeakArea; } }
 
+        public bool IsLineGraph { get { return CurveList.Count > 0 && CurveList[0].IsLine; } }
+
         public bool CanShowPeakAreaLegend { get; private set; }
         
         public IList<double> SumAreas { get; private set; }
@@ -127,7 +130,12 @@ namespace pwiz.Skyline.Controls.Graphs
             return false;
         }
 
-        public override void UpdateGraph(bool checkData)
+        private PeptidesAndTransitionGroups GetSelectedPeptides()
+        {
+            return PeptidesAndTransitionGroups.Get(GraphSummary.StateProvider.SelectedNodes, GraphSummary.ResultsIndex, 100);
+        }
+
+        public override void UpdateGraph(bool selectionChanged)
         {
             _dotpLabels = new GraphObjList();
 
@@ -143,14 +151,25 @@ namespace pwiz.Skyline.Controls.Graphs
                 return;
             }
 
+            var peptidePaths = GetSelectedPeptides().GetUniquePeptidePaths().ToList();
+            var pepCount = peptidePaths.Count;
+            IsMultiSelect = pepCount > 1 ||
+                                (pepCount == 1 &&
+                                 GraphSummary.StateProvider.SelectedNodes.FirstOrDefault() is PeptideGroupTreeNode);
             var selectedTreeNode = GraphSummary.StateProvider.SelectedNode as SrmTreeNode;
+            if (GraphSummary.StateProvider.SelectedNode is EmptyNode) // if EmptyNode selected
+            {
+                selectedTreeNode = GraphSummary.StateProvider.SelectedNodes.First() as SrmTreeNode;
+            }
             if (selectedTreeNode == null || document.FindNode(selectedTreeNode.Path) == null)
             {
+                Title.Text = Helpers.PeptideToMoleculeTextMapper.Translate(Resources.AreaReplicateGraphPane_UpdateGraph_Select_a_peptide_to_see_the_peak_area_graph, document.DocumentType);
                 EmptyGraph(document);
                 return;
             }
-
             BarSettings.Type = BarType;
+            if (IsMultiSelect)
+                BarSettings.Type = BarType.Cluster;
             Title.Text = null;
 
             DisplayTypeChrom displayType;
@@ -204,9 +223,10 @@ namespace pwiz.Skyline.Controls.Graphs
                     BarSettings.Type = BarType.Cluster;
                 }
             }
-            else if (!(selectedTreeNode is TransitionGroupTreeNode))
+            else if (!(selectedTreeNode is TransitionGroupTreeNode || selectedTreeNode is PeptideGroupTreeNode))
             {
-                Title.Text = Resources.AreaReplicateGraphPane_UpdateGraph_Select_a_peptide_to_see_the_peak_area_graph;
+                Title.Text = Helpers.PeptideToMoleculeTextMapper.Translate(Resources.AreaReplicateGraphPane_UpdateGraph_Select_a_peptide_to_see_the_peak_area_graph, document.DocumentType);
+                EmptyGraph(document);
                 CanShowPeakAreaLegend = false;
                 CanShowDotProduct = false;
                 return;
@@ -275,27 +295,41 @@ namespace pwiz.Skyline.Controls.Graphs
                 bool isShowingMs = displayTrans.Any(nodeTran => nodeTran.IsMs1);
                 bool isShowingMsMs = displayTrans.Any(nodeTran => !nodeTran.IsMs1);
                 bool isFullScanMs = document.Settings.TransitionSettings.FullScan.IsEnabledMs && isShowingMs;
-                if (isFullScanMs)
+                if (!IsMultiSelect)
                 {
-                    if (!isShowingMsMs && parentGroupNode.HasIsotopeDist)
-                        ExpectedVisible = AreaExpectedValue.isotope_dist;
-                }
-                else
-                {
-                    if (parentGroupNode.HasLibInfo)
-                        ExpectedVisible = AreaExpectedValue.library;
+                    if (isFullScanMs)
+                    {
+                        if (!isShowingMsMs && parentGroupNode.HasIsotopeDist)
+                            ExpectedVisible = AreaExpectedValue.isotope_dist;
+                    }
+                    else
+                    {
+                        if (parentGroupNode.HasLibInfo)
+                            ExpectedVisible = AreaExpectedValue.library;
+                    }
                 }
             }
+            var graphType = AreaGraphController.GraphDisplayType;
             var expectedValue = IsExpectedVisible ? ExpectedVisible : AreaExpectedValue.none;
-            var replicateGroupOp = GraphValues.ReplicateGroupOp.FromCurrentSettings(document.Settings);
-            var graphData = new AreaGraphData(document,
-                                              parentNode,
-                                              displayType,
-                                              replicateGroupOp,
-                                              ratioIndex,
-                                              normalizeData,
-                                              expectedValue,
-                                              PaneKey);
+            var replicateGroupOp = ReplicateGroupOp.FromCurrentSettings(document.Settings);
+            var graphData = IsMultiSelect  ? 
+                new AreaGraphData(document,
+                    peptidePaths,
+                    displayType,
+                    replicateGroupOp,
+                    ratioIndex,
+                    normalizeData,
+                    expectedValue,
+                    PaneKey) : 
+                new AreaGraphData(document,
+                    identityPath,
+                    displayType,
+                    replicateGroupOp,
+                    ratioIndex,
+                    normalizeData,
+                    expectedValue,
+                    PaneKey,
+                    graphType == AreaGraphDisplayType.bars);
 
             var aggregateOp = replicateGroupOp.AggregateOp;
             // Avoid stacking CVs
@@ -339,7 +373,7 @@ namespace pwiz.Skyline.Controls.Graphs
                 // 2. In a separate pane of the split graph (Transitions -> All AND Transitions -> Split Graph)
                 // 3. In a single pane by themselves (Transition -> Products)
                 // We will use an offset in the colors array for cases 2 and 3 so that we do not reuse the precursor ion colors.
-                var nodeDisplayType = GraphChromatogram.GetDisplayType(document, selectedTreeNode);
+                var nodeDisplayType = GraphChromatogram.GetDisplayType(document, parentGroupNode);
                 if (displayType == DisplayTypeChrom.products && 
                     (nodeDisplayType != DisplayTypeChrom.single || 
                     (nodeDisplayType == DisplayTypeChrom.single && !optimizationPresent)))
@@ -350,11 +384,12 @@ namespace pwiz.Skyline.Controls.Graphs
             }
             
             int iColor = 0, iCharge = -1;
-            int? charge = null;
+            var charge = Adduct.EMPTY;
             int countLabelTypes = document.Settings.PeptideSettings.Modifications.CountLabelTypes;
             for (int i = 0; i < countNodes; i++)
             {
                 var docNode = graphData.DocNodes[i];
+                identityPath = graphData.DocNodePaths[i];
                 var pointPairLists = graphData.PointPairLists[i];
                 int numSteps = pointPairLists.Count/2;
                 for (int iStep = 0; iStep < pointPairLists.Count; iStep++)
@@ -363,22 +398,35 @@ namespace pwiz.Skyline.Controls.Graphs
                     var pointPairList = pointPairLists[iStep];
                     Color color;
                     var nodeGroup = docNode as TransitionGroupDocNode;
-                    if (parentNode is PeptideDocNode)
+                    if (IsMultiSelect)
+                    {
+                        var peptideDocNode = docNode as PeptideDocNode;
+                        if (peptideDocNode == null)
+                        {
+                            continue;
+                        }
+                        color = GraphSummary.StateProvider.GetPeptideGraphInfo(peptideDocNode).Color;
+                        if (identityPath.Equals(selectedTreeNode.Path) && step == 0)
+                        {
+                            color = ChromGraphItem.ColorSelected;
+                        }
+                    }
+                    else if (parentNode is PeptideDocNode)
                     {
                         int iColorGroup = GetColorIndex(nodeGroup, countLabelTypes, ref charge, ref iCharge);
-                        color = COLORS_GROUPS[iColorGroup % COLORS_GROUPS.Length];
+                        color = COLORS_GROUPS[iColorGroup % COLORS_GROUPS.Count];
                     }
                     else if (displayType == DisplayTypeChrom.total)
                     {
-                        color = COLORS_GROUPS[iColor%COLORS_GROUPS.Length];
+                        color = COLORS_GROUPS[iColor%COLORS_GROUPS.Count];
                     }
-                    else if (docNode.Equals(selectedNode) && step == 0)
+                    else if (ReferenceEquals(docNode, selectedNode) && step == 0)
                     {
                         color = ChromGraphItem.ColorSelected;
                     }
                     else
                     {
-                        color = COLORS_TRANSITION[(iColor + colorOffset) % COLORS_TRANSITION.Length];
+                        color = COLORS_TRANSITION[(iColor + colorOffset) % COLORS_TRANSITION.Count];
                     }
                     iColor++;
                     // If showing ratios, do not add the standard type to the graph,
@@ -394,19 +442,29 @@ namespace pwiz.Skyline.Controls.Graphs
                     string label = graphData.DocNodeLabels[i];
                     if (step != 0)
                         label = string.Format(Resources.AreaReplicateGraphPane_UpdateGraph_Step__0_, step);
-                    BarItem curveItem;
+                    CurveItem curveItem;
+
                     // Only use a MeanErrorBarItem if bars are not going to be stacked.
                     // TODO(nicksh): AreaGraphData.NormalizeTo does not know about MeanErrorBarItem 
-                    if (BarSettings.Type != BarType.Stack && BarSettings.Type != BarType.PercentStack && normalizeData == AreaNormalizeToData.none)
+                    if (graphType == AreaGraphDisplayType.lines)
+                    {
+                        curveItem = CreateLineItem(label, pointPairList, color);
+                    }
+                    else if (!IsMultiSelect && BarSettings.Type != BarType.Stack && BarSettings.Type != BarType.PercentStack && normalizeData == AreaNormalizeToData.none)
                     {
                         curveItem = new MeanErrorBarItem(label, pointPairList, color, Color.Black);
                     }
                     else 
                     {
-                        curveItem = new BarItem(label, pointPairList, color);
+                        if (IsMultiSelect)
+                        {
+                            curveItem = CreateLineItem(label, pointPairList, color);
+                        }
+                        else
+                        {
+                            curveItem = new BarItem(label, pointPairList, color);
+                        }
                     }
-                    
-
                     if (0 <= selectedReplicateIndex && selectedReplicateIndex < pointPairList.Count)
                     {
                         PointPair pointPair = pointPairList[selectedReplicateIndex];
@@ -419,11 +477,20 @@ namespace pwiz.Skyline.Controls.Graphs
 
                     // Add area for this transition to each area entry
                     AddAreasToSums(pointPairList, sumAreas);
-
-                    curveItem.Bar.Border.IsVisible = false;
-                    curveItem.Bar.Fill.Brush = new SolidBrush(color);
-                    curveItem.Tag = new IdentityPath(identityPath, docNode.Id);
-                    CurveList.Add(curveItem);
+                    var lineItem = curveItem as LineItem;
+                    if (lineItem != null)
+                    {
+                        lineItem.Tag = identityPath;
+                        CurveList.Add(lineItem);
+                    }
+                    else
+                    {
+                        var barItem = (BarItem) curveItem;
+                        barItem.Bar.Border.IsVisible = false;
+                        barItem.Bar.Fill.Brush = GetBrushForNode(document.Settings, docNode, color);
+                        barItem.Tag = new IdentityPath(identityPath, docNode.Id);
+                        CurveList.Add(barItem);
+                    }
                 }
             }
 
@@ -433,34 +500,51 @@ namespace pwiz.Skyline.Controls.Graphs
             // Draw a box around the currently selected replicate
             if (ShowSelection && maxArea >  -double.MaxValue)
             {
-                double yValue;
-                switch (BarSettings.Type)
-                {
-                    case BarType.Stack:
-                        // The Math.Min(sumArea, .999) makes sure that if graph is in normalized view
-                        // height of the selection rectangle does not exceed 1, so that top of the rectangle
-                        // can be viewed when y-axis scale maximum is at 1
-                        yValue = (areaView == AreaNormalizeToView.area_maximum_view ? Math.Min(sumArea, .999) : sumArea);
-                        break;
-                    case BarType.PercentStack:
-                        yValue = 99.99;
-                        break;
-                    default:
-                        // Scale the selection box to fit exactly the bar height
-                        yValue = (areaView == AreaNormalizeToView.area_maximum_view ? Math.Min(maxArea, .999) : maxArea);
-                        break;
-                }
-                GraphObjList.Add(new BoxObj(selectedReplicateIndex + .5, yValue, 0.99,
-                                            yValue, Color.Black, Color.Empty)
-                                     {
-                                         IsClippedToChartRect = true,
-                                     });
+                AddSelection(areaView, selectedReplicateIndex, sumArea, maxArea);
             }
             // Reset the scale when the parent node changes
             bool resetAxes = (_parentNode == null || !ReferenceEquals(_parentNode.Id, parentNode.Id));
             _parentNode = parentNode;
 
             UpdateAxes(resetAxes, aggregateOp, normalizeData, areaView, standardType);
+        }
+
+        private void AddSelection(AreaNormalizeToView areaView, int selectedReplicateIndex, double sumArea, double maxArea)
+        {
+            double yValue;
+            switch (BarSettings.Type)
+            {
+                case BarType.Stack:
+                    // The Math.Min(sumArea, .999) makes sure that if graph is in normalized view
+                    // height of the selection rectangle does not exceed 1, so that top of the rectangle
+                    // can be viewed when y-axis scale maximum is at 1
+                    yValue = (areaView == AreaNormalizeToView.area_maximum_view ? Math.Min(sumArea, .999) : sumArea);
+                    break;
+                case BarType.PercentStack:
+                    yValue = 99.99;
+                    break;
+                default:
+                    // Scale the selection box to fit exactly the bar height
+                    yValue = (areaView == AreaNormalizeToView.area_maximum_view ? Math.Min(maxArea, .999) : maxArea);
+                    break;
+            }
+            if (IsLineGraph)
+            {
+                GraphObjList.Add(new LineObj(Color.Black, selectedReplicateIndex + 1, 0, selectedReplicateIndex + 1, maxArea)
+                {
+                    IsClippedToChartRect = true,
+                    Line = new Line() {Width = 2, Color = Color.Black, Style = DashStyle.Dash}
+                });
+            }
+            else
+            {
+                GraphObjList.Add(new BoxObj(selectedReplicateIndex + .5, yValue, 0.99,
+                        -yValue, Color.Black, Color.Empty)
+                // Just passing in yValue here doesn't work when log scale is enabled, -yValue works with and without log scale enabled
+                {
+                    IsClippedToChartRect = true,
+                });
+            }
         }
 
         private void UpdateAxes(bool resetAxes, GraphValues.AggregateOp aggregateOp, AreaNormalizeToData normalizeData,
@@ -556,7 +640,7 @@ namespace pwiz.Skyline.Controls.Graphs
                 if (!YAxis.Scale.MaxAuto && YAxis.Scale.Max == 100)
                     YAxis.Scale.MaxAuto = true;
             }
-            Legend.IsVisible = Settings.Default.ShowPeakAreaLegend;
+            Legend.IsVisible = !IsMultiSelect && Settings.Default.ShowPeakAreaLegend;
             AxisChange();
 
             // Reformat Y-Axis for labels and whiskers
@@ -567,7 +651,7 @@ namespace pwiz.Skyline.Controls.Graphs
                 maxY += extraSpace;
             }
        
-            GraphHelper.ReformatYAxis(this, maxY);
+            GraphHelper.ReformatYAxis(this, maxY > 0 ? maxY : 0.1); // Avoid same min and max, since it blanks the entire graph pane
         }
 
         private void AddAreasToSums(PointPairList pointPairList, IList<double> sumAreas)
@@ -614,6 +698,9 @@ namespace pwiz.Skyline.Controls.Graphs
 
         private void AddDotProductLabels(Graphics g, TransitionGroupDocNode nodeGroup, IList<double> sumAreas)
         {
+            if (IsLineGraph)
+                return;
+
             // Create temporary label to calculate positions
             var pointSize = GetDotProductsPointSize(g);
             bool visible = pointSize.HasValue;
@@ -722,9 +809,9 @@ namespace pwiz.Skyline.Controls.Graphs
                 switch (ExpectedVisible)
                 {
                     case AreaExpectedValue.library:
-                        return "dotp"; // Not L10N
+                        return @"dotp";
                     case AreaExpectedValue.isotope_dist:
-                        return "idotp"; // Not L10N
+                        return @"idotp";
                     default:
                         return string.Empty; 
                 }
@@ -733,24 +820,9 @@ namespace pwiz.Skyline.Controls.Graphs
 
         private string GetDotProductText(float? dotpValue)
         {
-            return dotpValue.HasValue ? string.Format("{0}\n{1:F02}", DotpLabelText, dotpValue) : null; // Not L10N
-        }
-
-        private void EmptyGraph(SrmDocument document)
-        {
-            string[] resultNames = GraphData.GetReplicateLabels(document).ToArray();
-
-            XAxis.Scale.TextLabels = resultNames;
-            var originalTextLabels = new string[XAxis.Scale.TextLabels.Length];
-            Array.Copy(XAxis.Scale.TextLabels, originalTextLabels, XAxis.Scale.TextLabels.Length);
-            OriginalXAxisLabels = originalTextLabels;
-            
-            ScaleAxisLabels();
-            // Add a missing point for each replicate name.
-            PointPairList pointPairList = new PointPairList();
-            for (int i = 0; i < resultNames.Length; i++)
-                pointPairList.Add(AreaGraphData.AreaPointPairMissing(i));
-            AxisChange();
+            // ReSharper disable LocalizableElement
+            return dotpValue.HasValue ? string.Format("{0}\n{1:F02}", DotpLabelText, dotpValue) : null;
+            // ReSharper restore LocalizableElement
         }
 
         protected override int SelectedIndex
@@ -804,32 +876,45 @@ namespace pwiz.Skyline.Controls.Graphs
         {
             public const int RATIO_INDEX_NONE = -1;
 
-            public static PointPair AreaPointPairMissing(int xValue)
-            {
-                // Using PointPairBase.Missing caused too many problems in area graphs
-                // Zero is essentially missing for column graphs, unlike the retention time hi-lo graphs
-                return new PointPair(xValue, 0);
-            }
-
             private readonly DocNode _docNode;
             private readonly int _ratioIndex;
             private readonly AreaNormalizeToData _normalize;
             private readonly AreaExpectedValue _expectedVisible;
+            private readonly bool _zeroMissingValues;
 
             public AreaGraphData(SrmDocument document,
-                                 DocNode docNode,
+                                 IdentityPath identityPath,
                                  DisplayTypeChrom displayType,
-                                 GraphValues.ReplicateGroupOp replicateGroupOp,
+                                 ReplicateGroupOp replicateGroupOp,
                                  int ratioIndex,
                                  AreaNormalizeToData normalize,
                                  AreaExpectedValue expectedVisible,
-                                 PaneKey paneKey)
-                : base(document, docNode, displayType, replicateGroupOp, paneKey)
+                                 PaneKey paneKey,
+                                 bool zeroMissingValues)
+                : base(document, identityPath, displayType, replicateGroupOp, paneKey)
             {
-                _docNode = docNode;
+                _docNode = document.FindNode(identityPath);
                 _ratioIndex = ratioIndex;
                 _normalize = normalize;
                 _expectedVisible = expectedVisible;
+                _zeroMissingValues = zeroMissingValues;
+            }
+
+            public AreaGraphData(SrmDocument document,
+                                 IEnumerable<IdentityPath> selectedDocNodePaths,
+                                 DisplayTypeChrom displayType,
+                                 ReplicateGroupOp replicateGroupOp,
+                                 int ratioIndex,
+                                 AreaNormalizeToData normalize,
+                                 AreaExpectedValue expectedVisible,
+                                 PaneKey paneKey,
+                                 bool zeroMissingValues = false)
+                : base(document, selectedDocNodePaths, displayType, replicateGroupOp, paneKey)
+            {
+                _ratioIndex = ratioIndex;
+                _normalize = normalize;
+                _expectedVisible = expectedVisible;
+                _zeroMissingValues = zeroMissingValues;
             }
 
             protected override void InitData()
@@ -876,6 +961,13 @@ namespace pwiz.Skyline.Controls.Graphs
                         FixupForTotals();
                         break;
                 }
+            }
+
+            public override PointPair PointPairMissing(int xValue)
+            {
+                return _zeroMissingValues
+                    ? base.PointPairMissing(xValue)
+                    : new PointPair(xValue, PointPairBase.Missing);
             }
 
             private float GetExpectedValue(TransitionDocNode nodeTran)
@@ -940,8 +1032,17 @@ namespace pwiz.Skyline.Controls.Graphs
             /// </summary>
             /// <param name="denominator">Divide all point y values by this number</param>
             /// <param name="libraryHeight">Total height of the library column</param>
-            private void NormalizeTo(double denominator, double libraryHeight)
+            private void NormalizeTo(double? denominator, double libraryHeight)
             {
+                IList<double> listTotals = null;
+                if (!denominator.HasValue)
+                {
+                    if (_docNode == null)
+                        denominator = 1;    // Multi-select peptid graph
+                    else
+                        listTotals = GetTotalsList().Select(t => t / 100).ToArray();  // Normalize to 100%
+                }
+
                 foreach (var pointPairLists in PointPairLists)
                 {
                     if (pointPairLists.Count == 0)
@@ -953,16 +1054,25 @@ namespace pwiz.Skyline.Controls.Graphs
                         {
                             if (pointPairList[i].Y != PointPairBase.Missing)
                             {
+                                double pointDenom = denominator ?? listTotals[i];
+
                                 // If library is displayed and the set of data to plot is at
                                 // index 0 (where we store library intensity data)
                                 // calculate the proportion of the denominator for each point
-                                if (_expectedVisible != AreaExpectedValue.none && i == 0)
-                                    pointPairList[i].Y *= (denominator/libraryHeight);
-                                if(_normalize != AreaNormalizeToData.none)
-                                    pointPairList[i].Y /= denominator;
+                                if (_expectedVisible != AreaExpectedValue.none && i == 0 && denominator.HasValue)
+                                    pointPairList[i].Y *= (pointDenom/libraryHeight);
+                                if (_normalize != AreaNormalizeToData.none)
+                                {
+                                    pointPairList[i].Y /= pointDenom;
+                                    var errorTag = pointPairList[i].Tag as ErrorTag;
+                                    if (errorTag != null && errorTag.Error != 0 && errorTag.Error != PointPairBase.Missing)
+                                        pointPairList[i].Tag = new ErrorTag(errorTag.Error/pointDenom);
+                                }
                             }
-                            else
+                            else if (_zeroMissingValues)
+                            {
                                 pointPairList[i].Y = 0;
+                            }
                         }
                     }
                 }
@@ -1002,6 +1112,26 @@ namespace pwiz.Skyline.Controls.Graphs
             // Then normalizes the data to the maximum stacked bar height
             private void NormalizeMaxStack()
             {
+                var listTotals = GetTotalsList();
+
+                // Finds the maximum bar height from the list of bar heights
+                if (listTotals.Count != 0)
+                {
+                    double firstColumnHeight = listTotals[0];
+                    // If the library column is visible, remove it before getting the max height
+                    if (_expectedVisible != AreaExpectedValue.none)
+                        listTotals.RemoveAt(0);
+                    double maxBarHeight = listTotals.Aggregate(Math.Max);
+
+                    // Normalizes each non-missing point by max bar height
+                    NormalizeTo(maxBarHeight, _expectedVisible != AreaExpectedValue.none
+                                                  ? firstColumnHeight
+                                                  : 0);
+                }
+            }
+
+            private IList<double> GetTotalsList()
+            {
                 var listTotals = new List<double>();
                 // Populates a list storing each of the bar heights
                 foreach (var pointPairLists in PointPairLists)
@@ -1023,43 +1153,24 @@ namespace pwiz.Skyline.Controls.Graphs
                         }
                     }
                 }
-
-                // Finds the maximum bar height from the list of bar heights
-                if (listTotals.Count != 0)
-                {
-                    double firstColumnHeight = listTotals[0];
-                    // If the library column is visible, remove it before getting the max height
-                    if (_expectedVisible != AreaExpectedValue.none)
-                        listTotals.RemoveAt(0);
-                    double maxBarHeight = listTotals.Aggregate(Math.Max);
-
-                    // Normalizes each non-missing point by max bar height
-                    NormalizeTo(maxBarHeight, _expectedVisible != AreaExpectedValue.none
-                                                  ? firstColumnHeight
-                                                  : 0);
-                }
+                return listTotals;
             }
 
             // Sets each missing point to be 0, so that the percent stack will show
             private void FixupForTotals()
             {
-                NormalizeTo(1, 1);
-            }
-
-            public override PointPair PointPairMissing(int xValue)
-            {
-                return AreaPointPairMissing(xValue);
+                NormalizeTo(null, 1);
             }
 
             protected override bool IsMissingValue(TransitionChromInfoData chromInfo)
             {
-                return false;
+                return !_zeroMissingValues && !GetValue(chromInfo.ChromInfo).HasValue;
             }
 
             protected override PointPair CreatePointPair(int iResult, ICollection<TransitionChromInfoData> chromInfoDatas)
             {
                 return ReplicateGroupOp.AggregateOp.MakeBarValue(iResult, 
-                    chromInfoDatas.Select(chromInfoData => (double) (GetValue(chromInfoData.ChromInfo) ?? 0)));
+                    chromInfoDatas.Where(c => !IsMissingValue(c)).Select(c => (double) (GetValue(c.ChromInfo) ?? 0)));
             }
 
             protected override bool IsMissingValue(TransitionGroupChromInfoData chromInfoData)
@@ -1071,6 +1182,80 @@ namespace pwiz.Skyline.Controls.Graphs
             {
                 return ReplicateGroupOp.AggregateOp.MakeBarValue(iResult, 
                     chromInfoDatas.Select(chromInfoData => (double) (GetValue(chromInfoData.ChromInfo) ?? 0)));
+            }
+
+            protected override List<LineInfo> GetPeptidePointPairLists(PeptideDocNode nodePep, bool multiplePeptides)
+            {
+                var tuples = base.GetPeptidePointPairLists(nodePep, multiplePeptides);
+                if (!multiplePeptides)
+                {
+                    return tuples;
+                }
+                var pointLists = new List<List<PointPair>>();
+                foreach (var tuple in tuples)
+                {
+                    foreach (var pointPairList in tuple.PointPairList)
+                    {
+                        for (int i = 0; i < pointPairList.Count; i++)
+                        {
+                            if (i >= pointLists.Count)
+                            {
+                                pointLists.Add(new List<PointPair>());
+                            }
+                            pointLists[i].Add(pointPairList[i]);
+                        }
+                    }
+                }
+                var result = new PointPairList();
+                foreach (var points in pointLists)
+                {
+                    var x = points[0].X;
+                    ErrorTag tag = null;
+                    double y;
+                    if (_ratioIndex == RATIO_INDEX_NONE)
+                    {
+                        y = points.Sum(point => point.Y);
+                        tag = CalcErrorTag(points, false);
+                    }
+                    else
+                    {
+                        var validPoints = points.Where(p => !double.IsNaN(p.Y)).ToArray();
+                        if (validPoints.Length == 0)
+                        {
+                            y = double.NaN;
+                        }
+                        else
+                        {
+                            y = validPoints.Average(p => p.Y);
+                            tag = CalcErrorTag(validPoints, true);
+                        }
+                    }
+                    result.Add(new PointPair(x, y){Tag = tag});
+                }
+                return new List<LineInfo>()
+                {
+                    new LineInfo(nodePep, nodePep.ModifiedSequenceDisplay, new List<PointPairList> {result})
+                };
+            }
+
+            private ErrorTag CalcErrorTag(IList<PointPair> points, bool average)
+            {
+                double? variance = null;
+                int count = 0;
+                foreach (var errorTag in points.Select(point => point.Tag as ErrorTag))
+                {
+                    if (errorTag != null && errorTag.Error != PointPairBase.Missing)
+                    {
+                        // CONSIDER: Some chance of overflow with this method of calculating variance
+                        variance = (variance ?? 0) + errorTag.Error * errorTag.Error;
+                        count++;
+                    }
+                }
+                if (!variance.HasValue)
+                    return null;
+                if (average)
+                    variance = variance/count;
+                return new ErrorTag(Math.Sqrt(variance.Value));
             }
 
             private float? GetValue(TransitionGroupChromInfo chromInfo)
@@ -1085,7 +1270,7 @@ namespace pwiz.Skyline.Controls.Graphs
 
             private float? GetValue(TransitionChromInfo chromInfo)
             {
-                if (chromInfo == null)
+                if (chromInfo == null || chromInfo.IsEmpty)
                     return null;
                 if (_ratioIndex == RATIO_INDEX_NONE)
                     return chromInfo.Area;

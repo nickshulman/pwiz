@@ -18,27 +18,27 @@
  */
 
 using System;
+using System.Threading;
 using System.Windows.Forms;
 using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Model;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
+using pwiz.Skyline.Util.Extensions;
 
 namespace pwiz.Skyline.Controls
 {
     public partial class LongWaitDlg : FormEx, ILongWaitBroker
     {
-        private readonly string _cancelMessage = string.Format(" ({0})", Resources.LongWaitDlg_PerformWork_canceled); // Not L10N
+        private readonly string _cancelMessage = string.Format(@" ({0})", Resources.LongWaitDlg_PerformWork_canceled);
 
         private Control _parentForm;
         private Exception _exception;
-        private bool _clickedCancel;
         private int _progressValue = -1;
         private string _message;
-        private int _tickCount;
         private DateTime _startTime;
-
-        private IAsyncResult _result;
+        private readonly CancellationTokenSource _cancellationTokenSource;
+        private readonly ManualResetEvent _completionEvent;
 
         // these members should only be accessed in a block which locks on _lock
         #region synchronized members
@@ -65,6 +65,8 @@ namespace pwiz.Skyline.Controls
 
             if (!IsCancellable)
                 Height -= Height - btnCancel.Bottom;
+            _cancellationTokenSource = new CancellationTokenSource();
+            _completionEvent = new ManualResetEvent(false);
         }
 
         public string Message
@@ -79,7 +81,22 @@ namespace pwiz.Skyline.Controls
             set { _progressValue = value; }
         }
 
+        public override string DetailedMessage
+        {
+            get { return string.Format(@"[{0}] {1} ({2}%)", Text, Message, ProgressValue); }
+        }
+
         public bool IsCancellable { get; private set; }
+
+        public void EnableCancelOption(bool enable)
+        {
+            // Work is done, but it's still nice to have the progress indicator visible for context while any final 
+            // steps take place - but it's wrong to offer a cancellation option, so grey it out
+            if (btnCancel != null && btnCancel.IsHandleCreated)
+            {
+                btnCancel.Invoke((Action) (() => btnCancel.Enabled = enable)); 
+            }
+        }
 
         public bool IsDocumentChanged(SrmDocument docOrig)
         {
@@ -109,7 +126,7 @@ namespace pwiz.Skyline.Controls
             PerformWork(parent, delayMillis, indefiniteWaitBroker.PerformWork);
         }
 
-        public ProgressStatus PerformWork(Control parent, int delayMillis, Action<IProgressMonitor> performWork)
+        public IProgressStatus PerformWork(Control parent, int delayMillis, Action<IProgressMonitor> performWork)
         {
             var progressWaitBroker = new ProgressWaitBroker(performWork);
             PerformWork(parent, delayMillis, progressWaitBroker.PerformWork);
@@ -118,27 +135,28 @@ namespace pwiz.Skyline.Controls
 
         public void PerformWork(Control parent, int delayMillis, Action<ILongWaitBroker> performWork)
         {
-            _startTime = DateTime.Now;
+            _startTime = DateTime.UtcNow; // Said to be 117x faster than Now and this is for a delta
             _parentForm = parent;
             try
             {
-                Action<Action<ILongWaitBroker>> runner = RunWork;
-                _result = runner.BeginInvoke(performWork, runner.EndInvoke, null);
+//                Action<Action<ILongWaitBroker>> runner = RunWork;
+//                _result = runner.BeginInvoke(performWork, runner.EndInvoke, null);
+                ActionUtil.RunAsync(() => RunWork(performWork));
 
                 // Wait as long as the caller wants before showing the progress
                 // animation to the user.
-                _result.AsyncWaitHandle.WaitOne(delayMillis);
+//                _result.AsyncWaitHandle.WaitOne(delayMillis);
 
                 // Return without notifying the user, if the operation completed
                 // before the wait expired.
-                if (_result.IsCompleted)
+//                if (_result.IsCompleted)
+                if (_completionEvent.WaitOne(delayMillis))
                     return;
 
                 progressBar.Value = Math.Max(0, _progressValue);
                 if (_message != null)
                     labelMessage.Text = _message;
 
-                _tickCount = 0;
                 ShowDialog(parent);
             }
             finally
@@ -147,6 +165,7 @@ namespace pwiz.Skyline.Controls
 
                 // Get rid of this window before leaving this function
                 Dispose();
+                _completionEvent.Dispose();
 
                 if (IsCanceled && null != x)
                 {
@@ -199,7 +218,7 @@ namespace pwiz.Skyline.Controls
                 }
                 _windowShown = false;
             }
-            UpdateTaskbarProgress(null);
+            UpdateTaskbarProgress(TaskbarProgress.TaskbarStates.NoProgress, null);
             base.OnFormClosing(e);
         }
 
@@ -226,14 +245,16 @@ namespace pwiz.Skyline.Controls
                         BeginInvoke(new Action(FinishDialog));
                     }
                 }
+
+                _completionEvent.Set();
             }
         }
 
         private void FinishDialog()
         {
-            if (!_clickedCancel)
+            if (!_cancellationTokenSource.IsCancellationRequested)
             {
-                var runningTime = DateTime.Now.Subtract(_startTime);
+                var runningTime = DateTime.UtcNow.Subtract(_startTime);
                 // Show complete status before returning.
                 progressBar.Value = _progressValue = 100;
                 labelMessage.Text = _message;
@@ -252,7 +273,7 @@ namespace pwiz.Skyline.Controls
 
         public bool IsCanceled
         {
-            get { return _clickedCancel; }
+            get { return _cancellationTokenSource.IsCancellationRequested; }
         }
 
         private void btnCancel_Click(object sender, EventArgs e)
@@ -262,43 +283,46 @@ namespace pwiz.Skyline.Controls
 
         private void OnClickedCancel()
         {
-            if (!_clickedCancel)
+            if (!_cancellationTokenSource.IsCancellationRequested)
             {
+                _cancellationTokenSource.Cancel();
                 labelMessage.Text += _cancelMessage;
-                _clickedCancel = true;
             }
         }
 
         private void timerUpdate_Tick(object sender, EventArgs e)
         {
-            _tickCount++;
             if (_progressValue == -1)
             {
-                progressBar.Value = (_tickCount * 10) % 110;
+                progressBar.Style = ProgressBarStyle.Marquee;
+                UpdateTaskbarProgress(TaskbarProgress.TaskbarStates.Indeterminate, null);
             }
             else
             {
+                progressBar.Style = ProgressBarStyle.Continuous;
                 progressBar.Value = _progressValue;
+                UpdateTaskbarProgress(TaskbarProgress.TaskbarStates.Normal, progressBar.Value);
             }
 
-            UpdateTaskbarProgress(progressBar.Value);
 
             if (_message != null && !Equals(_message, labelMessage.Text))
-                labelMessage.Text = _message + (_clickedCancel ? _cancelMessage : string.Empty);
+                labelMessage.Text = _message + (_cancellationTokenSource.IsCancellationRequested ? _cancelMessage : string.Empty);
         }
 
-        private void UpdateTaskbarProgress(int? percentComplete)
+        protected virtual void UpdateTaskbarProgress(TaskbarProgress.TaskbarStates state, int? percentComplete)
         {
             if (Program.MainWindow != null)
-                Program.MainWindow.UpdateTaskbarProgress(percentComplete);
+                Program.MainWindow.UpdateTaskbarProgress(state, percentComplete);
             else if (Program.StartWindow != null)
-                Program.StartWindow.UpdateTaskbarProgress(percentComplete);
+                Program.StartWindow.UpdateTaskbarProgress(state, percentComplete);
         }
 
         private void timerClose_Tick(object sender, EventArgs e)
         {
             Close();
         }
+
+        public CancellationToken CancellationToken { get { return _cancellationTokenSource.Token; } }
 
         private sealed class IndefiniteWaitBroker
         {

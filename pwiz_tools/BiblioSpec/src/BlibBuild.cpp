@@ -30,10 +30,11 @@
 #define _MATRIX_USE_STATIC_LIB
 #endif
 
+#include "pwiz/utility/misc/Filesystem.hpp"
+#include "CommandLine.h"
 #include "BlibBuilder.h"
 #include "AllBuildParsers.h"
 
-using namespace std;
 using namespace BiblioSpec;
 
 static void WriteErrorLines(string s)
@@ -56,7 +57,27 @@ int main(int argc, char* argv[])
     //    _crtBreakAlloc = 624219;
 #endif
 #endif
+    bnw::args utf8ArgWrapper(argc, argv); // modifies argv in-place with UTF-8 version on Windows
+    pwiz::util::enable_utf8_path_operations();
 
+    // Are we anticipating an error message?
+    string expectedError="";
+    for (int argfind = 1; argfind < argc - 2; argfind++)
+    {
+        if (!strcmp(argv[argfind], "-e"))
+        {
+            expectedError = argv[argfind + 1];
+            // Remove from arglist before passing along
+            for (int a = argfind; a < argc - 2; a++)
+            {
+                argv[a] = argv[a + 2];
+            }
+            argc -= 2;
+            break;
+        }
+    }
+
+    // Verbosity::set_verbosity(V_ALL); // useful for debugging
     BlibBuilder builder;
     builder.parseCommandArgs(argc, argv);
 
@@ -69,6 +90,7 @@ int main(int argc, char* argv[])
     const ProgressIndicator* progress_cptr = &progress; // read-only pointer
 
     bool success = true;
+    string failureMessage;
 
     // process each .sqt, .pepxml, .idpXML, .xtan.xml, .dat, .blib file
     for(int i=0; i<(int)inFiles.size(); i++) {
@@ -143,8 +165,23 @@ int main(int argc, char* argv[])
             } else if (has_extension(result_file, "final_fragment.csv")) {
                 WatersMseReader mseReader(builder, result_file, progress_cptr);
                 success = mseReader.parseFile();
-
-             } else { 
+            } else if (has_extension(result_file, ".proxl.xml")) {
+                ProxlXmlReader proxlReader(builder, result_file, progress_cptr);
+                success = proxlReader.parseFile();
+            } else if (has_extension(result_file, ".mlb")) {
+                ShimadzuMLBReader mlbReader(builder, result_file, progress_cptr);
+                success = mlbReader.parseFile();
+            } else if (has_extension(result_file, ".tsv")) {
+                TSVReader tsvReader(builder, result_file, progress_cptr);
+                success = tsvReader.parseFile();
+            } else if (has_extension(result_file, ".osw")) {
+                OSWReader oswReader(builder, result_file, progress_cptr);
+                success = oswReader.parseFile();
+            } else if (has_extension(result_file, ".mzTab") ||
+                       has_extension(result_file, "mztab.txt")) {
+                mzTabReader mzTabReader(builder, result_file, progress_cptr);
+                success = mzTabReader.parseFile();
+            } else {
                 // shouldn't get to here b/c cmd line parsing checks, but...
                 Verbosity::error("Unknown input file type '%s'.", result_file);
             }
@@ -155,27 +192,46 @@ int main(int argc, char* argv[])
                 throw errorMsg;
             }
         } catch(BlibException& e){
+            failureMessage = e.what();
             WriteErrorLines(e.what());
             if( ! e.hasFilename() ){
                 cerr << "ERROR: reading file " << inFiles.at(i) << endl;
             }
             success = false;
         } catch(std::exception& e){
+            failureMessage = e.what();
             WriteErrorLines(e.what());
             cerr << "ERROR: reading file " << inFiles.at(i) << endl;
             success = false;
         } catch(string s){ // in case a throwParseError is not caught
+            failureMessage = s;
             cerr << "ERROR: " << s << endl;
             success = false;
-        } catch(...){
+        }
+        catch (const char *str){
+            failureMessage = str;
+            cerr << str << endl;
             cerr << "ERROR: reading file '" << inFiles.at(i) << "'" << endl;
+            success = false;
+        }
+        catch (...){
+            failureMessage = "Unknown ERROR";
+            cerr << "Unknown ERROR: reading file '" << inFiles.at(i) << "'" << endl;
             success = false;
         }
     }
 
     if( ! success ){
+        if (expectedError != "" && failureMessage.find(expectedError) != string::npos)
+            success = true; // We actually expected a failure, this is a negative test
         // try saving the library
         builder.undoActiveTransaction();
+    }
+    else if (expectedError != "")
+    {
+        // We expected to catch a failure
+        cerr << "FAILED: This negative test expected an error containing \"" << expectedError << "\"" << endl;
+        success = false;
     }
 
     // check that library contains spectra

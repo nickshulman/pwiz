@@ -16,6 +16,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -150,6 +152,7 @@ namespace pwiz.SkylineTestFunctional
             // Graphs should not have moved
             listGraphChroms = new List<GraphChromatogram>(SkylineWindow.GraphChromatograms);
             Assert.AreEqual(4, listGraphChroms.Count);
+            WaitForGraphPositioning(listGraphChroms, dictGraphPositions);
             foreach (var graphChrom in listGraphChroms)
             {
                 Point ptLeftTop = GetTopLeft(graphChrom.Parent);
@@ -172,6 +175,7 @@ namespace pwiz.SkylineTestFunctional
             // Check that graphs were rearranged correctly
             var dictGraphPositionsNew = new Dictionary<Point, GraphChromatogram>();
             listGraphChroms = new List<GraphChromatogram>(SkylineWindow.GraphChromatograms);
+            WaitForGraphPositioning(listGraphChroms, dictChromPositions);
             foreach (var graphChrom in listGraphChroms)
             {
                 int index;
@@ -241,6 +245,7 @@ namespace pwiz.SkylineTestFunctional
             // First two graphs should not have moved
             listGraphChroms = new List<GraphChromatogram>(SkylineWindow.GraphChromatograms);
             Assert.AreEqual(4, listGraphChroms.Count);
+            WaitForGraphPositioning(listGraphChroms, dictGraphPositionsNew);
             int countVisible = 0;
             foreach (var graphChrom in listGraphChroms)
             {
@@ -275,6 +280,7 @@ namespace pwiz.SkylineTestFunctional
             var manageResultsDlg3 = ShowDialog<ManageResultsDlg>(SkylineWindow.ManageResults);
             RunDlg<RescoreResultsDlg>(manageResultsDlg3.Rescore, dlg => dlg.Rescore(false));
             WaitForDocumentLoaded();
+            WaitForClosedForm<AllChromatogramsGraph>();
             var docRescore = WaitForProteinMetadataBackgroundLoaderCompletedUI();
             // Roundtrip to get rid of different revision indexes
             AssertEx.DocumentCloned(AssertEx.RoundTrip(docRemoved), AssertEx.RoundTrip(docRescore));
@@ -302,6 +308,51 @@ namespace pwiz.SkylineTestFunctional
             var docClear = WaitForProteinMetadataBackgroundLoaderCompletedUI();
 
             Assert.IsFalse(docClear.Settings.HasResults);
+        }
+
+        private void WaitForGraphPositioning<TValue>(IList<GraphChromatogram> listGraphChroms, IDictionary<Point, TValue> dictGraphPositions)
+        {
+            WaitForConditionUI(5000, () => listGraphChroms.All(g => ContainsKeyTolerant(dictGraphPositions, g)), null, false);
+            RunUI(() =>
+            {
+                var missingPoints = listGraphChroms.Where(g => g.Visible)
+                        .Select(GetTopLeft)
+                        .Where(p => !dictGraphPositions.ContainsKey(p))
+                        .ToArray();
+                if (missingPoints.Length > 0)
+                {
+                    Assert.Fail("Missing points {0} from {1}", string.Join(";", missingPoints), string.Join(";", dictGraphPositions.Keys));
+                }
+            });
+        }
+
+        /// <summary>
+        /// Allows point keys to be off a little (2 pixels), which currently seems to happen
+        /// intermittently during nightly test runs, and if you run this test off-screen for
+        /// many runs.
+        /// </summary>
+        private bool ContainsKeyTolerant<TValue>(IDictionary<Point, TValue> dictGraphPositions, GraphChromatogram graphChromatogram)
+        {
+            if (!graphChromatogram.Visible)
+                return true;
+            var ptTopLeft = GetTopLeft(graphChromatogram);
+            if (dictGraphPositions.ContainsKey(ptTopLeft))
+                return true;
+            const int tolerance = 2;
+            foreach (var ptKey in dictGraphPositions.Keys)
+            {
+                if (ptKey.EqualsTolerant(ptTopLeft, tolerance))
+                {
+                    dictGraphPositions.Add(ptTopLeft, dictGraphPositions[ptKey]);
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        private static Point GetTopLeft(GraphChromatogram graph)
+        {
+            return GetTopLeft(graph.Parent);
         }
 
         private static Point GetTopLeft(Control control)
@@ -358,29 +409,31 @@ namespace pwiz.SkylineTestFunctional
 
             // Verify that the transition information has been moved around
             // as expected, but nothing newly created
-            var enumTranOrig = docOrig.PeptideTransitions.GetEnumerator();
-            foreach (var nodeTran in docNew.PeptideTransitions)
+            using (var enumTranOrig = docOrig.PeptideTransitions.GetEnumerator())
             {
-                Assert.IsTrue(enumTranOrig.MoveNext());
-                
-                var nodeTranOrig = enumTranOrig.Current;
-                Assert.IsNotNull(nodeTranOrig);
-                Assert.AreNotSame(nodeTran, nodeTranOrig);
-                Assert.AreSame(nodeTran.Id, nodeTranOrig.Id);
-
-                // Results should have just moved, but otherwise they should be the same
-                for (int i = 0; i < countChrom; i++)
+                foreach (var nodeTran in docNew.PeptideTransitions)
                 {
-                    // For the most part everything should be reference equal with old values
-                    if (!ArrayUtil.ReferencesEqual(nodeTran.Results[i], nodeTranOrig.Results[arrayIndexOld[i]]))
+                    Assert.IsTrue(enumTranOrig.MoveNext());
+
+                    var nodeTranOrig = enumTranOrig.Current;
+                    Assert.IsNotNull(nodeTranOrig);
+                    Assert.AreNotSame(nodeTran, nodeTranOrig);
+                    Assert.AreSame(nodeTran.Id, nodeTranOrig.Id);
+
+                    // Results should have just moved, but otherwise they should be the same
+                    for (int i = 0; i < countChrom; i++)
                     {
-                        // But, also allow it to be reference equal with its previous value, as long
-                        // as that value is content equal with the desired value.  Code in TransitionGroupDocNode
-                        // may cause this, because it tries to keep new copies of chromInfo to a minimum.
-                        if (!ArrayUtil.ReferencesEqual(nodeTran.Results[i], nodeTranOrig.Results[i]) ||
-                            !ArrayUtil.EqualsDeep(nodeTran.Results[i], nodeTranOrig.Results[arrayIndexOld[i]]))
+                        // For the most part everything should be reference equal with old values
+                        if (!ArrayUtil.ReferencesEqual(nodeTran.Results[i], nodeTranOrig.Results[arrayIndexOld[i]]))
                         {
-                            Assert.Fail("Transition chromatogram information changed.");
+                            // But, also allow it to be reference equal with its previous value, as long
+                            // as that value is content equal with the desired value.  Code in TransitionGroupDocNode
+                            // may cause this, because it tries to keep new copies of chromInfo to a minimum.
+                            if (!ArrayUtil.ReferencesEqual(nodeTran.Results[i], nodeTranOrig.Results[i]) ||
+                                !ArrayUtil.EqualsDeep(nodeTran.Results[i], nodeTranOrig.Results[arrayIndexOld[i]]))
+                            {
+                                Assert.Fail("Transition chromatogram information changed.");
+                            }
                         }
                     }
                 }
@@ -388,22 +441,24 @@ namespace pwiz.SkylineTestFunctional
 
             // Make sure group nodes have equal chromatogram info to ensure user modifications
             // are preserved.
-            var enumTranGroupOrig = docOrig.PeptideTransitionGroups.GetEnumerator();
-            foreach (var nodeGroup in docNew.PeptideTransitionGroups)
+            using (var enumTranGroupOrig = docOrig.PeptideTransitionGroups.GetEnumerator())
             {
-                Assert.IsTrue(enumTranGroupOrig.MoveNext());
-
-                var nodeGroupOrig = enumTranGroupOrig.Current;
-                Assert.IsNotNull(nodeGroupOrig);
-                Assert.AreNotSame(nodeGroup, nodeGroupOrig);
-                Assert.AreSame(nodeGroup.Id, nodeGroupOrig.Id);
-
-                for (int i = 0; i < countChrom; i++)
+                foreach (var nodeGroup in docNew.PeptideTransitionGroups)
                 {
-                    if (!ArrayUtil.EqualsDeep(nodeGroup.Results[i], nodeGroupOrig.Results[arrayIndexOld[i]]))
+                    Assert.IsTrue(enumTranGroupOrig.MoveNext());
+
+                    var nodeGroupOrig = enumTranGroupOrig.Current;
+                    Assert.IsNotNull(nodeGroupOrig);
+                    Assert.AreNotSame(nodeGroup, nodeGroupOrig);
+                    Assert.AreSame(nodeGroup.Id, nodeGroupOrig.Id);
+
+                    for (int i = 0; i < countChrom; i++)
                     {
-                        Assert.AreEqual(nodeGroupOrig.Results[arrayIndexOld[i]].Count, nodeGroup.Results[i].Count);
-                        Assert.Fail("Transition chromatogram information changed.");
+                        if (!ArrayUtil.EqualsDeep(nodeGroup.Results[i], nodeGroupOrig.Results[arrayIndexOld[i]]))
+                        {
+                            Assert.AreEqual(nodeGroupOrig.Results[arrayIndexOld[i]].Count, nodeGroup.Results[i].Count);
+                            Assert.Fail("Transition chromatogram information changed.");
+                        }
                     }
                 }
             }
@@ -418,6 +473,11 @@ namespace pwiz.SkylineTestFunctional
             {
                 _x = x;
                 _y = y;
+            }
+
+            public bool EqualsTolerant(Point other, int tolerance)
+            {
+                return Math.Abs(other._x - _x) <= tolerance && Math.Abs(other._y - _y) <= tolerance;
             }
 
             #region object overrides

@@ -18,52 +18,114 @@
  */
 using System;
 using pwiz.Skyline.Model.Irt;
-using pwiz.Skyline.Model.Lib.BlibData;
+using pwiz.Skyline.Model.Lib;
+using pwiz.Skyline.Util;
+
+// ReSharper disable VirtualMemberCallInConstructor
 
 namespace pwiz.Skyline.Model.IonMobility
 {
-    public class DbIonMobilityPeptide : DbEntity, IPeptideData
+    public class DbIonMobilityPeptide : DbAbstractPeptide
     {
         public override Type EntityClass
         {
             get { return typeof(DbIonMobilityPeptide); }
         }
 
+        private Adduct _adduct;
+
         // public virtual long? ID { get; set; } // in DbEntity
-        public virtual string PeptideModSeq { get; set; }
         public virtual double CollisionalCrossSection { get; set; }
+
         public virtual double HighEnergyDriftTimeOffsetMsec { get; set; }
 
-        public virtual string Sequence { get { return PeptideModSeq; } }
-        
+        public virtual string PrecursorAdduct // Adducts change the CCS for a molecule
+        {
+            get
+            {
+                return _adduct.AsFormulaOrSignedInt();
+            }
+            set
+            {
+                if (string.IsNullOrEmpty(value))
+                {
+                    _adduct = Adduct.EMPTY;
+                }
+                else if (int.TryParse(value, out _))
+                {
+                    _adduct = Adduct.FromStringAssumeProtonated(value);
+                }
+                else
+                {
+                    _adduct = Adduct.FromStringAssumeProtonatedNonProteomic(value);
+                }
+            }
+        } 
+
         /// <summary>
         /// For NHibernate only
         /// </summary>
         protected DbIonMobilityPeptide()
-        {            
+        {
+            _adduct = Adduct.EMPTY;
         }
 
         public DbIonMobilityPeptide(DbIonMobilityPeptide other)
-            : this(other.PeptideModSeq, other.CollisionalCrossSection, other.HighEnergyDriftTimeOffsetMsec)
+            : this(other.ModifiedTarget, other.CollisionalCrossSection, other.HighEnergyDriftTimeOffsetMsec,
+                other._adduct)
         {
             Id = other.Id;
         }
 
-        public DbIonMobilityPeptide(string sequence, double collisionalCrossSection, double highEnergyDriftTimeOffsetMsec)
+        public DbIonMobilityPeptide(Target sequence, Adduct precursorAdduct, double collisionalCrossSection,
+            double highEnergyDriftTimeOffsetMsec) : this(sequence, collisionalCrossSection, highEnergyDriftTimeOffsetMsec,
+            precursorAdduct)
+        { }
+
+        public DbIonMobilityPeptide(SmallMoleculeLibraryAttributes smallMoleculeLibraryAttributes,
+            Adduct precursorAdduct, 
+            double collisionalCrossSection,
+            double highEnergyDriftTimeOffsetMsec)
+            : this(new Target(smallMoleculeLibraryAttributes), collisionalCrossSection, highEnergyDriftTimeOffsetMsec,
+            precursorAdduct)
+        { }
+
+        private DbIonMobilityPeptide(Target sequence, double collisionalCrossSection,
+            double highEnergyDriftTimeOffsetMsec,
+            Adduct precursorAdduct)
         {
-            PeptideModSeq = sequence;
+            ModifiedTarget = sequence;
             CollisionalCrossSection = collisionalCrossSection;
             HighEnergyDriftTimeOffsetMsec = highEnergyDriftTimeOffsetMsec;
+            _adduct = precursorAdduct;
         }
 
-        #region object overrides
+        public virtual Adduct GetPrecursorAdduct()
+        {
+            return _adduct;
+        }
+
+        public virtual LibKey GetLibKey()
+        {
+            if (ModifiedTarget.IsProteomic)
+            {
+                // Unnormalized modified sequences will not match anything.  The user interface
+                // attempts to enforce only normalized modified sequences, but this extra protection
+                // handles IonMobilitydb files edited outside Skyline.  TODO - copied from iRT code - is this an issue here?
+                return new LibKey(GetNormalizedModifiedSequence(), _adduct.AdductCharge);
+            }
+            return new LibKey(ModifiedTarget.Molecule.PrimaryEquivalenceKey, _adduct);
+        }
+
+    #region object overrides
 
         public virtual bool Equals(DbIonMobilityPeptide other)
         {
             if (ReferenceEquals(null, other)) return false;
             if (ReferenceEquals(this, other)) return true;
             return base.Equals(other) &&
-                   Equals(other.PeptideModSeq, PeptideModSeq) &&
+                   Equals(other.ModifiedTarget, ModifiedTarget) &&
+                   Equals(_adduct, other._adduct) &&
                    other.HighEnergyDriftTimeOffsetMsec.Equals(other.HighEnergyDriftTimeOffsetMsec) &&
                    other.CollisionalCrossSection.Equals(CollisionalCrossSection);
         }
@@ -80,9 +142,10 @@ namespace pwiz.Skyline.Model.IonMobility
             unchecked
             {
                 int result = base.GetHashCode();
-                result = (result*397) ^ (PeptideModSeq != null ? PeptideModSeq.GetHashCode() : 0);
+                result = (result*397) ^ (ModifiedTarget != null ? ModifiedTarget.GetHashCode() : 0);
                 result = (result*397) ^ CollisionalCrossSection.GetHashCode();
                 result = (result*397) ^ HighEnergyDriftTimeOffsetMsec.GetHashCode();
+                result = (result*397) ^ _adduct.GetHashCode();
                 return result;
             }
         }

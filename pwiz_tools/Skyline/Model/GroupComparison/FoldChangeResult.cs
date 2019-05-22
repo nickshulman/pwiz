@@ -26,12 +26,13 @@ namespace pwiz.Skyline.Model.GroupComparison
 {
     public struct FoldChangeResult : IComparable
     {
-        public FoldChangeResult(double confidenceLevel, double adjustedPValue, LinearFitResult linearFitResult) : this()
+        private double _criticalValue;
+        public FoldChangeResult(double confidenceLevel, double adjustedPValue, LinearFitResult linearFitResult, double criticalValue) : this()
         {
             ConfidenceLevel = confidenceLevel;
             LinearFit = linearFitResult;
             AdjustedPValue = adjustedPValue;
-            
+            _criticalValue = criticalValue;
         }
 
         [Format(Formats.CV)]
@@ -40,7 +41,11 @@ namespace pwiz.Skyline.Model.GroupComparison
         public double FoldChange 
         { get { return Math.Pow(2.0, LinearFit.EstimatedValue); }}
         [Format(Formats.FoldChange)]
+        public double AbsFoldChange { get { return Math.Pow(2.0, Math.Abs(LinearFit.EstimatedValue)); } }
+        [Format(Formats.FoldChange)]
         public double Log2FoldChange { get { return LinearFit.EstimatedValue; }}
+        [Format(Formats.FoldChange)]
+        public double AbsLog2FoldChange { get { return Math.Abs(Log2FoldChange); } }
         [Format(Formats.PValue)]
         public double AdjustedPValue { get; private set; }
 
@@ -49,8 +54,7 @@ namespace pwiz.Skyline.Model.GroupComparison
         {
             get
             {
-                double criticalValue = GetCriticalValue(ConfidenceLevel, LinearFit.DegreesOfFreedom);
-                return Math.Pow(2.0, LinearFit.EstimatedValue - LinearFit.StandardError * criticalValue);
+                return Math.Pow(2.0, LinearFit.EstimatedValue - LinearFit.StandardError * _criticalValue);
             }
         }
 
@@ -59,8 +63,7 @@ namespace pwiz.Skyline.Model.GroupComparison
         {
             get
             {
-                double criticalValue = GetCriticalValue(ConfidenceLevel, LinearFit.DegreesOfFreedom);
-                return Math.Pow(2.0, LinearFit.EstimatedValue + LinearFit.StandardError*criticalValue);
+                return Math.Pow(2.0, LinearFit.EstimatedValue + LinearFit.StandardError*_criticalValue);
             }
         }
 
@@ -70,7 +73,7 @@ namespace pwiz.Skyline.Model.GroupComparison
         {
             string formatFoldChange = Formats.PEAK_FOUND_RATIO;
             string formatConfidenceLevel = Formats.CV;
-            return string.Format("{0} ({1} CI:{2} to {3})", // Not L10N
+            return string.Format(@"{0} ({1} CI:{2} to {3})",
                 FoldChange.ToString(formatFoldChange), 
                 ConfidenceLevel.ToString(formatConfidenceLevel), 
                 MinFoldChange.ToString(formatFoldChange), 
@@ -81,7 +84,7 @@ namespace pwiz.Skyline.Model.GroupComparison
         /// Returns the value from the Student's T-Distribution table for the particular confidence level and
         /// degrees of freedom.
         /// </summary>
-        private static double GetCriticalValue(double twoTailedConfidence, int degreesOfFreedom)
+        public static double GetCriticalValue(double twoTailedConfidence, int degreesOfFreedom)
         {
             if (degreesOfFreedom <= 0)
             {

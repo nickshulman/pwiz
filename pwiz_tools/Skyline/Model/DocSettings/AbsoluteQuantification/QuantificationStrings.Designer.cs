@@ -19,7 +19,7 @@ namespace pwiz.Skyline.Model.DocSettings.AbsoluteQuantification {
     // class via a tool like ResGen or Visual Studio.
     // To add or remove a member, edit your .ResX file then rerun ResGen
     // with the /str option, or rebuild your VS project.
-    [global::System.CodeDom.Compiler.GeneratedCodeAttribute("System.Resources.Tools.StronglyTypedResourceBuilder", "4.0.0.0")]
+    [global::System.CodeDom.Compiler.GeneratedCodeAttribute("System.Resources.Tools.StronglyTypedResourceBuilder", "15.0.0.0")]
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
     [global::System.Runtime.CompilerServices.CompilerGeneratedAttribute()]
     public class QuantificationStrings {
@@ -106,6 +106,15 @@ namespace pwiz.Skyline.Model.DocSettings.AbsoluteQuantification {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Intercept: {0}.
+        /// </summary>
+        public static string CalibrationCurve_ToString_Intercept___0_ {
+            get {
+                return ResourceManager.GetString("CalibrationCurve_ToString_Intercept___0_", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Slope: {0}.
         /// </summary>
         public static string CalibrationCurve_ToString_Slope___0_ {
@@ -120,6 +129,15 @@ namespace pwiz.Skyline.Model.DocSettings.AbsoluteQuantification {
         public static string CalibrationCurve_ToString_Slope___0__Intercept___1_ {
             get {
                 return ResourceManager.GetString("CalibrationCurve_ToString_Slope___0__Intercept___1_", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Turning Point: {0}.
+        /// </summary>
+        public static string CalibrationCurve_ToString_Turning_Point___0_ {
+            get {
+                return ResourceManager.GetString("CalibrationCurve_ToString_Turning_Point___0_", resourceCulture);
             }
         }
         
@@ -272,6 +290,16 @@ namespace pwiz.Skyline.Model.DocSettings.AbsoluteQuantification {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to The selected peptide is no longer part of the Skyline document..
+        /// </summary>
+        public static string CalibrationForm_DisplayCalibrationCurve_The_selected_peptide_is_no_longer_part_of_the_Skyline_document_ {
+            get {
+                return ResourceManager.GetString("CalibrationForm_DisplayCalibrationCurve_The_selected_peptide_is_no_longer_part_of" +
+                        "_the_Skyline_document_", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to The selected replicate has missing or truncated transitions.
         /// </summary>
         public static string CalibrationForm_DisplayCalibrationCurve_The_selected_replicate_has_missing_or_truncated_transitions {
@@ -322,11 +350,110 @@ namespace pwiz.Skyline.Model.DocSettings.AbsoluteQuantification {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to (All Replicates).
+        /// </summary>
+        public static string CalibrationForm_GetFormTitle__All_Replicates_ {
+            get {
+                return ResourceManager.GetString("CalibrationForm_GetFormTitle__All_Replicates_", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to (Batch: {0}).
+        /// </summary>
+        public static string CalibrationForm_GetFormTitle__Batch___0__ {
+            get {
+                return ResourceManager.GetString("CalibrationForm_GetFormTitle__Batch___0__", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to (Replicate: {0}).
+        /// </summary>
+        public static string CalibrationForm_GetFormTitle__Replicate___0__ {
+            get {
+                return ResourceManager.GetString("CalibrationForm_GetFormTitle__Replicate___0__", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Exclude Standard.
+        /// </summary>
+        public static string CalibrationForm_MakeExcludeStandardMenuItem_Exclude_Standard {
+            get {
+                return ResourceManager.GetString("CalibrationForm_MakeExcludeStandardMenuItem_Exclude_Standard", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Include Standard.
+        /// </summary>
+        public static string CalibrationForm_MakeExcludeStandardMenuItem_Include_Standard {
+            get {
+                return ResourceManager.GetString("CalibrationForm_MakeExcludeStandardMenuItem_Include_Standard", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Concentration Ratio.
         /// </summary>
         public static string Concentration_Ratio {
             get {
                 return ResourceManager.GetString("Concentration_Ratio", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to LOD: .
+        /// </summary>
+        public static string FiguresOfMerit_ToString_LOD__ {
+            get {
+                return ResourceManager.GetString("FiguresOfMerit_ToString_LOD__", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to LOQ: .
+        /// </summary>
+        public static string FiguresOfMerit_ToString_LOQ__ {
+            get {
+                return ResourceManager.GetString("FiguresOfMerit_ToString_LOQ__", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Blank plus 2 * SD.
+        /// </summary>
+        public static string LodCalculation_BLANK_PLUS_2SD_Blank_plus_2___SD {
+            get {
+                return ResourceManager.GetString("LodCalculation_BLANK_PLUS_2SD_Blank_plus_2___SD", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Blank plus 3 * SD.
+        /// </summary>
+        public static string LodCalculation_BLANK_PLUS_3SD_Blank_plus_3___SD {
+            get {
+                return ResourceManager.GetString("LodCalculation_BLANK_PLUS_3SD_Blank_plus_3___SD", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to None.
+        /// </summary>
+        public static string LodCalculation_NONE_None {
+            get {
+                return ResourceManager.GetString("LodCalculation_NONE_None", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Bilinear turning point.
+        /// </summary>
+        public static string LodCalculation_TURNING_POINT_Bilinear_turning_point {
+            get {
+                return ResourceManager.GetString("LodCalculation_TURNING_POINT_Bilinear_turning_point", resourceCulture);
             }
         }
         
@@ -345,6 +472,15 @@ namespace pwiz.Skyline.Model.DocSettings.AbsoluteQuantification {
         public static string QuantificationResult_ToString_Normalized_Area___0_ {
             get {
                 return ResourceManager.GetString("QuantificationResult_ToString_Normalized_Area___0_", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Bilinear.
+        /// </summary>
+        public static string RegressionFit_BILINEAR_Bilinear {
+            get {
+                return ResourceManager.GetString("RegressionFit_BILINEAR_Bilinear", resourceCulture);
             }
         }
         

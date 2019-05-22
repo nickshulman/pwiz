@@ -21,7 +21,6 @@ using System.Collections.Generic;
 using System.Windows.Forms;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using pwiz.Common.SystemUtil;
-using pwiz.Skyline;
 using pwiz.Skyline.Alerts;
 using pwiz.Skyline.EditUI;
 using pwiz.Skyline.Model;
@@ -60,12 +59,6 @@ namespace pwiz.SkylineTestFunctional
                 });
             RunUI(peptideSettingsUI.OkDialog);
             WaitForClosedForm(peptideSettingsUI);
-            WaitForCondition(() =>
-            {
-                var peptideSettings = Program.ActiveDocument.Settings.PeptideSettings;
-                var backgroundProteome = peptideSettings.BackgroundProteome;
-                return backgroundProteome.HasDigestion(peptideSettings);
-            });
             WaitForBackgroundProteomeLoaderCompleted(); // Allow protDB file to populate protein metadata first
 
             SetClipboardTextUI(PEPTIDES_CLIPBOARD_TEXT);
@@ -106,8 +99,7 @@ namespace pwiz.SkylineTestFunctional
             SetClipboardTextUI(PEPTIDES_CLIPBOARD_TEXT_GARBAGE);
             RunDlg<MessageDlg>(insertPeptidesDlg1.PastePeptides, messageDlg => messageDlg.OkDialog());
             Assert.AreEqual(1, insertPeptidesDlg1.PeptideRowCount);
-            RunUI(insertPeptidesDlg1.Close);
-            WaitForClosedForm(insertPeptidesDlg);
+            OkDialog(insertPeptidesDlg1, insertPeptidesDlg1.Close);
 
             // Test pasting a transition list.
             SetClipboardTextUI(TransitionsClipboardText);

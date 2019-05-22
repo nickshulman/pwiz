@@ -19,6 +19,7 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.Linq;
 using pwiz.Skyline.Controls.SeqNode;
 using pwiz.Skyline.Model;
@@ -34,7 +35,7 @@ namespace pwiz.Skyline.Controls.Graphs
     /// <summary>
     /// Graph pane which shows the comparison of retention times across the replicates.
     /// </summary>
-    internal class RTReplicateGraphPane : SummaryReplicateGraphPane
+    internal class RTReplicateGraphPane : SummaryReplicateGraphPane, IUpdateGraphPaneController
     {
         public RTReplicateGraphPane(GraphSummary graphSummary)
             : base(graphSummary)
@@ -42,9 +43,17 @@ namespace pwiz.Skyline.Controls.Graphs
             YAxis.Title.Text = Resources.RTReplicateGraphPane_RTReplicateGraphPane_Measured_Time;
         }
 
-        public bool CanShowRTLegend { get; private set; }
+        public bool UpdateUIOnLibraryChanged()
+        {
+            return true;
+        }
+        public bool UpdateUIOnIndexChanged()
+        {
+            return true;
+        }
 
-        public override void UpdateGraph(bool checkData)
+        public bool CanShowRTLegend { get; private set; }
+        public override void UpdateGraph(bool selectionChanged)
         {
             SrmDocument document = GraphSummary.DocumentUIContainer.DocumentUI;
             var results = document.Settings.MeasuredResults;
@@ -56,7 +65,10 @@ namespace pwiz.Skyline.Controls.Graphs
                 EmptyGraph(document);
                 return;
             }
-            var selectedTreeNode = GraphSummary.StateProvider.SelectedNode as SrmTreeNode;
+
+            var selectedTreeNode = GraphSummary.StateProvider.SelectedNode as SrmTreeNode ??
+                                   GraphSummary.StateProvider.SelectedNodes.OfType<SrmTreeNode>().FirstOrDefault();
+
             if (selectedTreeNode == null || document.FindNode(selectedTreeNode.Path) == null)
             {
                 EmptyGraph(document);
@@ -67,8 +79,9 @@ namespace pwiz.Skyline.Controls.Graphs
 
             DisplayTypeChrom displayType = GraphChromatogram.GetDisplayType(document, selectedTreeNode);
             DocNode selectedNode = selectedTreeNode.Model;
+            IdentityPath selectedPath = selectedTreeNode.Path;
             DocNode parentNode = selectedNode;
-            IdentityPath identityPath = selectedTreeNode.Path;
+            IdentityPath parentPath = selectedTreeNode.Path;
             // If the selected tree node is a transition, then its siblings are displayed.
             if (selectedTreeNode is TransitionTreeNode)
             {
@@ -76,7 +89,7 @@ namespace pwiz.Skyline.Controls.Graphs
                 {
                     SrmTreeNode parentTreeNode = selectedTreeNode.SrmParent;
                     parentNode = parentTreeNode.Model;
-                    identityPath = parentTreeNode.Path;                    
+                    selectedPath = parentTreeNode.Path;
                 }
             }
             // If the selected node is a peptide with one child, then show the children,
@@ -87,10 +100,10 @@ namespace pwiz.Skyline.Controls.Graphs
                 if (children.Count == 1 && displayType != DisplayTypeChrom.total)
                 {
                     selectedNode = parentNode = children[0];
-                    identityPath = new IdentityPath(identityPath, parentNode.Id);
+                    selectedPath = new IdentityPath(parentPath, children[0].Id);
                 }
             }
-            else if (!(selectedTreeNode is TransitionGroupTreeNode))
+            else if (!(selectedTreeNode is PeptideGroupTreeNode) && !(selectedTreeNode is TransitionGroupTreeNode))
             {
                 Title.Text = Resources.RTReplicateGraphPane_UpdateGraph_Select_a_peptide_to_see_the_retention_time_graph;
                 CanShowRTLegend = false;
@@ -106,18 +119,28 @@ namespace pwiz.Skyline.Controls.Graphs
             }
             var rtTransformOp = GraphSummary.StateProvider.GetRetentionTimeTransformOperation();
             var rtValue = RTPeptideGraphPane.RTValue;
-            GraphValues.ReplicateGroupOp replicateGroupOp;
+            ReplicateGroupOp replicateGroupOp;
             if (rtValue == RTPeptideValue.All)
             {
-                replicateGroupOp = GraphValues.ReplicateGroupOp.FromCurrentSettings(document.Settings, GraphValues.AggregateOp.MEAN);
+                replicateGroupOp = ReplicateGroupOp.FromCurrentSettings(document.Settings, GraphValues.AggregateOp.MEAN);
             }
             else
             {
-                replicateGroupOp = GraphValues.ReplicateGroupOp.FromCurrentSettings(document.Settings);
+                replicateGroupOp = ReplicateGroupOp.FromCurrentSettings(document.Settings);
             }
             var retentionTimeValue = new GraphValues.RetentionTimeTransform(rtValue, rtTransformOp, replicateGroupOp.AggregateOp);
             YAxis.Title.Text = retentionTimeValue.GetAxisTitle();
-            GraphData graphData = new RTGraphData(document, parentNode, displayType, retentionTimeValue, replicateGroupOp);
+
+            var peptidePaths = GetSelectedPeptides().GetUniquePeptidePaths().ToList();
+            // if PeptideGroupTreeNode is selected but has only one child isMultiSelect should still be true
+            IsMultiSelect = peptidePaths.Count > 1 ||
+                (peptidePaths.Count == 1 &&
+                GraphSummary.StateProvider.SelectedNodes.FirstOrDefault() is PeptideGroupTreeNode);
+
+            GraphData graphData = new RTGraphData(document, 
+                IsMultiSelect 
+                ? peptidePaths
+                : new[] { selectedPath }.AsEnumerable(), displayType, retentionTimeValue, replicateGroupOp);
             CanShowRTLegend = graphData.DocNodes.Count != 0;
             InitFromData(graphData);
 
@@ -125,7 +148,7 @@ namespace pwiz.Skyline.Controls.Graphs
             double minRetentionTime = double.MaxValue;
             double maxRetentionTime = -double.MaxValue;
             int iColor = 0, iCharge = -1;
-            int? charge = null;
+            var charge = Adduct.EMPTY;
             int countLabelTypes = document.Settings.PeptideSettings.Modifications.CountLabelTypes;
             int colorOffset = 0;
             var transitionGroupDocNode = parentNode as TransitionGroupDocNode;
@@ -139,6 +162,7 @@ namespace pwiz.Skyline.Controls.Graphs
             for (int i = 0; i < graphData.DocNodes.Count; i++)
             {
                 var docNode = graphData.DocNodes[i];
+                var identityPath = graphData.DocNodePaths[i];
                 var pointPairLists = graphData.PointPairLists[i];
                 int numSteps = pointPairLists.Count / 2;
                 for (int iStep = 0; iStep < pointPairLists.Count; iStep++)
@@ -146,64 +170,105 @@ namespace pwiz.Skyline.Controls.Graphs
                     int step = iStep - numSteps;
                     var pointPairList = pointPairLists[iStep];
                     Color color;
+                    var isSelected = false;
                     var nodeGroup = docNode as TransitionGroupDocNode;
-                    if (parentNode is PeptideDocNode)
+                    if (IsMultiSelect)
+                    {
+                        var peptides = peptidePaths.Select(path => document.FindNode(path))
+                            .Cast<PeptideDocNode>().ToArray();
+                        var peptideDocNode = peptides.FirstOrDefault(
+                            peptide => 0 <= peptide.FindNodeIndex(docNode.Id));
+                        if (peptideDocNode == null)
+                        {
+                            continue;
+                        }
+                        color = GraphSummary.StateProvider.GetPeptideGraphInfo(peptideDocNode).Color;
+                        if (identityPath.Equals(selectedTreeNode.Path) && step == 0)
+                        {
+                            color = ChromGraphItem.ColorSelected;
+                            isSelected = true;
+                        }
+                    }
+                    else if (parentNode is PeptideDocNode)
                     {
                         // Resharper code inspection v9.0 on TC gets this one wrong
                         // ReSharper disable ExpressionIsAlwaysNull
                         int iColorGroup = GetColorIndex(nodeGroup, countLabelTypes, ref charge, ref iCharge);
                         // ReSharper restore ExpressionIsAlwaysNull
-                        color = COLORS_GROUPS[iColorGroup % COLORS_GROUPS.Length];
+                        color = COLORS_GROUPS[iColorGroup % COLORS_GROUPS.Count];
                     }
                     else if (displayType == DisplayTypeChrom.total)
                     {
-                        color = COLORS_GROUPS[iColor%COLORS_GROUPS.Length];
+                        color = COLORS_GROUPS[iColor%COLORS_GROUPS.Count];
                     }
-                    else if (docNode.Equals(selectedNode) && step == 0)
+                    else if (ReferenceEquals(docNode, selectedNode) && step == 0)
                     {
                         color = ChromGraphItem.ColorSelected;
+                        isSelected = true;
                     }
                     else
                     {
-                        color = COLORS_TRANSITION[(iColor + colorOffset)%COLORS_TRANSITION.Length];
+                        color = COLORS_TRANSITION[(iColor + colorOffset)%COLORS_TRANSITION.Count];
                     }
                     iColor++;
 
                     string label = graphData.DocNodeLabels[i];
                     if (step != 0)
                         label = string.Format(Resources.RTReplicateGraphPane_UpdateGraph_Step__0__, step);
-                    BarItem curveItem;
-                    if (HiLowMiddleErrorBarItem.IsHiLoMiddleErrorList(pointPairList))
+                    
+                    CurveItem curveItem;
+                    if(IsMultiSelect)
+                    {
+                        if (rtValue != RTPeptideValue.All)
+                            curveItem = CreateLineItem(label, pointPairList, color);
+                        else
+                            curveItem = CreateMultiSelectBarItem(label, pointPairList, color);
+                    }
+                    else if (HiLowMiddleErrorBarItem.IsHiLoMiddleErrorList(pointPairList))
                     {
                         curveItem = new HiLowMiddleErrorBarItem(label, pointPairList, color, Color.Black);
+                        BarSettings.Type = BarType.Cluster;
+                    }
+                    else if (rtValue == RTPeptideValue.All)
+                    {
+                        curveItem = new MeanErrorBarItem(label, pointPairList, color, Color.Black);
+                        BarSettings.Type = BarType.Cluster;
                     }
                     else
                     {
-                        curveItem = new MeanErrorBarItem(label, pointPairList, color, Color.Black);
+                        curveItem = CreateLineItem(label, pointPairList, color);
                     }
-                    if (selectedReplicateIndex != -1 && selectedReplicateIndex < pointPairList.Count)
+
+                    if (curveItem != null)
                     {
-                        PointPair pointPair = pointPairList[selectedReplicateIndex];
-                        if (!pointPair.IsInvalid)
+                        curveItem.Tag = identityPath;
+
+                        var barItem = curveItem as BarItem;
+                        if (barItem != null)
                         {
-                            minRetentionTime = Math.Min(minRetentionTime, pointPair.Z);
-                            maxRetentionTime = Math.Max(maxRetentionTime, pointPair.Y);
+                            barItem.Bar.Border.IsVisible = false;
+                            barItem.Bar.Fill.Brush = GetBrushForNode(document.Settings, docNode, color);
+                            if (!isSelected)
+                                barItem.SortedOverlayPriority = 1;
+                        }
+                        CurveList.Add(curveItem);
+
+                        if (selectedReplicateIndex != -1 && selectedReplicateIndex < pointPairList.Count)
+                        {
+                            PointPair pointPair = pointPairList[selectedReplicateIndex];
+                            if (!pointPair.IsInvalid)
+                            {
+                                minRetentionTime = Math.Min(minRetentionTime, pointPair.Z);
+                                maxRetentionTime = Math.Max(maxRetentionTime, pointPair.Y);
+                            }
                         }
                     }
-                    curveItem.Bar.Border.IsVisible = false;
-                    curveItem.Bar.Fill.Brush = new SolidBrush(color);
-                    curveItem.Tag = new IdentityPath(identityPath, docNode.Id);
-                    CurveList.Add(curveItem);
                 }
             }
             // Draw a box around the currently selected replicate
             if (ShowSelection && minRetentionTime != double.MaxValue)
             {
-                GraphObjList.Add(new BoxObj(selectedReplicateIndex + .5, maxRetentionTime, 1,
-                                            maxRetentionTime - minRetentionTime, Color.Black, Color.Empty)
-                                     {
-                                         IsClippedToChartRect = true,
-                                     });
+                AddSelection(selectedReplicateIndex, maxRetentionTime, minRetentionTime);
             }
             // Reset the scale when the parent node changes
             if (_parentNode == null || !ReferenceEquals(_parentNode.Id, parentNode.Id))
@@ -212,20 +277,56 @@ namespace pwiz.Skyline.Controls.Graphs
                 YAxis.Scale.MaxAuto = YAxis.Scale.MinAuto = true;
             }
             _parentNode = parentNode;
-            Legend.IsVisible = Settings.Default.ShowRetentionTimesLegend;
+            Legend.IsVisible = !IsMultiSelect && Settings.Default.ShowRetentionTimesLegend;
+            GraphSummary.GraphControl.Invalidate();
             AxisChange();
         }
 
-        private void EmptyGraph(SrmDocument document)
+        private void AddSelection(int selectedReplicateIndex, double maxRetentionTime, double minRetentionTime)
         {
-            string[] resultNames = GraphData.GetReplicateLabels(document).ToArray();
-            XAxis.Scale.TextLabels = resultNames;
-            ScaleAxisLabels();
-            // Add a missing point for each replicate name.
-            PointPairList pointPairList = new PointPairList();
-            for (int i = 0; i < resultNames.Length; i++)
-                pointPairList.Add(RTGraphData.RTPointPairMissing(i));
-            AxisChange();
+            bool selectLines = CurveList.Any(c => c is LineItem);
+            if (selectLines)
+            {
+                GraphObjList.Add(new LineObj(Color.Black, selectedReplicateIndex + 1, 0, selectedReplicateIndex + 1,
+                    maxRetentionTime)
+                {
+                    IsClippedToChartRect = true,
+                    Line = new Line {Width = 2, Color = Color.Black, Style = DashStyle.Dash}
+                });
+            }
+            else
+            {
+                GraphObjList.Add(new BoxObj(selectedReplicateIndex + .5, maxRetentionTime, 1,
+                    maxRetentionTime - minRetentionTime, Color.Black, Color.Empty)
+                {
+                    IsClippedToChartRect = true,
+                });
+            }
+        }
+
+        private CurveItem CreateMultiSelectBarItem(string label, PointPairList pointPairList, Color color)
+        {
+            for (var index = 0; index < pointPairList.Count; index++)
+            {
+                PointPair pp = pointPairList[index];
+                var middle = pp.Y - (pp.Y - pp.LowValue)/2;
+                if (!double.IsNaN(middle))
+                    pp.Tag = new MiddleErrorTag(middle, 0);
+            }
+
+            var curveItem = new HiLowMiddleErrorBarItem(label, pointPairList, color, color);
+            BarSettings.Type = BarType.SortedOverlay;
+            return curveItem;
+        }
+
+        private PeptidesAndTransitionGroups GetSelectedPeptides()
+        {
+            return PeptidesAndTransitionGroups.Get(GraphSummary.StateProvider.SelectedNodes, GraphSummary.ResultsIndex, 100);
+        }
+
+        protected override PointPair PointPairMissing(int xValue)
+        {
+            return RTGraphData.RTPointPairMissing(xValue);
         }
 
         /// <summary>
@@ -241,8 +342,8 @@ namespace pwiz.Skyline.Controls.Graphs
                         PointPairBase.Missing, PointPairBase.Missing, PointPairBase.Missing, 0);
             }
 
-            public RTGraphData(SrmDocument document, DocNode docNode, DisplayTypeChrom displayType, GraphValues.RetentionTimeTransform retentionTimeTransform, GraphValues.ReplicateGroupOp replicateGroupOp)
-                : base(document, docNode, displayType, replicateGroupOp, PaneKey.DEFAULT)
+            public RTGraphData(SrmDocument document, IEnumerable<IdentityPath> selectedDocNodePaths, DisplayTypeChrom displayType, GraphValues.RetentionTimeTransform retentionTimeTransform, ReplicateGroupOp replicateGroupOp)
+                : base(document, selectedDocNodePaths, displayType, replicateGroupOp, PaneKey.DEFAULT)
             {
                 RetentionTimeTransform = retentionTimeTransform;
             }
@@ -256,13 +357,13 @@ namespace pwiz.Skyline.Controls.Graphs
 
             private bool IsMissingAlignment(ChromInfoData chromInfoData)
             {
-                Assume.IsNotNull(RetentionTimeTransform, "RetentionTimeTransform"); // Not L10N
+                Assume.IsNotNull(RetentionTimeTransform, @"RetentionTimeTransform");
                 if (null == RetentionTimeTransform.RtTransformOp)
                 {
                     return false;
                 }
-                Assume.IsNotNull(chromInfoData, "chromInfoData"); // Not L10N
-                Assume.IsNotNull(chromInfoData.ChromFileInfo, "chromInfoData.ChromFileInfo"); // Not L10N
+                Assume.IsNotNull(chromInfoData, @"chromInfoData");
+                Assume.IsNotNull(chromInfoData.ChromFileInfo, @"chromInfoData.ChromFileInfo");
                 IRegressionFunction regressionFunction;
                 return !RetentionTimeTransform.RtTransformOp.TryGetRegressionFunction(chromInfoData.ChromFileInfo.FileId, out regressionFunction);
             }
@@ -315,11 +416,12 @@ namespace pwiz.Skyline.Controls.Graphs
                 }
                 if (RTPeptideValue.All == RTPeptideGraphPane.RTValue)
                 {
-                    return HiLowMiddleErrorBarItem.MakePointPair(iResult, 
+                    var point = HiLowMiddleErrorBarItem.MakePointPair(iResult, 
                         new Statistics(endTimes).Mean(), 
                         new Statistics(startTimes).Mean(), 
                         new Statistics(retentionTimes).Mean(), 
                         new Statistics(fwhms).Mean());
+                    return point.IsInvalid ? PointPairMissing(iResult) : point;
                 }
                 IEnumerable<double> values;
                 switch (RTPeptideGraphPane.RTValue)

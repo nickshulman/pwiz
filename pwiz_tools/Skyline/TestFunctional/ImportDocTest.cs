@@ -30,15 +30,16 @@ using pwiz.Skyline.Controls;
 namespace pwiz.SkylineTestFunctional
 {
     /// <summary>
-    /// Functional test for CE Optimization.
+    /// Functional test for handling of older doc formats.
     /// </summary>
     [TestClass]
-    public class ImportDocTest : AbstractFunctionalTest
+    public class ImportDocTest : AbstractFunctionalTestEx
     {
         private string[] _documentPaths;
         private string[] _cachePaths;
         private int[] _groupCounts;
         private int[] _tranCounts;
+        private int[] _peakCounts;
         private long[] _cacheSizes;
 
         [TestMethod]
@@ -52,7 +53,9 @@ namespace pwiz.SkylineTestFunctional
         /// Test import document functionality with results importing
         /// </summary>
         protected override void DoTest()
-        {            
+        {
+
+            TestOlderSmallMoleculeFormats();
             _documentPaths = new[]
                                          {
                                              TestFilesDir.GetTestPath("document1.sky"), // subject1, subject2, buffer (waters calcurv - annotations, manual integration, removed peak)
@@ -63,13 +66,14 @@ namespace pwiz.SkylineTestFunctional
                                          };
             _groupCounts = new[] {36, 24, 12, 6, 10};
             _tranCounts = new[] {72, 48, 24, 23, 440};
+            _peakCounts = new[] {518, 310, 162, 52, 3608};
 
             _cachePaths = new string[_documentPaths.Length];
             _cacheSizes = new long[_documentPaths.Length];
             for (int i = 0; i < _documentPaths.Length; i++)
             {
                 _cachePaths[i] = ChromatogramCache.FinalPathForName(_documentPaths[i], null);
-                _cacheSizes[i] = new FileInfo(_cachePaths[i]).Length;
+                _cacheSizes[i] = new FileInfo(_cachePaths[i]).Length;  // Actual length of the file
             }
 
             var docEmpty = SkylineWindow.Document;
@@ -206,18 +210,21 @@ namespace pwiz.SkylineTestFunctional
             // An undo followed by a redo should not change that
             Assert.AreEqual(9, SkylineWindow.Document.RevisionIndex);
             RunUI(SkylineWindow.Undo);
+            WaitForDocumentLoaded(5000);
             Assert.AreEqual(6, SkylineWindow.Document.RevisionIndex);
             Assert.AreEqual(newCacheLen, new FileInfo(cachePersistPath).Length);
             RunUI(SkylineWindow.Redo);
+            WaitForDocumentLoaded(5000);    // Necessary? Have seen intermittent failures in this area
             Assert.AreEqual(9, SkylineWindow.Document.RevisionIndex);
             Assert.AreEqual(newCacheLen, new FileInfo(cachePersistPath).Length);
             // Undo followed by a save, should reduce cache to previous size
             RunUI(SkylineWindow.Undo);
+            WaitForDocumentLoaded(5000);    // Necessary? Have seen intermittent failures in this area
             Assert.AreEqual(6, SkylineWindow.Document.RevisionIndex);
             RunUI(() => SkylineWindow.SaveDocument());
             Assert.AreEqual(startCacheLen, new FileInfo(cachePersistPath).Length);
             Assert.AreEqual(7, SkylineWindow.Document.RevisionIndex);
-            Thread.Sleep(10);  // Wait 10 ms to make sure the cache change in Redo registers as a cache modification
+            Thread.Sleep(1000);  // Wait 10 ms to make sure the cache change in Redo registers as a cache modification
             // After which, a redo should return the document to the add state and
             // restore the cache
             RunUI(SkylineWindow.Redo);
@@ -310,6 +317,7 @@ namespace pwiz.SkylineTestFunctional
             // Import merging by order with overflow and multiple files
             RunUI(SkylineWindow.Undo);
             Assert.AreEqual(docInitial, SkylineWindow.Document);
+            WaitForDocumentLoaded();
             RunDlg<ImportDocResultsDlg>(() => SkylineWindow.ImportFiles(_documentPaths[0], _documentPaths[2]), dlg =>
             {
                 dlg.Action = MeasuredResults.MergeAction.merge_indices;
@@ -367,6 +375,7 @@ namespace pwiz.SkylineTestFunctional
             // Now import allowing matching peptides to be merged
             RunUI(SkylineWindow.Undo);
             Assert.AreEqual(docInitial, SkylineWindow.Document);
+            WaitForDocumentLoaded();
             RunDlg<ImportDocResultsDlg>(() => SkylineWindow.ImportFiles(_documentPaths[0], _documentPaths[2]), dlg =>
             {
                 dlg.Action = MeasuredResults.MergeAction.add;
@@ -410,6 +419,7 @@ namespace pwiz.SkylineTestFunctional
             // Undo and save should have set the main cache back to the initial state
             RunUI(SkylineWindow.Undo);
             Assert.AreEqual(docInitial, SkylineWindow.Document);
+            WaitForDocumentLoaded();
             RunUI(() => SkylineWindow.SaveDocument());
             Assert.AreEqual(startCacheLen, new FileInfo(cachePersistPath).Length);
             // And the original caches should remain unchanged
@@ -426,6 +436,15 @@ namespace pwiz.SkylineTestFunctional
             Assert.IsFalse(File.Exists(cachePersistPath));
         }
 
+        private void TestOlderSmallMoleculeFormats()
+        {
+            // This pre-adduct-era file has isotope labels in the molecule declaration
+            OpenDocument(TestFilesDir.GetTestPath("HILIC_QE_NEGATIVE.sky"));
+            AssertEx.IsDocumentState(SkylineWindow.Document, null, 1, 11, 11, 11);
+
+            RunUI(() => SkylineWindow.NewDocument(true) ); // Clean up for next test step
+        }
+
         private long GetCacheSize(int docIndex, SrmDocument docInitial = null)
         {
             if (docInitial == null)
@@ -433,135 +452,9 @@ namespace pwiz.SkylineTestFunctional
             int dataGroupCount = _groupCounts[docIndex];
             int dataTranCount = _tranCounts[docIndex];
             long format3Size = _cacheSizes[docIndex];
+            int peakCount = _peakCounts[docIndex];
 
-            long cacheSize = format3Size;
-            int fileCachedCount = docInitial.Settings.MeasuredResults.MSDataFileInfos.Count();
-            if (ChromatogramCache.FORMAT_VERSION_CACHE > ChromatogramCache.FORMAT_VERSION_CACHE_3)
-            {
-                // Cache version 4 stores instrument information, and is bigger in size.
-                cacheSize += sizeof(int) * fileCachedCount;
-            }
-            if (ChromatogramCache.FORMAT_VERSION_CACHE > ChromatogramCache.FORMAT_VERSION_CACHE_4)
-            {
-                // Cache version 5 adds an int for flags for each file
-                // Allow for a difference in sizes due to the extra information.
-                int fileFlagsSize = sizeof(int)*fileCachedCount;
-                // And SeqIndex, SeqCount, StartScoreIndex and padding
-                int groupHeadersSize = ChromGroupHeaderInfo5.DeltaSize5*dataGroupCount;
-                // And flags for each transition
-                int transitionFlagsSize = ChromTransition5.DeltaSize5*dataTranCount;
-                // And num seq byte count, seq location, score types, num scores and score location
-                const int headerScoreSize = sizeof(int) + sizeof(long) + sizeof(int) + sizeof(int) + sizeof(long);
-                cacheSize += groupHeadersSize + fileFlagsSize + transitionFlagsSize + headerScoreSize;
-            }
-            if (ChromatogramCache.FORMAT_VERSION_CACHE > ChromatogramCache.FORMAT_VERSION_CACHE_5)
-            {
-                // Cache version 6 adds status graph dimensions for every file
-                cacheSize += sizeof(float) * 2 * fileCachedCount;
-            }
-            if (ChromatogramCache.FORMAT_VERSION_CACHE > ChromatogramCache.FORMAT_VERSION_CACHE_6)
-            {
-                // Cache version 7 adds ion mobility information
-                cacheSize += sizeof(float) * 2 * dataTranCount;
-            }
-            if (ChromatogramCache.FORMAT_VERSION_CACHE > ChromatogramCache.FORMAT_VERSION_CACHE_8)
-            {
-                // Cache version 9 adds scan id values for every file
-                cacheSize += (sizeof(int) + sizeof(long)) * fileCachedCount;
-                // And scan ids location to global header
-                cacheSize += sizeof(long);
-            }
-            return cacheSize;
-        }
-
-        private class DocResultsState
-        {
-            public DocResultsState(SrmDocument document)
-            {
-                AddDocument(document);
-            }
-
-            private void AddDocument(SrmDocument document)
-            {
-//                var fileIndices = document.Settings.HasResults ?
-//                    document.Settings.MeasuredResults.Chromatograms.SelectMany(set => set.MSDataFileInfos).Select(
-//                    info => info.FileIndex).ToArray() : new int[0];
-//                Console.WriteLine("--->");
-                foreach (PeptideDocNode nodePep in document.Peptides)
-                {
-                    if (nodePep.HasResults)
-                    {
-                        PeptideResults += nodePep.Results.Where(result => result != null)
-                                                         .SelectMany(info => info).Count();
-                    }
-
-                    foreach (TransitionGroupDocNode nodeGroup in nodePep.Children)
-                    {
-                        if (nodeGroup.HasResults)
-                        {
-//                            int startSize = TransitionGroupResults;
-                            foreach (var chromInfo in nodeGroup.Results.Where(result => result != null)
-                                                                       .SelectMany(info => info))
-                            {
-                                TransitionGroupResults++;
-                                if (chromInfo.Annotations.Note != null)
-                                    NoteCount++;
-                                if (chromInfo.Annotations.ListAnnotations().Length > 0)
-                                    AnnotationCount++;
-                            }
-//                            if (TransitionGroupResults - startSize < fileIndices.Length)
-//                            {
-//                                var listIds = fileIndices.ToList();
-//                                foreach (var chromInfo in nodeGroup.Results.Where(result => result != null)
-//                                                                           .SelectMany(info => info))
-//                                {
-//                                    listIds.Remove(chromInfo.FileIndex);
-//                                }
-//                                Console.WriteLine("{0} ({1})", nodePep.Peptide.Sequence, String.Join(", ", listIds.Select(i => i.ToString()).ToArray()));
-//                            }
-                        }
-
-                        foreach (var nodeTran in
-                            nodeGroup.Children.Cast<TransitionDocNode>().Where(nodeTran => nodeTran.HasResults))
-                        {
-                            foreach (var chromInfo in nodeTran.Results.Where(result => result != null)
-                                                                      .SelectMany(info => info))
-                            {
-                                TransitionResults++;
-                                if (chromInfo.Annotations.Note != null)
-                                    NoteCount++;
-                                if (chromInfo.Annotations.ListAnnotations().Length > 0)
-                                    AnnotationCount++;
-                                if (chromInfo.IsUserSetManual)
-                                    UserSetCount++;
-                            }
-                        }
-                    }
-                }
-            }
-
-            public void AreEqual(SrmDocument document)
-            {
-                var state = new DocResultsState(document);
-                Assert.AreEqual(PeptideResults, state.PeptideResults);
-                Assert.AreEqual(TransitionGroupResults, state.TransitionGroupResults);
-                Assert.AreEqual(TransitionResults, state.TransitionResults);
-                Assert.AreEqual(UserSetCount, state.UserSetCount);
-                Assert.AreEqual(NoteCount, state.NoteCount);
-                Assert.AreEqual(AnnotationCount, state.AnnotationCount);
-            }
-
-            public bool HasResults
-            {
-                get { return PeptideResults != 0 && TransitionGroupResults != 0 && TransitionResults != 0; }
-            }
-
-            public int PeptideResults { get; private set; }
-            public int TransitionGroupResults { get; private set; }
-            public int TransitionResults { get; private set; }
-            public int UserSetCount { get; private set; }
-            public int NoteCount { get; private set; }
-            public int AnnotationCount { get; private set; }
+            return ResultsUtil.CacheSize(docInitial, format3Size, dataGroupCount, dataTranCount, peakCount);
         }
     }
 }

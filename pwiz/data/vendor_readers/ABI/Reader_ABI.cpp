@@ -35,7 +35,7 @@ PWIZ_API_DECL std::string pwiz::msdata::Reader_ABI::identify(const std::string& 
 {
 	std::string result;
     // TODO: check header signature?
-    if (bal::iends_with(filename, ".wiff"))
+    if (bal::iends_with(filename, ".wiff") || bal::iends_with(filename, ".wiff2"))
 		result = getType();
     return result;
 }
@@ -46,7 +46,6 @@ PWIZ_API_DECL std::string pwiz::msdata::Reader_ABI::identify(const std::string& 
 #include "SpectrumList_ABI.hpp"
 #include "ChromatogramList_ABI.hpp"
 #include "Reader_ABI_Detail.hpp"
-#include <windows.h> // GetModuleFileName
 
 
 namespace pwiz {
@@ -65,7 +64,7 @@ using namespace pwiz::msdata::detail::ABI;
 namespace {
 
 void fillInMetadata(const string& wiffpath, MSData& msd, WiffFilePtr wifffile,
-                    const ExperimentsMap& experimentsMap, int sample)
+                    const ExperimentsMap& experimentsMap, int sample, const Reader::Config& config)
 {
     msd.cvs = defaultCVList();
 
@@ -142,13 +141,29 @@ void fillInMetadata(const string& wiffpath, MSData& msd, WiffFilePtr wifffile,
     if (sl) sl->setDataProcessingPtr(dpPwiz);
     if (cl) cl->setDataProcessingPtr(dpPwiz);
 
-    InstrumentConfigurationPtr ic = translateAsInstrumentConfiguration(wifffile->getInstrumentModel(), IonSpray);
+    auto instrumentModel = InstrumentModel_Unknown;
+    try
+    {
+        instrumentModel = wifffile->getInstrumentModel();
+    }
+    catch (runtime_error&)
+    {
+        if (config.unknownInstrumentIsError)
+            throw;
+    }
+
+    InstrumentConfigurationPtr ic = translateAsInstrumentConfiguration(instrumentModel, IonSpray);
     ic->softwarePtr = acquisitionSoftware;
+
+    auto serialNumber = wifffile->getInstrumentSerialNumber();
+    if (!serialNumber.empty())
+        ic->set(MS_instrument_serial_number, serialNumber);
+
     msd.instrumentConfigurationPtrs.push_back(ic);
     msd.run.defaultInstrumentConfigurationPtr = ic;
 
     msd.run.id = msd.id;
-    msd.run.startTimeStamp = encode_xml_datetime(wifffile->getSampleAcquisitionTime(sample));
+    msd.run.startTimeStamp = encode_xml_datetime(wifffile->getSampleAcquisitionTime(sample, config.adjustUnknownTimeZonesToHostTimeZone));
 }
 
 void cacheExperiments(WiffFilePtr wifffile, ExperimentsMap& experimentsMap, int sample)
@@ -163,7 +178,6 @@ void cacheExperiments(WiffFilePtr wifffile, ExperimentsMap& experimentsMap, int 
 }
 
 } // namespace
-
 
 PWIZ_API_DECL
 void Reader_ABI::read(const string& filename,
@@ -186,7 +200,7 @@ void Reader_ABI::read(const string& filename,
         result.run.spectrumListPtr = SpectrumListPtr(sl);
         result.run.chromatogramListPtr = ChromatogramListPtr(cl);
 
-        fillInMetadata(filename, result, wifffile, experimentsMap, runIndex);
+        fillInMetadata(filename, result, wifffile, experimentsMap, runIndex, config);
     }
     catch (std::exception& e)
     {
@@ -225,7 +239,7 @@ void Reader_ABI::read(const string& filename,
                 result.run.spectrumListPtr = SpectrumListPtr(sl);
                 result.run.chromatogramListPtr = ChromatogramListPtr(cl);
 
-                fillInMetadata(filename, result, wifffile, experimentsMap, i);
+                fillInMetadata(filename, result, wifffile, experimentsMap, i, config);
 
                 results.push_back(msDataPtr);
             }

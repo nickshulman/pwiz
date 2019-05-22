@@ -19,7 +19,6 @@
 
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
 using System.Reflection;
 using System.Windows.Forms;
@@ -297,7 +296,7 @@ namespace pwiz.SkylineTestFunctional
                     configureToolsDlg.RemoveAllTools();
                     configureToolsDlg.AddDialog("ImWindowTest", exePath, _empty, _empty, true,
                                                 Resources.ReportSpecList_GetDefaults_Peptide_RT_Results); // Report passed via stdin. // Not L10N
-                    configureToolsDlg.AddDialog("ImWindowTestWithMacro", exePath, ToolMacros.INPUT_REPORT_TEMP_PATH,
+                    configureToolsDlg.AddDialog("ImWindowTestWithMacro", exePath, "\"" + ToolMacros.INPUT_REPORT_TEMP_PATH + "\"",
                                                 _empty, true, Resources.ReportSpecList_GetDefaults_Transition_Results);
                     // Report passed as an argument. // Not L10N
                     Assert.AreEqual(2, configureToolsDlg.ToolList.Count);
@@ -311,21 +310,21 @@ namespace pwiz.SkylineTestFunctional
                     SkylineWindow.RunTool(0);                                               
                 });
             string reportText =
-                "PeptideSequence,ProteinName,ReplicateName,PredictedRetentionTime,PeptideRetentionTime,PeptidePeakFoundRatio"; // Not L10N
+                "Peptide,Protein,Replicate,PredictedRetentionTime,PeptideRetentionTime,PeptidePeakFoundRatio"; // Not L10N
             WaitForConditionUI(30*1000, () => SkylineWindow.ImmediateWindow != null);
-            WaitForConditionUI(() =>
-            {
-                Trace.WriteLine(SkylineWindow.ImmediateWindow.TextContent);
-                return SkylineWindow.ImmediateWindow.TextContent.Contains(reportText);
-            });
+            WaitForConditionUI(() => SkylineWindow.ImmediateWindow.TextContent.Contains(reportText));
             RunUI(() =>
             {
                 SkylineWindow.ImmediateWindow.Clear();
                 SkylineWindow.RunTool(1);
             });
             string reportText1 =
-                "PeptideSequence,ProteinName,ReplicateName,PrecursorMz,PrecursorCharge,ProductMz,ProductCharge,FragmentIon,RetentionTime,Area,Background,PeakRank"; // Not L10N
-            WaitForConditionUI(() => SkylineWindow.ImmediateWindow.TextContent.Contains(reportText1));
+                "Peptide,Protein,Replicate,PrecursorMz,PrecursorCharge,ProductMz,ProductCharge,FragmentIon,RetentionTime,Area,Background,PeakRank"; // Not L10N
+            string actualText=String.Empty;
+            if (!TryWaitForConditionUI(() => (actualText=SkylineWindow.ImmediateWindow.TextContent).Contains(reportText1)))
+            {
+                Assert.Fail(@"ImmediateWindow.TextContent ""{0}"" does not contain expected string ""{1}""", actualText??String.Empty, reportText1);
+            }
             // Make sure the running EXE does not cause test to fail, because it is locked.
             WaitForCondition(() =>
             {

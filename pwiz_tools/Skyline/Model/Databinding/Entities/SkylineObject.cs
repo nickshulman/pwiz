@@ -19,7 +19,11 @@
 
 using System;
 using System.ComponentModel;
+using pwiz.Common.DataBinding;
+using pwiz.Common.SystemUtil;
+using pwiz.Skyline.Model.AuditLog;
 using pwiz.Skyline.Model.DocSettings;
+using pwiz.Skyline.Model.ElementLocators;
 
 namespace pwiz.Skyline.Model.Databinding.Entities
 {
@@ -38,6 +42,21 @@ namespace pwiz.Skyline.Model.Databinding.Entities
             get { return DataSchema.Document; }
         }
 
+        public virtual ElementRef GetElementRef()
+        {
+            return null;
+        }
+
+        public string GetLocator()
+        {
+            var elementRef = GetElementRef();
+            if (elementRef == null)
+            {
+                return null;
+            }
+            return elementRef.ToString();
+        }
+
         public virtual object GetAnnotation(AnnotationDef annotationDef)
         {
             return null;
@@ -45,14 +64,17 @@ namespace pwiz.Skyline.Model.Databinding.Entities
         public virtual void SetAnnotation(AnnotationDef annotationDef, object value)
         {
         }
-        protected void ModifyDocument(EditDescription editDescription, Func<SrmDocument, SrmDocument> action)
+        protected void ModifyDocument(EditDescription editDescription, Func<SrmDocument, SrmDocument> action, Func<SrmDocumentPair, AuditLogEntry> logFunc = null)
         {
-            var skylineWindow = DataSchema.SkylineWindow;
-            if (skylineWindow == null)
-            {
-                throw new InvalidOperationException();
-            }
-            skylineWindow.ModifyDocument(editDescription.GetUndoText(DataSchema.DataSchemaLocalizer), action);
+            DataSchema.ModifyDocument(editDescription, action, logFunc);
+        }
+
+        protected EditDescription EditColumnDescription(string propertyName, object value)
+        {
+            var columnCaption = DataSchema.GetColumnCaption(DataSchema.DefaultUiMode, GetType(), propertyName);
+            string auditLogParseString = AuditLogParseHelper.GetParseString(ParseStringType.column_caption, 
+                columnCaption.GetCaption(DataSchemaLocalizer.INVARIANT));
+            return new EditDescription(columnCaption, auditLogParseString, GetElementRef(), value);
         }
     }
 }

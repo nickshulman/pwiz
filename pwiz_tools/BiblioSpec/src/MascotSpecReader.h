@@ -38,15 +38,18 @@ namespace BiblioSpec {
 
 class MascotSpecReader : public SpecFileReader {
  public:
-    MascotSpecReader(){
-        ms_file_ = NULL;
-        ms_results_ = NULL;
+    MascotSpecReader()
+        : ms_file_(NULL), ms_results_(NULL), disableRtConversion_(false), needsRtConversion_(false) {
     }
     MascotSpecReader(const char* filename,
                      ms_mascotresfile* ms_file, 
-                     ms_mascotresults* ms_results = NULL){
+                     ms_mascotresults* ms_results = NULL,
+                     const std::vector<std::string>& rawfiles = std::vector<std::string>(),
+                     boost::shared_ptr<TempFileDeleter> tmpFileDeleter = boost::shared_ptr<TempFileDeleter>())
+        : disableRtConversion_(false), needsRtConversion_(false), tmpFileDeleter_(tmpFileDeleter) {
         setFile(ms_file, ms_results);
         filename_ = filename;
+        numRawFiles_ = rawfiles.size();
     }
     virtual ~MascotSpecReader(){
         delete ms_results_;
@@ -109,8 +112,8 @@ class MascotSpecReader : public SpecFileReader {
      * Return true if spectrum found and successfully parsed, false if
      * spec not in file.
     */
-    virtual bool getSpectrum(int specId, 
-                             SpecData& returnData, 
+    virtual bool getSpectrum(int specId,
+                             SpecData& returnData,
                              SPEC_ID_TYPE findBy,
                              bool getPeaks = true)
     {
@@ -127,14 +130,34 @@ class MascotSpecReader : public SpecFileReader {
 
         ms_inputquery spec(*ms_file_, specId);
         // retention time is optional in .dat files
-        string rtStr = spec.getRetentionTimes();
-        try{
-            returnData.retentionTime = boost::lexical_cast<double>(rtStr) / 60;
+        double rt = -1;
+        try {
+            rt = boost::lexical_cast<double>(spec.getRetentionTimes());
+        } catch (...) {
+            rt = -1;
+        }
+
+        if (rt < 0) {
+            for (size_t i = 0; i < numRawFiles_; i++) {
+                try {
+                    rt = boost::lexical_cast<double>(spec.getRetentionTimes(i));
+                    break;
+                } catch (...) {
+                    rt = -1;
+                }
+            }
+        }
+
+        if (rt >= 0) {
+            returnData.retentionTime = rt / 60;
+            disableRtConversion_ = true;
+            needsRtConversion_ = false;
             // seconds to minutes
-        } catch (...){
+        } else {
             // if it wasn't there, try the title string
             returnData.retentionTime = getRetentionTimeFromTitle(spec.getStringTitle(true));
         }
+        getIonMobilityFromTitle(returnData, spec.getStringTitle(true)); // For Bruker TIMS
         returnData.numPeaks = spec.getNumberOfPeaks(1);// first ion series
 
         if( getPeaks ){
@@ -173,11 +196,19 @@ class MascotSpecReader : public SpecFileReader {
                         "file reading.");
         return false;
     }
+
+    bool needsRtConversion() const {
+        return needsRtConversion_;
+    }
     
  private:
     string filename_;   // keep around for reporting purposes
     ms_mascotresfile* ms_file_;    // get spec from here
     ms_mascotresults* ms_results_; // get pep from here (for m/z)
+    size_t numRawFiles_;
+    bool disableRtConversion_; // rt units known
+    bool needsRtConversion_; // rt units unknown and we've seen a retention time >750
+    boost::shared_ptr<TempFileDeleter> tmpFileDeleter_; // deletes temporary file when needed for Unicode filepath
 
     // TODO: This code is now duplicated in SpectrumList_MGF.cpp
     /**
@@ -185,39 +216,102 @@ class MascotSpecReader : public SpecFileReader {
      * two times, return the center of the range.  Possible formats to look
      * for are "Elution:<time> min", "RT:<time>min" and "rt=<time>,".
      */
-    double getRetentionTimeFromTitle(const string& title) const
+    double getRetentionTimeFromTitle(const string& title)
     {
         // text to search for preceeding and following time
-        const char* startTags[3] = { "Elution:", "RT:", "rt=" };
-        const char* secondStartTags[3] = { "to ", NULL, NULL };
-        const char* endTags[3] = { "min", "min", "," };
+        const char* startTags[4] = { "Elution:", "Elution from: ", "RT:", "rt=" };
+        const char* secondStartTags[4] = { "to ", " to ", NULL, NULL };
+        const char* endTags[4] = { "min", " ", "min", "," };
 
-        double firstTime = 0;
+        double time = 0;
         double secondTime = 0;
-        for(int format_idx = 0; format_idx < 2; format_idx++)
+        for (int format_idx = 0; format_idx < 4; format_idx++)
         {
-
             size_t position = 0;
-            firstTime = getTime(title, startTags[format_idx], 
-                                endTags[format_idx], position);
+            if ((time = getTime(title, startTags[format_idx], endTags[format_idx], &position)) == 0)
+                continue;
+
             if (secondStartTags[format_idx] != NULL)
-            {
-                secondTime = getTime(title, secondStartTags[format_idx], 
-                                     endTags[format_idx], position);
-            }
+                secondTime = getTime(title, secondStartTags[format_idx], endTags[format_idx], &position);
 
-            if( firstTime > 0 )
+            if (time != 0) {
+                if (!disableRtConversion_) {
+                    bool unitsKnownMin = format_idx == 0 || format_idx == 2;
+                    if (unitsKnownMin) {
+                        Verbosity::debug("RT conversion to minutes disabled");
+                        disableRtConversion_ = true;
+                        needsRtConversion_ = false;
+                    } else if (time > 750 && !needsRtConversion_) {
+                        Verbosity::debug("RT conversion to minutes enabled");
+                        needsRtConversion_ = true;
+                    }
+                }
                 break;
-
+            }
         } // try another format
 
-        double time = firstTime;
-        if( secondTime != 0 )
+        if (time != 0 && secondTime != 0)
         {
-            time = (firstTime + secondTime) / 2 ;
+            time = (time + secondTime) / 2 ;
         }
 
         return time;
+    }
+
+    /**
+     * Get ion mobility as encoded for Bruker TIMS
+     */
+    void getIonMobilityFromTitle(SpecData& returnData, const string& title) // For Bruker TIMS
+    {
+        // Pick out the Mobility value from something like
+        // title= Cmpd X, +MSn(383.4828600), 61.20 min MS: 151978/ |MSMS:151979/|count(pasefframemsmsinfo.precursor)=10|Id=2813793|AverageMz=383.672206171834|MonoisotopicMz=383.482886705023|Charge=3|Intensity=1217|ScanNumber=829.680327868853|Mobility=0.701142751474809
+        const char* tag = "Mobility=";
+        const char* delimiter = "|";
+        size_t start = title.find(tag, 0);
+        if (start == string::npos)
+        {
+            // Try the "TITLE=Cmpd 1, +MS2(948.5056), 63.0eV, 52.60-52.61min, 1/K0=1.409 #26317-26323" variant        
+            tag = "1/K0=";
+            delimiter = " ";
+            start = title.find(tag, 0);
+        }
+        size_t end;
+        if (start != string::npos)
+        {
+            int tagLen = strlen(tag);
+            start += tagLen;
+            end = title.find(delimiter, start);
+            if (end == string::npos)
+                end = title.length();
+        }
+        else // Try the "TITLE=1 Features, +MS2(479.538163, 2+), 0.8123 1/k0," variant
+        {
+            end = title.find(" 1/k0", 0);
+            if (end != string::npos)
+            {
+                start = title.find_last_of(' ',end - 1);
+                if (start != string::npos)
+                {
+                    start++;
+                }
+            }
+        }
+        if (start != string::npos)
+        {
+            string imStr = title.substr(start, end - start);
+            try
+            {
+                returnData.ionMobility = boost::lexical_cast<double>(imStr);
+                returnData.ionMobilityType = IONMOBILITY_INVERSEREDUCED_VSECPERCM2;
+                return;
+            }
+            catch (...)
+            {
+            }
+            returnData.ionMobility = 0;
+            returnData.ionMobilityType = IONMOBILITY_NONE;
+            throw BlibException(false, "Failure reading TIMS ion mobility value \"%s\"", imStr.c_str());
+        }
     }
 
     /**
@@ -226,9 +320,9 @@ class MascotSpecReader : public SpecFileReader {
      * Update position to the end of the parsed double.
      */
     double getTime(const string& title, const char* startTag,
-                   const char* endTag, size_t position) const
+                   const char* endTag, size_t* position) const
     {
-        size_t start = title.find(startTag, position);
+        size_t start = title.find(startTag, *position);
         if( start == string::npos )
             return 0; // not found
 
@@ -238,7 +332,7 @@ class MascotSpecReader : public SpecFileReader {
         try
         {
             double time = boost::lexical_cast<double>(timeStr);
-            position = start;
+            *position = start;
             return time;
         }
         catch(...)
@@ -246,9 +340,6 @@ class MascotSpecReader : public SpecFileReader {
             return 0;
         }
     }
-
-
-
 };
 
 } // namespace
@@ -259,19 +350,3 @@ class MascotSpecReader : public SpecFileReader {
  * c-basic-offset: 4
  * End:
  */
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

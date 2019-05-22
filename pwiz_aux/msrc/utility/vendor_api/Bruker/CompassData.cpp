@@ -26,8 +26,10 @@
 #pragma unmanaged
 #include "pwiz/utility/misc/Std.hpp"
 #include "pwiz/utility/misc/DateTime.hpp"
+#include "pwiz/utility/misc/Filesystem.hpp"
 #include "CompassData.hpp"
 #include "Baf2Sql.hpp"
+#include "TimsData.hpp"
 
 #pragma managed
 #include "pwiz/utility/misc/cpp_cli_utilities.hpp"
@@ -104,7 +106,7 @@ void ParameterCache::update(MSSpectrumParameterList& parameters)
     }
 
     size_t i = 0;
-    BOOST_FOREACH(const MSSpectrumParameter& p, parameters)
+    for(const MSSpectrumParameter& p : parameters)
     {
         map<string, string>::const_iterator findItr = parameterAlternativeNameMap_.find(p.name);
         if (findItr != parameterAlternativeNameMap_.end())
@@ -391,7 +393,9 @@ struct MSSpectrumImpl : public MSSpectrum
     virtual pair<double, double> getScanRange() const
     {
         // cache parameter indexes for this msLevel if they aren't already cached
-        ParameterCache& parameterCache = (*parameterCacheByMsLevel_)[(int)spectrum_->MSMSStage];
+        map<int, ParameterCache>& parameterCacheByMsLevel = *parameterCacheByMsLevel_;
+        auto insertPair = parameterCacheByMsLevel.insert(make_pair((int)spectrum_->MSMSStage, ParameterCache()));
+        ParameterCache& parameterCache = insertPair.first->second;
         MSSpectrumParameterListImpl parameters(spectrum_->MSSpectrumParameterCollection);
 
         string scanBegin = parameterCache.get("Scan Begin", parameters);
@@ -405,7 +409,9 @@ struct MSSpectrumImpl : public MSSpectrum
     virtual int getChargeState() const
     {
         // cache parameter indexes for this msLevel if they aren't already cached
-        ParameterCache& parameterCache = (*parameterCacheByMsLevel_)[(int)spectrum_->MSMSStage];
+        map<int, ParameterCache>& parameterCacheByMsLevel = *parameterCacheByMsLevel_;
+        auto insertPair = parameterCacheByMsLevel.insert(make_pair((int)spectrum_->MSMSStage, ParameterCache()));
+        ParameterCache& parameterCache = insertPair.first->second;
         MSSpectrumParameterListImpl parameters(spectrum_->MSSpectrumParameterCollection);
 
         string chargeState = parameterCache.get("ChargeState", parameters);
@@ -498,7 +504,7 @@ struct LCSpectrumImpl : public LCSpectrum
 
 struct CompassDataImpl : public CompassData
 {
-    CompassDataImpl(const string& rawpath, Reader_Bruker_Format format_) : parameterCacheByMsLevel_(new map<int, ParameterCache>())
+    CompassDataImpl(const string& rawpath, Reader_Bruker_Format format) : parameterCacheByMsLevel_(new map<int, ParameterCache>()), format_(format), rawpath_(rawpath)
     {
         try
         {
@@ -535,6 +541,12 @@ struct CompassDataImpl : public CompassData
     {
         if ((MS_Analysis^) msAnalysis_ != nullptr) delete msAnalysis_;
         if ((LC_Analysis^) lcAnalysis_ != nullptr) lcAnalysis_->Close();
+
+        if (format_ == Reader_Bruker_Format_YEP)
+            if (bal::iends_with(rawpath_, "analysis.yep"))
+                force_close_handles_to_filepath(rawpath_);
+            else
+                force_close_handles_to_filepath((bfs::path(rawpath_) / "analysis.yep").string());
     }
 
     virtual bool hasMSData() const {return hasMSData_;}
@@ -592,6 +604,16 @@ struct CompassDataImpl : public CompassData
         CATCH_AND_FORWARD
     }
 
+    virtual ChromatogramPtr getTIC() const
+    {
+        return ChromatogramPtr();
+    }
+
+    virtual ChromatogramPtr getBPC() const
+    {
+        return ChromatogramPtr();
+    }
+
     virtual std::string getOperatorName() const
     {
         if (!hasMSData_) return "";
@@ -612,7 +634,9 @@ struct CompassDataImpl : public CompassData
 
         try
         {
-            ptime pt(bdt::time_from_OADATE<ptime>(msAnalysis_->AnalysisDateTime.ToOADate()));
+            System::DateTime acquisitionTime = msAnalysis_->AnalysisDateTime;
+            bpt::ptime pt(boost::gregorian::date(acquisitionTime.Year, boost::gregorian::greg_month(acquisitionTime.Month), acquisitionTime.Day),
+                bpt::time_duration(acquisitionTime.Hour, acquisitionTime.Minute, acquisitionTime.Second, bpt::millisec(acquisitionTime.Millisecond).fractional_seconds()));
             return local_date_time(pt, blt::time_zone_ptr());
         }
         CATCH_AND_FORWARD
@@ -636,11 +660,18 @@ struct CompassDataImpl : public CompassData
         try {return (InstrumentFamily) msAnalysis_->InstrumentFamily;} CATCH_AND_FORWARD
     }
 
+    virtual int getInstrumentRevision() const
+    {
+        return 0;
+    }
+
     virtual std::string getInstrumentDescription() const
     {
         if (!hasMSData_) return "";
         try {return ToStdString(msAnalysis_->InstrumentDescription);} CATCH_AND_FORWARD
     }
+
+    virtual std::string getInstrumentSerialNumber() const { return ""; }
 
     virtual InstrumentSource getInstrumentSource() const { return InstrumentSource_Unknown; }
     virtual std::string getAcquisitionSoftware() const { return ""; }
@@ -648,6 +679,8 @@ struct CompassDataImpl : public CompassData
 
     private:
     mutable shared_ptr<map<int, ParameterCache> > parameterCacheByMsLevel_;
+    Reader_Bruker_Format format_;
+    string rawpath_;
 
     bool hasMSData_;
     gcroot<MS_Analysis^> msAnalysis_;
@@ -659,11 +692,15 @@ struct CompassDataImpl : public CompassData
 };
 
 
-PWIZ_API_DECL CompassDataPtr CompassData::create(const string& rawpath,
-                                                 Reader_Bruker_Format format)
+PWIZ_API_DECL CompassDataPtr CompassData::create(const string& rawpath, bool combineIonMobilitySpectra,
+                                                 Reader_Bruker_Format format,
+                                                 int preferOnlyMsLevel, // when nonzero, caller only wants spectra at this ms level
+                                                 bool allowMsMsWithoutPrecursor) // when false, PASEF MS2 specta without precursor info will be excluded
 {
     if (format == Reader_Bruker_Format_BAF || format == Reader_Bruker_Format_BAF_and_U2)
         return CompassDataPtr(new Baf2SqlImpl(rawpath));
+    else if (format == Reader_Bruker_Format_TDF)
+        return CompassDataPtr(new TimsDataImpl(rawpath, combineIonMobilitySpectra, preferOnlyMsLevel, allowMsMsWithoutPrecursor));
 
     try {return CompassDataPtr(new CompassDataImpl(rawpath, format));} CATCH_AND_FORWARD
 }
@@ -728,19 +765,32 @@ PWIZ_API_DECL const MSSpectrumParameter& MSSpectrumParameterIterator::dereferenc
     return impl_->dummy;
 }
 
-
-PWIZ_API_DECL CompassDataPtr CompassData::create(const string& rawpath,
-                                                 Reader_Bruker_Format format)
+PWIZ_API_DECL CompassDataPtr CompassData::create(const string& rawpath, bool combineIonMobilitySpectra,
+                                                 Reader_Bruker_Format format,
+                                                 int preferOnlyMsLevel, // when nonzero, caller only wants spectra at this ms level
+                                                 bool allowMsMsWithoutPrecursor) // when false, PASEF MS2 specta without precursor info will be excluded
 {
     if (format == Reader_Bruker_Format_BAF || format == Reader_Bruker_Format_BAF_and_U2)
         return CompassDataPtr(new Baf2SqlImpl(rawpath));
+    else if (format == Reader_Bruker_Format_TDF)
+        return CompassDataPtr(new TimsDataImpl(rawpath, combineIonMobilitySpectra, preferOnlyMsLevel, allowMsMsWithoutPrecursor));
     else
-        throw runtime_error("[CompassData::create] Bruker API was built with only BAF support; YEP and FID files not supported in this build");
+        throw runtime_error("[CompassData::create] Bruker API was built with only BAF and TDF support; YEP and FID files not supported in this build");
 }
 
 
 #endif // PWIZ_READER_BRUKER_WITH_COMPASSXTRACT
 
+
+PWIZ_API_DECL pair<size_t, size_t> CompassData::getFrameScanPair(int scanIndex) const
+{
+    throw runtime_error("[getFrameScanPair()] only supported for TDF data");
+}
+
+PWIZ_API_DECL size_t CompassData::getSpectrumIndex(int frame, int scan) const
+{
+    throw runtime_error("[getSpectrumIndex()] only supported for TDF data");
+}
 
 } // namespace Bruker
 } // namespace vendor_api

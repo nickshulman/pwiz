@@ -33,9 +33,101 @@ using System.Xml;
 using pwiz.Common.SystemUtil;
 using pwiz.ProteomeDatabase.API;
 using pwiz.ProteomeDatabase.DataModel;
+using pwiz.ProteomeDatabase.Properties;
 
 namespace pwiz.ProteomeDatabase.Fasta
 {
+
+    /// <summary>
+    /// Helper class for pulling protein metadata from the web
+    /// Note how we carry sequence length around - this is useful in sifting out search results
+    /// If we submit search batches with each protein having a unique sequence length, it's
+    /// much easier to map the results back to the queries by matching reported sequence lengths.
+    /// </summary>
+    public class ProteinSearchInfo
+    {
+        public ProteinSearchInfo(DbProteinName dbProteinDbInfo, int sequenceLength)
+        {
+            ProteinDbInfo = dbProteinDbInfo;
+            SeqLength = sequenceLength;
+            Status = SearchStatus.unsearched;
+        }
+
+        public ProteinSearchInfo()
+        {
+            ProteinDbInfo = new DbProteinName();
+            SeqLength = 0;
+            Status = SearchStatus.unsearched;
+        }
+
+        public enum SearchStatus { unsearched, success, failure };
+
+        public DbProteinName ProteinDbInfo { get; set; }
+        public int SeqLength { get; set; }  // Useful for disambiguation of multiple responses
+        public string ReviewStatus { get; set; } // Status reviewed or unreviewed in Uniprot
+        public SearchStatus Status { get; set; }
+
+        public void NoteSearchFailure()
+        {
+            if (Status == SearchStatus.unsearched)
+                Status = SearchStatus.failure;
+        }
+
+        public ProteinMetadata GetProteinMetadata()
+        {
+            return ProteinDbInfo.GetProteinMetadata();
+        }
+
+        public void ChangeProteinMetadata(ProteinMetadata other)
+        {
+            ProteinDbInfo.ChangeProteinMetadata(other);
+        }
+
+        public void SetWebSearchCompleted()
+        {
+            ProteinDbInfo.SetWebSearchCompleted();
+        }
+
+        public void SetWebSearchTerm(WebSearchTerm search)
+        {
+            ProteinDbInfo.SetWebSearchTerm(search);
+        }
+
+        public string Species { get { return ProteinDbInfo.Species; } set { ProteinDbInfo.Species = value; } }
+        public string PreferredName { get { return ProteinDbInfo.PreferredName; } set { ProteinDbInfo.PreferredName = value; } }
+        public string Accession { get { return ProteinDbInfo.Accession; } set { ProteinDbInfo.Accession = value; } }
+        public string Description { get { return ProteinDbInfo.Description; } set { ProteinDbInfo.Description = value; } }
+        public string Gene { get { return ProteinDbInfo.Gene; } set { ProteinDbInfo.Gene = value; } }
+        public DbProtein Protein { get { return ProteinDbInfo.Protein; } set { ProteinDbInfo.Protein = value; } }
+
+        //
+        // Return a ProteinSearchInfo whose members are the same in every member of the list, or null when list members disagree
+        //
+        public static ProteinSearchInfo Intersection(IEnumerable<ProteinSearchInfo> list)
+        {
+            if (list == null)
+                return null;
+            var proteinSearchInfos = list as ProteinSearchInfo[] ?? list.ToArray();
+            if (!proteinSearchInfos.Any())
+                return null;
+            var result = new ProteinSearchInfo(new DbProteinName(proteinSearchInfos[0].ProteinDbInfo.Protein, proteinSearchInfos[0].ProteinDbInfo.GetProteinMetadata().ClearWebSearchInfo()),0);
+            var rdb = result.ProteinDbInfo;
+            foreach (var p in proteinSearchInfos.Skip(1))
+            {
+                // Make sure all string properties in list agree, nulling out those that don't
+                var pdb = p.ProteinDbInfo;
+                foreach (var resultProperty in rdb.GetType().GetProperties().Where(prop => prop.PropertyType == typeof (string)))
+                {
+                    var pdbProperty = pdb.GetType().GetProperties().First(pprop => Equals(pprop.Name, resultProperty.Name));
+                    if (!Equals(resultProperty.GetValue(rdb, null), pdbProperty.GetValue(pdb, null)))
+                    {
+                        resultProperty.SetValue(rdb, null);
+                    }
+                }
+            }
+            return result;
+        }
+    }
 
     /// <summary>
     /// Class for reading FASTA-formatted protein sequence file
@@ -55,6 +147,10 @@ namespace pwiz.ProteomeDatabase.Fasta
         private readonly WebSearchProvider _webSearchProvider;
         private readonly List<RegexPair> _regexFasta;
         private IpiToUniprotMap _ipiMapper;
+        private readonly Dictionary<char, int> _batchsize; // Managing for ambiguous responses: start with pessimistic batch size, then grow it with success.
+        private readonly Dictionary<char, int> _successCountAtThisBatchsize;
+        private readonly Dictionary<char, int> _maxBatchSize;
+        private bool? _hasWebAccess;
 
 
         /// <summary>
@@ -65,6 +161,28 @@ namespace pwiz.ProteomeDatabase.Fasta
         {
             _webSearchProvider = webSearchProvider ?? new WebSearchProvider();
             _regexFasta = new List<RegexPair>();
+            _hasWebAccess = null;  // Unknown as of yet
+            _batchsize = new Dictionary<char, int>
+            {
+                {GENINFO_TAG, 1},  // search on Entrez, but don't mix with non-GI searches
+                {ENTREZ_TAG, 1},
+                {UNIPROTKB_TAG, 1}
+            };
+            const int ENTREZ_BATCHSIZE = 100; // they'd like 500, but it's really boggy at that size
+            const int UNIPROTKB_BATCHSIZE = 400;  // Enforcing sequence length uniqueness helps efficiency, we can make this pretty large
+            _maxBatchSize = new Dictionary<char, int>
+            {
+                {GENINFO_TAG, ENTREZ_BATCHSIZE},
+                {ENTREZ_TAG, ENTREZ_BATCHSIZE},
+                {UNIPROTKB_TAG, UNIPROTKB_BATCHSIZE}
+            };
+            _successCountAtThisBatchsize = new Dictionary<char, int>
+            {
+                {GENINFO_TAG, 0},
+                {ENTREZ_TAG, 0},
+                {UNIPROTKB_TAG, 0}
+            };
+
             foreach (var regex in GetStandardRegexPairs())
             {
                 // CONSIDER(bspratt): may need to make regex collection user extensible - and when we do, guard against
@@ -83,24 +201,36 @@ namespace pwiz.ProteomeDatabase.Fasta
 
         }
 
+        public bool IsAccessFaked
+        {
+            get { return _webSearchProvider is FakeWebSearchProvider; }
+        }
+
         /// <summary>
         /// Quick, cheap check for internet access (uniprot access, specifically)
         /// </summary>
         /// <returns>false if internet isn't available for any reason</returns>
         public bool HasWebAccess()
         {
-            var prot = ParseProteinLine(KNOWNGOOD_UNIPROT_SEARCH_TARGET);
-            var protname = new DbProteinName(prot, new ProteinMetadata(KNOWNGOOD_UNIPROT_SEARCH_TARGET, string.Empty, null, null, null, null,
-                UNIPROTKB_TAG+KNOWNGOOD_UNIPROT_SEARCH_TARGET));
-            return DoWebserviceLookup(new []{protname}, null, true).Any();
+            if (!_hasWebAccess.HasValue)
+            {
+                // First time anyone has asked - try a simple search to see if we have access
+                var prot = ParseProteinLine(KNOWNGOOD_UNIPROT_SEARCH_TARGET);
+                var protname = new ProteinSearchInfo(new DbProteinName(prot, new ProteinMetadata(KNOWNGOOD_UNIPROT_SEARCH_TARGET, string.Empty, null, null, null, null,
+                    UNIPROTKB_TAG + KNOWNGOOD_UNIPROT_SEARCH_TARGET)), KNOWNGOOD_UNIPROT_SEARCH_TARGET_SEQLEN);
+                _hasWebAccess = DoWebserviceLookup(new []{protname}, null, true).Any();
+            }
+            return _hasWebAccess.Value;
         }
 
         public IEnumerable<DbProtein> Import(TextReader reader)
         {
             string line;
+            int lineNumber = 0;
             while ((line = reader.ReadLine()) != null)
             {
-                if (line.StartsWith(">")) // Not L10N
+                lineNumber++;
+                if (line.StartsWith(@">"))
                 {
                     DbProtein protein = EndProtein();
                     if (protein != null)
@@ -116,7 +246,9 @@ namespace pwiz.ProteomeDatabase.Fasta
                 }
                 else
                 {
-                    _curSequence.Append(ParseSequenceLine(line));
+                    string sequenceLine = ParseSequenceLine(line);
+                    ValidateProteinSequence(sequenceLine, lineNumber);
+                    _curSequence.Append(sequenceLine);
                 }
             }
             DbProtein lastProtein = EndProtein();
@@ -169,9 +301,9 @@ namespace pwiz.ProteomeDatabase.Fasta
             if (proteinMetadata.Name == null)
                 return null;
             // watch for inputs like name="Library Peptides" which clearly isn't an actual protein name
-            if (proteinMetadata.Name.Contains(" ")) // Not L10N 
+            if (proteinMetadata.Name.Contains(@" "))
                 return null;
-            return ParseProteinMetaData(proteinMetadata.Name + " " + proteinMetadata.Description); // Not L10N
+            return ParseProteinMetaData(proteinMetadata.Name + @" " + proteinMetadata.Description);
         }
 
         /// <summary>
@@ -216,7 +348,7 @@ namespace pwiz.ProteomeDatabase.Fasta
                         {
                             var type = split[0].Trim();
                             var val = split[1].Trim();
-                            if (val.Contains("${")) // failed match // Not L10N
+                            if (val.Contains(@"${")) // failed match
                             {
                                 val = String.Empty;
                             }
@@ -225,31 +357,33 @@ namespace pwiz.ProteomeDatabase.Fasta
                                 dbColumnsFound++; // valid entry
                                 switch (type)
                                 {
-                                    case "name": // Not L10N
+                                    case @"name":
                                         headerResult.Name = val;
                                         break;
-                                    case "description": // Not L10N
+                                    case @"description":
                                         headerResult.Description = val;
                                         break;
-                                    case "accession": // Not L10N
+                                    case @"accession":
                                         headerResult.Accession = val;
                                         break;
-                                    case "preferredname": // Not L10N
+                                    case @"preferredname":
                                         headerResult.PreferredName = val;
                                         break;
-                                    case "gene": // Not L10N
+                                    case @"gene":
                                         headerResult.Gene = val;
                                         break;
-                                    case "species": // Not L10N
+                                    case @"species":
                                         headerResult.Species = val;
                                         break;
-                                    case "searchterm": // Not L10N
+                                    case @"searchterm":
                                         dbColumnsFound--; // not actually a db column
                                         searchterm = val;
                                         break;
                                     default:
                                         throw new ArgumentOutOfRangeException(
-                                            String.Format("Unknown Fasta RegEx output formatter type \'{0}\'",    // Not L10N
+                                            // ReSharper disable LocalizableElement
+                                            String.Format("Unknown Fasta RegEx output formatter type \'{0}\'",
+                                            // ReSharper restore LocalizableElement
                                                 regexOutputs[n]));
                                 }
 
@@ -258,7 +392,9 @@ namespace pwiz.ProteomeDatabase.Fasta
                         else
                         {
                             throw new ArgumentOutOfRangeException(
-                                String.Format("Fasta RegEx failure in \'{0}\'",  // Not L10N
+                                // ReSharper disable LocalizableElement
+                                String.Format("Fasta RegEx failure in \'{0}\'",
+                                // ReSharper restore LocalizableElement
                                     line.Substring(start)));
                         }
                     }
@@ -269,7 +405,9 @@ namespace pwiz.ProteomeDatabase.Fasta
                             // shave off any alternatives (might look like "IPI:IPI00197700.1|SWISS-PROT:P04638|ENSEMBL:ENSRNOP00000004662|REFSEQ:NP_037244")
                             searchterm = searchterm.Split('|')[0];
                             // a reasonable accession value will have at least one digit in it, and won't have things like tabs and parens and braces that confuse web services
-                            if ("0123456789".Any(searchterm.Contains) && !" \t()[]".Any(searchterm.Contains))  // Not L10N
+                            // ReSharper disable LocalizableElement
+                            if ("0123456789".Any(searchterm.Contains) && !" \t()[]".Any(searchterm.Contains))
+                            // ReSharper restore LocalizableElement
                                 headerResult.SetWebSearchTerm(new WebSearchTerm(searchterm[0], searchterm.Substring(1))); // we'll need to hit the webservices to get this missing info
                         }
                     }
@@ -287,8 +425,10 @@ namespace pwiz.ProteomeDatabase.Fasta
 
         private String ParseSequenceLine(String line)
         {
-            line = line.Replace(" ", "").Trim(); // Not L10N
-            if (line.EndsWith("*")) // Not L10N
+            // ReSharper disable LocalizableElement
+            line = line.Replace(" ", "").Trim();
+            // ReSharper restore LocalizableElement
+            if (line.EndsWith(@"*"))
             {
                 line = line.Substring(0, line.Length - 1);
             }
@@ -297,20 +437,20 @@ namespace pwiz.ProteomeDatabase.Fasta
 
         private readonly string[] _standardTypes = // these all have at least type|accession, will try them in Entrez
         {
-            "dbj", //  DDBJ  dbj|accession|locus // Not L10N 
-            "emb", //  EMBL  emb|accession|locus // Not L10N
-            "gb", //  GenBank  gb|accession|locus // Not L10N
-            "gpp", //  genome pipeline 3  gpp|accession|name // Not L10N
-            "nat", //  named annotation track 3  nat|accession|name // Not L10N
-            "pir", //  PIR  pir|accession|name // Not L10N
-            "prf", //  PRF  prf|accession|name // Not L10N
-            "ref", //  RefSeq  ref|accession|name // Not L10N
-            "tpd", //  third-party DDBJ  tpd|accession|name // Not L10N
-            "tpe", //  third-party EMBL  tpe|accession|name // Not L10N
-            "tpg", //  third-party GenBank  tpg|accession|name // Not L10N
-            "bbm", //  GenInfo backbone moltype	bbm|integer	// Not L10N
-            "bbs", //  GenInfo backbone seqid	bbs|integer	// Not L10N
-            "gim", //  GenInfo import ID	gim|integer	// Not L10N
+            @"dbj", //  DDBJ  dbj|accession|locus
+            @"emb", //  EMBL  emb|accession|locus
+            @"gb", //  GenBank  gb|accession|locus
+            @"gpp", //  genome pipeline 3  gpp|accession|name
+            @"nat", //  named annotation track 3  nat|accession|name
+            @"pir", //  PIR  pir|accession|name
+            @"prf", //  PRF  prf|accession|name
+            @"ref", //  RefSeq  ref|accession|name
+            @"tpd", //  third-party DDBJ  tpd|accession|name
+            @"tpe", //  third-party EMBL  tpe|accession|name
+            @"tpg", //  third-party GenBank  tpg|accession|name
+            @"bbm", //  GenInfo backbone moltype	bbm|integer
+            @"bbs", //  GenInfo backbone seqid	bbs|integer
+            @"gim", //  GenInfo import ID	gim|integer
         };
 
         // basic Regex.Replace expression for returning the info we want - some regexes may want to augment
@@ -320,13 +460,14 @@ namespace pwiz.ProteomeDatabase.Fasta
         public const char GENINFO_TAG = 'G'; // search on entrez, but seperate out GI number searches
         public const char ENTREZ_TAG = 'E';
         public const char UNIPROTKB_TAG = 'U';
+        public const string UNIPROTKB_PREFIX_SGD = "SGD_S"; // formerly "SGD:S", but Uniprot search behavior has changed
         public const char SEARCHDONE_TAG = 'X'; // to note searches which have been completed
 
-        private const string STANDARD_REGEX_OUTPUT_FORMAT = "name:${name}\ndescription:${description}\naccession:${accession}\npreferredname:${preferredname}\ngene:${gene}\nspecies:${species}\nsearchterm:"; // Not L10N
+        private const string STANDARD_REGEX_OUTPUT_FORMAT = "name:${name}\ndescription:${description}\naccession:${accession}\npreferredname:${preferredname}\ngene:${gene}\nspecies:${species}\nsearchterm:";
 
 
-        private const string MATCH_DESCRIPTION_WITH_OPTIONAL_OS_AND_GN = // match common uniprot OS and GN format
-            @"(?<description>((.*?(((\sOS=(?<species>(.*?)))?)((\sGN=(?<gene>(.*?)))?)(\s\w\w\=)+).*))|.*)"; // Not L10N
+        private const string MATCH_DESCRIPTION_WITH_OPTIONAL_OS_AND_GN = // match common uniprot OS=species (and maybe OX=speciesID) and GN=gene format
+            @"(?<description>((.*?(((\sOS=(?<species>(.*?)))?)((\sOX=(?<speciesID>(.*?)))?)((\sGN=(?<gene>(.*?)))?)($|(\s\w\w\=)+).*)))|.*)";
 
         /// <summary>
         /// class for regex matching in FASTA header lines - contains a comment, a regex, and an output format to be used with Regex replace
@@ -353,6 +494,13 @@ namespace pwiz.ProteomeDatabase.Fasta
         /// </summary>
         public class WebSearchProvider 
         {
+            /// <summary>
+            /// Test overrides should return false to avoid slowing down the tests
+            /// </summary>
+            public virtual bool IsPolite
+            {
+                get { return true; }
+            }
 
             public virtual XmlTextReader GetXmlTextReader(string url)
             {
@@ -363,7 +511,7 @@ namespace pwiz.ProteomeDatabase.Fasta
             {
                 HttpWebRequest httpRequest = (HttpWebRequest) WebRequest.Create(url);
                 httpRequest.Timeout = timeout;
-                httpRequest.UserAgent = "Skyline"; // Not L10N
+                httpRequest.UserAgent = @"Skyline";
                 MemoryStream stream = new MemoryStream();
                 using (HttpWebResponse webResponse = (HttpWebResponse)httpRequest.GetResponse())
                 {
@@ -396,36 +544,31 @@ namespace pwiz.ProteomeDatabase.Fasta
 
             public virtual string ConstructEntrezURL(IEnumerable<string> searches, bool summary)
             {
-                var batchSearchTerms = String.Join(",", searches.Select(Uri.EscapeDataString));    // Not L10N
-                const string server = "http://eutils.ncbi.nlm.nih.gov"; // Not L10N
-
                 // Yes, that's Brian's email address there - entrez wants a point of contact with the developer of the tool hitting their service
-                string urlString = server +
-                            string.Format(
-                                "/entrez/eutils/efetch.fcgi?db=protein&id={0}&tool=%22skyline%22&email=%22bspratt@proteinms.net%22&retmode=xml", // Not L10N
-                                batchSearchTerms) + (summary ? "&rettype=docsum" : String.Empty); // Not L10N
-                return urlString;
+                return ConstructURL(searches,
+                // ReSharper disable LocalizableElement
+                "http://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=protein&id={0}&tool=%22skyline%22&email=%22bspratt@proteinms.net%22&retmode=xml" + (summary ? "&rettype=docsum" : string.Empty),
+                // ReSharper restore LocalizableElement
+                 @",");
             }
 
-            public virtual List<string> ListSearchTerms(IEnumerable<DbProteinName> proteins)
+            public virtual List<string> ListSearchTerms(IEnumerable<ProteinSearchInfo>  proteins)
             {
                 return proteins.Select(x => x.GetProteinMetadata().GetPendingSearchTerm()).ToList();
             }
 
-            public virtual string ConstructUniprotURL(IEnumerable<string> searchesIn, bool reviewedOnly)
+            public virtual string ConstructUniprotURL(IEnumerable<string> searches)
+            {
+               return ConstructURL(searches, 
+                   @"https://www.uniprot.org/uniprot/?query=({0})&format=tab&columns=id,genes,organism,length,entry name,protein names,reviewed",
+                   @"+OR+");
+            }
+
+            private static string ConstructURL(IEnumerable<string> searchesIn, string format, string separator)
             {
                 var searches = searchesIn.Select(Uri.EscapeDataString).ToArray();
-                var batchSearchTerms = String.Join("+OR+", searches);    // Not L10N
-                if (batchSearchTerms.Length==0)
-                    return null;
-
-                // For searches of more than one, accept reviewed only
-                // For single searches, we are presumably desperate so take non-reviewed (Trembl) as well
-                string urlString =string.Format(
-                    "http://www.uniprot.org/uniprot/?query={0}({1})&format=tab", // Not L10N
-                    reviewedOnly ? "reviewed:yes+AND+" : String.Empty, // Not L10N
-                    batchSearchTerms);
-                return urlString;
+                var batchSearchTerms = string.Join(separator, searches);
+                return string.Format(format, batchSearchTerms);
             }
 
             public virtual int GetTimeoutMsec(int searchTermCount)
@@ -452,6 +595,11 @@ namespace pwiz.ProteomeDatabase.Fasta
         /// </summary>
         public class FakeWebSearchProvider : WebSearchProvider
         {
+            public override bool IsPolite
+            {
+                get { return false; }
+            }
+
             public override int GetTimeoutMsec(int searchTermCount)
             {
                 return 10 * (10 + (searchTermCount / 5));
@@ -462,16 +610,17 @@ namespace pwiz.ProteomeDatabase.Fasta
                 return 0; // don't even try once
             }
 
-            public override List<string> ListSearchTerms(IEnumerable<DbProteinName> proteins)
+            public override List<string> ListSearchTerms(IEnumerable<ProteinSearchInfo> searches)
             {
                 // set them all as already searched
-                var dbProteinNames = proteins as DbProteinName[] ?? proteins.ToArray();
-                foreach (var proteinName in dbProteinNames)
+                var proteinSearchInfos = searches as ProteinSearchInfo[] ?? searches.ToArray();
+                foreach (var searchInfo in proteinSearchInfos)
                 {
-                    proteinName.SetWebSearchCompleted();
+                    searchInfo.Status = ProteinSearchInfo.SearchStatus.success;
+                    searchInfo.ProteinDbInfo.SetWebSearchCompleted();
                 }
                 // then do the base class action - will be an empty list
-                return base.ListSearchTerms(dbProteinNames);
+                return base.ListSearchTerms(proteinSearchInfos);
             }
         }
 
@@ -487,34 +636,39 @@ namespace pwiz.ProteomeDatabase.Fasta
             return new[]
             {
 
-                new FastaRegExSearchtermPair(@"matches the 'dbtype|accession|preferredname description' format for swissprot and trembl", // Not L10N
-                    @"^((?<name>((?<dbtype>sp|tr" + // Not L10N
-                    @")\|(?<accession>[^\s\|]*)(\|(?<preferredname>[^\s]+)?)))"+MATCH_DESCRIPTION_WITH_OPTIONAL_OS_AND_GN+"?)", // Not L10N
-                    STANDARD_REGEX_OUTPUT_FORMAT + UNIPROTKB_TAG + "${accession}"), // will attempt to lookup on Uniprot // Not L10N
+                new FastaRegExSearchtermPair(@"matches the 'dbtype|accession|preferredname description' format for swissprot and trembl",
+                    @"^((?<name>((?<dbtype>sp|tr" +
+                    @")\|(?<accession>[^\s\|]*)(\|(?<preferredname>[^\s]+)?)))"+MATCH_DESCRIPTION_WITH_OPTIONAL_OS_AND_GN+@"?)",
+                    STANDARD_REGEX_OUTPUT_FORMAT + UNIPROTKB_TAG + @"${accession}"), // will attempt to lookup on Uniprot
 
-                new FastaRegExSearchtermPair(@"matches the 'gi|number|preferredname description' format", // Not L10N
-                    @"^((?<name>((?<dbtype>gi"+ // Not L10N
-                    @")\|(?<ginumber>[^\s\|]*)(\|(?<preferredname>[^\s]+)?)))"+MATCH_DESCRIPTION_WITH_OPTIONAL_OS_AND_GN+"?)", // Not L10N
-                    STANDARD_REGEX_OUTPUT_FORMAT + GENINFO_TAG + "${ginumber}"), // will attempt to lookup on Entrez, but seperate from non-GI searches // Not L10N
+                new FastaRegExSearchtermPair(@"matches the 'gi|number|preferredname description' format",
+                    @"^((?<name>((?<dbtype>gi"+
+                    @")\|(?<ginumber>[^\s\|]*)(\|(?<preferredname>[^\s]+)?)))"+MATCH_DESCRIPTION_WITH_OPTIONAL_OS_AND_GN+@"?)",
+                    STANDARD_REGEX_OUTPUT_FORMAT + GENINFO_TAG + @"${ginumber}"), // will attempt to lookup on Entrez, but seperate from non-GI searches
 
-                new FastaRegExSearchtermPair(@"matches the 'dbtype|idnumber|preferredname description' format", // Not L10N
-                    @"^((?<name>((?<dbtype>" + String.Join("|", _standardTypes) + // Not L10N
-                    @")\|(?<idnumber>[^\s\|]*)(\|(?<preferredname>[^\s]+)?)))"+MATCH_DESCRIPTION_WITH_OPTIONAL_OS_AND_GN+"?)", // Not L10N
-                    STANDARD_REGEX_OUTPUT_FORMAT + ENTREZ_TAG + "${idnumber}"), // will attempt to lookup on Entrez // Not L10N
-
-                new FastaRegExSearchtermPair(
-                    @"matches UniRefnnn_ form '>UniqueIdentifier ClusterName n=Members Tax=Taxon RepID=RepresentativeMember' like '>UniRef100_A5DI11 Elongation factor 2 n=1 Tax=Pichia guilliermondii RepID=EF2_PICGU'", // Not L10N
-                    @"^(?<name>(((((?<typecode>UniRef)[0-9]+_(?<accession>((?<strippedAccession>[^\.\s]+)[^\s]*)))))[\s]*))\s(?<description>(?<preferredname>(.*([^=]\s)+))((.*(\sTax=(?<species>.*)?\sRepID=.*))))", // Not L10N
-                    STANDARD_REGEX_OUTPUT_FORMAT + UNIPROTKB_TAG + "${strippedAccession}"), // will attempt to lookup on Uniprot // Not L10N
+                new FastaRegExSearchtermPair(@"matches the 'dbtype|idnumber|preferredname description' format",
+                    @"^((?<name>((?<dbtype>" + String.Join(@"|", _standardTypes) +
+                    @")\|(?<idnumber>[^\s\|]*)(\|(?<preferredname>[^\s]+)?)))"+MATCH_DESCRIPTION_WITH_OPTIONAL_OS_AND_GN+@"?)",
+                    STANDARD_REGEX_OUTPUT_FORMAT + ENTREZ_TAG + @"${idnumber}"), // will attempt to lookup on Entrez
 
                 new FastaRegExSearchtermPair(
-                    @"matches form '>AARS.IPI00027442 IPI:IPI00027442.4|SWISS-PROT:P49588|ENSEMBL:ENSP00000261772|REFSEQ:NP_001596|H-INV:HIT000035254|VEGA:OTTHUMP00000080084 Tax_Id=9606 Gene_Symbol=AARS Alanyl-tRNA synthetase, cytoplasmic'", // Not L10N
-                    @"^(?<name>([^\s]*(?<ipi>(IPI0[0-9]+))[^\s]*))\s(?<description>.*)", // Not L10N
-                    STANDARD_REGEX_OUTPUT_FORMAT + UNIPROTKB_TAG + "${ipi}"), // will attempt to lookup on Uniprot after passing through our translation layer // Not L10N
+                    @"matches UniRefnnn_ form '>UniqueIdentifier ClusterName n=Members Tax=Taxon RepID=RepresentativeMember' like '>UniRef100_A5DI11 Elongation factor 2 n=1 Tax=Pichia guilliermondii RepID=EF2_PICGU'",
+                    @"^(?<name>(((((?<typecode>UniRef)[0-9]+_(?<accession>((?<strippedAccession>[^\.\s]+)[^\s]*)))))[\s]*))\s(?<description>(?<preferredname>(.*([^=]\s)+))((.*(\sTax=(?<species>.*)?\sRepID=.*))))",
+                    STANDARD_REGEX_OUTPUT_FORMAT + UNIPROTKB_TAG + @"${strippedAccession}"), // will attempt to lookup on Uniprot
 
-                new FastaRegExSearchtermPair(@" and a fallback for everything else, like  '>name description'", // Not L10N
-                    @"^(?<name>[^\s]+)"+MATCH_DESCRIPTION_WITH_OPTIONAL_OS_AND_GN+"?",  // Not L10N
-                    STANDARD_REGEX_OUTPUT_FORMAT + UNIPROTKB_TAG + "${name}") // will attempt to lookup on Uniprot // Not L10N
+                new FastaRegExSearchtermPair(
+                    @"matches form '>AARS.IPI00027442 IPI:IPI00027442.4|SWISS-PROT:P49588|ENSEMBL:ENSP00000261772|REFSEQ:NP_001596|H-INV:HIT000035254|VEGA:OTTHUMP00000080084 Tax_Id=9606 Gene_Symbol=AARS Alanyl-tRNA synthetase, cytoplasmic'",
+                    @"^(?<name>([^\s]*(?<ipi>(IPI0[0-9]+))[^\s]*))\s(?<description>.*)",
+                    STANDARD_REGEX_OUTPUT_FORMAT + UNIPROTKB_TAG + @"${ipi}"), // will attempt to lookup on Uniprot after passing through our translation layer
+
+                new FastaRegExSearchtermPair(
+                    @"Pick out 'SGDID:S000028729' (or SGD:S...)) from >YAL019W-A YAL019W-A SGDID:S000028729, Chr I from 114250-114819, Genome Release 64-2-1, Dubious ORF, 'Dubious open reading frame; unlikely to encode a functional protein, based on available experimental and comparative sequence data; partially overlaps ORF ATS1/YAL020C'",
+                    @"^(?<name>[^\s]+)(?<description>(.*?((SGD\:S|SGDID\:S)(?<sgd>([0-9]+))[^\s]*)).*)",
+                    STANDARD_REGEX_OUTPUT_FORMAT + UNIPROTKB_TAG + UNIPROTKB_PREFIX_SGD + @"${sgd}"), // will attempt to lookup on Uniprot
+
+                new FastaRegExSearchtermPair(@" and a fallback for everything else, like  '>name description'",
+                    @"^(?<name>[^\s]+)"+MATCH_DESCRIPTION_WITH_OPTIONAL_OS_AND_GN+@"?",
+                    STANDARD_REGEX_OUTPUT_FORMAT + UNIPROTKB_TAG + @"${name}") // will attempt to lookup on Uniprot
 
             };
         }
@@ -523,16 +677,13 @@ namespace pwiz.ProteomeDatabase.Fasta
         /// Peruse the list of proteins, access webservices as needed to resolve protein metadata.
         /// note: best to use this in its own thread since it may block on web access
         /// </summary>
-        /// <param name="proteinsToSearch">the proteins to populate - we use DbProteinName as a convenient 
-        /// container for the immutable ProteinMetadata</param>
+        /// <param name="proteinsToSearch">the proteins to populate</param>
         /// <param name="progressMonitor">For checking operation cancellation</param>
         /// <param name="singleBatch">if true, just do one batch and plan to come back later for more</param>
         /// <returns>IEnumerable of the proteins it actually populated (some don't need it, some have to wait for a decent web connection)</returns>
-        public IEnumerable<DbProteinName> DoWebserviceLookup(IEnumerable<DbProteinName> proteinsToSearch, IProgressMonitor progressMonitor, bool singleBatch)
+        public IEnumerable<ProteinSearchInfo> DoWebserviceLookup(IEnumerable<ProteinSearchInfo> proteinsToSearch, IProgressMonitor progressMonitor, bool singleBatch)
         {
             const int SINGLE_BATCH_SIZE = 500; // If caller has indicated that it wants to do a single batch and return for more later, stop after this many successes
-            const int ENTREZ_BATCHSIZE = 100; // they'd like 500, but it's really boggy at that size
-            const int UNIPROTKB_BATCHSIZE = 50; 
             const int ENTREZ_RATELIMIT = 333; // 1/3 second between requests on Entrez
             const int UNIPROTKB_RATELIMIT = 10; 
             var searchOrder = new[]
@@ -540,12 +691,6 @@ namespace pwiz.ProteomeDatabase.Fasta
                 GENINFO_TAG,
                 ENTREZ_TAG,
                 UNIPROTKB_TAG // this order matters - we may take entrez results into uniprot for further search
-            };
-            var batchSize = new Dictionary<char, int>
-            {
-                {GENINFO_TAG, ENTREZ_BATCHSIZE}, // search on Entrez, but don't mix with non-GI searches
-                {ENTREZ_TAG, ENTREZ_BATCHSIZE},
-                {UNIPROTKB_TAG, UNIPROTKB_BATCHSIZE}
             };
             var minSearchTermLen = new Dictionary<char, int>
             {
@@ -560,13 +705,15 @@ namespace pwiz.ProteomeDatabase.Fasta
                 {UNIPROTKB_TAG, UNIPROTKB_RATELIMIT}
             };
 
+            progressMonitor = progressMonitor ?? new SilentProgressMonitor();
+
             // sort out the various webservices so we can batch up
             var proteins = proteinsToSearch.ToArray();
             foreach (var prot in proteins)
             {
                 // translate from IPI to Uniprot if needed
                 var search = prot.GetProteinMetadata().GetPendingSearchTerm().ToUpperInvariant();
-                if (search.StartsWith("IPI")) // Not L10N
+                if (search.StartsWith(@"IPI"))
                 {
                     if (_ipiMapper == null)
                         _ipiMapper = new IpiToUniprotMap();
@@ -589,6 +736,22 @@ namespace pwiz.ProteomeDatabase.Fasta
                     {
                         prot.SetWebSearchCompleted();  // All numbers, not a Uniprot ID
                     }
+                    // Some uniprot records just don't have gene info - have we already parsed all there is to know from description?
+                    else if (prot.GetProteinMetadata().HasMissingMetadata())
+                    {
+                        var test = prot.GetProteinMetadata().ChangeGene(@"test");
+                        if (!test.HasMissingMetadata()) // We got everything except gene info
+                        {
+                            // Check to see if this is a standard uniprot formatted header, if so assume that GN was ommitted on purpose
+                            if (prot.GetProteinMetadata().Description.Contains(string.Format(@" OS={0} ", (prot.GetProteinMetadata().Species))))
+                                prot.SetWebSearchCompleted(); // There's not going to be any gene info
+                        }
+                    }
+                }
+
+                if (prot.SeqLength == 0)
+                {
+                    prot.SetWebSearchCompleted(); // Searching is too ambiguous without a sequence length, so we'd have to go one by one: don't attempt it
                 }
 
                 if (prot.GetProteinMetadata().NeedsSearch())
@@ -609,140 +772,154 @@ namespace pwiz.ProteomeDatabase.Fasta
             _ipiMapper = null;  // Done with this now
 
             // CONSIDER(bspratt): Could this be simplified?
-            bool cancelled = false;
+            var cancelled = false;
             var politeStopwatch = new Stopwatch();
+            var totalSuccessesThisBatch = 0;
             politeStopwatch.Start();
-            int consecutiveFailures = 0; // Guard against getting mired in some user-defined format that can't succeed
+            var furtherUniprotSearches = new List<ProteinSearchInfo>(); // Uniprot searches that result from intermediate searches
             foreach (var searchType in searchOrder)
             {
-                cancelled |= ((progressMonitor != null) && progressMonitor.IsCanceled);
+                var consecutiveFailures = 0;
+                var failureCount = 0;
+                var successCount = 0;
+                cancelled |= progressMonitor.IsCanceled;
                 if (cancelled)
                     break;
-                int politenessIntervalMsec = ratelimit[searchType];
-                int idealBatchsize = batchSize[searchType];
-                int batchsize = 1; // Managing for ambiguous responses: start with pessimistic batch size, then grow it with success.
-                int batchsizeIncreaseThreshold = 2;  // if you can do this many in a row at reduced batchsize, try increasing it
-                int successCountAtThisBatchsize = 0;  
-                int successCount = 0;
-                bool completedSearchType = false;
-                while (!completedSearchType)
+                var politenessIntervalMsec = ratelimit[searchType];
+                var batchsizeIncreaseThreshold = 2;  // If you can do this many in a row at reduced batchsize, try increasing it
+                while (true)
                 {
-                    cancelled |= ((progressMonitor != null) && progressMonitor.IsCanceled);
+                    var idealBatchsize = _maxBatchSize[searchType];
+                    cancelled |= progressMonitor.IsCanceled;
                     if (cancelled)
                         break;
-                    char type = searchType;
-                    var searchlist =
-                        proteins.Where(s => (s.GetProteinMetadata().NeedsSearch() &&
+                    var type = searchType;
+                    var furtherUniprotSearchesToProcess = Equals(searchType, UNIPROTKB_TAG)
+                        ? furtherUniprotSearches.Where(s => (s.GetProteinMetadata().NeedsSearch())).ToList()
+                        : null;
+                    var searchlist = (furtherUniprotSearchesToProcess != null && furtherUniprotSearchesToProcess.Any()) 
+                        ? furtherUniprotSearchesToProcess 
+                        : proteins.Where(s => (s.GetProteinMetadata().NeedsSearch() &&
                                                s.GetProteinMetadata().GetSearchType() == type)).ToList();
-                    completedSearchType = !searchlist.Any();
-                    for (int searchListIndex = 0; !completedSearchType && (searchListIndex < searchlist.Count); )
+                    if (!searchlist.Any())
+                        break;
+                    // try to batch up requests - reduce batch size if responses are ambiguous
+                    var nextSearch = 0;
+                    var searches = new List<ProteinSearchInfo>();
+                    while ((nextSearch < searchlist.Count) && (searches.Count < _batchsize[searchType]))
                     {
-                        cancelled |= ((progressMonitor != null) && progressMonitor.IsCanceled);
-                        if (cancelled)
-                            break;
-                        // try to batch up requests - reduce batch size if responses are ambiguous
-                        int nextSearch = searchListIndex;
-                        var searches = new List<DbProteinName>();
-                        while ((nextSearch < searchlist.Count) && (searches.Count < batchsize))
+                        // Unique sequence length helps a lot in disambiguation
+                        if (searches.All(s => s.SeqLength != searchlist[nextSearch].SeqLength))
+                            searches.Add(searchlist[nextSearch]);
+                        nextSearch++;
+                    }
+
+                    // Be a good citizen - no more than three hits per second for Entrez
+                    var snoozeMs = _webSearchProvider.IsPolite ?
+                        politenessIntervalMsec - politeStopwatch.ElapsedMilliseconds : 0;
+                    if (snoozeMs > 0)
+                        Thread.Sleep((int)snoozeMs);
+                    politeStopwatch.Restart();
+                    cancelled |= progressMonitor.IsCanceled;
+                    if (cancelled)
+                        break;
+                    var processed = DoWebserviceLookup(searches, searchType, progressMonitor);
+                    if (processed < 0) // Returns negative on web access error
+                    {
+                        if (processed == URL_TOO_LONG)
                         {
-                            searches.Add(searchlist[nextSearch++]);
+                            // We're creating URLs that are too long
+                            _maxBatchSize[searchType] = Math.Max(1, (int)(_maxBatchSize[searchType] * 0.75));
                         }
-                        if (searches.Count > 0)
+                        else
                         {
-                            // Be a good citizen - no more than three hits per second for Entrez
-                            var snoozeMs = politenessIntervalMsec - politeStopwatch.ElapsedMilliseconds;
-                            if (snoozeMs > 0)
-                                Thread.Sleep((int)snoozeMs);
-                            politeStopwatch.Restart();
-                            cancelled |= ((progressMonitor != null) && progressMonitor.IsCanceled);
-                            if (cancelled)
-                                break;
-                            int lookupCount = DoWebserviceLookup(searches, searchType, progressMonitor);
-                            if (lookupCount < 0) // Returns negative on web access error
+                            // Some error, we should just try again later so don't retry now
+                            break;
+                        }
+                    }
+                    var success = false;
+                    foreach (var s in searches)
+                    {
+                        if (s.GetProteinMetadata().GetPendingSearchTerm().Length == 0)
+                        {
+                            yield return s; // We've processed it
+                            if (s.Status == ProteinSearchInfo.SearchStatus.success)
                             {
-                                // Some error, we should just try again later so don't retry now
-                                completedSearchType = true; // Done with this search type
-                                consecutiveFailures = 0; // Reset - failure isn't due to input
-                                break;
-                            }
-                            bool success = false;
-                            foreach (var s in searches)
-                            {
-                                if (s.GetProteinMetadata().GetPendingSearchTerm().Length == 0)
-                                {
-                                    yield return s; // We've processed it
-                                    if (lookupCount > 0)
-                                    {
-                                        success = true;
-                                        successCount++;
-                                        successCountAtThisBatchsize++;
-                                        consecutiveFailures = 0; // Reset
-                                    }
-                                    else
-                                    {
-                                        consecutiveFailures++;
-                                    }
-                                }
-                                else
-                                {
-                                    // possibly an Entrez search we wish to further process in Uniprot
-                                    var newSearchType = s.GetProteinMetadata().GetSearchType();
-                                    if ((newSearchType != searchType) && (Equals(newSearchType, UNIPROTKB_TAG)))
-                                    {
-                                        success = true; // Entrez search worked, leads us to a UniprotKB search
-                                        successCount++;
-                                        successCountAtThisBatchsize++;
-                                        consecutiveFailures = 0; // Reset
-                                    }
-                                }
-                            }
-                            if (success)
-                            {
-                                if (singleBatch && (successCount >= SINGLE_BATCH_SIZE))
-                                {  // Probably called from a background loader that's trying to be polite
-                                    completedSearchType = true; // Done with this search type for the moment
-                                    break;
-                                }
-                            }
-                            else
-                            {
-                                if (batchsize == 1)
-                                {
-                                    // No ambiguity is possible at batchsize==1, this one just plain didn't work
-                                    searchListIndex++; // For better or worse, it's processed
-                                    if (consecutiveFailures > (MAX_CONSECUTIVE_PROTEIN_METATDATA_LOOKUP_FAILURES + successCount))
-                                    {
-                                        // We have failed a bunch in a row, assume the rest are the same as this streak, and bail.
-                                        // That  "+ successCount" term above guards against the case where we're a few hundred successes in then 
-                                        // we hit a bad patch (though this is unlikely - FASTA files tend to be internally consistent).
-                                        while (searchListIndex < searchlist.Count)
-                                        {
-                                            searchlist[searchListIndex].SetWebSearchCompleted(); // Just tag this as having been tried
-                                            yield return searchlist[searchListIndex++]; // And move on
-                                        }
-                                    }
-                                }
-                                int oldBatchsize = batchsize;
-                                batchsize = Math.Max(1, batchsize / 2);
-                                if (oldBatchsize != batchsize)
-                                {
-                                    consecutiveFailures = 0; // Perhaps we will do better at smaller batch size
-                                }
-                                successCountAtThisBatchsize = 0;
-                                batchsizeIncreaseThreshold *= 2; // Get increasingly pessimistic
-                                nextSearch = searchListIndex; // Try again at lower batch size
+                                success = true;
+                                _successCountAtThisBatchsize[searchType]++;
                             }
                         }
                         else
                         {
-                            break; // Go reevaluate search list
+                            // possibly an Entrez search we wish to further process in Uniprot
+                            var newSearchType = s.GetProteinMetadata().GetSearchType();
+                            if ((newSearchType != searchType) && (Equals(newSearchType, UNIPROTKB_TAG)))
+                            {
+                                success = true; // Entrez search worked, leads us to a UniprotKB search
+                                s.Status = ProteinSearchInfo.SearchStatus.unsearched; // Not yet search as UniprotKB
+                                furtherUniprotSearches.Add(s);
+                                _successCountAtThisBatchsize[searchType]++;
+                            }
+                            else if (_batchsize[searchType] == 1)
+                            {
+                                // No ambiguity is possible at batchsize==1, this one just plain didn't work
+                                s.SetWebSearchCompleted();
+                                yield return s;
+                            }
                         }
-                        searchListIndex = nextSearch;
-                        if ((successCountAtThisBatchsize > batchsizeIncreaseThreshold) && (batchsize < idealBatchsize))
+                    }
+
+                    // Review the overall history - how is this working out?
+                    foreach (var s in searchlist)
+                    {
+                        if (s.Status == ProteinSearchInfo.SearchStatus.success)
                         {
-                            batchsize *= 2; // Past the ambiguity, it seems
-                            successCountAtThisBatchsize = 0;
+                            successCount++;
+                            totalSuccessesThisBatch++;
+                            consecutiveFailures = 0;
                         }
+                        else if (s.Status == ProteinSearchInfo.SearchStatus.failure)
+                        {
+                            failureCount++;
+                            consecutiveFailures++;
+                        }
+                        if ((consecutiveFailures > (MAX_CONSECUTIVE_PROTEIN_METATDATA_LOOKUP_FAILURES + successCount)) ||
+                            ((failureCount + successCount) > 100 &&
+                            failureCount / (double)(failureCount + successCount) > .5))
+                        {
+                            // We have failed a bunch in a row, or more than half overall.  Assume the rest are the same as this streak, and bail.
+                            // That  "+ successCount" term above guards against the case where we're a few hundred successes in then 
+                            // we hit a bad patch (though this is unlikely - FASTA files tend to be internally consistent).
+                            foreach (var ss in searchlist)
+                            {
+                                if (ss.GetProteinMetadata().GetPendingSearchTerm().Length > 0)
+                                {
+                                    ss.NoteSearchFailure();
+                                    ss.SetWebSearchCompleted(); // Just tag this as having been tried
+                                    yield return ss; // And move on
+                                }
+                            }
+                            break;
+                        }
+                    }
+
+                    if (success)
+                    {
+                        if ((_successCountAtThisBatchsize[searchType] > batchsizeIncreaseThreshold) && (_batchsize[searchType] < idealBatchsize))
+                        {
+                            _batchsize[searchType] = Math.Min(idealBatchsize, _batchsize[searchType]*2);
+                            _successCountAtThisBatchsize[searchType] = 0;
+                        }
+                        if (singleBatch && (totalSuccessesThisBatch >= SINGLE_BATCH_SIZE))
+                        {  // Probably called from a background loader that's trying to be polite
+                            break; // done with this search type for now, but go on to the next if any (especially for follow-on Uniprot searches)
+                        }
+                    }
+                    else
+                    {
+                        _batchsize[searchType] = Math.Max(1, _batchsize[searchType] / 2);
+                        _successCountAtThisBatchsize[searchType] = 0;
+                        batchsizeIncreaseThreshold = Math.Max(batchsizeIncreaseThreshold, batchsizeIncreaseThreshold * 2); // Get increasingly pessimistic (watch for integer rollover)
                     }
                 }
             }
@@ -769,10 +946,12 @@ namespace pwiz.ProteomeDatabase.Fasta
             return result;
         }
 
-        public const string KNOWNGOOD_GENINFO_SEARCH_TARGET = "15834432"; // Not L10N
-        public const string KNOWNGOOD_ENTREZ_SEARCH_TARGET = "XP_915497"; // Not L10N
-        public const string KNOWNGOOD_UNIPROT_SEARCH_TARGET = "Q08641"; // Not L10N
+        public const string KNOWNGOOD_GENINFO_SEARCH_TARGET = "15834432";
+        public const string KNOWNGOOD_ENTREZ_SEARCH_TARGET = "XP_915497";
+        public const string KNOWNGOOD_UNIPROT_SEARCH_TARGET = "Q08641";
+        public const int KNOWNGOOD_UNIPROT_SEARCH_TARGET_SEQLEN = 628;
         public const int MAX_CONSECUTIVE_PROTEIN_METATDATA_LOOKUP_FAILURES = 20; // If we fail on several in a row, assume all are doomed to fail.
+        public const int URL_TOO_LONG = -2;
 
         private bool SimilarSearchTerms(string a, string b)
         {
@@ -784,25 +963,26 @@ namespace pwiz.ProteomeDatabase.Fasta
         /// <summary>
         /// Handles web access for deriving missing protein metadata
         /// </summary>
-        /// <param name="proteins">items to search - we use DbProteinName as a convenient 
-        /// container for the immutable ProteinMetadata</param>
+        /// <param name="proteins">items to search</param>
         /// <param name="searchType">Uniprot or Entrez</param>
         /// <param name="progressMonitor">For detecting operation cancellation</param>
         /// <returns>negative value if we need to try again later, else number of proteins looked up</returns>
         /// 
-        private int DoWebserviceLookup(IList<DbProteinName> proteins, char searchType, IProgressMonitor progressMonitor)
+        private int DoWebserviceLookup(IList<ProteinSearchInfo> proteins, char searchType, IProgressMonitor progressMonitor)
         {
-            int lookupCount = 0;
+            int lookupCount = _webSearchProvider is FakeWebSearchProvider ? proteins.Count : 0; // Fake websearch provider used in tests just claims victory, returns 0 for WebRetryCount
             var searchterms = _webSearchProvider.ListSearchTerms(proteins);
                 
             if (searchterms.Count == 0)
                 return 0; // no work, but not error either
-            var responses = new List<DbProteinName>();
+            var responses = new List<ProteinSearchInfo>();
             for (var retries = _webSearchProvider.WebRetryCount();retries-->0;)  // be patient with the web
             {
-                if ((progressMonitor != null) && progressMonitor.IsCanceled)
+                if (searchterms.Count == 0)
                     break;
-
+                if (progressMonitor.IsCanceled)
+                    break; // Cancelled
+                var caught = false;
                 try
                 {
                     string urlString; // left at outer scope for exception debugging ease
@@ -811,15 +991,13 @@ namespace pwiz.ProteomeDatabase.Fasta
                         // first try to get enough summary information to redo this seach in uniprot
 
                         // throw in something we know will hit (Note: it's important that this particular value appear in the unit tests, so we can mimic web response)
-                        string knowngood = (searchType == GENINFO_TAG) ? KNOWNGOOD_GENINFO_SEARCH_TARGET : KNOWNGOOD_ENTREZ_SEARCH_TARGET; //  Not L10N
+                        string knowngood = (searchType == GENINFO_TAG) ? KNOWNGOOD_GENINFO_SEARCH_TARGET : KNOWNGOOD_ENTREZ_SEARCH_TARGET; 
                         bool addedKnowngood = false;
                         if (!searchterms.Any(searchterm => SimilarSearchTerms(searchterm,knowngood)))
                         {
                             searchterms.Insert(0, knowngood); // ensure at least one response if connection is good
                             addedKnowngood = true;
                         }
-                        if (searchterms.Count == 0)
-                            break;
 
                         urlString = _webSearchProvider.ConstructEntrezURL(searchterms,true); // get in summary form
 
@@ -864,54 +1042,179 @@ namespace pwiz.ProteomeDatabase.Fasta
                             </Item>
                             </DocSum>
                         */
-                        try
+                        using (var xmlTextReader = _webSearchProvider.GetXmlTextReader(urlString))
                         {
+                            var elementName = String.Empty;
+                            var response = new ProteinSearchInfo();
+                            bool dummy = addedKnowngood;
+                            string id = null;
+                            string caption = null;
+                            string replacedBy = null;
+                            string attrName = null;
+                            string length = null;
+                            while (xmlTextReader.Read())
+                            {
+                                switch (xmlTextReader.NodeType)
+                                {
+                                    case XmlNodeType.Element: // The node is an element.
+                                        elementName = xmlTextReader.Name;
+                                        attrName = xmlTextReader.GetAttribute(@"Name");
+                                        break;
+                                    case XmlNodeType.Text: // text for current element
+                                        if (@"Id" == elementName) // this will be the input GI number, or GI equivalent of input
+                                        {
+                                            id = NullForEmpty(xmlTextReader.Value);
+                                        }
+                                        else if (@"ERROR" == elementName)
+                                        {
+                                            // we made connection, but some trouble on their end
+                                            throw new WebException(xmlTextReader.Value);
+                                        }
+                                        else if (@"Item" == elementName)
+                                        {
+                                            var value = NullForEmpty(xmlTextReader.Value);
+                                            if (value != null)
+                                            {
+                                                switch (attrName)
+                                                {
+                                                    case @"ReplacedBy":
+                                                        replacedBy = value; // a better read on name
+                                                        break;
+                                                    case @"Caption":
+                                                        caption = value; // a better read on name
+                                                        break;
+                                                    case @"Length":
+                                                        length = value; // Useful for disambiguation
+                                                        break;
+                                                }
+                                            }
+                                        }
+                                        break;
+                                    case XmlNodeType.EndElement:
+                                        if (@"DocSum" == xmlTextReader.Name)
+                                        {
+                                            if (dummy)
+                                            {
+                                                dummy = false; // first returned is just the known-good seed, the rest are useful
+                                            }
+                                            else
+                                            {
+                                                // can we transfer this search to UniprotKB? Gets us the proper accession ID,
+                                                // and avoids downloading sequence data we already have or just don't want
+                                                string newSearchTerm = null;
+                                                string intermediateName = null;
+                                                if (replacedBy != null)
+                                                {
+                                                    newSearchTerm = replacedBy; //  Ref|XP_nnn -> GI -> NP_yyyy
+                                                    intermediateName = caption;
+                                                }
+                                                else if (caption != null)
+                                                {
+                                                    newSearchTerm = caption; // GI -> NP_yyyy
+                                                    intermediateName = id;
+                                                }
+                                                if (newSearchTerm != null)
+                                                {
+                                                    response.Accession = newSearchTerm;  // a decent accession if uniprot doesn't find it
+                                                    response.Description = intermediateName; // stow this here to help make the connection between searches
+                                                    response.SetWebSearchTerm(new WebSearchTerm(UNIPROTKB_TAG, newSearchTerm));
+                                                    int intLength;
+                                                    if (!int.TryParse(length, out intLength))
+                                                        intLength = 0;
+                                                    response.SeqLength = intLength; // Useful for disambiguation
+                                                    responses.Add(response);
+                                                    foreach (var value in new[] {id, caption})
+                                                    {
+                                                        // note as altname for association with the original search
+                                                        if (response.Protein == null)
+                                                            response.Protein = new DbProtein();
+                                                        response.Protein.Names.Add(new DbProteinName(null, new ProteinMetadata(value, null)));
+                                                        // and remove from consideration for the full-data Entrez search
+                                                        var val = value;
+                                                        var oldSearches = searchterms.Where(s => SimilarSearchTerms(s, val)).ToArray();
+                                                        if (oldSearches.Any())
+                                                        {
+                                                            // conceivably same search term is in there twice, just replace the first
+                                                            searchterms.Remove(oldSearches[0]); // don't do the more verbose Entrez search
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            response = new ProteinSearchInfo(); // and start another
+                                            id = caption = replacedBy = null;
+                                        }
+                                        break;
+                                }
+                            }
+                            xmlTextReader.Close();
+                        }
+
+                        if (searchterms.Count > (addedKnowngood ? 1 : 0))
+                        {
+                            // now do full entrez search - unfortunately this pulls down sequence information so it's slow and we try to avoid it
+                            urlString = _webSearchProvider.ConstructEntrezURL(searchterms, false); // not a summary
+
                             using (var xmlTextReader = _webSearchProvider.GetXmlTextReader(urlString))
                             {
                                 var elementName = String.Empty;
-                                var response = new DbProteinName();
+                                var latestGbQualifierName = string.Empty;
+                                var response = new ProteinSearchInfo(); // and start another
                                 bool dummy = addedKnowngood;
-                                string id=null;
-                                string caption=null;
-                                string replacedBy=null;
-                                string attrName = null;
                                 while (xmlTextReader.Read())
                                 {
                                     switch (xmlTextReader.NodeType)
                                     {
                                         case XmlNodeType.Element: // The node is an element.
                                             elementName = xmlTextReader.Name;
-                                            attrName = xmlTextReader.GetAttribute("Name"); // Not L10N
                                             break;
                                         case XmlNodeType.Text: // text for current element
-                                            if ("Id" == elementName) // this will be the input GI number, or GI equivalent of input // Not L10N
+                                            if (@"GBSeq_organism" == elementName)
                                             {
-                                                id = NullForEmpty(xmlTextReader.Value);
+                                                response.Species = NullForEmpty(xmlTextReader.Value);
                                             }
-                                            else if ("ERROR" == elementName) // Not L10N
+                                            else if (@"GBSeq_locus" == elementName)
                                             {
-                                                // we made connection, but some trouble on their end
-                                                throw new WebException(xmlTextReader.Value);
+                                                response.PreferredName = NullForEmpty(xmlTextReader.Value);
+                                                    // a better read on name
                                             }
-                                            else if ("Item" == elementName) // Not L10N
+                                            else if (@"GBSeq_primary-accession" == elementName)
                                             {
-                                                var value = NullForEmpty(xmlTextReader.Value);
-                                                if (value != null)
-                                                {
-                                                    switch (attrName)
-                                                    {
-                                                        case "ReplacedBy": // Not L10N
-                                                            replacedBy = value; // a better read on name
-                                                            break;
-                                                        case "Caption": // Not L10N
-                                                            caption = value; // a better read on name
-                                                            break;
-                                                    }
-                                                }
+                                                response.Accession = NullForEmpty(xmlTextReader.Value);
+                                            }
+                                            else if (@"GBSeq_definition" == elementName)
+                                            {
+                                                if (String.IsNullOrEmpty(response.Description))
+                                                    response.Description = NullForEmpty(xmlTextReader.Value);
+                                            }
+                                            else if (@"GBQualifier_name" == elementName)
+                                            {
+                                                latestGbQualifierName = NullForEmpty(xmlTextReader.Value);
+                                            }
+                                            else if ((@"GBQualifier_value" == elementName) &&
+                                                        (@"gene" == latestGbQualifierName))
+                                            {
+                                                response.Gene = NullForEmpty(xmlTextReader.Value);
+                                            }
+                                            else if (@"GBSeqid" == elementName)
+                                            {
+                                                // alternate name  
+                                                // use this as a way to associate this result with a search -
+                                                // accession may be completely unlike the search term in GI case
+                                                if (response.Protein == null)
+                                                    response.Protein = new DbProtein();
+                                                response.Protein.Names.Add(new DbProteinName(null,
+                                                    new ProteinMetadata(NullForEmpty(xmlTextReader.Value), null)));
+                                            }
+                                            else if (@"GBSeq_length" == elementName)
+                                            {
+                                                int length;
+                                                if (!int.TryParse(xmlTextReader.Value, out length))
+                                                    length = 0;
+                                                response.SeqLength = length;
                                             }
                                             break;
                                         case XmlNodeType.EndElement:
-                                            if ("DocSum" == xmlTextReader.Name) // Not L10N
+                                            if (@"GBSeq" == xmlTextReader.Name)
                                             {
                                                 if (dummy)
                                                 {
@@ -919,264 +1222,184 @@ namespace pwiz.ProteomeDatabase.Fasta
                                                 }
                                                 else
                                                 {
-                                                    // can we transfer this search to UniprotKB? Gets us the proper accession ID,
-                                                    // and avoids downloading sequence data we already have or just don't want
-                                                    string newSearchTerm = null;
-                                                    string intermediateName = null;
-                                                    if (replacedBy != null)
-                                                    {
-                                                        newSearchTerm = replacedBy;  //  Ref|XP_nnn -> GI -> NP_yyyy
-                                                        intermediateName = caption;
-                                                    }
-                                                    else if (caption != null)
-                                                    {
-                                                        newSearchTerm = caption; // GI -> NP_yyyy
-                                                        intermediateName = id;
-                                                    }
-                                                    if (newSearchTerm != null)
-                                                    {
-                                                        response.Accession = newSearchTerm;  // a decent accession if uniprot doesn't find it
-                                                        response.Description = intermediateName; // stow this here to help make the connection between searches
-                                                        response.SetWebSearchTerm(new WebSearchTerm(UNIPROTKB_TAG, newSearchTerm));
-                                                        responses.Add(response);
-                                                        foreach (var value in new[] { id, caption })
-                                                        {
-                                                            // note as altname for association with the original search
-                                                            if (response.Protein == null)
-                                                                response.Protein = new DbProtein();
-                                                            response.Protein.Names.Add(new DbProteinName(null, new ProteinMetadata(value, null)));
-                                                            // and remove from consideration for the full-data Entrez search
-                                                            var val = value;
-                                                            var oldSearches = searchterms.Where(s => SimilarSearchTerms(s, val)).ToArray();
-                                                            if (oldSearches.Any()) // conceivably same search term is in there twice, just replace the first
-                                                                searchterms.Remove(oldSearches[0]); // don't do the more verbose Entrez search
-                                                        }
-                                                    }
+                                                    responses.Add(response);
                                                 }
-                                                response = new DbProteinName(); // and start another
-                                                id = caption = replacedBy = null;
+                                                response = new ProteinSearchInfo(); // and start another
                                             }
                                             break;
                                     }
                                 }
                                 xmlTextReader.Close();
                             }
-                        }
-                        catch (Exception)
-                        {
-                            if (retries == 0)
-                                return -1; // just try again later
-                            Thread.Sleep(1000);
-                            continue;
-                        }
-
-                        if (searchterms.Count > (addedKnowngood ? 1 : 0))
-                        {
-
-                            // now do full entrez search - unfortunately this pulls down sequence information so it's slow and we try to avoid it
-                            urlString = _webSearchProvider.ConstructEntrezURL(searchterms, false); // not a summary
-
-                            try
-                            {
-                                using (var xmlTextReader = _webSearchProvider.GetXmlTextReader(urlString))
-                                {
-                                    var elementName = String.Empty;
-                                    var latestGbQualifierName = string.Empty;
-                                    var response = new DbProteinName(); // and start another
-                                    bool dummy = addedKnowngood;
-                                    while (xmlTextReader.Read())
-                                    {
-                                        switch (xmlTextReader.NodeType)
-                                        {
-                                            case XmlNodeType.Element: // The node is an element.
-                                                elementName = xmlTextReader.Name;
-                                                break;
-                                            case XmlNodeType.Text: // text for current element
-                                                if ("GBSeq_organism" == elementName) // Not L10N
-                                                {
-                                                    response.Species = NullForEmpty(xmlTextReader.Value);
-                                                }
-                                                else if ("GBSeq_locus" == elementName) // Not L10N
-                                                {
-                                                    response.PreferredName = NullForEmpty(xmlTextReader.Value); // a better read on name
-                                                }
-                                                else if ("GBSeq_primary-accession" == elementName) // Not L10N
-                                                {
-                                                    response.Accession = NullForEmpty(xmlTextReader.Value);
-                                                }
-                                                else if ("GBSeq_definition" == elementName) // Not L10N
-                                                {
-                                                    if (String.IsNullOrEmpty(response.Description))
-                                                        response.Description = NullForEmpty(xmlTextReader.Value);
-                                                }
-                                                else if ("GBQualifier_name" == elementName) // Not L10N
-                                                {
-                                                    latestGbQualifierName = NullForEmpty(xmlTextReader.Value);
-                                                }
-                                                else if (("GBQualifier_value" == elementName) && // Not L10N
-                                                         ("gene" == latestGbQualifierName)) // Not L10N
-                                                {
-                                                    response.Gene = NullForEmpty(xmlTextReader.Value);
-                                                }
-                                                else if ("GBSeqid" == elementName)  // Not L10N
-                                                {
-                                                    // alternate name  
-                                                    // use this as a way to associate this result with a search -
-                                                    // accession may be completely unlike the search term in GI case
-                                                    if (response.Protein == null)
-                                                        response.Protein = new DbProtein();
-                                                    response.Protein.Names.Add(new DbProteinName(null,new ProteinMetadata(NullForEmpty(xmlTextReader.Value),null)));
-                                                }
-                                                break;
-                                            case XmlNodeType.EndElement:
-                                                if ("GBSeq" == xmlTextReader.Name) // Not L10N
-                                                {
-                                                    if (dummy)
-                                                    {
-                                                        dummy = false; // first returned is just the known-good seed, the rest are useful
-                                                    }
-                                                    else 
-                                                    {
-                                                        responses.Add(response);
-                                                    }
-                                                    response = new DbProteinName(); // and start another
-                                                }
-                                                break;
-                                        }
-                                    }
-                                    xmlTextReader.Close();
-                                }
-                            }
-                            catch (Exception)
-                            {
-                                if (retries==0)
-                                    return -1; // just try again later
-                                Thread.Sleep(1000);
-                                continue;
-                            }
                         } // end full entrez search
-                    }
+                    } // End if GENINFO or ENTREZ
                     else if (searchType == UNIPROTKB_TAG)
                     {
-                        if (searchterms.Count==0)
-                            break;
-
-
                         int timeout = _webSearchProvider.GetTimeoutMsec(searchterms.Count); // 10 secs + 1 more for every 5 search terms
-                        try
+                        urlString = _webSearchProvider.ConstructUniprotURL(searchterms);
+                        using (var webResponseStream = _webSearchProvider.GetWebResponseStream(urlString, timeout))
                         {
-                            bool reviewedOnly = (searchterms.Count > 1); // Unless we're desperate, reduce size of result by asking for reviewed proteins only
-                            while (true)
+                            if (webResponseStream != null)
                             {
-                                urlString = _webSearchProvider.ConstructUniprotURL(searchterms, reviewedOnly);
-                                using (var webResponseStream = _webSearchProvider.GetWebResponseStream(urlString, timeout))
+                                using (var reader = new StreamReader(webResponseStream))
                                 {
-                                    if (webResponseStream != null)
+                                    if (!reader.EndOfStream)
                                     {
-                                        using (StreamReader reader = new StreamReader(webResponseStream))
+                                        var header = reader.ReadLine(); // eat the header
+                                        string[] fieldNames = header.Split('\t');
+                                        // Normally comes in as Entry\tEntry name\tStatus\tProtein names\tGene names\tOrganism\tLength, but could be any order
+                                        int colAccession = Array.IndexOf(fieldNames, @"Entry");
+                                        int colPreferredName = Array.IndexOf(fieldNames, @"Entry name");
+                                        int colDescription = Array.IndexOf(fieldNames, @"Protein names");
+                                        int colGene = Array.IndexOf(fieldNames, @"Gene names");
+                                        int colSpecies = Array.IndexOf(fieldNames, @"Organism");
+                                        int colLength = Array.IndexOf(fieldNames, @"Length");
+                                        int colStatus = Array.IndexOf(fieldNames, @"Status");
+                                        while (!reader.EndOfStream)
                                         {
-                                            if (!reader.EndOfStream)
+                                            var line = reader.ReadLine();
+                                            if (line != null)
                                             {
-                                                var header = reader.ReadLine(); // eat the header
-                                                string[] fieldNames = header.Split('\t'); // Not L10N
-                                                // normally comes in as Entry\tEntry name\tStatus\tProtein names\tGene names\tOrganism\tLength
-                                                int colAccession = Array.IndexOf(fieldNames, "Entry");  // Not L10N
-                                                int colPreferredName = Array.IndexOf(fieldNames, "Entry name");  // Not L10N
-                                                int colDescription = Array.IndexOf(fieldNames, "Protein names");  // Not L10N
-                                                int colGene = Array.IndexOf(fieldNames, "Gene names"); // Not L10N
-                                                int colSpecies = Array.IndexOf(fieldNames, "Organism"); // Not L10N
-                                                while (!reader.EndOfStream)
+                                                string[] fields = line.Split('\t');
+                                                int length = 0;
+                                                if (colLength >= 0)
+                                                    int.TryParse(fields[colLength], out length);
+                                                var response = new ProteinSearchInfo
                                                 {
-                                                    var line = reader.ReadLine();
-                                                    if (line != null)
+                                                    ProteinDbInfo = new DbProteinName
                                                     {
-                                                        string[] fields = line.Split('\t'); // Not L10N
-                                                        var response = new DbProteinName
-                                                        {
-                                                            Accession = NullForEmpty(fields[colAccession]),
-                                                            PreferredName = NullForEmpty(fields[colPreferredName]),
-                                                            Description = NullForEmpty(fields[colDescription]),
-                                                            Gene = NullForEmpty(fields[colGene]),
-                                                            Species = NullForEmpty(fields[colSpecies])
-                                                        };
-                                                        responses.Add(response);
-                                                    }
-                                                }
+                                                        Accession = NullForEmpty(fields[colAccession]),
+                                                        PreferredName = NullForEmpty(fields[colPreferredName]),
+                                                        Description = NullForEmpty(fields[colDescription]),
+                                                        Gene = NullForEmpty(fields[colGene]),
+                                                        Species = NullForEmpty(fields[colSpecies]),
+                                                    },
+                                                    SeqLength = length,
+                                                    ReviewStatus = NullForEmpty(colStatus>=0 ? fields[colStatus] : null) // Reviewed or unreviewed
+                                                };
+                                                responses.Add(response);
                                             }
-                                            reader.Close();
                                         }
-                                        webResponseStream.Close();
                                     }
+                                    reader.Close();
                                 }
-                                // If no responses, try again without the reviewedOnly filter.
-                                if (responses.Any() || !reviewedOnly)
-                                    break;
-                                reviewedOnly = false;
+                                webResponseStream.Close();
                             }
                         }
-                        catch (WebException ex)
+                    } // End if Uniprot
+                }
+                catch (WebException ex)
+                {
+                    if (ex.Status == WebExceptionStatus.ProtocolError)
+                    {
+                        switch (((HttpWebResponse)ex.Response).StatusCode)
                         {
-                            if (ex.Status == WebExceptionStatus.ProtocolError
-                                && (((HttpWebResponse)ex.Response).StatusCode) == HttpStatusCode.BadRequest)
-                            {
+                            case HttpStatusCode.BadRequest:
+                            case HttpStatusCode.RequestUriTooLong:
                                 // malformed search, stop trying
-                                if (searchterms.Count == 1)
+                                if (proteins.Count == 1)
                                 {
                                     proteins[0].SetWebSearchCompleted(); // No more need for lookup
                                     return 1; // We resolved one
                                 }
-                            } 
-                            if (retries == 0)
-                                return -1;  // just try again later
-                            Thread.Sleep(1000);
-                            continue;
-                        }
-                        catch (Exception)
-                        {
-                            return -1;  // just try again later
+                                return URL_TOO_LONG; // Probably asked for too many at once, caller will go into batch reduction mode
                         }
                     }
+                    caught = true;
                 }
-                catch (WebException ex)
+                catch
                 {
-                    if (ex.Status == WebExceptionStatus.ProtocolError
-                        && (((HttpWebResponse)ex.Response).StatusCode) == HttpStatusCode.BadRequest)
-                    {
-                        // malformed search, stop trying
-                        if (proteins.Count() == 1)
-                        {
-                            proteins[0].SetWebSearchCompleted(); // No more need for lookup
-                            return 1; // We resolved one
-                        }
-                    } 
-                    if (retries==0)
+                    caught = true;
+                }
+                if (caught)
+                {
+                    if (retries == 0)
                         return -1;  // just try again later
                     Thread.Sleep(1000);
                     continue;
                 }
-                catch
-                {
-                    return -1;  // just try again later
-                }
 
                 if (responses.Count>0)
                 {
+                    const string STATUS_REVIEWED = "reviewed"; // Uniprot reviewed status
                     // now see if responses are ambiguous or not
-                    if (proteins.Count() == 1)
+                    if (proteins.Count == 1)
                     {
                         // Any responses must belong to this protein - or this isn't a protein at all (user named it "peptide6" for example).
                         // Can get multiple results for single uniprot code, but we'll ignore those
                         // since we're not in the market for alternative proteins (in fact we're likely 
                         // resolving metadata for one here).
-                        if (responses.Count > 10) // That's a lot of ambiguity
+                        ProteinSearchInfo result = null;
+                        // See if we can uniquely match by sequence length
+                        int length = proteins[0].SeqLength;
+                        if (length == 0)  
                         {
-                            proteins[0].SetWebSearchCompleted(); // We aren't going to get an answer
-                            break;
+                            // From a peptide list, probably - sequence unknown
+                            if (responses.Count(r => Equals(r.ReviewStatus, STATUS_REVIEWED)) == 1)
+                            {
+                                result = responses.First(r => Equals(r.ReviewStatus, STATUS_REVIEWED));
+                            }
+                            else if (responses.Count(r => Equals(r.Accession, proteins[0].Accession)) == 1)
+                            {
+                                result = responses.First(r =>Equals(r.Accession, proteins[0].Accession));
+                            }
+                            else
+                            {
+                                if (responses.Count != 1)
+                                {
+                                    // Ambiguous - don't make uneducated guesses.  But if all responses share species or gene etc note that
+                                    var common = ProteinSearchInfo.Intersection(responses);
+                                    if (common != null)
+                                    {
+                                        var old = proteins[0].GetProteinMetadata();
+                                        proteins[0].ChangeProteinMetadata(MergeSearchResult(common.GetProteinMetadata(), old));
+                                    }
+                                    proteins[0].SetWebSearchCompleted(); // We aren't going to get an answer
+                                    proteins[0].NoteSearchFailure();
+                                    break;
+                                }
+                                result = responses.First();  // We got an unambiguous response
+                            }
+                        }
+                        else if (responses.Count(r => r.SeqLength == length) == 1)
+                        {
+                            result = responses.First(r =>r.SeqLength == length);
+                        }
+                        else if (responses.Count(r => r.SeqLength == length && Equals(r.ReviewStatus, STATUS_REVIEWED)) == 1) // Narrow it down to reviewed only
+                        {
+                            result = responses.First(r => r.SeqLength == length && Equals(r.ReviewStatus, STATUS_REVIEWED));
                         }
 
+                        if (result == null)
+                        {
+                            if ((length > 0) && (responses.Count(r => r.SeqLength == length) == 0)) // No plausible matches (nothing of the proper length)
+                            {
+                                proteins[0].SetWebSearchCompleted(); // We aren't going to get an answer
+                                proteins[0].NoteSearchFailure();
+                                break;
+                            }
+                            else if (responses.Count(r => Equals(r.ReviewStatus, STATUS_REVIEWED)) == 1)
+                            {
+                                result = responses.First(r => Equals(r.ReviewStatus, STATUS_REVIEWED));
+                            }
+                            else
+                            {
+                                // Ambiguous - don't make uneducated guesses.  But if all responses share species or gene etc note that
+                                var common = ProteinSearchInfo.Intersection(responses);
+                                if (common != null)
+                                {
+                                    var old = proteins[0].GetProteinMetadata();
+                                    proteins[0].ChangeProteinMetadata(MergeSearchResult(common.GetProteinMetadata(), old));
+                                }
+                                proteins[0].SetWebSearchCompleted(); // We aren't going to get an answer
+                                proteins[0].NoteSearchFailure();
+                                break;
+                            }
+                        }
                         // prefer the data we got from web search to anything we parsed.
                         var oldMetadata = proteins[0].GetProteinMetadata();
-                        proteins[0].ChangeProteinMetadata(MergeSearchResult(responses[0].GetProteinMetadata(), oldMetadata)); // use the first, if more than one, as the primary
+                        proteins[0].ChangeProteinMetadata(MergeSearchResult(result.GetProteinMetadata(), oldMetadata)); // use the first, if more than one, as the primary
+                        proteins[0].Status = ProteinSearchInfo.SearchStatus.success;
                         lookupCount++; // Succcess!
                         if (Equals(searchType, proteins[0].GetProteinMetadata().GetSearchType())) // did we reassign search from Entrez to UniprotKB? If so don't mark as resolved yet.
                             proteins[0].SetWebSearchCompleted(); // no more need for lookup
@@ -1184,7 +1407,7 @@ namespace pwiz.ProteomeDatabase.Fasta
                     else if ((searchType == ENTREZ_TAG) || (searchType == GENINFO_TAG))
                     {
                         // multiple proteins, but responses come in reliable order
-                        if (proteins.Count() == responses.Count())
+                        if (proteins.Count == responses.Count)
                         {
                             int n = 0;
                             foreach (var response in responses)
@@ -1194,6 +1417,7 @@ namespace pwiz.ProteomeDatabase.Fasta
                                 if (Equals(searchType, proteins[n].GetProteinMetadata().GetSearchType())) // did we reassign search from Entrez to UniprotKB?
                                     oldMetadata = oldMetadata.SetWebSearchCompleted();  // no more need for lookup
                                 // use oldMetadata to fill in any holes in response, then take oldMetadata name and description
+                                proteins[n].Status = ProteinSearchInfo.SearchStatus.success;
                                 proteins[n++].ChangeProteinMetadata(MergeSearchResult(response.GetProteinMetadata(), oldMetadata));
                                 lookupCount++; // Succcess!
                             }
@@ -1208,7 +1432,7 @@ namespace pwiz.ProteomeDatabase.Fasta
                                     var s = proteins[n].GetProteinMetadata().WebSearchInfo;
                                     bool hit = (s.MatchesPendingSearchTerm(response.Accession) ||
                                                 s.MatchesPendingSearchTerm(response.PreferredName));
-                                    if (!hit && (response.Protein != null))
+                                    if (!hit && (response.ProteinDbInfo != null))
                                     {
                                         // we have a list of alternative names from the search, try those
                                         foreach (var altName in response.Protein.Names)
@@ -1226,6 +1450,7 @@ namespace pwiz.ProteomeDatabase.Fasta
                                             oldMetadata = oldMetadata.SetWebSearchCompleted();  // no more need for lookup
                                         // use oldMetadata to fill in any holes in response, then take oldMetadata name and description
                                         proteins[n].ChangeProteinMetadata(MergeSearchResult(response.GetProteinMetadata(), oldMetadata));
+                                        proteins[n].Status = ProteinSearchInfo.SearchStatus.success;
                                         lookupCount++; // Succcess!
                                         break;
                                     }
@@ -1238,48 +1463,112 @@ namespace pwiz.ProteomeDatabase.Fasta
                     {
                         // Multiple proteins, responses come back in no particular order, and 
                         // possibly with alternatives thrown in
-                        foreach (var protein in proteins)
+                        foreach (var p in proteins)
                         {
-                            // Any responses have data that matches our search term?
-                            var p = protein;
-                            var results = (from r in responses
-                                        where (p.GetProteinMetadata().WebSearchInfo.MatchesPendingSearchTerm(r.Accession))
+                            var seqLength = p.SeqLength;
+                            var uniqueProteinLength = proteins.Count(pr => (pr.SeqLength == seqLength)) == 1;
+                            for (var reviewedOnly=0; reviewedOnly < 2; reviewedOnly++)
+                            {
+                                // Only look at responses with proper sequence length - narrowing to reviewed only if we have ambiguity
+                                var likelyResponses = reviewedOnly == 0 ?
+                                    (from r in responses where (r.SeqLength == seqLength) select r).ToArray() :
+                                    (from r in responses where (r.SeqLength == seqLength && Equals(r.ReviewStatus, STATUS_REVIEWED)) select r).ToArray();
+
+                                var results = (uniqueProteinLength && likelyResponses.Length == 1) ?
+                                    likelyResponses : // Unambiguous - single response that matches this length, and this protein is the only one with this length
+                                    (from r in likelyResponses where (p.GetProteinMetadata().WebSearchInfo.MatchesPendingSearchTerm(r.Accession)) select r).ToArray();
+                                if (results.Length != 1)
+                                {
+                                    // See if the search term is found in exactly one result's description field
+                                    var resultsDescription = (from r in likelyResponses
+                                                              where ((!String.IsNullOrEmpty(r.Description) && r.Description.ToUpperInvariant().
+                                                              Split(' ').Contains(p.GetProteinMetadata().GetPendingSearchTerm().ToUpperInvariant())))
                                         select r).ToArray();
-                            if (!results.Any())
-                            {
-                                // See if the search term is found in exactly one result's description field
-                                results = (from r in responses
-                                           where ((!String.IsNullOrEmpty(r.Description)&& r.Description.ToUpperInvariant().Split(' ').Contains(p.GetProteinMetadata().GetPendingSearchTerm().ToUpperInvariant())))
-                                           select r).ToArray();
+                                    if (resultsDescription.Length == 1)
+                                        results = resultsDescription;
+                                }
+                                if (results.Length != 1)
+                                {
+                                    // See if the search term is found in exactly one result's gene names field
+                                    var resultsGene = (from r in likelyResponses
+                                                       where ((!String.IsNullOrEmpty(r.Gene) && r.Gene.ToUpperInvariant().
+                                                       Split(' ').Contains(p.GetProteinMetadata().GetPendingSearchTerm().ToUpperInvariant())))
+                                        select r).ToArray();
+                                    if (resultsGene.Length == 1)
+                                        results = resultsGene;
+                                }
+                                if (results.Length != 1 && uniqueProteinLength)
+                                {
+                                    // Didn't find an obvious match, but this is the only protein of this length in the search
+                                    results = likelyResponses;
+                                }
+                                // Make sure all matching responses have same accession, at a minimum
+                                var common = ProteinSearchInfo.Intersection(results);
+                                if (results.Any() && common.Accession != null)
+                                {
+                                    // prefer the data we got from web search
+                                    var oldMetadata = p.GetProteinMetadata();
+                                    oldMetadata = oldMetadata.SetWebSearchCompleted();  // no more need for lookup
+                                    // use oldMetadata to fill in any holes in response, then take oldMetadata name and description
+                                    p.ChangeProteinMetadata(MergeSearchResult(common.GetProteinMetadata(), oldMetadata));
+                                    p.Status = ProteinSearchInfo.SearchStatus.success;
+                                    lookupCount++; // Succcess!
+                                    break;
+                                }
                             }
-                            if (!results.Any())
+                            if (p.GetProteinMetadata().NeedsSearch() && uniqueProteinLength)
                             {
-                                // See if the search term is found in exactly one result's gene names field
-                                results = (from r in responses
-                                           where ((!String.IsNullOrEmpty(r.Gene) && r.Gene.ToUpperInvariant().Split(' ').Contains(p.GetProteinMetadata().GetPendingSearchTerm().ToUpperInvariant())))
-                                           select r).ToArray();
-                            }
-                            // If more than one result match for this protein make sure it's non-ambiguous
-                            if (results.Select(m => m.Accession).Distinct().Count() == 1)
-                            {
-                                // prefer the data we got from web search
-                                var oldMetadata = p.GetProteinMetadata();
-                                oldMetadata = oldMetadata.SetWebSearchCompleted();  // no more need for lookup
-                                // use oldMetadata to fill in any holes in response, then take oldMetadata name and description
-                                p.ChangeProteinMetadata(MergeSearchResult(results.First().GetProteinMetadata(), oldMetadata));
-                                lookupCount++; // Succcess!
+                                p.SetWebSearchCompleted(); // No answer found, but we're done
+                                p.NoteSearchFailure();
+                                lookupCount++; // done with this one
                             }
                         }
                     }
+                } // End if we got any respones
+                else if (searchType == UNIPROTKB_TAG)
+                {
+                    // None of the searches hit - Uniprot is our last search so just set these as complete
+                    foreach (var p in proteins.Where(p => p.GetProteinMetadata().NeedsSearch()))
+                    {
+                        p.SetWebSearchCompleted();  // No answer found, but we're done
+                        p.NoteSearchFailure();
+                        lookupCount++; // done with this one
+                    }
                 }
-                else if (proteins.Count() == 1)
+                else if (proteins.Count == 1)
                 {
                     proteins[0].SetWebSearchCompleted(); // no response for a single protein - we aren't going to get an answer
+                    proteins[0].NoteSearchFailure();
+                    lookupCount++; // done with this one
                 }
 
                 break; // No need for retry
             }
-            return lookupCount; // No problems encountered
+            return lookupCount;
+        }
+        public static void ValidateProteinSequence(string sequence, int lineNumber)
+        {
+            for (int i = 0; i < sequence.Length; i++)
+            {
+                var ch = sequence[i];
+                if (!IsValidProteinSequenceChar(ch))
+                {
+                    throw new InvalidDataException(string.Format(Resources.WebEnabledFastaImporter_ValidateProteinSequence_A_protein_sequence_cannot_contain_the_character___0___at_line__1_,
+                        ch, lineNumber));
+                }
+            }
+        }
+        public static bool IsValidProteinSequenceChar(char ch)
+        {
+            if (ch >= 'A' && ch <= 'Z')
+            {
+                return true;
+            }
+            if (ch == '*' || ch == '-')
+            {
+                return true;
+            }
+            return false;
         }
     }
 }

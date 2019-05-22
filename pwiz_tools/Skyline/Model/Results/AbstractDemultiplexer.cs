@@ -20,6 +20,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using pwiz.Common.Chemistry;
 using pwiz.ProteowizardWrapper;
 using pwiz.Skyline.Properties;
 
@@ -322,7 +323,7 @@ namespace pwiz.Skyline.Model.Results
             if (index < 0 || index > _file.SpectrumCount)
             {
                 throw new IndexOutOfRangeException(
-                    string.Format("OverlapDemultiplexer: GetDeconvolvedSpectra: Index {0} is out of range", index)); // Not L10N
+                    string.Format(@"OverlapDemultiplexer: GetDeconvolvedSpectra: Index {0} is out of range", index));
             }
 
             // If the first time called, initialize the cache
@@ -391,7 +392,7 @@ namespace pwiz.Skyline.Model.Results
             for (int transIndex = 0; transIndex < numDeconvolvedTrans; ++transIndex)
             {
                 double intensitySum = 0.0;
-                for (int j = 0; j < deconvIndices.Count(); ++j)
+                for (int j = 0; j < deconvIndices.Length; ++j)
                     intensitySum += _deconvHandler.Solution.Matrix[j, transIndex];
                 peakSums[transIndex] = intensitySum;
             }
@@ -432,7 +433,7 @@ namespace pwiz.Skyline.Model.Results
                 var deconvRegion = _isoMapper.GetDeconvRegion(deconvIndices[deconvSpecIndex]);
                 var precursor = new MsPrecursor
                     {
-                        PrecursorMz = deconvRegion.CenterMz,
+                        PrecursorMz = new SignedMz(deconvRegion.CenterMz, originalSpectrum.NegativeCharge) ,
                         IsolationWindowLower =  deconvRegion.Width/2.0,
                         IsolationWindowUpper =  deconvRegion.Width/2.0
                     };
@@ -630,8 +631,8 @@ namespace pwiz.Skyline.Model.Results
                 }
 
                 // use the Skyline document isolation scheme to determine the boundaries of the isolation window
-                double isolationCenter = precursor.IsolationMz.Value;
-                double? isolationWidth = null;
+                var isolationCenter = precursor.IsolationMz.Value;
+                double? isolationWidth = precursor.IsolationWidth;
                 filter.CalcDiaIsolationValues(ref isolationCenter, ref isolationWidth);
                 if (!isolationWidth.HasValue)
                 {
@@ -712,7 +713,7 @@ namespace pwiz.Skyline.Model.Results
             if (isoIndex < 0 || isoIndex > _isolationWindows.Count)
             {
                 throw new ArgumentOutOfRangeException(
-                    string.Format("IsolationWindowMapper: isoIndex {0} out of range", // Not L10N
+                    string.Format(@"IsolationWindowMapper: isoIndex {0} out of range",
                                   isoIndex));
             }
             return _isolationWindows[isoIndex];
@@ -723,7 +724,7 @@ namespace pwiz.Skyline.Model.Results
             if (isoIndex < 0 || isoIndex > _precursors.Count)
             {
                 throw new ArgumentOutOfRangeException(
-                    string.Format("IsolationWindowMapper: isoIndex {0} out of range", // Not L10N
+                    string.Format(@"IsolationWindowMapper: isoIndex {0} out of range",
                                   isoIndex));
             }
             return _precursors[isoIndex];
@@ -1139,7 +1140,7 @@ namespace pwiz.Skyline.Model.Results
                 if (0 > t || t > _deconvTransitions.Length)
                 {
                     throw new IndexOutOfRangeException(
-                        string.Format("TransitionBinner: BinsForPrecursors: precursor index out of range: {0}", // Not L10N
+                        string.Format(@"TransitionBinner: BinsForPrecursors: precursor index out of range: {0}",
                                       t));
                 }
                 validBins.UnionWith(_deconvTransitions[t]);
@@ -1153,7 +1154,7 @@ namespace pwiz.Skyline.Model.Results
             if (0 > deconvWindow || deconvWindow > _deconvTransitions.Length)
             {
                 throw new IndexOutOfRangeException(
-                    string.Format("TransitionBinner: BinInPrecursor: precursor index out of range: {0}", // Not L10N
+                    string.Format(@"TransitionBinner: BinInPrecursor: precursor index out of range: {0}",
                                   deconvWindow));
             }
             return _deconvTransitions[deconvWindow].Contains(bin);
@@ -1164,7 +1165,7 @@ namespace pwiz.Skyline.Model.Results
             if (0 >= numWindows || numWindows > _deconvTransitions.Length)
             {
                 throw new ArgumentOutOfRangeException(
-                    string.Format("TransitionBinner: MaxTransitions asked for transitions from too many precursors: {0}", // Not L10N?  Will users see this?
+                    string.Format(@"TransitionBinner: MaxTransitions asked for transitions from too many precursors: {0}", // CONSIDER: localize?  Will users see this?
                                   numWindows));
             }
             var transNumsSorted = from prec in _deconvTransitions
@@ -1204,7 +1205,7 @@ namespace pwiz.Skyline.Model.Results
         {
             if (MinBin > queryBin || queryBin > MaxBin)
             {
-                throw new IndexOutOfRangeException( string.Format("TransitionBinner[TransInfoFromBin]: Index out of range: {0}", // Not L10N
+                throw new IndexOutOfRangeException( string.Format(@"TransitionBinner[TransInfoFromBin]: Index out of range: {0}",
                                                     queryBin));
             }
             return _allTransitions[queryBin];

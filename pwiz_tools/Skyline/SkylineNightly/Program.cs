@@ -19,16 +19,28 @@
 
 using System;
 using System.IO;
+using System.Linq;
 using System.Windows.Forms;
 
 namespace SkylineNightly
 {
     static class Program
     {
-        public const string SCHEDULED_ARG = "scheduled"; // Not L10N
-        public const string SCHEDULED_PERFTESTS_ARG = SCHEDULED_ARG + "_with_perftests"; // Not L10N
-        public const string PARSE_ARG = "parse"; // Not L10N
-        public const string POST_ARG = "post"; // Not L10N
+        private static bool PerformTests(Nightly.RunMode runMode, string arg, string decorateSrcDirName = null)
+        {
+            var nightly = new Nightly(runMode, decorateSrcDirName);
+            var errMessage = nightly.RunAndPost();
+            var message = string.Format(@"Completed {0}", arg);
+            nightly.Finish(message, errMessage);
+            return string.IsNullOrEmpty(errMessage);
+        }
+
+        private static void PerformTests(Nightly.RunMode runMode1, Nightly.RunMode runMode2, string arg)
+        {
+            PerformTests(runMode1, string.Format(@"part one of {0}", arg), runMode1 == runMode2 ? @"A" : null);
+            // Don't kill existing test processes for the second run, we'd like to keep any hangs around for forensics
+            PerformTests(runMode2, string.Format(@"part two of {0}", arg), runMode1 == runMode2 ? @"B" : null);
+        }
 
         /// <summary>
         /// The main entry point for the application.
@@ -44,45 +56,105 @@ namespace SkylineNightly
                 return;
             }
 
-            var nightly = new Nightly();
-            bool hasPerftests;
-
-            switch (args[0].ToLower())
+            try
             {
-                case SCHEDULED_PERFTESTS_ARG:
-                    nightly.Run(true);  // Include perf tests
-                    hasPerftests = nightly.Parse();
-                    if (!hasPerftests)
-                        throw new InvalidDataException("Unexpected lack of perf tests in perftest scheduled run"); // Not L10N
-                    nightly.Post(true);
-                    break;
+                var command = args[0].ToLower();
 
-                case SCHEDULED_ARG:
-                    nightly.Run(false); // No perf tests
-                    hasPerftests = nightly.Parse();
-                    if (hasPerftests)
-                        throw new InvalidDataException("Unexpected perf tests in non-perftest scheduled run"); // Not L10N
-                    nightly.Post(false);
-                    break;
+                Nightly.RunMode runMode;
 
-                case PARSE_ARG:
-                    hasPerftests = nightly.Parse();
-                    nightly.Post(hasPerftests);
-                    break;
+                string message;
+                string errMessage = string.Empty;
+                Nightly nightly;
 
-                case POST_ARG:
-                    hasPerftests = nightly.Parse(null, true);
-                    nightly.Post(hasPerftests);
-                    break;
+                switch (command)
+                {
+					case @"run":
+                    {
+                        switch (args.Length)
+                        {
+                            case 2:
+                            {
+                                PerformTests((Nightly.RunMode) Enum.Parse(typeof(Nightly.RunMode), args[1]), args[1]);
+                                break;
+                            }
+                            case 3:
+                            {
+                                PerformTests((Nightly.RunMode) Enum.Parse(typeof(Nightly.RunMode), args[1]),
+                                    (Nightly.RunMode) Enum.Parse(typeof(Nightly.RunMode), args[2]),
+									args[1] + @" then " + args[2]);
+                                break;
+                            }
+							default: throw new Exception(@"Wrong number of run modes specified, has to be 1 or 2");
+                        }
 
-                default:
-                    var extension = Path.GetExtension(args[0]).ToLower();
-                    if (extension == ".log") // Not L10N
-                        hasPerftests = nightly.Parse(args[0]); // Create the xml for this log file
-                    else
-                        hasPerftests = nightly.Parse(Path.ChangeExtension(args[0], ".log"), true); // Scan the log file for this XML // Not L10N
-                    nightly.Post(hasPerftests, Path.ChangeExtension(args[0], ".xml")); // Not L10N
-                    break;
+                        break;
+                    }
+                    case "indefinitely":
+                    {
+                        while (PerformTests((Nightly.RunMode) Enum.Parse(typeof(Nightly.RunMode), args[1]), args[1]))
+                        {
+                        }
+
+                        break;
+                    }
+                    case @"/?":
+                    {
+                        nightly = new Nightly(Nightly.RunMode.trunk);
+						string commands = string.Join(@" | ",
+                            SkylineNightly.RunModes.Select(r => r.ToString()).ToArray());
+                        message = string.Format(@"Usage: SkylineNightly run [{0}] [{1}]", commands, commands);
+                        nightly.Finish(message, errMessage);
+                        break;
+                    }
+					case @"parse":
+                    {
+                        nightly = new Nightly(Nightly.RunMode.parse);
+                        message = string.Format(@"Parse and post log {0}", nightly.GetLatestLog());
+                        nightly.StartLog(Nightly.RunMode.parse);
+                        runMode = nightly.Parse();
+                        message += string.Format(@" as runmode {0}", runMode);
+                        errMessage = nightly.Post(runMode);
+                        nightly.Finish(message, errMessage);
+                        break;
+                    }
+					case @"post":
+                    {
+                        nightly = new Nightly(Nightly.RunMode.post);
+                        message = string.Format(@"Post existing XML for {0}", nightly.GetLatestLog());
+                        nightly.StartLog(Nightly.RunMode.post);
+                        runMode = nightly.Parse(null, true); // "true" means skip XML generation, just parse to figure out mode
+                        message += string.Format(@" as runmode {0}", runMode);
+                        errMessage = nightly.Post(runMode);
+                        nightly.Finish(message, errMessage);
+                        break;
+                    }
+                    default:
+                    {
+                        var extension = Path.GetExtension(args[0]).ToLower();
+                        if (extension == @".log")
+                        {
+                            nightly = new Nightly(Nightly.RunMode.parse);
+                            nightly.StartLog(Nightly.RunMode.parse);
+                            message = string.Format(@"Parse and post log {0}", args[0]);
+                            runMode = nightly.Parse(args[0]); // Create the xml for this log file
+                        }
+                        else
+                        {
+                            nightly = new Nightly(Nightly.RunMode.post);
+                            nightly.StartLog(Nightly.RunMode.post);
+                            message = string.Format(@"Post existing XML {0}", args[0]);
+                            runMode = nightly.Parse(Path.ChangeExtension(args[0], @".log"), true); // Scan the log file for this XML
+                        }
+                        message += string.Format(@" as runmode {0}", runMode);
+                        errMessage = nightly.Post(runMode, Path.ChangeExtension(args[0], @".xml"));
+                        nightly.Finish(message, errMessage);
+                        break;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+				MessageBox.Show(@"Exception Caught: " + ex.Message, @"SkylineNightly.exe");
             }
         }
     }

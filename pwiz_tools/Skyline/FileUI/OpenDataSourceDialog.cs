@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Original author: Matt Chambers <matt.chambers .@. vanderbilt.edu>
  *
  * Copyright 2009 Vanderbilt University - Nashville, TN 37232
@@ -39,15 +39,15 @@ namespace pwiz.Skyline.FileUI
         private readonly Stack<MsDataFileUri> _previousDirectories = new Stack<MsDataFileUri>();
         private readonly int _specialFolderCount;
         private readonly int _myComputerIndex;
-        private readonly int _chorusIndex;
-        private ChorusSession _chorusSession;
-        private readonly ChorusAccountList _chorusAccounts;
+        private readonly int _remoteIndex;
+        private RemoteSession _remoteSession;
+        private readonly IList<RemoteAccount> _remoteAccounts;
         private bool _waitingForData;
 
-        public OpenDataSourceDialog(ChorusAccountList chorusAccounts)
+        public OpenDataSourceDialog(IList<RemoteAccount> remoteAccounts)
         {
             InitializeComponent();
-            _chorusAccounts = chorusAccounts;
+            _remoteAccounts = remoteAccounts;
 
             listView.ListViewItemSorter = _listViewColumnSorter;
 
@@ -77,37 +77,25 @@ namespace pwiz.Skyline.FileUI
             listView.LargeImageList = imageList;
 
             TreeView tv = new TreeView { Indent = 8 };
-            if (Settings.Default.EnableChorus)
-            {
-                _chorusIndex = lookInComboBox.Items.Count;
-                TreeNode chorusNode = tv.Nodes.Add("Chorus", // Not L10N
-                    Resources.OpenDataSourceDialog_OpenDataSourceDialog_Chorus_Project, (int) ImageIndex.Chorus,
-                    (int) ImageIndex.Chorus);
-                chorusNode.Tag = ChorusUrl.EMPTY;
-                lookInComboBox.Items.Add(chorusNode);
-                chorusButton.Visible = true;
-                recentDocumentsButton.Visible = false;
-            }
-            else
-            {
-                _chorusIndex = -1;
-                TreeNode recentDocumentsNode = tv.Nodes.Add("My Recent Documents", // Not L10N
-                    Resources.OpenDataSourceDialog_OpenDataSourceDialog_My_Recent_Documents, 0, 0);
-                recentDocumentsNode.Tag = new MsDataFilePath(Environment.GetFolderPath(Environment.SpecialFolder.Recent));
-                lookInComboBox.Items.Add(recentDocumentsNode);
-                chorusButton.Visible = false;
-                recentDocumentsButton.Visible = true;
-            }
-            TreeNode desktopNode = tv.Nodes.Add("Desktop",  // Not L10N
+            _remoteIndex = lookInComboBox.Items.Count;
+            TreeNode unifiNode = tv.Nodes.Add(@"Remote",
+                Resources.OpenDataSourceDialog_OpenDataSourceDialog_Remote_Accounts, (int) ImageIndex.MyNetworkPlaces,
+                (int) ImageIndex.MyNetworkPlaces);
+            unifiNode.Tag = RemoteUrl.EMPTY;
+            lookInComboBox.Items.Add(unifiNode);
+            chorusButton.Visible = true;
+            recentDocumentsButton.Visible = false;
+
+            TreeNode desktopNode = tv.Nodes.Add(@"Desktop",
                 Resources.OpenDataSourceDialog_OpenDataSourceDialog_Desktop, (int) ImageIndex.Desktop, (int) ImageIndex.Desktop );
             desktopNode.Tag = new MsDataFilePath(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory));
             lookInComboBox.Items.Add( desktopNode );
-            TreeNode lookInNode = desktopNode.Nodes.Add("My Documents", // Not L10N
+            TreeNode lookInNode = desktopNode.Nodes.Add(@"My Documents",
                 Resources.OpenDataSourceDialog_OpenDataSourceDialog_My_Documents, (int) ImageIndex.MyDocuments, (int) ImageIndex.MyDocuments );
             lookInNode.Tag = new MsDataFilePath(Environment.GetFolderPath(Environment.SpecialFolder.Personal));
             lookInComboBox.Items.Add( lookInNode );
             _myComputerIndex = lookInComboBox.Items.Count;
-            TreeNode myComputerNode = desktopNode.Nodes.Add("My Computer", // Not L10N
+            TreeNode myComputerNode = desktopNode.Nodes.Add(@"My Computer",
                 Resources.OpenDataSourceDialog_OpenDataSourceDialog_My_Computer, (int) ImageIndex.MyComputer, (int) ImageIndex.MyComputer );
             myComputerNode.Tag = new MsDataFilePath(Environment.GetFolderPath(Environment.SpecialFolder.MyComputer));
             
@@ -120,12 +108,6 @@ namespace pwiz.Skyline.FileUI
             lookInComboBox.DropDownHeight = lookInComboBox.Items.Count * lookInComboBox.ItemHeight + 2;
         }
 
-        public new DialogResult ShowDialog()
-        {
-            CurrentDirectory = InitialDirectory ?? new MsDataFilePath(Environment.CurrentDirectory);
-            return base.ShowDialog();
-        }
-
         public new DialogResult ShowDialog(IWin32Window owner)
         {
             CurrentDirectory = InitialDirectory ?? new MsDataFilePath(Environment.CurrentDirectory);
@@ -135,10 +117,7 @@ namespace pwiz.Skyline.FileUI
         protected override void OnFormClosed(FormClosedEventArgs e)
         {
             base.OnFormClosed(e);
-            if (null != _chorusSession)
-            {
-                _chorusSession.Abort();
-            }
+            RemoteSession = null;
         }
 
         private MsDataFileUri _currentDirectory;
@@ -147,18 +126,18 @@ namespace pwiz.Skyline.FileUI
             get { return _currentDirectory; }
             set
             {
-                if (Equals(value, ChorusUrl.EMPTY))
+                if (Equals(value, RemoteUrl.EMPTY))
                 {
-                    EnsureChorusAccount();
-                    if (!_chorusAccounts.Any())
+                    EnsureRemoteAccount();
+                    if (!_remoteAccounts.Any())
                     {
                         return;
                     }
-                    if (_chorusAccounts.Count == 1)
+                    if (_remoteAccounts.Count == 1)
                     {
                         // If there is exactly one account, then skip the level that
                         // lists the accounts to choose from.
-                        value = _chorusAccounts.First().GetChorusUrl();
+                        value = _remoteAccounts.First().GetRootUrl();
                     }
                 }
                 if (value != null)
@@ -168,6 +147,39 @@ namespace pwiz.Skyline.FileUI
                     populateComboBoxFromDirectory(_currentDirectory);
                 }
             }
+        }
+
+        public RemoteSession RemoteSession
+        {
+            get { return _remoteSession; }
+            set
+            {
+                if (ReferenceEquals(RemoteSession, value))
+                {
+                    return;
+                }
+                if (null != RemoteSession)
+                {
+                    RemoteSession.Dispose();
+                }
+                _remoteSession = value;
+                if (null != RemoteSession)
+                {
+                    AttachContentsAvailable(RemoteSession);
+                }
+            }
+        }
+
+        private void AttachContentsAvailable(RemoteSession remoteSession)
+        {
+            remoteSession.ContentsAvailable += () =>
+            {
+                if (!ReferenceEquals(remoteSession, RemoteSession))
+                {
+                    return;
+                }
+                ChorusContentsAvailable();
+            };
         }
 
         public MsDataFileUri InitialDirectory { get; set; }
@@ -198,10 +210,21 @@ namespace pwiz.Skyline.FileUI
                 if (Equals(item.Text, fileName))
                     listView.SelectedIndices.Add(item.Index);
             }
-            if (0 == listView.SelectedIndices.Count && fileName.Contains("\\")) // Not L10N
+            // ReSharper disable LocalizableElement
+            if (0 == listView.SelectedIndices.Count && fileName.Contains("\\"))
+            // ReSharper restore LocalizableElement
             {
                 // mimic the action of user pasting an entire path into the textbox
                 sourcePathTextBox.Text = fileName;
+            }
+        }
+
+        public IEnumerable<string> SelectedFiles
+        {
+            get
+            {
+                foreach (int index in listView.SelectedIndices)
+                    yield return listView.Items[index].Text;
             }
         }
 
@@ -315,12 +338,12 @@ namespace pwiz.Skyline.FileUI
                     }
                     catch (Exception)
                     {
-                        label += string.Format(" ({0})", Resources.OpenDataSourceDialog_populateListViewFromDirectory_access_failure); // Not L10N
+                        label += string.Format(@" ({0})", Resources.OpenDataSourceDialog_populateListViewFromDirectory_access_failure);
                     }
 
                     string name = driveInfo.Name;
                     if (label != string.Empty)
-                        name = string.Format("{0} ({1})", label, name); // Not L10N
+                        name = string.Format(@"{0} ({1})", label, name);
 
                     listSourceInfo.Add(new SourceInfo(new MsDataFilePath(driveInfo.RootDirectory.FullName))
                     {
@@ -331,37 +354,36 @@ namespace pwiz.Skyline.FileUI
                     });
                 }
             }
-            else if (directory is ChorusUrl)
+            else if (directory is RemoteUrl)
             {
-                ChorusUrl chorusUrl = directory as ChorusUrl;
-                if (null == _chorusSession)
+                RemoteUrl remoteUrl = directory as RemoteUrl;
+                if (string.IsNullOrEmpty(remoteUrl.ServerUrl))
                 {
-                    _chorusSession = new ChorusSession();
-                    _chorusSession.ContentsAvailable += ChorusContentsAvailable;
-                }
-                if (string.IsNullOrEmpty(chorusUrl.ServerUrl))
-                {
-                    foreach (var chorusAccount in _chorusAccounts)
+                    foreach (var remoteAccount in _remoteAccounts)
                     {
-                        listSourceInfo.Add(new SourceInfo(chorusAccount.GetChorusUrl())
+                        listSourceInfo.Add(new SourceInfo(remoteAccount.GetRootUrl())
                         {
-                            name = chorusAccount.GetKey(),
+                            name = remoteAccount.GetKey(),
                             type = DataSourceUtil.FOLDER_TYPE,
-                            imageIndex = ImageIndex.Chorus,
+                            imageIndex = ImageIndex.MyNetworkPlaces,
                         });
                     }
                 }
                 else
                 {
-                    ChorusAccount chorusAccount = GetChorusAccount(chorusUrl);
-                    ChorusServerException exception;
-                    bool isComplete = _chorusSession.AsyncFetchContents(chorusAccount, chorusUrl, out exception);
-                    foreach (var item in _chorusSession.ListContents(chorusAccount, chorusUrl))
+                    RemoteAccount remoteAccount = GetRemoteAccount(remoteUrl);
+                    if (RemoteSession == null || !Equals(remoteAccount, RemoteSession.Account))
+                    {
+                        RemoteSession = RemoteSession.CreateSession(remoteAccount);
+                    }
+                    RemoteServerException exception;
+                    bool isComplete = _remoteSession.AsyncFetchContents(remoteUrl, out exception);
+                    foreach (var item in _remoteSession.ListContents(remoteUrl))
                     {
                         var imageIndex = DataSourceUtil.IsFolderType(item.Type)
                             ? ImageIndex.Folder
                             : ImageIndex.MassSpecFile;
-                        listSourceInfo.Add(new SourceInfo(item.ChorusUrl)
+                        listSourceInfo.Add(new SourceInfo(item.MsDataFileUri)
                         {
                             name = item.Label,
                             type = item.Type,
@@ -374,7 +396,8 @@ namespace pwiz.Skyline.FileUI
                     {
                         if (MultiButtonMsgDlg.Show(this, exception.Message, Resources.OpenDataSourceDialog_populateListViewFromDirectory_Retry) != DialogResult.Cancel)
                         {
-                            _chorusSession.RetryFetchContents(chorusAccount, chorusUrl);
+                            RemoteSession.RetryFetchContents(remoteUrl);
+                            isComplete = false;
                         }
                     }
                     if (!isComplete)
@@ -389,41 +412,16 @@ namespace pwiz.Skyline.FileUI
                 MsDataFilePath msDataFilePath = (MsDataFilePath) directory;
                 DirectoryInfo dirInfo = new DirectoryInfo(msDataFilePath.FilePath);
 
-                DirectoryInfo[] arraySubDirInfo;
-                FileInfo[] arrayFileInfo;
                 try
                 {
                     // subitems: Name, Type, Spectra, Size, Date Modified
-                    arraySubDirInfo = dirInfo.GetDirectories();
+                    var arraySubDirInfo = dirInfo.GetDirectories();
                     Array.Sort(arraySubDirInfo, (d1, d2) => string.Compare(d1.Name, d2.Name, StringComparison.CurrentCultureIgnoreCase));
-                    arrayFileInfo = dirInfo.GetFiles();
+                    var arrayFileInfo = dirInfo.GetFiles();
                     Array.Sort(arrayFileInfo, (f1, f2) => string.Compare(f1.Name, f2.Name, StringComparison.CurrentCultureIgnoreCase));
-                }
-                catch (Exception x)
-                {
-                    var message = TextUtil.LineSeparate(
-                        Resources.OpenDataSourceDialog_populateListViewFromDirectory_An_error_occurred_attempting_to_retrieve_the_contents_of_this_directory,
-                        x.Message);
-                    // Might throw access violation.
-                    MessageBox.Show(this, message, Program.Name);
-                    return;
-                }
 
-                // Calculate information about the files, allowing the user to cancel
-                foreach (var info in arraySubDirInfo)
-                {
-                    listSourceInfo.Add(getSourceInfo(info));
-                    Application.DoEvents();
-                    if (_abortPopulateList)
-                    {
-                        //MessageBox.Show( "abort" );
-                        break;
-                    }
-                }
-
-                if (!_abortPopulateList)
-                {
-                    foreach (var info in arrayFileInfo)
+                    // Calculate information about the files, allowing the user to cancel
+                    foreach (var info in arraySubDirInfo)
                     {
                         listSourceInfo.Add(getSourceInfo(info));
                         Application.DoEvents();
@@ -433,7 +431,30 @@ namespace pwiz.Skyline.FileUI
                             break;
                         }
                     }
-                }                
+
+                    if (!_abortPopulateList)
+                    {
+                        foreach (var info in arrayFileInfo)
+                        {
+                            listSourceInfo.Add(getSourceInfo(info));
+                            Application.DoEvents();
+                            if (_abortPopulateList)
+                            {
+                                //MessageBox.Show( "abort" );
+                                break;
+                            }
+                        }
+                    }
+                }
+                catch (Exception x)
+                {
+                    var message = TextUtil.LineSeparate(
+                        Resources.OpenDataSourceDialog_populateListViewFromDirectory_An_error_occurred_attempting_to_retrieve_the_contents_of_this_directory,
+                        x.Message);
+                    // Might throw access violation.
+                    MessageDlg.ShowWithException(this, message, x);
+                    return;
+                }
             }
 
             // Populate the list
@@ -468,7 +489,7 @@ namespace pwiz.Skyline.FileUI
                 {
                     try
                     {
-                        if (CurrentDirectory is ChorusUrl && _waitingForData)
+                        if (CurrentDirectory is RemoteUrl && _waitingForData)
                         {
                             populateListViewFromDirectory(CurrentDirectory);
                         }
@@ -484,10 +505,10 @@ namespace pwiz.Skyline.FileUI
             // ReSharper restore EmptyGeneralCatchClause
         }
 
-        private ChorusAccount GetChorusAccount(ChorusUrl chorusUrl)
+        private RemoteAccount GetRemoteAccount(RemoteUrl chorusUrl)
         {
             return
-                _chorusAccounts.FirstOrDefault(
+                _remoteAccounts.FirstOrDefault(
                     chorusAccount =>
                         Equals(chorusAccount.ServerUrl, chorusUrl.ServerUrl) &&
                         Equals(chorusAccount.Username, chorusUrl.Username));
@@ -526,9 +547,9 @@ namespace pwiz.Skyline.FileUI
 
             if (dirInfo == null)
             {
-                if (directory is ChorusUrl)
+                if (directory is RemoteUrl)
                 {
-                    lookInComboBox.SelectedIndex = _chorusIndex;
+                    lookInComboBox.SelectedIndex = _remoteIndex;
                 }
                 else
                 {
@@ -574,11 +595,11 @@ namespace pwiz.Skyline.FileUI
                 }
                 catch (Exception)
                 {
-                    label += string.Format(" ({0})", Resources.OpenDataSourceDialog_populateComboBoxFromDirectory_access_failure); // Not L10N
+                    label += string.Format(@" ({0})", Resources.OpenDataSourceDialog_populateComboBoxFromDirectory_access_failure);
                 }
                 TreeNode driveNode = myComputerNode.Nodes.Add(sublabel,
                                                               label.Length > 0
-                                                                  ? String.Format("{0} ({1})", label, sublabel) // Not L10N
+                                                                  ? String.Format(@"{0} ({1})", label, sublabel)
                                                                   : sublabel,
                                                               (int) imageIndex,
                                                               (int) imageIndex);
@@ -614,33 +635,6 @@ namespace pwiz.Skyline.FileUI
         {
             switch( e.KeyCode )
             {
-                case Keys.Enter:
-                    if( Directory.Exists( sourcePathTextBox.Text ) )
-                        CurrentDirectory = new MsDataFilePath(sourcePathTextBox.Text);
-                    else if( CurrentDirectory is MsDataFilePath && Directory.Exists( Path.Combine( ((MsDataFilePath) CurrentDirectory).FilePath, sourcePathTextBox.Text ) ) )
-                        CurrentDirectory = new MsDataFilePath(Path.Combine(((MsDataFilePath)CurrentDirectory).FilePath, sourcePathTextBox.Text));
-                    else if (CurrentDirectory is MsDataFilePath)
-                    {
-                        // check that all manually-entered paths are valid
-                        string[] sourcePaths = sourcePathTextBox.Text.Split(" ".ToCharArray()); // Not L10N
-                        List<string> invalidPaths = new List<string>();
-                        foreach( string path in sourcePaths )
-                            if( !File.Exists( path ) && !File.Exists( Path.Combine( ((MsDataFilePath)CurrentDirectory).FilePath, path ) ) )
-                                invalidPaths.Add( path );
-
-                        if( invalidPaths.Count == 0 )
-                        {
-                            DataSources = sourcePaths.Select(MsDataFileUri.Parse).ToArray();
-                            DialogResult = DialogResult.OK;
-                            Close();
-                    }
-                        else
-                        {
-                            MessageBox.Show(this, TextUtil.LineSeparate(invalidPaths),
-                                Resources.OpenDataSourceDialog_sourcePathTextBox_KeyUp_Some_source_paths_are_invalid);
-                        }
-                    }
-                    break;
                 case Keys.F5:
                     _abortPopulateList = true;
                     populateListViewFromDirectory( _currentDirectory ); // refresh
@@ -757,10 +751,8 @@ namespace pwiz.Skyline.FileUI
 // ReSharper disable once EmptyGeneralCatchClause
             catch {} // guard against user typed-in-garbage
 
-
             // No files or folders selected: Show an error message.
-            MessageBox.Show(this, Resources.OpenDataSourceDialog_Open_Please_select_one_or_more_data_sources,
-                Resources.OpenDataSourceDialog_Open_Error, MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageDlg.Show(this, Resources.OpenDataSourceDialog_Open_Please_select_one_or_more_data_sources);
         }
 
         private void cancelButton_Click( object sender, EventArgs e )
@@ -806,18 +798,21 @@ namespace pwiz.Skyline.FileUI
         private void upOneLevelButton_Click( object sender, EventArgs e )
         {
             MsDataFileUri parent = null;
-            var chorusUrl = _currentDirectory as ChorusUrl;
             var dataFilePath = _currentDirectory as MsDataFilePath;
-            if (chorusUrl != null)
-            {
-                parent = chorusUrl.GetParent();
-            }
-            else if (dataFilePath != null && !string.IsNullOrEmpty(dataFilePath.FilePath))
+            if (dataFilePath != null && !string.IsNullOrEmpty(dataFilePath.FilePath))
             {
                 DirectoryInfo parentDirectory = Directory.GetParent(dataFilePath.FilePath);
                 if (parentDirectory != null)
                 {
                     parent = new MsDataFilePath(parentDirectory.FullName);
+                }
+            }
+            else
+            {
+                if (_previousDirectories.Any())
+                {
+                    CurrentDirectory = _previousDirectories.Pop();
+                    return;
                 }
             }
             if (null != parent && !Equals(parent, _currentDirectory))
@@ -841,9 +836,11 @@ namespace pwiz.Skyline.FileUI
                 foreach( ListViewItem item in listView.SelectedItems )
                 {
                     if( !DataSourceUtil.IsFolderType(item.SubItems[1].Text) )
-                        dataSourceList.Add(string.Format("\"{0}\"", GetItemPath(item))); // Not L10N
+                        // ReSharper disable LocalizableElement
+                        dataSourceList.Add(string.Format("\"{0}\"", GetItemPath(item)));
+                        // ReSharper restore LocalizableElement
                 }
-                sourcePathTextBox.Text = string.Join(" ", dataSourceList.ToArray()); // Not L10N
+                sourcePathTextBox.Text = string.Join(@" ", dataSourceList.ToArray());
             }
             else if (listView.SelectedItems.Count > 0)
             {
@@ -855,7 +852,9 @@ namespace pwiz.Skyline.FileUI
             }
         }
 
-        private static readonly Regex REGEX_DRIVE = new Regex("\\(([A-Z]:\\\\)\\)"); // Not L10N
+        // ReSharper disable LocalizableElement
+        private static readonly Regex REGEX_DRIVE = new Regex("\\(([A-Z]:\\\\)\\)");
+        // ReSharper restore LocalizableElement
 
         private static string GetItemPath(ListViewItem item)
         {
@@ -886,7 +885,7 @@ namespace pwiz.Skyline.FileUI
 
         private void chorusButton_Click( object sender, EventArgs e )
         {
-            CurrentDirectory = ChorusUrl.EMPTY;
+            CurrentDirectory = RemoteUrl.EMPTY;
         }
 
         private void desktopButton_Click( object sender, EventArgs e )
@@ -917,7 +916,7 @@ namespace pwiz.Skyline.FileUI
 
         private void lookInComboBox_DrawItem( object sender, DrawItemEventArgs e )
         {
-            if( e.Index < 0 )
+            if( e.Index < 0 || e.Index >= lookInComboBox.Items.Count)
                 return;
 
             TreeNode node = (TreeNode) lookInComboBox.Items[e.Index];
@@ -1041,7 +1040,7 @@ namespace pwiz.Skyline.FileUI
                 get
                 {
                     return type != DataSourceUtil.FOLDER_TYPE
-                        ? String.Format(new FileSizeFormatProvider(), "{0:fs}", size) // Not L10N
+                        ? String.Format(new FileSizeFormatProvider(), @"{0:fs}", size)
                         : String.Empty;
                 }
             }
@@ -1060,34 +1059,18 @@ namespace pwiz.Skyline.FileUI
             Folder,
             MassSpecFile,
             UnknownFile,
-            Chorus
         }
 
-        private void EnsureChorusAccount()
+        private void EnsureRemoteAccount()
         {
-            if (_chorusAccounts.Any())
+            if (_remoteAccounts.Any())
             {
                 return;
             }
-            DialogResult buttonPress = MultiButtonMsgDlg.Show(
-                this,
-                TextUtil.LineSeparate(
-                    Resources.OpenDataSourceDialog_EnsureChorusAccount_No_Chorus_acounts_have_been_specified,
-                    Resources.OpenDataSourceDialog_EnsureChorusAccount_Press_Register_to_register_for_an_account_on_the_Chorus_Project,
-                    Resources.OpenDataSourceDialog_EnsureChorusAccount_Press_Add_to_use_specify_an_existing_Chorus_account),
-                Resources.OpenDataSourceDialog_EnsureChorusAccount_Register, Resources.OpenDataSourceDialog_EnsureChorusAccount_Add, true);
-            if (buttonPress == DialogResult.Cancel)
-                return;
-
-            if (buttonPress == DialogResult.Yes)
-            {
-                // person intends to register                   
-                WebHelpers.OpenLink(this, "https://chorusproject.org/pages/register.html"); // Not L10N
-            }
-            var newAccount = _chorusAccounts.NewItem(this, _chorusAccounts, null);
+            var newAccount = Settings.Default.RemoteAccountList.NewItem(this, Settings.Default.RemoteAccountList, null);
             if (null != newAccount)
             {
-                _chorusAccounts.Add(newAccount);
+                Settings.Default.RemoteAccountList.Add(newAccount);
             }
         }
 
@@ -1116,5 +1099,7 @@ namespace pwiz.Skyline.FileUI
             }
             return GetSafeDateModified(driveInfo.RootDirectory);
         }
+
+        public IEnumerable<string> ListItemNames { get { return listView.Items.OfType<ListViewItem>().Select(item=>item.Text); } }
     }
 }

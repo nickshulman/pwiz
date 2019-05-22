@@ -35,15 +35,15 @@ namespace pwiz.Skyline.Model.Results.Scoring
     /// This is an implementation of the MProphet peak scoring algorithm
     /// described in http://www.nature.com/nmeth/journal/v8/n5/full/nmeth.1584.html.
     /// </summary>
-    [XmlRoot("mprophet_peak_scoring_model")] // Not L10N
+    [XmlRoot(@"mprophet_peak_scoring_model")]
     public class MProphetPeakScoringModel : PeakScoringModelSpec
     {
-        public const string NAME = "mProphet";  // Not L10N : Proper name not localized
+        public const string NAME = "mProphet";  // Proper name not localized
 
         private ImmutableList<IPeakFeatureCalculator> _peakFeatureCalculators;
 
         // Number of iterations to run.  Most weight values will converge within this number of iterations.
-        private const int MAX_ITERATIONS = 30;
+        private const int MAX_ITERATIONS = 10;
         public const double DEFAULT_R_LAMBDA = 0.4;    // Lambda for pi-zero from original R mProphet
 
         /// <summary>
@@ -54,7 +54,7 @@ namespace pwiz.Skyline.Model.Results.Scoring
         public const double PI_ZERO_MIN = 0.05;
 
         public MProphetPeakScoringModel(
-            string name, 
+            string name,
             LinearModelParams parameters,
             IList<IPeakFeatureCalculator> peakFeatureCalculators = null,
             bool usesDecoys = false,
@@ -88,12 +88,33 @@ namespace pwiz.Skyline.Model.Results.Scoring
         {
         }
 
-        public MProphetPeakScoringModel(string name)
+        public MProphetPeakScoringModel(string name, SrmDocument document = null)
             : base(name)
         {
-            SetPeakFeatureCalculators(DEFAULT_CALCULATORS);
+            SetPeakFeatureCalculators(GetDefaultCalculators(document));
             Lambda = DEFAULT_R_LAMBDA;   // Default from R
             DoValidate();
+        }
+
+        public static IPeakFeatureCalculator[] GetDefaultCalculators(SrmDocument document)
+        {
+            var calcs = DEFAULT_CALCULATORS;
+            if (document != null)
+            {
+                bool includeReference = document.Settings.PeptideSettings.Modifications.HasHeavyImplicitModifications;
+                bool includeMs1 = document.Settings.TransitionSettings.FullScan.IsEnabledMs;
+                bool includeIds = !document.Settings.DocumentRetentionTimes.IsEmpty;
+
+                if (!includeReference || !includeMs1 || !includeIds)
+                {
+                    calcs = calcs.Where(calc =>
+                            (!calc.IsReferenceScore || includeReference) &&
+                            (!calc.IsMs1Score || includeMs1) &&
+                            (!(calc is LegacyIdentifiedCountCalc) || includeIds))
+                        .ToArray();
+                }
+            }
+            return calcs;
         }
 
         private static readonly IPeakFeatureCalculator[] DEFAULT_CALCULATORS =
@@ -153,86 +174,163 @@ namespace pwiz.Skyline.Model.Results.Scoring
         /// <summary>
         /// Train the model by iterative calculating weights to separate target and decoy transition groups.
         /// </summary>
-        /// <param name="targets">Target transition groups.</param>
-        /// <param name="decoys">Decoy transition groups.</param>
+        /// <param name="targetsIn">Target transition groups.</param>
+        /// <param name="decoysIn">Decoy transition groups.</param>
+        /// <param name="targetDecoyGenerator">Target decoy generator used to calculate contribution percentages</param>
         /// <param name="initParameters">Initial model parameters (weights and bias)</param>
-        /// <param name="includeSecondBest"> Include the second best peaks in the targets as decoys?</param>
+        /// <param name="iterations">Optional specific number of iterations to use in training</param>
+        /// <param name="includeSecondBest">Include the second best peaks in the targets as decoys?</param>
         /// <param name="preTrain">Use a pre-trained model to bootstrap the learning.</param>
-        /// <param name="progressMonitor"></param>
+        /// <param name="progressMonitor">Used to report progress to the calling context</param>
+        /// <param name="documentPath">The path to the current document for writing score distributions</param>
         /// <returns>Immutable model with new weights.</returns>
-        public override IPeakScoringModel Train(IList<IList<float[]>> targets, IList<IList<float[]>> decoys, LinearModelParams initParameters,
-            bool includeSecondBest = false, bool preTrain = true, IProgressMonitor progressMonitor = null)
+        public override IPeakScoringModel Train(IList<IList<float[]>> targetsIn,
+                                                IList<IList<float[]>> decoysIn,
+                                                TargetDecoyGenerator targetDecoyGenerator,
+                                                LinearModelParams initParameters,
+                                                int? iterations = null,
+                                                bool includeSecondBest = false,
+                                                bool preTrain = true,
+                                                IProgressMonitor progressMonitor = null,
+                                                string documentPath = null)
         {
-            if(initParameters == null)
+            if (initParameters == null)
                 initParameters = new LinearModelParams(_peakFeatureCalculators.Count);
             return ChangeProp(ImClone(this), im =>
+            {
+                // This may take a long time between progress updates, but just measure progress by cycles through the training
+                IProgressStatus status = new ProgressStatus(Resources.MProphetPeakScoringModel_Train_Training_peak_scoring_model);
+                if (progressMonitor != null)
+                    progressMonitor.UpdateProgress(status);
+
+                var targets = targetsIn.Where(list => list.Count > 0);
+                var decoys = decoysIn.Where(list => list.Count > 0);
+                var targetTransitionGroups = new ScoredGroupPeaksSet(targets, targetsIn.Count);
+                var decoyTransitionGroups = new ScoredGroupPeaksSet(decoys, decoysIn.Count);
+                // Iteratively refine the weights through multiple iterations.
+                var calcWeights = new double[initParameters.Weights.Count];
+                Array.Copy(initParameters.Weights.ToArray(), calcWeights, initParameters.Weights.Count);
+                double qValueCutoff = 0.01; // First iteration cut-off - if not pretraining, just start at 0.01
+                // Start with scores calculated from the initial weights
+                if (!preTrain)
                 {
-                    targets = targets.Where(list => list.Count > 0).ToList();
-                    decoys = decoys.Where(list => list.Count > 0).ToList();
-                    var targetTransitionGroups = new ScoredGroupPeaksSet(targets);
-                    var decoyTransitionGroups = new ScoredGroupPeaksSet(decoys);
-                    // Bootstrap from the pre-trained legacy model
-                    if (preTrain)
+                    targetTransitionGroups.ScorePeaks(calcWeights);
+                    decoyTransitionGroups.ScorePeaks(calcWeights);
+                }
+                // Bootstrap from the pre-trained legacy model
+                else
+                {
+                    qValueCutoff = 0.15;
+                    var preTrainedWeights = new double[initParameters.Weights.Count];
+                    for (int i = 0; i < preTrainedWeights.Length; ++i)
                     {
-                        var preTrainedWeights = new double[initParameters.Weights.Count];
-                        for (int i = 0; i < preTrainedWeights.Length; ++i)
+                        if (double.IsNaN(initParameters.Weights[i]))
                         {
-                            if (double.IsNaN(initParameters.Weights[i]))
-                            {
-                                preTrainedWeights[i] = double.NaN;
-                            }
+                            preTrainedWeights[i] = double.NaN;
                         }
-                        int standardEnabledCount = GetEnabledCount(LegacyScoringModel.StandardFeatureCalculators, initParameters.Weights);
-                        int analyteEnabledCount = GetEnabledCount(LegacyScoringModel.AnalyteFeatureCalculators, initParameters.Weights);
-                        bool hasStandards = standardEnabledCount >= analyteEnabledCount;
-                        var calculators = hasStandards ? LegacyScoringModel.StandardFeatureCalculators : LegacyScoringModel.AnalyteFeatureCalculators;
-                        for (int i = 0; i < calculators.Length; ++i)
-                        {
-                            if (calculators[i].GetType() == typeof (MQuestRetentionTimePredictionCalc))
-                                continue;
-                            SetCalculatorValue(calculators[i].GetType(), LegacyScoringModel.DEFAULT_WEIGHTS[i], preTrainedWeights);
-                        }
-                        targetTransitionGroups.ScorePeaks(preTrainedWeights);
-                        decoyTransitionGroups.ScorePeaks(preTrainedWeights);
+                    }
+                    int standardEnabledCount = GetEnabledCount(LegacyScoringModel.StandardFeatureCalculators, initParameters.Weights);
+                    int analyteEnabledCount = GetEnabledCount(LegacyScoringModel.AnalyteFeatureCalculators, initParameters.Weights);
+                    bool hasStandards = standardEnabledCount >= analyteEnabledCount;
+                    var calculators = hasStandards ? LegacyScoringModel.StandardFeatureCalculators : LegacyScoringModel.AnalyteFeatureCalculators;
+                    for (int i = 0; i < calculators.Length; ++i)
+                    {
+                        if (calculators[i].GetType() == typeof(MQuestRetentionTimePredictionCalc))
+                            continue;
+                        SetCalculatorValue(calculators[i].GetType(), LegacyScoringModel.DEFAULT_WEIGHTS[i], preTrainedWeights);
+                    }
+                    targetTransitionGroups.ScorePeaks(preTrainedWeights);
+                    decoyTransitionGroups.ScorePeaks(preTrainedWeights);
+                }
+
+                double decoyMean = 0;
+                double decoyStdev = 0;
+                bool colinearWarning = false;
+                int iterationCount = iterations ?? MAX_ITERATIONS;
+                int truePeaksCount = 0;
+                var lastWeights = new double[calcWeights.Length];
+                for (int i = 0; i < iterationCount; i++)
+                {
+                    int percentComplete = 0;
+                    double decoyMeanNew, decoyStdevNew;
+                    bool colinearWarningNew = colinearWarning;
+                    int truePeaksCountNew = im.CalculateWeights(documentPath,
+                        targetTransitionGroups,
+                        decoyTransitionGroups,
+                        includeSecondBest,
+                        i == 0, // Use non-parametric q values for first round, when normality assumption may not hold
+                        qValueCutoff,
+                        calcWeights,
+                        out decoyMeanNew,
+                        out decoyStdevNew,
+                        ref colinearWarningNew);
+
+                    if (progressMonitor != null)
+                    {
+                        if (progressMonitor.IsCanceled)
+                            throw new OperationCanceledException();
+
+                        // Calculate progress, but wait to make sure convergence has not occurred before setting it
+                        string formatText = qValueCutoff > 0.02
+                            ? Resources.MProphetPeakScoringModel_Train_Training_scoring_model__iteration__0__of__1__
+                            : Resources.MProphetPeakScoringModel_Train_Training_scoring_model__iteration__0__of__1_____2______peaks_at__3_0_____FDR_;
+                        percentComplete = (i + 1) * 100 / (iterationCount + 1);
+                        status = status.ChangeMessage(string.Format(formatText, i + 1, iterationCount, truePeaksCountNew, qValueCutoff))
+                            .ChangePercentComplete(percentComplete);
                     }
 
-                    // Iteratively refine the weights through multiple iterations.
-                    var calcWeights = new double[initParameters.Weights.Count];
-                    Array.Copy(initParameters.Weights.ToArray(), calcWeights, initParameters.Weights.Count);
-                    double decoyMean = 0;
-                    double decoyStdev = 0;
-                    bool colinearWarning = false;
-                    // This may take a long time between progress updates, but just measure progress by cycles through the training
-                    var status = new ProgressStatus(Resources.MProphetPeakScoringModel_Train_Training_peak_scoring_model);
+                    if (qValueCutoff > 0.02)
+                    {
+                        // Tighten the q value cut-off for "truth" to 2% FDR
+                        qValueCutoff = 0.02;
+                        // And allow the true peaks count to go down in the next iteration
+                        // Though it rarely will
+                        truePeaksCountNew = 0;
+                    }
+                    // Decided in 2018 that equal should be counted as converging, since otherwise training can just get stuck,
+                    // and go to full iteration count without progressing
+                    else if (truePeaksCountNew <= truePeaksCount)
+                    {
+                        // The model has leveled off enough to begin losing discriminant value
+                        if (qValueCutoff > 0.01)
+                        {
+                            // Tighten the q value cut-off for "truth" to 1% FDR
+                            qValueCutoff = 0.01;
+                            // And allow the true peaks count to go down in the next iteration
+                            truePeaksCountNew = 0;
+                        }
+                        else
+                        {
+                            if (progressMonitor != null)
+                            {
+                                progressMonitor.UpdateProgress(status =
+                                    status.ChangeMessage(string.Format(Resources.MProphetPeakScoringModel_Train_Scoring_model_converged__iteration__0_____1______peaks_at__2_0_____FDR_, i + 1, truePeaksCount, qValueCutoff))
+                                          .ChangePercentComplete(Math.Max(95, percentComplete)));
+                            }
+                            calcWeights = lastWeights;
+                            break;
+                        }
+                    }
+                    truePeaksCount = truePeaksCountNew;
+                    Array.Copy(calcWeights, lastWeights, calcWeights.Length);
+                    decoyMean = decoyMeanNew;
+                    decoyStdev = decoyStdevNew;
+                    colinearWarning = colinearWarningNew;
+
                     if (progressMonitor != null)
                         progressMonitor.UpdateProgress(status);
-                    for (int iteration = 0; iteration < MAX_ITERATIONS; iteration++)
-                    {
-                        if (progressMonitor != null)
-                        {
-                            if (progressMonitor.IsCanceled)
-                                throw new OperationCanceledException();
+                }
+                if (progressMonitor != null)
+                    progressMonitor.UpdateProgress(status.ChangePercentComplete(100));
 
-                            progressMonitor.UpdateProgress(status =
-                                status.ChangeMessage(string.Format(Resources.MProphetPeakScoringModel_Train_Training_peak_scoring_model__iteration__0__of__1__, iteration + 1, MAX_ITERATIONS))
-                                      .ChangePercentComplete((iteration + 1) * 100 / (MAX_ITERATIONS + 1)));
-                        }
-
-                        im.CalculateWeights(iteration, targetTransitionGroups, decoyTransitionGroups,
-                                            includeSecondBest, calcWeights, out decoyMean, out decoyStdev, ref colinearWarning);
-
-                        GC.Collect();   // Each loop generates a number of large objects. GC helps to keep private bytes under control
-                    }
-                    if (progressMonitor != null)
-                        progressMonitor.UpdateProgress(status.ChangePercentComplete(100));
-
-                    var parameters = new LinearModelParams(calcWeights);
-                    parameters = parameters.RescaleParameters(decoyMean, decoyStdev);
-                    im.Parameters = parameters;
-                    im.ColinearWarning = colinearWarning;
-                    im.UsesSecondBest = includeSecondBest;
-                    im.UsesDecoys = decoys.Count > 0;
-                });
+                var parameters = new LinearModelParams(calcWeights);
+                parameters = parameters.RescaleParameters(decoyMean, decoyStdev);
+                im.Parameters = parameters;
+                im.ColinearWarning = colinearWarning;
+                im.UsesSecondBest = includeSecondBest;
+                im.UsesDecoys = decoysIn.Count > 0;
+                im.Parameters = parameters.CalculatePercentContributions(im, targetDecoyGenerator);
+            });
         }
 
         private int GetEnabledCount(IPeakFeatureCalculator[] featureCalculators, IList<double> weights)
@@ -242,7 +340,7 @@ namespace pwiz.Skyline.Model.Results.Scoring
             {
                 var calculatorType = calculator.GetType();
                 int indexWeight = PeakFeatureCalculators.IndexOf(calc => calc.GetType() == calculatorType);
-                if (!double.IsNaN(weights[indexWeight]))
+                if (indexWeight != -1 && !double.IsNaN(weights[indexWeight]))
                     enabledCount++;
             }
             return enabledCount;
@@ -270,19 +368,22 @@ namespace pwiz.Skyline.Model.Results.Scoring
         /// Calculate new weight factors for one iteration of the refinement process.  This is the heart
         /// of the MProphet algorithm.
         /// </summary>
-        /// <param name="iteration">Iteration number (special processing happens for iteration 0).</param>
+        /// <param name="documentPath">The path to the current document for writing score distributions</param>
         /// <param name="targetTransitionGroups">Target transition groups.</param>
         /// <param name="decoyTransitionGroups">Decoy transition groups.</param>
         /// <param name="includeSecondBest">Include the second best peaks in the targets as additional decoys?</param>
+        /// <param name="nonParametricPValues">Non-parametric p values used in selecting true peaks if true</param>
+        /// <param name="qValueCutoff">The q value cut-off for true peaks in the training</param>
         /// <param name="weights">Array of weights per calculator.</param>
         /// <param name="decoyMean">Output mean of decoy transition groups.</param>
         /// <param name="decoyStdev">Output standard deviation of decoy transition groups.</param>
         /// <param name="colinearWarning">Set to true if colinearity was detected.</param>
-        private void CalculateWeights(
-            int iteration,
+        private int CalculateWeights(string documentPath,
             ScoredGroupPeaksSet targetTransitionGroups,
             ScoredGroupPeaksSet decoyTransitionGroups,
             bool includeSecondBest,
+            bool nonParametricPValues,
+            double qValueCutoff,
             double[] weights,
             out double decoyMean,
             out double decoyStdev,
@@ -296,16 +397,20 @@ namespace pwiz.Skyline.Model.Results.Scoring
                 {
                     decoyTransitionGroups.Add(secondBestGroup);
                 }
-                
             }
 
             // Select true target peaks using a q-value cutoff filter.
-            var qValueCutoff = (iteration == 0 ? 0.15 : 0.02);
-            var truePeaks = targetTransitionGroups.SelectTruePeaks(qValueCutoff, Lambda, decoyTransitionGroups);
+            var truePeaks = targetTransitionGroups.SelectTruePeaks(decoyTransitionGroups, qValueCutoff, Lambda, nonParametricPValues);
             var decoyPeaks = decoyTransitionGroups.SelectMaxPeaks();
 
-            // Omit first feature during first iteration, since it is used as the initial score value.
-            weights[0] = (iteration == 0) ? double.NaN : 0;
+            WriteDistributionInfo(documentPath, targetTransitionGroups, decoyTransitionGroups); // Only if asked to do so in command-line arguments
+
+            // Better to let a really poor model through for the user to see than to give an error message here
+            if (((double)truePeaks.Count)*10*1000 < decoyPeaks.Count) // Targets must be at least 0.01% of decoys (still rejects zero)
+                throw new InvalidDataException(string.Format(Resources.MProphetPeakScoringModel_CalculateWeights_Insufficient_target_peaks___0__with__1__decoys__detected_at__2___FDR_to_continue_training_, truePeaks.Count, decoyPeaks.Count, qValueCutoff*100));
+            if (((double)decoyPeaks.Count)*1000 < truePeaks.Count) // Decoys must be at least 0.1% of targets
+                throw new InvalidDataException(string.Format(Resources.MProphetPeakScoringModel_CalculateWeights_Insufficient_decoy_peaks___0__with__1__targets__to_continue_training_, decoyPeaks.Count, truePeaks.Count));
+
             var featureCount = weights.Count(w => !double.IsNaN(w));
 
             // Copy target and decoy peaks to training data array.
@@ -326,7 +431,7 @@ namespace pwiz.Skyline.Model.Results.Scoring
                 double proportionTrue = truePeaks.Count*1.0/totalTrainingPeaks;
                 int truePeakCount = (int) Math.Round(maxTrainingPeaks*proportionTrue);
                 int i = 0;
-                foreach (var peak in truePeaks.RandomOrder())
+                foreach (var peak in truePeaks.RandomOrder(ArrayUtil.RANDOM_SEED))
                 {
                     if (i < truePeakCount)
                         CopyToTrainData(peak.Features, trainData, weights, i, 1);
@@ -336,7 +441,7 @@ namespace pwiz.Skyline.Model.Results.Scoring
                 }
                 int decoyPeakCount = maxTrainingPeaks - truePeakCount;
                 i = 0;
-                foreach (var peak in decoyPeaks.RandomOrder())
+                foreach (var peak in decoyPeaks.RandomOrder(ArrayUtil.RANDOM_SEED))
                 {
                     if (i < decoyPeakCount)
                         CopyToTrainData(peak.Features, trainData, weights, i + truePeakCount, 0);
@@ -373,7 +478,7 @@ namespace pwiz.Skyline.Model.Results.Scoring
             // Recalculate all peak scores.
             targetTransitionGroups.ScorePeaks(weights);
             decoyTransitionGroups.ScorePeaks(weights);
-            
+
             // If the mean target score is less than the mean decoy score, then the
             // weights came out negative, and all the weights and scores must be negated to
             // restore the proper ordering.
@@ -387,8 +492,20 @@ namespace pwiz.Skyline.Model.Results.Scoring
 
             decoyMean = decoyTransitionGroups.Mean;
             decoyStdev = decoyTransitionGroups.Stdev;
+            return truePeaks.Count;
         }
 
+        private void WriteDistributionInfo(string documentPath, ScoredGroupPeaksSet targetTransitionGroups, ScoredGroupPeaksSet decoyTransitionGroups)
+        {
+            string documentDir = Path.GetDirectoryName(documentPath);
+            if (documentDir != null)
+            {
+                string distBase = Helpers.GetUniqueName(Path.Combine(documentDir, @"dist1"),
+                    value => !File.Exists(value + @"Targets.txt"));
+                targetTransitionGroups.WriteBest(distBase + @"Targets.txt");
+                decoyTransitionGroups.WriteBest(distBase + @"Decoys.txt");
+            }
+        }
 
         /// <summary>
         /// Copy peak features and category to training data array in preparation

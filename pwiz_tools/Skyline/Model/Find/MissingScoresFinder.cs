@@ -33,10 +33,10 @@ namespace pwiz.Skyline.Model.Find
         private readonly string _calculatorName;
         private readonly int _selectedCalculator;
         private bool _isLastNodeMatch;
-        private readonly Dictionary<KeyValuePair<int, int>, List<PeakTransitionGroupFeatures>> _featureDictionary;
+        private readonly Dictionary<PeakTransitionGroupIdKey, List<PeakTransitionGroupFeatures>> _featureDictionary;
 
         public MissingScoresFinder(string calculatorName, int selectedCalculator, 
-                                   Dictionary<KeyValuePair<int, int>, List<PeakTransitionGroupFeatures>> featureDictionary)
+                                   Dictionary<PeakTransitionGroupIdKey, List<PeakTransitionGroupFeatures>> featureDictionary)
         {
             _calculatorName = calculatorName;
             _selectedCalculator = selectedCalculator;
@@ -45,7 +45,7 @@ namespace pwiz.Skyline.Model.Find
 
         public override string Name
         {
-            get { return "missing_scores_finder"; } // Not L10N
+            get { return @"missing_scores_finder"; }
         }
 
         public override string DisplayName
@@ -75,12 +75,12 @@ namespace pwiz.Skyline.Model.Find
         {
             // The peptide node matches if its results are missing for all files
             return nodePep.HasResults &&
-                   nodePep.Results.All(chromInfoList => chromInfoList == null || chromInfoList.All(chromInfo => IsMatch(chromInfo, nodePep)));
+                   nodePep.Results.All(chromInfoList => chromInfoList.All(chromInfo => IsMatch(chromInfo, nodePep)));
         }
 
         private bool IsMatch(ChromInfo chromInfo, PeptideDocNode nodePep)
         {
-            var key = new KeyValuePair<int, int>(nodePep.Id.GlobalIndex, chromInfo.FileId.GlobalIndex);
+            var key = new PeakTransitionGroupIdKey(nodePep.Id.GlobalIndex, chromInfo.FileId.GlobalIndex);
             if (!_featureDictionary.ContainsKey(key))
                 return false;
             var listFeatures = _featureDictionary[key];

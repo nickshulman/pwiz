@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Original author: Brendan MacLean <brendanx .at. u.washington.edu>,
  *                  MacCoss Lab, Department of Genome Sciences, UW
  *
@@ -40,7 +40,7 @@ namespace pwiz.Skyline.Model
     /// the <see cref="Id"/> properties of the parents to aid in node lookup
     /// in the document tree.
     /// </summary>
-    public abstract class DocNode : Immutable
+    public abstract class DocNode : Immutable, IIdentiyContainer, IAuditLogObject
     {
         protected DocNode(Identity id)
             : this(id, Annotations.EMPTY)
@@ -60,8 +60,22 @@ namespace pwiz.Skyline.Model
         /// </summary>
         public Identity Id { get; private set; }
 
-        public Annotations Annotations { get; private set; }
+        private class DefaultValuesAnnotation : DefaultValues
+        {
 
+            protected override IEnumerable<object> _values
+            {
+                get
+                {
+                    yield return null;
+                    yield return Annotations.EMPTY;
+                }
+            }
+        }
+
+        [TrackChildren(ignoreName: true, defaultValues: typeof(DefaultValuesAnnotation))]
+        public Annotations Annotations { get; private set; }
+        
         public abstract AnnotationDef.AnnotationTarget AnnotationTarget { get; }
 
         /// <summary>
@@ -154,7 +168,7 @@ namespace pwiz.Skyline.Model
 
         #region object overrides
 
-        public bool Equals(DocNode obj)
+        protected bool Equals(DocNode obj)
         {
             if (ReferenceEquals(null, obj)) return false;
             if (ReferenceEquals(this, obj)) return true;
@@ -260,9 +274,6 @@ namespace pwiz.Skyline.Model
 
         private static bool StripAnnotationValues<TItem>(ICollection<string> annotationNamesToKeep, ref ChromInfoList<TItem> chromInfoList)
         {
-            if (chromInfoList == null)
-                return false;
-
             bool fResult = false;
             var newList = new List<TItem>();
             foreach (var chromInfo in chromInfoList)
@@ -312,6 +323,16 @@ namespace pwiz.Skyline.Model
             }
             return result;
         }
+
+        public virtual string AuditLogText
+        {
+            get { return null; }
+        }
+
+        public bool IsName
+        {
+            get { return true; }
+        }
     }
 
     /// <summary>
@@ -349,7 +370,8 @@ namespace pwiz.Skyline.Model
         protected DocNodeParent(Identity id, Annotations annotations, IList<DocNode> children, bool autoManageChildren) : base(id, annotations)
         {
             Children = children;
-            Children = OnChangingChildren(this);
+            // ReSharper disable once VirtualMemberCallInConstructor : Has always worked before
+            Children = OnChangingChildren(this, -1);
             _nodeCountStack = GetCounts(children);
             AutoManageChildren = autoManageChildren;
         }
@@ -383,8 +405,17 @@ namespace pwiz.Skyline.Model
             private set
             {
                 var ordered = OrderedChildren(value);
-                _children = ordered as DocNodeChildren ?? new DocNodeChildren(ordered);
+                _children = ordered as DocNodeChildren ?? new DocNodeChildren(ordered, _children);
             }
+        }
+
+        /// <summary>
+        /// This breaks immutability, but it is necessary in order to free child memory
+        /// during command-line processing to achieve maximum scale
+        /// </summary>
+        public void ReleaseChildren()
+        {
+            _children.ReleaseChildren();
         }
 
         /// <summary>
@@ -514,12 +545,7 @@ namespace pwiz.Skyline.Model
         /// <returns>The index of the child, or -1 if not found</returns>
         public int FindNodeIndex(Identity id)
         {
-            for (int i = 0; i < Children.Count; i++)
-            {
-                if (ReferenceEquals(id, Children[i].Id))
-                    return i;
-            }
-            return -1;
+            return _children.IndexOf(id);
         }
 
         /// <summary>
@@ -782,7 +808,7 @@ namespace pwiz.Skyline.Model
         public DocNodeParent InsertAll(Identity idBefore, IEnumerable<DocNode> childrenAdd, bool after)
         {
             if (Children == null)
-                throw new InvalidOperationException("Invalid operation InsertAll before children set."); // Not L10N
+                throw new InvalidOperationException(@"Invalid operation InsertAll before children set.");
 
             List<DocNode> childrenNew = new List<DocNode>(Children);
             List<int> nodeCountStack = new List<int>(_nodeCountStack);
@@ -952,28 +978,21 @@ namespace pwiz.Skyline.Model
         public DocNodeParent ReplaceChild(DocNode childReplace)
         {
             if (Children == null)
-                throw new InvalidOperationException("Invalid operation ReplaceChild before children set."); // Not L10N
+                throw new InvalidOperationException(@"Invalid operation ReplaceChild before children set.");
 
-            DocNode[] childrenNew = new DocNode[Children.Count];
-            List<int> nodeCountStack = new List<int>(_nodeCountStack);
-            int index = -1;
-            for (int i = 0; i < Children.Count; i++)
-            {
-                if (!childReplace.EqualsId(Children[i]))
-                    childrenNew[i] = Children[i];
-                else
-                {
-                    index = i;
-                    RemoveCounts(Children[i], nodeCountStack);
-                    childrenNew[i] = childReplace;
-                    AddCounts(childReplace, nodeCountStack);
-                }
-            }
+            int index = _children.IndexOf(childReplace.Id);
             // If nothing was replaced throw an exception to let the caller know.
             if (index == -1)
                 throw new IdentityNotFoundException(childReplace.Id);
 
-            return ChangeChildren(childrenNew, nodeCountStack);
+            var childrenNew = _children.ReplaceAt(index, childReplace);
+            IList<int> nodeCountStack = new List<int>(_nodeCountStack);
+            RemoveCounts(Children[index], nodeCountStack);
+            AddCounts(childReplace, nodeCountStack);
+            if (ArrayUtil.EqualsDeep(nodeCountStack, _nodeCountStack))
+                nodeCountStack = _nodeCountStack;
+
+            return ChangeChildren(childrenNew, nodeCountStack, index);
         }
 
         public DocNodeParent ReplaceChild(IdentityPath path, DocNode childReplace)
@@ -1014,7 +1033,7 @@ namespace pwiz.Skyline.Model
         public DocNodeParent RemoveChild(DocNode childRemove)
         {
             if (Children == null)
-                throw new InvalidOperationException("Invalid operation RemoveChild before children set.");  // Not L10N
+                throw new InvalidOperationException(@"Invalid operation RemoveChild before children set.");
 
             List<DocNode> childrenNew = new List<DocNode>();
             List<int> nodeCountStack = new List<int>(_nodeCountStack);
@@ -1047,10 +1066,12 @@ namespace pwiz.Skyline.Model
         /// from the tree.
         /// </summary>
         /// <param name="descendentsRemoveIds">Collection of the <see cref="Identity.GlobalIndex"/> values for the descendents to remove</param>
+        /// <param name="level">Optional level below which not to descend</param>
+        /// <param name="levelRemoveEmpty">Optional level to which empty nodes are removed</param>
         /// <returns>A node with the desendents removed</returns>
-        public DocNodeParent RemoveAll(ICollection<int> descendentsRemoveIds)
+        public DocNodeParent RemoveAll(ICollection<int> descendentsRemoveIds, int? level = null, int? levelRemoveEmpty = null)
         {
-            if (Children == null)
+            if (Children == null || (level.HasValue && level.Value < 0))
                 return this;
 
             List<DocNode> childrenNew = new List<DocNode>();
@@ -1065,7 +1086,10 @@ namespace pwiz.Skyline.Model
                 var childNew = child;
                 var docNodeParent = child as DocNodeParent;
                 if (docNodeParent != null)
-                    childNew = docNodeParent.RemoveAll(descendentsRemoveIds);
+                    childNew = docNodeParent.RemoveAll(descendentsRemoveIds, level-1, levelRemoveEmpty-1);
+                if (childNew == null)
+                    continue;
+
                 childrenNew.Add(childNew);
                 AddCounts(childNew, nodeCountStack);
             }
@@ -1074,17 +1098,74 @@ namespace pwiz.Skyline.Model
             if (ArrayUtil.ReferencesEqual(Children, childrenNew))
                 return this;
 
+            // If this is a level below which empty nodes are removed, return null if empty
+            if (levelRemoveEmpty.HasValue && levelRemoveEmpty.Value < 0 && childrenNew.Count == 0)
+                return null;
+
             return ChangeChildren(childrenNew, nodeCountStack).ChangeAutoManageChildren(false);
         }
 
-        public DocNodeParent RemoveAll(IdentityPath path, ICollection<DocNode> descendentsRemove)
+        public DocNodeParent RemoveAll(IdentityPath path, ICollection<int> descendentsRemove)
         {
             return RemoveAll(this, new IdentityPathTraversal(path), descendentsRemove);
         }
 
-        private static DocNodeParent RemoveAll(DocNodeParent parent, IdentityPathTraversal traversal, ICollection<DocNode> descendentsRemove)
+        private static DocNodeParent RemoveAll(DocNodeParent parent, IdentityPathTraversal traversal, ICollection<int> descendentsRemove)
         {
-            return traversal.Traverse(parent, descendentsRemove, AddAll, parent.AddAll);
+            return traversal.Traverse(parent, descendentsRemove, RemoveAll, ids => parent.RemoveAll(ids));
+        }
+
+        private class SynchedRemoveInfo
+        {
+            public SynchedRemoveInfo(Identity childId, ICollection<int> descendentsRemove)
+            {
+                ChildId = childId;
+                DescendentsRemove = descendentsRemove;
+            }
+
+            public Identity ChildId { get; private set; }
+            public ICollection<int> DescendentsRemove { get; private set; }
+        }
+
+        public DocNodeParent RemoveAllSynched(IdentityPath path, Identity childId, ICollection<int> descendentsRemove)
+        {
+            return RemoveAllSynched(this, new IdentityPathTraversal(path), new SynchedRemoveInfo(childId, descendentsRemove));
+        }
+
+        private static DocNodeParent RemoveAllSynched(DocNodeParent parent, IdentityPathTraversal traversal, SynchedRemoveInfo removeInfo)
+        {
+            return traversal.Traverse(parent, removeInfo, RemoveAllSynched, parent.RemoveAllSynched);
+        }
+
+        private DocNodeParent RemoveAllSynched(SynchedRemoveInfo removeInfo)
+        {
+            var childChanged = (DocNodeParent)FindNode(removeInfo.ChildId);
+            if (childChanged == null)
+                throw new IdentityNotFoundException(removeInfo.ChildId);
+            var childNew = childChanged.RemoveAll(removeInfo.DescendentsRemove);
+            // If no children removed, then return this parent node unchanged
+            if (childChanged.Children.Count == childNew.Children.Count)
+                return this;
+
+            List<DocNode> childrenNew = new List<DocNode>();
+            foreach (DocNodeParent child in Children)
+            {
+                if (ReferenceEquals(child, childChanged))
+                    childrenNew.Add(childNew);
+                else
+                    childrenNew.Add(child.SynchRemovals(childChanged, childNew));
+            }
+
+            return ChangeChildren(childrenNew);
+        }
+
+        /// <summary>
+        /// Called to synchronize removed children of a node with one of its siblings.  By
+        /// default, no action is taken.
+        /// </summary>
+        protected virtual DocNodeParent SynchRemovals(DocNodeParent siblingBefore, DocNodeParent siblingAfter)
+        {
+            return this;
         }
 
         /// <summary>
@@ -1177,15 +1258,17 @@ namespace pwiz.Skyline.Model
         /// </summary>
         /// <param name="children">An altered list of children</param>
         /// <param name="counts">An altered child list stack that correctly counts the new children</param>
+        /// <param name="indexReplaced">Index to a single replaced node, if that is why the children are changing</param>
         /// <returns>A new parent node</returns>
-        private DocNodeParent ChangeChildren(IList<DocNode> children, IList<int> counts)
+        private DocNodeParent ChangeChildren(IList<DocNode> children, IList<int> counts, int indexReplaced = -1)
         {
             DocNodeParent clone = ChangeProp(ImClone(this), im => im.Children = children);
             clone._nodeCountStack = counts;
             if (!_ignoreChildrenChanging)
             {
-                var childrenNew = OnChangingChildren(clone);
-                if (!ArrayUtil.ReferencesEqual(childrenNew, clone.Children))
+                var childrenNew = OnChangingChildren(clone, indexReplaced);
+                // Checking reference equality of the entire list can be a lot quicker than enumerating all elements
+                if (!ReferenceEquals(childrenNew, clone.Children) && !ArrayUtil.ReferencesEqual(childrenNew, clone.Children))
                     clone.Children = childrenNew;
             }
             return clone;
@@ -1197,7 +1280,8 @@ namespace pwiz.Skyline.Model
         /// </summary>
         /// <param name="clone">A copy of this instance created with <see cref="object.MemberwiseClone"/>
         /// with its new children assigned</param>
-        protected virtual IList<DocNode> OnChangingChildren(DocNodeParent clone)
+        /// <param name="indexReplaced">Index to a single replaced node, if that is why the children are changing</param>
+        protected virtual IList<DocNode> OnChangingChildren(DocNodeParent clone, int indexReplaced)
         {            
             // Default does nothing.
             return clone.Children;

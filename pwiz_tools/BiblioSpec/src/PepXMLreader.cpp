@@ -25,11 +25,11 @@
 
 #include "PepXMLreader.h"
 #include "BlibMaker.h"
+#include "mzxmlParser.h"
 #include <algorithm>
 #include <boost/algorithm/string.hpp>
 #include <cmath>
 
-using namespace std;
 namespace bal = boost::algorithm;
 
 namespace BiblioSpec {
@@ -117,7 +117,8 @@ void PepXMLreader::startElement(const XML_Char* name, const XML_Char** attr)
            analysisType_ == PROTEOME_DISCOVERER_ANALYSIS) {
            string search_engine = getAttrValue("search_engine", attr);
            std::transform(search_engine.begin(), search_engine.end(), search_engine.begin(), ::tolower);
-           if(search_engine.find("spectrum mill") == 0) {
+           bal::replace_all(search_engine, " ", ""); // remove spaces
+           if(search_engine.find("spectrummill") == 0) {
                Verbosity::comment(V_DEBUG, "Pepxml file is from Spectrum Mill.");
                analysisType_ = SPECTRUM_MILL_ANALYSIS;
                scoreType_ = SPECTRUM_MILL;
@@ -130,7 +131,7 @@ void PepXMLreader::startElement(const XML_Char* name, const XML_Char** attr)
                analysisType_ = OMSSA_ANALYSIS;
                scoreType_ = OMSSA_EXPECTATION_SCORE;
                probCutOff = getScoreThreshold(OMSSA);
-           } else if(search_engine.find("protein prospector search compare") == 0) {
+           } else if(search_engine.find("proteinprospector") != string::npos) {
                Verbosity::comment(V_DEBUG, "Pepxml file is from Protein Prospector.");
                analysisType_ = PROTEIN_PROSPECTOR_ANALYSIS;
                scoreType_ = PROTEIN_PROSPECTOR_EXPECT;
@@ -151,7 +152,7 @@ void PepXMLreader::startElement(const XML_Char* name, const XML_Char** attr)
 
                lookUpBy_ = NAME_ID;
                specReader_->setIdType(NAME_ID);
-           } else if (search_engine.find("peaks db") == 0) {
+           } else if (search_engine.find("peaksdb") == 0) {
                Verbosity::comment(V_DEBUG, "Pepxml file is from PEAKS");
                analysisType_ = PEAKS_ANALYSIS;
                scoreType_ = PEAKS_CONFIDENCE_SCORE;
@@ -166,12 +167,15 @@ void PepXMLreader::startElement(const XML_Char* name, const XML_Char** attr)
                Verbosity::comment(V_DEBUG, "Pepxml file is from Mascot Proteome Discoverer.");
                scoreType_ = MASCOT_IONS_SCORE;
                probCutOff = getScoreThreshold(MASCOT);
-           } else if(search_engine.find("x! tandem") == 0 &&
+           } else if(search_engine.find("x!tandem") == 0 &&
                      analysisType_ != PEPTIDE_PROPHET_ANALYSIS) {
                Verbosity::comment(V_DEBUG, "Pepxml file is from X! Tandem.");
                analysisType_ = XTANDEM_ANALYSIS;
                scoreType_ = TANDEM_EXPECTATION_VALUE;
                probCutOff = getScoreThreshold(TANDEM);
+           } else if(search_engine.find("crux") == 0) {
+               Verbosity::comment(V_DEBUG, "Pepxml file is from Crux.");
+               analysisType_ = CRUX_ANALYSIS;
            }// else assume peptide prophet or inter prophet 
 
            if (analysisType_ == PROTEOME_DISCOVERER_ANALYSIS &&
@@ -180,18 +184,11 @@ void PepXMLreader::startElement(const XML_Char* name, const XML_Char** attr)
                throw BlibException(false, "The .pep.xml file appears to be from "
                                 "Proteome Discoverer but not from one of the supported "
                                 "search engines (SEQUEST, Mascot).");
-
            }
-
        }
-       
-       if (boost::iequals("average", getAttrValue("fragment_mass_type", attr)))
-           massType = 0;
-       else
-           massType = 1;
-       
-       AminoAcidMasses::initializeMass(aminoacidmass, massType);
 
+       massType = (boost::iequals("average", getAttrValue("fragment_mass_type", attr))) ? 0 : 1;       
+       AminoAcidMasses::initializeMass(aminoacidmass, massType);
    } else if(isElement("spectrum_query", name)) {
        // is it better to do this at the start of the element or the end?
        scanIndex=-1;
@@ -274,8 +271,16 @@ void PepXMLreader::startElement(const XML_Char* name, const XML_Char** attr)
                                "%i which is beyond its length (%i).", 
                                pepSeq, modPosition-1, strlen(pepSeq));
        }
-       
-       curmod.deltaMass = modMass - aminoacidmass[(int)pepSeq[modPosition-1]];
+       char aa = pepSeq[modPosition - 1];
+       curmod.deltaMass = modMass - aminoacidmass[(int)aa];
+       // If this modification mass was already specified earlier in the file, use that mass.
+       map<char, map<double, double> >::iterator itAaModMasses = aminoAcidModificationMasses.find(aa);
+       if (itAaModMasses != aminoAcidModificationMasses.end()) {
+           map<double, double>::iterator itMass = itAaModMasses->second.find(modMass);
+           if (itMass != itAaModMasses->second.end()) {
+               curmod.deltaMass = itMass->second;
+           }
+       }
 
        mods.push_back(curmod);
    } else if((analysisType_ == PEPTIDE_PROPHET_ANALYSIS && isElement("peptideprophet_result", name)) ||
@@ -286,18 +291,30 @@ void PepXMLreader::startElement(const XML_Char* name, const XML_Char** attr)
        bal::to_lower(score_name);
 
        if (score_name == "expect" ||
+           (analysisType_ == SPECTRUM_MILL_ANALYSIS && score_name == "smscore") ||
            (analysisType_ == PROTEOME_DISCOVERER_ANALYSIS && scoreType_ == SEQUEST_XCORR && score_name == "q-value") ||
            (analysisType_ == PROTEOME_DISCOVERER_ANALYSIS && scoreType_ == MASCOT_IONS_SCORE && score_name == "exp-value") ||
            (analysisType_ == MORPHEUS_ANALYSIS && score_name == "psm q-value") ||
-           (analysisType_ == MSGF_ANALYSIS && score_name == "qvalue")) {
+           (analysisType_ == MSGF_ANALYSIS && score_name == "qvalue") ||
+           (analysisType_ == CRUX_ANALYSIS && score_name == "percolator_qvalue")) {
            pepProb = getDoubleRequiredAttrValue("value", attr);
-       } else if (analysisType_ == PEAKS_ANALYSIS && score_name == "-10lgP") {
+       } else if (analysisType_ == PEAKS_ANALYSIS && score_name == "-10lgp") {
            pepProb = getDoubleRequiredAttrValue("value", attr);
            // Reverse -10 log p transform
            pepProb = pow(10, pepProb / -10.0);
        }
+   } else if (isElement("aminoacid_modification", name)) {
+        const char* strAminoAcid = getAttrValue("aminoacid", attr);
+        const char* strMassDiff = getAttrValue("massdiff", attr);
+        const char* strMass = getAttrValue("mass", attr);
+        if (strlen(strAminoAcid) == 1) {
+            double massDiff = atof(strMassDiff);
+            double mass = atof(strMass);
+            if (massDiff != 0 && mass != 0) {
+                aminoAcidModificationMasses[strAminoAcid[0]][mass] = massDiff;
+            }
+        }
    }
-   // no score for spectrum mill
    // mascot score is ??
 }
 
@@ -320,7 +337,7 @@ void PepXMLreader::endElement(const XML_Char* name)
         // if we are using pep.xml from Spectrum mill, we still don't have
         // scan numbers/indexes, here's a hack to get them
         if( analysisType_ == SPECTRUM_MILL_ANALYSIS ) {
-            findScanIndexFromName();
+            findScanIndexFromName(precursorMap_);
         }
         // file progress will be incremented in buildTables
         // if we are counting bytes instead of number of spec files
@@ -332,8 +349,28 @@ void PepXMLreader::endElement(const XML_Char* name)
             setNextProgressSize(progress);
         }
 
+        string specFile = getSpecFileName();
+        std::transform(specFile.begin(), specFile.end(), specFile.begin(), ::tolower);
+        SpecFileReader* originalReader = NULL;
+        if ((lookUpBy_ == SCAN_NUM_ID || lookUpBy_ == INDEX_ID) &&
+            specFile.length() >= 6 && specFile.compare(specFile.length() - 6, 6, ".mzxml") == 0) {
+            originalReader = specReader_;
+            specReader_ = new MzXMLParser();
+            switch (lookUpBy_) {
+            case SCAN_NUM_ID:
+                std::sort(psms_.begin(), psms_.end(), PSMSpecKeySorter());
+                break;
+            case INDEX_ID:
+                std::sort(psms_.begin(), psms_.end(), PSMSpecIndexSorter());
+                break;
+            }
+        }
         buildTables(scoreType_);
-        
+        if (originalReader) {
+            delete specReader_;
+            specReader_ = originalReader;
+        }
+
         // reset values for next
         mzXMLFile[0]='\0';
         massType = 1;
@@ -349,6 +386,8 @@ void PepXMLreader::endElement(const XML_Char* name)
         // mascot has spectra with no peptides, but could report warning if spectrum mill or peptide prophet don't have a peptide sequence
         if( scorePasses(pepProb) && (int)strlen(pepSeq) > 0) {
             curPSM_ = new PSM();
+            
+            
             curPSM_->charge = charge;
             curPSM_->unmodSeq = pepSeq;
             if (scanIndex >= 0) {
@@ -363,7 +402,10 @@ void PepXMLreader::endElement(const XML_Char* name)
                                "score %.2f, seq %s, name %s.",
                                scanNumber, charge, pepProb, pepSeq,
                                spectrumName.c_str());
-             psms_.push_back(curPSM_);
+            psms_.push_back(curPSM_);
+            if (analysisType_ == SPECTRUM_MILL_ANALYSIS) {
+                precursorMap_[curPSM_] = precursorMZ;
+            }
             curPSM_ = NULL;
         }
 
@@ -416,7 +458,8 @@ bool PepXMLreader::scorePasses(double score){
     case MORPHEUS_ANALYSIS:
     case MSGF_ANALYSIS:
     case PEAKS_ANALYSIS:
-        if(score < probCutOff){
+    case CRUX_ANALYSIS:
+        if(score <= probCutOff){
             return true;
         }
         break;

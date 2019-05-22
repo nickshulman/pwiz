@@ -32,106 +32,15 @@
 #include "pwiz/utility/chemistry/Ion.hpp"
 
 #ifdef USE_WATERS_READER
-#include "pwiz_aux/msrc/utility/vendor_api/Waters/MassLynxRaw.hpp"
+#include "pwiz_aux/msrc/utility/vendor_api/Waters/WatersRawFile.hpp"
 using namespace pwiz::vendor_api::Waters;
 #endif
 
-using namespace std;
 
 namespace BiblioSpec {
 
-const char* WatersMseReader::modNames_[] = {
-    "Acetyl",
-    "Amidation",
-    "Biotin",
-    "Carbamidomethyl",
-    "Carbamyl",
-    "Carboxymethyl",
-    "Deamidation",
-    "Dehydration",
-    "Farnesyl",
-    "Flavin-adenine",
-    "Formyl",
-    "Gamma-carboxyglutamic",
-    "Geranyl-geranyl",
-    "Glycation",
-    "Hydroxyl",
-    "Lipoyl",
-    "Methyl",
-    "Myristoyl",
-    "NIPCAM",
-    "O-GlcNAc",
-    "Oxidation",
-    "Palmitoyl",
-    "Phosphopantetheine",
-    "Phosphoryl",
-    "Propionamide",
-    "Pyridoxal",
-    "Pyrrolidone",
-    "S-pyridylethyl",
-    "SMA",
-    "1H",
-    "2H",
-    "12C",
-    "13C",
-    "Isobaric 114",
-    "Isobaric 115",
-    "Isobaric 116",
-    "Isobaric 117",
-    "O18",
-    "13C",
-    "13C N15",
-    "N-Glycosylation",
-    "O-Glycosylation"
-};
 // placeholder value for glycosylation
 const double GLYCOL_MASS = numeric_limits<double>::max();
-double WatersMseReader::modMasses_[] = {
-    42.010565,
-    -0.984016,
-    226.077598,
-    57.021464,
-    43.005814,
-    58.005479,
-    0.984016,
-    -18.010565,
-    204.187801,
-    783.141486,
-    27.994915,
-    43.98980,
-    272.250401 ,
-    162.052824,
-    15.994915,
-    188.032956,
-    14.015650,
-    210.198366,
-    99.068414,
-    203.0794,
-    15.994915,
-    238.229666,
-    340.085794,
-    79.966331,
-    71.037114,
-    229.014009,
-    -17.0265,
-    105.057849,
-    127.063329,
-    442.225,
-    450.2752,
-    227.1270,
-    236.1572,
-    144.105863,
-    144.059563,
-    144.102063,
-    144.102063,
-    4.008491,
-    6.020129,
-    10.008269,
-    GLYCOL_MASS,
-    GLYCOL_MASS
-};
-int WatersMseReader::numModNames_ = sizeof(modNames_) / sizeof(char*);
-
 
 WatersMseReader::WatersMseReader(BlibBuilder& maker,
                                  const char* csvname,
@@ -144,6 +53,95 @@ WatersMseReader::WatersMseReader(BlibBuilder& maker,
     
     setSpecFileName(csvname, // this is for BuildParser
                     false);  // don't look for the file
+
+
+    mods_["12C d0"] = 227.1270;
+    mods_["13C"] = 6.020129;
+    mods_["13C N15"] = 10.008269;
+    mods_["13C d9"] = 236.1572;
+    mods_["1H d0"] = 442.2250;
+    mods_["2H d8"] = 450.2752;
+    mods_["Acetyl"] = 42.010565;
+    mods_["Amidation"] = -0.984016;
+    mods_["Biotin"] = 226.077598;
+    mods_["C-Mannosyl"] = 162.0538;
+    mods_["Carbamidomethyl"] = 57.021464;
+    mods_["Carbamyl"] = 43.005814;
+    mods_["Carboxymethyl"] = 58.005479;
+    mods_["Deamidation"] = 0.984016;
+    mods_["Dehydration"] = -18.010565;
+    mods_["Dimethyl"] = 28.0313;
+    mods_["DUPLEX_TANDEM_MASS_TAG126"] = 225.15584;
+    mods_["DUPLEX_TANDEM_MASS_TAG127"] = 225.15584;
+    mods_["Farnesyl"] = 204.187801;
+    mods_["Flavin-adenine"] = 783.141486;
+    mods_["Formyl"] = 27.994915;
+    mods_["Gamma-carboxyglutamic"] = 43.98980;
+    mods_["Geranyl-geranyl"] = 272.250401;
+    mods_["Glycation"] = 162.052824;
+    mods_["Hydroxyl"] = 15.994915;
+    mods_["ICAT-C"] = 227.12698;
+    mods_["ICAT-C13C(9)"] = 236.1518;
+    mods_["ICAT-D"] = 442.2250;
+    mods_["ICAT-D 2H(8)"] = 450.2752;
+    mods_["ICAT-G"] = 486.25122;
+    mods_["ICAT-G 2H(8)"] = 494.30142;
+    mods_["ICAT-H"] = 345.0979;
+    mods_["ICAT-H13(6)"] = 351.11804;
+    mods_["Isobaric 8plex 113"] = 304.2117;
+    mods_["Isobaric 8plex 114"] = 304.2117;
+    mods_["Isobaric 8plex 115"] = 304.2117;
+    mods_["Isobaric 8plex 116"] = 304.2117;
+    mods_["Isobaric 8plex 117"] = 304.2117;
+    mods_["Isobaric 8plex 118"] = 304.2117;
+    mods_["Isobaric 8plex 119"] = 304.2117;
+    mods_["Isobaric 8plex 121"] = 304.2117;
+    mods_["Isobaric 114"] = 144.105863;
+    mods_["Isobaric 115"] = 144.059563;
+    mods_["Isobaric 116"] = 144.102063;
+    mods_["Isobaric 117"] = 144.102063;
+    mods_["Lipoyl"] = 188.032956;
+    mods_["Methyl"] = 14.015650;
+    mods_["Myristoyl"] = 210.198366;
+    mods_["N-Glycosylation"] = GLYCOL_MASS;
+    mods_["NATIVE_TANDEM_MASS_TAG126"] = 224.15248;
+    mods_["NATIVE_TANDEM_MASS_TAG127"] = 224.15248;
+    mods_["NIPCAM"] = 99.068414;
+    mods_["O18"] = 4.008491;
+    mods_["O18 label at both C-terminal oxygens"] = 4.008491;
+    mods_["O-GlcNAc"] = 203.0794;
+    mods_["O-Glycosylation"] = GLYCOL_MASS;
+    mods_["Oxidation"] = 15.994915;
+    mods_["Palmitoyl"] = 238.229666;
+    mods_["Phosphopantetheine"] = 340.085794;
+    mods_["Phosphoryl"] = 79.966331;
+    mods_["Propionamide"] = 71.037114;
+    mods_["Pyridoxal"] = 229.014009;
+    mods_["Pyrrolidone"] = -17.0265;
+    mods_["S-pyridylethyl"] = 105.057849;
+    mods_["SILAC 13C(1) 2H3"] = 4.022185;
+    mods_["SILAC 13C(3)"] = 3.010064;
+    mods_["SILAC 13C(3) 15N(1)"] = 3.98814;
+    mods_["SILAC 13C(4) 15N(1)"] = 5.010454;
+    mods_["SILAC 13C(5)"] = 5.016774;
+    mods_["SILAC 13C(6)"] = 6.020129;
+    mods_["SILAC 13C(6) 15N(2)"] = 8.014199;
+    mods_["SILAC 13C(6) 15N(4)"] = 10.008269;
+    mods_["SILAC 13C(8) 15N(2)"] = 10.020909;
+    mods_["SILAC 13C(9)"] = 9.030193;
+    mods_["SILAC 13C(9) 15N(1)"] = 10.027228;
+    mods_["SILAC 15N(2) 2H(9)"] = 11.050561;
+    mods_["SILAC 15N(4)"] = 3.98814;
+    mods_["SIXPLEX_TANDEM_MASS_TAG126"] = 229.16293;
+    mods_["SIXPLEX_TANDEM_MASS_TAG127"] = 229.16293;
+    mods_["SIXPLEX_TANDEM_MASS_TAG128"] = 229.16293;
+    mods_["SIXPLEX_TANDEM_MASS_TAG129"] = 229.16293;
+    mods_["SIXPLEX_TANDEM_MASS_TAG130"] = 229.16293;
+    mods_["SIXPLEX_TANDEM_MASS_TAG131"] = 229.16293;
+    mods_["SIXPLEX_TANDEM_MASS_TAG131"] = 229.16293;
+    mods_["SMA"] = 127.063329;
+    mods_["Sulfo"] = 79.9568;
+    mods_["Trimethyl"] = 42.04695;
 
     if (maker.getPusherInterval() > 0)
     {
@@ -166,10 +164,9 @@ WatersMseReader::WatersMseReader(BlibBuilder& maker,
                 const vector<int>& functions = rawData->FunctionIndexList();
                 if (!functions.empty()) {
                     int function = functions.front();
-                    const RawData::ExtendedScanStatsByName& extendedScanStatsByName = rawData->GetExtendedScanStats(function);
-                    RawData::ExtendedScanStatsByName::const_iterator transportRfItr = extendedScanStatsByName.find("Transport RF");
-                    if (transportRfItr != extendedScanStatsByName.end()) {
-                        double transportRf = boost::any_cast<short>(transportRfItr->second[0]);
+                    string transportRfStr = rawData->GetScanStat(function, 0, MassLynxScanItem::TRANSPORT_RF);
+                    if (!transportRfStr.empty()) {
+                        double transportRf = lexical_cast<double>(transportRfStr);
                         pusherInterval_ = 1000 / transportRf;
                         Verbosity::debug("Pusher interval is %f.", pusherInterval_);
                     }
@@ -608,54 +605,40 @@ void WatersMseReader::insertCurPSM(){
  */
 void WatersMseReader::parseModString(LineEntry& entry, 
                                      MsePSM* psm){
-    string& modStr = entry.modification;
-    if( modStr.empty() || boost::iequals(modStr, "None")){
-        return;
-    }
-
-    Verbosity::debug("Parsing mod string '%s'.", modStr.c_str());
-    
-    size_t startParsing = 0;
-    
-    while(startParsing != string::npos){
-        SeqMod mod;
-        // search for name and get corresponding mass
-        for(int i=0; i < numModNames_; i++){
-            const char* name = modNames_[i];
-            if( modStr.compare(startParsing, strlen(name), name) == 0 ){
-                mod.deltaMass = modMasses_[i];
+    vector<string> mods;
+    boost::split(mods, entry.modification, boost::is_any_of(";"));
+    for (vector<string>::iterator i = mods.begin(); i != mods.end(); i++) {
+        boost::trim(*i);
+        if (i->empty() || boost::iequals(*i, "None")) {
+            continue;
+        }
+        // CONSIDER: strip position from mod name and do a proper map::find() or lower_bound()
+        map<string, double>::const_reverse_iterator j;
+        for (j = mods_.rbegin(); j != mods_.rend(); ++j) {
+            if (boost::algorithm::istarts_with(*i, j->first))
                 break;
-            }
         }
-        if( mod.deltaMass == 0 ){
-            throw BlibException(false, "The modification '%s' on line %d "
-                                "is not recognized.", modStr.c_str(), lineNum_);
+        if (j == mods_.rend()) {
+            throw BlibException(false, "The modification '%s' on line %d is not recognized.",
+                                i->c_str(), lineNum_);
         }
-        
-        if( mod.deltaMass == GLYCOL_MASS ){
-            mod.deltaMass = entry.precursorMass - entry.minMass;
-        }
-        
         // find the position in the sequence
-        size_t openBrace = modStr.find("(", startParsing);
-        mod.position = atoi(modStr.c_str() + openBrace +1);
+        size_t openBrace = i->rfind('(');
+        int position = atoi(i->c_str() + openBrace + 1);
         
         // check that there was a valid position
-        if( mod.position == 0 ){
+        if (position == 0) {
             psm->valid = false;
             psm->mods.clear();
             return;
         } else {
+            SeqMod mod(position, j->second);
+            if (mod.deltaMass == GLYCOL_MASS) {
+                mod.deltaMass = entry.precursorMass - entry.minMass;
+            }
             psm->mods.push_back(mod);
         }
-        
-        startParsing = modStr.find(';', startParsing);
-        // move past the ;
-        if( startParsing != string::npos ){
-            startParsing++;
-        }
-    } // next mod in string
-    return;
+    }
 }
 
 void WatersMseReader::openFile(const char*, bool){}
@@ -672,7 +655,8 @@ bool WatersMseReader::getSpectrum(PSM* psm,
 
     returnData.id = ((MsePSM*)psm)->specKey;
     returnData.ionMobility = ((MsePSM*)psm)->precursorIonMobility;
-    returnData.ionMobilityType = (returnData.ionMobility > 0) ? 1 : 0;
+    returnData.ionMobilityType = IONMOBILITY_DRIFTTIME_MSEC;
+    returnData.ccs = 0;
     returnData.retentionTime = ((MsePSM*)psm)->retentionTime;
     returnData.mz = ((MsePSM*)psm)->mz;
     returnData.numPeaks = ((MsePSM*)psm)->mzs.size();

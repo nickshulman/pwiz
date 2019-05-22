@@ -223,7 +223,15 @@ namespace pwiz.SkylineTestFunctional
                 VerifyScores(editDlg, true, RT_TYPES);
                 VerifyScores(editDlg, false, ANALYTE_TYPES);
                 VerifyScores(editDlg, true, STANDARD_TYPES);
-                VerifyScores(editDlg, false, REFERENCE_TYPES);
+                VerifyScores(editDlg, true, new[]
+                {
+                    typeof(MQuestWeightedReferenceCoElutionCalc)
+                });
+                VerifyScores(editDlg, false, new[]
+                {
+                    typeof(MQuestWeightedReferenceShapeCalc),
+                    typeof(MQuestReferenceCorrelationCalc)
+                });
                 VerifyScores(editDlg, false, MS1_TYPES);
                 var analyteHistograms = ANALYTE_TYPES.Select(type => GetHistogramForScore(editDlg, type)).ToArray();
                 standardLightHistogramsOnly = STANDARD_TYPES.Select(type => GetHistogramForScore(editDlg, type)).ToArray();
@@ -286,38 +294,51 @@ namespace pwiz.SkylineTestFunctional
 
         public void RemoveImportedResults()
         {
-            var manageResults = ShowDialog<ManageResultsDlg>(SkylineWindow.ManageResults);
-            RunUI(manageResults.RemoveAllReplicates);
-            OkDialog(manageResults, manageResults.OkDialog);
+            using (new WaitDocumentChange())
+            {
+                var manageResults = ShowDialog<ManageResultsDlg>(SkylineWindow.ManageResults);
+                RunUI(manageResults.RemoveAllReplicates);
+                OkDialog(manageResults, manageResults.OkDialog);
+            }
             RunUI(() => SkylineWindow.SaveDocument());
         }
 
         public void SetStandardType(string standardType)
         {
-            var peptideSettingsDlg = ShowDialog<PeptideSettingsUI>(SkylineWindow.ShowPeptideSettingsUI);
-            RunUI(() => peptideSettingsDlg.SelectedInternalStandardTypeName = standardType);
-            OkDialog(peptideSettingsDlg, peptideSettingsDlg.OkDialog);
+            var currentTypes = SkylineWindow.Document.Settings.PeptideSettings.Modifications.InternalStandardTypes;
+            if (currentTypes.Count == 1 && Equals(standardType, currentTypes.First().ToString()))
+                return;
+
+            using (new WaitDocumentChange())
+            {
+                var peptideSettingsDlg = ShowDialog<PeptideSettingsUI>(SkylineWindow.ShowPeptideSettingsUI);
+                RunUI(() => peptideSettingsDlg.SelectedInternalStandardTypeName = standardType);
+                OkDialog(peptideSettingsDlg, peptideSettingsDlg.OkDialog);
+            }
         }
 
         protected void ImportFiles()
         {
             ImportFile(TestFilesDir.GetTestPath("olgas_S130501_009_StC-DosR_B4.wiff"));
             ImportFile(TestFilesDir.GetTestPath("olgas_S130501_010_StC-DosR_C4.wiff"));
-            WaitForCondition(2 * 60 * 1000, () => SkylineWindow.Document.IsLoaded);    // 2 minutes
+            WaitForDocumentLoaded(2*60*1000);     // 2 minutes
         }
 
         protected void ImportFile(string fileName)
         {
-            var importResultsDlg = ShowDialog<ImportResultsDlg>(SkylineWindow.ImportResults);
-            RunUI(() =>
+            using (new WaitDocumentChange())
             {
-                importResultsDlg.RadioAddNewChecked = true;
-                var path = new KeyValuePair<string, MsDataFileUri[]>[1];
-                path[0] = new KeyValuePair<string, MsDataFileUri[]>(Path.GetFileNameWithoutExtension(fileName),
-                                            new[] { MsDataFileUri.Parse(fileName) });
-                importResultsDlg.NamedPathSets = path;
-            });
-            OkDialog(importResultsDlg, importResultsDlg.OkDialog);
+                var importResultsDlg = ShowDialog<ImportResultsDlg>(SkylineWindow.ImportResults);
+                RunUI(() =>
+                {
+                    importResultsDlg.RadioAddNewChecked = true;
+                    var path = new KeyValuePair<string, MsDataFileUri[]>[1];
+                    path[0] = new KeyValuePair<string, MsDataFileUri[]>(Path.GetFileNameWithoutExtension(fileName),
+                                                new[] { MsDataFileUri.Parse(fileName) });
+                    importResultsDlg.NamedPathSets = path;
+                });
+                OkDialog(importResultsDlg, importResultsDlg.OkDialog);
+            }
             WaitForCondition(2 * 60 * 1000, () => SkylineWindow.Document.Settings.MeasuredResults.IsLoaded);    // 2 minutes
         }
 
@@ -358,7 +379,8 @@ namespace pwiz.SkylineTestFunctional
             scores = new List<double?>();
             foreach (var scoreType in scoreTypes)
             {
-                Assert.AreEqual(IsActiveCalculator(editDlg, scoreType), isPresent);
+                Assert.AreEqual(IsActiveCalculator(editDlg, scoreType), isPresent,
+                    string.Format("Score calculator type {0} unexpectedly {1}",  scoreType, isPresent ? "disabled" : "enabled"));
                 scores.Add(ValueCalculator(editDlg, scoreType));
             }
         }
@@ -366,21 +388,20 @@ namespace pwiz.SkylineTestFunctional
         protected bool IsActiveCalculator(EditPeakScoringModelDlg editDlg, Type calcType)
         {
             var index = GetIndex(editDlg, calcType);
-            return editDlg.PeakCalculatorsGrid.Items[index].IsEnabled;
+            return index != -1 && editDlg.PeakCalculatorsGrid.Items[index].IsEnabled;
         }
 
         protected double? ValueCalculator(EditPeakScoringModelDlg editDlg, Type calcType)
         {
             var index = GetIndex(editDlg, calcType);
-            return editDlg.PeakCalculatorsGrid.Items[index].Weight;
+            return index != -1 ? editDlg.PeakCalculatorsGrid.Items[index].Weight : null;
         }
 
         protected int GetIndex(EditPeakScoringModelDlg editDlg, Type calcType)
         {
             var calculators = editDlg.PeakScoringModel.PeakFeatureCalculators;
             var calculator = calculators.FirstOrDefault(calc => calc.GetType() == calcType);
-            Assert.IsNotNull(calculator);
-            return calculators.IndexOf(calculator); 
+            return calculator != null ? calculators.IndexOf(calculator) : -1; 
         }
 
         // Conveniently opens/closes all the intermediate dialogs to open and run a EditPeakScoringModelDlg 

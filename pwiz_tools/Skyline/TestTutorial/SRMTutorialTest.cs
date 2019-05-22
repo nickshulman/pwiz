@@ -48,7 +48,7 @@ namespace pwiz.SkylineTestTutorial
             //IsPauseForScreenShots = true;
             TestFilesZipPaths = new[]
             {
-                @"http://www.srmcourse.ch/tutorials2014/USB.zip",
+                @"http://targetedproteomics.ethz.ch/tutorials2014/USB.zip",
                 @"TestTutorial\SRMViews.zip"
             };
             RunFunctionalTest();
@@ -62,7 +62,7 @@ namespace pwiz.SkylineTestTutorial
 
         protected override void DoTest()
         {
-            LinkPdf = "http://www.srmcourse.ch/tutorials2014/Tutorial-1_Settings.pdf";
+            LinkPdf = "http://targetedproteomics.ethz.ch/tutorials2014/Tutorial-1_Settings.pdf";
 
             //Tutorial 1
             string fastaFile = GetTestPath("Tutorial-1_Settings/TubercuList_v2-6.fasta.txt");
@@ -81,10 +81,9 @@ namespace pwiz.SkylineTestTutorial
             {
                 backProteomeDlg.BackgroundProteomePath = GetTestPath("Skyline");
                 backProteomeDlg.BackgroundProteomeName = "TubercuList_v2-6";
-                backProteomeDlg.AddFastaFile(fastaFile);
-                WaitForCondition(() => backProteomeDlg.StatusText.Length > 10);
-                Assert.IsTrue(backProteomeDlg.StatusText.Contains("3982".ToString(CultureInfo.CurrentCulture)));
             });
+            AddFastaToBackgroundProteome(backProteomeDlg, fastaFile, 40);
+            RunUI(() => Assert.IsTrue(backProteomeDlg.StatusText.Contains(3982.ToString(CultureInfo.CurrentCulture))));
             OkDialog(backProteomeDlg, backProteomeDlg.OkDialog);
 
             RunUI(() => pepSettings.SelectedTab = PeptideSettingsUI.TABS.Prediction);
@@ -139,16 +138,9 @@ namespace pwiz.SkylineTestTutorial
             RunUI(() => pepSettings.SelectedTab = PeptideSettingsUI.TABS.Modifications);
             PauseForScreenShot("Modifications tab", 4);
 
+            var docBeforePeptideSettings = SkylineWindow.Document;
             OkDialog(pepSettings, pepSettings.OkDialog);
-
-            WaitForCondition(
-                () => SkylineWindow.Status.Contains(Resources.BackgroundProteomeSpec_Digest_Digesting__0__.Split('{').First()) &&
-                      SkylineWindow.Status.Contains(Resources.BackgroundProteomeSpec_Digest_Digesting__0__.Split('}').Last()));
-            WaitForCondition(
-                () => SkylineWindow.Status.Contains(Resources.BackgroundProteomeManager_LoadBackground_Resolving_protein_details_for__0__proteome.Split('{').First()) &&
-                      SkylineWindow.Status.Contains(Resources.BackgroundProteomeManager_LoadBackground_Resolving_protein_details_for__0__proteome.Split('}').Last()));
-            WaitForCondition(() => SkylineWindow.Status.Contains(Resources.SkylineWindow_UpdateProgressUI_Ready));
-            WaitForDocumentLoaded();
+            WaitForDocumentChangeLoaded(docBeforePeptideSettings);
 
             var transitionDlg = ShowDialog<TransitionSettingsUI>(SkylineWindow.ShowTransitionSettingsUI);
             RunUI(() =>
@@ -156,7 +148,7 @@ namespace pwiz.SkylineTestTutorial
                 transitionDlg.SelectedTab = TransitionSettingsUI.TABS.Prediction;
                 transitionDlg.PrecursorMassType = MassType.Monoisotopic;
                 transitionDlg.FragmentMassType = MassType.Monoisotopic;
-                transitionDlg.RegressionCEName = "ABI 5500 QTrap";
+                transitionDlg.RegressionCEName = "SCIEX";
             });
 
             RunUI(() =>
@@ -196,24 +188,28 @@ namespace pwiz.SkylineTestTutorial
             PauseForScreenShot("Library Tab", 7);
             RunUI(() => transitionDlg.SelectedTab = TransitionSettingsUI.TABS.Instrument);
             PauseForScreenShot("Instrument Tab", 7);
+            var docBeforeTransitionSettings = SkylineWindow.Document;
             OkDialog(transitionDlg, transitionDlg.OkDialog);
+            WaitForDocumentChangeLoaded(docBeforeTransitionSettings);
             RunUI(() => SkylineWindow.SaveDocument(GetTestPath("Tutorial-1_Settings\\SRMcourse_20140210_Settings.sky")));
 
 
             //Tutorial 2
-            LinkPdf = "http://www.srmcourse.ch/tutorials2014/Tutorial-2_TransitionList.pdf";
+            LinkPdf = "http://targetedproteomics.ethz.ch//tutorials2014/Tutorial-2_TransitionList.pdf";
 
             RunUI(() => { });
             SetExcelFileClipboardText(GetTestPath(@"Tutorial-2_TransitionList\\target_peptides.xlsx"), "Sheet1", 1,
                 false);
+            var docBeforePaste = SkylineWindow.Document;
             var peptidePasteDlg = ShowDialog<PasteDlg>(SkylineWindow.ShowPastePeptidesDlg);
             var matchingDlg = ShowDialog<FilterMatchedPeptidesDlg>(peptidePasteDlg.PastePeptides);
             PauseForScreenShot("Filter Peptides", 1);
             OkDialog(matchingDlg, matchingDlg.OkDialog);
             OkDialog(peptidePasteDlg, peptidePasteDlg.OkDialog);
 
-            int expectedTrans = TransitionGroup.IsAvoidMismatchedIsotopeTransitions ? 306 : 313;
-            AssertEx.IsDocumentState(SkylineWindow.Document, null, 10, 30, 68, expectedTrans);
+            int expectedTrans = TransitionGroup.IsAvoidMismatchedIsotopeTransitions ? 324 : 331;
+            var docAfterPaste = WaitForDocumentChange(docBeforePaste);
+            AssertEx.IsDocumentState(docAfterPaste, null, 10, 30, 68, expectedTrans);
             RunUI(() =>
             {
                 SkylineWindow.ExpandProteins();
@@ -222,6 +218,35 @@ namespace pwiz.SkylineTestTutorial
                 SkylineWindow.SequenceTree.SelectedNode = SkylineWindow.SequenceTree.Nodes[0].FirstNode.FirstNode;
             });
             PauseForScreenShot("Skyline Window", 2);
+
+            // Test min ion count setting
+            RunDlg<TransitionSettingsUI>(SkylineWindow.ShowTransitionSettingsUI, dlg =>
+            {
+                dlg.MinIonCount = 3;
+                dlg.OkDialog();
+            });
+            var docMinIons = WaitForDocumentChange(docAfterPaste);
+            AssertEx.IsDocumentState(docMinIons, null, 10, 30, 66, 320);
+            RunUI(() => SkylineWindow.Undo());
+            docMinIons = WaitForDocumentChange(docMinIons);
+            RunDlg<TransitionSettingsUI>(SkylineWindow.ShowTransitionSettingsUI, dlg =>
+            {
+                dlg.MinIonCount = 4;
+                dlg.OkDialog();
+            });
+            docMinIons = WaitForDocumentChange(docMinIons);
+            AssertEx.IsDocumentState(docMinIons, null, 10, 30, 64, 314);
+            RunUI(() => SkylineWindow.Undo());
+            docMinIons = WaitForDocumentChange(docMinIons);
+            RunDlg<TransitionSettingsUI>(SkylineWindow.ShowTransitionSettingsUI, dlg =>
+            {
+                dlg.MinIonCount = 5;
+                dlg.OkDialog();
+            });
+            docMinIons = WaitForDocumentChange(docMinIons);
+            AssertEx.IsDocumentState(docMinIons, null, 10, 30, 58, 290);
+            RunUI(() => SkylineWindow.Undo());
+            WaitForDocumentChange(docMinIons);
 
             var exportDlg = ShowDialog<ExportMethodDlg>(SkylineWindow.ShowExportTransitionListDlg);
             RunUI(() =>
@@ -247,7 +272,6 @@ namespace pwiz.SkylineTestTutorial
                 buildLibraryDlg.LibraryPath = GetTestPath("Skyline");
                 buildLibraryDlg.LibraryName = "Mtb_hDP_20140210";
                 buildLibraryDlg.LibraryCutoff = 0.9;
-                buildLibraryDlg.LibraryAuthority = "SRMcourse";
             });
             PauseForScreenShot("Build Library Window", 2);
             RunUI(() =>
@@ -265,12 +289,12 @@ namespace pwiz.SkylineTestTutorial
             OkDialog(pepSettings2, pepSettings2.OkDialog);
             WaitForLibrary(20213);
             WaitForCondition(() => SkylineWindow.Document.PeptideTransitionCount != expectedTrans);
-            int expectedTransAfter = TransitionGroup.IsAvoidMismatchedIsotopeTransitions ? 444 : 450;
+            int expectedTransAfter = TransitionGroup.IsAvoidMismatchedIsotopeTransitions ? 464 : 470;
             AssertEx.IsDocumentState(SkylineWindow.Document, null, 10, 30, 96, expectedTransAfter);
 
             var libraryExpl = ShowDialog<ViewLibraryDlg>(SkylineWindow.ViewSpectralLibraries);
-            var messageWarning = WaitForOpenForm<MultiButtonMsgDlg>();
-            OkDialog(messageWarning, messageWarning.Btn1Click);
+            var messageWarning = WaitForOpenForm<AddModificationsDlg>();
+            RunUI(() => messageWarning.OkDialogAll());
             PauseForScreenShot("Spectral Library Explorer Window", 3);
             OkDialog(libraryExpl, libraryExpl.Close);
 
@@ -289,7 +313,7 @@ namespace pwiz.SkylineTestTutorial
             WaitForClosedForm(exportDlg2);
 
             //Tutorial 4-A
-            LinkPdf = "http://www.srmcourse.ch/tutorials2014/Tutorial-4_Parameters.pdf";
+            LinkPdf = "http://targetedproteomics.ethz.ch/tutorials2014/Tutorial-4_Parameters.pdf";
 
             SrmDocument smallDocument = SkylineWindow.Document;
             PeptideGroupDocNode[] newProteins = smallDocument.PeptideGroups.Take(0).ToArray();
@@ -436,6 +460,7 @@ namespace pwiz.SkylineTestTutorial
                 WaitForClosedForm(importResultsDlg);
             }
             WaitForDocumentLoaded();
+            WaitForClosedForm<AllChromatogramsGraph>();
         }
     }
 }

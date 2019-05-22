@@ -79,15 +79,25 @@ public ref class Version
 
 void SpectrumListFactory::wrap(msdata::MSData^ msd, System::String^ wrapper)
 {
-    b::SpectrumListFactory::wrap(msd->base(), ToStdString(wrapper));
+    wrap(msd, wrapper, nullptr);
+}
+
+void SpectrumListFactory::wrap(msdata::MSData^ msd, System::String^ wrapper, util::IterationListenerRegistry^ ilr)
+{
+    b::SpectrumListFactory::wrap(msd->base(), ToStdString(wrapper), ilr ? &ilr->base() : nullptr);
 }
 
 void SpectrumListFactory::wrap(msdata::MSData^ msd, System::Collections::Generic::IList<System::String^>^ wrappers)
 {
+    wrap(msd, wrappers, nullptr);
+}
+
+void SpectrumListFactory::wrap(msdata::MSData^ msd, System::Collections::Generic::IList<System::String^>^ wrappers, util::IterationListenerRegistry^ ilr)
+{
     std::vector<std::string> nativeWrappers;
     for each(System::String^ wrapper in wrappers)
         nativeWrappers.push_back(ToStdString(wrapper));
-    b::SpectrumListFactory::wrap(msd->base(), nativeWrappers);
+    b::SpectrumListFactory::wrap(msd->base(), nativeWrappers, ilr ? &ilr->base() : nullptr);
 }
 
 System::String^ SpectrumListFactory::usage()
@@ -109,6 +119,8 @@ class SpectrumList_FilterPredicate_Custom : public b::SpectrumList_Filter::Predi
     virtual boost::logic::tribool accept(const pwiz::msdata::Spectrum& spectrum) const;
 
     virtual bool done() const;
+
+    virtual std::string describe() const { return ""; }
 };
 
 
@@ -168,6 +180,51 @@ SpectrumList_FilterPredicate_MSLevelSet::SpectrumList_FilterPredicate_MSLevelSet
     IntegerSet parsedIndexSet;
     parsedIndexSet.parse(ToStdString(msLevelSet));
     base_ = new b::SpectrumList_FilterPredicate_MSLevelSet(parsedIndexSet);
+}
+
+SpectrumList_FilterPredicate_ChargeStateSet::SpectrumList_FilterPredicate_ChargeStateSet(System::String^ chargeStateSet)
+{
+    IntegerSet parsedIndexSet;
+    parsedIndexSet.parse(ToStdString(chargeStateSet));
+    base_ = new b::SpectrumList_FilterPredicate_ChargeStateSet(parsedIndexSet);
+}
+
+SpectrumList_FilterPredicate_PrecursorMzSet::SpectrumList_FilterPredicate_PrecursorMzSet(System::Collections::Generic::IEnumerable<double>^ precursorMzSet, chemistry::MZTolerance tolerance, FilterMode mode)
+{
+    std::set<double> nativeSet;
+    for each (double d in precursorMzSet) nativeSet.insert(d);
+    base_ = new b::SpectrumList_FilterPredicate_PrecursorMzSet(nativeSet,
+                                                               pwiz::chemistry::MZTolerance(tolerance.value, (pwiz::chemistry::MZTolerance::Units) tolerance.units),
+                                                               (b::SpectrumList_Filter::Predicate::FilterMode) mode);
+}
+
+SpectrumList_FilterPredicate_DefaultArrayLengthSet::SpectrumList_FilterPredicate_DefaultArrayLengthSet(System::String^ defaultArrayLengthSet)
+{}
+
+SpectrumList_FilterPredicate_ActivationType::SpectrumList_FilterPredicate_ActivationType(System::Collections::Generic::IEnumerable<CVID>^ filterItem, bool hasNoneOf)
+{
+    std::set<pwiz::cv::CVID> nativeSet;
+    for each (CVID d in filterItem) nativeSet.insert((pwiz::cv::CVID) d);
+    base_ = new b::SpectrumList_FilterPredicate_ActivationType(nativeSet, hasNoneOf);
+}
+
+SpectrumList_FilterPredicate_AnalyzerType::SpectrumList_FilterPredicate_AnalyzerType(System::Collections::Generic::IEnumerable<CVID>^ filterItem)
+{
+    std::set<pwiz::cv::CVID> nativeSet;
+    for each (CVID d in filterItem) nativeSet.insert((pwiz::cv::CVID) d);
+    base_ = new b::SpectrumList_FilterPredicate_AnalyzerType(nativeSet);
+}
+
+SpectrumList_FilterPredicate_Polarity::SpectrumList_FilterPredicate_Polarity(CVID polarity)
+{
+    base_ = new b::SpectrumList_FilterPredicate_Polarity((pwiz::cv::CVID) polarity);
+}
+
+//SpectrumList_FilterPredicate_MzPresent::SpectrumList_FilterPredicate_MzPresent(chemistry::MZTolerance mzt, System::Collections::Generic::Generic::ISet<double> mzSet, ThresholdFilter tf, FilterMode mode);
+
+SpectrumList_FilterPredicate_ThermoScanFilter::SpectrumList_FilterPredicate_ThermoScanFilter(System::String^ matchString, bool matchExact, bool inverse)
+{
+    base_ = new b::SpectrumList_FilterPredicate_ThermoScanFilter(ToStdString(matchString), matchExact, inverse);
 }
 
 
@@ -377,17 +434,17 @@ ContinuousInterval::ContinuousInterval(double begin, double end)
 SpectrumList_3D::SpectrumList_3D(msdata::SpectrumList^ inner)
     : msdata::SpectrumList(0)
 {
-        base_ = new b::SpectrumList_3D(*inner->base_);
-        msdata::SpectrumList::base_ = new boost::shared_ptr<pwiz::msdata::SpectrumList>(base_);
+    base_ = new b::SpectrumList_3D(*inner->base_);
+    msdata::SpectrumList::base_ = new boost::shared_ptr<pwiz::msdata::SpectrumList>(base_);
 }
 
-Spectrum3D^ SpectrumList_3D::spectrum3d(double scanStartTime, System::Collections::Generic::IEnumerable<ContinuousInterval>^ driftTimeRanges)
+Spectrum3D^ SpectrumList_3D::spectrum3d(double scanStartTime, System::Collections::Generic::IEnumerable<ContinuousInterval>^ ionMobilityRanges)
 {
-    boost::icl::interval_set<double> driftTimeRangesSet;
-    for each (ContinuousInterval interval in driftTimeRanges)
-        driftTimeRangesSet.add(boost::icl::continuous_interval<double>(interval.Begin, interval.End));
+    boost::icl::interval_set<double> ionMobilityRangesSet;
+    for each (ContinuousInterval interval in ionMobilityRanges)
+        ionMobilityRangesSet.add(boost::icl::continuous_interval<double>(interval.Begin, interval.End));
 
-    b::Spectrum3DPtr nativeResult = base_->spectrum3d(scanStartTime, driftTimeRangesSet);
+    b::Spectrum3DPtr nativeResult = base_->spectrum3d(scanStartTime, ionMobilityRangesSet);
 
     int i=0;
     Spectrum3D^ result = gcnew Spectrum3D(nativeResult->size());
@@ -404,6 +461,39 @@ Spectrum3D^ SpectrumList_3D::spectrum3d(double scanStartTime, System::Collection
 bool SpectrumList_3D::accept(msdata::SpectrumList^ inner)
 {
     return b::SpectrumList_3D::accept(*inner->base_);
+}
+
+
+SpectrumList_IonMobility::SpectrumList_IonMobility(msdata::SpectrumList^ inner)
+    : msdata::SpectrumList(0)
+{
+    base_ = new b::SpectrumList_IonMobility(*inner->base_);
+    msdata::SpectrumList::base_ = new boost::shared_ptr<pwiz::msdata::SpectrumList>(base_);
+}
+
+SpectrumList_IonMobility::IonMobilityUnits SpectrumList_IonMobility::getIonMobilityUnits()
+{
+    try { return static_cast<SpectrumList_IonMobility::IonMobilityUnits>(base_->getIonMobilityUnits()); } CATCH_AND_FORWARD
+}
+
+bool SpectrumList_IonMobility::canConvertIonMobilityAndCCS(IonMobilityUnits units)
+{
+    try { return base_->canConvertIonMobilityAndCCS(static_cast<b::SpectrumList_IonMobility::IonMobilityUnits>(units)); } CATCH_AND_FORWARD
+}
+
+double SpectrumList_IonMobility::ionMobilityToCCS(double ionMobility, double mz, int charge)
+{
+    try { return base_->ionMobilityToCCS(ionMobility, mz, charge); } CATCH_AND_FORWARD
+}
+
+double SpectrumList_IonMobility::ccsToIonMobility(double ccs, double mz, int charge)
+{
+    try { return base_->ccsToIonMobility(ccs, mz, charge); } CATCH_AND_FORWARD
+}
+
+bool SpectrumList_IonMobility::accept(msdata::SpectrumList^ inner)
+{
+    return b::SpectrumList_IonMobility::accept(*inner->base_);
 }
 
 

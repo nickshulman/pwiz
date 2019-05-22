@@ -20,6 +20,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using NHibernate;
+using pwiz.Common.Database.NHibernate;
 using pwiz.ProteomeDatabase.API;
 
 namespace pwiz.ProteomeDatabase.Util
@@ -62,6 +63,7 @@ namespace pwiz.ProteomeDatabase.Util
             SessionFactory = SessionFactoryFactory.CreateSessionFactory(path, ProteomeDb.TYPE_DB, false);
             DatabaseLock = new ReaderWriterLock();
         }
+        public int Refcount { get { return _refCount;} }
         public string Path { get; private set; }
         public ISessionFactory SessionFactory { get; private set; }
         public ReaderWriterLock DatabaseLock { get; private set; }

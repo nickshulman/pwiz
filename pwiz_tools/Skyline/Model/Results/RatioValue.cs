@@ -57,7 +57,10 @@ namespace pwiz.Skyline.Model.Results
             var statsNumerators = new Statistics(numerators);
             var statsDenominators = new Statistics(denominators);
             var ratios = new Statistics(numerators.Select((value, index) => value/denominators[index]));
-            var meanRatio = ratios.Mean(statsDenominators);
+            
+            // The mean ratio is the average of "ratios" weighted by "statsDenominators".
+            // It's also equal to the sum of the numerators divided by the sum of the denominators.
+            var meanRatio = statsNumerators.Sum()/statsDenominators.Sum();
 
             // Helpers.Assume(Math.Abs(mean - stats.Mean(statsW)) < 0.0001);
             // Make sure the value does not exceed the bounds of a float.
@@ -78,7 +81,9 @@ namespace pwiz.Skyline.Model.Results
 
         public override string ToString()
         {
-            return Ratio + (double.IsNaN(StdDev) ? "" : (" rdotp " + DotProduct));  // Not L10N
+            // ReSharper disable LocalizableElement
+            return Ratio + (double.IsNaN(StdDev) ? "" : (" rdotp " + DotProduct));
+            // ReSharper restore LocalizableElement
         }
 
         public int CompareTo(object obj)

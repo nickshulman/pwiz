@@ -21,10 +21,13 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Xml;
 using System.Xml.Serialization;
+using pwiz.Common.Collections;
 using pwiz.Common.SystemUtil;
+using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.Results;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
@@ -35,13 +38,20 @@ namespace pwiz.Skyline.Model.Lib
     [XmlRoot("bibliospec_lib_spec")]
     public sealed class BiblioSpecLibSpec : LibrarySpec
     {
-        public const string EXT = ".lib"; // Not L10N
+        public const string EXT = ".lib";
+
+        public static string FILTER_LIB { get { return TextUtil.FileDialogFilterAll(Resources.BiblioSpecLibrary_SpecFilter_Legacy_BiblioSpec_Library, EXT); } }
 
         private static readonly PeptideRankId[] RANK_IDS = { PEP_RANK_COPIES, PEP_RANK_PICKED_INTENSITY };
 
         public BiblioSpecLibSpec(string name, string path)
             : base(name, path)
         {
+        }
+
+        public override string Filter
+        {
+            get { return FILTER_LIB; }
         }
 
         public override Library LoadLibrary(ILoadMonitor loader)
@@ -165,12 +175,11 @@ namespace pwiz.Skyline.Model.Lib
     [XmlRoot("bibliospec_library")]
     public sealed class BiblioSpecLibrary : Library
     {
-        public const string DEFAULT_AUTHORITY = "proteome.gs.washington.edu"; // Not L10N
+        public const string DEFAULT_AUTHORITY = "proteome.gs.washington.edu";
 
         private bool _bigEndian;
         private bool _linuxFormat;
-        private Dictionary<LibKey, BiblioSpectrumInfo> _dictLibrary;
-        private HashSet<LibSeqKey> _setSequences;
+        private LibKeyMap<BiblioSpectrumInfo> _dictLibrary;
         private IPooledStream _readStream;
 
         public static BiblioSpecLibrary Load(BiblioSpecLibSpec spec, ILoadMonitor loader)
@@ -190,14 +199,14 @@ namespace pwiz.Skyline.Model.Lib
         {
         }
 
-        public override LibrarySpec CreateSpec(string path)
+        protected override LibrarySpec CreateSpec()
         {
-            return new BiblioSpecLibSpec(Name, path);
+            return new BiblioSpecLibSpec(Name, FilePath);
         }
 
         public override string SpecFilter
         {
-            get { return TextUtil.FileDialogFilterAll(Resources.BiblioSpecLibrary_SpecFilter_Legacy_BiblioSpec_Library, BiblioSpecLibSpec.EXT); }
+            get { return BiblioSpecLibSpec.FILTER_LIB; }
         }
 
         /// <summary>
@@ -211,13 +220,18 @@ namespace pwiz.Skyline.Model.Lib
             {
                 LibraryDetails details = new LibraryDetails
                 {
-                    Format = "BiblioSpec", // Not L10N
+                    Format = @"BiblioSpec",
                     Revision = Revision.ToString(LocalizationHelper.CurrentCulture),
-                    PeptideCount = SpectrumCount
+                    SpectrumCount = SpectrumCount
                 };
 
                 return details;
             }
+        }
+
+        public override LibraryFiles LibraryFiles
+        {
+            get { return new LibraryFiles();  }
         }
 
         /// <summary>
@@ -238,7 +252,7 @@ namespace pwiz.Skyline.Model.Lib
 
         public override string IsNotLoadedExplained
         {
-            get { return (_dictLibrary != null) ? null : "BiblioSpec: no dictionary"; } // Not L10N
+            get { return (_dictLibrary != null) ? null : @"BiblioSpec: no dictionary"; }
         }
 
         public override bool IsSameLibrary(Library library)
@@ -305,7 +319,7 @@ namespace pwiz.Skyline.Model.Lib
 
         private bool Load(ILoadMonitor loader)
         {
-            ProgressStatus status =
+            IProgressStatus status =
                 new ProgressStatus(string.Format(Resources.BiblioSpecLibrary_Load_Loading__0__library,
                                                  Path.GetFileName(FilePath)));
             loader.UpdateProgress(status);
@@ -331,9 +345,8 @@ namespace pwiz.Skyline.Model.Lib
 
                 int numSpectra = GetInt32(libHeader, (int) LibHeaders.num_spectra);
                 var dictLibrary = new Dictionary<LibKey, BiblioSpectrumInfo>(numSpectra);
-                var setSequences = new HashSet<LibSeqKey>();
 
-                string revStr = string.Format("{0}.{1}", // Not L10N
+                string revStr = string.Format(@"{0}.{1}",
                                               GetInt32(libHeader, (int) LibHeaders.version1),
                                               GetInt32(libHeader, (int) LibHeaders.version2));
                 Revision = float.Parse(revStr, CultureInfo.InvariantCulture);
@@ -408,10 +421,9 @@ namespace pwiz.Skyline.Model.Lib
                         // These libraries should not have duplicates, but just in case.
                         // CONSIDER: Emit error about redundancy?
                         // These legacy libraries assume [+57.0] modified Cysteine
-                        LibKey key = new LibKey(GetCModified(specSequence, ref seqLength), 0, seqLength, charge);
+                        LibKey key = new LibKey(GetCModified(Encoding.UTF8.GetString(specSequence, 0, seqLength)), charge);
                         if (!dictLibrary.ContainsKey(key))
                             dictLibrary.Add(key, new BiblioSpectrumInfo((short)copies, (short)numPeaks, lenRead));
-                        setSequences.Add(new LibSeqKey(key));
                     }
 
                     // Read over peaks
@@ -423,8 +435,8 @@ namespace pwiz.Skyline.Model.Lib
                 }
 
                 // Checksum = checksum.ChecksumValue;
-                _dictLibrary = dictLibrary;
-                _setSequences = setSequences;
+                var spectrumInfos = ImmutableList.ValueOf(dictLibrary.Values);
+                _dictLibrary = new LibKeyMap<BiblioSpectrumInfo>(spectrumInfos, dictLibrary.Keys.Select(key=>key.LibraryKey));
                 loader.UpdateProgress(status.Complete());
                 return true;
             }
@@ -457,23 +469,12 @@ namespace pwiz.Skyline.Model.Lib
             }
         }
 
-        private static byte[] GetCModified(byte[] sequence, ref int len)
+        private static string GetCModified(string seqString)
         {
-            foreach (byte b in sequence)
-            {
-                if (b == 'C')
-                {
-                    // All C's in these libraries assume carbamidomehtyl cysteine
-                    string seqString = Encoding.UTF8.GetString(sequence, 0, len);
-                    byte[] bytes = Encoding.UTF8.GetBytes(seqString.Replace("C", "C[+57.0]")); // Not L10N
-                    len = bytes.Length;
-                    return bytes;
-                }
-            }
-            return sequence;
+            return seqString.Replace(@"C", @"C[+57.0]");
         }
 
-        private new int GetInt32(byte[] bytes, int index)
+        private int GetInt32(byte[] bytes, int index)
         {
             int ibyte = index*4;
             return _bigEndian ?
@@ -494,21 +495,24 @@ namespace pwiz.Skyline.Model.Lib
 
         public override bool Contains(LibKey key)
         {
-            return (_dictLibrary != null && _dictLibrary.ContainsKey(key));
+            return _dictLibrary.ItemsMatching(key.LibraryKey, true).Any();
         }
 
-        public override bool ContainsAny(LibSeqKey key)
+        public override bool ContainsAny(Target target)
         {
-            return (_setSequences != null && _setSequences.Contains(key));
+            // TODO
+            return false;
         }
 
         public override bool TryGetLibInfo(LibKey key, out SpectrumHeaderInfo libInfo)
         {
-            BiblioSpectrumInfo info;
-            if (_dictLibrary != null && _dictLibrary.TryGetValue(key, out info))
+            if (_dictLibrary != null)
             {
-                libInfo = new BiblioSpecSpectrumHeaderInfo(Name, info.Copies);
-                return true;
+                foreach (var item in _dictLibrary.ItemsMatching(key.LibraryKey, true))
+                {
+                    libInfo = new BiblioSpecSpectrumHeaderInfo(Name, item.Copies);
+                    return true;
+                }
             }
             libInfo = null;
             return false;
@@ -516,11 +520,13 @@ namespace pwiz.Skyline.Model.Lib
 
         public override bool TryLoadSpectrum(LibKey key, out SpectrumPeaksInfo spectrum)
         {
-            BiblioSpectrumInfo info;
-            if (_dictLibrary != null && _dictLibrary.TryGetValue(key, out info))
+            if (_dictLibrary != null)
             {
-                spectrum = new SpectrumPeaksInfo(ReadSpectrum(info));
-                return true;
+                foreach (var item in _dictLibrary.ItemsMatching(key.LibraryKey, true))
+                {
+                    spectrum = new SpectrumPeaksInfo(ReadSpectrum(item));
+                    return true;
+                }
             }
 
             spectrum = null;
@@ -529,7 +535,10 @@ namespace pwiz.Skyline.Model.Lib
 
         public override SpectrumPeaksInfo LoadSpectrum(object spectrumKey)
         {
-            return new SpectrumPeaksInfo(ReadSpectrum(_dictLibrary[(LibKey)spectrumKey]));
+
+            return new SpectrumPeaksInfo(ReadSpectrum(_dictLibrary.ItemsMatching(((LibKey)spectrumKey).LibraryKey, true)
+                .First()));
+
         }
 
         public override bool TryGetRetentionTimes(LibKey key, MsDataFileUri filePath, out double[] retentionTimes)
@@ -557,19 +566,19 @@ namespace pwiz.Skyline.Model.Lib
         }
 
         // No ion mobility data in BiblioSpec libs (those are ancient - try BiblioSpecLite instead)
-        public override bool TryGetIonMobilities(LibKey key, MsDataFileUri filePath, out IonMobilityInfo[] ionMobilities)
+        public override bool TryGetIonMobilityInfos(LibKey key, MsDataFileUri filePath, out IonMobilityAndCCS[] ionMobilities)
         {
             ionMobilities = null;
             return false;
         }
 
-        public override bool TryGetIonMobilities(MsDataFileUri filePath, out LibraryIonMobilityInfo ionMobilities)
+        public override bool TryGetIonMobilityInfos(MsDataFileUri filePath, out LibraryIonMobilityInfo ionMobilities)
         {
             ionMobilities = null;
             return false;
         }
 
-        public override bool TryGetIonMobilities(int fileIndex, out LibraryIonMobilityInfo ionMobilities)
+        public override bool TryGetIonMobilityInfos(int fileIndex, out LibraryIonMobilityInfo ionMobilities)
         {
             ionMobilities = null;
             return false;
@@ -597,9 +606,7 @@ namespace pwiz.Skyline.Model.Lib
         {
             get
             {
-                if (_dictLibrary != null)
-                    foreach (var key in _dictLibrary.Keys)
-                        yield return key;
+                return _dictLibrary != null ? _dictLibrary.LibKeys : Enumerable.Empty<LibKey>();
             }
         }
 
@@ -609,14 +616,24 @@ namespace pwiz.Skyline.Model.Lib
             byte[] peaks = new byte[info.NumPeaks * lenPair];
             lock (ReadStream)
             {
-                Stream fs = ReadStream.Stream;
+                try
+                {
+                    Stream fs = ReadStream.Stream;
 
-                // Seek to stored location
-                fs.Seek(info.Location, SeekOrigin.Begin);
+                    // Seek to stored location
+                    fs.Seek(info.Location, SeekOrigin.Begin);
 
-                // Single read to get all the peaks
-                if (fs.Read(peaks, 0, peaks.Length) < peaks.Length)
-                    throw new IOException(Resources.BiblioSpecLibrary_ReadSpectrum_Failure_trying_to_read_peaks);
+                    // Single read to get all the peaks
+                    if (fs.Read(peaks, 0, peaks.Length) < peaks.Length)
+                        throw new IOException(Resources.BiblioSpecLibrary_ReadSpectrum_Failure_trying_to_read_peaks);
+                }
+                catch (Exception)
+                {
+                    // If an exception is thrown, close the stream in case the failure is something
+                    // like a network failure that can be remedied by re-opening the stream.
+                    ReadStream.CloseStream();
+                    throw;
+                }
             }
 
             // Build the list
@@ -663,10 +680,10 @@ namespace pwiz.Skyline.Model.Lib
                     if (!library.TryLoadSpectrum(key, out peaksInfo))
                         continue;
 
-                    string sequence = key.Sequence;
+                    var sequence = key.Target.Sequence;
                     // Only works for unmodified sequence
                     Debug.Assert(!key.IsModified);
-                    double precursorMH = calc.GetPrecursorMass(sequence);
+                    var precursorMH = calc.GetPrecursorMass(sequence);
                     int charge = key.Charge;
                     float precursorMz = (float) SequenceMassCalc.GetMZ(precursorMH, charge);
 
@@ -689,7 +706,7 @@ namespace pwiz.Skyline.Model.Lib
                     Encoding.UTF8.GetBytes(sequence, 0, len, seqBuffer, 0);
                     outStream.Write(seqBuffer, 0, len + 1);
                     // Modifications
-                    const string zeros = "000000000000000000000000000000000000000000000000000"; // Not L10N
+                    const string zeros = "000000000000000000000000000000000000000000000000000";
                     Encoding.UTF8.GetBytes(zeros.Substring(0, len), 0, len, seqBuffer, 0);
                     outStream.Write(seqBuffer, 0, len + 1);
                     // Peaks
@@ -781,12 +798,14 @@ namespace pwiz.Skyline.Model.Lib
         private readonly short _numPeaks;
         private readonly long _location;
 
-        public BiblioSpectrumInfo(short copies, short numPeaks, long location)
+        public BiblioSpectrumInfo(short copies, short numPeaks, long location) : this()
         {
             _copies = copies;
             _numPeaks = numPeaks;
             _location = location;
         }
+
+        public LibKey LibKey { get; private set; }
 
         public int Copies { get { return _copies; } }
         public int NumPeaks { get { return _numPeaks; } }

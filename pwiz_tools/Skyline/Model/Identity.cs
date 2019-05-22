@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Original author: Brendan MacLean <brendanx .at. u.washington.edu>,
  *                  MacCoss Lab, Department of Genome Sciences, UW
  *
@@ -126,6 +126,11 @@ namespace pwiz.Skyline.Model
         }
 
         #endregion
+    }
+
+    public interface IIdentiyContainer
+    {
+        Identity Id { get; }
     }
 
     /// <summary>
@@ -345,7 +350,7 @@ namespace pwiz.Skyline.Model
 
         public override string ToString()
         {
-            return "/" + _identities.ToString("/"); // Not L10N
+            return @"/" + _identities.ToString(@"/");
         }
 
         #endregion
@@ -418,18 +423,15 @@ namespace pwiz.Skyline.Model
             {
                 Identity nextId = Next();
 
-                // Look for the right child
-                foreach (DocNode nodeNext in parent.Children)
+                var nodeNext = parent.FindNode(nextId);
+                if (nodeNext != null)
                 {
-                    if (ReferenceEquals(nextId, nodeNext.Id))
-                    {
-                        DocNodeParent subParent = nodeNext as DocNodeParent;
-                        if (subParent == null)
-                            throw new InvalidOperationException(Resources.IdentityPathTraversal_Traverse_Invalid_attempt_to_perform_parent_operation_on_leaf_node);
+                    DocNodeParent subParent = nodeNext as DocNodeParent;
+                    if (subParent == null)
+                        throw new InvalidOperationException(Resources.IdentityPathTraversal_Traverse_Invalid_attempt_to_perform_parent_operation_on_leaf_node);
 
-                        // Make recursive call into the specified child
-                        return parent.ReplaceChild(recurse(subParent, this, tag));
-                    }
+                    // Make recursive call into the specified child
+                    return parent.ReplaceChild(recurse(subParent, this, tag));
                 }
                 throw new IdentityNotFoundException(nextId);
             }

@@ -32,6 +32,7 @@
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(RefineDlg));
             this.tabControl1 = new System.Windows.Forms.TabControl();
             this.tabDocument = new System.Windows.Forms.TabPage();
+            this.cbRemovePeptidesMissingLibrary = new System.Windows.Forms.CheckBox();
             this.cbAutoTransitions = new System.Windows.Forms.CheckBox();
             this.cbAutoPrecursors = new System.Windows.Forms.CheckBox();
             this.cbAutoPeptides = new System.Windows.Forms.CheckBox();
@@ -87,6 +88,7 @@
             // 
             // tabDocument
             // 
+            this.tabDocument.Controls.Add(this.cbRemovePeptidesMissingLibrary);
             this.tabDocument.Controls.Add(this.cbAutoTransitions);
             this.tabDocument.Controls.Add(this.cbAutoPrecursors);
             this.tabDocument.Controls.Add(this.cbAutoPeptides);
@@ -104,22 +106,32 @@
             this.tabDocument.Name = "tabDocument";
             this.tabDocument.UseVisualStyleBackColor = true;
             // 
+            // cbRemovePeptidesMissingLibrary
+            // 
+            resources.ApplyResources(this.cbRemovePeptidesMissingLibrary, "cbRemovePeptidesMissingLibrary");
+            this.cbRemovePeptidesMissingLibrary.Name = "cbRemovePeptidesMissingLibrary";
+            this.helpTip.SetToolTip(this.cbRemovePeptidesMissingLibrary, resources.GetString("cbRemovePeptidesMissingLibrary.ToolTip"));
+            this.cbRemovePeptidesMissingLibrary.UseVisualStyleBackColor = true;
+            // 
             // cbAutoTransitions
             // 
             resources.ApplyResources(this.cbAutoTransitions, "cbAutoTransitions");
             this.cbAutoTransitions.Name = "cbAutoTransitions";
+            this.helpTip.SetToolTip(this.cbAutoTransitions, resources.GetString("cbAutoTransitions.ToolTip"));
             this.cbAutoTransitions.UseVisualStyleBackColor = true;
             // 
             // cbAutoPrecursors
             // 
             resources.ApplyResources(this.cbAutoPrecursors, "cbAutoPrecursors");
             this.cbAutoPrecursors.Name = "cbAutoPrecursors";
+            this.helpTip.SetToolTip(this.cbAutoPrecursors, resources.GetString("cbAutoPrecursors.ToolTip"));
             this.cbAutoPrecursors.UseVisualStyleBackColor = true;
             // 
             // cbAutoPeptides
             // 
             resources.ApplyResources(this.cbAutoPeptides, "cbAutoPeptides");
             this.cbAutoPeptides.Name = "cbAutoPeptides";
+            this.helpTip.SetToolTip(this.cbAutoPeptides, resources.GetString("cbAutoPeptides.ToolTip"));
             this.cbAutoPeptides.UseVisualStyleBackColor = true;
             // 
             // label7
@@ -131,6 +143,7 @@
             // 
             resources.ApplyResources(this.cbAdd, "cbAdd");
             this.cbAdd.Name = "cbAdd";
+            this.helpTip.SetToolTip(this.cbAdd, resources.GetString("cbAdd.ToolTip"));
             this.cbAdd.UseVisualStyleBackColor = true;
             this.cbAdd.CheckedChanged += new System.EventHandler(this.cbAdd_CheckedChanged);
             // 
@@ -145,6 +158,7 @@
             this.comboRefineLabelType.FormattingEnabled = true;
             resources.ApplyResources(this.comboRefineLabelType, "comboRefineLabelType");
             this.comboRefineLabelType.Name = "comboRefineLabelType";
+            this.helpTip.SetToolTip(this.comboRefineLabelType, resources.GetString("comboRefineLabelType.ToolTip"));
             // 
             // cbRemoveRepeatedPeptides
             // 
@@ -353,6 +367,12 @@
             this.btnCancel.Name = "btnCancel";
             this.btnCancel.UseVisualStyleBackColor = true;
             // 
+            // helpTip
+            // 
+            this.helpTip.AutoPopDelay = 32767;
+            this.helpTip.InitialDelay = 500;
+            this.helpTip.ReshowDelay = 100;
+            // 
             // RefineDlg
             // 
             this.AcceptButton = this.btnOK;
@@ -422,5 +442,6 @@
         private System.Windows.Forms.Label label8;
         private System.Windows.Forms.TextBox textMinIdotProduct;
         private System.Windows.Forms.Label labelMinIdotProduct;
+        private System.Windows.Forms.CheckBox cbRemovePeptidesMissingLibrary;
     }
 }

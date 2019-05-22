@@ -22,6 +22,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Windows.Forms;
+using pwiz.Skyline.Model;
 using pwiz.Skyline.Model.Irt;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
@@ -31,22 +32,25 @@ namespace pwiz.Skyline.SettingsUI.Irt
 {
     public partial class ChangeIrtPeptidesDlg : FormEx
     {
-        private readonly IDictionary<string, DbIrtPeptide> _dictSequenceToPeptide;
+        private readonly IDictionary<Target, DbIrtPeptide> _dictSequenceToPeptide;
         private IList<DbIrtPeptide> _standardPeptides;
 
         public ChangeIrtPeptidesDlg(IList<DbIrtPeptide> irtPeptides)
         {
-            _dictSequenceToPeptide = new Dictionary<string, DbIrtPeptide>();
+            TargetResolver = new TargetResolver(irtPeptides.Select(p=>p.Target));
+            _dictSequenceToPeptide = new Dictionary<Target, DbIrtPeptide>();
             foreach (var peptide in irtPeptides)
             {
-                if (!_dictSequenceToPeptide.ContainsKey(peptide.PeptideModSeq))
-                    _dictSequenceToPeptide.Add(peptide.PeptideModSeq, peptide);
+                if (!_dictSequenceToPeptide.ContainsKey(peptide.ModifiedTarget))
+                    _dictSequenceToPeptide.Add(peptide.ModifiedTarget, peptide);
             }
 
             InitializeComponent();
 
             Peptides = irtPeptides.Where(peptide => peptide.Standard).ToArray();
         }
+
+        public TargetResolver TargetResolver { get; private set; }
 
         public IList<DbIrtPeptide> Peptides
         {
@@ -55,8 +59,14 @@ namespace pwiz.Skyline.SettingsUI.Irt
             {
                 _standardPeptides = value;
                 textPeptides.Text = string.Join(Environment.NewLine,
-                    _standardPeptides.Select(peptide => peptide.PeptideModSeq).ToArray());
+                    _standardPeptides.Select(peptide => TargetResolver.FormatTarget(peptide.ModifiedTarget)).ToArray());
             }
+        }
+
+        public string PeptidesText
+        {
+            get { return textPeptides.Text; }
+            set { textPeptides.Text = value; }
         }
 
         public void OkDialog()
@@ -72,8 +82,9 @@ namespace pwiz.Skyline.SettingsUI.Irt
                 // Skip blank lines
                 if (string.IsNullOrEmpty(line))
                     continue;
-                DbIrtPeptide peptide;
-                if (!_dictSequenceToPeptide.TryGetValue(line, out peptide))
+                DbIrtPeptide peptide = null;
+                var target = TargetResolver.ResolveTarget(line);
+                if (target == null || !_dictSequenceToPeptide.TryGetValue(target, out peptide))  // CONSIDER(bspratt) - small molecule equivalent?
                     invalidLines.Add(line);
                 standardPeptides.Add(peptide);
             }
@@ -83,17 +94,17 @@ namespace pwiz.Skyline.SettingsUI.Irt
                 string message;
                 if (invalidLines.Count == 1)
                 {
-                    message = string.Format(Resources.ChangeIrtPeptidesDlg_OkDialog_The_sequence__0__is_not_currently_in_the_database,
+                    message = ModeUIAwareStringFormat(Resources.ChangeIrtPeptidesDlg_OkDialog_The_sequence__0__is_not_currently_in_the_database,
                                             invalidLines[0]);
                     MessageBox.Show(this, message, Program.Name);
                 }
                 else
                 {
-                    message = TextUtil.LineSeparate(Resources.ChangeIrtPeptidesDlg_OkDialog_The_following_sequences_are_not_currently_in_the_database,
+                    message = TextUtil.LineSeparate(GetModeUIHelper().Translate(Resources.ChangeIrtPeptidesDlg_OkDialog_The_following_sequences_are_not_currently_in_the_database),
                                                     string.Empty,
                                                     TextUtil.LineSeparate(invalidLines),
                                                     string.Empty,
-                                                    Resources.ChangeIrtPeptidesDlg_OkDialog_Standard_peptides_must_exist_in_the_database);
+                                                    GetModeUIHelper().Translate(Resources.ChangeIrtPeptidesDlg_OkDialog_Standard_peptides_must_exist_in_the_database));
                     MessageBox.Show(this, message, Program.Name);
                 }
                 return;

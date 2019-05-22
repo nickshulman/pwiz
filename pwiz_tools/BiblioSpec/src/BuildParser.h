@@ -38,8 +38,6 @@
 #include "PwizReader.h"
 #include "AminoAcidMasses.h"
 
-using namespace std;
-
 namespace BiblioSpec {
 
 const static double H2O_MASS = 18.01056469252;
@@ -76,7 +74,6 @@ class BuildParser : protected SAXHandler{
   string filepath_;       ///< path stripped from full name
   string fileroot_;       ///< filename stripped of path and extension
   string curSpecFileName_;///< name of the next spectrum file to parse
-  BlibBuilder& blibMaker_;  ///< object for creating library
   const ProgressIndicator* parentProgress_;  ///< progress of our caller
   ProgressIndicator* fileProgress_;  ///< progress of multiple spec files
   ProgressIndicator* specProgress_;  ///< progress of each spectrum in a file
@@ -84,12 +81,12 @@ class BuildParser : protected SAXHandler{
                               // of number of spec files
   map<int, int> inputToSpec_; ///< map of input file index to spectrum file count for that input file
 
-  void insertSpectrum(PSM* psm, SpecData& curSpectrum, 
-                      sqlite3_int64 fileId, PSM_SCORE_TYPE scoreType);
+  void insertSpectrum(PSM* psm, const SpecData& curSpectrum, 
+                      sqlite3_int64 fileId, PSM_SCORE_TYPE scoreType,
+                      map<const Protein*, sqlite3_int64>& proteins);
   void sortPsmMods(PSM* psm);
   double calculatePeptideMass(PSM* psm);
   int calculateCharge(double neutralMass, double precursorMz);
-  void verifySequences();
   void filterBySequence(const set<string>* targetSequences, const set<string>* targetSequencesModified);
   void removeDuplicates();
   string fileNotFoundMessage(std::string specfileroot,
@@ -98,11 +95,13 @@ class BuildParser : protected SAXHandler{
   double aaMasses_[128];
 
  protected:
+  BlibBuilder& blibMaker_;  ///< object for creating library
   ProgressIndicator* readAddProgress_;  ///< 2 steps: read file, add spec
   PSM* curPSM_;           ///< temp holding space for psm being parsed
   vector<PSM*> psms_;     ///< collected list of psms parsed from file
   SpecFileReader* specReader_; ///< for getting peak lists
   SPEC_ID_TYPE lookUpBy_; ///< default is by scan number
+  bool preferEmbeddedSpectra_; ///< default is true except for MaxQuant
 
   void openFile();
   void closeFile();
@@ -115,11 +114,13 @@ class BuildParser : protected SAXHandler{
   void setSpecFileName(std::string fileroot, 
                        const vector<std::string>& extensions,
                        const vector<std::string>& directories = vector<std::string>());
+  void setPreferEmbeddedSpectra(bool preferEmbeddedSpectra);
 
+  void verifySequences();
   double getScoreThreshold(BUILD_INPUT fileType);
-  void findScanNumFromName();
-  void findScanIndexFromName();
+  void findScanIndexFromName(const std::map<PSM*, double>& precursorMap);
   sqlite3_int64 insertSpectrumFilename(string& filename, bool insertAsIs = false);
+  sqlite3_int64 insertProtein(const Protein* protein);
   void buildTables(PSM_SCORE_TYPE score_type, string specfilename = "", bool showSpecProgress = true);
   const char* getPsmFilePath(); // path containing file being parsed
   string getFilenameFromID(const string& idStr); // spectrum source file from spectrum ID

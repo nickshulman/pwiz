@@ -48,11 +48,11 @@ using pwiz.CLI.util;
 using seems;
 using NHibernate;
 using NHibernate.Linq;
-using NHibernate.Util;
 using NHibernate.Criterion;
 using BrightIdeasSoftware;
 using PopupControl;
 using Microsoft.WindowsAPICodePack.Taskbar;
+using pwiz.Common.Collections;
 using BreadCrumbControl = IDPicker.Controls.BreadCrumbControl;
 using Protein = IDPicker.DataModel.Protein;
 using SpectrumSource = IDPicker.DataModel.SpectrumSource;
@@ -120,6 +120,16 @@ namespace IDPicker
 
             this.args = args;
 
+            if (Properties.GUI.Settings.Default.UpgradeRequired)
+            {
+                Properties.Settings.Default.Upgrade();
+                Properties.Settings.Default.Save();
+
+                Properties.GUI.Settings.Default.Upgrade();
+                Properties.GUI.Settings.Default.UpgradeRequired = false;
+                Properties.GUI.Settings.Default.Save();
+            }
+
             defaultDataFilter = new DataFilter();
 
             manager = new Manager(dockPanel)
@@ -141,6 +151,7 @@ namespace IDPicker
             basicFilterControl.BasicFilterChanged += basicFilterControl_BasicFilterChanged;
             basicFilterControl.ApplyFilterChanges += basicFilterControl_ApplyFilterChanges;
             basicFilterControl.ShowQonverterSettings += ShowQonverterSettings;
+            basicFilterControl.CropAssembly += CropAssembly;
             dataFilterPopup = new Popup(basicFilterControl) { FocusOnOpen = true };
             dataFilterPopup.Closed += dataFilterPopup_Closed;
 
@@ -196,6 +207,7 @@ namespace IDPicker
 
             spectrumTableForm.SpectrumViewFilter += handleViewFilter;
             spectrumTableForm.SpectrumViewVisualize += spectrumTableForm_SpectrumViewVisualize;
+            spectrumTableForm.IsobaricMappingChanged += spectrumTableForm_IsobaricMappingChanged;
             spectrumTableForm.FinishedSetData += handleFinishedSetData;
             spectrumTableForm.StartingSetData += handleStartingSetData;
             proteinTableForm.ProteinViewFilter += handleViewFilter;
@@ -405,6 +417,7 @@ namespace IDPicker
             basicFilterControl.BasicFilterChanged += basicFilterControl_BasicFilterChanged;
             basicFilterControl.ApplyFilterChanges += basicFilterControl_ApplyFilterChanges;
             basicFilterControl.ShowQonverterSettings += ShowQonverterSettings;
+            basicFilterControl.CropAssembly += CropAssembly;
             dataFilterPopup = new Popup(basicFilterControl) {FocusOnOpen = true};
             dataFilterPopup.Closed += dataFilterPopup_Closed;
 
@@ -514,7 +527,7 @@ namespace IDPicker
             bool showMissedFragments = false;
             bool showLabels = true;
             bool showFragmentationSummary = false;
-            MZTolerance tolerance = null;
+            pwiz.CLI.chemistry.MZTolerance tolerance = null;
 
             if (manager.CurrentGraphForm != null && annotationByGraphForm[manager.CurrentGraphForm] != null)
             {
@@ -524,9 +537,9 @@ namespace IDPicker
                 showFragmentationSummary = panel.showFragmentationSummaryCheckBox.Checked;
                 if (panel.fragmentToleranceTextBox.Text.Length > 0)
                 {
-                    tolerance = new MZTolerance();
+                    tolerance = new pwiz.CLI.chemistry.MZTolerance();
                     tolerance.value = Convert.ToDouble(panel.fragmentToleranceTextBox.Text);
-                    tolerance.units = (MZTolerance.Units) panel.fragmentToleranceUnitsComboBox.SelectedIndex;
+                    tolerance.units = (pwiz.CLI.chemistry.MZTolerance.Units) panel.fragmentToleranceUnitsComboBox.SelectedIndex;
                 }
                 else
                     tolerance = null;
@@ -546,7 +559,7 @@ namespace IDPicker
 
             //BeginInvoke(new MethodInvoker(() => toolStripStatusLabel.Text = toolStripStatusLabel.Text = "Opening spectrum source: " + sourcePath));
 
-            manager.OpenFile(sourcePath, spectrum.NativeID, annotation, spectrumListFilters);
+            manager.OpenFile(sourcePath, new List<object> { spectrum.NativeID }, annotation, spectrumListFilters);
             manager.CurrentGraphForm.Focus();
             manager.CurrentGraphForm.Icon = Properties.Resources.SpectrumViewIcon;
 
@@ -612,6 +625,14 @@ namespace IDPicker
             form.FormClosed += (s, e2) => formSession.Dispose();
         }
         #endregion
+
+        void spectrumTableForm_IsobaricMappingChanged(object sender, EventArgs e)
+        {
+            proteinTableForm.ClearData(true);
+            peptideTableForm.ClearData(true);
+            proteinTableForm.SetData(session, viewFilter);
+            peptideTableForm.SetData(session.SessionFactory.OpenSession(), viewFilter);
+        }
 
         void handleViewFilter(object sender, ViewFilterEventArgs e)
         {
@@ -709,6 +730,60 @@ namespace IDPicker
             {
                 lock (session)
                     basicFilter.ApplyBasicFilters(session);
+            }
+            catch (Exception ex)
+            {
+                e.Result = ex;
+            }
+        }
+        
+        public void CropAssembly ()
+        {
+            if (MessageBox.Show("Cropping the assembly will permanently remove all proteins that are not in the current data filter, as well as the PSMs, peptides, and spectra mapping to those proteins. " +
+                                "It will also clear the filter history, so you may wish to save a copy of that first.\r\n\r\n" +
+                                "Because this action cannot be undone, we recommend making a backup copy of the idpDB first. Are you sure?",
+                                "Crop assembly confirmation",
+                                MessageBoxButtons.YesNo) == DialogResult.No)
+                return;
+
+            toolStripStatusLabel.Text = "Cropping assembly...";
+            basicFilter.FilteringProgress += progressMonitor.UpdateProgress;
+
+            var workerThread = new BackgroundWorker()
+            {
+                WorkerReportsProgress = true,
+                WorkerSupportsCancellation = true
+            };
+
+            workerThread.DoWork += cropAssemblyAsync;
+
+            workerThread.RunWorkerCompleted += (s, e) =>
+            {
+                if (Program.IsHeadless)
+                    Close();
+
+                if (e.Result is Exception)
+                {
+                    Program.HandleException(e.Result as Exception);
+                    setControlsWhenDatabaseLocked(false);
+                    return;
+                }
+
+                basicFilter.FilteringProgress -= progressMonitor.UpdateProgress;
+                
+                setControlsWhenDatabaseLocked(false);
+            };
+                
+            setControlsWhenDatabaseLocked(true);
+            workerThread.RunWorkerAsync();
+        }
+
+        void cropAssemblyAsync (object sender, DoWorkEventArgs e)
+        {
+            try
+            {
+                lock (session)
+                    basicFilter.CropAssembly(session);
             }
             catch (Exception ex)
             {
@@ -939,6 +1014,8 @@ namespace IDPicker
                 ++i; // skip the next argument
             }
 
+            SchemaUpdater.SetGroupConcatSeparator(Properties.Settings.Default.GroupConcatSeparator);
+
             // if program is headless continue into OpenFiles even without any files; error will be issued there
             if (!Program.IsHeadless && filemasks.IsNullOrEmpty())
             {
@@ -1075,10 +1152,10 @@ namespace IDPicker
                     if (File.Exists(idpDB_filepath))
                     {
                         if (!warnOnce && MessageBox.Show("Some of these files have already been converted. Do you want to reconvert them?",
-                                                         "Result already converted",
-                                                         MessageBoxButtons.YesNo,
-                                                         MessageBoxIcon.Exclamation,
-                                                         MessageBoxDefaultButton.Button2) != DialogResult.Yes)
+                                "Result already converted",
+                                MessageBoxButtons.YesNo,
+                                MessageBoxIcon.Exclamation,
+                                MessageBoxDefaultButton.Button2) != DialogResult.Yes)
                             skipReconvert = true;
                         warnOnce = true;
                         if (skipReconvert)
@@ -1093,10 +1170,10 @@ namespace IDPicker
 
                 // determine if merged filepath exists and that it's a valid idpDB
                 var potentialPaths = filepaths.Select(item =>
-                                                      Path.Combine(Path.GetDirectoryName(item) ?? string.Empty,
-                                                                   Path.GetFileNameWithoutExtension(item) ??
+                    Path.Combine(Path.GetDirectoryName(item) ?? string.Empty,
+                        Path.GetFileNameWithoutExtension(item) ??
 
-                                                                   string.Empty) + ".idpDB").ToList();
+                        string.Empty) + ".idpDB").ToList();
 
                 // for Mascot files (*.dat), use parseSource() to get the real filename, else save time by just using filename without extension
                 var sourceNames = filepaths.Select(o => Path.Combine(Path.GetDirectoryName(o), o.ToLower().EndsWith(".dat") ? Parser.ParseSource(o) : Path.GetFileNameWithoutExtension(o.Replace(".pep.xml", ".pepXML")) + Path.GetExtension(o)));
@@ -1229,9 +1306,22 @@ namespace IDPicker
                     var merger = new MergerWrapper(mergeTargetFilepath, idpDB_filepaths);
                     toolStripStatusLabel.Text = "Merging results...";
                     merger.MergingProgress += progressMonitor.UpdateProgress;
-                    merger.Start();
 
-                    idpDB_filepaths = new List<string>() {mergeTargetFilepath};
+                    try
+                    {
+                        merger.Start();
+                        idpDB_filepaths = new List<string>() {mergeTargetFilepath};
+                    }
+                    catch (Exception ex)
+                    {
+                        if (ex.Message.Contains("same peptide maps to different sets of proteins"))
+                        {
+                            Program.HandleUserError(ex);
+                            return;
+                        }
+                        else
+                            throw;
+                    }
                 }
 
                 // HACK: this needs to be handled more gracefully
@@ -1243,11 +1333,11 @@ namespace IDPicker
                     string oldFilename = mergeTargetFilepath;
                     bool copyLocal = true;
                     Invoke(new MethodInvoker(() =>
-                                                 {
-                                                     var form = new NonFixedDriveWarningForm();
-                                                     if (form.ShowDialog(this) == DialogResult.Ignore)
-                                                         copyLocal = false;
-                                                 }));
+                    {
+                        var form = new NonFixedDriveWarningForm();
+                        if (form.ShowDialog(this) == DialogResult.Ignore)
+                            copyLocal = false;
+                    }));
 
                     if (copyLocal)
                     {
@@ -1279,7 +1369,7 @@ namespace IDPicker
                     statusStrip.Refresh();
                 }));
 
-                var sessionFactory = DataModel.SessionFactoryFactory.CreateSessionFactory(mergeTargetFilepath, new SessionFactoryConfig { WriteSqlToConsoleOut = true });
+                var sessionFactory = DataModel.SessionFactoryFactory.CreateSessionFactory(mergeTargetFilepath, new SessionFactoryConfig {WriteSqlToConsoleOut = true});
                 if (logForm != null) logForm.SetSessionFactory(sessionFactory);
 
                 BeginInvoke(new MethodInvoker(() =>
@@ -1313,11 +1403,11 @@ namespace IDPicker
                     {
                         bool embedGeneMetadata = true;
                         Invoke(new MethodInvoker(() =>
-                                                     {
-                                                         var form = new EmbedGeneMetadataWarningForm();
-                                                         if (form.ShowDialog(this) == DialogResult.Ignore)
-                                                             embedGeneMetadata = false;
-                                                     }));
+                        {
+                            var form = new EmbedGeneMetadataWarningForm();
+                            if (form.ShowDialog(this) == DialogResult.Ignore)
+                                embedGeneMetadata = false;
+                        }));
 
                         if (embedGeneMetadata)
                         {
@@ -1393,7 +1483,7 @@ namespace IDPicker
                     if (TestUILayout)
                     {
                         int i = 0;
-                        foreach(var form in dockPanel.Contents)
+                        foreach (var form in dockPanel.Contents)
                         {
                             ++i;
                             form.DockingHandler.DockAreas = (form.DockingHandler.DockAreas | DockAreas.Float);
@@ -1422,6 +1512,10 @@ namespace IDPicker
             catch (Exception ex)
             {
                 Program.HandleException(ex);
+            }
+            finally
+            {
+                BeginInvoke(new MethodInvoker(() => { clearProgress(); }));
             }
         }
 
@@ -1662,8 +1756,21 @@ namespace IDPicker
 
         private void optionsToolStripMenuItem_Click(object sender, EventArgs e)
         {
+            // save old rollup method to check whether it changed
+            var oldRollupMethod = Properties.GUI.Settings.Default.QuantitationRollupMethod;
+
             var form = new DefaultSettingsManagerForm { StartPosition = FormStartPosition.CenterParent };
-            form.ShowDialog(this);
+            if (form.ShowDialog(this) == DialogResult.OK)
+            {
+                // if rollup method changed, refresh protein and peptide views
+                if (Properties.GUI.Settings.Default.QuantitationRollupMethod != oldRollupMethod)
+                {
+                    proteinTableForm.ClearData(true);
+                    peptideTableForm.ClearData(true);
+                    proteinTableForm.SetData(session, viewFilter);
+                    peptideTableForm.SetData(session.SessionFactory.OpenSession(), viewFilter);
+                }
+            }
         }
 
         private void ShowQonverterSettings(object sender, EventArgs e)
@@ -1769,6 +1876,11 @@ namespace IDPicker
             workerThread.RunWorkerAsync();
         }
 
+        private void CropAssembly(object sender, EventArgs e)
+        {
+            CropAssembly();
+        }
+
         private void toExcelToolStripMenuItem_Click(object sender, EventArgs e)
         {
             if (session == null)
@@ -1862,20 +1974,25 @@ namespace IDPicker
         private void checkForUpdatesToolStripMenuItem_Click (object sender, EventArgs e)
         {
             Cursor = Cursors.WaitCursor;
-            //if (!Program.CheckForUpdates())
-            //    MessageBox.Show("You are running the latest version.", "No Update Available");
-            Process.Start("http://proteowizard.sourceforge.net/downloads.shtml");
+            if (!Program.CheckForUpdates())
+                MessageBox.Show("You are running the latest version.", "No Update Available");
             Cursor = Cursors.Default;
         }
 
         private void aboutToolStripMenuItem_Click (object sender, EventArgs e)
         {
             MessageBox.Show(String.Format("IDPicker {0} {1}\r\n" +
-                                          "Copyright 2012 Vanderbilt University\r\n" +
+                                          "Copyright {2} Matt Chambers\r\n" +
+                                          "Copyright 2008-2016 Vanderbilt University\r\n" +
                                           "Developers: Matt Chambers, Jay Holman, Surendra Dasari, Zeqiang Ma\r\n" +
                                           "Thanks to: David Tabb",
-                                          Util.Version, Environment.Is64BitProcess ? "64-bit" : "32-bit"),
+                                          Util.Version, Environment.Is64BitProcess ? "64-bit" : "32-bit", DateTime.Now.Year),
                             "About IDPicker");
+        }
+
+        private void visitWebsiteToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            Process.Start("http://j.mp/idpicker-website");
         }
 
         private void embedSpectraToolStripMenuItem_Click (object sender, EventArgs e)
@@ -1983,27 +2100,27 @@ namespace IDPicker
         #region Tutorial menu handlers
         private void glossaryToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            Process.Start("http://fenchurch.mc.vanderbilt.edu/bumbershoot/idpicker/TutorialGlossary.html");
+            Process.Start("http://j.mp/idpicker-tutorial-0-glossary");
         }
 
         private void dataImportToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            Process.Start("http://fenchurch.mc.vanderbilt.edu/bumbershoot/idpicker/TutorialDataImport.html");
+            Process.Start("http://j.mp/idpicker-tutorial-1-data-import");
         }
 
         private void proteinViewToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            Process.Start("http://fenchurch.mc.vanderbilt.edu/bumbershoot/idpicker/TutorialProteinView.html");
+            Process.Start("http://j.mp/idpicker-tutorial-2-protein-view");
         }
 
         private void geneFeaturesToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            Process.Start("http://fenchurch.mc.vanderbilt.edu/bumbershoot/idpicker/TutorialGeneFeatures.html");
+            Process.Start("http://j.mp/idpicker-tutorial-3-gene-features");
         }
 
         private void netGestaltToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            Process.Start("http://fenchurch.mc.vanderbilt.edu/bumbershoot/idpicker/TutorialNetGestalt.html");
+            Process.Start("http://j.mp/idpicker-tutorial-4-netgestalt");
         }
         #endregion
 

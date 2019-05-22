@@ -28,6 +28,13 @@
 #include "pwiz/utility/misc/Std.hpp"
 #include "pwiz/analysis/spectrum_processing/SpectrumListFactory.hpp"
 #include "pwiz/data/msdata/SpectrumWorkerThreads.hpp"
+#include <boost/chrono.hpp>
+
+#ifdef _WIN32
+#include "windows.h"
+#include "psapi.h"
+#endif
+
 
 using namespace pwiz::data;
 using namespace pwiz::msdata;
@@ -40,13 +47,23 @@ several different ways, recording the time taken to iterate each way.
 
 */
 
-
-void enumerateSpectra(const string& filename, bool getBinaryData, const vector<string>& filters)
+string keyValueProcessTimes(const boost::chrono::process_cpu_clock_times& times)
 {
-    bpt::ptime start = bpt::microsec_clock::local_time();
+    return (boost::format("(real: %.3f; user: %.3f; sys: %.3f) seconds")
+            % (times.real / 1e9)
+            % (times.user / 1e9)
+            % (times.system / 1e9)).str();
+}
+
+
+void enumerateSpectra(const string& filename, DetailLevel detailLevel, const vector<string>& filters, const Reader::Config& config, bool reverseIteration, bool useWorkerThreads)
+{
+    auto start = boost::chrono::process_cpu_clock::now();
 
     FullReaderList readers; // for vendor Reader support
-    MSDataFile msd(filename, &readers);
+    vector<MSDataPtr> results;
+    readers.read(filename, results, config);
+    MSData& msd = *results[0];
 
     if (!msd.run.spectrumListPtr.get() && !msd.run.chromatogramListPtr.get())
         throw runtime_error("[msbenchmark] No spectra or chromatograms found.");
@@ -57,37 +74,53 @@ void enumerateSpectra(const string& filename, bool getBinaryData, const vector<s
     pwiz::analysis::SpectrumListFactory::wrap(msd, filters);
 
     SpectrumList& sl = *msd.run.spectrumListPtr;
+    auto stop = boost::chrono::process_cpu_clock::now();
+    cout << "Time to open file: " << keyValueProcessTimes((stop - start).count()) << endl;
 
-    bpt::ptime stop = bpt::microsec_clock::local_time();
-    cout << "Time to open file: " << bpt::to_simple_string(stop - start) << endl;
+    start = boost::chrono::process_cpu_clock::now();
 
-    SpectrumWorkerThreads multithreadedSpectrumList(sl);
-
-    start = bpt::microsec_clock::local_time();
+    SpectrumWorkerThreads multithreadedSpectrumList(sl, useWorkerThreads);
 
     size_t totalArrayLength = 0;
-    for (size_t i=0, size=sl.size(); i != size; ++i)
+    if (reverseIteration)
     {
-        SpectrumPtr s = multithreadedSpectrumList.processBatch(i, getBinaryData);
-
-        if (i == 0)
+        for (size_t size = sl.size(), i = size; i > 0; --i)
         {
-            stop = bpt::microsec_clock::local_time();
-            cout << "Time to get first spectrum: " << bpt::to_simple_string(stop - start) << endl;
-        }
+            SpectrumPtr s = multithreadedSpectrumList.processBatch(i-1, detailLevel);
 
-        totalArrayLength += s->defaultArrayLength;
-        if (i+1 == size || ((i+1) % 100) == 0)
-            cout << "Enumerating spectra: " << (i+1) << '/' << size << " (" << totalArrayLength << " data points)\r" << flush;
+            if (i == size)
+            {
+                stop = boost::chrono::process_cpu_clock::now();
+                cout << "Time to get first spectrum: " << keyValueProcessTimes((stop - start).count()) << endl;
+            }
+            totalArrayLength += s->defaultArrayLength;
+            if (i == 1 || (i % 100) == 0)
+                cout << "Enumerating spectra: " << (i) << '/' << size << " (" << totalArrayLength << " data points)\r" << flush;
+        }
     }
+    else
+        for (size_t i=0, size=sl.size(); i != size; ++i)
+        {
+            SpectrumPtr s = multithreadedSpectrumList.processBatch(i, detailLevel);
+
+            if (i == 0)
+            {
+                stop = boost::chrono::process_cpu_clock::now();
+                cout << "Time to get first spectrum: " << keyValueProcessTimes((stop - start).count()) << endl;
+            }
+
+            totalArrayLength += s->defaultArrayLength;
+            if (i+1 == size || ((i+1) % 100) == 0)
+                cout << "Enumerating spectra: " << (i+1) << '/' << size << " (" << totalArrayLength << " data points)\r" << flush;
+        }
     cout << endl;
 
-    stop = bpt::microsec_clock::local_time();
-    cout << "Time to enumerate: " << bpt::to_simple_string(stop - start) << endl;
+    stop = boost::chrono::process_cpu_clock::now();
+    cout << "Time to enumerate: " << keyValueProcessTimes((stop - start).count()) << endl;
 }
 
 
-void enumerateRAMPAdapterSpectra(const string& filename, bool getBinaryData)
+void enumerateRAMPAdapterSpectra(const string& filename, bool getBinaryData, bool reverseIteration)
 {
     bpt::ptime start = bpt::microsec_clock::local_time();
 
@@ -132,7 +165,7 @@ void enumerateRAMPAdapterSpectra(const string& filename, bool getBinaryData)
 }
 
 
-void enumerateRAMPSpectra(const string& filename, bool getBinaryData)
+void enumerateRAMPSpectra(const string& filename, bool getBinaryData, bool reverseIteration)
 {
     bpt::ptime start = bpt::microsec_clock::local_time();
 
@@ -190,7 +223,7 @@ void enumerateRAMPSpectra(const string& filename, bool getBinaryData)
 }
 
 
-void enumerateChromatograms(const string& filename, bool getBinaryData)
+void enumerateChromatograms(const string& filename, bool getBinaryData, bool reverseIteration)
 {
     bpt::ptime start = bpt::microsec_clock::local_time();
 
@@ -241,22 +274,22 @@ enum BenchmarkMode
 };
 
 
-void benchmark(const char* filename, BenchmarkMode benchmarkMode, bool getBinaryData, const vector<string>& filters)
+void benchmark(const char* filename, BenchmarkMode benchmarkMode, DetailLevel detailLevel, const vector<string>& filters, const Reader::Config& config, bool reverseIteration, bool useWorkerThreads)
 {
     switch (benchmarkMode)
     {
         default:
         case BenchmarkMode_Spectra:
-            enumerateSpectra(filename, getBinaryData, filters);
+            enumerateSpectra(filename, detailLevel, filters, config, reverseIteration, useWorkerThreads);
             break;
         case BenchmarkMode_Chromatograms:
-            enumerateChromatograms(filename, getBinaryData);
+            enumerateChromatograms(filename, (detailLevel == DetailLevel_FullData), reverseIteration);
             break;
         case BenchmarkMode_RAMPAdapter:
-            enumerateRAMPAdapterSpectra(filename, getBinaryData);
+            enumerateRAMPAdapterSpectra(filename, (detailLevel == DetailLevel_FullData), reverseIteration);
             break;
         case BenchmarkMode_RAMP:
-            enumerateRAMPSpectra(filename, getBinaryData);
+            enumerateRAMPSpectra(filename, (detailLevel == DetailLevel_FullData), reverseIteration);
             break;
     }
 }
@@ -268,9 +301,16 @@ int main(int argc, char* argv[])
     {
         if (argc < 4 || argv[1] == string("--help"))
         {
-            cout << "Usage: msbenchmark <spectra|chromatograms|rampadapter|ramp> <binary|no-binary> <filename> [--filter <filter name> <options>] [another filter] \n"
+            cout << "Usage: msbenchmark <spectra|chromatograms|rampadapter|ramp> <full-data|full-metadata|fast-metadata|instant-metadata> <filename> [--filter <filter name> <options>] [another filter] [optional flags]\n\n"
                  << "Iterates over a file's spectra or chromatograms to test reader speed.\n\n"
-                 << "http://proteowizard.sourceforge.net\n"
+                 << "See msconvert documentation for supported --filter's.\n\n"
+                 << "Optional flags are:\n"
+                 << "  --acceptZeroLengthSpectra (skip expensive checking for empty spectra when opening a file)\n"
+                 << "  --ignoreZeroIntensityPoints (read profile data exactly as the vendor provides, even if there are no flanking zero points)\n"
+                 << "  --loop (repeat the run indefinitely)\n"
+                 << "  --singleThreaded (do not use multiple threads to read spectra)\n"
+                 << "  --reverse (iterate backwards)\n\n"
+                 << "https://github.com/ProteoWizard\n"
                  << "support@proteowizard.org\n";
 
             if (argv[1] == string("--help"))
@@ -293,13 +333,22 @@ int main(int argc, char* argv[])
         else
             throw runtime_error("[msbenchmark] First argument must be \"spectra\", \"chromatograms\", \"rampadapter\", or \"ramp\"");
 
-        bool getBinaryData;
-        if (argv[2] == string("binary"))
-            getBinaryData = true;
-        else if (argv[2] == string("no-binary"))
-            getBinaryData = false;
+        DetailLevel detailLevel;
+        if (argv[2] == string("binary") || argv[2] == string("full-data"))
+            detailLevel = DetailLevel_FullData;
+        else if (argv[2] == string("no-binary") || argv[2] == string("full-metadata"))
+            detailLevel = DetailLevel_FullMetadata;
+        else if (argv[2] == string("fast-metadata"))
+            detailLevel = DetailLevel_FastMetadata;
+        else if (argv[2] == string("instant-metadata"))
+            detailLevel = DetailLevel_InstantMetadata;
         else
-            throw runtime_error("[msbenchmark] Second argument must be \"binary\" or \"no-binary\"");
+            throw runtime_error("[msbenchmark] Second argument must be one of [full-data, full-metadata, fast-metadata, instant-metadata]");
+
+        Reader::Config readerConfig;
+        bool reverseIteration = false;
+        bool loop = false;
+        bool useWorkerThreads = true;
 
         vector<string> filters;
         for (int i = 4; i < argc; i += 2)
@@ -309,10 +358,44 @@ int main(int argc, char* argv[])
                     throw runtime_error("[msbenchmark] no options passed to --filter parameter");
                 filters.push_back(argv[i + 1]);
             }
+            else if (argv[i] == string("--ignoreZeroIntensityPoints"))
+            {
+                readerConfig.ignoreZeroIntensityPoints = true;
+                --i;
+            }
+            else if (argv[i] == string("--acceptZeroLengthSpectra"))
+            {
+                readerConfig.acceptZeroLengthSpectra = true;
+                --i;
+            }
+            else if (argv[i] == string("--loop"))
+            {
+                loop = true;
+                --i;
+            }
+            else if (argv[i] == string("--singleThreaded"))
+            {
+                useWorkerThreads = false;
+                --i;
+            }
+            else if (argv[i] == string("--reverse"))
+            {
+                reverseIteration = true;
+                --i;
+            }
             else
                 throw runtime_error("[msbenchmark] unknown option \"" + string(argv[i]) + "\"");
 
-        benchmark(filename, benchmarkMode, getBinaryData, filters);
+        do
+        {
+            benchmark(filename, benchmarkMode, detailLevel, filters, readerConfig, reverseIteration, useWorkerThreads);
+
+#ifdef _WIN32
+            PROCESS_MEMORY_COUNTERS_EX pmc;
+            GetProcessMemoryInfo(GetCurrentProcess(), (PPROCESS_MEMORY_COUNTERS) &pmc, sizeof(pmc));
+            cout << "Memory usage: cur " << pmc.PrivateUsage << ",  peak " << pmc.PeakWorkingSetSize << endl;
+#endif
+        } while (loop);
 
         return 0;
     }

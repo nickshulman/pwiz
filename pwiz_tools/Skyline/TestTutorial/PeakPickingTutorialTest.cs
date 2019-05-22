@@ -22,10 +22,10 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
-using System.Windows.Forms;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using pwiz.Common.DataBinding;
 using pwiz.Common.DataBinding.Controls.Editor;
+using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Controls;
 using pwiz.Skyline.Controls.Databinding;
 using pwiz.Skyline.Controls.Graphs;
@@ -43,7 +43,7 @@ using pwiz.SkylineTestUtil;
 namespace pwiz.SkylineTestTutorial
 {
     [TestClass]
-    public class PeakPickingTutorialTest : AbstractFunctionalTest
+    public class PeakPickingTutorialTest : AbstractFunctionalTestEx
     {
         private readonly string[] _importFiles =
             {
@@ -53,6 +53,11 @@ namespace pwiz.SkylineTestTutorial
                 "olgas_S130501_009_StC-DosR_B4",
                 "olgas_S130501_010_StC-DosR_C4"
             };
+
+        protected override bool UseRawFiles
+        {
+            get { return !ForceMzml && ExtensionTestContext.CanImportAbWiff; }
+        }
 
         [TestMethod]
         public void TestPeakPickingTutorial()
@@ -72,6 +77,8 @@ namespace pwiz.SkylineTestTutorial
                     @"TestTutorial\PeakPickingViews.zip"
                 };
             RunFunctionalTest();
+
+            Assert.IsFalse(IsRecordMode);   // Make sure this doesn't get committed as true
         }
 
         private string GetTestPath(string relativePath)
@@ -87,8 +94,8 @@ namespace pwiz.SkylineTestTutorial
 
         private readonly string[] EXPECTED_COEFFICIENTS =
         {
-            "0.0174|-1.1425|0.2313|1.9599|1.5171|0.0478|0.1870|0.0454| null |0.4290|6.4581|-0.0815|0.4892|0.6203| null | null | null | null | null | null | null | null | null ", // Not L10N
-            "0.1113| null | null | null |6.2797|-0.0701|0.7058|1.1222| null | null | null | null | null | null | null | null | null | null | null | null | null | null | null ", // Not L10N
+            "-0.0171|-1.1499|0.2410|2.4345|1.1974|0.0452|0.1725|0.1607| null |0.4456|6.3767|-0.0651|0.5293|0.6186| null | null | null | null | null ", // Not L10N
+            "0.2903| null | null | null |5.9906|-0.0621|0.6717|0.7982| null | null | null | null | null | null | null | null | null | null | null ", // Not L10N
         };
 
         protected override void DoTest()
@@ -163,13 +170,27 @@ namespace pwiz.SkylineTestTutorial
                 });
             PauseForScreenShot("Main window", 5);
 
+            // Test different point types on RTLinearRegressionGraph
+            RunUI(() =>
+            {
+                SkylineWindow.ShowRTRegressionGraphScoreToRun();
+                SkylineWindow.ShowPlotType(PlotTypeRT.correlation);
+                SkylineWindow.ChooseCalculator("iRT_SRMAtlas_20121202_noLGG");
+            });
+            const int numDecoys = 30;
+            CheckPointsTypeRT(PointsTypeRT.targets, SkylineWindow.Document.PeptideCount - numDecoys);
+            CheckPointsTypeRT(PointsTypeRT.standards, SkylineWindow.Document.GetRetentionTimeStandards().Count);
+            CheckPointsTypeRT(PointsTypeRT.decoys, numDecoys);
+            RunUI(() => SkylineWindow.ShowGraphRetentionTime(false));
+            WaitForDocumentLoaded();
+
             // Train the peak scoring model
             var reintegrateDlg = ShowDialog<ReintegrateDlg>(SkylineWindow.ShowReintegrateDialog);
             PauseForScreenShot<ReintegrateDlg>("Reintegrate form", 6);
             var editDlg = ShowDialog<EditPeakScoringModelDlg>(reintegrateDlg.AddPeakScoringModel);
             RunUI(() => editDlg.TrainModel());
             PauseForScreenShot<EditPeakScoringModelDlg.ModelTab>("Edit Peak Scoring Model form trained model", 6);
-            RunUI(() => Assert.AreEqual(0.569, editDlg.PeakCalculatorsGrid.Items[4].PercentContribution ?? 0, 0.005));
+            RunUI(() => Assert.AreEqual(0.5926, editDlg.PeakCalculatorsGrid.Items[4].PercentContribution ?? 0, 0.005));
 
             RunUI(() => editDlg.SelectedGraphTab = 2);
             PauseForScreenShot<EditPeakScoringModelDlg.PvalueTab>("Edit Peak Scoring Model form p value graph metafile", 7);
@@ -183,8 +204,9 @@ namespace pwiz.SkylineTestTutorial
 
             RunUI(() =>
             {
+                Assert.AreEqual(19, editDlg.PeakCalculatorsGrid.RowCount);
                 // The rows which the tutorial says are missing scores are in fact missing scores
-                foreach (int i in new[] { 3, 8, 9, 10, 11, 12, 14, 16, 19, 20, 21, 22 })
+                foreach (int i in new[] { 3, 8, 9, 10, 11, 12, 14, 16 }) // MS1 scores are now missing, 19, 20, 21, 22
                 {
                     Assert.IsFalse(editDlg.IsActiveCell(i, 0));
                 }
@@ -206,7 +228,7 @@ namespace pwiz.SkylineTestTutorial
             var isDecoys = new List<bool> {false, false, false, false, false, true};
             RunUI(() =>
             {
-                findResultsForm = Application.OpenForms.OfType<FindResultsForm>().FirstOrDefault();
+                findResultsForm = FormUtil.OpenForms.OfType<FindResultsForm>().FirstOrDefault();
                 Assert.IsNotNull(findResultsForm);
 // ReSharper disable once PossibleNullReferenceException
                 Assert.AreEqual(findResultsForm.ItemCount, 6);
@@ -279,7 +301,6 @@ namespace pwiz.SkylineTestTutorial
                 reintegrateDlgNew.ComboPeakScoringModelSelected = "test1";
                 reintegrateDlgNew.ReintegrateAll = true;
                 reintegrateDlgNew.OverwriteManual = true;
-                reintegrateDlgNew.AddAnnotation = true;
             });
             PauseForScreenShot<ReintegrateDlg>("Reintegrate form", 16);
 
@@ -302,7 +323,6 @@ namespace pwiz.SkylineTestTutorial
                     reintegrateDlgQ.ReintegrateAll = false;
                     reintegrateDlgQ.Cutoff = 0.001;
                     reintegrateDlgQ.OverwriteManual = true;
-                    reintegrateDlgQ.AddAnnotation = true;
                 });
             OkDialog(reintegrateDlgQ, reintegrateDlgQ.OkDialog);
             PauseForScreenShot("Targets view with some null peaks clipped from main window", 17);
@@ -378,6 +398,7 @@ namespace pwiz.SkylineTestTutorial
             WaitForClosedForm(rescoreResultsDlg);
             WaitForClosedForm(manageResults);
             WaitForConditionUI(() => FindOpenForm<AllChromatogramsGraph>() == null);
+            WaitForDocumentLoaded();
 
             // Train the peak scoring model for the DIA dataset
             var reintegrateDlgDia = ShowDialog<ReintegrateDlg>(SkylineWindow.ShowReintegrateDialog);
@@ -397,7 +418,7 @@ namespace pwiz.SkylineTestTutorial
                         Assert.AreEqual(editDlgFromSrm.PeakCalculatorsGrid.Items[j].PercentContribution, null);
                     }
                     int i = 0;
-                    Assert.IsFalse(editDlgFromSrm.IsActiveCell(i++, 0));
+                    Assert.IsTrue(editDlgFromSrm.IsActiveCell(i++, 0));
                     Assert.IsFalse(editDlgFromSrm.IsActiveCell(i++, 0));
                     Assert.IsFalse(editDlgFromSrm.IsActiveCell(i++, 0));
                     Assert.IsFalse(editDlgFromSrm.IsActiveCell(i++, 0));
@@ -440,11 +461,10 @@ namespace pwiz.SkylineTestTutorial
             {
                 reintegrateDlgDia.ReintegrateAll = true;
                 reintegrateDlgDia.OverwriteManual = true;
-                reintegrateDlgDia.AddAnnotation = true;
             });
             OkDialog(reintegrateDlgDia, reintegrateDlgDia.OkDialog);
 
-            findResultsForm = Application.OpenForms.OfType<FindResultsForm>().FirstOrDefault();
+            findResultsForm = FormUtil.OpenForms.OfType<FindResultsForm>().FirstOrDefault();
             Assert.IsNotNull(findResultsForm);
             Assert.AreEqual(34 + (TestSmallMolecules ? 1 : 0), findResultsForm.ItemCount);
         }
@@ -468,6 +488,19 @@ namespace pwiz.SkylineTestTutorial
                 else
                     yield return " null ";  // To help values line up
             }
+        }
+
+        private void CheckPointsTypeRT(PointsTypeRT pointsType, int expectedPoints)
+        {
+            RunUI(() => SkylineWindow.ShowPointsType(pointsType));
+            WaitForGraphs();
+            WaitForRegression();
+            RunUI(() =>
+            {
+                RTLinearRegressionGraphPane pane;
+                Assert.IsTrue(SkylineWindow.RTGraphController.GraphSummary.TryGetGraphPane(out pane));
+                Assert.AreEqual(expectedPoints, pane.StatisticsRefined.ListRetentionTimes.Count);
+            });
         }
     }
 }

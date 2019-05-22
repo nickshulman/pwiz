@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Original author: Nicholas Shulman <nicksh .at. u.washington.edu>,
  *                  MacCoss Lab, Department of Genome Sciences, UW
  *
@@ -18,15 +18,15 @@
  */
 
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Linq;
 using System.Threading;
-using System.Threading.Tasks;
 using System.Windows.Forms;
+using pwiz.Common.Collections;
 using pwiz.Common.DataBinding.Controls;
+using pwiz.Common.DataBinding.Layout;
 
 namespace pwiz.Common.DataBinding.Internal
 {
@@ -47,33 +47,89 @@ namespace pwiz.Common.DataBinding.Internal
     internal class BindingListView : BindingList<RowItem>, ITypedList, IBindingListView, IRaiseItemChangedEvents, IDisposable
     {
         private readonly HashSet<ListChangedEventHandler> _listChangedEventHandlers = new HashSet<ListChangedEventHandler>();
-        private PropertyDescriptorCollection _itemProperties;
+        private ImmutableList<DataPropertyDescriptor> _itemProperties;
         private QueryResults _queryResults;
+        private IRowSource _rowSource = StaticRowSource.EMPTY;
         private readonly QueryRequestor _queryRequestor;
+        private INewRowHandler _newRowHandler;
+        private RowItem _newRow;
 
-        public BindingListView(TaskScheduler eventTaskScheduler) : this(eventTaskScheduler, CancellationToken.None)
-        {
-        }
-        
-        public BindingListView(TaskScheduler eventTaskScheduler, CancellationToken cancellationToken) : base(new List<RowItem>())
+        public BindingListView(EventTaskScheduler eventTaskScheduler) : base(new List<RowItem>())
         {
             EventTaskScheduler = eventTaskScheduler;
-            CancellationToken = cancellationToken;
+            QueryLock = new QueryLock(CancellationToken.None);
             _queryResults = QueryResults.Empty;
-            _itemProperties = new PropertyDescriptorCollection(new PropertyDescriptor[0], true);
+            _itemProperties = ImmutableList<DataPropertyDescriptor>.EMPTY;
             _queryRequestor = new QueryRequestor(this);
             AllowNew = AllowRemove = AllowEdit = false;
         }
 
         protected override object AddNewCore()
         {
-            return null;
-            //return _bindingListEventHandler.AddNew();
+            var newRow = _newRow ?? NewRowHandler.AddNewRow();
+            if (newRow == null)
+            {
+                return null;
+            }
+            Items.Add(newRow);
+            _newRow = newRow;
+            return newRow;
         }
 
-        protected override void RemoveItem(int index)
+        public int? NewRowPos
         {
-            // _bindingListEventHandler.RemoveItem(this[index]);
+            get
+            {
+                if (_newRow == null)
+                {
+                    return null;
+                }
+                return Items.IndexOf(_newRow);
+            }
+        }
+
+        public override void CancelNew(int itemIndex)
+        {
+            if (IsNewRowPos(itemIndex))
+            {
+                _newRow = null;
+            }
+            base.CancelNew(itemIndex);
+        }
+
+        public override void EndNew(int itemIndex)
+        {
+            RowItem committedRow = null;
+            if (IsNewRowPos(itemIndex))
+            {
+                committedRow = NewRowHandler.CommitAddNew(_newRow);
+                _newRow = null;
+            }
+
+            base.EndNew(itemIndex);
+            if (committedRow != null)
+            {
+                Items[itemIndex] = committedRow;
+            }
+        }
+
+        public bool ValidateRow(int itemIndex, out bool cancelRowEdit)
+        {
+            if (IsNewRowPos(itemIndex))
+            {
+                return NewRowHandler.ValidateNewRow(_newRow, out cancelRowEdit);
+            }
+            cancelRowEdit = false;
+            return true;
+        }
+
+        private bool IsNewRowPos(int itemIndex)
+        {
+            if (_newRow == null)
+            {
+                return false;
+            }
+            return itemIndex >= 0 && itemIndex < Items.Count && ReferenceEquals(_newRow, Items[itemIndex]);
         }
 
         public ViewInfo ViewInfo
@@ -85,28 +141,37 @@ namespace pwiz.Common.DataBinding.Internal
             }
         }
 
-        public void SetViewAndRows(ViewInfo viewInfo, IEnumerable rows)
+        public void SetViewAndRows(ViewInfo viewInfo, IRowSource rows)
         {
-            _queryRequestor.SetRowsAndParameters(rows, _queryRequestor.QueryParameters.SetViewInfo(viewInfo));
+            RowSource = rows;
+            _queryRequestor.QueryParameters = _queryRequestor.QueryParameters.SetViewInfo(viewInfo);
         }
-        public ViewSpec ViewSpec
+
+        public void ClearTransformStack()
         {
-            get
-            {
-                // TODO(nicksh):Apply current sort if any.
-                return ViewInfo.ViewSpec;
-            }
+            TransformStack = TransformStack.EMPTY;
+        }
+
+        public INewRowHandler NewRowHandler
+        {
+            get { return _newRowHandler; }
             set
             {
-                ViewInfo = new ViewInfo(ViewInfo.ParentColumn, value);
+                bool wasAllowNew = AllowNew;
+                _newRowHandler = value;
+                AllowNew = NewRowHandler != null;
+                if (wasAllowNew != AllowNew)
+                {
+                    OnListChanged(new ListChangedEventArgs(ListChangedType.Reset, -1));
+                }
             }
         }
 
-        public IEnumerable RowSource
+        public IRowSource RowSource
         {
             get
             {
-                return _queryRequestor.RowSource;
+                return _rowSource;
             }
             set
             {
@@ -114,21 +179,19 @@ namespace pwiz.Common.DataBinding.Internal
                 {
                     return;
                 }
-                var bindingList = RowSource as IBindingList;
-                if (bindingList != null)
+                if (RowSource != null)
                 {
-                    bindingList.ListChanged -= RowSourceListChanged;
+                    RowSource.RowSourceChanged -= RowSourceListChanged;
                 }
-                _queryRequestor.RowSource = value;
-                bindingList = RowSource as IBindingList;
-                if (bindingList != null)
+                _rowSource = value;
+                if (RowSource != null)
                 {
-                    bindingList.ListChanged += RowSourceListChanged;
+                    RowSource.RowSourceChanged += RowSourceListChanged;
                 }
             }
         }
 
-        private void RowSourceListChanged(object sender, ListChangedEventArgs args)
+        private void RowSourceListChanged()
         {
             OnAllRowsChanged();
             _queryRequestor.Requery();
@@ -136,7 +199,7 @@ namespace pwiz.Common.DataBinding.Internal
 
         public void ApplySort(ListSortDescriptionCollection sorts)
         {
-            _queryRequestor.QueryParameters = _queryRequestor.QueryParameters.SetSortDescriptions(sorts);
+            RowFilter = RowFilter.ChangeListSortDescriptionCollection(sorts);
             // Fire an event so that the NavBar updates to show that the DataGridView is sorting
             OnListChanged(new ListChangedEventArgs(ListChangedType.Reset, -1));
         }
@@ -216,12 +279,12 @@ namespace pwiz.Common.DataBinding.Internal
         {
             get
             {
-                return _queryRequestor.QueryParameters.SortDescriptions;
+                return RowFilter.GetListSortDescriptionCollection(ItemProperties);
             }
         }
 
-        public TaskScheduler EventTaskScheduler { get; private set; }
-        public CancellationToken CancellationToken { get; private set; }
+        public EventTaskScheduler EventTaskScheduler { get; private set; }
+        public QueryLock QueryLock { get; set; }
 
         public string GetListName(PropertyDescriptor[] listAccessors)
         {
@@ -236,7 +299,7 @@ namespace pwiz.Common.DataBinding.Internal
         {
             if (listAccessors == null || listAccessors.Length == 0)
             {
-                return _itemProperties;
+                return new PropertyDescriptorCollection(_itemProperties.ToArray());
             }
             var propertyDescriptor = listAccessors[listAccessors.Length - 1];
             var collectionInfo = ViewInfo.DataSchema.GetCollectionInfo(propertyDescriptor.PropertyType);
@@ -247,11 +310,13 @@ namespace pwiz.Common.DataBinding.Internal
             return new PropertyDescriptorCollection(ViewInfo.DataSchema.GetPropertyDescriptors(propertyDescriptor.PropertyType).ToArray());
         }
 
+        public ImmutableList<DataPropertyDescriptor> ItemProperties { get { return _itemProperties; } }
+
         private List<RowItem> RowItemList
         {
             get
             {
-                return ((List<RowItem>) Items);
+                return (List<RowItem>) Items;
             }
         }
 
@@ -265,22 +330,37 @@ namespace pwiz.Common.DataBinding.Internal
             {
                 return;
             }
-            _queryResults = _queryRequestor.QueryResults;
+            var queryResults = _queryRequestor.QueryResults;
+            if (queryResults == null)
+            {
+                return;
+            }
+            _queryResults = queryResults;
             bool rowCountChanged = Count != QueryResults.ResultRows.Count;
+            var newRow = _newRow;
+            if (newRow != null)
+            {
+                int newRowPos = Items.IndexOf(newRow);
+                CancelNew(newRowPos);
+            }
             RowItemList.Clear();
             RowItemList.AddRange(QueryResults.ResultRows);
+            if (newRow != null && !NewRowHandler.IsNewRowEmpty(newRow))
+            {
+                _newRow = newRow;
+                AddNew();
+            }
             bool propsChanged = false;
             if (_itemProperties == null)
             {
                 propsChanged = true;
             }
-            else if (!_itemProperties.Cast<PropertyDescriptor>()
-                .SequenceEqual(QueryResults.ItemProperties.Cast<PropertyDescriptor>()))
+            else if (!_itemProperties.SequenceEqual(QueryResults.ItemProperties))
             {
                 propsChanged = true;
             }
             _itemProperties = QueryResults.ItemProperties;
-            AllowNew = false;
+            AllowNew = NewRowHandler != null;
             AllowEdit = true;
             AllowRemove = false;
             if (propsChanged)
@@ -305,16 +385,47 @@ namespace pwiz.Common.DataBinding.Internal
             }
             set
             {
+                
                 RowFilter = RowFilter.SetText(value, true);
             }
         }
 
         public RowFilter RowFilter
         {
-            get { return QueryResults.Parameters.RowFilter; }
+            get
+            {
+                return TransformStack.CurrentTransform as RowFilter ?? RowFilter.Empty;
+            }
             set
             {
-                _queryRequestor.QueryParameters = _queryRequestor.QueryParameters.SetRowFilter(value);
+                if (Equals(RowFilter, value))
+                {
+                    return;
+                }
+                if (TransformStack.CurrentTransform is RowFilter)
+                {
+                    if (value.IsEmpty)
+                    {
+                        TransformStack = TransformStack.Predecessor.TrimTop();
+                    }
+                    else
+                    {
+                        TransformStack = TransformStack.Predecessor.PushTransform(value);
+                    }
+                }
+                else
+                {
+                    TransformStack = TransformStack.PushTransform(value);
+                }
+            }
+        }
+
+        public TransformStack TransformStack
+        {
+            get { return _queryRequestor.QueryParameters.TransformStack; }
+            set
+            {
+                _queryRequestor.QueryParameters = _queryRequestor.QueryParameters.SetTransformStack(value);
             }
         }
 
@@ -377,9 +488,13 @@ namespace pwiz.Common.DataBinding.Internal
 
         protected void OnAllRowsChanged()
         {
-            for (int i = 0; i < Count; i++)
+            // When all of the rows might have changed, we would like to send a ListChangeType.Reset
+            // event, but that resets the current cell to the start of the row.
+            // Instead, we fire the AllRowsChanged event which the BoundDataGridView pays attention to.
+            var handler = AllRowsChanged;
+            if (handler != null)
             {
-                OnListChanged(new ListChangedEventArgs(ListChangedType.ItemChanged, i));
+                handler(this, EventArgs.Empty);
             }
         }
 
@@ -393,13 +508,18 @@ namespace pwiz.Common.DataBinding.Internal
             RowSource = null;
             _queryRequestor.Dispose();
             _queryResults = null;
+            if (EventTaskScheduler != null)
+            {
+                EventTaskScheduler.Dispose();
+            }
         }
 
         public event EventHandler<BindingManagerDataErrorEventArgs> UnhandledExceptionEvent;
+        public event EventHandler AllRowsChanged;
 
         public void OnUnhandledException(Exception exception)
         {
-            Trace.TraceError("BindingListView unhandled exception {0}", exception); // Not L10N
+            Trace.TraceError(@"BindingListView unhandled exception {0}", exception);
             var unhandledExceptionEvent = UnhandledExceptionEvent;
             if (null != unhandledExceptionEvent)
             {

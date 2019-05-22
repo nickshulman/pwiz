@@ -16,6 +16,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -25,7 +26,10 @@ using pwiz.Common.DataBinding;
 using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Alerts;
 using pwiz.Skyline.Controls;
+using pwiz.Skyline.FileUI;
+using pwiz.Skyline.Model;
 using pwiz.Skyline.Model.DocSettings;
+using pwiz.Skyline.Model.Results;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
 using pwiz.Skyline.Util.Extensions;
@@ -78,7 +82,30 @@ namespace pwiz.Skyline.SettingsUI
             {
                 get { return Resources.DeconvolutionMethod_MSX_OVERLAP_Overlap_and_MSX; }
             }
+
+            public static string FAST_OVERLAP
+            {
+                get { return Resources.DeconvolutionMethod_FAST_OVERLAP_Fast_Overlap; }
+            }
         };
+
+        public static class IsolationWidthType
+        {
+            public static string RESULTS
+            {
+                get { return Resources.IsolationWidthType_RESULTS_Results; }
+            }
+
+            public static string RESULTS_WITH_MARGIN
+            {
+                get { return Resources.IsolationWidthType_RESULTS_WITH_MARGIN_Results_with_margin; }
+            }
+
+            public static string FIXED
+            {
+                get { return Resources.IsolationWidthType_FIXED_Fixed; }
+            }
+        }
 
         public EditIsolationSchemeDlg(IEnumerable<IsolationScheme> existing)
         {
@@ -92,7 +119,7 @@ namespace pwiz.Skyline.SettingsUI
 
             foreach (DataGridViewColumn col in gridIsolationWindows.Columns)
             {
-                col.ValueType = typeof (decimal);
+                col.ValueType = typeof(decimal);
             }
             gridIsolationWindows.AutoGenerateColumns = false;
             _gridViewDriver = new GridViewDriver(this, editIsolationWindowBindingSource,
@@ -107,7 +134,8 @@ namespace pwiz.Skyline.SettingsUI
                 DeconvolutionMethod.NONE,
                 DeconvolutionMethod.MSX,
                 DeconvolutionMethod.OVERLAP,
-                DeconvolutionMethod.MSX_OVERLAP
+                DeconvolutionMethod.MSX_OVERLAP,
+                DeconvolutionMethod.FAST_OVERLAP
             };
             comboDeconv.Items.AddRange(deconvOptions);
             comboDeconv.SelectedItem = DeconvolutionMethod.NONE;
@@ -119,14 +147,24 @@ namespace pwiz.Skyline.SettingsUI
             colStartMargin.Visible = false;
             colCERange.Visible = false;
 
-            //Initialize IsolationComboBox
+            // Initialize IsolationComboBox
             comboIsolation.Items.AddRange(
-                new object[]
+                new[]
                 {
                     WindowType.MEASUREMENT,
                     WindowType.EXTRACTION
                 });
             comboIsolation.SelectedItem = WindowType.MEASUREMENT;
+
+            // Initialize results isolation width combo
+            comboIsolationWidth.Items.AddRange(
+                new[]
+                {
+                    IsolationWidthType.RESULTS,
+                    IsolationWidthType.RESULTS_WITH_MARGIN,
+                    IsolationWidthType.FIXED
+                });
+            comboIsolationWidth.SelectedItem = IsolationWidthType.RESULTS;
         }
 
         private void OnLoad(object sender, EventArgs e)
@@ -145,13 +183,11 @@ namespace pwiz.Skyline.SettingsUI
                 _isolationScheme = value;
 
                 textName.Text = _isolationScheme != null ? _isolationScheme.Name : string.Empty;
-                var precursorFilter = TransitionFullScan.DEFAULT_PRECURSOR_MULTI_FILTER;
-
                 // Default isolation scheme.
                 if (_isolationScheme == null)
                 {
-                    textPrecursorFilterMz.Text = precursorFilter.ToString(LocalizationHelper.CurrentCulture);
                     rbUseResultsData.Checked = true;
+                    comboIsolationWidth.SelectedItem = IsolationWidthType.RESULTS;
                     return;
                 }
 
@@ -159,22 +195,34 @@ namespace pwiz.Skyline.SettingsUI
                 if (_isolationScheme.FromResults)
                 {
                     rbUseResultsData.Checked = true;
-                    if (_isolationScheme.PrecursorRightFilter.HasValue)
-                    {
-                        cbAsymIsolation.Checked = true;
-                        textRightPrecursorFilterMz.Text =
-                            _isolationScheme.PrecursorRightFilter.Value.ToString(LocalizationHelper.CurrentCulture);
-                    }
+                    // Asymetric isolation schemes are no longer meaningful, since SCIEX updated
+                    // its reader library to use symmetric isolation
+//                    if (_isolationScheme.PrecursorRightFilter.HasValue)
+//                    {
+//                        cbAsymIsolation.Checked = true;
+//                        textRightPrecursorFilterMz.Text =
+//                            _isolationScheme.PrecursorRightFilter.Value.ToString(LocalizationHelper.CurrentCulture);
+//                    }
 
-                    if (_isolationScheme.PrecursorFilter.HasValue)
+                    if (!_isolationScheme.PrecursorFilter.HasValue)
                     {
-                        precursorFilter = _isolationScheme.PrecursorFilter.Value;
+                        comboIsolationWidth.SelectedItem = IsolationWidthType.RESULTS;
                     }
-                    textPrecursorFilterMz.Text = precursorFilter.ToString(LocalizationHelper.CurrentCulture);
+                    else
+                    {
+                        var precursorFilter = _isolationScheme.UseMargin
+                            ? TransitionFullScan.MAX_PRECURSOR_MULTI_FILTER_MARGIN
+                            : TransitionFullScan.DEFAULT_PRECURSOR_MULTI_FILTER;
+                        comboIsolationWidth.SelectedItem = _isolationScheme.UseMargin
+                            ? IsolationWidthType.RESULTS_WITH_MARGIN
+                            : IsolationWidthType.FIXED;
+                        precursorFilter = _isolationScheme.PrecursorFilter.Value;
+                        textPrecursorFilterMz.Text = precursorFilter.ToString(LocalizationHelper.CurrentCulture);
+                    }
                     UpdateDeconvCombo(comboDeconv);
                 }
 
-                    // Handle predetermined isolation scheme.
+                // Handle predetermined isolation scheme.
                 else
                 {
                     rbPrespecified.Checked = true;
@@ -186,7 +234,7 @@ namespace pwiz.Skyline.SettingsUI
                     {
                         double start = isolationWindow.Start;
                         double end = isolationWindow.End;
-                        if (Equals(comboIsolation.SelectedItem,WindowType.MEASUREMENT))
+                        if (Equals(comboIsolation.SelectedItem, WindowType.MEASUREMENT))
                         {
                             start -= (isolationWindow.StartMargin ?? 0);
                             end += (isolationWindow.EndMargin ?? (isolationWindow.StartMargin ?? 0));
@@ -225,6 +273,8 @@ namespace pwiz.Skyline.SettingsUI
                     return DeconvolutionMethod.MSX;
                 case (IsolationScheme.SpecialHandlingType.OVERLAP_MULTIPLEXED):
                     return DeconvolutionMethod.MSX_OVERLAP;
+                case (IsolationScheme.SpecialHandlingType.FAST_OVERLAP):
+                    return DeconvolutionMethod.FAST_OVERLAP;
                 default:
                     return DeconvolutionMethod.NONE;
             }
@@ -238,6 +288,8 @@ namespace pwiz.Skyline.SettingsUI
                 return IsolationScheme.SpecialHandlingType.MULTIPLEXED;
             else if (deconvType == DeconvolutionMethod.MSX_OVERLAP)
                 return IsolationScheme.SpecialHandlingType.OVERLAP_MULTIPLEXED;
+            else if (deconvType == DeconvolutionMethod.FAST_OVERLAP)
+                return IsolationScheme.SpecialHandlingType.FAST_OVERLAP;
             else return IsolationScheme.SpecialHandlingType.NONE;
         }
 
@@ -257,8 +309,13 @@ namespace pwiz.Skyline.SettingsUI
 
             object deconvItem = null;
             textPrecursorFilterMz.Enabled = fromResults;
-            textRightPrecursorFilterMz.Enabled = fromResults;
-            cbAsymIsolation.Enabled = fromResults;
+            if (comboIsolationWidth.Enabled != fromResults)
+            {
+                comboIsolationWidth.Enabled = fromResults;
+                comboIsolationWidth.SelectedItem = fromResults
+                    ? IsolationWidthType.RESULTS
+                    : null;
+            }
             labelIsolationWidth.Enabled = fromResults;
             labelTh.Enabled = fromResults;
             labelDeconvolution.Enabled = fromResults;
@@ -270,6 +327,7 @@ namespace pwiz.Skyline.SettingsUI
             }
 
             btnCalculate.Enabled = !fromResults;
+            btnImport.Enabled = !fromResults;
             btnGraph.Enabled = !fromResults;
             gridIsolationWindows.Enabled = !fromResults;
             cbSpecifyMargin.Enabled = !fromResults;
@@ -285,41 +343,28 @@ namespace pwiz.Skyline.SettingsUI
                     (!fromResults && Equals(comboDeconvPre.SelectedItem, DeconvolutionMethod.MSX));
         }
 
-        private void cbAsymIsolation_CheckedChanged(object sender, EventArgs e)
+        private void comboIsolationWidth_SelectedIndexChanged(object sender, EventArgs e)
         {
             UpdateIsolationWidths();
         }
 
         private void UpdateIsolationWidths()
         {
-            textRightPrecursorFilterMz.Visible = cbAsymIsolation.Checked;
-            if (cbAsymIsolation.Checked)
+            if (comboIsolationWidth.SelectedItem == null ||
+                Equals(comboIsolationWidth.SelectedItem, IsolationWidthType.RESULTS))
             {
-                labelIsolationWidth.Text = Resources.EditIsolationSchemeDlg_UpdateIsolationWidths_Isolation_widths;
-                textPrecursorFilterMz.Width = textRightPrecursorFilterMz.Width;
-                double totalWidth;
-                double? halfWidth = null;
-                if (double.TryParse(textPrecursorFilterMz.Text, out totalWidth))
-                    halfWidth = totalWidth/2;
-                textPrecursorFilterMz.Text = textRightPrecursorFilterMz.Text =
-                    halfWidth.HasValue ? halfWidth.Value.ToString(LocalizationHelper.CurrentCulture) : string.Empty;
+                textPrecursorFilterMz.Text = string.Empty;
+                textPrecursorFilterMz.Visible = false;
+                labelTh.Visible = false;
             }
             else
             {
-                labelIsolationWidth.Text = Resources.EditIsolationSchemeDlg_UpdateIsolationWidths_Isolation_width;
-                textPrecursorFilterMz.Width = textRightPrecursorFilterMz.Right - textPrecursorFilterMz.Left;
-                double leftWidth;
-                double? totalWidth = null;
-                if (double.TryParse(textPrecursorFilterMz.Text, out leftWidth))
-                {
-                    double rightWidth;
-                    if (double.TryParse(textRightPrecursorFilterMz.Text, out rightWidth))
-                        totalWidth = leftWidth + rightWidth;
-                    else
-                        totalWidth = leftWidth*2;
-                }
-                textPrecursorFilterMz.Text =
-                    totalWidth.HasValue ? totalWidth.Value.ToString(LocalizationHelper.CurrentCulture) : string.Empty;
+                double filterWidth = Equals(comboIsolationWidth.SelectedItem, IsolationWidthType.RESULTS_WITH_MARGIN)
+                    ? TransitionFullScan.DEFAULT_PRECURSOR_MULTI_FILTER_MARGIN
+                    : TransitionFullScan.DEFAULT_PRECURSOR_MULTI_FILTER;
+                textPrecursorFilterMz.Text = filterWidth.ToString(LocalizationHelper.CurrentCulture);
+                textPrecursorFilterMz.Visible = true;
+                labelTh.Visible = true;
             }
         }
 
@@ -340,31 +385,37 @@ namespace pwiz.Skyline.SettingsUI
 
             if (rbUseResultsData.Checked)
             {
-                double filterFactor = cbAsymIsolation.Checked ? 0.5 : 1;
-                double minFilt = TransitionFullScan.MIN_PRECURSOR_MULTI_FILTER*filterFactor;
-                double maxFilt = TransitionFullScan.MAX_PRECURSOR_MULTI_FILTER*filterFactor;
-                double precFilt;
-                if (!helper.ValidateDecimalTextBox(textPrecursorFilterMz,
-                    minFilt, maxFilt, out precFilt))
-                    return;
-                double? precursorFilter = precFilt;
-                double? precursorRightFilter = null;
-                if (cbAsymIsolation.Checked)
+                double? precursorFilter = null;
+                bool filterMargin = Equals(comboIsolationWidth.SelectedItem, IsolationWidthType.RESULTS_WITH_MARGIN);
+                if (!Equals(comboIsolationWidth.SelectedItem, IsolationWidthType.RESULTS))
                 {
-                    if (!helper.ValidateDecimalTextBox(textRightPrecursorFilterMz,
+                    double minFilt = filterMargin ? 0 : TransitionFullScan.MIN_PRECURSOR_MULTI_FILTER;
+                    double maxFilt = filterMargin
+                        ? TransitionFullScan.MAX_PRECURSOR_MULTI_FILTER_MARGIN
+                        : TransitionFullScan.MAX_PRECURSOR_MULTI_FILTER;
+                    double precFilt;
+                    if (!helper.ValidateDecimalTextBox(textPrecursorFilterMz,
                         minFilt, maxFilt, out precFilt))
                         return;
-                    precursorRightFilter = precFilt;
+                    precursorFilter = precFilt;
                 }
-                _isolationScheme = new IsolationScheme(name, SpecialHandling, precursorFilter, precursorRightFilter);
+                try
+                {
+                    _isolationScheme = new IsolationScheme(name, SpecialHandling, precursorFilter, null, filterMargin);
+                }
+                catch (InvalidDataException exception)
+                {
+                    MessageDlg.ShowException(this, exception);
+                    return;
+                }
             }
             else
             {
                 // Validate prespecified windows.
                 List<IsolationWindow> windowList;
-                if((windowList = GetIsolationWindows()) == null)
+                if ((windowList = GetIsolationWindows()) == null)
                     return;
-                
+
 
                 // Must be at least one window.
                 if (windowList.Count == 0)
@@ -399,14 +450,17 @@ namespace pwiz.Skyline.SettingsUI
                 const double tolerance = 0.0001;
                 for (int i = 0; i < sortedWindowList.Count - subtraction; i += increment)
                 {
-                    for (int j = 0; j < increment; j ++)
+                    for (int j = 0; j < increment; j++)
                     {
                         IsolationWindow current = sortedWindowList.ElementAt(i + j);
                         IsolationWindow next = sortedWindowList.ElementAt(i + j + increment);
                         if (!gapsOk && next.Start - current.End > tolerance)
                         {
-                            if (MultiButtonMsgDlg.Show(this, Resources.EditIsolationSchemeDlg_OkDialog_There_are_gaps_in_a_single_cycle_of_your_extraction_windows__Do_you_want_to_continue_,
-                                                       MultiButtonMsgDlg.BUTTON_YES, MultiButtonMsgDlg.BUTTON_NO, false) != DialogResult.Yes)
+                            if (MultiButtonMsgDlg.Show(this,
+                                    Resources
+                                        .EditIsolationSchemeDlg_OkDialog_There_are_gaps_in_a_single_cycle_of_your_extraction_windows__Do_you_want_to_continue_,
+                                    MultiButtonMsgDlg.BUTTON_YES, MultiButtonMsgDlg.BUTTON_NO, false) !=
+                                DialogResult.Yes)
                             {
                                 return;
                             }
@@ -414,9 +468,10 @@ namespace pwiz.Skyline.SettingsUI
                         }
                         else if (!overlapsOk && current.End - next.Start > tolerance)
                         {
-                            if (MultiButtonMsgDlg.Show(this, Resources.EditIsolationSchemeDlgOkDialogThereAreOverlapsContinue,
-                                MultiButtonMsgDlg.BUTTON_YES,
-                                MultiButtonMsgDlg.BUTTON_NO,false) != DialogResult.Yes)
+                            if (MultiButtonMsgDlg.Show(this,
+                                    Resources.EditIsolationSchemeDlgOkDialogThereAreOverlapsContinue,
+                                    MultiButtonMsgDlg.BUTTON_YES,
+                                    MultiButtonMsgDlg.BUTTON_NO, false) != DialogResult.Yes)
                             {
                                 return;
                             }
@@ -443,7 +498,8 @@ namespace pwiz.Skyline.SettingsUI
             //Overlap requires an even number of windows
             if (Overlap && _gridViewDriver.Items.Count%2 == 1)
             {
-                MessageDlg.Show(this, Resources.EditIsolationSchemeDlg_GetIsolationWindows_Overlap_requires_an_even_number_of_windows_);
+                MessageDlg.Show(this,
+                    Resources.EditIsolationSchemeDlg_GetIsolationWindows_Overlap_requires_an_even_number_of_windows_);
                 return null;
             }
 
@@ -519,11 +575,9 @@ namespace pwiz.Skyline.SettingsUI
             bool fromResults = rbUseResultsData.Checked;
             labelWindowsPerScan.Enabled =
                 textWindowsPerScan.Enabled =
-                    (!fromResults && (Equals(comboDeconvPre.SelectedItem, DeconvolutionMethod.MSX)||
-                                      Equals(comboDeconvPre.SelectedItem,DeconvolutionMethod.MSX_OVERLAP)));
+                (!fromResults && (Equals(comboDeconvPre.SelectedItem, DeconvolutionMethod.MSX) ||
+                                  Equals(comboDeconvPre.SelectedItem, DeconvolutionMethod.MSX_OVERLAP)));
         }
-
-
 
         private void cbSpecifyMargin_CheckedChanged(object sender, EventArgs e)
         {
@@ -534,7 +588,7 @@ namespace pwiz.Skyline.SettingsUI
                 colStartMargin.Visible = true;
             }
             else
-            {   
+            {
                 AdjustGridTop(-1);
                 comboIsolation.Visible = false;
                 colStartMargin.Visible = false;
@@ -587,9 +641,9 @@ namespace pwiz.Skyline.SettingsUI
                     cbSpecifyCERange.Checked = (isolationWindows[0].CERange.HasValue);
 
                     // Determine if calculation was on Isolation Or Extraction
-                    comboIsolation.SelectedItem = calculateDlg.IsIsolation ? 
-                        WindowType.MEASUREMENT : 
-                        WindowType.EXTRACTION;
+                    comboIsolation.SelectedItem = calculateDlg.IsIsolation
+                        ? WindowType.MEASUREMENT
+                        : WindowType.EXTRACTION;
 
                     // Load isolation windows into grid.
                     foreach (var window in isolationWindows)
@@ -599,23 +653,11 @@ namespace pwiz.Skyline.SettingsUI
 
                     // Copy multiplexed windows settings.
                     comboDeconvPre.SelectedItem = calculateDlg.Deconvolution;
-                    textWindowsPerScan.Text = calculateDlg.Multiplexed ? 
-                        calculateDlg.WindowsPerScan.ToString(LocalizationHelper.CurrentCulture) : 
-                        string.Empty;
+                    textWindowsPerScan.Text = calculateDlg.Multiplexed
+                        ? calculateDlg.WindowsPerScan.ToString(LocalizationHelper.CurrentCulture)
+                        : string.Empty;
                 }
             }
-        }
-
-        private class IsolationWindowTargetComparer : IComparer<IsolationWindow>
-        {
-            #region Implementation of IComparer<in IsolationWindow>
-
-            public int Compare(IsolationWindow x, IsolationWindow y)
-            {
-                return x.Start.CompareTo(y.Start);
-            }
-
-            #endregion
         }
 
         private class GridViewDriver : SimpleGridViewDriver<EditIsolationWindow>
@@ -739,7 +781,7 @@ namespace pwiz.Skyline.SettingsUI
                 }
 
                 // Set the format.
-                GridView.Columns[columnIndex].DefaultCellStyle.Format = "N" + decimalPlaces; // Not L10N
+                GridView.Columns[columnIndex].DefaultCellStyle.Format = @"N" + decimalPlaces;
             }
 
             private EditIsolationWindow CreateEditIsolationWindow(IList<object> values, int lineNumber = -1)
@@ -826,21 +868,10 @@ namespace pwiz.Skyline.SettingsUI
             set { textPrecursorFilterMz.Text = Helpers.NullableDoubleToString(value); }
         }
 
-        public double? PrecursorRightFilter
+        public string IsolationWidthTypeName
         {
-            get
-            {
-                return textRightPrecursorFilterMz.Visible
-                    ? Helpers.ParseNullableDouble(textRightPrecursorFilterMz.Text)
-                    : null;
-            }
-            set { textRightPrecursorFilterMz.Text = Helpers.NullableDoubleToString(value); }
-        }
-
-        public bool AsymmetricFilter
-        {
-            get { return cbAsymIsolation.Checked; }
-            set { cbAsymIsolation.Checked = value; }
+            get { return (string) comboIsolationWidth.SelectedItem; }
+            set { comboIsolationWidth.SelectedItem = value; }
         }
 
         public SimpleGridViewDriver<EditIsolationWindow> IsolationWindowGrid
@@ -885,7 +916,7 @@ namespace pwiz.Skyline.SettingsUI
             get { return comboIsolation.SelectedIndex; }
             set
             {
-                if(!Equals(value,WindowType.MEASUREMENT) && ! Equals(value,WindowType.EXTRACTION))
+                if (!Equals(value, WindowType.MEASUREMENT) && !Equals(value, WindowType.EXTRACTION))
                     throw new ArgumentOutOfRangeException();
                 comboIsolation.SelectedItem = value;
             }
@@ -896,7 +927,8 @@ namespace pwiz.Skyline.SettingsUI
             get
             {
                 return Equals(comboDeconvPre.SelectedItem, DeconvolutionMethod.OVERLAP) ||
-                       Equals(comboDeconvPre.SelectedItem, DeconvolutionMethod.MSX_OVERLAP);
+                       Equals(comboDeconvPre.SelectedItem, DeconvolutionMethod.MSX_OVERLAP) ||
+                       Equals(comboDeconvPre.SelectedItem, DeconvolutionMethod.FAST_OVERLAP);
             }
         }
 
@@ -918,9 +950,9 @@ namespace pwiz.Skyline.SettingsUI
         private void comboIsolation_SelectedIndexChanged(object sender, EventArgs e)
         {
             //Nothing needs to be done if comboIsolation's value is the same
-            if (Equals(comboIsolation.SelectedItem,_lastWindowType)) return;
+            if (Equals(comboIsolation.SelectedItem, _lastWindowType)) return;
             _lastWindowType = comboIsolation.SelectedItem;
-            
+
             bool isIsolation = Equals(comboIsolation.SelectedItem, WindowType.MEASUREMENT);
             int row = 0;
             foreach (EditIsolationWindow window in _gridViewDriver.Items)
@@ -939,7 +971,7 @@ namespace pwiz.Skyline.SettingsUI
                     {
                         newStart = (double) window.Start + startMargin;
                     }
-                    _gridViewDriver.SetCellValue(COLUMN_START,row,newStart);
+                    _gridViewDriver.SetCellValue(COLUMN_START, row, newStart);
                 }
                 if (window.End != null)
                 {
@@ -948,15 +980,15 @@ namespace pwiz.Skyline.SettingsUI
                         newEnd = (double) window.End + endMargin;
                     else
                         newEnd = (double) window.End - endMargin;
-                    _gridViewDriver.SetCellValue(COLUMN_END,row,newEnd);
+                    _gridViewDriver.SetCellValue(COLUMN_END, row, newEnd);
                 }
-                row ++;
+                row++;
             }
         }
 
         private void btnGraph_Click(object sender, EventArgs e)
         {
-            OpenGraph();    
+            OpenGraph();
         }
 
         public void OpenGraph()
@@ -964,21 +996,76 @@ namespace pwiz.Skyline.SettingsUI
             if (Equals(comboDeconvPre.SelectedItem, DeconvolutionMethod.MSX) ||
                 Equals(comboDeconvPre.SelectedItem, DeconvolutionMethod.MSX_OVERLAP))
             {
-                MessageDlg.Show(this,Resources.EditIsolationSchemeDlg_OpenGraph_Graphing_multiplexing_is_not_supported_);
+                MessageDlg.Show(this, Resources.EditIsolationSchemeDlg_OpenGraph_Graphing_multiplexing_is_not_supported_);
                 return;
             }
-                   
+
             List<IsolationWindow> windows = GetIsolationWindows();
             if (windows == null)
                 return;
             int windowsPerScan;
-            if (! int.TryParse(textWindowsPerScan.Text, out windowsPerScan))
+            if (!int.TryParse(textWindowsPerScan.Text, out windowsPerScan))
                 windowsPerScan = 1;
             bool useMargins = cbSpecifyMargin.Checked;
             using (var graphDlg = new DiaIsolationWindowsGraphForm(windows, useMargins,
                 comboDeconvPre.SelectedItem, windowsPerScan))
             {
                 graphDlg.ShowDialog(this);
+            }
+        }
+
+        private void btnImport_Click(object sender, EventArgs e)
+        {
+            ImportRanges();
+        }
+
+        public void ImportRanges()
+        {
+            string activeDir = Settings.Default.ActiveDirectory;
+            if (string.IsNullOrEmpty(activeDir))
+                activeDir = null;
+            var dataSources = ImportResultsDlg.GetDataSourcePaths(this, activeDir);
+            if (dataSources == null)
+                return;
+
+            ImportRangesFromFiles(dataSources);
+        }
+
+        private void ImportRangesFromFiles(MsDataFileUri[] dataSources)
+        {
+            try
+            {
+                IsolationScheme isolationScheme = null;
+                using (var dlg = new LongWaitDlg
+                {
+                    Message = Resources.EditIsolationSchemeDlg_ImportRangesFromFiles_Reading_isolation_scheme___
+                })
+                {
+                    var reader = new IsolationSchemeReader(dataSources);
+                    dlg.PerformWork(this, 500, progressMonitor => isolationScheme = reader.Import(@"temp", progressMonitor));
+                }
+
+                if (isolationScheme != null)
+                {
+                    cbSpecifyMargin.Checked = isolationScheme.PrespecifiedIsolationWindows.Count(w => w.StartMargin.HasValue) > 1;
+                    comboDeconvPre.SelectedItem = isolationScheme.SpecialHandling == IsolationScheme.SpecialHandlingType.OVERLAP_MULTIPLEXED
+                        ? DeconvolutionMethod.OVERLAP
+                        : DeconvolutionMethod.NONE;
+                    _gridViewDriver.Items.Clear();
+                    foreach (var isolationWindow in isolationScheme.PrespecifiedIsolationWindows)
+                    {
+                        _gridViewDriver.Items.Add(new EditIsolationWindow
+                        {
+                            Start = isolationWindow.Start,
+                            End = isolationWindow.End,
+                            StartMargin = isolationWindow.StartMargin
+                        });
+                    }
+                }
+            }
+            catch (Exception x)
+            {
+                MessageDlg.ShowWithException(this, TextUtil.LineSeparate(Resources.EditIsolationSchemeDlg_ImportRangesFromFiles_Failed_reading_isolation_scheme_, x.Message), x);
             }
         }
     }

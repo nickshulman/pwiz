@@ -33,7 +33,9 @@
 #include "boost/make_shared.hpp"
 #include "boost/core/null_deleter.hpp"
 #include "boost/range/algorithm_ext/insert.hpp"
+#include "boost/assign.hpp"
 
+#include "SchemaUpdater.hpp"
 #include "Parser.hpp"
 #include "Embedder.hpp"
 #include "idpQonvert.hpp"
@@ -79,9 +81,7 @@ RunTimeConfig* g_rtConfig;
 
 int InitProcess( argList_t& args )
 {
-    cout << "IDPickerQonvert " << idpQonvert::Version::str() << " (" << idpQonvert::Version::LastModified() << ")\n" <<
-            "IDPickerCore " << IDPicker::Version::str() << " (" << IDPicker::Version::LastModified() << ")\n" <<
-            "FreiCore " << freicore::Version::str() << " (" << freicore::Version::LastModified() << ")\n" << endl;
+    cout << "IDPickerQonvert " << idpQonvert::Version::str() << " (" << idpQonvert::Version::LastModified() << ")\n" << endl;
 
     string usage = "Usage: " + lexical_cast<string>(bfs::path(args[0]).filename()) + " [optional arguments] <analyzed data filemask> [<another filemask> ...]\n"
                     "Optional arguments:\n"
@@ -102,7 +102,7 @@ int InitProcess( argList_t& args )
     {
         if( args[i] == "-workdir" && i+1 <= args.size() )
         {
-            chdir( args[i+1].c_str() );
+            bfs::current_path(args[i + 1]);
             args.erase( args.begin() + i );
         }
         else if( args[i] == "-cpus" && i+1 <= args.size() )
@@ -231,7 +231,7 @@ int InitProcess( argList_t& args )
     if (g_rtConfig->LogFilepath.empty())
     {
         sink->locked_backend()->add_stream(boost::shared_ptr<std::ostream>(&cout, boost::null_deleter())); // if no logfile is set, send messages to console
-        sink->set_filter(severity < MessageSeverity::Error); // but don't send errors to the console twice
+        sink->set_filter(severity < MessageSeverity::Error && severity >= g_rtConfig->LogLevel.index()); // but don't send errors to the console twice
     }
     else
     {
@@ -644,6 +644,23 @@ vector<QonversionSummary> summarizeQonversion(const string& filepath)
     return results;
 }
 
+// return the first existing filepath with one of the given extensions in the search path
+string findNameInPath(const string& filenameWithoutExtension,
+                      const vector<string>& extensions,
+                      const vector<string>& searchPath)
+{
+    BOOST_FOREACH(const string& extension, extensions)
+    BOOST_FOREACH(const string& path, searchPath)
+    {
+        bfs::path filepath(path);
+        filepath /= filenameWithoutExtension + extension;
+
+        // if the path exists, check whether MSData can handle it
+        if (bfs::exists(filepath))
+            return filepath.string();
+    }
+    return "";
+}
 
 bool outputFilepathExists(const string& filepath) {return bfs::exists(Parser::outputFilepath(filepath));}
 
@@ -669,7 +686,7 @@ int run( int argc, char* argv[] )
 
         vector<string> idpDbFilepaths, parserFilepaths;
         BOOST_FOREACH(const string& filepath, g_rtConfig->inputFilepaths)
-            if (bfs::path(filepath).extension() == ".idpDB")
+            if (bal::iequals(bfs::path(filepath).extension().string(), ".idpDB"))
                 idpDbFilepaths.push_back(filepath);
             else
                 parserFilepaths.push_back(filepath);
@@ -753,14 +770,23 @@ int run( int argc, char* argv[] )
                                                                             << left << setw(9) << totalPeptides
                                                                             << "Total" << endl;
         }
-        
+        else // make sure schema is up to date for EmbedOnly jobs (e.g. gene metadata and/or quantitation)
+        {
+            for (size_t i = 0, end = idpDbFilepaths.size(); i < end; ++i)
+            {
+                IterationListenerRegistry ilr;
+                ilr.addListener(IterationListenerPtr(new UserFeedbackProgressMonitor(idpDbFilepaths[i])), 1);
+                SchemaUpdater::update(idpDbFilepaths[i], &ilr);
+            }
+        }
+
         BOOST_FOREACH(const string& filepath, parserFilepaths)
             idpDbFilepaths.push_back(Parser::outputFilepath(filepath).string());
 
         if (g_rtConfig->EmbedSpectrumSources || g_rtConfig->EmbedSpectrumScanTimes)
         {
             map<int, Embedder::QuantitationConfiguration> allSourcesQuantitationMethodMap;
-            allSourcesQuantitationMethodMap[0] = Embedder::QuantitationConfiguration(g_rtConfig->QuantitationMethod, g_rtConfig->ReporterIonMzTolerance);
+            allSourcesQuantitationMethodMap[0] = Embedder::QuantitationConfiguration(g_rtConfig->QuantitationMethod, g_rtConfig->ReporterIonMzTolerance, g_rtConfig->NormalizeReporterIons);
 
             map<int, XIC::XICConfiguration> allSourcesXICConfigurationMap;
             allSourcesXICConfigurationMap[0] = XIC::XICConfiguration(false, "", g_rtConfig->MaxFDR,
@@ -794,7 +820,18 @@ int run( int argc, char* argv[] )
 
         // switch to exe directory to allow embedGeneMetadata to find the gene mappings
         bfs::path exePath(args[0]);
-        chdir(exePath.parent_path().string().c_str());
+        if (!exePath.has_parent_path())
+        {
+            using namespace boost::assign;
+            vector<string> tokens;
+            const char* pathSeparator = bfs::path::preferred_separator == '/' ? ":" : ";";
+            string pathValue = pwiz::util::env::get("PATH");
+            vector<string> exeExtensions; exeExtensions += "", ".exe", ".com", ".bat", ".cmd";
+            bal::split(tokens, pathValue, bal::is_any_of(pathSeparator));
+            exePath = findNameInPath(bfs::change_extension(exePath, "").string(), exeExtensions, tokens);
+        }
+
+        bfs::current_path(exePath.parent_path());
 
         if (g_rtConfig->EmbedGeneMetadata)
             for (size_t i=0 ; i < idpDbFilepaths.size(); ++i)

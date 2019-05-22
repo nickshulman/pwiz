@@ -40,7 +40,7 @@ namespace pwiz.SkylineTestTutorial
     /// Testing the tutorial for Skyline Collision Energy Optimization
     /// </summary>
     [TestClass]
-    public class CEOptimizationTutorialTest : AbstractFunctionalTest
+    public class CEOptimizationTutorialTest : AbstractFunctionalTestEx
     {
         private bool AsSmallMolecules { get; set; }
 
@@ -54,6 +54,11 @@ namespace pwiz.SkylineTestTutorial
         [TestMethod]
         public void TestCEOptimizationTutorialAsSmallMolecules()
         {
+            if (!RunSmallMoleculeTestVersions)
+            {
+                Console.Write(MSG_SKIPPING_SMALLMOLECULE_TEST_VERSION);
+                return;
+            }
             AsSmallMolecules = true;
             RunCEOptimizationTutorialTest();
         }
@@ -93,9 +98,7 @@ namespace pwiz.SkylineTestTutorial
 
             if (AsSmallMolecules)
             {
-                var doc = WaitForDocumentLoaded();
-                var refine = new RefinementSettings();
-                SkylineWindow.SetDocument(refine.ConvertToSmallMolecules(doc), doc);
+                ConvertDocumentToSmallMolecules();
             }
 
             // Deriving a New Linear Equation, p. 2
@@ -139,7 +142,7 @@ namespace pwiz.SkylineTestTutorial
             }
 
             string filePathTemplate = GetTestPath("CE_Vantage_15mTorr_unscheduled.csv"); // Not L10N
-            CheckTransitionList(filePathTemplate, 1, 6);
+            CheckTransitionList(filePathTemplate, new []{120}, 6);
 
             const string unscheduledName = "Unscheduled"; // Not L10N
             RunDlg<ImportResultsDlg>(SkylineWindow.ImportResults, importResultsDlg =>
@@ -154,14 +157,15 @@ namespace pwiz.SkylineTestTutorial
                 importResultsDlg.NamedPathSets = path;
                 importResultsDlg.OkDialog();
             });
-            WaitForCondition(5*60*1000, () => SkylineWindow.Document.Settings.MeasuredResults.IsLoaded);    // 5 minutes
+            WaitForCondition(5*60*1000, () => SkylineWindow.Document.Settings.HasResults &&
+                SkylineWindow.Document.Settings.MeasuredResults.IsLoaded);    // 5 minutes
             AssertEx.IsDocumentState(SkylineWindow.Document, null, 7, 27, 30, 120);
             var docUnsched = SkylineWindow.Document;
             AssertResult.IsDocumentResultsState(SkylineWindow.Document,
                                                 unscheduledName,
                                                 docUnsched.MoleculeCount,
                                                 docUnsched.MoleculeTransitionGroupCount, 0,
-                                                docUnsched.MoleculeTransitionCount - 1, 0);
+                                                docUnsched.MoleculeTransitionCount, 0);
 
             RunUI(() =>
             {
@@ -191,7 +195,7 @@ namespace pwiz.SkylineTestTutorial
             }
 
             string filePathTemplate1 = GetTestPath("CE_Vantage_15mTorr_000{0}.csv"); // Not L10N
-            CheckTransitionList(filePathTemplate1, 5, 9);
+            CheckTransitionList(filePathTemplate1, new[] { 220, 220, 264, 308, 308 }, 9);
 
             var filePath = GetTestPath("CE_Vantage_15mTorr_0001.csv"); // Not L10N
             CheckCEValues(filePath, 11);
@@ -213,22 +217,21 @@ namespace pwiz.SkylineTestTutorial
                 SkylineWindow.ShowPeakAreaReplicateComparison();
             });
 
-            if (AsSmallMolecules)
-            {
-                return;  // Too peptide-centric from here to end of test
-            }
+            WaitForDocumentLoaded(15 * 60 * 1000); // 10 minutes
+            string decorator = AsSmallMolecules
+                ? RefinementSettings.TestingConvertedFromProteomicPeptideNameDecorator
+                : string.Empty;
 
-            FindNode("IHGFDLAAINLQR");
+            FindNode(decorator + "IHGFDLAAINLQR");
             RestoreViewOnScreen(8);
-            WaitForCondition(15*60*1000, () => SkylineWindow.Document.Settings.MeasuredResults.IsLoaded); // 10 minutes
 
             PauseForScreenShot("Main Skyline window", 8);
             
             // p. 8
             // Not L10N
-            RemovePeptide("EGIHAQQK");
+            RemoveTargetByDisplayName(decorator + "EGIHAQQK");
 
-            FindNode("IDALNENK");
+            FindNode(decorator + "IDALNENK");
 
             RunUI(() => SkylineWindow.NormalizeAreaGraphTo(AreaNormalizeToView.area_percent_view));
 
@@ -236,7 +239,7 @@ namespace pwiz.SkylineTestTutorial
 
             RunUI(SkylineWindow.EditDelete);
 
-            RemovePeptide("LICDNTHITK");
+            RemoveTargetByDisplayName(AsSmallMolecules ? decorator + "LIC[+57.0]DNTHITK" : "LICDNTHITK");
 
             // Creating a New Equation for CE, p. 9
             var transitionSettingsUI1 = ShowDialog<TransitionSettingsUI>(SkylineWindow.ShowTransitionSettingsUI);
@@ -293,7 +296,7 @@ namespace pwiz.SkylineTestTutorial
 
             var filePathTemplate2 = GetTestPath("CE_Vantage_15mTorr_optimized.csv"); // Not L10N
 
-            CheckTransitionList(filePathTemplate2, 1, 9);
+            CheckTransitionList(filePathTemplate2, new[] { 108 }, 9);
 
             RunUI(() => SkylineWindow.SaveDocument());
             WaitForConditionUI(() => !SkylineWindow.Dirty);
@@ -304,13 +307,14 @@ namespace pwiz.SkylineTestTutorial
             Assert.IsTrue(ArrayUtil.EqualsDeep(lines1, lines2));
         }
 
-        public void CheckTransitionList(string templatePath, int transitionCount, int columnCount)
+        public void CheckTransitionList(string templatePath, int[] transitionCounts, int columnCount)
         {
-            for (int i = 1; i <= transitionCount; i++)
+            for (int i = 1; i <= transitionCounts.Length; i++)
             {
                 string filePath = TestFilesDirs[0].GetTestPath(string.Format(templatePath, i));
                 WaitForCondition(() => File.Exists(filePath), "waiting for creation of "+filePath);
                 string[] lines = File.ReadAllLines(filePath);
+                Assert.AreEqual(transitionCounts[i - 1], lines.Length);
                 string[] line = lines[0].Split(',');
                 int count = line.Length;
                 // Comma at end to indicate start of column on a new row.
@@ -319,8 +323,7 @@ namespace pwiz.SkylineTestTutorial
             // If there are multiple file possibilities, make sure there are
             // not more files than expected by checking count+1
             if (templatePath.Contains("{0}")) // Not L10N
-                Assert.IsFalse(File.Exists(TestFilesDirs[0].GetTestPath(string.Format(templatePath, transitionCount+1))));
-
+                Assert.IsFalse(File.Exists(TestFilesDirs[0].GetTestPath(string.Format(templatePath, transitionCounts.Length+1))));
         }
 
         public void CheckCEValues(string filePath, int ceCount)

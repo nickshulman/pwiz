@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Original author: Don Marsh <donmarsh .at. u.washington.edu>,
  *                  MacCoss Lab, Department of Genome Sciences, UW
  *
@@ -31,6 +31,7 @@ using pwiz.Common.SystemUtil;
 using pwiz.ProteomeDatabase.API;
 using pwiz.Skyline.Controls;
 using pwiz.Skyline.Controls.Graphs;
+using pwiz.Skyline.Model.AuditLog;
 using pwiz.Skyline.Model.Databinding;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.DocSettings.Extensions;
@@ -40,7 +41,6 @@ using pwiz.Skyline.Model.Results;
 using pwiz.Skyline.Model.Tools;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
-using pwiz.Skyline.Util.Extensions;
 using SkylineTool;
 
 namespace pwiz.Skyline.Model
@@ -68,8 +68,9 @@ namespace pwiz.Skyline.Model
         /// <returns>Report as a string.</returns>
         public string GetReport(string toolName, string reportName)
         {
-            string report = ToolDescriptionHelpers.GetReport(Program.MainWindow.Document, reportName, toolName, Program.MainWindow);
-            return report;
+            var report = new StringWriter();
+            ToolDescriptionHelpers.GetReport(Program.MainWindow.Document, reportName, toolName, Program.MainWindow, report);
+            return report.ToString();
         }
 
         public string GetReportFromDefinition(string reportDefinition)
@@ -78,31 +79,31 @@ namespace pwiz.Skyline.Model
             var reportOrViewSpecList = ReportSharing.DeserializeReportList(memoryStream);
             if (reportOrViewSpecList.Count == 0)
             {
-                throw new ArgumentException("No report definition found"); // Not L10N
+                throw new ArgumentException(@"No report definition found");
             }
             if (reportOrViewSpecList.Count > 1)
             {
-                throw new ArgumentException("Too many report definitions"); // Not L10N
+                throw new ArgumentException(@"Too many report definitions");
             }
             var reportOrViewSpec = reportOrViewSpecList.First();
-            if (null == reportOrViewSpec.ViewSpec)
+            if (null == reportOrViewSpec.ViewSpecLayout)
             {
-                throw new ArgumentException("The report definition uses the old format."); // Not L10N
+                throw new ArgumentException(@"The report definition uses the old format.");
             }
-            return GetReportRows(Program.MainWindow.Document, reportOrViewSpec.ViewSpec, Program.MainWindow);
+            return GetReportRows(Program.MainWindow.Document, reportOrViewSpec.ViewSpecLayout, Program.MainWindow);
         }
 
-        private string GetReportRows(SrmDocument document, ViewSpec viewSpec, IProgressMonitor progressMonitor)
+        private string GetReportRows(SrmDocument document, ViewSpecLayout viewSpec, IProgressMonitor progressMonitor)
         {
             var container = new MemoryDocumentContainer();
             container.SetDocument(document, container.Document);
             var dataSchema = new SkylineDataSchema(container, DataSchemaLocalizer.INVARIANT);
             var viewContext = new DocumentGridViewContext(dataSchema);
-            var status = new ProgressStatus(string.Format(Resources.ReportSpec_ReportToCsvString_Exporting__0__report,
+            IProgressStatus status = new ProgressStatus(string.Format(Resources.ReportSpec_ReportToCsvString_Exporting__0__report,
                 viewSpec.Name));
             var writer = new StringWriter();
-            if (viewContext.Export(progressMonitor, ref status, viewContext.GetViewInfo(null, viewSpec), writer,
-                new DsvWriter(CultureInfo.InvariantCulture, TextUtil.SEPARATOR_CSV)))
+            if (viewContext.Export(CancellationToken.None, progressMonitor, ref status, viewContext.GetViewInfo(null, viewSpec.ViewSpec), writer,
+                viewContext.GetCsvWriter()))
             {
                 return writer.ToString();
             }
@@ -224,14 +225,14 @@ namespace pwiz.Skyline.Model
                                     {
                                         continue;
                                     }
-                                    Color color = GraphChromatogram.COLORS_LIBRARY[iColor % GraphChromatogram.COLORS_LIBRARY.Length];
+                                    Color color = GraphChromatogram.COLORS_LIBRARY[iColor % GraphChromatogram.COLORS_LIBRARY.Count];
                                     iColor++;
                                     result.Add(new Chromatogram
                                     {
-                                        Intensities = transitionInfo.Intensities,
-                                        ProductMz = transitionInfo.ProductMz,
-                                        PrecursorMz = chromatogramGroup.PrecursorMz,
-                                        Times = transitionInfo.Times,
+                                        Intensities = transitionInfo.Intensities.ToArray(),
+                                        ProductMz = transitionInfo.ProductMz.RawValue,  // For negative ion mode data this will be a negative value
+                                        PrecursorMz = chromatogramGroup.PrecursorMz.RawValue,  // For negative ion mode data this will be a negative value
+                                        Times = transitionInfo.Times.ToArray(),
                                         Color = color
                                     });
                                 }
@@ -294,7 +295,16 @@ namespace pwiz.Skyline.Model
             Program.MainWindow.Invoke(new Action(() =>
             {
                 _skylineWindow.ImportFasta(new StringReader(textFasta), Helpers.CountLinesInString(textFasta),
-                    false, Resources.ToolService_ImportFasta_Insert_proteins);
+                    false, Resources.ToolService_ImportFasta_Insert_proteins, new SkylineWindow.ImportFastaInfo(false, textFasta));
+            }));
+        }
+
+        public void InsertSmallMoleculeTransitionList(string textCSV)
+        {
+            Program.MainWindow.Invoke(new Action(() =>
+            {
+                _skylineWindow.InsertSmallMoleculeTransitionList(textCSV,
+                    Resources.ToolService_InsertSmallMoleculeTransitionList_Insert_Small_Molecule_Transition_List);
             }));
         }
 
@@ -312,7 +322,7 @@ namespace pwiz.Skyline.Model
             {
                 _skylineWindow.ModifyDocument(Resources.LibrarySpec_Add_spectral_library, doc =>
                     doc.ChangeSettings(doc.Settings.ChangePeptideLibraries(lib => lib.ChangeLibrarySpecs(
-                        lib.LibrarySpecs.Union(new[] {librarySpec}).ToArray()))));
+                        lib.LibrarySpecs.Union(new[] { librarySpec }).ToArray()))), AuditLogEntry.SettingsLogFunction);
                 Settings.Default.SpectralLibraryList.Add(librarySpec);
             }));
         }
@@ -373,7 +383,7 @@ namespace pwiz.Skyline.Model
                     }
                     catch (TimeoutException)
                     {
-                        var error = "No response from " + documentChangeSender.Value.Name; // Not L10N
+                        var error = @"No response from " + documentChangeSender.Value.Name; 
                         _skylineWindow.BeginInvoke(new Action(() =>
                         {
                             _skylineWindow.ShowImmediateWindow();
@@ -416,6 +426,7 @@ namespace pwiz.Skyline.Model
             SendChange((sender, arg) => sender.SelectionChanged());
         }
 
+<<<<<<< HEAD
         public void DefineModification(ToolModification modification)
         {
             Program.MainWindow.Invoke(new Action(() =>
@@ -571,6 +582,10 @@ namespace pwiz.Skyline.Model
 
         private class DocumentChangeSender : RemoteClient, IDocumentChangeReceiver
         {
+=======
+        private class DocumentChangeSender : RemoteClient, IDocumentChangeReceiver
+        {
+>>>>>>> remotes/origin/master
             private int _timeoutCount;
 
             public string Name { get; private set; }

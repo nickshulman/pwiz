@@ -134,38 +134,38 @@
   <data name="lblPrecursorCharges.Text" xml:space="preserve">
     <value>母离子电荷(&amp;P)：</value>
   </data>
-  <data name=">>lblPrecursorCharges.Name" xml:space="preserve">
+  <data name="&gt;&gt;lblPrecursorCharges.Name" xml:space="preserve">
     <value>lblPrecursorCharges</value>
   </data>
-  <data name=">>lblPrecursorCharges.Type" xml:space="preserve">
+  <data name="&gt;&gt;lblPrecursorCharges.Type" xml:space="preserve">
     <value>System.Windows.Forms.Label, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </data>
-  <data name=">>lblPrecursorCharges.Parent" xml:space="preserve">
+  <data name="&gt;&gt;lblPrecursorCharges.Parent" xml:space="preserve">
     <value>$this</value>
   </data>
-  <data name=">>lblPrecursorCharges.ZOrder" xml:space="preserve">
-    <value>12</value>
+  <data name="&gt;&gt;lblPrecursorCharges.ZOrder" xml:space="preserve">
+    <value>14</value>
   </data>
-  <data name="txtPrecursorCharges.Location" type="System.Drawing.Point, System.Drawing">
+  <data name="txtPeptidePrecursorCharges.Location" type="System.Drawing.Point, System.Drawing">
     <value>17, 19</value>
   </data>
-  <data name="txtPrecursorCharges.Size" type="System.Drawing.Size, System.Drawing">
+  <data name="txtPeptidePrecursorCharges.Size" type="System.Drawing.Size, System.Drawing">
     <value>76, 20</value>
   </data>
-  <data name="txtPrecursorCharges.TabIndex" type="System.Int32, mscorlib">
+  <data name="txtPeptidePrecursorCharges.TabIndex" type="System.Int32, mscorlib">
     <value>1</value>
   </data>
-  <data name=">>txtPrecursorCharges.Name" xml:space="preserve">
-    <value>txtPrecursorCharges</value>
+  <data name="&gt;&gt;txtPeptidePrecursorCharges.Name" xml:space="preserve">
+    <value>txtPeptidePrecursorCharges</value>
   </data>
-  <data name=">>txtPrecursorCharges.Type" xml:space="preserve">
+  <data name="&gt;&gt;txtPeptidePrecursorCharges.Type" xml:space="preserve">
     <value>System.Windows.Forms.TextBox, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </data>
-  <data name=">>txtPrecursorCharges.Parent" xml:space="preserve">
+  <data name="&gt;&gt;txtPeptidePrecursorCharges.Parent" xml:space="preserve">
     <value>$this</value>
   </data>
-  <data name=">>txtPrecursorCharges.ZOrder" xml:space="preserve">
-    <value>11</value>
+  <data name="&gt;&gt;txtPeptidePrecursorCharges.ZOrder" xml:space="preserve">
+    <value>13</value>
   </data>
   <data name="lblIonCharges.AutoSize" type="System.Boolean, mscorlib">
     <value>True</value>
@@ -182,38 +182,38 @@
   <data name="lblIonCharges.Text" xml:space="preserve">
     <value>离子电荷(&amp;I)：</value>
   </data>
-  <data name=">>lblIonCharges.Name" xml:space="preserve">
+  <data name="&gt;&gt;lblIonCharges.Name" xml:space="preserve">
     <value>lblIonCharges</value>
   </data>
-  <data name=">>lblIonCharges.Type" xml:space="preserve">
+  <data name="&gt;&gt;lblIonCharges.Type" xml:space="preserve">
     <value>System.Windows.Forms.Label, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </data>
-  <data name=">>lblIonCharges.Parent" xml:space="preserve">
+  <data name="&gt;&gt;lblIonCharges.Parent" xml:space="preserve">
     <value>$this</value>
   </data>
-  <data name=">>lblIonCharges.ZOrder" xml:space="preserve">
-    <value>10</value>
+  <data name="&gt;&gt;lblIonCharges.ZOrder" xml:space="preserve">
+    <value>12</value>
   </data>
-  <data name="txtIonCharges.Location" type="System.Drawing.Point, System.Drawing">
+  <data name="txtPrecursorIonCharges.Location" type="System.Drawing.Point, System.Drawing">
     <value>144, 19</value>
   </data>
-  <data name="txtIonCharges.Size" type="System.Drawing.Size, System.Drawing">
+  <data name="txtPrecursorIonCharges.Size" type="System.Drawing.Size, System.Drawing">
     <value>76, 20</value>
   </data>
-  <data name="txtIonCharges.TabIndex" type="System.Int32, mscorlib">
+  <data name="txtPrecursorIonCharges.TabIndex" type="System.Int32, mscorlib">
     <value>3</value>
   </data>
-  <data name=">>txtIonCharges.Name" xml:space="preserve">
-    <value>txtIonCharges</value>
+  <data name="&gt;&gt;txtPrecursorIonCharges.Name" xml:space="preserve">
+    <value>txtPrecursorIonCharges</value>
   </data>
-  <data name=">>txtIonCharges.Type" xml:space="preserve">
+  <data name="&gt;&gt;txtPrecursorIonCharges.Type" xml:space="preserve">
     <value>System.Windows.Forms.TextBox, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </data>
-  <data name=">>txtIonCharges.Parent" xml:space="preserve">
+  <data name="&gt;&gt;txtPrecursorIonCharges.Parent" xml:space="preserve">
     <value>$this</value>
   </data>
-  <data name=">>txtIonCharges.ZOrder" xml:space="preserve">
-    <value>9</value>
+  <data name="&gt;&gt;txtPrecursorIonCharges.ZOrder" xml:space="preserve">
+    <value>11</value>
   </data>
   <data name="lblIonTypes.AutoSize" type="System.Boolean, mscorlib">
     <value>True</value>
@@ -230,17 +230,17 @@
   <data name="lblIonTypes.Text" xml:space="preserve">
     <value>离子类型(&amp;T)：</value>
   </data>
-  <data name=">>lblIonTypes.Name" xml:space="preserve">
+  <data name="&gt;&gt;lblIonTypes.Name" xml:space="preserve">
     <value>lblIonTypes</value>
   </data>
-  <data name=">>lblIonTypes.Type" xml:space="preserve">
+  <data name="&gt;&gt;lblIonTypes.Type" xml:space="preserve">
     <value>System.Windows.Forms.Label, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </data>
-  <data name=">>lblIonTypes.Parent" xml:space="preserve">
+  <data name="&gt;&gt;lblIonTypes.Parent" xml:space="preserve">
     <value>$this</value>
   </data>
-  <data name=">>lblIonTypes.ZOrder" xml:space="preserve">
-    <value>8</value>
+  <data name="&gt;&gt;lblIonTypes.ZOrder" xml:space="preserve">
+    <value>10</value>
   </data>
   <data name="txtIonTypes.Location" type="System.Drawing.Point, System.Drawing">
     <value>262, 19</value>
@@ -251,17 +251,17 @@
   <data name="txtIonTypes.TabIndex" type="System.Int32, mscorlib">
     <value>5</value>
   </data>
-  <data name=">>txtIonTypes.Name" xml:space="preserve">
+  <data name="&gt;&gt;txtIonTypes.Name" xml:space="preserve">
     <value>txtIonTypes</value>
   </data>
-  <data name=">>txtIonTypes.Type" xml:space="preserve">
+  <data name="&gt;&gt;txtIonTypes.Type" xml:space="preserve">
     <value>System.Windows.Forms.TextBox, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </data>
-  <data name=">>txtIonTypes.Parent" xml:space="preserve">
+  <data name="&gt;&gt;txtIonTypes.Parent" xml:space="preserve">
     <value>$this</value>
   </data>
-  <data name=">>txtIonTypes.ZOrder" xml:space="preserve">
-    <value>7</value>
+  <data name="&gt;&gt;txtIonTypes.ZOrder" xml:space="preserve">
+    <value>9</value>
   </data>
   <data name="lblTolerance.AutoSize" type="System.Boolean, mscorlib">
     <value>True</value>
@@ -282,17 +282,17 @@
   <data name="lblTolerance.Text" xml:space="preserve">
     <value>离子匹配耐受性(&amp;M)：</value>
   </data>
-  <data name=">>lblTolerance.Name" xml:space="preserve">
+  <data name="&gt;&gt;lblTolerance.Name" xml:space="preserve">
     <value>lblTolerance</value>
   </data>
-  <data name=">>lblTolerance.Type" xml:space="preserve">
+  <data name="&gt;&gt;lblTolerance.Type" xml:space="preserve">
     <value>System.Windows.Forms.Label, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </data>
-  <data name=">>lblTolerance.Parent" xml:space="preserve">
+  <data name="&gt;&gt;lblTolerance.Parent" xml:space="preserve">
     <value>$this</value>
   </data>
-  <data name=">>lblTolerance.ZOrder" xml:space="preserve">
-    <value>1</value>
+  <data name="&gt;&gt;lblTolerance.ZOrder" xml:space="preserve">
+    <value>3</value>
   </data>
   <data name="txtTolerance.Location" type="System.Drawing.Point, System.Drawing">
     <value>17, 118</value>
@@ -303,20 +303,23 @@
   <data name="txtTolerance.TabIndex" type="System.Int32, mscorlib">
     <value>8</value>
   </data>
-  <data name=">>txtTolerance.Name" xml:space="preserve">
+  <data name="&gt;&gt;txtTolerance.Name" xml:space="preserve">
     <value>txtTolerance</value>
   </data>
-  <data name=">>txtTolerance.Type" xml:space="preserve">
+  <data name="&gt;&gt;txtTolerance.Type" xml:space="preserve">
     <value>System.Windows.Forms.TextBox, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </data>
-  <data name=">>txtTolerance.Parent" xml:space="preserve">
+  <data name="&gt;&gt;txtTolerance.Parent" xml:space="preserve">
     <value>$this</value>
   </data>
-  <data name=">>txtTolerance.ZOrder" xml:space="preserve">
-    <value>2</value>
+  <data name="&gt;&gt;txtTolerance.ZOrder" xml:space="preserve">
+    <value>4</value>
   </data>
   <data name="lblToleranceUnits.AutoSize" type="System.Boolean, mscorlib">
     <value>True</value>
+  </data>
+  <data name="lblToleranceUnits.Font" type="System.Drawing.Font, System.Drawing">
+    <value>Microsoft Sans Serif, 8.25pt</value>
   </data>
   <data name="lblToleranceUnits.ImeMode" type="System.Windows.Forms.ImeMode, System.Windows.Forms">
     <value>NoControl</value>
@@ -333,17 +336,17 @@
   <data name="lblToleranceUnits.Text" xml:space="preserve">
     <value>质荷比</value>
   </data>
-  <data name=">>lblToleranceUnits.Name" xml:space="preserve">
+  <data name="&gt;&gt;lblToleranceUnits.Name" xml:space="preserve">
     <value>lblToleranceUnits</value>
   </data>
-  <data name=">>lblToleranceUnits.Type" xml:space="preserve">
+  <data name="&gt;&gt;lblToleranceUnits.Type" xml:space="preserve">
     <value>System.Windows.Forms.Label, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </data>
-  <data name=">>lblToleranceUnits.Parent" xml:space="preserve">
+  <data name="&gt;&gt;lblToleranceUnits.Parent" xml:space="preserve">
     <value>$this</value>
   </data>
-  <data name=">>lblToleranceUnits.ZOrder" xml:space="preserve">
-    <value>3</value>
+  <data name="&gt;&gt;lblToleranceUnits.ZOrder" xml:space="preserve">
+    <value>5</value>
   </data>
   <data name="lblIonCount.AutoSize" type="System.Boolean, mscorlib">
     <value>True</value>
@@ -363,17 +366,17 @@
   <data name="lblIonCount.Text" xml:space="preserve">
     <value>选择(&amp;P)：</value>
   </data>
-  <data name=">>lblIonCount.Name" xml:space="preserve">
+  <data name="&gt;&gt;lblIonCount.Name" xml:space="preserve">
     <value>lblIonCount</value>
   </data>
-  <data name=">>lblIonCount.Type" xml:space="preserve">
+  <data name="&gt;&gt;lblIonCount.Type" xml:space="preserve">
     <value>System.Windows.Forms.Label, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </data>
-  <data name=">>lblIonCount.Parent" xml:space="preserve">
+  <data name="&gt;&gt;lblIonCount.Parent" xml:space="preserve">
     <value>$this</value>
   </data>
-  <data name=">>lblIonCount.ZOrder" xml:space="preserve">
-    <value>4</value>
+  <data name="&gt;&gt;lblIonCount.ZOrder" xml:space="preserve">
+    <value>6</value>
   </data>
   <data name="lblIonCountUnits.AutoSize" type="System.Boolean, mscorlib">
     <value>True</value>
@@ -388,22 +391,22 @@
     <value>65, 13</value>
   </data>
   <data name="lblIonCountUnits.TabIndex" type="System.Int32, mscorlib">
-    <value>12</value>
+    <value>11</value>
   </data>
   <data name="lblIonCountUnits.Text" xml:space="preserve">
     <value>子离子</value>
   </data>
-  <data name=">>lblIonCountUnits.Name" xml:space="preserve">
+  <data name="&gt;&gt;lblIonCountUnits.Name" xml:space="preserve">
     <value>lblIonCountUnits</value>
   </data>
-  <data name=">>lblIonCountUnits.Type" xml:space="preserve">
+  <data name="&gt;&gt;lblIonCountUnits.Type" xml:space="preserve">
     <value>System.Windows.Forms.Label, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </data>
-  <data name=">>lblIonCountUnits.Parent" xml:space="preserve">
+  <data name="&gt;&gt;lblIonCountUnits.Parent" xml:space="preserve">
     <value>$this</value>
   </data>
-  <data name=">>lblIonCountUnits.ZOrder" xml:space="preserve">
-    <value>5</value>
+  <data name="&gt;&gt;lblIonCountUnits.ZOrder" xml:space="preserve">
+    <value>7</value>
   </data>
   <data name="txtIonCount.Location" type="System.Drawing.Point, System.Drawing">
     <value>144, 118</value>
@@ -412,19 +415,19 @@
     <value>76, 20</value>
   </data>
   <data name="txtIonCount.TabIndex" type="System.Int32, mscorlib">
-    <value>11</value>
+    <value>12</value>
   </data>
-  <data name=">>txtIonCount.Name" xml:space="preserve">
+  <data name="&gt;&gt;txtIonCount.Name" xml:space="preserve">
     <value>txtIonCount</value>
   </data>
-  <data name=">>txtIonCount.Type" xml:space="preserve">
+  <data name="&gt;&gt;txtIonCount.Type" xml:space="preserve">
     <value>System.Windows.Forms.TextBox, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </data>
-  <data name=">>txtIonCount.Parent" xml:space="preserve">
+  <data name="&gt;&gt;txtIonCount.Parent" xml:space="preserve">
     <value>$this</value>
   </data>
-  <data name=">>txtIonCount.ZOrder" xml:space="preserve">
-    <value>6</value>
+  <data name="&gt;&gt;txtIonCount.ZOrder" xml:space="preserve">
+    <value>8</value>
   </data>
   <data name="cbExclusionUseDIAWindow.AutoSize" type="System.Boolean, mscorlib">
     <value>True</value>
@@ -444,17 +447,68 @@
   <data name="cbExclusionUseDIAWindow.Text" xml:space="preserve">
     <value>使用 DIA 母离子窗口进行排除(&amp;U)</value>
   </data>
-  <data name=">>cbExclusionUseDIAWindow.Name" xml:space="preserve">
+  <data name="&gt;&gt;cbExclusionUseDIAWindow.Name" xml:space="preserve">
     <value>cbExclusionUseDIAWindow</value>
   </data>
-  <data name=">>cbExclusionUseDIAWindow.Type" xml:space="preserve">
+  <data name="&gt;&gt;cbExclusionUseDIAWindow.Type" xml:space="preserve">
     <value>System.Windows.Forms.CheckBox, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </data>
-  <data name=">>cbExclusionUseDIAWindow.Parent" xml:space="preserve">
+  <data name="&gt;&gt;cbExclusionUseDIAWindow.Parent" xml:space="preserve">
     <value>$this</value>
   </data>
-  <data name=">>cbExclusionUseDIAWindow.ZOrder" xml:space="preserve">
+  <data name="&gt;&gt;cbExclusionUseDIAWindow.ZOrder" xml:space="preserve">
+    <value>2</value>
+  </data>
+  <data name="lblMinIonCountUnits.AutoSize" type="System.Boolean, mscorlib">
+    <value>True</value>
+  </data>
+  <data name="lblMinIonCountUnits.ImeMode" type="System.Windows.Forms.ImeMode, System.Windows.Forms">
+    <value>NoControl</value>
+  </data>
+  <data name="lblMinIonCountUnits.Location" type="System.Drawing.Point, System.Drawing">
+    <value>226, 147</value>
+  </data>
+  <data name="lblMinIonCountUnits.Size" type="System.Drawing.Size, System.Drawing">
+    <value>84, 13</value>
+  </data>
+  <data name="lblMinIonCountUnits.TabIndex" type="System.Int32, mscorlib">
+    <value>13</value>
+  </data>
+  <data name="lblMinIonCountUnits.Text" xml:space="preserve">
+    <value>最少子离子</value>
+  </data>
+  <data name="&gt;&gt;lblMinIonCountUnits.Name" xml:space="preserve">
+    <value>lblMinIonCountUnits</value>
+  </data>
+  <data name="&gt;&gt;lblMinIonCountUnits.Type" xml:space="preserve">
+    <value>System.Windows.Forms.Label, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="&gt;&gt;lblMinIonCountUnits.Parent" xml:space="preserve">
+    <value>$this</value>
+  </data>
+  <data name="&gt;&gt;lblMinIonCountUnits.ZOrder" xml:space="preserve">
     <value>0</value>
+  </data>
+  <data name="txtMinIonCount.Location" type="System.Drawing.Point, System.Drawing">
+    <value>144, 144</value>
+  </data>
+  <data name="txtMinIonCount.Size" type="System.Drawing.Size, System.Drawing">
+    <value>76, 20</value>
+  </data>
+  <data name="txtMinIonCount.TabIndex" type="System.Int32, mscorlib">
+    <value>14</value>
+  </data>
+  <data name="&gt;&gt;txtMinIonCount.Name" xml:space="preserve">
+    <value>txtMinIonCount</value>
+  </data>
+  <data name="&gt;&gt;txtMinIonCount.Type" xml:space="preserve">
+    <value>System.Windows.Forms.TextBox, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="&gt;&gt;txtMinIonCount.Parent" xml:space="preserve">
+    <value>$this</value>
+  </data>
+  <data name="&gt;&gt;txtMinIonCount.ZOrder" xml:space="preserve">
+    <value>1</value>
   </data>
   <metadata name="$this.Localizable" type="System.Boolean, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">
     <value>True</value>
@@ -465,10 +519,10 @@
   <data name="$this.Size" type="System.Drawing.Size, System.Drawing">
     <value>363, 425</value>
   </data>
-  <data name=">>$this.Name" xml:space="preserve">
+  <data name="&gt;&gt;$this.Name" xml:space="preserve">
     <value>TransitionSettingsControl</value>
   </data>
-  <data name=">>$this.Type" xml:space="preserve">
+  <data name="&gt;&gt;$this.Type" xml:space="preserve">
     <value>System.Windows.Forms.UserControl, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </data>
 </root>

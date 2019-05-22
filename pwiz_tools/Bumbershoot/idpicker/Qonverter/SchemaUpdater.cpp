@@ -24,11 +24,15 @@
 
 
 #include "SchemaUpdater.hpp"
+#include "sqlite3.h"
 #include "sqlite3pp.h"
 #include "pwiz/utility/misc/Std.hpp"
 #include "pwiz/utility/misc/Filesystem.hpp"
 #include "pwiz/utility/misc/DateTime.hpp"
-#include "boost/crc.hpp"
+#include "pwiz/utility/chemistry/Chemistry.hpp"
+#include "pwiz/utility/misc/SHA1.h"
+#include "pwiz/utility/misc/unit.hpp"
+#include "IdpSqlExtensions.hpp"
 
 
 using namespace pwiz::util;
@@ -37,77 +41,363 @@ namespace sqlite = sqlite3pp;
 
 BEGIN_IDPICKER_NAMESPACE
 
-const int CURRENT_SCHEMA_REVISION = 13;
+const int CURRENT_SCHEMA_REVISION = 18;
 
 namespace SchemaUpdater {
 
-
 namespace {
 
-struct DistinctDoubleArraySum
+    vector<double> blobToDoubleArray(const sqlite::query::rows& row, size_t elementCount, int index)
+    {
+        REQUIRE(elementCount == row.column_bytes(index) / sizeof(double));
+        const void* blob = row.get<const void*>(index);
+        const double* valueArray = reinterpret_cast<const double*>(blob);
+        return vector<double>(valueArray, valueArray + elementCount);
+    }
+
+    TEST_CASE("DistinctDoubleArray* tests") {
+        sqlite::database db(":memory:");
+        db.load_extension("IdpSqlExtensions");
+
+        db.execute("CREATE TABLE test (Group_ INT, Values_ BLOB)");
+
+        sqlite::command insertTestValues(db, "INSERT INTO test (Group_, Values_) VALUES (?, ?)");
+
+        vector<vector<double> > testValues{
+            vector<double> { 1.0, 2.0, 3.0, 4.0 },  // 2  4  6  8
+            vector<double> { 2.0, 4.0, 8.0, 16.0 }, // 4  8 16 32
+            vector<double> { 3.0, 6.0, 9.0, 14.0 }, // 6 12 18 28
+            vector<double> { 3.0, 6.0, 9.0, 14.0 } // duplicate values ignored
+        };
+        for (int group = 1; group <= 2; ++group)
+            for (size_t row = 0; row < testValues.size(); ++row)
+            {
+                vector<double> valueCopy(testValues[row]);
+                for (double& d : valueCopy) d *= group; // give each group unique values (base values * group id)
+
+                insertTestValues.bind(1, group);
+                insertTestValues.bind(2, static_cast<void*>(&valueCopy[0]), valueCopy.size() * sizeof(double));
+                insertTestValues.execute();
+                insertTestValues.reset();
+            }
+
+        SUBCASE("plain sum") {
+            auto values = blobToDoubleArray(*sqlite::query(db, "SELECT DISTINCT_DOUBLE_ARRAY_SUM(Values_) FROM test").begin(), 4, 0);
+            CHECK(values == vector<double> { 6.0 + 12, 12.0 + 24, 20.0 + 40, 34.0 + 68 });
+        }
+
+        SUBCASE("plain sum by group") {
+            sqlite::query q(db, "SELECT DISTINCT_DOUBLE_ARRAY_SUM(Values_) FROM test GROUP BY Group_ ORDER BY Group_");
+            auto itr = q.begin();
+            auto values = blobToDoubleArray(*itr, 4, 0); ++itr;
+            CHECK(values == vector<double> { 6.0, 12.0, 20.0, 34.0 });
+
+            values = blobToDoubleArray(*itr, 4, 0); ++itr;
+            CHECK(values == vector<double> { 12.0, 24.0, 40.0, 68.0 });
+        }
+
+        SUBCASE("plain mean") {
+            auto values = blobToDoubleArray(*sqlite::query(db, "SELECT DISTINCT_DOUBLE_ARRAY_MEAN(Values_) FROM test").begin(), 4, 0);
+            CHECK(values == vector<double> { (6.0 + 12) / 6, (12.0 + 24) / 6, (20.0 + 40) / 6, (34.0 + 68) / 6 });
+        }
+
+        SUBCASE("plain mean by group") {
+            sqlite::query q(db, "SELECT DISTINCT_DOUBLE_ARRAY_MEAN(Values_) FROM test GROUP BY Group_ ORDER BY Group_");
+            auto itr = q.begin();
+            auto values = blobToDoubleArray(*itr, 4, 0); ++itr;
+            CHECK(values == vector<double> { 6.0/3, 12.0/3, 20.0/3, 34.0/3 });
+
+            values = blobToDoubleArray(*itr, 4, 0); ++itr;
+            CHECK(values == vector<double> { 12.0/3, 24.0/3, 40.0/3, 68.0/3 });
+        }
+
+        SUBCASE("plain median") {
+            auto values = blobToDoubleArray(*sqlite::query(db, "SELECT DISTINCT_DOUBLE_ARRAY_MEDIAN(Values_) FROM test").begin(), 4, 0);
+            CHECK(values == vector<double> { 2.5, 5.0, 8.5, 15 }); // 1,2,2,3,4,6  2,4,4,6,8,12  3,6,8,9,16,18  4,8,14,16,28,32
+        }
+
+        SUBCASE("plain median by group") {
+            sqlite::query q(db, "SELECT DISTINCT_DOUBLE_ARRAY_MEDIAN(Values_) FROM test GROUP BY Group_ ORDER BY Group_");
+            auto itr = q.begin();
+            auto values = blobToDoubleArray(*itr, 4, 0); ++itr;
+            CHECK(values == vector<double> { 2.0, 4.0, 8.0, 14.0 });
+
+            values = blobToDoubleArray(*itr, 4, 0); ++itr;
+            CHECK(values == vector<double> { 4.0, 8.0, 16.0, 28.0 });
+        }
+
+        SUBCASE("Tukey Biweight average") {
+            auto values = blobToDoubleArray(*sqlite::query(db, "SELECT DISTINCT_DOUBLE_ARRAY_TUKEY_BIWEIGHT_AVERAGE(Values_) FROM test").begin(), 4, 0);
+            CHECK(values == ~(vector<double> { 2.586556, 5.173098, 9.297351, 16.29861 }));
+        }
+
+        SUBCASE("Tukey Biweight average by group") {
+            sqlite::query q(db, "SELECT DISTINCT_DOUBLE_ARRAY_TUKEY_BIWEIGHT_AVERAGE(Values_) FROM test GROUP BY Group_ ORDER BY Group_");
+            auto itr = q.begin();
+            auto values = blobToDoubleArray(*itr, 4, 0); ++itr;
+            CHECK(values == ~(vector<double> { 2.0, 4.0, 8.479601, 14.959201 }));
+
+            values = blobToDoubleArray(*itr, 4, 0); ++itr;
+            CHECK(values == ~(vector<double> { 4.0, 8.0, 16.9592, 29.9184 }));
+        }
+
+        SUBCASE("Tukey Biweight log average") {
+            auto values = blobToDoubleArray(*sqlite::query(db, "SELECT DISTINCT_DOUBLE_ARRAY_TUKEY_BIWEIGHT_LOG_AVERAGE(Values_) FROM test").begin(), 4, 0);
+            CHECK(values == ~(vector<double> { 0.9408912, 1.6340384, 2.1640926, 2.6651840 }));
+        }
+    }
+
+    TEST_CASE("GroupConcatEx tests") {
+        sqlite::database db(":memory:");
+        db.load_extension("IdpSqlExtensions");
+
+        db.execute("CREATE TABLE test (Group_ INT, Values_ TEXT)");
+
+        sqlite::command insertTestValues(db, "INSERT INTO test (Group_, Values_) VALUES (?, ?)");
+
+        vector<string> testValues{ "ABC", "XYZ", "123" }; // ABC_2, XYZ_2, 123_3
+
+        for (int group = 1; group <= 2; ++group)
+            for (size_t row = 0; row < testValues.size(); ++row)
+            {
+                string valueCopy(testValues[row]);
+                valueCopy = valueCopy + "_" + lexical_cast<string>(group); // give each group unique values (base values + group id)
+
+                insertTestValues.bind(1, group);
+                insertTestValues.bind(2, valueCopy);
+                insertTestValues.execute();
+                insertTestValues.reset();
+            }
+        insertTestValues.binder() << 1 << ""; // group with an empty string
+        insertTestValues.execute();
+        insertTestValues.reset();
+        insertTestValues.binder() << 2 << sqlite::ignore; // group with a null string
+        insertTestValues.execute();
+        insertTestValues.reset();
+        insertTestValues.binder() << 3 << ""; // entirely empty group
+        insertTestValues.execute();
+        insertTestValues.reset();
+        insertTestValues.binder() << 4 << sqlite::ignore; // entirely null group
+        insertTestValues.execute();
+        insertTestValues.reset();
+
+        // NB: empty strings should be included in group_concat, null strings should not
+
+        SUBCASE("global group_concat with default separator") {
+            CHECK(sqlite::query(db, "SELECT GROUP_CONCAT(Values_) FROM test").begin()->get<string>(0) == "ABC_1,XYZ_1,123_1,ABC_2,XYZ_2,123_2,,");
+        }
+
+        SUBCASE("global group_concat with default separator") {
+            sqlite::query q(db, "SELECT GROUP_CONCAT(Values_) FROM test GROUP BY Group_ ORDER BY Group_");
+            auto itr = q.begin();
+            auto values = itr->get<boost::optional<string> >(0); ++itr;
+            CHECK(*values == "ABC_1,XYZ_1,123_1,");
+
+            values = itr->get<boost::optional<string> >(0); ++itr;
+            CHECK(*values == "ABC_2,XYZ_2,123_2");
+
+            values = itr->get<boost::optional<string> >(0); ++itr;
+            CHECK(*values == "");
+
+            values = itr->get<boost::optional<string> >(0); ++itr;
+            CHECK(values.is_initialized() == false); // null is translated to empty std::string
+
+            CHECK(itr == q.end());
+        }
+
+
+        SUBCASE("global group_concat with ; separator") {
+            IDPicker::setGroupConcatSeparator(";");
+            CHECK(sqlite::query(db, "SELECT GROUP_CONCAT(Values_) FROM test").begin()->get<string>(0) == "ABC_1;XYZ_1;123_1;ABC_2;XYZ_2;123_2;;");
+        }
+
+        SUBCASE("global group_concat with ; separator") {
+            IDPicker::setGroupConcatSeparator(";");
+            sqlite::query q(db, "SELECT GROUP_CONCAT(Values_) FROM test GROUP BY Group_ ORDER BY Group_");
+            auto itr = q.begin();
+            auto values = itr->get<boost::optional<string> >(0); ++itr;
+            CHECK(*values == "ABC_1;XYZ_1;123_1;");
+
+            values = itr->get<boost::optional<string> >(0); ++itr;
+            CHECK(*values == "ABC_2;XYZ_2;123_2");
+
+            values = itr->get<boost::optional<string> >(0); ++itr;
+            CHECK(*values == "");
+
+            values = itr->get<boost::optional<string> >(0); ++itr;
+            CHECK(values.is_initialized() == false); // null is translated to empty std::string
+
+            CHECK(itr == q.end());
+        }
+    }
+
+    TEST_CASE("SortUnmappedLast tests") {
+
+        sqlite::database db(":memory:");
+        db.load_extension("IdpSqlExtensions");
+
+        IDPicker::setGroupConcatSeparator(",");
+
+        CHECK("Bar,Baz,Foo" == sqlite::query(db, "SELECT SORT_UNMAPPED_LAST('Foo,Baz,Bar')").begin()->get<string>(0));
+        CHECK("Bar,Baz,Foo" == sqlite::query(db, "SELECT SORT_UNMAPPED_LAST('Foo,Bar,Baz')").begin()->get<string>(0));
+        CHECK("Bar,Baz,Foo" == sqlite::query(db, "SELECT SORT_UNMAPPED_LAST('Bar,Baz,Foo')").begin()->get<string>(0));
+
+        CHECK("Bar,Foo,Unmapped_Foo" == sqlite::query(db, "SELECT SORT_UNMAPPED_LAST('Foo,Bar,Unmapped_Foo')").begin()->get<string>(0));
+        CHECK("Bar,Foo,Unmapped_Foo" == sqlite::query(db, "SELECT SORT_UNMAPPED_LAST('Foo,Unmapped_Foo,Bar')").begin()->get<string>(0));
+        CHECK("Bar,Foo,Unmapped_Foo" == sqlite::query(db, "SELECT SORT_UNMAPPED_LAST('Unmapped_Foo,Bar,Foo')").begin()->get<string>(0));
+        CHECK("Bar,Foo,Unmapped_Foo" == sqlite::query(db, "SELECT SORT_UNMAPPED_LAST('Unmapped_Foo,Foo,Bar')").begin()->get<string>(0));
+
+        CHECK("Bar,Unmapped_Baz,Unmapped_Foo" == sqlite::query(db, "SELECT SORT_UNMAPPED_LAST('Bar,Unmapped_Baz,Unmapped_Foo')").begin()->get<string>(0));
+        CHECK("Bar,Unmapped_Baz,Unmapped_Foo" == sqlite::query(db, "SELECT SORT_UNMAPPED_LAST('Unmapped_Baz,Bar,Unmapped_Foo')").begin()->get<string>(0));
+        CHECK("Bar,Unmapped_Baz,Unmapped_Foo" == sqlite::query(db, "SELECT SORT_UNMAPPED_LAST('Unmapped_Baz,Unmapped_Foo,Bar')").begin()->get<string>(0));
+        CHECK("Bar,Unmapped_Baz,Unmapped_Foo" == sqlite::query(db, "SELECT SORT_UNMAPPED_LAST('Unmapped_Foo,Unmapped_Baz,Bar')").begin()->get<string>(0));
+    }
+
+void update_17_to_18(sqlite::database& db, const IterationListenerRegistry* ilr, bool& vacuumNeeded)
 {
-    typedef DistinctDoubleArraySum MyType;
-    set<int> arrayIds;
-    vector<double> result;
-    boost::crc_32_type crc32;
+    ITERATION_UPDATE(ilr, 17, CURRENT_SCHEMA_REVISION, "updating schema version")
 
-    DistinctDoubleArraySum(int arrayLength) : result((size_t)arrayLength, 0.0) {}
+    sqlite::command cmd(db, "UPDATE SpectrumQuantitation SET TMT_ReporterIonIntensities = ? WHERE Id = ?");
+    sqlite::query q(db, "SELECT Id, TMT_ReporterIonIntensities FROM SpectrumQuantitation");
 
-    static void Step(sqlite3_context* context, int numValues, sqlite3_value** values)
+    for(sqlite::query::rows row : q)
     {
-        void* aggContext = sqlite3_aggregate_context(context, sizeof(MyType*));
-        if (aggContext == NULL)
-            throw runtime_error(sqlite3_errmsg(sqlite3_context_db_handle(context)));
+        sqlite3_int64 id = row.get<sqlite3_int64>(0);
+        const void* blob = row.get<const void*>(1);
+        double* valueArray = reinterpret_cast<double*>(const_cast<void*>(blob));
 
-        MyType** ppThis = static_cast<MyType**>(aggContext);
-        MyType*& pThis = *ppThis;
+        if (row.column_bytes(1) / sizeof(double) != 10)
+            continue;
 
-        if (numValues > 1 || values[0] == NULL)
-            return;
+        // swap channels 1/2 and 5/6
+        std::swap(*(valueArray + 1), *(valueArray + 2));
+        std::swap(*(valueArray + 5), *(valueArray + 6));
 
-        int arrayByteCount = sqlite3_value_bytes(values[0]);
-        int arrayLength = arrayByteCount / 8;
-        const char* arrayBytes = static_cast<const char*>(sqlite3_value_blob(values[0]));
-        if (arrayBytes == NULL)
-            return;
-
-        if (arrayByteCount % 8 > 0)
-            throw runtime_error("distinct_double_array_sum only works with BLOBs of double precision floats");
-
-        if (pThis == NULL)
-            pThis = new DistinctDoubleArraySum(arrayLength);
-        else
-            pThis->crc32.reset();
-
-        // if the arrayId was already in the set, ignore its values
-        pThis->crc32.process_bytes(arrayBytes, arrayByteCount);
-        int arrayId = pThis->crc32.checksum();
-        if (!pThis->arrayIds.insert(arrayId).second)
-            return;
-
-        const double* arrayValues = reinterpret_cast<const double*>(arrayBytes);
-
-        for (int i = 0; i < arrayLength; ++i)
-            pThis->result[i] += arrayValues[i];
+        cmd.bind(1, reinterpret_cast<void*>(valueArray), 10 * sizeof(double));
+        cmd.bind(2, id);
+        cmd.execute();
+        cmd.reset();
     }
 
-    static void Final(sqlite3_context* context)
+    //update_17_to_18(db, ilr, vacuumNeeded);
+}
+
+TEST_CASE("update_17_to_18") {
+    sqlite::database db(":memory:");
+    db.load_extension("IdpSqlExtensions");
+
+    db.execute("CREATE TABLE SpectrumQuantitation (Id INTEGER PRIMARY KEY, iTRAQ_ReporterIonIntensities BLOB, TMT_ReporterIonIntensities BLOB, PrecursorIonIntensity NUMERIC)");
+
+    sqlite::command insertTestValues(db, "INSERT INTO SpectrumQuantitation (Id, TMT_ReporterIonIntensities) VALUES (?, ?)");
+
+    vector<double> tmtValues { 126, 127.0, 127.1, 128.0, 128.1, 129.0, 129.1, 130.0, 130.1, 131 };
+    sqlite::statement::blob tmtBlob(tmtValues.data(), sizeof(double) * tmtValues.size());
+    insertTestValues.binder() << 1 << tmtBlob; insertTestValues.step(); insertTestValues.reset();
+    insertTestValues.binder() << 2 << tmtBlob; insertTestValues.step(); insertTestValues.reset();
+    insertTestValues.binder() << 3 << tmtBlob; insertTestValues.step(); insertTestValues.reset();
+
+    bool vacuumNeeded = false;
+    update_17_to_18(db, NULL, vacuumNeeded);
+
+    sqlite::query q(db, "SELECT TMT_ReporterIonIntensities FROM SpectrumQuantitation");
+    for (sqlite::query::rows row : q)
     {
-        void* aggContext = sqlite3_aggregate_context(context, 0);
-        if (aggContext == NULL)
-            throw runtime_error(sqlite3_errmsg(sqlite3_context_db_handle(context)));
-
-        MyType** ppThis = static_cast<MyType**>(aggContext);
-        MyType*& pThis = *ppThis;
-
-        if (pThis == NULL)
-            pThis = new DistinctDoubleArraySum(0);
-
-        sqlite3_result_blob(context, pThis->result.empty() ? NULL : &pThis->result[0], pThis->result.size() * sizeof(double), SQLITE_TRANSIENT);
-
-        delete pThis;
+        auto values = blobToDoubleArray(row, 10, 0);
+        CHECK(values == vector<double> { 126, 127.1, 127.0, 128.0, 128.1, 129.1, 129.0, 130.0, 130.1, 131 });
     }
-};
+}
+
+
+void update_16_to_17(sqlite::database& db, const IterationListenerRegistry* ilr, bool& vacuumNeeded)
+{
+    ITERATION_UPDATE(ilr, 16, CURRENT_SCHEMA_REVISION, "updating schema version")
+
+    db.execute("ALTER TABLE ProteinMetadata ADD COLUMN Hash BLOB");
+    sqlite::command cmd(db, "UPDATE ProteinMetadata SET Hash = ? WHERE Id = ?");
+    sqlite::query q(db, "SELECT Id, Sequence FROM ProteinData");
+    sqlite3_int64 proId;
+    string sequence;
+    CSHA1 hasher;
+    char hash[20];
+
+    for(sqlite::query::rows row : q)
+    {
+        row.getter() >> proId >> sequence;
+
+        hasher.Reset();
+        hasher.Update(reinterpret_cast<unsigned char*>(&sequence[0]), sequence.length());
+        hasher.Final();
+        hasher.GetHash(reinterpret_cast<unsigned char*>(hash));
+
+        cmd.bind(1, reinterpret_cast<void*>(hash), 20);
+        cmd.bind(2, proId);
+        cmd.execute();
+        cmd.reset();
+    }
+
+    update_17_to_18(db, ilr, vacuumNeeded);
+}
+
+
+void update_15_to_16(sqlite::database& db, const IterationListenerRegistry* ilr, bool& vacuumNeeded)
+{
+    ITERATION_UPDATE(ilr, 15, CURRENT_SCHEMA_REVISION, "updating schema version")
+
+    db.execute("ALTER TABLE FilterHistory ADD COLUMN PrecursorMzTolerance TEXT");
+
+    update_16_to_17(db, ilr, vacuumNeeded);
+}
+
+void update_14_to_15(sqlite::database& db, const IterationListenerRegistry* ilr, bool& vacuumNeeded)
+{
+    ITERATION_UPDATE(ilr, 14, CURRENT_SCHEMA_REVISION, "updating schema version")
+    db.execute("CREATE TABLE IF NOT EXISTS IsobaricSampleMapping (GroupId INTEGER PRIMARY KEY, Samples TEXT)");
+
+    update_15_to_16(db, ilr, vacuumNeeded);
+}
+
+void update_13_to_14(sqlite::database& db, const IterationListenerRegistry* ilr, bool& vacuumNeeded)
+{
+    ITERATION_UPDATE(ilr, 13, CURRENT_SCHEMA_REVISION, "updating schema version")
+
+    db.execute("ALTER TABLE SpectrumSource ADD COLUMN QuantitationSettings TEXT");
+    
+    try
+    {
+        sqlite::command cmd(db, "UPDATE SpectrumSource SET "
+                                "TotalSpectraMS1 = ?, TotalIonCurrentMS1 = 0, "
+                                "TotalSpectraMS2 = 0, TotalIonCurrentMS2 = 0, "
+                                "QuantitationMethod = ?, "
+                                "QuantitationSettings = ? "
+                                "WHERE Id = ?");
+
+        sqlite::query q(db, "SELECT SourceId, TotalSpectra, Settings FROM XICMetricsSettings");
+        sqlite3_int64 sourceId;
+        int totalSpectra;
+        string settings;
+
+        for(sqlite::query::rows row : q)
+        {
+            row.getter() >> sourceId >> totalSpectra >> settings;
+
+            cmd.binder() << totalSpectra <<
+                            1 << // CONSIDER: include Embedder.hpp to access QuantitationMethod::LabelFree::value() ?
+                            settings <<
+                            sourceId;
+            cmd.execute();
+            cmd.reset();
+        }
+
+        db.execute("DROP TABLE XICMetricsSettings");
+    }
+    catch (sqlite::database_error& e)
+    {
+        if (!bal::contains(e.what(), "no such")) // column or table
+            throw runtime_error(e.what());
+    }
+
+    update_14_to_15(db, ilr, vacuumNeeded);
+}
 
 void update_12_to_13(sqlite::database& db, const IterationListenerRegistry* ilr, bool& vacuumNeeded)
 {
@@ -115,7 +405,7 @@ void update_12_to_13(sqlite::database& db, const IterationListenerRegistry* ilr,
 
     db.execute("CREATE TABLE IF NOT EXISTS PeptideModificationProbability(PeptideModification INTEGER PRIMARY KEY, Probability NUMERIC)");
 
-    //update_13_to_14(db, ilr, vacuumNeeded);
+    update_13_to_14(db, ilr, vacuumNeeded);
 }
 
 void update_11_to_12(sqlite::database& db, const IterationListenerRegistry* ilr, bool& vacuumNeeded)
@@ -310,7 +600,7 @@ void update_6_to_7(sqlite::database& db, const IterationListenerRegistry* ilr, b
                   "GROUP BY IsDecoy "
                   "ORDER BY IsDecoy");
         vector<int> peptideLevelDecoys;
-        BOOST_FOREACH(sqlite::query::rows row, q)
+        for(sqlite::query::rows row : q)
             peptideLevelDecoys.push_back(row.get<int>(0));
 
         // without both targets and decoys, FDR can't be calculated
@@ -333,7 +623,7 @@ void update_6_to_7(sqlite::database& db, const IterationListenerRegistry* ilr, b
                   "GROUP BY IsDecoy "
                   "ORDER BY IsDecoy");
         vector<int> spectrumLevelDecoys;
-        BOOST_FOREACH(sqlite::query::rows row, q)
+        for(sqlite::query::rows row : q)
             spectrumLevelDecoys.push_back(row.get<int>(0));
 
         // without both targets and decoys, FDR can't be calculated
@@ -601,11 +891,22 @@ bool update(sqlite3* idpDbConnection, const IterationListenerRegistry* ilr)
         update_11_to_12(db, ilr, vacuumNeeded);
     else if (schemaRevision == 12)
         update_12_to_13(db, ilr, vacuumNeeded);
+    else if (schemaRevision == 13)
+        update_13_to_14(db, ilr, vacuumNeeded);
+    else if (schemaRevision == 14)
+        update_14_to_15(db, ilr, vacuumNeeded);
+    else if (schemaRevision == 15)
+        update_15_to_16(db, ilr, vacuumNeeded);
+    else if (schemaRevision == 16)
+        update_16_to_17(db, ilr, vacuumNeeded);
+    else if (schemaRevision == 17)
+        update_17_to_18(db, ilr, vacuumNeeded);
     else if (schemaRevision > CURRENT_SCHEMA_REVISION)
         throw runtime_error("[SchemaUpdater::update] unable to update schema revision " +
                             lexical_cast<string>(schemaRevision) +
                             "; the latest compatible revision is " +
-                            lexical_cast<string>(CURRENT_SCHEMA_REVISION));
+                            lexical_cast<string>(CURRENT_SCHEMA_REVISION) +
+                            "; you need a newer version of IDPicker to open this file");
     else
     {
         ITERATION_UPDATE(ilr, CURRENT_SCHEMA_REVISION-1, CURRENT_SCHEMA_REVISION, "schema is current; no update necessary")
@@ -660,10 +961,8 @@ string getSQLiteUncCompatiblePath(const string& path)
 
 void createUserSQLiteFunctions(sqlite3* idpDbConnection)
 {
-    int result = sqlite3_create_function(idpDbConnection, "distinct_double_array_sum", -1, SQLITE_ANY,
-                                         0, NULL, &DistinctDoubleArraySum::Step, &DistinctDoubleArraySum::Final);
-    if (result != 0)
-        throw runtime_error("unable to create user function: SQLite error " + lexical_cast<string>(result));
+    sqlite::database db(idpDbConnection, false);
+    db.load_extension("IdpSqlExtensions");
 }
 
 

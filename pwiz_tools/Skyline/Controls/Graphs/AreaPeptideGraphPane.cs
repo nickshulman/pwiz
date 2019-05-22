@@ -45,6 +45,8 @@ namespace pwiz.Skyline.Controls.Graphs
             // reformat YAxis for labels
             var maxY = GraphHelper.GetMaxY(CurveList, this);
             GraphHelper.ReformatYAxis(this, maxY);
+
+            FixedYMin = YAxis.Scale.Min = Settings.Default.AreaLogScale ? 1 : 0;
         }
 
         internal class AreaGraphData : GraphData

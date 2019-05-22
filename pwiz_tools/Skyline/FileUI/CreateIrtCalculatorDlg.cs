@@ -37,36 +37,36 @@ namespace pwiz.Skyline.FileUI
 {
     public partial class CreateIrtCalculatorDlg : FormEx
     {
-        private static readonly string[] COMMON_IRT_STANDARDS = { "ADVTPADFSEWSK",  // Not L10N
-                                                                  "DGLDAASYYAPVR",  // Not L10N
-                                                                  "GAGSSEPVTGLDAK", // Not L10N
-                                                                  "GTFIIDPAAVIR",   // Not L10N
-                                                                  "GTFIIDPGGVIR",   // Not L10N
-                                                                  "LFLQFGAQGSPFLK", // Not L10N
-                                                                  "LGGNEQVTR",      // Not L10N
-                                                                  "TPVISGGPYEYR",   // Not L10N
-                                                                  "TPVITGAPYEYR",   // Not L10N
-                                                                  "VEATFGVDESNAK",  // Not L10N
-                                                                  "YILAGVENSK"};    // Not L10N
-
         public string IrtFile { get; private set; }
 
         /// <summary>
         /// In the case where we specify one of the imported proteins as the iRT protein, make a list of its peptides
         /// </summary>
-        private HashSet<string> _irtPeptideSequences;
+        private HashSet<Target> _irtPeptideSequences;
 
         private List<SpectrumMzInfo> _librarySpectra;
         private List<DbIrtPeptide> _dbIrtPeptides;
 
         private static int CompareNames(PeptideGroupDocNode group1, PeptideGroupDocNode group2)
         {
-            return String.Compare(group1.Name, group2.Name, CultureInfo.CurrentCulture, CompareOptions.None);
+            return string.Compare(group1.Name, group2.Name, CultureInfo.CurrentCulture, CompareOptions.None);
         }
 
-        private static bool ContainsCommonIrts(PeptideGroupDocNode protein)
+        public static void SeparateProteinGroups(IEnumerable<PeptideGroupDocNode> proteins,
+            out PeptideGroupDocNode[] standardProteins, out PeptideGroupDocNode[] nonStandardProteins)
         {
-            return protein.Peptides.Select(pep => pep.ModifiedSequence).Intersect(COMMON_IRT_STANDARDS).Count() > CalibrateIrtDlg.MIN_STANDARD_PEPTIDES;
+            var standardProteinsList = new List<PeptideGroupDocNode>();
+            var nonStandardProteinsList = new List<PeptideGroupDocNode>();
+            foreach (var protein in proteins.Where(protein => protein.PeptideCount >= CalibrateIrtDlg.MIN_STANDARD_PEPTIDES))
+            {
+                if (protein.Peptides.Select(pep => pep.ModifiedTarget).Count(IrtStandard.AnyContains) >= CalibrateIrtDlg.MIN_STANDARD_PEPTIDES)
+                    standardProteinsList.Add(protein);
+                else
+                    nonStandardProteinsList.Add(protein);
+            }
+            standardProteinsList.Sort(CompareNames);
+            standardProteins = standardProteinsList.ToArray();
+            nonStandardProteins = nonStandardProteinsList.ToArray();
         }
 
         public CreateIrtCalculatorDlg(SrmDocument document, string documentFilePath, IList<RetentionScoreCalculatorSpec> existing, IEnumerable<PeptideGroupDocNode> peptideGroups)
@@ -77,13 +77,13 @@ namespace pwiz.Skyline.FileUI
             InitializeComponent();
             _librarySpectra = new List<SpectrumMzInfo>();
             _dbIrtPeptides = new List<DbIrtPeptide>();
-            var possibleStandardProteins = peptideGroups.Where(group => group.PeptideCount > CalibrateIrtDlg.MIN_STANDARD_PEPTIDES).ToList();
-            var proteinsContainingCommonIrts = possibleStandardProteins.Where(ContainsCommonIrts);
-            var proteinsNotContainingCommonIrts = possibleStandardProteins.Where(group => !ContainsCommonIrts(group));
-            possibleStandardProteins.Sort(CompareNames);
-            comboBoxProteins.Items.AddRange(proteinsContainingCommonIrts.ToArray());
-            comboBoxProteins.Items.AddRange(proteinsNotContainingCommonIrts.ToArray());
-            UpdateSelection(IrtType.existing);
+            PeptideGroupDocNode[] proteinsContainingCommonIrts, proteinsNotContainingCommonIrts;
+            SeparateProteinGroups(peptideGroups, out proteinsContainingCommonIrts, out proteinsNotContainingCommonIrts);
+            comboBoxProteins.Items.AddRange(proteinsContainingCommonIrts);
+            comboBoxProteins.Items.AddRange(proteinsNotContainingCommonIrts);
+            if (proteinsContainingCommonIrts.Any())
+                comboBoxProteins.SelectedIndex = 0;
+            UpdateSelection(IrtType.protein);
         }
 
         public SrmDocument Document { get; private set; }
@@ -143,7 +143,7 @@ namespace pwiz.Skyline.FileUI
                     textNewDatabase.Focus();
                     return;
                 }
-                if (!CreateDatabase(textNewDatabase.Text))
+                if (!CreateIrtDatabase(textNewDatabase.Text))
                     return;
             }
             else
@@ -160,7 +160,7 @@ namespace pwiz.Skyline.FileUI
                     comboBoxProteins.Focus();
                     return;
                 }
-                if (!CreateDatabase(textNewDatabaseProteins.Text))
+                if (!CreateIrtDatabase(textNewDatabaseProteins.Text))
                     return;
             }
             // Make a version of the document with the new calculator in it
@@ -169,7 +169,7 @@ namespace pwiz.Skyline.FileUI
                                     textNewDatabaseProteins.Text;
             var calculator = new RCalcIrt(textCalculatorName.Text, databaseFileName);
             // CONSIDER: Probably can't use just a static default like 10 below
-            var retentionTimeRegression = new RetentionTimeRegression(calculator.Name, calculator, null, null, 10, new List<MeasuredRetentionTime>());
+            var retentionTimeRegression = new RetentionTimeRegression(calculator.Name, calculator, null, null, RetentionTimeRegression.DEFAULT_WINDOW, new List<MeasuredRetentionTime>());
             var docNew = Document.ChangeSettings(Document.Settings.ChangePeptidePrediction(prediction =>
                 prediction.ChangeRetentionTime(retentionTimeRegression)));
             // Import transition list of standards, if applicable
@@ -204,7 +204,7 @@ namespace pwiz.Skyline.FileUI
             {
                 PeptideGroupDocNode selectedGroup = comboBoxProteins.SelectedItem as PeptideGroupDocNode;
 // ReSharper disable PossibleNullReferenceException
-                _irtPeptideSequences = new HashSet<string>(selectedGroup.Peptides.Select(pep => pep.ModifiedSequence));
+                _irtPeptideSequences = new HashSet<Target>(selectedGroup.Peptides.Select(pep => pep.ModifiedTarget));
 // ReSharper restore PossibleNullReferenceException
             }
             Document = docNew;
@@ -216,36 +216,18 @@ namespace pwiz.Skyline.FileUI
             librarySpectra.AddRange(_librarySpectra);
             dbIrtPeptidesFilter.AddRange(_dbIrtPeptides);
             if (_irtPeptideSequences != null)
-                dbIrtPeptidesFilter.ForEach(pep => pep.Standard = _irtPeptideSequences.Contains(pep.PeptideModSeq));
+                dbIrtPeptidesFilter.ForEach(pep => pep.Standard = _irtPeptideSequences.Contains(pep.ModifiedTarget));
         }
 
-        public bool CreateDatabase(string path)
+        public bool CreateIrtDatabase(string path)
         {
             try
             {
-                FileEx.SafeDelete(path);
-            }
-            catch (IOException x)
-            {
-                MessageDlg.Show(this, x.Message);
-                return false;
-            }
-
-            //Create file, initialize db
-            try
-            {
-                IrtDb.CreateIrtDb(path);
-            }
-            catch (DatabaseOpeningException x)
-            {
-                MessageDlg.ShowException(this, x);
-                return false;
+                ImportAssayLibraryHelper.CreateIrtDatabase(path);
             }
             catch (Exception x)
             {
-                var message = TextUtil.LineSeparate(string.Format(Resources.EditIrtCalcDlg_CreateDatabase_The_file__0__could_not_be_created, path),
-                                                    x.Message);
-                MessageDlg.ShowWithException(this, message, x);
+                MessageDlg.ShowException(this, x);
                 return false;
             }
             return true;
@@ -434,7 +416,7 @@ namespace pwiz.Skyline.FileUI
                         return;
                     }
                 }
-                throw new ArgumentException("Invalid protein selection"); // Not L10N
+                throw new ArgumentException(@"Invalid protein selection");
             }
         }
 

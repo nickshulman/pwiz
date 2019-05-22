@@ -22,16 +22,12 @@ using AutoQC;
 
 namespace AutoQCTest
 {
-    class TestLogger: IAutoQCLogger
+    class TestLogger: IAutoQcLogger
     {
         private readonly StringBuilder log = new StringBuilder();
+        private readonly  StringBuilder _programLog = new StringBuilder();
 
         public void Log(string message, object[] args)
-        {
-            AddToLog(message, args);
-        }
-
-        public void Log(string message, int blankLinesBefore, int blankLinesAfter, params object[] args)
         {
             AddToLog(message, args);
         }
@@ -41,34 +37,34 @@ namespace AutoQCTest
             AddToLog(message, args);
         }
 
-        public void LogError(string message, int blankLinesBefore, int blankLinesAfter, params object[] args)
+        public void LogProgramError(string message, params object[] args)
+        {
+            AddToProgramLog(message, args);
+        }
+
+        public void LogException(Exception exception, string message, params object[] args)
         {
             AddToLog(message, args);
         }
 
-        public void LogException(Exception exception)
+        public string GetFile()
         {
-            AddToLog(exception.Message);
+            throw new NotImplementedException();
         }
 
-        public void LogOutput(string message, object[] args)
+        public void DisableUiLogging()
         {
-            AddToLog(message, args);
+            throw new NotImplementedException();
         }
 
-        public void LogOutput(string message, int blankLinesBefore, int blankLinesAfter, params object[] args)
+        public void LogToUi(IMainUiControl mainUi)
         {
-            LogOutput(message, args);
+            throw new NotImplementedException();
         }
 
-        public void LogErrorOutput(string error, object[] args)
+        public void DisplayLog()
         {
-            AddToLog(error, args);
-        }
-
-        public void LogErrorOutput(string error, int blankLinesBefore, int blankLinesAfter, params object[] args)
-        {
-            LogError(error, args);
+            throw new NotImplementedException();
         }
 
         private void AddToLog(string message, params object[] args)
@@ -77,7 +73,12 @@ namespace AutoQCTest
             System.Diagnostics.Debug.WriteLine(message, args);
         }
 
-        public String GetLog()
+        private void AddToProgramLog(string message, params object[] args)
+        {
+            _programLog.Append(string.Format(message, args)).AppendLine();
+        }
+
+        public string GetLog()
         {
             return log.ToString();
         }
@@ -88,13 +89,15 @@ namespace AutoQCTest
         }
     }
 
-    class TestAppControl : IAppControl
+    class TestAppControl : IMainUiControl
     {
         private MainSettings _mainSettings = new MainSettings();
         private PanoramaSettings _panoramaSettings = new PanoramaSettings();
 
         public bool Waiting { get; set; }
         public bool Stopped { get; set; }
+
+        private ConfigRunner.RunnerStatus _runnerStatus;
 
         public void SetWaiting()
         {
@@ -131,27 +134,67 @@ namespace AutoQCTest
             throw new NotImplementedException();
         }
 
-        public void SetUISprocopSettings(SprocopSettings sprocopSettings)
+        #region Implementation of IMainUiControl
+
+        public void ChangeConfigUiStatus(ConfigRunner configRunner)
+        {
+            _runnerStatus = configRunner.GetStatus();
+        }
+
+        public void AddConfiguration(AutoQcConfig config)
         {
             throw new NotImplementedException();
         }
 
-        public SprocopSettings GetUISprocopSettings()
+        public void UpdateConfiguration(AutoQcConfig oldConfig, AutoQcConfig newConfig)
         {
             throw new NotImplementedException();
         }
 
-        public void DisableSprocopSettings()
+        public void UpdatePanoramaServerUrl(AutoQcConfig config)
         {
             throw new NotImplementedException();
         }
+
+        public AutoQcConfig GetConfig(string name)
+        {
+            throw new NotImplementedException();
+        }
+
+        public void LogToUi(string text, bool scrollToEnd = true, bool trim = false)
+        {
+            throw new NotImplementedException();
+        }
+
+        public void LogErrorToUi(string text, bool scrollToEnd = true, bool trim = false)
+        {
+            throw new NotImplementedException();
+        }
+
+        public void LogLinesToUi(List<string> lines)
+        {
+            throw new NotImplementedException();
+        }
+
+        public void LogErrorLinesToUi(List<string> lines)
+        {
+            throw new NotImplementedException();
+        }
+
+        public void DisplayError(string title, string message)
+        {
+            throw new NotImplementedException();
+        }
+
+        #endregion
     }
 
     class TestImportContext : ImportContext
     {
         public DateTime OldestFileDate;
-        public TestImportContext(string resultsFile) : base(resultsFile)
+        public TestImportContext(string resultsFile, DateTime oldestFileDate) : base(resultsFile)
         {
+            OldestFileDate = oldestFileDate;
         }
 
         public TestImportContext(List<string> resultsFiles) : base(resultsFiles)
@@ -161,6 +204,30 @@ namespace AutoQCTest
         public override DateTime GetOldestImportedFileDate(DateTime lastAcqDate)
         {
             return OldestFileDate;
+        }
+    }
+
+    class TestConfigRunner : IConfigRunner
+    {
+        private ConfigRunner.RunnerStatus _runnerStatus;
+        public void ChangeStatus(ConfigRunner.RunnerStatus status)
+        {
+            _runnerStatus = status;
+        }
+
+        public bool IsRunning()
+        {
+            throw new NotImplementedException();
+        }
+
+        public bool IsStopped()
+        {
+            throw new NotImplementedException();
+        }
+
+        public bool IsDisconnected()
+        {
+            return false;
         }
     }
 }

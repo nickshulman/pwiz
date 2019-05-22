@@ -37,6 +37,7 @@ namespace pwiz {
 namespace CLI {
 namespace msdata {
 
+using namespace System::Collections::Generic;
 
 public DEFINE_STD_VECTOR_WRAPPER_FOR_REFERENCE_TYPE(MSDataList, pwiz::msdata::MSDataPtr, MSData, NATIVE_SHARED_PTR_TO_CLI, CLI_TO_NATIVE_SHARED_PTR);
 
@@ -56,14 +57,35 @@ public ref class ReaderConfig
 	/// when true, allows for skipping 0 length checks (and thus skip re-reading data for ABI)
     bool acceptZeroLengthSpectra;
 
+    /// when true, allows certain vendor readers to produce profile data without zero intensity samples flanking each peak profile
+    bool ignoreZeroIntensityPoints;
+
     /// when true, all drift bins/scans in a frame/block are written in combined form instead of as individual spectra
     bool combineIonMobilitySpectra;
 
+    /// when true, if a reader cannot identify an instrument, an exception will be thrown asking users to report it
+    bool unknownInstrumentIsError;
+
+    /// when true, if a reader does not know what time zone was used to record a time, it will assume the time refers to the host's local time;
+    /// when false, the reader will treat times with unknown time zone as UTC
+    bool adjustUnknownTimeZonesToHostTimeZone;
+
+    /// when nonzero, if reader can enumerate only spectra of ms level, it will (currently only supported by Bruker TDF)
+    int preferOnlyMsLevel;
+
+    /// when true, MS2 spectra without precursor/isolation information will be included in the output (currently only affects Bruker PASEF data)
+    bool allowMsMsWithoutPrecursor;
+
     ReaderConfig()
-    :   simAsSpectra(false)
-    ,   srmAsSpectra(false)
-	,   acceptZeroLengthSpectra(false)
-    ,   combineIonMobilitySpectra(false)
+    : simAsSpectra(false)
+    , srmAsSpectra(false)
+    , acceptZeroLengthSpectra(false)
+    , ignoreZeroIntensityPoints(false)
+    , combineIonMobilitySpectra(false)
+    , unknownInstrumentIsError(false)
+    , adjustUnknownTimeZonesToHostTimeZone(true)
+    , preferOnlyMsLevel(0)
+    , allowMsMsWithoutPrecursor(true)
     {
     }
 };
@@ -183,6 +205,20 @@ public ref class ReaderList : public Reader
     /// get MSData.Ids
     virtual array<System::String^>^ readIds(System::String^ filename,
                                             System::String^ head) override;
+
+    /// returns getType() for all contained Readers
+    IList<System::String^>^ getTypes();
+
+    /// returns getCvType() for all contained Readers
+    IList<CVID>^ getCvTypes();
+
+    /// returns the file extensions, if any, that the contained Readers support, including the leading period;
+    /// note that comparing file extensions is not as robust as using the identify() method
+    virtual IList<System::String^>^ getFileExtensions();
+
+    /// returns a map of Reader types to file extensions, if any, that the contained Readers support, including the leading period;
+    /// note that comparing file extensions is not as robust as using the identify() method
+    IDictionary<System::String^, IList<System::String^>^>^ getFileExtensionsByType();
 
     static property ReaderList^ FullReaderList { ReaderList^ get(); }
 };

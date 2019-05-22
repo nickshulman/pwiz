@@ -9,22 +9,22 @@
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>AutoQC</RootNamespace>
     <AssemblyName>AutoQC</AssemblyName>
-    <TargetFrameworkVersion>v4.5.1</TargetFrameworkVersion>
+    <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <IsWebBootstrapper>true</IsWebBootstrapper>
     <TargetFrameworkProfile />
-    <PublishUrl>T:\webapps\ROOT\software\AutoQC\daily\</PublishUrl>
+    <PublishUrl>X:\labkey\static\software\AutoQC\</PublishUrl>
     <Install>true</Install>
     <InstallFrom>Web</InstallFrom>
-    <UpdateEnabled>false</UpdateEnabled>
+    <UpdateEnabled>true</UpdateEnabled>
     <UpdateMode>Foreground</UpdateMode>
     <UpdateInterval>7</UpdateInterval>
     <UpdateIntervalUnits>Days</UpdateIntervalUnits>
     <UpdatePeriodically>false</UpdatePeriodically>
     <UpdateRequired>false</UpdateRequired>
-    <MapFileExtensions>true</MapFileExtensions>
-    <InstallUrl>http://skyline.gs.washington.edu/software/AutoQC/daily/</InstallUrl>
-    <ProductName>AutoQC-daily</ProductName>
+    <MapFileExtensions>false</MapFileExtensions>
+    <InstallUrl>http://skyline.gs.washington.edu/software/AutoQC/</InstallUrl>
+    <ProductName>AutoQC</ProductName>
     <PublisherName>University of Washington</PublisherName>
     <CreateWebPageOnPublish>true</CreateWebPageOnPublish>
     <WebPage>index.html</WebPage>
@@ -57,7 +57,7 @@
     <StartupObject />
   </PropertyGroup>
   <PropertyGroup>
-    <ManifestCertificateThumbprint>5B66EC1291281681132D9C769FED5A1F42BD4A76</ManifestCertificateThumbprint>
+    <ManifestCertificateThumbprint>828D97D15AA50E99C25127B6A71E0A6DFC12027E</ManifestCertificateThumbprint>
   </PropertyGroup>
   <PropertyGroup>
     <ManifestKeyFile>
@@ -76,10 +76,16 @@
   <PropertyGroup />
   <PropertyGroup />
   <ItemGroup>
+    <Content Include="SkylineDailyRunner.exe">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="SkylineRunner.exe">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
     <None Include="App.config">
       <SubType>Designer</SubType>
     </None>
-    <None Include="AutoQC_TemporaryKey.pfx" />
+    <EmbeddedResource Include="AutoQC-daily.ico" />
     <Content Include="FileAcquisitionTime.skyr">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
@@ -87,30 +93,33 @@
       <Generator>SettingsSingleFileGenerator</Generator>
       <LastGenOutput>Settings.Designer.cs</LastGenOutput>
     </None>
-    <None Include="QCplotsRgui2.R">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Include="SProCoP_report.skyr">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <SubType>Designer</SubType>
-    </None>
+    <None Include="University of Washington %28MacCoss Lab%29.pfx" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="AutoQcForm.cs">
+    <Compile Include="AutoQcConfig.cs" />
+    <Compile Include="AutoQcLogger.cs" />
+    <Compile Include="MainForm.cs">
       <SubType>Form</SubType>
     </Compile>
-    <Compile Include="AutoQcForm.Designer.cs">
-      <DependentUpon>AutoQcForm.cs</DependentUpon>
+    <Compile Include="MainForm.Designer.cs">
+      <DependentUpon>MainForm.cs</DependentUpon>
     </Compile>
-    <Compile Include="AutoQCBackgroundWorker.cs" />
+    <Compile Include="AutoQCConfigForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="AutoQCConfigForm.Designer.cs">
+      <DependentUpon>AutoQCConfigForm.cs</DependentUpon>
+    </Compile>
+    <Compile Include="ConfigRunner.cs" />
     <Compile Include="AutoQCFileSystemWatcher.cs" />
     <Compile Include="ImportContext.cs" />
+    <Compile Include="NetworkDriveUtil.cs" />
     <Compile Include="PanoramaSettings.cs" />
     <Compile Include="ProcessInfo.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="ResultFileStatus.cs" />
-    <Compile Include="SprocopSettings.cs" />
-    <Compile Include="SettingsTab.cs" />
+    <Compile Include="Properties\Settings.cs" />
+    <Compile Include="ConfigSettings.cs" />
     <Compile Include="MainSettings.cs" />
     <Compile Include="PanoramaUtil.cs" />
     <Compile Include="Properties\Resources.Designer.cs">
@@ -124,6 +133,7 @@
       <DependentUpon>Settings.settings</DependentUpon>
     </Compile>
     <Compile Include="Program.cs" />
+    <Compile Include="XmlUtil.cs" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="log4net">
@@ -135,6 +145,7 @@
       <EmbedInteropTypes>False</EmbedInteropTypes>
     </Reference>
     <Reference Include="System" />
+    <Reference Include="System.Configuration" />
     <Reference Include="System.Configuration.Install" />
     <Reference Include="System.Data" />
     <Reference Include="System.Deployment" />
@@ -145,41 +156,28 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <EmbeddedResource Include="AutoQcForm.ja.resx">
-      <DependentUpon>AutoQcForm.cs</DependentUpon>
-    </EmbeddedResource>
-    <EmbeddedResource Include="AutoQcForm.resx">
-      <DependentUpon>AutoQcForm.cs</DependentUpon>
+    <EmbeddedResource Include="AutoQC.ico" />
+    <EmbeddedResource Include="MainForm.resx">
+      <DependentUpon>MainForm.cs</DependentUpon>
       <SubType>Designer</SubType>
     </EmbeddedResource>
-    <EmbeddedResource Include="AutoQcForm.zh-CHS.resx">
-      <DependentUpon>AutoQcForm.cs</DependentUpon>
+    <EmbeddedResource Include="AutoQCConfigForm.resx">
+      <DependentUpon>AutoQCConfigForm.cs</DependentUpon>
+      <SubType>Designer</SubType>
     </EmbeddedResource>
     <EmbeddedResource Include="Properties\Resources.ja.resx">
       <DependentUpon>Resources.resx</DependentUpon>
+      <SubType>Designer</SubType>
     </EmbeddedResource>
     <EmbeddedResource Include="Properties\Resources.resx">
       <Generator>ResXFileCodeGenerator</Generator>
       <LastGenOutput>Resources.Designer.cs</LastGenOutput>
+      <SubType>Designer</SubType>
     </EmbeddedResource>
     <EmbeddedResource Include="Properties\Resources.zh-CHS.resx">
       <DependentUpon>Resources.resx</DependentUpon>
+      <SubType>Designer</SubType>
     </EmbeddedResource>
-  </ItemGroup>
-  <ItemGroup>
-    <Content Include="Resources\redstatus.png" />
-  </ItemGroup>
-  <ItemGroup>
-    <Content Include="Resources\greenstatus.png" />
-  </ItemGroup>
-  <ItemGroup>
-    <Content Include="..\..\SkylineRunner\bin\Release\SkylineRunner.exe">
-      <Link>SkylineRunner.exe</Link>
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="AutoQC.ico" />
-    <Content Include="Resources\AutoQC.ico" />
-    <Content Include="Resources\orangestatus.png" />
   </ItemGroup>
   <ItemGroup>
     <BootstrapperPackage Include=".NETFramework,Version=v4.5">
@@ -199,21 +197,7 @@
     </BootstrapperPackage>
   </ItemGroup>
   <ItemGroup>
-    <NativeReference Include="MSFileReader.XRawfile2.SxS, Version=2.2.61.0, Type=win32">
-      <Name>MSFileReader.XRawfile2.SxS.manifest</Name>
-      <HintPath>..\..\..\..\Shared\ProteowizardWrapper\obj\x86\MSFileReader.XRawfile2.SxS.manifest</HintPath>
-    </NativeReference>
-  </ItemGroup>
-  <ItemGroup>
-    <COMReference Include="MSFileReaderLib">
-      <Guid>{F0C5F3E3-4F2A-443E-A74D-0AABE3237494}</Guid>
-      <VersionMajor>1</VersionMajor>
-      <VersionMinor>0</VersionMinor>
-      <Lcid>0</Lcid>
-      <WrapperTool>tlbimp</WrapperTool>
-      <Isolated>False</Isolated>
-      <EmbedInteropTypes>False</EmbedInteropTypes>
-    </COMReference>
+    <Folder Include="Resources\" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
@@ -223,7 +207,7 @@
   <Target Name="AfterBuild">
   </Target>
   <Target Name="AfterPublish">
-    <Exec Command="SignAfterPublish.bat &quot;$(ProjectDir)University of Washington (MacCoss Lab).pfx&quot; password &quot;$(ProjectDir)bin\$(Platform)\$(ConfigurationName)\app.publish&quot; $(TargetName)" />
+    <Exec Command="SignAfterPublish.bat &quot;$(ProjectDir)University of Washington (MacCoss Lab).pfx&quot; password &quot;$(ProjectDir)bin\$(ConfigurationName)\app.publish&quot; $(TargetName)" />
   </Target>
   -->
 </Project>

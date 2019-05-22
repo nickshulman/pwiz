@@ -16,10 +16,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-using System.Runtime.InteropServices;
 using System.Text;
 using System.Windows.Forms;
-using pwiz.Skyline.Alerts;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
@@ -37,8 +35,8 @@ namespace pwiz.Skyline.SettingsUI
             for (int i = 0; i < statistics.Peptides.Count; i++)
             {
                 gridStatistics.Rows.Add(statistics.Peptides[i],
-                                        string.Format("{0:F02}", statistics.ListHydroScores[i]), // Not L10N
-                                        string.Format("{0}", statistics.ListPredictions[i]), // Not L10N
+                                        string.Format(@"{0:F02}", statistics.ListHydroScores[i]),
+                                        string.Format(@"{0}", statistics.ListPredictions[i]),
                                         statistics.ListRetentionTimes[i]);
             }
         }
@@ -56,21 +54,13 @@ namespace pwiz.Skyline.SettingsUI
                     
                     foreach (DataGridViewCell cell in row.Cells)
                     {
-                        if (sb[sb.Length - 1] != '\n') // Not L10N
-                            sb.Append('\t'); // Not L10N
+                        if (sb[sb.Length - 1] != '\n')
+                            sb.Append('\t');
                         sb.Append(cell.Value);
                     }
-                    sb.Append('\n'); // Not L10N
+                    sb.Append('\n');
                 }
-                try
-                {
-                    ClipboardEx.Clear();
-                    ClipboardEx.SetText(sb.ToString());
-                }
-                catch (ExternalException)
-                {
-                    MessageDlg.Show(this, ClipboardHelper.GetOpenClipboardMessage(Resources.RTDetails_gridStatistics_KeyDown_Failed_setting_data_to_clipboard));
-                }
+                ClipboardHelper.SetClipboardText(this, sb.ToString());
             }
         }
     }

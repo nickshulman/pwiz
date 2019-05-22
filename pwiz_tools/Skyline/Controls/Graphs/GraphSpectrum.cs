@@ -23,14 +23,15 @@ using System.ComponentModel;
 using System.Drawing;
 using System.Linq;
 using System.Windows.Forms;
+using pwiz.Common.Chemistry;
 using pwiz.Common.Collections;
-using pwiz.Crawdad;
 using pwiz.MSGraph;
 using pwiz.Skyline.Controls.SeqNode;
 using pwiz.Skyline.Model;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.Lib;
 using pwiz.Skyline.Model.Results;
+using pwiz.Skyline.Model.Results.Crawdad;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
 using ZedGraph;
@@ -55,10 +56,14 @@ namespace pwiz.Skyline.Controls.Graphs
         public interface IStateProvider
         {
             TreeNodeMS SelectedNode { get; }
-            IList<IonType> ShowIonTypes { get; }
-            IList<int> ShowIonCharges { get; }
+            IList<IonType> ShowIonTypes(bool isProteomic);
 
-            void BuildSpectrumMenu(ZedGraphControl zedGraphControl, ContextMenuStrip menuStrip);
+            // N.B. we're interested in the absolute value of charge here, so output list 
+            // may be shorter than input list
+            // CONSIDER(bspratt): we may want finer per-adduct control for small molecule use
+            IList<int> ShowIonCharges(IEnumerable<Adduct> adductPriority);
+
+            void BuildSpectrumMenu(bool isProteomic, ZedGraphControl zedGraphControl, ContextMenuStrip menuStrip);
         }
 
         private class DefaultStateProvider : IStateProvider
@@ -68,17 +73,17 @@ namespace pwiz.Skyline.Controls.Graphs
                 get { return null; }
             }
 
-            public IList<IonType> ShowIonTypes
+            public IList<IonType> ShowIonTypes(bool isProteomic)
             {
-                get { return new[] {IonType.y}; }
+                return isProteomic ? new[] { IonType.y } :  new[] { IonType.custom }; 
             }
 
-            public IList<int> ShowIonCharges
+            public IList<int> ShowIonCharges(IEnumerable<Adduct> adductPriority)
             {
-                get { return new[] {1}; }
+                return Adduct.OrderedAbsoluteChargeValues(adductPriority).ToList();
             }
 
-            public void BuildSpectrumMenu(ZedGraphControl zedGraphControl, ContextMenuStrip menuStrip)
+            public void BuildSpectrumMenu(bool isProteomic, ZedGraphControl zedGraphControl, ContextMenuStrip menuStrip)
             {
             }
         }
@@ -177,8 +182,11 @@ namespace pwiz.Skyline.Controls.Graphs
         public void OnDocumentUIChanged(object sender, DocumentChangedEventArgs e)
         {
             // If document changed, update spectrum x scale to instrument
+            // Or if library settings changed, show new ranks etc
             if (e.DocumentPrevious == null ||
                 !ReferenceEquals(DocumentUI.Id, e.DocumentPrevious.Id) ||
+                !ReferenceEquals(DocumentUI.Settings.TransitionSettings.Libraries, 
+                                 e.DocumentPrevious.Settings.TransitionSettings.Libraries) ||
                 !ReferenceEquals(DocumentUI.Settings.PeptideSettings.Libraries.Libraries,
                                  e.DocumentPrevious.Settings.PeptideSettings.Libraries.Libraries))
             {
@@ -362,22 +370,22 @@ namespace pwiz.Skyline.Controls.Graphs
             }
 
             // Check for appropriate spectrum to load
+            SrmSettings settings = DocumentUI.Settings;
+            PeptideLibraries libraries = settings.PeptideSettings.Libraries;
             bool available = false;
-            if (nodeGroup == null || !nodeGroup.HasLibInfo)
+            if (nodeGroup == null || (!nodeGroup.HasLibInfo && !libraries.HasMidasLibrary))
             {
                 _spectra = null;
             }
             else
             {
-                SrmSettings settings = DocumentUI.Settings;
-                PeptideLibraries libraries = settings.PeptideSettings.Libraries;
                 TransitionGroup group = nodeGroup.TransitionGroup;
                 TransitionDocNode transition = (nodeTranTree == null ? null : nodeTranTree.DocNode);
-                string lookupSequence = group.Peptide.TextId; // Sequence or custom ion id
+                var lookupSequence = group.Peptide.Target; // Sequence or custom ion id
                 ExplicitMods lookupMods = null;
                 if (nodePepTree != null)
                 {
-                    lookupSequence = nodePepTree.DocNode.SourceUnmodifiedTextId;
+                    lookupSequence = nodePepTree.DocNode.SourceUnmodifiedTarget;
                     lookupMods = nodePepTree.DocNode.SourceExplicitMods;
                 }
                 try
@@ -390,7 +398,7 @@ namespace pwiz.Skyline.Controls.Graphs
                         {
                             try
                             {
-                                UpdateSpectra(group, lookupSequence, lookupMods);
+                                UpdateSpectra(nodeGroup, lookupSequence, lookupMods);
                                 UpdateToolbar();
                             }
                             catch (Exception)
@@ -409,10 +417,14 @@ namespace pwiz.Skyline.Controls.Graphs
                         if (spectrum != null)
                         {
                             IsotopeLabelType typeInfo = spectrum.LabelType;
-                            var types = _stateProvider.ShowIonTypes;
-                            var charges = _stateProvider.ShowIonCharges;
-                            var rankTypes = settings.TransitionSettings.Filter.IonTypes;
-                            var rankCharges = settings.TransitionSettings.Filter.ProductCharges;
+                            var types = _stateProvider.ShowIonTypes(group.IsProteomic);
+                            var adducts = (group.IsProteomic ?
+                                Transition.DEFAULT_PEPTIDE_LIBRARY_CHARGES :
+                                nodeGroup.InUseAdducts).ToArray();
+                            var charges = _stateProvider.ShowIonCharges(adducts);
+                            var rankTypes = group.IsProteomic ? settings.TransitionSettings.Filter.PeptideIonTypes : settings.TransitionSettings.Filter.SmallMoleculeIonTypes;
+                            var rankAdducts = group.IsProteomic ? settings.TransitionSettings.Filter.PeptideProductCharges : settings.TransitionSettings.Filter.SmallMoleculeFragmentAdducts;
+                            var rankCharges = Adduct.OrderedAbsoluteChargeValues(rankAdducts);
                             // Make sure the types and charges in the settings are at the head
                             // of these lists to give them top priority, and get rankings correct.
                             int i = 0;
@@ -422,21 +434,26 @@ namespace pwiz.Skyline.Controls.Graphs
                                     types.Insert(i++, type);
                             }
                             i = 0;
-                            foreach (int charge in rankCharges)
+                            var showAdducts = new List<Adduct>();
+                            foreach (var charge in rankCharges)
                             {
                                 if (charges.Remove(charge))
                                     charges.Insert(i++, charge);
+                                // NB for all adducts we just look at abs value of charge
+                                // CONSIDER(bspratt): we may want finer per-adduct control for small molecule use
+                                showAdducts.AddRange(adducts.Where(a => charge == Math.Abs(a.AdductCharge)));
                             }
+                            showAdducts.AddRange(adducts.Where(a => charges.Contains(Math.Abs(a.AdductCharge)) && !showAdducts.Contains(a)));
                             SpectrumPeaksInfo spectrumInfo = spectrum.SpectrumPeaksInfo;
                             var spectrumInfoR = new LibraryRankedSpectrumInfo(spectrumInfo,
                                                                               typeInfo,
-                                                                              group,
+                                                                              nodeGroup,
                                                                               settings,
                                                                               lookupSequence,
                                                                               lookupMods,
-                                                                              charges,
+                                                                              showAdducts,
                                                                               types,
-                                                                              rankCharges,
+                                                                              rankAdducts,
                                                                               rankTypes);
                             GraphItem = new SpectrumGraphItem(nodeGroup, transition, spectrumInfoR, spectrum.LibName)
                                 {
@@ -511,7 +528,7 @@ namespace pwiz.Skyline.Controls.Graphs
                                     }
                                     else
                                     {
-                                        label = chromData.Mz.ToString("0.####"); // Not L10N
+                                        label = chromData.Mz.ToString(@"0.####");
                                     }
                                     TransitionDocNode matchingTransition;
                                     Color color;
@@ -520,21 +537,21 @@ namespace pwiz.Skyline.Controls.Graphs
                                         matchingTransition = displayTransitions[iChromData];
                                         color =
                                             GraphChromatogram.COLORS_LIBRARY[
-                                                (iChromData + colorOffset)%GraphChromatogram.COLORS_LIBRARY.Length];
+                                                (iChromData + colorOffset)%GraphChromatogram.COLORS_LIBRARY.Count];
                                     }
                                     else
                                     {
                                         matchingTransition = null;
                                         color =
                                             GraphChromatogram.COLORS_GROUPS[
-                                                iChromData%GraphChromatogram.COLORS_GROUPS.Length];
+                                                iChromData%GraphChromatogram.COLORS_GROUPS.Count];
                                     }
 
                                     TransitionChromInfo tranPeakInfo;
                                     ChromatogramInfo chromatogramInfo;
                                     MakeChromatogramInfo(nodeGroup.PrecursorMz, chromatogramData, chromData, out chromatogramInfo, out tranPeakInfo);
                                     var graphItem = new ChromGraphItem(nodeGroup, matchingTransition, chromatogramInfo, iChromData == iChromDataPrimary ? tranPeakInfo : null, null,
-                                                                       new[] {iChromData == iChromDataPrimary}, null, 0, false, false, 0,
+                                                                       new[] {iChromData == iChromDataPrimary}, null, 0, false, false, null,0,
                                                                        color, Settings.Default.ChromatogramFontSize, 1);
                                     LineItem curve = (LineItem) _graphHelper.AddChromatogram(PaneKey.DEFAULT, graphItem);
                                     if (matchingTransition == null)
@@ -626,26 +643,28 @@ namespace pwiz.Skyline.Controls.Graphs
             return index;
         }
 
-        private void UpdateSpectra(TransitionGroup group, string lookupSequence, ExplicitMods lookupMods)
+        private void UpdateSpectra(TransitionGroupDocNode nodeGroup, Target lookupSequence, ExplicitMods lookupMods)
         {
-            _spectra = GetSpectra(group, lookupSequence, lookupMods);
+            _spectra = GetSpectra(nodeGroup, lookupSequence, lookupMods);
+            if (!_spectra.Any())
+                _spectra = null;
         }
 
-        private IList<SpectrumDisplayInfo> GetSpectra(TransitionGroup group, string lookupSequence, ExplicitMods lookupMods)
+        private IList<SpectrumDisplayInfo> GetSpectra(TransitionGroupDocNode nodeGroup, Target lookupSequence, ExplicitMods lookupMods)
         {
             var settings = DocumentUI.Settings;
-            int charge = group.PrecursorCharge;
+            var charge = nodeGroup.PrecursorAdduct;
             var spectra = settings.GetBestSpectra(lookupSequence, charge, lookupMods).Select(s => new SpectrumDisplayInfo(s)).ToList();
             // Showing redundant spectra is only supported for full-scan filtering when
             // the document has results files imported.
-            if (!settings.TransitionSettings.FullScan.IsEnabled || !settings.HasResults)
+            if ((!settings.TransitionSettings.FullScan.IsEnabled && !settings.PeptideSettings.Libraries.HasMidasLibrary) || !settings.HasResults)
                 return spectra;
 
             try
             {
                 var spectraRedundant = new List<SpectrumDisplayInfo>();
                 var dictReplicateNameFiles = new Dictionary<string, HashSet<string>>();
-                foreach (var spectrumInfo in settings.GetRedundantSpectra(lookupSequence, charge, group.LabelType, lookupMods))
+                foreach (var spectrumInfo in settings.GetRedundantSpectra(nodeGroup.Peptide, lookupSequence, charge, nodeGroup.TransitionGroup.LabelType, lookupMods))
                 {
                     var matchingFile = settings.MeasuredResults.FindMatchingMSDataFile(MsDataFileUri.Parse(spectrumInfo.FilePath));
                     if (matchingFile == null)
@@ -723,8 +742,8 @@ namespace pwiz.Skyline.Controls.Graphs
                 if (!nodeGroup.HasLibInfo)
                     continue;
 
-                int precursorCharge = nodeGroup.TransitionGroup.PrecursorCharge;
-                if (!listGroups.Contains(g => g.TransitionGroup.PrecursorCharge == precursorCharge))
+                var precursorCharge = nodeGroup.TransitionGroup.PrecursorAdduct;
+                if (!listGroups.Contains(g => g.TransitionGroup.PrecursorAdduct == precursorCharge))
                     listGroups.Add(nodeGroup);
             }
             return listGroups.ToArray();
@@ -733,7 +752,8 @@ namespace pwiz.Skyline.Controls.Graphs
         private void graphControl_ContextMenuBuilder(ZedGraphControl sender,
             ContextMenuStrip menuStrip, Point mousePt, ZedGraphControl.ContextMenuObjectState objState)
         {
-            _stateProvider.BuildSpectrumMenu(sender, menuStrip);
+            var isProteomic = _nodeGroup == null || !_nodeGroup.IsCustomIon;
+            _stateProvider.BuildSpectrumMenu(isProteomic, sender, menuStrip);
         }
 
         protected override void OnClosed(EventArgs e)
@@ -761,28 +781,43 @@ namespace pwiz.Skyline.Controls.Graphs
             }
         }
 
-        public static void MakeChromatogramInfo(double precursorMz, LibraryChromGroup chromGroup, LibraryChromGroup.ChromData chromData, out ChromatogramInfo chromatogramInfo, out TransitionChromInfo transitionChromInfo)
+        public static void MakeChromatogramInfo(SignedMz precursorMz, LibraryChromGroup chromGroup, LibraryChromGroup.ChromData chromData, out ChromatogramInfo chromatogramInfo, out TransitionChromInfo transitionChromInfo)
         {
-            var crawPeakFinder = new CrawdadPeakFinder();
+            var timeIntensities = new TimeIntensities(chromGroup.Times, chromData.Intensities, null, null);
+            var crawPeakFinder = Crawdads.NewCrawdadPeakFinder();
             crawPeakFinder.SetChromatogram(chromGroup.Times, chromData.Intensities);
             var crawdadPeak =
                 crawPeakFinder.GetPeak(
                     FindNearestIndex(chromGroup.Times, (float) chromGroup.StartTime),
                     FindNearestIndex(chromGroup.Times, (float) chromGroup.EndTime));
-            var chromPeak = new ChromPeak(crawPeakFinder, crawdadPeak, 0, chromGroup.Times, chromData.Intensities, null);
-            transitionChromInfo = new TransitionChromInfo(null, 0, chromPeak, new float?[0], Annotations.EMPTY,
+            var chromPeak = new ChromPeak(crawPeakFinder, crawdadPeak, 0, timeIntensities, null);
+            transitionChromInfo = new TransitionChromInfo(null, 0, chromPeak,
+                IonMobilityFilter.EMPTY, // CONSIDER(bspratt) IMS in chromatogram libraries?
+                new float?[0], Annotations.EMPTY,
                                                             UserSet.FALSE);
             var peaks = new[] {chromPeak};
-            var header = new ChromGroupHeaderInfo5(new ChromGroupHeaderInfo(
-              (float)precursorMz, 0, 1, 0, peaks.Length, 0, 0,
-              chromGroup.Times.Length, 0, 0));
-            chromatogramInfo = new ChromatogramInfo(header,
-                    new Dictionary<Type, int>(), 0,
+            var header = new ChromGroupHeaderInfo(precursorMz,
+                0,  // file index
+                1, // numTransitions
+                0, // startTransitionIndex
+                peaks.Length, // numPeaks
+                0, // startPeakIndex
+                0, // startscoreindex
+                0,// maxPeakIndex
+                chromGroup.Times.Length, // numPoints
+                0, // compressedSize
+                0, // uncompressedsize
+                0,  //location
+                0, -1, -1, null, null, null, eIonMobilityUnits.none); // CONSIDER(bspratt) IMS in chromatogram libraries?
+            var driftTimeFilter = IonMobilityFilter.EMPTY; // CONSIDER(bspratt) IMS in chromatogram libraries?
+            var groupInfo = new ChromatogramGroupInfo(header,
+                    new Dictionary<Type, int>(),
                     new ChromCachedFile[0],
-                    new[] { new ChromTransition(chromData.Mz, 0, 0, 0, ChromSource.unknown), },
-                    peaks, null,
-                    chromGroup.Times, new[] { chromData.Intensities }, null, null);
-            
+                    new[] { new ChromTransition(chromData.Mz, 0, (float)(driftTimeFilter.IonMobility.Mobility??0), (float)(driftTimeFilter.IonMobilityExtractionWindowWidth??0), ChromSource.unknown), },
+                    peaks,
+                    null) { TimeIntensitiesGroup = TimeIntensitiesGroup.Singleton(timeIntensities) };
+
+            chromatogramInfo = new ChromatogramInfo(groupInfo, 0);
         }
     }
 
@@ -842,6 +877,12 @@ namespace pwiz.Skyline.Controls.Graphs
             set { ActAndUpdate(() => Set.ShowZIons = value); }
         }
 
+        public bool ShowFragmentIons
+        {
+            get { return Set.ShowFragmentIons; }
+            set { ActAndUpdate(() => Set.ShowFragmentIons = value); }
+        }
+
         public bool ShowPrecursorIon
         {
             get { return Set.ShowPrecursorIon; }
@@ -872,12 +913,12 @@ namespace pwiz.Skyline.Controls.Graphs
             set { ActAndUpdate(() => Set.ShowCharge4 = value); }
         }
 
-        public IList<IonType> ShowIonTypes
+        public IList<IonType> ShowIonTypes(bool isProteomic)
         {
-            get
+            var types = new List<IonType>();
+            if (isProteomic)
             {
                 // Priority ordered
-                var types = new List<IonType>();
                 AddItem(types, IonType.y, Set.ShowYIons);
                 AddItem(types, IonType.b, Set.ShowBIons);
                 AddItem(types, IonType.z, Set.ShowZIons);
@@ -886,22 +927,38 @@ namespace pwiz.Skyline.Controls.Graphs
                 AddItem(types, IonType.a, Set.ShowAIons);
                 // FUTURE: Add custom ions when LibraryRankedSpectrumInfo can support them
                 AddItem(types, IonType.precursor, Set.ShowPrecursorIon);
-                return types;
             }
+            else
+            {
+                AddItem(types, IonType.custom, Set.ShowFragmentIons); // CONSIDER(bspratt) eventually, user-defined fragment types?
+                AddItem(types, IonType.precursor, Set.ShowPrecursorIon);
+            }
+            return types;
         }
 
-        public IList<int> ShowIonCharges
+        // NB for all adducts we just look at abs value of charge
+        // CONSIDER(bspratt): we may want finer per-adduct control for small molecule use
+        public IList<int> ShowIonCharges(IEnumerable<Adduct> adductPriority)
         {
-            get
+            var chargePriority = Adduct.OrderedAbsoluteChargeValues(adductPriority);
+            var charges = new List<int>();
+            int i = 0;
+            foreach (var charge in chargePriority)
             {
                 // Priority ordered
-                var charges = new List<int>();
-                AddItem(charges, 1, ShowCharge1);
-                AddItem(charges, 2, ShowCharge2);
-                AddItem(charges, 3, ShowCharge3);
-                AddItem(charges, 4, ShowCharge4);
-                return charges;
+                if (i == 0)
+                    AddItem(charges, charge, ShowCharge1);
+                else if (i == 1)
+                    AddItem(charges, charge, ShowCharge2);
+                else if (i == 2)
+                    AddItem(charges, charge, ShowCharge3);
+                else if (i == 3)
+                    AddItem(charges, charge, ShowCharge4);
+                else
+                    break;
+                i++;
             }
+            return charges;
         }
 
         private static void AddItem<TItem>(ICollection<TItem> items, TItem item, bool add)
@@ -971,10 +1028,10 @@ namespace pwiz.Skyline.Controls.Graphs
         public override string ToString()
         {
             if (IsBest)
-                return ReferenceEquals(LabelType, IsotopeLabelType.light) ? LibName : String.Format("{0} ({1})", LibName, LabelType); // Not L10N
+                return ReferenceEquals(LabelType, IsotopeLabelType.light) ? LibName : String.Format(@"{0} ({1})", LibName, LabelType);
             if (IsReplicateUnique)
-                return string.Format("{0} ({1:F02} min)", ReplicateName, RetentionTime); // Not L10N
-            return string.Format("{0} - {1} ({2:F02} min)", ReplicateName, FileName, RetentionTime); // Not L10N
+                return string.Format(@"{0} ({1:F02} min)", ReplicateName, RetentionTime);
+            return string.Format(@"{0} - {1} ({2:F02} min)", ReplicateName, FileName, RetentionTime);
         }
     }
 

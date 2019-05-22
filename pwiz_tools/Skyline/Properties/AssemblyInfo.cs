@@ -5,11 +5,11 @@ using System.Runtime.InteropServices;
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
 [assembly: AssemblyTitle("Skyline")]
-[assembly: AssemblyDescription("Targeted Proteomics Environment")]
+[assembly: AssemblyDescription("Targeted Mass Spec Environment")]
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("University of Washington")]
 [assembly: AssemblyProduct("Skyline")]
-[assembly: AssemblyCopyright("Copyright © University of Washington 2008-2015")]
+[assembly: AssemblyCopyright("Copyright © University of Washington 2008-2019")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 

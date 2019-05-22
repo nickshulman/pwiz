@@ -23,7 +23,6 @@ using System.Threading;
 using System.Windows.Forms;
 using pwiz.Skyline.Util;
 using pwiz.Skyline.Util.Extensions;
-using Timer = System.Windows.Forms.Timer;
 
 namespace pwiz.Skyline.Controls.Graphs
 {
@@ -32,102 +31,37 @@ namespace pwiz.Skyline.Controls.Graphs
     /// </summary>
     public partial class AsyncRenderControl : UserControl
     {
-        private readonly RenderContext _context = new RenderContext();
         private readonly AutoResetEvent _startBackgroundRender = new AutoResetEvent(false);
+        private Bitmap _bitmap;
+        private bool _finished;
+        private int _rendering;
+        private Rectangle _pendingRect;
+        private Rectangle _renderRect;
         private readonly string _backgroundThreadName;
+        private bool _bitmapFinished;
 
         //private static readonly Log LOG = new Log<AsyncRenderControl>();
 
+        // Just for Visual Studio designer
         protected AsyncRenderControl()
-            : this("Background render") // Not L10N
         {
         }
 
         protected AsyncRenderControl(string backgroundThreadName)
         {
             InitializeComponent();
+            pictureBox.SizeMode = PictureBoxSizeMode.StretchImage;
             _backgroundThreadName = backgroundThreadName;
-            FrameMilliseconds = 100;
         }
 
+        /// <summary>
+        /// Start background rendering thread.
+        /// </summary>
         protected override void OnLoad(EventArgs e)
         {
-            // Keep VS designer from crashing.
-            if (Program.MainWindow == null)
-                return;
-
-            pictureBox.SizeMode = PictureBoxSizeMode.StretchImage;
-            pictureBox.Width = Width;
-            pictureBox.Height = Height;
-            pictureBox.Image = new Bitmap(Width, Height);
-
-            lock (_context)
-            {
-                _context._renderBitmap = new Bitmap(Width, Height);
-                _context._fullFrame = true;
-                
-                // NOTE: We create our a timer manually instead of using a designer component
-                // because we want the timer to continue ticking even when the window is
-                // closed.  Some subclasses may need to render even without a window to
-                // process data that would otherwise consume a lot of memory.
-                _context._updateTimer = new Timer { Interval = 100 };
-                _context._updateTimer.Tick += (s, e1) =>
-                {
-                    lock (_context)
-                    {
-                        // Don't render if window is not visible.
-                        if (!IsVisible)
-                        {
-                            _context._fullFrame = true;
-                            _context._invalidRect.Width = 0;
-                            _context._updateTimer.Interval = 500;
-                            return;
-                        }
-
-                        // For full frame, swap bitmap buffers.
-                        if (_context._invalidRect.Width == Width)
-                        {
-                            var swap = (Bitmap) pictureBox.Image;
-                            pictureBox.Image = _context._renderBitmap;
-                            _context._renderBitmap = swap;
-                        }
-
-                        // For partial frame, copy pixels from rendering buffer.
-                        else if (_context._invalidRect.Width > 0)
-                        {
-                            using (var graphics = Graphics.FromImage(pictureBox.Image))
-                            {
-                                graphics.DrawImage(
-                                    _context._renderBitmap,
-                                    _context._invalidRect,
-                                    _context._invalidRect, 
-                                    GraphicsUnit.Pixel);
-                            }
-                            pictureBox.Invalidate(_context._invalidRect);
-                            pictureBox.Update();
-                        }
-
-                        _context._invalidRect.Width = 0;
-                        _context._updateTimer.Interval = FrameMilliseconds;
-                    }
-                    StartBackgroundRendering();
-                };
-                _context._updateTimer.Start();
-            }
-
-            ActionUtil.RunAsync(BackgroundRender, _backgroundThreadName);
-            StartBackgroundRendering();
-        }
-
-        protected int FrameMilliseconds { get; set; }
-
-        protected bool IsVisible
-        {
-            get
-            {
-                var parent = FormEx.GetParentForm(this);
-                return parent != null && parent.Visible;
-            }
+            base.OnLoad(e);
+            if (!DesignMode)
+                ActionUtil.RunAsync(BackgroundRender, _backgroundThreadName);
         }
 
         /// <summary>
@@ -135,24 +69,53 @@ namespace pwiz.Skyline.Controls.Graphs
         /// </summary>
         public void Finish()
         {
-            lock (_context)
-            {
-                if (_context._updateTimer != null)
-                {
-                    _context._updateTimer.Dispose();
-                    _context._updateTimer = null;
-                }
-            }
+            _finished = true;
             _startBackgroundRender.Set();
         }
 
-        /// <summary>
-        /// Start rendering the next frame.
-        /// </summary>
-        protected void StartBackgroundRendering()
+        public void StartRender()
         {
-            if (IsVisible)
+            _pendingRect = new Rectangle(0, 0, Width, Height);
+            StartBackgroundRender();
+        }
+
+        public void StartRender(Rectangle renderRect)
+        {
+            _pendingRect = Rectangle.Union(_pendingRect, renderRect);
+            StartBackgroundRender();
+        }
+
+        /// <summary>
+        /// Initiate rendering on the background thread (from the MAIN THREAD)
+        /// </summary>
+        public void StartBackgroundRender()
+        {
+            // On main thread!
+            Assume.IsFalse(InvokeRequired);
+
+            // Atomic test to see if background rendering thread is active.
+            if (Width > 0 && Height > 0 &&
+                Interlocked.CompareExchange(ref _rendering, 1, 0) == 0)
+            {
+                _renderRect = _pendingRect;
+                _pendingRect = Rectangle.Empty;
+
+                // Allocate or resize image.
+                if (pictureBox.Image == null || pictureBox.Width != Width || pictureBox.Height != Height)
+                {
+                    pictureBox.Image = new Bitmap(Width, Height);
+                    _renderRect = new Rectangle(0, 0, Width, Height);
+                }
+
+                // Allocate or resize offscreen buffer.
+                if (_bitmap == null || _bitmap.Width != Width || _bitmap.Height != Height)
+                    _bitmap = new Bitmap(Width, Height);
+                _bitmapFinished = false;
+
+                // Copy data to render, and start background rendering.
+                CopyState();
                 _startBackgroundRender.Set();
+            }
         }
 
         /// <summary>
@@ -160,24 +123,25 @@ namespace pwiz.Skyline.Controls.Graphs
         /// </summary>
         private void BackgroundRender()
         {
-            // Initialize on the background thread.
-            BackgroundInitialize();
-
             while (true)
             {
                 try
                 {
-                    // Wait for rendering request (someone calls StartBackgroundRendering).
+                    // Wait for rendering request.
                     _startBackgroundRender.WaitOne();
-
-                    lock (_context)
+                    if (_finished)
                     {
-                        if (_context._updateTimer == null)
-                            return;
-
-                        _context._invalidRect = Render(_context._renderBitmap, _context._fullFrame);
-                        _context._fullFrame = false;
+                        _startBackgroundRender.Dispose();
+                        break;
                     }
+
+                    // Render and display a new bitmap.
+                    Render(_bitmap, _renderRect);
+                    _rendering = 0;
+                    _bitmapFinished = true;
+                    // Test failure caused by Invalidate attempting to create handle during dispose
+                    if (IsHandleCreated)
+                        Invalidate(_renderRect);
                 }
 // ReSharper disable EmptyGeneralCatchClause
                 catch (Exception e)
@@ -187,47 +151,52 @@ namespace pwiz.Skyline.Controls.Graphs
                     // If we don't catch the exception in this background thread, Visual Studio
                     // kills a unit test without any explanation.  Resharper and TestRunner just
                     // ignore the problem.
-                    //LOG.Error("Exception in async renderer", exception);    // Not L10N
+                    //LOG.Error(@"Exception in async renderer", exception);
                 }
             }
         }
 
         /// <summary>
-        /// Override to perform initialization on the background thread.
+        /// Start background rendering when necessary.
         /// </summary>
-        protected virtual void BackgroundInitialize()
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            base.OnPaint(e);
+
+            if (_bitmapFinished)
+            {
+                _bitmapFinished = false;
+                if (pictureBox.Image != null &&
+                    pictureBox.Width == _bitmap.Width && 
+                    pictureBox.Height == _bitmap.Height)
+                {
+                    using (var graphics = Graphics.FromImage(pictureBox.Image))
+                    {
+                        graphics.DrawImage(_bitmap, _renderRect, _renderRect, GraphicsUnit.Pixel);
+                    }
+                    pictureBox.Invalidate(_renderRect);
+                    pictureBox.Update();
+                }
+                else
+                {
+                    // Try again with different dimensions.
+                    StartRender();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Copy graphics on main thread to freeze them for background rendering.
+        /// </summary>
+        protected virtual void CopyState()
         {
         }
 
         /// <summary>
-        /// Render content to a bitmap.  Subclasses override this method to render their
-        /// particular content.  The bitmap does not need to be re-rendered if nothing
-        /// has changed since the last Render.
+        /// Render content to a bitmap.
         /// </summary>
-        /// <param name="bitmap">Destination bitmap.</param>
-        /// <param name="fullFrame">True to force full frame rendering.</param>
-        protected virtual Rectangle Render(Bitmap bitmap, bool fullFrame)
+        protected virtual void Render(Bitmap bitmap, Rectangle invalidRect)
         {
-            // This is a default implementation that displays a red rectangle.  We don't
-            // expect anyone to use this, but it's here to provide a reference implementation.
-
-            // No bitmap needs to be rendered if fullFrame is false and nothing
-            // else has changed (this example is static).
-            if (!fullFrame)
-                return Rectangle.Empty;
-
-            var renderedRect = new Rectangle(0, 0, bitmap.Width, bitmap.Height);
-            using (var graphics = Graphics.FromImage(bitmap))
-                graphics.FillRectangle(Brushes.Red, renderedRect);
-            return renderedRect;
-        }
-
-        private class RenderContext
-        {
-            public Bitmap _renderBitmap;
-            public Rectangle _invalidRect;
-            public Timer _updateTimer;
-            public bool _fullFrame;
         }
     }
 }

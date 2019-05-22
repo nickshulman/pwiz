@@ -9,18 +9,19 @@ if /I "%1"=="-q" set VERBOSE=0
 REM # Get the location of quickbuild.bat and drop trailing slash
 set PWIZ_ROOT=%~dp0
 set PWIZ_ROOT=%PWIZ_ROOT:~0,-1%
-pushd %PWIZ_ROOT%
+pushd "%PWIZ_ROOT%"
 
 if %VERBOSE%==1 echo   Cleaning build directories...
 IF EXIST build-nt-x86 rmdir /s /q build-nt-x86
 IF EXIST build-nt-x86_64 rmdir /s /q build-nt-x86_64
 
 if %VERBOSE%==1 echo   Cleaning libraries...
-IF EXIST libraries\boost-build\engine\bin.nt rmdir /s /q libraries\boost-build\engine\bin.nt
-IF EXIST libraries\boost-build\engine\bootstrap rmdir /s /q libraries\boost-build\engine\bootstrap
+IF EXIST libraries\boost-build\src\engine\bin.nt rmdir /s /q libraries\boost-build\src\engine\bin.nt
+IF EXIST libraries\boost-build\src\engine\bootstrap rmdir /s /q libraries\boost-build\src\engine\bootstrap
 IF EXIST libraries\boost_1_43_0 rmdir /s /q libraries\boost_1_43_0
 IF EXIST libraries\boost_1_54_0 rmdir /s /q libraries\boost_1_54_0
 IF EXIST libraries\boost_1_56_0 rmdir /s /q libraries\boost_1_56_0
+IF EXIST libraries\boost_1_67_0 rmdir /s /q libraries\boost_1_67_0
 IF EXIST libraries\gd-2.0.33 rmdir /s /q libraries\gd-2.0.33
 IF EXIST libraries\zlib-1.2.3 rmdir /s /q libraries\zlib-1.2.3
 IF EXIST libraries\libgd-2.1.0alpha rmdir /s /q libraries\libgd-2.1.0alpha
@@ -50,9 +51,7 @@ rmdir /s /q pwiz_aux\msrc\utility\vendor_api\Agilent\x86 > nul 2>&1
 rmdir /s /q pwiz_aux\msrc\utility\vendor_api\Agilent\x64 > nul 2>&1
 del /f /q pwiz_aux\msrc\utility\vendor_api\Agilent\EULA.* > nul 2>&1
 rmdir /s /q pwiz_aux\msrc\utility\vendor_api\Agilent\Documents > nul 2>&1
-del /f /q pwiz_aux\msrc\utility\vendor_api\Bruker\*.dll > nul 2>&1
 del /f /q pwiz_aux\msrc\utility\vendor_api\Bruker\*.manifest > nul 2>&1
-del /f /q pwiz_aux\msrc\utility\vendor_api\Bruker\*.xml > nul 2>&1
 del /f /q pwiz_aux\msrc\utility\vendor_api\Bruker\baf2sql_c.h > nul 2>&1
 del /f /q pwiz_aux\msrc\utility\vendor_api\Bruker\baf2sql_cpp.h > nul 2>&1
 del /f /q pwiz_aux\msrc\utility\vendor_api\Bruker\schema.h > nul 2>&1
@@ -62,6 +61,8 @@ rmdir /s /q pwiz_aux\msrc\utility\vendor_api\Bruker\x64 > nul 2>&1
 del /f /q pwiz_aux\msrc\utility\vendor_api\Shimadzu\EULA.SFCS > nul 2>&1
 rmdir /s /q pwiz_aux\msrc\utility\vendor_api\Shimadzu\x86 > nul 2>&1
 rmdir /s /q pwiz_aux\msrc\utility\vendor_api\Shimadzu\x64 > nul 2>&1
+del /f /q pwiz_aux\msrc\utility\vendor_api\Shimadzu\*.dll > nul 2>&1
+rmdir /s /q pwiz_aux\msrc\utility\vendor_api\Shimadzu\ja-JP > nul 2>&1
 del /f /q pwiz_aux\msrc\utility\vendor_api\Thermo\*.dll > nul 2>&1
 del /f /q pwiz_aux\msrc\utility\vendor_api\Thermo\*.manifest > nul 2>&1
 rmdir /s /q pwiz_aux\msrc\utility\vendor_api\Thermo\x86 > nul 2>&1
@@ -74,13 +75,13 @@ rmdir /s /q pwiz_aux\msrc\utility\vendor_api\Waters\vc12_x64 > nul 2>&1
 del /f /q pwiz_aux\msrc\utility\vendor_api\Waters\*.h > nul 2>&1
 
 if %VERBOSE%==1 echo   Cleaning vendor test data...
-rmdir /s /q pwiz\data\vendor_readers\Thermo\Reader_Thermo_Test.data > nul 2>&1
-rmdir /s /q pwiz\data\vendor_readers\Agilent\Reader_Agilent_Test.data > nul 2>&1
-rmdir /s /q pwiz\data\vendor_readers\ABI\Reader_ABI_Test.data > nul 2>&1
+git clean -f -d -X pwiz\data\vendor_readers\Thermo\Reader_Thermo_Test.data
 rmdir /s /q pwiz\data\vendor_readers\ABI\T2D\Reader_ABI_T2D_Test.data > nul 2>&1
-rmdir /s /q pwiz\data\vendor_readers\Waters\Reader_Waters_Test.data > nul 2>&1
-rmdir /s /q pwiz\data\vendor_readers\Bruker\Reader_Bruker_Test.data > nul 2>&1
-rmdir /s /q pwiz\data\vendor_readers\UIMF\Reader_UIMF_Test.data > nul 2>&1
+git clean -f -d -X pwiz\data\vendor_readers\UIMF\Reader_UIMF_Test.data
+git clean -f -d -X pwiz\data\vendor_readers\ABI\Reader_ABI_Test.data
+git clean -f -d -X pwiz\data\vendor_readers\Agilent\Reader_Agilent_Test.data
+git clean -f -d -X pwiz\data\vendor_readers\Bruker\Reader_Bruker_Test.data
+git clean -f -d -X pwiz\data\vendor_readers\Waters\Reader_Waters_Test.data
 
 IF EXIST pwiz_tools\clean-apps.bat call pwiz_tools\clean-apps.bat
 

@@ -17,12 +17,15 @@
  * limitations under the License.
  */
 
+using System;
 using System.Collections.Generic;
-using System.ComponentModel;
 using System.Linq;
 using System.Windows.Forms;
 using pwiz.Common.Collections;
+using pwiz.Common.Controls;
+using pwiz.Common.DataBinding.Attributes;
 using pwiz.Common.DataBinding.Internal;
+using pwiz.Common.DataBinding.Layout;
 
 namespace pwiz.Common.DataBinding.Controls
 {
@@ -33,14 +36,17 @@ namespace pwiz.Common.DataBinding.Controls
     /// the BindingSource's DataSource to be set to the BindingListView.
     /// 
     /// </summary>
-    public class BoundDataGridView : DataGridView
+    public class BoundDataGridView : CommonDataGridView
     {
+        private BindingListSource _bindingListSource;
         private IViewContext _viewContext;
-        private IList<PropertyDescriptor> _itemProperties;
+        private ImmutableList<DataPropertyDescriptor> _itemProperties;
+        private ImmutableList<ColumnFormat> _columnFormats;
 
         public BoundDataGridView()
         {
             AutoGenerateColumns = false;
+            MaximumColumnCount = 2000;
         }
 
         protected override void OnDataBindingComplete(DataGridViewBindingCompleteEventArgs e)
@@ -59,8 +65,27 @@ namespace pwiz.Common.DataBinding.Controls
                     DataError += _viewContext.OnDataError;
                 }
             }
+            if (!ReferenceEquals(_bindingListSource, bindingListSource))
+            {
+                if (_bindingListSource != null)
+                {
+                    _bindingListSource.AllRowsChanged -= BindingListSourceOnAllRowsChanged;
+                    _bindingListSource.ColumnFormats.FormatsChanged -= OnFormatsChanged;
+                }
+                _bindingListSource = bindingListSource;
+                if (_bindingListSource != null)
+                {
+                    _bindingListSource.AllRowsChanged += BindingListSourceOnAllRowsChanged;
+                    _bindingListSource.ColumnFormats.FormatsChanged += OnFormatsChanged;
+                }
+            }
             UpdateColumns();
             base.OnDataBindingComplete(e);
+        }
+
+        private void BindingListSourceOnAllRowsChanged(object sender, EventArgs eventArgs)
+        {
+            Invalidate();
         }
 
         protected virtual void UpdateColumns()
@@ -74,26 +99,27 @@ namespace pwiz.Common.DataBinding.Controls
             {
                 return;
             }
-            var newItemProperties = ImmutableList.ValueOf(bindingListSource.GetItemProperties(null).Cast<PropertyDescriptor>());
-            if (Equals(newItemProperties, _itemProperties))
+            var newItemProperties = bindingListSource.ItemProperties;
+            if (!Equals(newItemProperties, _itemProperties))
             {
-                return;
-            }
-            var newColumns = new List<DataGridViewColumn>();
-            foreach (var propertyDescriptor in newItemProperties)
-            {
-                var column = _viewContext.CreateGridViewColumn(propertyDescriptor);
-                if (null != column)
+                var newColumns = new List<DataGridViewColumn>();
+                for (int i = 0; i < newItemProperties.Count; i++)
                 {
-                    newColumns.Add(column);
+                    var propertyDescriptor = newItemProperties[i];
+                    var column = _viewContext.CreateGridViewColumn(propertyDescriptor);
+                    if (null != column)
+                    {
+                        newColumns.Add(column);
+                    }
                 }
+				if (newColumns.Count > 0)
+				{
+					Columns.Clear();
+					AddColumns(newColumns.ToArray());
+				}
+				_itemProperties = newItemProperties;
             }
-            if (newColumns.Count > 0)
-            {
-                Columns.Clear();
-                Columns.AddRange(newColumns.ToArray());
-            }
-            _itemProperties = newItemProperties;
+            UpdateColumnFormats(false);
         }
 
         protected override void OnCellContentClick(DataGridViewCellEventArgs e)
@@ -106,6 +132,127 @@ namespace pwiz.Common.DataBinding.Controls
                 if (linkValue != null)
                 {
                     linkValue.ClickEventHandler(this, e);
+                }
+            }
+        }
+
+        protected virtual DataPropertyDescriptor GetPropertyDescriptor(DataGridViewColumn column)
+        {
+            var propertyName = column.DataPropertyName;
+            if (string.IsNullOrEmpty(propertyName))
+            {
+                return null;
+            }
+            return _itemProperties.FirstOrDefault(pd => pd.Name == column.DataPropertyName);
+        }
+
+        protected override void OnColumnDividerDoubleClick(DataGridViewColumnDividerDoubleClickEventArgs e)
+        {
+            if (e.ColumnIndex >= 0 && e.ColumnIndex < Columns.Count)
+            {
+                var propertyDescriptor = GetPropertyDescriptor(Columns[e.ColumnIndex]);
+                if (propertyDescriptor != null && propertyDescriptor.Attributes[typeof(ExpensiveAttribute)] != null)
+                {
+                    // If the property is expensive to calculate, then prevent double-clicking on 
+                    // column header to resize.
+                    e.Handled = true;
+                    return;
+                }
+            }
+            base.OnColumnDividerDoubleClick(e);
+        }
+
+        protected override void OnColumnWidthChanged(DataGridViewColumnEventArgs e)
+        {
+            base.OnColumnWidthChanged(e);
+            var pd = GetPropertyDescriptor(e.Column);
+            if (pd == null)
+            {
+                return;
+            }
+            var columnId = ColumnId.GetColumnId(pd);
+            if (columnId != null)
+            {
+                var columnFormat = _bindingListSource.ColumnFormats.GetFormat(columnId);
+                columnFormat = columnFormat.ChangeWidth(e.Column.Width);
+                _bindingListSource.ColumnFormats.SetFormat(columnId, columnFormat);
+            }
+        }
+
+        protected void UpdateColumnFormats(bool restoreDefaultFormats)
+        {
+            var bindingListSource = DataSource as BindingListSource;
+            if (bindingListSource == null)
+            {
+                return;
+            }
+            var newColumnFormats = ImmutableList.ValueOf(_itemProperties.Select(prop=>bindingListSource.ColumnFormats.GetFormat(new ColumnId(prop.ColumnCaption))));
+            if (Equals(newColumnFormats, _columnFormats))
+            {
+                return;
+            }
+            _columnFormats = newColumnFormats;
+            foreach (var column in Columns.OfType<DataGridViewColumn>())
+            {
+                if (string.IsNullOrEmpty(column.DataPropertyName))
+                {
+                    continue;
+                }
+                DataPropertyDescriptor pd = null;
+                ColumnFormat columnFormat = null;
+                if (column.Index < _itemProperties.Count && _itemProperties[column.Index].Name == column.DataPropertyName)
+                {
+                    pd = _itemProperties[column.Index];
+                    columnFormat = _columnFormats[column.Index];
+                }
+                else
+                {
+                    for (int i = 0; i < _itemProperties.Count; i++)
+                    {
+                        if (_itemProperties[i].Name == column.DataPropertyName)
+                        {
+                            pd = _itemProperties[i];
+                            columnFormat = _columnFormats[i];
+                        }
+                    }
+                }
+                if (pd == null)
+                {
+                    continue;
+                }
+                if (null != columnFormat.Format)
+                {
+                    column.DefaultCellStyle.Format = columnFormat.Format;
+                }
+                else
+                {
+                    if (restoreDefaultFormats)
+                    {
+                        var originalColumn = _viewContext.CreateGridViewColumn(pd);
+                        column.DefaultCellStyle.Format = originalColumn.DefaultCellStyle.Format;
+                    }
+                }
+                if (columnFormat.Width.HasValue)
+                {
+                    column.Width = columnFormat.Width.Value;
+                }
+            }
+        }
+
+        protected void OnFormatsChanged()
+        {
+            UpdateColumnFormats(true);
+        }
+
+        protected override void OnRowValidating(DataGridViewCellCancelEventArgs e)
+        {
+            base.OnRowValidating(e);
+            if (!e.Cancel)
+            {
+                bool cancelRowEdit;
+                if (_bindingListSource != null && !_bindingListSource.ValidateRow(e.RowIndex, out cancelRowEdit))
+                {
+                    e.Cancel = true;
                 }
             }
         }

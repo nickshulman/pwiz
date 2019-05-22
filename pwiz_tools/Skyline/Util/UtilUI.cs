@@ -33,29 +33,6 @@ using ZedGraph;
 
 namespace pwiz.Skyline.Util
 {
-    public sealed class LongOp : IDisposable
-    {
-        private readonly Control _control;
-        private readonly Cursor _cursor;
-
-        public LongOp(Control control)
-            : this(control, Cursors.Arrow)
-        {            
-        }
-
-        public LongOp(Control control, Cursor cursor)
-        {
-            _control = control;
-            _cursor = cursor;
-            _control.Cursor = Cursors.WaitCursor;
-        }
-
-        public void Dispose()
-        {
-            _control.Cursor = _cursor;
-        }
-    }
-
     /// <summary>
     /// For controls that do not allow completely turning off updates
     /// that cause painting during large operations.
@@ -121,6 +98,8 @@ namespace pwiz.Skyline.Util
         /// an OperationCanceledOperation if the user has canceled.
         /// </summary>
         void SetProgressCheckCancel(int step, int totalSteps);
+
+        CancellationToken CancellationToken { get; }
     }
 
     /// <summary>
@@ -144,14 +123,14 @@ namespace pwiz.Skyline.Util
             _performWork(this);
         }
 
-        public ProgressStatus Status { get; private set; }
+        public IProgressStatus Status { get; private set; }
 
         public bool IsCanceled
         {
             get { return _broker.IsCanceled; }
         }
 
-        public UpdateProgressResponse UpdateProgress(ProgressStatus status)
+        public UpdateProgressResponse UpdateProgress(IProgressStatus status)
         {
             _broker.ProgressValue = status.PercentComplete;
             _broker.Message = status.Message;
@@ -164,12 +143,12 @@ namespace pwiz.Skyline.Util
 
     public class ProgressUpdateEventArgs : EventArgs
     {
-        public ProgressUpdateEventArgs(ProgressStatus progress)
+        public ProgressUpdateEventArgs(IProgressStatus progress)
         {
             Progress = progress;
         }
 
-        public ProgressStatus Progress { get; private set; }
+        public IProgressStatus Progress { get; private set; }
 
         public UpdateProgressResponse Response { get; set; }
     }
@@ -267,6 +246,33 @@ namespace pwiz.Skyline.Util
             }
         }
 
+        private const string SKYLINE_SITE_ROOT = "https://skyline.ms";
+
+        public static string GetSkylineLink(string linkRelative)
+        {
+            return SKYLINE_SITE_ROOT + linkRelative;
+        }
+
+        public static void OpenSkylineLink(IWin32Window parent, string linkRelative)
+        {
+            OpenLink(parent, GetSkylineLink(linkRelative));
+        }
+
+        public static string GetSkylineShortLink(string shortName)
+        {
+            return GetSkylineLink(@"/" + shortName + @".url");
+        }
+
+        public static void OpenSkylineShortLink(IWin32Window parent, string shortName)
+        {
+            OpenLink(parent, GetSkylineShortLink(shortName));
+        }
+
+        public static void OpenRegexDocLink(IWin32Window parent)
+        {
+            OpenLink(parent, @"http://www.regular-expressions.info/reference.html");
+        }
+
         /// <summary>
         /// Shows a form with a link in it that allows a user to continue attempting failed link navigation
         /// </summary>
@@ -283,7 +289,7 @@ namespace pwiz.Skyline.Util
         /// <param name="postData">Report text</param>
         public static void PostToLink(string link, string postData)
         {
-            string filePath = Path.GetTempFileName() + ".html"; // Not L10N
+            string filePath = Path.GetTempFileName() + @".html";
 
             string javaScript = string.Format(
 
@@ -296,7 +302,7 @@ window.onload = submitForm;
 </script>
 <form id=""my_form"" action=""{0}"" method=""post"" style=""visibility: hidden;"">
 <textarea name=""SkylineReport"">{1}</textarea>
-</form>", // Not L10N
+</form>", 
 
                 link, WebUtility.HtmlEncode(postData));
 
@@ -380,9 +386,9 @@ window.onload = submitForm;
             foreach (var item in items)
             {
                 var tag = (string)item.Tag;
-                if (tag == "set_default" || tag == "show_val" || item is ToolStripSeparator) // Not L10N
+                if (tag == @"set_default" || tag == @"show_val" || item is ToolStripSeparator)
                     menuStrip.Items.Remove(item);
-                else if (tag == "unzoom" || tag == "undo_all") // Not L10N
+                else if (tag == @"unzoom" || tag == @"undo_all")
                 {
                     if (!keepZoom)
                         menuStrip.Items.Remove(item);

@@ -18,9 +18,12 @@
  */
 
 using System;
+using System.Collections.Generic;
 using System.Collections.Specialized;
 using System.Deployment.Application;
 using System.Diagnostics;
+using System.Drawing;
+using System.Drawing.Imaging;
 using System.IO;
 using System.Net;
 using System.Text;
@@ -35,6 +38,10 @@ namespace pwiz.Skyline.Alerts
         private string _exceptionType;
         private string _exceptionMessage;
         private string _stackTraceText;
+        private string _email;
+        private string _message;
+
+        private static string LABKEY_CSRF = @"X-LABKEY-CSRF";
 
         public static string UserGuid
         {
@@ -53,7 +60,7 @@ namespace pwiz.Skyline.Alerts
 
         public ReportErrorDlg(Exception e, StackTrace stackTraceExceptionCaughtAt)
         {
-            Init(e.GetType().Name, e.Message, GetStackTraceText(e, stackTraceExceptionCaughtAt));
+            Init(e.GetType().Name, e.Message, ExceptionUtil.GetStackTraceText(e, stackTraceExceptionCaughtAt));
 
             Install.InstallType installType = Install.Type;
 
@@ -69,8 +76,7 @@ namespace pwiz.Skyline.Alerts
                 btnCancel.Click += btnOK_Click;
                 AcceptButton = btnCancel;
 
-                SetTitleAndIntroText(
-                    Text,
+                SetIntroText(
                     Resources.ReportErrorDlg_ReportErrorDlg_An_unexpected_error_has_occurred_as_shown_below,
                     Resources.ReportErrorDlg_ReportErrorDlg_An_error_report_will_be_posted);
             }
@@ -99,106 +105,114 @@ namespace pwiz.Skyline.Alerts
                 {
                     if (line.Contains(typeof (Program).Namespace ?? string.Empty))
                     {
-                        int iSuffix = line.LastIndexOf("\\", StringComparison.Ordinal);  // Not L10N
+                        // ReSharper disable LocalizableElement
+                        int iSuffix = line.LastIndexOf("\\", StringComparison.Ordinal);
+                        // ReSharper restore LocalizableElement
                         if (iSuffix == -1)
-                            iSuffix = line.LastIndexOf(".", StringComparison.Ordinal); // Not L10N
+                            iSuffix = line.LastIndexOf(@".", StringComparison.Ordinal);
 
                         string location = line.Substring(iSuffix + 1);
                         string userInputIndicator = string.Empty;
-                        if (!string.IsNullOrEmpty(tbEmail.Text))
-                            userInputIndicator = "*"; // Not L10N
-                        else if (!string.IsNullOrEmpty(tbMessage.Text))
-                            userInputIndicator = "+"; // Not L10N
+                        if (!string.IsNullOrEmpty(_email))
+                            userInputIndicator = @"*";
+                        else if (!string.IsNullOrEmpty(_message))
+                            userInputIndicator = @"+";
                         string version = Install.Version;
                         string guid = UserGuid;
                         guid = guid.Substring(guid.LastIndexOf('-') + 1);
-                        return userInputIndicator + _exceptionType + " | " + location + " | " + version + " | " + guid; // Not L10N
+                        return userInputIndicator + _exceptionType + @" | " + location + @" | " + version + @" | " + guid;
                     }
                 }
                 return _exceptionType;
             }
         }
 
-        private void OkDialog()
+        public void OkDialog()
         {
             if (!Equals(Settings.Default.StackTraceListVersion, Install.Version))
             {
                 Settings.Default.StackTraceListVersion = Install.Version;
             }
+            using (var detailedReportErrorDlg = new DetailedReportErrorDlg())
+            {
+                if (detailedReportErrorDlg.ShowDialog(this) == DialogResult.OK)
+                {
+                    var skyFile = detailedReportErrorDlg.SkylineFileBytes;
+                     _email = detailedReportErrorDlg.Email;
+                    _message = detailedReportErrorDlg.Message;
 
-            SendErrorReport(MessageBody, _exceptionType);
+                    SendErrorReportAttachment(_exceptionType, detailedReportErrorDlg.ScreenShots, 
+                        skyFile, detailedReportErrorDlg.IsTest);
+                }
+                else
+                {
+                    DialogResult = DialogResult.Cancel;
+                }
+
+            }
+        }
+
+        private void SendErrorReportAttachment(string exceptionType, IEnumerable<Image> screenShots, byte[] skyFileBytes, bool isTest)
+        {
+            if (isTest) // We don't want to be submitting an exception every time the ReportErrorDlgTest is run.
+            {
+                DialogResult = DialogResult.OK;
+                return;  
+            }
+
+            string reportUrl = WebHelpers.GetSkylineLink(@"/announcements/home/issues/exceptions/insert.view");
+            
+            var nvc = new NameValueCollection
+            {
+                {@"title", PostTitle},
+                {@"body", MessageBody},
+                {@"fromDiscussion", @"false"},
+                {@"allowMultipleDiscussions", @"false"},
+                {@"rendererType", @"TEXT_WITH_LINKS"}
+            };
+            var files = new Dictionary<string, byte[]>();
+            foreach (var screenShot in screenShots)
+            {
+                var memoryStream = new MemoryStream();
+                screenShot.Save(memoryStream, ImageFormat.Jpeg);
+                string name = @"Image-" + (files.Count + 1) + @".jpg";
+                files.Add(name, memoryStream.ToArray());
+            }
+
+            if (skyFileBytes != null)
+            {
+                files.Add(@"skylineFile.sky", skyFileBytes);
+            }
+       
+            HttpUploadFiles(reportUrl, @"image/jpeg", nvc, files);
 
             DialogResult = DialogResult.OK;
         }
-
-        private void SendErrorReport(string messageBody, string exceptionType)
-        {
-            WebClient webClient = new WebClient();
-
-            const string address = "https://skyline.gs.washington.edu/labkey/announcements/home/issues/exceptions/insert.view"; // Not L10N
-            
-            // ReSharper disable NonLocalizedString
-            NameValueCollection form = new NameValueCollection
-                                           {
-                                               { "title", PostTitle},
-                                               { "body", messageBody },
-                                               { "fromDiscussion", "false"},
-                                               { "allowMultipleDiscussions", "false"},
-                                               { "rendererType", "TEXT_WITH_LINKS"}
-                                           };
-            webClient.UploadValues(address, form);
-        }
-        // ReSharper restore NonLocalizedString
-
-        protected static string GetStackTraceText(Exception exception, StackTrace stackTraceExceptionCaughtAt = null)
-        {
-            StringBuilder stackTrace = new StringBuilder("Stack trace:"); // Not L10N
-
-            stackTrace.AppendLine().AppendLine(exception.StackTrace).AppendLine();
-
-            for (var x = exception.InnerException; x != null; x = x.InnerException)
-            {
-                if (ReferenceEquals(x, exception.InnerException))
-                    stackTrace.AppendLine("Inner exceptions:"); // Not L10N
-                else
-                    stackTrace.AppendLine("---------------------------------------------------------------"); // Not L10N
-                stackTrace.Append("Exception type: ").Append(x.GetType().FullName).AppendLine(); // Not L10N
-                stackTrace.Append("Error message: ").AppendLine(x.Message); // Not L10N
-                stackTrace.AppendLine(x.Message).AppendLine(x.StackTrace);
-            }
-            if (null != stackTraceExceptionCaughtAt)
-            {
-                stackTrace.AppendLine("Exception caught at: "); // Not L10N
-                stackTrace.AppendLine(stackTraceExceptionCaughtAt.ToString());
-            }
-            return stackTrace.ToString();
-        }
-
+        // ReSharper restore LocalizableElement
     
         private string MessageBody
         {
             get
             {
-                StringBuilder sb = new StringBuilder();
-                if (!String.IsNullOrEmpty(tbEmail.Text))
-                    sb.Append("User email address: ").AppendLine(tbEmail.Text); // Not L10N
+                var sb = new StringBuilder();
+                if (!String.IsNullOrEmpty(_email))
+                    sb.Append(@"User email address: ").AppendLine(_email);
                 
-                if (!String.IsNullOrEmpty(tbMessage.Text))
-                    sb.Append("User comments:").AppendLine().AppendLine(tbMessage.Text).AppendLine(); // Not L10N
+                if (!String.IsNullOrEmpty(_message))
+                    sb.Append(@"User comments:").AppendLine().AppendLine(_message).AppendLine();
                 
                 if (ApplicationDeployment.IsNetworkDeployed)
                 {
-                    sb.Append("Skyline version: ").Append(Install.Version); // Not L10N
+                    sb.Append(@"Skyline version: ").Append(Install.Version);
                     if (Install.Is64Bit)
-                        sb.Append(" (64-bit)"); // Not L10N
+                        sb.Append(@" (64-bit)");
                     sb.AppendLine();
                 }
 
-                sb.Append("Installation ID: ").AppendLine(UserGuid); // Not L10N
-
-                sb.Append("Exception type: ").AppendLine(_exceptionType); // Not L10N
-                sb.Append("Error message: ").AppendLine(_exceptionMessage).AppendLine(); // Not L10N
-                
+                sb.Append(@"Installation ID: ").AppendLine(UserGuid);
+                sb.Append(@"Exception type: ").AppendLine(_exceptionType);
+                sb.Append(@"Error message: ").AppendLine(_exceptionMessage).AppendLine();
+                sb.Append(@"--------------------").AppendLine().AppendLine();
                 // Stack trace with any inner exceptions
                 sb.AppendLine(tbSourceCodeLocation.Text);
 
@@ -209,6 +223,11 @@ namespace pwiz.Skyline.Alerts
         protected void SetTitleAndIntroText(string title, string line1, string line2)
         {
             Text = title;
+            SetIntroText(line1, line2);
+        }
+
+        private void SetIntroText(string line1, string line2)
+        {
             lblReportError.Text = new StringBuilder()
                 .AppendLine(line1)
                 .Append(line2)
@@ -223,6 +242,104 @@ namespace pwiz.Skyline.Alerts
         private void btnOK_Click(object sender, EventArgs e)
         {
             OkDialog();
-        }        
+        }
+
+        public static void HttpUploadFiles(string url, string contentType, NameValueCollection nvc, IEnumerable<KeyValuePair<string, byte[]>> files)
+        {
+            string boundary = @"---------------------------" + DateTime.Now.Ticks.ToString(@"x");
+            // ReSharper disable LocalizableElement
+            byte[] boundarybytes = Encoding.ASCII.GetBytes("\r\n--" + boundary + "\r\n");
+            // ReSharper restore LocalizableElement
+
+            var wr = (HttpWebRequest) WebRequest.Create(url);
+            wr.ContentType = @"multipart/form-data; boundary=" + boundary;
+            wr.Method = @"POST";
+            wr.KeepAlive = true;
+            wr.Credentials = CredentialCache.DefaultCredentials;
+
+            SetCSRFToken(wr);
+
+            var rs = wr.GetRequestStream();
+
+            const string formDataTemplate = "Content-Disposition: form-data; name=\"{0}\"\r\n\r\n{1}";
+            foreach (string key in nvc.Keys)
+            {
+                rs.Write(boundarybytes, 0, boundarybytes.Length);
+                string formitem = string.Format(formDataTemplate, key, nvc[key]);
+                byte[] formitembytes = Encoding.UTF8.GetBytes(formitem);
+                rs.Write(formitembytes, 0, formitembytes.Length);
+            }
+            int fileCount = 0;
+            foreach (var fileEntry in files)
+            {
+                rs.Write(boundarybytes, 0, boundarybytes.Length);
+                const string headerTemplate = "Content-Disposition: form-data; name=\"{0}\"; filename=\"{1}\"\r\nContent-Type: {2}\r\n\r\n";
+                string paramName = string.Format(@"formFiles[{0:D2}", fileCount);
+                string header = string.Format(headerTemplate, paramName, fileEntry.Key, contentType); //formFiles[00]
+                byte[] headerbytes = Encoding.UTF8.GetBytes(header);
+                rs.Write(headerbytes, 0, headerbytes.Length);
+                rs.Write(fileEntry.Value, 0, fileEntry.Value.Length);
+                fileCount ++;
+            }
+            // ReSharper disable LocalizableElement
+            byte[] trailer = Encoding.ASCII.GetBytes("\r\n--" + boundary + "--\r\n");
+            // ReSharper restore LocalizableElement
+            rs.Write(trailer, 0, trailer.Length);
+            rs.Close();
+
+
+            WebResponse wresp = null;
+            try
+            {
+                wresp = wr.GetResponse();
+                var stream2 = wresp.GetResponseStream();
+                if (stream2 != null)
+                {
+                    var reader2 = new StreamReader(stream2);
+                    // ReSharper disable once LocalizableElement
+                    Console.WriteLine(@"File uploaded, server response is: {0}", reader2.ReadToEnd());
+                }
+            }
+            catch (Exception ex)
+            {
+                // ReSharper disable once LocalizableElement
+                Console.WriteLine(@"Error uploading file: {0}", ex);
+                if (wresp != null)
+                {
+                    wresp.Close();
+                }
+            }
+        }
+
+        private static void SetCSRFToken(HttpWebRequest postReq)
+        {
+            var url = WebHelpers.GetSkylineLink(@"/project/home/begin.view?");
+
+            var sessionCookies = new CookieContainer();
+            try
+            {
+                var request = (HttpWebRequest)WebRequest.Create(url);
+                request.Method = @"GET";
+                request.CookieContainer = sessionCookies;
+                using (var response = (HttpWebResponse)request.GetResponse())
+                {
+                    postReq.CookieContainer = sessionCookies;
+                    var csrf = response.Cookies[LABKEY_CSRF];
+                    if (csrf != null)
+                    {
+                        // The server set a cookie called X-LABKEY-CSRF, get its value and add a header to the POST request
+                        postReq.Headers.Add(LABKEY_CSRF, csrf.Value);
+                    }
+                    else
+                    {
+                        Console.WriteLine(@"CSRF token not found.");
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(@"Error establishing a session and getting a CSRF token: {0}", e);
+            }
+        }
     }
 }

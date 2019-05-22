@@ -27,16 +27,13 @@ namespace AutoQC
         public string Args { get; private set; }
         public string ArgsToPrint { get; private set; }
         public string WorkingDirectory { get; set; }
-
-        private int _triesRemaining;
-
+        
         public ProcessInfo(string exe, string args)
         {
             Executable = exe;
             ExeName = Executable;
             Args = args;
             ArgsToPrint = args;
-            _triesRemaining = 1;
         }
 
         public ProcessInfo(string exe, string exeName, string args, string argsToPrint) : this (exe, args)
@@ -44,33 +41,20 @@ namespace AutoQC
             ExeName = exeName;
             ArgsToPrint = argsToPrint;
         }
-
-        public void SetMaxTryCount(int tryCount)
-        {
-            _triesRemaining = tryCount;
-        }
-
-        public void incrementTryCount()
-        {
-            _triesRemaining--;
-        }
-
-        public bool CanRetry()
-        {
-            return _triesRemaining > 0;
-        }
     }
 
     public class ProcessRunner
     {
         private ProcessInfo _procInfo;
-        private readonly IAutoQCLogger _logger;
+        private readonly IAutoQcLogger _logger;
 
         private Process _process;
 
-        private volatile bool _tryAgain;
+        private bool _documentImportFailed;
+        private bool _panoramaUploadFailed;
+        private bool _errorLogged;
 
-        public ProcessRunner(IAutoQCLogger logger)
+        public ProcessRunner(IAutoQcLogger logger)
         {
             _logger = logger;
         }
@@ -95,7 +79,7 @@ namespace AutoQC
             return process;
         }
 
-        public bool RunProcess(ProcessInfo processInfo)
+        public ProcStatus RunProcess(ProcessInfo processInfo)
         {
             _procInfo = processInfo;
 
@@ -104,10 +88,6 @@ namespace AutoQC
 
             while (true)
             {
-                _tryAgain = false;
-
-                _procInfo.incrementTryCount();
-
                 int exitCode;
                 try
                 {
@@ -116,29 +96,33 @@ namespace AutoQC
                 catch (Exception e)
                 {
                     LogException(e, "There was an exception running the process {0}", _procInfo.ExeName);
-                    return false;
+                    return ProcStatus.Error;
                 }
 
                 if (exitCode != 0)
                 {
                     LogError("{0} exited with error code {1}.", _procInfo.ExeName, exitCode);
-                    _tryAgain = true;
+                    return ProcStatus.Error;
                 }
 
-                if (_tryAgain)
+                if (_errorLogged)
                 {
-                    if (_procInfo.CanRetry())
-                    {
-                        LogError("{0} returned an error. Trying again...", _procInfo.ExeName);
-                        continue;
-                    }
-
-                    LogError("{0} returned an error. Exceeded maximum try count.  Giving up...", _procInfo.ExeName);
-                    return false;
+                    LogError("{0} exited with code {1}. Error reported.", _procInfo.ExeName, exitCode);
+                    return ProcStatus.Error;
+                }
+                if (_documentImportFailed)
+                {
+                    LogError("{0} exited with code {1}. Skyline document import failed.", _procInfo.ExeName, exitCode);
+                    return ProcStatus.DocImportError;
+                }
+                if (_panoramaUploadFailed)
+                {
+                    LogError("{0} exited with code {1}. Panorama upload failed.", _procInfo.ExeName, exitCode);
+                    return ProcStatus.PanoramaUploadError;
                 }
 
-                LogWithSpace("{0} exited successfully.", _procInfo.ExeName);
-                return true;
+                Log("{0} exited successfully.", _procInfo.ExeName);
+                return ProcStatus.Success;
             }
         }
 
@@ -174,35 +158,52 @@ namespace AutoQC
             }  
         }
 
-        private Boolean DetectError(string message)
+        private bool DetectError(string message)
         {
-            if (message == null || !message.StartsWith("Error")) return false;
+            if (string.IsNullOrEmpty(message))
+            {
+                return false;
+            }
+
             if (message.Contains("Failed importing"))
             {
-                _tryAgain = true;
+                // TODO: fix in Skyline? These do not start with "Error"
+                _documentImportFailed = true;
+                return true;
+            }
+            if(message.StartsWith("Warning: Cannot read file") && message.EndsWith("Ignoring..."))
+            {
+                // This is the message for un-readable RAW files from Thermo instruments.
+                _documentImportFailed = true;
+                return true;
+            }
+
+            if (!message.StartsWith("Error")) return false;
+            
+            if (message.Contains("PanoramaImportErrorException"))
+            {
+                _panoramaUploadFailed = true;
+            }
+            else
+            {
+                _errorLogged = true;
             }
             return true;
         }
 
-        private void Log(string message, params Object[] args)
+        private void Log(string message, params object[] args)
         {
             _logger.Log(message, args);
         }
 
-        private void LogWithSpace(string message, params Object[] args)
-        {
-            _logger.Log(message, 1, 1, args);
-        }
-
-        private void LogError(string message, params Object[] args)
-        {
-            _logger.LogError(message, 1, 1, args);
-        }
-
-        private void LogException(Exception e, string message, params Object[] args)
+        private void LogError(string message, params object[] args)
         {
             _logger.LogError(message, args);
-            _logger.LogException(e);
+        }
+
+        private void LogException(Exception e, string message, params object[] args)
+        {
+            _logger.LogException(e, message, args);
         }
 
         protected ProcessInfo GetProcessInfo()
@@ -216,12 +217,11 @@ namespace AutoQC
             {
                 try
                 {
-                    _procInfo.SetMaxTryCount(0);
                     _process.Kill();
                 }
                 catch (Exception e)
                 {
-                    LogException(e, "Exception killing process {0}", _procInfo.ExeName);
+                    LogException(e, "Error killing process {0}", _procInfo.ExeName);
                 }
             }
         }

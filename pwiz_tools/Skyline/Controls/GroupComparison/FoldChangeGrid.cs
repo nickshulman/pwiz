@@ -18,15 +18,11 @@
  */
 
 using System;
-using System.Collections.Generic;
 using System.Drawing;
-using System.Linq;
-using System.Windows.Forms;
 using DigitalRune.Windows.Docking;
 using pwiz.Skyline.Controls.Databinding;
 using pwiz.Skyline.Model;
 using pwiz.Skyline.Model.GroupComparison;
-using pwiz.Skyline.Util;
 
 namespace pwiz.Skyline.Controls.GroupComparison
 {
@@ -51,11 +47,6 @@ namespace pwiz.Skyline.Controls.GroupComparison
                 toolStripButtonChangeSettings.Visible =
                     !string.IsNullOrEmpty(FoldChangeBindingSource.GroupComparisonModel.GroupComparisonName);
                 FoldChangeBindingSource.ViewContext.BoundDataGridView = DataboundGridControl.DataGridView;
-                var skylineWindow = FoldChangeBindingSource.GroupComparisonModel.DocumentContainer as SkylineWindow;
-                if (null != skylineWindow)
-                {
-                    DataGridViewPasteHandler.Attach(skylineWindow, DataboundGridControl.DataGridView);
-                }
             }
         }
 
@@ -69,7 +60,7 @@ namespace pwiz.Skyline.Controls.GroupComparison
             base.OnHandleDestroyed(e);
         }
 
-        public static FoldChangeGrid ShowFoldChangeGrid(DockPanel dockPanel, Rectangle rcFloating, IDocumentContainer documentContainer,
+        public static FoldChangeGrid ShowFoldChangeGrid(DockPanel dockPanel, Rectangle rcFloating, IDocumentUIContainer documentContainer,
             string groupComparisonName)
         {
             var grid = FindForm<FoldChangeGrid>(documentContainer, groupComparisonName);
@@ -92,52 +83,22 @@ namespace pwiz.Skyline.Controls.GroupComparison
 
         public void ShowGraph()
         {
-            IEnumerable<FoldChangeBarGraph> barGraphs;
-            if (null != DockPanel)
-            {
-                barGraphs = DockPanel.Contents.OfType<FoldChangeBarGraph>();
-            }
-            else
-            {
-                barGraphs = Application.OpenForms.OfType<FoldChangeBarGraph>();
-            }
-            foreach (var form in barGraphs)
-            {
-                if (SameBindingSource(form)) 
-                {
-                    form.Activate();
-                    return;
-                }
-            }
-            var graph = new FoldChangeBarGraph();
-            graph.SetBindingSource(FoldChangeBindingSource);
-            if (null != Pane)
-            {
-                graph.Show(Pane, null);
-            }
-            else
-            {
-                graph.Show(Owner);
-            }
+            ShowFoldChangeForm<FoldChangeBarGraph>();
+        }
+
+        private void toolButtonVolcano_Click(object sender, EventArgs e)
+        {
+            ShowVolcanoPlot();
+        }
+
+        public void ShowVolcanoPlot()
+        {
+            ShowFoldChangeForm<FoldChangeVolcanoPlot>();
         }
 
         private void toolStripButtonChangeSettings_Click(object sender, EventArgs e)
         {
             ShowChangeSettings();
-        }
-
-        public void ShowChangeSettings()
-        {
-            foreach (var form in Application.OpenForms.OfType<GroupComparisonSettingsForm>())
-            {
-                if (ReferenceEquals(form.GroupComparisonModel, FoldChangeBindingSource.GroupComparisonModel))
-                {
-                    form.Activate();
-                    return;
-                }
-            }
-            var foldChangeSettings = new GroupComparisonSettingsForm(FoldChangeBindingSource);
-            foldChangeSettings.Show(this);
         }
 
         public DataboundGridControl DataboundGridControl { get { return databoundGridControl; } }

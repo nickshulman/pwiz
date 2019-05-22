@@ -1,5 +1,5 @@
 ' Download psi-ms.obo
-psimsURL = "https://raw.githubusercontent.com/HUPO-PSI/mzML/master/cv/psi-ms.obo"
+psimsURL = "https://raw.githubusercontent.com/HUPO-PSI/psi-ms-CV/master/psi-ms.obo"
 psimsDestination = "..\..\pwiz\data\common\psi-ms.obo"
 Set objXMLHTTP = CreateObject("MSXML2.XMLHTTP")
 
@@ -25,7 +25,7 @@ If objXMLHTTP.Status = 200 Then
 End if
 
 ' Download unit.obo
-unitURL = "http://obo.cvs.sourceforge.net/*checkout*/obo/obo/ontology/phenotype/unit.obo"
+unitURL = "https://raw.githubusercontent.com/bio-ontology-research-group/unit-ontology/master/unit.obo"
 unitDestination = "..\..\pwiz\data\common\unit.obo"
 objXMLHTTP.open "GET", unitURL, false
 objXMLHTTP.send()

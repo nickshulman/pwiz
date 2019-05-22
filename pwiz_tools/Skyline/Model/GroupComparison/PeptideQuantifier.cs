@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using pwiz.Common.Collections;
 using pwiz.Skyline.Model.DocSettings;
@@ -9,42 +10,69 @@ namespace pwiz.Skyline.Model.GroupComparison
 {
     public class PeptideQuantifier
     {
-        public PeptideQuantifier(PeptideGroupDocNode peptideGroup, PeptideDocNode peptideDocNode,
+        private NormalizationData _normalizationData;
+        private Func<NormalizationData> _getNormalizationDataFunc;
+        public PeptideQuantifier(Func<NormalizationData> getNormlizationDataFunc, PeptideGroupDocNode peptideGroup, PeptideDocNode peptideDocNode,
             QuantificationSettings quantificationSettings)
         {
             PeptideGroupDocNode = peptideGroup;
             PeptideDocNode = peptideDocNode;
             QuantificationSettings = quantificationSettings;
-
+            _getNormalizationDataFunc = getNormlizationDataFunc;
         }
 
-        public static PeptideQuantifier GetPeptideQuantifier(SrmSettings srmSettings, PeptideGroupDocNode peptideGroup, PeptideDocNode peptide)
+        public static PeptideQuantifier GetPeptideQuantifier(Func<NormalizationData> getNormalizationDataFunc, SrmSettings srmSettings, PeptideGroupDocNode peptideGroup, PeptideDocNode peptide)
         {
             var mods = srmSettings.PeptideSettings.Modifications;
             // Quantify on all label types which are not internal standards.
             ICollection<IsotopeLabelType> labelTypes = ImmutableList.ValueOf(mods.GetModificationTypes()
                 .Except(mods.InternalStandardTypes));
-            return new PeptideQuantifier(peptideGroup, peptide, srmSettings.PeptideSettings.Quantification)
+            return new PeptideQuantifier(getNormalizationDataFunc, peptideGroup, peptide, srmSettings.PeptideSettings.Quantification)
             {
                 MeasuredLabelTypes = labelTypes
             };
         }
 
+        public static PeptideQuantifier GetPeptideQuantifier(SrmDocument document, PeptideGroupDocNode peptideGroup,
+            PeptideDocNode peptide)
+        {
+            return GetPeptideQuantifier(() => NormalizationData.GetNormalizationData(document, false, null), 
+                document.Settings, peptideGroup, peptide);
+        }
+
         public PeptideGroupDocNode PeptideGroupDocNode { get; private set; }
         public PeptideDocNode PeptideDocNode {get; private set; }
         public QuantificationSettings QuantificationSettings { get; private set; }
-        public NormalizationMethod NormalizationMethod { get {return QuantificationSettings.NormalizationMethod;} }
+
+        public NormalizationMethod NormalizationMethod
+        {
+            get
+            {
+                return PeptideDocNode.NormalizationMethod ?? QuantificationSettings.NormalizationMethod;
+            }
+        }
         public ICollection<IsotopeLabelType> MeasuredLabelTypes { get; set; }
+
+        public NormalizationData GetNormalizationData()
+        {
+            if (_normalizationData == null)
+            {
+                _normalizationData = _getNormalizationDataFunc();
+            }
+            return _normalizationData;
+        }
+        public double? QValueCutoff { get; set; }
 
         public IsotopeLabelType RatioLabelType
         {
             get
             {
-                if (string.IsNullOrEmpty(NormalizationMethod.IsotopeLabelTypeName))
+                NormalizationMethod.RatioToLabel ratioToLabel = NormalizationMethod as NormalizationMethod.RatioToLabel;
+                if (ratioToLabel == null)
                 {
                     return null;
                 }
-                return new IsotopeLabelType(NormalizationMethod.IsotopeLabelTypeName, 0);
+                return new IsotopeLabelType(ratioToLabel.IsotopeLabelTypeName, 0);
             }
         }
 
@@ -52,6 +80,10 @@ namespace pwiz.Skyline.Model.GroupComparison
 
         public bool SkipTransitionGroup(TransitionGroupDocNode transitionGroupDocNode)
         {
+            if (transitionGroupDocNode.IsDecoy)
+            {
+                return true;
+            }
             if (null != MeasuredLabelTypes)
             {
                 if (!MeasuredLabelTypes.Contains(transitionGroupDocNode.TransitionGroup.LabelType))
@@ -59,9 +91,9 @@ namespace pwiz.Skyline.Model.GroupComparison
                     return true;
                 }
             }
-            if (!string.IsNullOrEmpty(NormalizationMethod.IsotopeLabelTypeName))
+            if (NormalizationMethod is NormalizationMethod.RatioToLabel)
             {
-                if (Equals(NormalizationMethod.IsotopeLabelTypeName,
+                if (Equals(((NormalizationMethod.RatioToLabel) NormalizationMethod).IsotopeLabelTypeName,
                     transitionGroupDocNode.TransitionGroup.LabelType.Name))
                 {
                     return true;
@@ -70,8 +102,12 @@ namespace pwiz.Skyline.Model.GroupComparison
             return false;
         }
 
-        public bool SkipTransition(TransitionDocNode transitionDocNode)
+        public bool SkipTransition(SrmSettings settings, TransitionDocNode transitionDocNode)
         {
+            if (!transitionDocNode.IsQuantitative(settings))
+            {
+                return true;
+            }
             if (MsLevel.HasValue)
             {
                 if (MsLevel == 1)
@@ -83,10 +119,10 @@ namespace pwiz.Skyline.Model.GroupComparison
             return false;
         }
 
-        public IDictionary<IdentityPath, Quantity> GetTransitionIntensities(SrmSettings srmSettings, int replicateIndex)
+        public IDictionary<IdentityPath, Quantity> GetTransitionIntensities(SrmSettings srmSettings, int replicateIndex, bool treatMissingAsZero)
         {
             var quantities = new Dictionary<IdentityPath, Quantity>();
-            var transitionsToNormalizeAgainst = GetTransitionsToNormalizeAgainst(PeptideDocNode, replicateIndex);
+            var transitionsToNormalizeAgainst = GetTransitionsToNormalizeAgainst(srmSettings, PeptideDocNode, replicateIndex);
             foreach (var precursor in PeptideDocNode.TransitionGroups)
             {
                 if (SkipTransitionGroup(precursor))
@@ -95,12 +131,12 @@ namespace pwiz.Skyline.Model.GroupComparison
                 }
                 foreach (var transition in precursor.Transitions)
                 {
-                    if (SkipTransition(transition))
+                    if (SkipTransition(srmSettings, transition))
                     {
                         continue;
                     }
-                    var quantity = GetTransitionQuantity(srmSettings, transitionsToNormalizeAgainst, replicateIndex, precursor,
-                        transition);
+                    var quantity = GetTransitionQuantity(srmSettings, transitionsToNormalizeAgainst, NormalizationMethod, replicateIndex, precursor,
+                        transition, treatMissingAsZero);
                     if (null != quantity)
                     {
                         IdentityPath transitionIdentityPath = new IdentityPath(PeptideGroupDocNode.PeptideGroup,
@@ -112,11 +148,44 @@ namespace pwiz.Skyline.Model.GroupComparison
             return quantities;
         }
 
+        public double GetIsotopologArea(SrmSettings settings, int replicateIndex, IsotopeLabelType labelType)
+        {
+            double totalArea = 0;
+            var normalizationMethod = NormalizationMethod;
+            if (normalizationMethod is NormalizationMethod.RatioToLabel)
+            {
+                normalizationMethod = NormalizationMethod.NONE;
+            }
+            foreach (var precursor in PeptideDocNode.TransitionGroups)
+            {
+                if (!Equals(labelType, precursor.LabelType))
+                {
+                    continue;
+                }
+                foreach (var transition in precursor.Transitions)
+                {
+                    if (SkipTransition(settings, transition))
+                    {
+                        continue;
+                    }
+                    var quantity = GetTransitionQuantity(settings, null, normalizationMethod, replicateIndex, precursor,
+                        transition, false);
+                    if (quantity != null)
+                    {
+                        totalArea += quantity.Intensity / quantity.Denominator;
+                    }
+                }
+            }
+            return totalArea;
+        }
+
         private Quantity GetTransitionQuantity(
             SrmSettings srmSettings,
             IDictionary<PeptideDocNode.TransitionKey, TransitionChromInfo> peptideStandards,
+            NormalizationMethod normalizationMethod,
             int replicateIndex,
-            TransitionGroupDocNode transitionGroup, TransitionDocNode transition)
+            TransitionGroupDocNode transitionGroup, TransitionDocNode transition,
+            bool treatMissingAsZero)
         {
             if (null == transition.Results)
             {
@@ -127,16 +196,21 @@ namespace pwiz.Skyline.Model.GroupComparison
                 return null;
             }
             var chromInfos = transition.Results[replicateIndex];
-            if (null == chromInfos)
+            if (chromInfos.IsEmpty)
             {
                 return null;
             }
             var chromInfo = GetTransitionChromInfo(transition, replicateIndex);
-            if (null == chromInfo || chromInfo.IsEmpty)
+            if (null == chromInfo)
             {
                 return null;
             }
-            double normalizedArea = chromInfo.Area;
+            double? normalizedArea = GetArea(treatMissingAsZero, QValueCutoff, transitionGroup, transition, replicateIndex, chromInfo);
+            if (!normalizedArea.HasValue)
+            {
+                return null;
+            }
+
             double denominator = 1.0;
 
             if (null != peptideStandards)
@@ -157,12 +231,38 @@ namespace pwiz.Skyline.Model.GroupComparison
                 {
                     return null;
                 }
-                if (Equals(NormalizationMethod, NormalizationMethod.GLOBAL_STANDARDS))
+                if (Equals(normalizationMethod, NormalizationMethod.GLOBAL_STANDARDS))
                 {
-                    denominator = srmSettings.CalcGlobalStandardArea(replicateIndex, chromInfo.FileId);
+                    var fileInfo = srmSettings.MeasuredResults.Chromatograms[replicateIndex]
+                        .GetFileInfo(chromInfo.FileId);
+                    if (fileInfo == null)
+                    {
+                        return null;
+                    }
+                    denominator = srmSettings.CalcGlobalStandardArea(replicateIndex, fileInfo);
+                }
+                else if (normalizationMethod is NormalizationMethod.RatioToSurrogate)
+                {
+                    denominator =  ((NormalizationMethod.RatioToSurrogate) NormalizationMethod)
+                        .GetStandardArea(srmSettings, replicateIndex, chromInfo.FileId);
+                }
+                else if (Equals(normalizationMethod, NormalizationMethod.EQUALIZE_MEDIANS))
+                {
+                    var normalizationData = GetNormalizationData();
+                    if (null == normalizationData)
+                    {
+                        throw new InvalidOperationException(string.Format(@"Normalization method '{0}' is not supported here.", NormalizationMethod));
+                    }
+                    double? medianAdjustment = normalizationData.GetMedian(chromInfo.FileId, transitionGroup.TransitionGroup.LabelType) 
+                        - normalizationData.GetMedianMedian(srmSettings.MeasuredResults.Chromatograms[replicateIndex].SampleType, transitionGroup.TransitionGroup.LabelType);
+                    if (!medianAdjustment.HasValue)
+                    {
+                        return null;
+                    }
+                    normalizedArea /= Math.Pow(2.0, medianAdjustment.Value);
                 }
             }
-            return new Quantity(normalizedArea, denominator);
+            return new Quantity(normalizedArea.Value, denominator);
         }
 
         private TransitionChromInfo GetTransitionChromInfo(TransitionDocNode transitionDocNode, int replicateIndex)
@@ -173,7 +273,7 @@ namespace pwiz.Skyline.Model.GroupComparison
                 return null;
             }
             var chromInfos = transitionDocNode.Results[replicateIndex];
-            if (null == chromInfos)
+            if (chromInfos.IsEmpty)
             {
                 return null;
             }
@@ -183,37 +283,38 @@ namespace pwiz.Skyline.Model.GroupComparison
                 {
                     continue;
                 }
-                if (chromInfo.IsEmpty)
-                {
-                    continue;
-                }
                 return chromInfo;
             }
             return null;
         }
 
         private Dictionary<PeptideDocNode.TransitionKey, TransitionChromInfo> GetTransitionsToNormalizeAgainst(
-            PeptideDocNode peptideDocNode, int replicateIndex)
+            SrmSettings settings, PeptideDocNode peptideDocNode, int replicateIndex)
         {
-            if (string.IsNullOrEmpty(NormalizationMethod.IsotopeLabelTypeName))
+            NormalizationMethod.RatioToLabel ratioToLabel = NormalizationMethod as NormalizationMethod.RatioToLabel;
+            if (ratioToLabel == null)
             {
                 return null;
             }
             var result = new Dictionary<PeptideDocNode.TransitionKey, TransitionChromInfo>();
             foreach (var transitionGroup in peptideDocNode.TransitionGroups)
             {
-                if (!Equals(NormalizationMethod.IsotopeLabelTypeName, transitionGroup.TransitionGroup.LabelType.Name))
+                if (!Equals(ratioToLabel.IsotopeLabelTypeName, transitionGroup.TransitionGroup.LabelType.Name))
                 {
                     continue;
                 }
                 foreach (var transition in transitionGroup.Transitions)
                 {
+                    if (!transition.IsQuantitative(settings))
+                    {
+                        continue;
+                    }
                     if (null == transition.Results || transition.Results.Count <= replicateIndex)
                     {
                         continue;
                     }
                     var chromInfoList = transition.Results[replicateIndex];
-                    if (null == chromInfoList)
+                    if (chromInfoList.IsEmpty)
                     {
                         continue;
                     }
@@ -247,7 +348,7 @@ namespace pwiz.Skyline.Model.GroupComparison
             {
                 return null;
             }
-            if (!string.IsNullOrEmpty(normalizationMethod.IsotopeLabelTypeName))
+            if (normalizationMethod is NormalizationMethod.RatioToLabel)
             {
                 return numerator/denominator;
             }
@@ -263,6 +364,45 @@ namespace pwiz.Skyline.Model.GroupComparison
             }
             public double Intensity { get; private set; }
             public double Denominator { get; private set; }
+        }
+
+        public static double? GetArea(bool treatMissingAsZero, double? qValueCutoff, TransitionGroupDocNode transitionGroup,
+            TransitionDocNode transition, int replicateIndex, TransitionChromInfo chromInfo)
+        {
+            if (treatMissingAsZero && chromInfo.IsEmpty)
+            {
+                return 0;
+            }
+            if (chromInfo.IsEmpty || chromInfo.IsTruncated.GetValueOrDefault())
+            {
+                return null;
+            }
+            if (qValueCutoff.HasValue)
+            {
+                TransitionGroupChromInfo transitionGroupChromInfo = FindTransitionGroupChromInfo(transitionGroup,
+                    replicateIndex, chromInfo.FileId);
+                if (transitionGroupChromInfo != null && transitionGroupChromInfo.QValue > qValueCutoff.Value)
+                {
+                    return treatMissingAsZero ? 0 : default(double?);
+                }
+            }
+            return chromInfo.Area;
+        }
+
+        private static TransitionGroupChromInfo FindTransitionGroupChromInfo(TransitionGroupDocNode transitionGroup,
+            int replicateIndex, ChromFileInfoId chromFileInfoId)
+        {
+            if (transitionGroup.Results == null || transitionGroup.Results.Count <= replicateIndex)
+            {
+                return null;
+            }
+            var chromInfoList = transitionGroup.Results[replicateIndex];
+            if (chromInfoList.IsEmpty)
+            {
+                return null;
+            }
+            return chromInfoList.FirstOrDefault(
+                chromInfo => chromInfo != null && ReferenceEquals(chromInfo.FileId, chromFileInfoId));
         }
     }
 }

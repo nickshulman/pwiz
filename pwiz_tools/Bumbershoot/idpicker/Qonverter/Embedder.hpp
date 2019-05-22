@@ -32,8 +32,8 @@
 #include <map>
 #include "pwiz/utility/misc/IterationListener.hpp"
 #include "pwiz/utility/chemistry/MZTolerance.hpp"
+#include "pwiz/utility/misc/Filesystem.hpp"
 #include <boost/date_time.hpp>
-#include <boost/filesystem/path.hpp>
 #include <boost/shared_ptr.hpp>
 #include <boost/enum.hpp>
 #include "sqlite3pp.h"
@@ -86,11 +86,13 @@ struct QuantitationConfiguration
     QuantitationMethod quantitationMethod;
     MZTolerance reporterIonMzTolerance;
     bool normalizeIntensities;
+
+    operator std::string() const;
 };
 
 
 /// the default source extensions to search for, ordered by descending priority
-extern const string defaultSourceExtensionPriorityList;
+string defaultSourceExtensionPriorityList();
 
 /// search for source files of the idpDB using the given search path, using the default source extensions,
 /// and embed a MZ5 representation of the source's spectra in the MSDataBytes column of the idpDB
@@ -121,6 +123,12 @@ void embedScanTime(const string& idpDbFilepath,
                    const string& sourceExtensionPriorityList,
                    const map<int, QuantitationConfiguration>& quantitationMethodBySource = map<int, QuantitationConfiguration>(),
                    pwiz::util::IterationListenerRegistry* ilr = 0);
+
+/// adds a mapping of source group to sample names; the sample names are in ascending order of isobaric quantitation channel reporter ion mass
+void embedIsobaricSampleMapping(const string& idpDbFilepath, const map<string, vector<string> >& isobaricSampleMap);
+
+/// retrieves the mapping of source group to sample names; the sample names are in ascending order of isobaric quantitation channel reporter ion mass
+map<string, vector<string> > getIsobaricSampleMapping(const string& idpDbFilepath);
 
 /// checks whether the given idpDB has embedded gene metadata (although it may not necessarily be the most up-to-date)
 bool hasGeneMetadata(const string& idpDbFilepath);

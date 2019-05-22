@@ -49,6 +49,14 @@ namespace pwiz.Skyline.Model.Proteome
             set { _fastaImporter = value; }  // Tests may override with an object that simulates web access, bad web access, etc
         }
 
+        public override void ClearCache()
+        {
+            lock (_processedNodes)
+            {
+                _processedNodes.Clear();
+            }
+        }
+
         protected override bool StateChanged(SrmDocument document, SrmDocument previous)
         {
             // We're interested if the document has unresolved protein metadata.
@@ -70,8 +78,8 @@ namespace pwiz.Skyline.Model.Proteome
         private static string IsNotLoadedExplainedHelper(SrmDocument document)
         {
             if (document == null)
-                return "no document"; // Not L10N
-            return !document.IsProteinMetadataPending ? null : "ProteinMetadataManager: document.IsProteinMetadataPending"; // Not L10N
+                return @"no document";
+            return !document.IsProteinMetadataPending ? null : @"ProteinMetadataManager: document.IsProteinMetadataPending";
         }
 
         public static bool IsLoadedDocument(SrmDocument document)
@@ -101,9 +109,12 @@ namespace pwiz.Skyline.Model.Proteome
         protected override bool LoadBackground(IDocumentContainer container, SrmDocument document,
             SrmDocument docCurrent)
         {
-            if (!FastaImporter.HasWebAccess()) // Do we even have web access?
-                return false; // Return silently rather than flashing the progress bar
 
+            if (!FastaImporter.HasWebAccess()) // Do we even have web access?
+            {
+                EndProcessing(container.Document);
+                return false; // Return silently rather than flashing the progress bar
+            }
             SrmDocument docNew, docOrig;
             do
             {
@@ -132,7 +143,7 @@ namespace pwiz.Skyline.Model.Proteome
                 if (progressMonitor.IsCanceled)
                     return null;
 
-                var progressStatus = new ProgressStatus(Resources.ProteinMetadataManager_LookupProteinMetadata_resolving_protein_details);
+                IProgressStatus progressStatus = new ProgressStatus(Resources.ProteinMetadataManager_LookupProteinMetadata_resolving_protein_details);
                 int nResolved = 0;
                 int nUnresolved = docOrig.PeptideGroups.Select(pg => pg.ProteinMetadata.NeedsSearch()).Count();
 
@@ -188,8 +199,8 @@ namespace pwiz.Skyline.Model.Proteome
                     try
                     {
                         // Now go to the web for more protein metadata (or pretend to, depending on WebEnabledFastaImporter.DefaultWebAccessMode)
-                        var docNodesWithUnresolvedProteinMetadata = new Dictionary<DbProteinName,PeptideGroupDocNode>(); 
-                        var proteinsToSearch = new List<DbProteinName>(); // DbProteinName is a convenient container for immutable ProteinMetadata objects
+                        var docNodesWithUnresolvedProteinMetadata = new Dictionary<ProteinSearchInfo,PeptideGroupDocNode>(); 
+                        var proteinsToSearch = new List<ProteinSearchInfo>(); 
                         foreach (PeptideGroupDocNode node in docOrig.PeptideGroups)
                         {
                             if (node.ProteinMetadata.NeedsSearch() && !_processedNodes.ContainsKey(node.Id.GlobalIndex)) // Did we already process this?
@@ -203,6 +214,11 @@ namespace pwiz.Skyline.Model.Proteome
                                     {
                                         // That didn't parse well enough to make a search term, or didn't add any new info - just set it as searched so we don't keep trying
                                         _processedNodes.Add(node.Id.GlobalIndex, proteinMetadata.SetWebSearchCompleted());
+                                        if (progressMonitor.IsCanceled)
+                                        {
+                                            progressMonitor.UpdateProgress(progressStatus.Cancel());
+                                            return null;
+                                        }
                                         progressMonitor.UpdateProgress(progressStatus = progressStatus.ChangePercentComplete(100 * nResolved++ / nUnresolved));
                                         proteinMetadata = null;  // No search to be done
                                     }
@@ -213,7 +229,9 @@ namespace pwiz.Skyline.Model.Proteome
                                 }
                                 if (proteinMetadata != null)
                                 {
-                                    proteinsToSearch.Add(new DbProteinName(null, proteinMetadata)); // DbProteinName is just a convenient container for metadata
+                                    // We note the sequence length because it's useful in disambiguating search results
+                                    proteinsToSearch.Add(new ProteinSearchInfo(new DbProteinName(null, proteinMetadata), 
+                                        node.PeptideGroup.Sequence == null ? 0 : node.PeptideGroup.Sequence.Length)); 
                                     docNodesWithUnresolvedProteinMetadata.Add(proteinsToSearch.Last(), node);
                                 }
                             }
@@ -232,6 +250,11 @@ namespace pwiz.Skyline.Model.Proteome
                             {
                                 Debug.Assert(!result.GetProteinMetadata().NeedsSearch());
                                 _processedNodes.Add(docNodesWithUnresolvedProteinMetadata[result].Id.GlobalIndex, result.GetProteinMetadata());
+                                if (progressMonitor.IsCanceled)
+                                {
+                                    progressMonitor.UpdateProgress(progressStatus.Cancel());
+                                    return null;
+                                }
                                 progressMonitor.UpdateProgress(progressStatus = progressStatus.ChangePercentComplete(100 * nResolved++ / nUnresolved));
                             }
                         }                        
@@ -281,6 +304,63 @@ namespace pwiz.Skyline.Model.Proteome
                     }
                 }
             }
+        }
+
+        /// <summary>
+        /// helpful for the many places where user might prefer to think of a protein
+        /// in terms of something other than its name
+        /// </summary>
+        public enum ProteinDisplayMode
+        {
+            ByName,
+            ByAccession,
+            ByPreferredName,
+            ByGene
+        };
+
+        public static ProteinDisplayMode ProteinsDisplayMode(string displayProteinsMode)
+        {
+            return Helpers.ParseEnum(displayProteinsMode, ProteinDisplayMode.ByName);
+        }
+
+        public static string ProteinModalDisplayText(ProteinMetadata metadata, string displayProteinsMode)
+        {
+            return ProteinModalDisplayText(metadata, ProteinsDisplayMode(displayProteinsMode));
+        }
+
+        public static string ProteinModalDisplayText(PeptideGroupDocNode node)
+        {
+            return ProteinModalDisplayText(node.ProteinMetadata, Settings.Default.ShowPeptidesDisplayMode);
+        }
+
+        public static string ProteinModalDisplayText(ProteinMetadata metadata, ProteinDisplayMode displayProteinsMode)
+        {
+            switch (displayProteinsMode)
+            {
+                case ProteinDisplayMode.ByAccession:
+                case ProteinDisplayMode.ByPreferredName:
+                case ProteinDisplayMode.ByGene:
+                    break;
+                default:
+                    return metadata.Name;
+            }
+
+            // If the desired field is not populated because it's not yet searched, say so
+            if (metadata.NeedsSearch())
+                return Resources.ProteinMetadataManager_LookupProteinMetadata_resolving_protein_details;
+
+            // If the desired field is not populated, return something like "<name: YAL01234>"
+            var failsafe = String.Format(Resources.PeptideGroupTreeNode_ProteinModalDisplayText__name___0__, metadata.Name);
+            switch (displayProteinsMode)
+            {
+                case ProteinDisplayMode.ByAccession:
+                    return metadata.Accession ?? failsafe;
+                case ProteinDisplayMode.ByPreferredName:
+                    return metadata.PreferredName ?? failsafe;
+                case ProteinDisplayMode.ByGene:
+                    return metadata.Gene ?? failsafe;
+            }
+            return failsafe;
         }
     }
 }

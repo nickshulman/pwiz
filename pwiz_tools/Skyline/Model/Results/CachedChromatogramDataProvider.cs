@@ -16,9 +16,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
+using pwiz.Common.Chemistry;
 using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Util;
 
@@ -27,7 +30,7 @@ namespace pwiz.Skyline.Model.Results
     internal class CachedChromatogramDataProvider : ChromDataProvider
     {
         private ChromatogramCache _cache;
-        private int _fileIndex;
+        private readonly int _fileIndex;
         private ChromKeyIndices[] _chromKeyIndices;
 
         private ChromKeyIndices _lastIndices;
@@ -38,20 +41,44 @@ namespace pwiz.Skyline.Model.Results
         private readonly float? _maxRetentionTime;
         private readonly float? _maxIntensity;
 
+        private readonly bool _sourceHasPositivePolarityData;
+        private readonly bool _sourceHasNegativePolarityData;
+
+        /// <summary>
+        /// The number of chromatograms read so far.
+        /// </summary>
+        private int _readChromatograms;
+
         public CachedChromatogramDataProvider(ChromatogramCache cache,
                                               SrmDocument document,
                                               MsDataFileUri dataFilePath,
                                               ChromFileInfo fileInfo,
                                               bool? singleMatchMz,
-                                              ProgressStatus status,
+                                              IProgressStatus status,
                                               int startPercent,
                                               int endPercent,
                                               ILoadMonitor loader)
             : base(fileInfo, status, startPercent, endPercent, loader)
         {
-            _cache = cache;
+            // Deal with older cache formats where we did not record chromatogram polarity
+            var assumeNegativeChargesInPreV11Caches = document.MoleculeTransitionGroups.All(p => p.PrecursorMz.IsNegative);
+
+            // Need a newly loaded copy to allow for concurrent loading for multiple cached files
+            _cache = ChromatogramCache.Load(cache.CachePath, new ProgressStatus(), loader, assumeNegativeChargesInPreV11Caches);
+
             _fileIndex = cache.CachedFiles.IndexOf(f => Equals(f.FilePath, dataFilePath));
             _chromKeyIndices = cache.GetChromKeys(dataFilePath).OrderBy(v => v.LocationPoints).ToArray();
+            foreach (var c in _chromKeyIndices.Where(i => i.Key.Precursor != 0))
+            {
+                if (c.Key.Precursor.IsNegative)
+                {
+                    _sourceHasNegativePolarityData = true;
+                }
+                else
+                {
+                    _sourceHasPositivePolarityData = true;
+                }
+            }
             _cache.GetStatusDimensions(dataFilePath, out _maxRetentionTime, out _maxIntensity);
             _singleMatchMz = singleMatchMz.HasValue
                                  ? singleMatchMz.Value
@@ -61,14 +88,14 @@ namespace pwiz.Skyline.Model.Results
                                  : document.Settings.TransitionSettings.FullScan.IsEnabled;
         }
 
-        public override IEnumerable<KeyValuePair<ChromKey, int>> ChromIds
+        public override IEnumerable<ChromKeyProviderIdPair> ChromIds
         {
-            get { return _chromKeyIndices.Select((v, i) => new KeyValuePair<ChromKey, int>(v.Key, i)); }
+            get { return _chromKeyIndices.Select((v, i) => new ChromKeyProviderIdPair(v.Key, i)); }
         }
 
-        public override bool GetChromatogram(
-            int id, string modifiedSequence, Color peptideColor,
-            out ChromExtra extra, out float[] times, out int[] scanIndexes, out float[] intensities, out float[] massErrors)
+        public override eIonMobilityUnits IonMobilityUnits { get { return _cache != null ? _cache.CachedFiles[_fileIndex].IonMobilityUnits : eIonMobilityUnits.none; } }
+
+        public override bool GetChromatogram(int id, Target modifiedSequence, Color peptideColor, out ChromExtra extra, out TimeIntensities timeIntensities)
         {
             var chromKeyIndices = _chromKeyIndices[id];
             if (_lastChromGroupInfo == null || _lastIndices.GroupIndex != chromKeyIndices.GroupIndex)
@@ -78,29 +105,27 @@ namespace pwiz.Skyline.Model.Results
             }
             _lastIndices = chromKeyIndices;
             var tranInfo = _lastChromGroupInfo.GetTransitionInfo(chromKeyIndices.TranIndex);
-            times = tranInfo.Times;
-            intensities = tranInfo.Intensities;
-            massErrors = null;
-            if (tranInfo.MassError10Xs != null)
-                massErrors = tranInfo.MassError10Xs.Select(m => m/10.0f).ToArray();
-            scanIndexes = null;
-            if (tranInfo.ScanIndexes != null)
-                scanIndexes = tranInfo.ScanIndexes[(int) chromKeyIndices.Key.Source];
+            timeIntensities = tranInfo.TimeIntensities;
 
-            SetPercentComplete(100 * id / _chromKeyIndices.Length);
+            // Assume that each chromatogram will be read once, though this may
+            // not always be completely true.
+            _readChromatograms++;
+
+            // But avoid reaching 100% before reading is actually complete
+            SetPercentComplete(Math.Min(99, 100 * _readChromatograms / _chromKeyIndices.Length));
 
             extra = new ChromExtra(chromKeyIndices.StatusId, chromKeyIndices.StatusRank);
 
             // Display in AllChromatogramsGraph
-            if (chromKeyIndices.Key.Precursor != 0)
+            if (chromKeyIndices.Key.Precursor != 0 && Status is ChromatogramLoadingStatus)
             {
-                LoadingStatus.Transitions.AddTransition(
+                ((ChromatogramLoadingStatus)Status).Transitions.AddTransition(
                     modifiedSequence,
                     peptideColor,
                     chromKeyIndices.StatusId,
                     chromKeyIndices.StatusRank,
-                    times,
-                    intensities);
+                    timeIntensities.Times,
+                    timeIntensities.Intensities);
             }
             return true;
         }
@@ -122,6 +147,16 @@ namespace pwiz.Skyline.Model.Results
         public override bool IsSingleMzMatch
         {
             get { return _singleMatchMz; }
+        }
+
+        public override bool SourceHasPositivePolarityData
+        {
+            get { return _sourceHasPositivePolarityData; } 
+        }
+
+        public override bool SourceHasNegativePolarityData
+        {
+            get { return _sourceHasNegativePolarityData; }
         }
 
         public override void ReleaseMemory()

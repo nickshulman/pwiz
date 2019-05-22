@@ -71,7 +71,6 @@ namespace pwiz.SkylineTestFunctional
                 buildLibraryDlg.LibraryPath = libraryPath;
                 buildLibraryDlg.LibraryKeepRedundant = true;
                 buildLibraryDlg.LibraryBuildAction = LibraryBuildAction.Create;
-                buildLibraryDlg.LibraryAuthority = "proteomics.fhcrc.org";
                 buildLibraryDlg.OkWizardPage();
                 buildLibraryDlg.AddInputFiles(new [] { pepXmlPath });
             });
@@ -112,9 +111,9 @@ namespace pwiz.SkylineTestFunctional
 
             // Add all but 2 of the peptides in the library to the document
             var libraryExplorer = ShowDialog<ViewLibraryDlg>(SkylineWindow.ViewSpectralLibraries);
-            var matchedPepsDlg = WaitForOpenForm<MultiButtonMsgDlg>();
-            RunUI(matchedPepsDlg.BtnCancelClick);
-            WaitForClosedForm<MultiButtonMsgDlg>(); // Wait for cancellation to take effect
+            var matchedPepsDlg = WaitForOpenForm<AddModificationsDlg>();
+            RunUI(matchedPepsDlg.CancelDialog);
+            WaitForClosedForm<AddModificationsDlg>(); // Wait for cancellation to take effect
             var filterMatchedPeptidesDlg = ShowDialog<FilterMatchedPeptidesDlg>(libraryExplorer.AddAllPeptides);
             RunDlg<MultiButtonMsgDlg>(filterMatchedPeptidesDlg.OkDialog, addLibraryPepsDlg =>
             {
@@ -129,7 +128,7 @@ namespace pwiz.SkylineTestFunctional
             // Switch to full-scan filtering of precursors in MS1
             RunDlg<TransitionSettingsUI>(SkylineWindow.ShowTransitionSettingsUI, transitionSettingsUI =>
             {
-                transitionSettingsUI.FragmentTypes = "p";
+                transitionSettingsUI.FragmentTypes = ""; // Set this empty to verify that we automatically set it to "p" due to MS1 fullscan settings enabled 
                 transitionSettingsUI.PrecursorCharges = "2, 3";
                 transitionSettingsUI.UseLibraryPick = false;
                 transitionSettingsUI.PrecursorIsotopesCurrent = FullScanPrecursorIsotopes.Count;

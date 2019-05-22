@@ -34,9 +34,10 @@ templatePath = sys.argv[1]
 buildPath = sys.argv[2]
 installPath = sys.argv[3]
 version = sys.argv[4]
+numericVersion = sys.argv[5]
 
 installerSuffix = "-x86"
-if sys.argv[5] == "64":
+if sys.argv[6] == "64":
     installerSuffix = "-x86_64"
 
 # a unique ProductGuid every time allows multiple parallel installations of pwiz
@@ -65,24 +66,28 @@ def contextMenuRegistries() :
     <Component Feature="MainFeature">\n \
        <Condition>INSTALL_MY_APPU_MENU</Condition>\n \
        <RegistryValue Root="HKCR" Key="*\shell\__MY_APP__\command" Value="&quot;__MY_PATH__&quot; &quot;%1&quot;" Type="string"/>\n \
-       <RegistryKey Root="HKCR" Key="*\shell\__MY_APP__\command" Action="createAndRemoveOnUninstall" />\n \
+       <RegistryKey Root="HKCR" Key="*\shell\__MY_APP__\command" />\n \
        <RegistryValue Root="HKCR" Key="Directory\shell\__MY_APP__\command" Value="&quot;__MY_PATH__&quot; &quot;%1&quot;" Type="string"/>\n \
-       <RegistryKey Root="HKCR" Key="Directory\shell\__MY_APP__\command"  Action="createAndRemoveOnUninstall" />\n \
+       <RegistryKey Root="HKCR" Key="Directory\shell\__MY_APP__\command" />\n \
     </Component>\n '
     registries = ""
     for appName in appNames :
         txt = componentText.replace("_MY_APPU_",appName.upper())
         txt = txt.replace("__MY_APP__","Open with "+appName)
-        txt = txt.replace("__MY_PATH__","[APPLICATIONROOTDIRECTORY]"+appName+".exe")
+        txt = txt.replace("__MY_PATH__","[APPLICATIONFOLDER]"+appName+".exe")
         registries = registries + txt
     return registries
 
 wxsTemplate = open(templatePath + "/pwiz-setup.wxs.template").read()
+wxsVendorDlls = open(templatePath + "/vendor-dlls.wxs-fragment").read()
+
+wxsTemplate = wxsTemplate.replace("__VENDOR_DLLS__", wxsVendorDlls)
 wxsTemplate = wxsTemplate.replace("__CONTEXTMENU_PROPERTIES__",contextMenuProperties())
 wxsTemplate = wxsTemplate.replace("__CONTEXTMENU_REGISTRY__",contextMenuRegistries())
 wxsTemplate = wxsTemplate.replace("__CONTEXTMENU_CHECKBOXEN__",contextMenuOptions())
 wxsTemplate = wxsTemplate.replace("{ProductGuid}", guid)
 wxsTemplate = wxsTemplate.replace("{version}", version)
+wxsTemplate = wxsTemplate.replace("{numeric-version}", numericVersion)
 wxsTemplate = wxsTemplate.replace("msvc-release", installPath)
 
 # delete old wxs and wixObj files

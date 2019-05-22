@@ -24,7 +24,6 @@ using System.IO;
 using System.Windows.Forms;
 using pwiz.Common.DataBinding;
 using pwiz.Common.DataBinding.Controls.Editor;
-using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Model;
 using pwiz.Skyline.Model.Databinding;
 using pwiz.Skyline.Properties;
@@ -124,7 +123,7 @@ namespace pwiz.Skyline.Controls.Databinding
             {
                 return viewContext.Export(this, viewInfo);
             }
-            return viewContext.ExportToFile(this, viewInfo, filename, new DsvWriter(InvariantLanguage ? CultureInfo.InvariantCulture : LocalizationHelper.CurrentCulture, separator));
+            return viewContext.ExportToFile(this, viewInfo, filename, viewContext.GetDsvWriter(separator));
         }
 
         private void Repopulate()
@@ -173,10 +172,16 @@ namespace pwiz.Skyline.Controls.Databinding
 
         private SkylineViewContext GetViewContext(bool clone)
         {
-            var dataSchema = new SkylineDataSchema(_documentUiContainer, GetDataSchemaLocalizer());
+            SkylineDataSchema dataSchema;
             if (clone)
             {
-                dataSchema = dataSchema.Clone();
+                var documentContainer = new MemoryDocumentContainer();
+                documentContainer.SetDocument(_documentUiContainer.DocumentUI, documentContainer.Document);
+                dataSchema = new SkylineDataSchema(documentContainer, GetDataSchemaLocalizer());
+            }
+            else
+            {
+                dataSchema = new SkylineDataSchema(_documentUiContainer, GetDataSchemaLocalizer());
             }
             return new DocumentGridViewContext(dataSchema) {EnablePreview = true};
         }
@@ -207,10 +212,10 @@ namespace pwiz.Skyline.Controls.Databinding
             var viewInfo = viewContext.GetViewInfo(SelectedViewName);
             var form = new DocumentGridForm(viewContext)
             {
-                ViewInfo = viewInfo,
                 Text = Resources.ExportLiveReportDlg_ShowPreview_Preview__ + viewInfo.Name,
                 ShowViewsMenu = false,
             };
+            form.BindingListSource.SetViewContext(viewContext, viewInfo);
             form.Show(Owner);
         }
 
@@ -274,8 +279,9 @@ namespace pwiz.Skyline.Controls.Databinding
 
         private void treeView1_BeforeSelect(object sender, TreeViewCancelEventArgs e)
         {
-            if (null == e.Node.Parent)
+            if (e.Node != null && null == e.Node.Parent)
             {
+                // Prevent the root elements of the tree from being selected
                 e.Cancel = true;
             }
         }
@@ -283,6 +289,12 @@ namespace pwiz.Skyline.Controls.Databinding
         private void treeView1_AfterSelect(object sender, TreeViewEventArgs e)
         {
             UpdateButtons();
+        }
+
+        private void treeView1_DoubleClick(object sender, EventArgs e)
+        {
+            // Export the selected report
+            OkDialog();
         }
     }
 }

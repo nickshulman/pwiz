@@ -17,8 +17,10 @@
  * limitations under the License.
  */
 
+using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Xml;
 using System.Xml.Serialization;
 using pwiz.Common.Collections;
@@ -28,21 +30,21 @@ using pwiz.Skyline.Util;
 
 namespace pwiz.Skyline.Model.Results.Scoring
 {
-    [XmlRoot("legacy_peak_scoring_model")] // Not L10N
+    [XmlRoot(@"legacy_peak_scoring_model")]
     public class LegacyScoringModel : PeakScoringModelSpec
     {
-        public static readonly string DEFAULT_NAME = Resources.LegacyScoringModel_DEFAULT_NAME_Default;
+        public static string DEFAULT_NAME { get { return Resources.LegacyScoringModel_DEFAULT_NAME_Default; } } 
 
         public static readonly double[] DEFAULT_WEIGHTS = {W0, W1, W2, W3, W4, W5, W6};
 
         public static LinearModelParams DEFAULT_PARAMS { get { return new LinearModelParams(DEFAULT_WEIGHTS); } }
 
-        public static LegacyScoringModel DEFAULT_MODEL { get; private set; }
+        public static readonly LegacyScoringModel DEFAULT_MODEL = new DefaultScoringModel();
 
-        static LegacyScoringModel()
-        {
-            DEFAULT_MODEL =  new LegacyScoringModel(DEFAULT_NAME, DEFAULT_PARAMS);
-        }
+        // Special placeholder model to use as the default.  It's "untrained", so it will never be persisted, but when
+        // it needs to be used, "DEFAULT_MODEL" gets used instead.
+        public static readonly LegacyScoringModel DEFAULT_UNTRAINED_MODEL 
+            = new LegacyScoringModel(DEFAULT_NAME);
 
         // Weighting coefficients.
         private const double W0 = 1.0;  // Log intensity
@@ -118,8 +120,8 @@ namespace pwiz.Skyline.Model.Results.Scoring
             new MQuestRetentionTimePredictionCalc(),
         };
 
-        public override IPeakScoringModel Train(IList<IList<float[]>> targets, IList<IList<float[]>> decoys, LinearModelParams initParameters,
-            bool includeSecondBest = false, bool preTrain = true, IProgressMonitor progressMonitor = null)
+        public override IPeakScoringModel Train(IList<IList<float[]>> targets, IList<IList<float[]>> decoys, TargetDecoyGenerator targetDecoyGenerator, LinearModelParams initParameters,
+            int? iterations = null, bool includeSecondBest = false, bool preTrain = true, IProgressMonitor progressMonitor = null, string documentPath = null)
         {
             return ChangeProp(ImClone(this), im =>
             {
@@ -130,8 +132,8 @@ namespace pwiz.Skyline.Model.Results.Scoring
                         weights[i] = double.IsNaN(initParameters.Weights[i]) ? double.NaN : DEFAULT_WEIGHTS[i];
                     }
                     var parameters = new LinearModelParams(weights);
-                    ScoredGroupPeaksSet decoyTransitionGroups = new ScoredGroupPeaksSet(decoys);
-                    ScoredGroupPeaksSet targetTransitionGroups = new ScoredGroupPeaksSet(targets);
+                    ScoredGroupPeaksSet decoyTransitionGroups = new ScoredGroupPeaksSet(decoys, decoys.Count);
+                    ScoredGroupPeaksSet targetTransitionGroups = new ScoredGroupPeaksSet(targets, targets.Count);
                     targetTransitionGroups.ScorePeaks(parameters.Weights);
 
                     if (includeSecondBest)
@@ -147,7 +149,8 @@ namespace pwiz.Skyline.Model.Results.Scoring
                     im.UsesDecoys = decoys.Count > 0;
                     im.UsesSecondBest = includeSecondBest;
                     im.Parameters = parameters.RescaleParameters(decoyTransitionGroups.Mean, decoyTransitionGroups.Stdev);
-                });
+                    im.Parameters = im.Parameters.CalculatePercentContributions(im, targetDecoyGenerator);
+            });
         }
 
         #region object overrides
@@ -246,5 +249,42 @@ namespace pwiz.Skyline.Model.Results.Scoring
         }
 
         #endregion
+
+        /// <summary>
+        /// Special type of scoring model which is tolerant of missing features.
+        /// This is the scoring model which gets used by PeptideChromDataPeakList.ScorePeptideSets.
+        /// If any features are missing (NaN), they get replaced with zero before scoring.
+        /// </summary>
+        private class DefaultScoringModel : LegacyScoringModel
+        {
+            public DefaultScoringModel() : base(DEFAULT_NAME, DEFAULT_PARAMS)
+            {
+            }
+
+            public override double Score(IList<float> features)
+            {
+                if (features.Any(float.IsNaN))
+                {
+                    // Replace any NaN's with 0 so that we behave the same as PeptideChromDataPeakList.ScorePeptideSets
+                    features = features.Select(feature => float.IsNaN(feature) ? 0 : feature).ToArray();
+                }
+                return base.Score(features);
+            }
+
+            public override string ScoreText(IList<float> features)
+            {
+                if (features.Any(float.IsNaN))
+                {
+                    // Replace any NaN's with 0 so that we behave the same as PeptideChromDataPeakList.ScorePeptideSets
+                    features = features.Select(feature => float.IsNaN(feature) ? 0 : feature).ToArray();
+                }
+                return base.ScoreText(features);
+            }
+
+            public override void WriteXml(XmlWriter writer)
+            {
+                throw new InvalidOperationException();
+            }
+        }
     }
 }

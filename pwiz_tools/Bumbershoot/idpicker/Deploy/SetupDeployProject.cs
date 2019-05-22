@@ -37,9 +37,9 @@ namespace SetupDeployProject
     {
         static int Main(string[] args)
         {
-            if (args.Length != 4)
+            if (args.Length != 5)
             {
-                Console.Error.WriteLine("Usage: SetupDeployProject <template path> <install path> <version string> <address-model>");
+                Console.Error.WriteLine("Usage: SetupDeployProject <template path> <install path> <version string> <numeric version string> <address-model>");
                 return 1;
             }
 
@@ -49,11 +49,16 @@ namespace SetupDeployProject
             string installPath = args[1];
             string buildPath = Path.Combine(installPath, "..");
             string version = args[2];
-            string addressModel = args[3];
+            string numericVersion = args[3];
+            string addressModel = args[4];
             string installerSuffix = addressModel == "64" ? "-x86_64" : "-x86";
+
+            var wxsVendorDlls = File.ReadAllText(installPath + "/../../scripts/wix/vendor-dlls.wxs-fragment");
+            wxsTemplate.Replace("__VENDOR_DLLS__", wxsVendorDlls);
 
             wxsTemplate.Replace("{ProductGuid}", guid);
             wxsTemplate.Replace("{version}", version);
+            wxsTemplate.Replace("{numeric-version}", numericVersion);
             wxsTemplate.Replace("msvc-release", installPath);
 
             var httpSources = Regex.Matches(wxsTemplate.ToString(), "Name=\"(.*)\" Source=\"(http://.*?)\"");

@@ -17,16 +17,17 @@ def get_pwizroot() :
 # we want to deal in straight up code that could be found on any platform - don't pull in libgd etc
 # also avoid any non-apache code like RAMP (LGPL) and vendor-supplied headers
 forbidden=set(["bindings","mz5","Image.cpp","COM",".svn","automation_vector","MascotReaderTest","Reader_UIMF_Test","Reader_Shimadzu_Test","Pseudo2DGel","pwiz_tools\\commandline","pwiz_tools\\BiblioSpec","\\utility\\misc\\sha1calc.cpp","RegionAnalyzerTest","msbenchmark","data\\msdata\\ramp","hello_ramp","pwiz_aux","RAMPAdapter","MascotReader.cpp","Reader_Agilent_Detail","Reader_ABI_T2D_Detail"])
-excepted=set(["pwiz_tools\\commandline\\msconvert","pwiz_tools\\commandline\\idconvert","pwiz_tools\\commandline\\pepcat","\\Version.","ExtendedReaderList"])
-welcomeIncludes=set(["pwiz\\pwiz","pwiz\\data","libraries\\zlib","libraries\\libsvm","libraries\\boost_aux","findmf"])
-welcomeSrcDirs=set(["pwiz\\data","pwiz\\analysis","pwiz\\utility","pwiz_tools\\examples\\","pwiz_tools\\common\\","libraries\\libsvm"])
+excepted=set(["pwiz_tools\\commandline\\msconvert","pwiz_tools\\commandline\\idconvert","pwiz_tools\\commandline\\pepcat","\\Version.","ExtendedReaderList","Eigen"])
+welcomeIncludes=set(["pwiz\\pwiz","pwiz\\data","libraries\\zlib","libraries\\libsvm","libraries\\boost_aux","libraries\\Eigen","libraries\\CSpline","findmf"])
+welcomeSrcDirs=set(["pwiz\\data","pwiz\\analysis","pwiz\\utility","pwiz_tools\\examples\\","pwiz_tools\\common\\","libraries\\libsvm","libraries\\Eigen","libraries\\CSpline"])
 
 # include the whole boost_aux tree, and others with depth but no -I reference
-complicatedTrees = ["boost_aux"]
+complicatedTrees = ["boost_aux","Eigen","CSpline"]
 subtleIncludes = ["pwiz_aux","pwiz/utility/findmf"]
 
-# boost aux source files we need to compile
+# boost aux source files we need to compile, and any other odd bits
 boostAuxSources = ["libraries/boost_aux/libs/nowide/src/iostream.cpp"]
+explicitIncludes = ["libraries/doctest.h"]
 
 
 def contains_none(line,badwords) :
@@ -44,14 +45,14 @@ def contains_any(line,goodwords) :
 
 def isWelcomeSrcDir(str) :
     s = str.replace("/","\\")
-    return contains_any(s,welcomeSrcDirs) or contains_any(s,welcomeIncludes) or contains_any(s,excepted)
+    return contains_any(s,welcomeSrcDirs) or contains_any(s,welcomeIncludes) or contains_any(s,excepted) or contains_any(s, explicitIncludes)
 
 def isWelcomeInclude(str) :
-    return contains_any(str.replace("/","\\"),welcomeIncludes) 
+    return contains_any(str.replace("/","\\"),welcomeIncludes)  or contains_any(str.replace("/","\\"), explicitIncludes)
 
 def isNotForbidden(str) :
     s = str.replace("/","\\")
-    return contains_none(s,forbidden) or contains_any(s,excepted)
+    return contains_none(s,forbidden) or contains_any(s,excepted) or contains_any(s, explicitIncludes)
 
 def isSrcFile(filestr) :
     file = filestr.replace("/","\\")
@@ -63,7 +64,7 @@ def isSrcFile(filestr) :
                 return True
         if ("\\common\\" in file) :
             return True
-        if contains_any(file,welcomeSrcDirs) or contains_any(file,excepted) :
+        if contains_any(file,welcomeSrcDirs) or contains_any(file,excepted) or contains_any(file, explicitIncludes):
             return True
     return False
 

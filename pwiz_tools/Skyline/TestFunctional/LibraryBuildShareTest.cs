@@ -18,6 +18,7 @@
  */
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using pwiz.Skyline.Model;
 using pwiz.Skyline.Model.Lib;
 using pwiz.Skyline.SettingsUI;
 using pwiz.SkylineTestUtil;
@@ -47,7 +48,6 @@ namespace pwiz.SkylineTestFunctional
             {
                 buildLibraryDlg.LibraryName = libraryName;
                 buildLibraryDlg.LibraryPath = TestFilesDir.GetTestPath("LibraryPath.blib");
-                buildLibraryDlg.LibraryAuthority = "test.example.com";
                 buildLibraryDlg.LibraryKeepRedundant = true;
                 buildLibraryDlg.OkWizardPage();
                 buildLibraryDlg.AddInputFiles(new[] { TestFilesDir.GetTestPath("modless.pride.xml") });
@@ -64,7 +64,7 @@ namespace pwiz.SkylineTestFunctional
             {
                 SkylineWindow.ImportFastaFile(TestFilesDir.GetTestPath("OneProtein.fasta"));
                 SkylineWindow.SaveDocument(TestFilesDir.GetTestPath("BeforeMinimize.sky"));
-                SkylineWindow.ShareDocument(minimizedZipFile, false);
+                SkylineWindow.ShareDocument(minimizedZipFile, ShareType.MINIMAL);
                 SkylineWindow.OpenSharedFile(minimizedZipFile);
             });
             WaitForDocumentLoaded();

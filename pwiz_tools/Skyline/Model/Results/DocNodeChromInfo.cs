@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Original author: Brendan MacLean <brendanx .at. u.washington.edu>,
  *                  MacCoss Lab, Department of Genome Sciences, UW
  *
@@ -17,13 +17,16 @@
  * limitations under the License.
  */
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using pwiz.Common.Chemistry;
 using pwiz.Common.Collections;
 using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.Results.Scoring;
+using pwiz.Skyline.Model.Serialization;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
 
@@ -54,6 +57,13 @@ namespace pwiz.Skyline.Model.Results
             private set { _labelRatios = value as ImmutableList<PeptideLabelRatio> ?? MakeReadOnly(value); }
         }
 
+        public bool ExcludeFromCalibration { get; private set; }
+
+        public PeptideChromInfo ChangeExcludeFromCalibration(bool exclude)
+        {
+            return ChangeProp(ImClone(this), im => im.ExcludeFromCalibration = exclude);
+        }
+
         #region object overrides
 
         public bool Equals(PeptideChromInfo other)
@@ -63,6 +73,7 @@ namespace pwiz.Skyline.Model.Results
             return base.Equals(other) &&
                    other.PeakCountRatio == PeakCountRatio &&
                    other.RetentionTime.Equals(RetentionTime) &&
+                   other.ExcludeFromCalibration.Equals(ExcludeFromCalibration) &&
                    ArrayUtil.EqualsDeep(other.LabelRatios, LabelRatios);
         }
 
@@ -80,7 +91,8 @@ namespace pwiz.Skyline.Model.Results
                 int result = base.GetHashCode();
                 result = (result*397) ^ PeakCountRatio.GetHashCode();
                 result = (result*397) ^ (RetentionTime.HasValue ? RetentionTime.Value.GetHashCode() : 0);
-                result = (result*397) ^ LabelRatios.GetHashCodeDeep();
+                result = (result * 397) ^ ExcludeFromCalibration.GetHashCode();
+                result = (result * 397) ^ LabelRatios.GetHashCodeDeep();
                 return result;
             }
         }
@@ -151,7 +163,7 @@ namespace pwiz.Skyline.Model.Results
         public static IList<RatioValue> GetEmptyRatios(int countRatios)
         {
             int i = countRatios - 1;
-            return i <= EMPTY_RATIOS.Length ? EMPTY_RATIOS[i] : new RatioValue[countRatios];
+            return i < EMPTY_RATIOS.Length ? EMPTY_RATIOS[i] : new RatioValue[countRatios];
         }
 
         private ImmutableList<RatioValue> _ratios;
@@ -162,6 +174,7 @@ namespace pwiz.Skyline.Model.Results
                                         float? retentionTime,
                                         float? startTime,
                                         float? endTime,
+                                        TransitionGroupIonMobilityInfo ionMobilityInfo,
                                         float? fwhm,
                                         float? area,
                                         float? areaMs1,
@@ -176,6 +189,8 @@ namespace pwiz.Skyline.Model.Results
                                         PeakIdentification identified,
                                         float? libraryDotProduct,
                                         float? isotopeDotProduct,
+                                        float? qvalue,
+                                        float? zscore,
                                         Annotations annotations,
                                         UserSet userSet)
             : base(fileId)
@@ -185,6 +200,7 @@ namespace pwiz.Skyline.Model.Results
             RetentionTime = retentionTime;
             StartRetentionTime = startTime;
             EndRetentionTime = endTime;
+            IonMobilityInfo = ionMobilityInfo ?? TransitionGroupIonMobilityInfo.EMPTY;
             Fwhm = fwhm;
             Area = area;
             AreaMs1 = areaMs1;
@@ -199,6 +215,8 @@ namespace pwiz.Skyline.Model.Results
             Identified = identified;
             LibraryDotProduct = libraryDotProduct;
             IsotopeDotProduct = isotopeDotProduct;
+            QValue = qvalue;
+            ZScore = zscore;
             Annotations = annotations;
             UserSet = userSet;
         }
@@ -209,6 +227,7 @@ namespace pwiz.Skyline.Model.Results
         public float? RetentionTime { get; private set; }
         public float? StartRetentionTime { get; private set; }
         public float? EndRetentionTime { get; private set; }
+        public TransitionGroupIonMobilityInfo IonMobilityInfo { get; private set; }
         public float? Fwhm { get; private set; }
         public float? Area { get; private set; }
         public float? AreaMs1 { get; private set; }
@@ -229,6 +248,8 @@ namespace pwiz.Skyline.Model.Results
         public bool IsIdentified { get { return Identified != PeakIdentification.FALSE; } }
         public float? LibraryDotProduct { get; private set; }
         public float? IsotopeDotProduct { get; private set; }
+        public float? QValue { get; private set; }
+        public float? ZScore { get; private set; }
         public Annotations Annotations { get; private set; }
 
         public RatioValue GetRatio(int index)
@@ -274,7 +295,15 @@ namespace pwiz.Skyline.Model.Results
         {
             return ChangeProp(ImClone(this), im => im.LibraryDotProduct = prop);
         }
-        
+
+        public TransitionGroupChromInfo ChangeScore(float qvalue, float score)
+        {
+            return ChangeProp(ImClone(this), im =>
+            {
+                im.QValue = qvalue;
+                im.ZScore = score;
+            });
+        }
         #endregion
 
         #region object overrides
@@ -283,11 +312,12 @@ namespace pwiz.Skyline.Model.Results
         {
             if (ReferenceEquals(null, other)) return false;
             if (ReferenceEquals(this, other)) return true;
-            return base.Equals(other) &&
+            bool result = base.Equals(other) &&
                    other.PeakCountRatio == PeakCountRatio &&
                    other.RetentionTime.Equals(RetentionTime) &&
                    other.StartRetentionTime.Equals(StartRetentionTime) &&
                    other.EndRetentionTime.Equals(EndRetentionTime) &&
+                   Equals(other.IonMobilityInfo, IonMobilityInfo) &&
                    other.Fwhm.Equals(Fwhm) &&
                    other.Area.Equals(Area) &&
                    other.AreaMs1.Equals(AreaMs1) &&
@@ -301,10 +331,13 @@ namespace pwiz.Skyline.Model.Results
                    other.Identified.Equals(Identified) &&
                    other.LibraryDotProduct.Equals(LibraryDotProduct) &&
                    other.IsotopeDotProduct.Equals(IsotopeDotProduct) &&
+                   other.QValue.Equals(QValue) &&
+                   other.ZScore.Equals(ZScore) &&
                    other.Annotations.Equals(Annotations) &&
                    other.OptimizationStep.Equals(OptimizationStep) &&
                    other.Annotations.Equals(Annotations) &&
                    other.UserSet.Equals(UserSet);
+            return result;
         }
 
         public override bool Equals(object obj)
@@ -323,6 +356,7 @@ namespace pwiz.Skyline.Model.Results
                 result = (result*397) ^ (RetentionTime.HasValue ? RetentionTime.Value.GetHashCode() : 0);
                 result = (result*397) ^ (StartRetentionTime.HasValue ? StartRetentionTime.Value.GetHashCode() : 0);
                 result = (result*397) ^ (EndRetentionTime.HasValue ? EndRetentionTime.Value.GetHashCode() : 0);
+                result = (result*397) ^ IonMobilityInfo.GetHashCode();
                 result = (result*397) ^ (Fwhm.HasValue ? Fwhm.Value.GetHashCode() : 0);
                 result = (result*397) ^ (Area.HasValue ? Area.Value.GetHashCode() : 0);
                 result = (result*397) ^ (AreaMs1.HasValue ? AreaMs1.Value.GetHashCode() : 0);
@@ -336,6 +370,8 @@ namespace pwiz.Skyline.Model.Results
                 result = (result*397) ^ Identified.GetHashCode();
                 result = (result*397) ^ (LibraryDotProduct.HasValue ? LibraryDotProduct.Value.GetHashCode() : 0);
                 result = (result*397) ^ (IsotopeDotProduct.HasValue ? IsotopeDotProduct.Value.GetHashCode() : 0);
+                result = (result*397) ^ (QValue.HasValue ? QValue.Value.GetHashCode() : 0);
+                result = (result*397) ^ (ZScore.HasValue ? ZScore.Value.GetHashCode() : 0);
                 result = (result*397) ^ OptimizationStep;
                 result = (result*397) ^ Annotations.GetHashCode();
                 result = (result*397) ^ UserSet.GetHashCode();
@@ -365,7 +401,7 @@ namespace pwiz.Skyline.Model.Results
         public static IList<float?> GetEmptyRatios(int countRatios)
         {
             int i = countRatios - 1;
-            return i <= EMPTY_RATIOS.Length ? EMPTY_RATIOS[i] : new float?[countRatios];
+            return i < EMPTY_RATIOS.Length ? EMPTY_RATIOS[i] : new float?[countRatios];
         }
 
         private ImmutableList<float?> _ratios;
@@ -378,20 +414,25 @@ namespace pwiz.Skyline.Model.Results
         }
 
         public TransitionChromInfo(ChromFileInfoId fileId, int optimizationStep, ChromPeak peak,
+            IonMobilityFilter ionMobility,
             IList<float?> ratios, Annotations annotations, UserSet userSet)
             : this(fileId, optimizationStep, peak.MassError, peak.RetentionTime, peak.StartTime, peak.EndTime,
+                   ionMobility,
                    peak.Area, peak.BackgroundArea, peak.Height, peak.Fwhm,
-                   peak.IsFwhmDegenerate, peak.IsTruncated, peak.Identified,
-                   ratios, annotations, userSet)
-        {            
+                   peak.IsFwhmDegenerate, peak.IsTruncated, 
+                   peak.PointsAcross, 
+                   peak.Identified, 0, 0,
+                   ratios, annotations, userSet, peak.IsForcedIntegration)
+        {
         }
 
         public TransitionChromInfo(ChromFileInfoId fileId, int optimizationStep, float? massError,
                                    float retentionTime, float startRetentionTime, float endRetentionTime,
+                                   IonMobilityFilter ionMobility,
                                    float area, float backgroundArea, float height,
-                                   float fwhm, bool fwhmDegenerate, bool? truncated,
-                                   PeakIdentification identified, IList<float?> ratios,
-                                   Annotations annotations, UserSet userSet)
+                                   float fwhm, bool fwhmDegenerate, bool? truncated, short? pointsAcrossPeak,
+                                   PeakIdentification identified, short rank, short rankByLevel,
+                                   IList<float?> ratios, Annotations annotations, UserSet userSet, bool isForcedIntegration)
             : base(fileId)
         {
             OptimizationStep = optimizationStep;
@@ -399,6 +440,7 @@ namespace pwiz.Skyline.Model.Results
             RetentionTime = retentionTime;
             StartRetentionTime = startRetentionTime;
             EndRetentionTime = endRetentionTime;
+            IonMobility = ionMobility;
             Area = area;
             BackgroundArea = backgroundArea;
             Height = height;
@@ -409,9 +451,13 @@ namespace pwiz.Skyline.Model.Results
             IsFwhmDegenerate = fwhmDegenerate;
             IsTruncated = truncated;
             Identified = identified;
+            Rank = rank;
+            RankByLevel = rankByLevel;
             Ratios = ratios;
             Annotations = annotations;
             UserSet = userSet;
+            PointsAcrossPeak = pointsAcrossPeak;
+            IsForcedIntegration = isForcedIntegration;
         }
 
         /// <summary>
@@ -425,6 +471,7 @@ namespace pwiz.Skyline.Model.Results
         public float RetentionTime { get; private set; }
         public float StartRetentionTime { get; private set; }
         public float EndRetentionTime { get; private set; }
+        public IonMobilityFilter IonMobility { get; private set; } // The actual ion mobility used for this transition
         public float Area { get; private set; }
         public float BackgroundArea { get; private set; }
         public float Height { get; private set; }
@@ -433,7 +480,19 @@ namespace pwiz.Skyline.Model.Results
         public bool? IsTruncated { get; private set; }
         public bool IsIdentified { get { return Identified != PeakIdentification.FALSE; } }
         public PeakIdentification Identified { get; private set; }
-        public int Rank { get; private set; }
+        public short Rank { get; private set; }
+        public short RankByLevel { get; private set; }
+        public short? PointsAcrossPeak { get; private set; }
+        public bool IsForcedIntegration { get; private set; }
+
+        public bool IsGoodPeak(bool integrateAll)
+        {
+            if (integrateAll)
+            {
+                return Area > 0;
+            }
+            return Area > 0 && !IsForcedIntegration;
+        }
 
         /// <summary>
         /// Set after creation at the peptide results calculation level
@@ -469,10 +528,28 @@ namespace pwiz.Skyline.Model.Results
 
         public bool IsEmpty { get { return EndRetentionTime == 0; } }
 
-        public bool Equivalent(ChromFileInfoId fileId, int step, ChromPeak peak)
+        public double GetMatchingQValue(ChromInfoList<TransitionGroupChromInfo> chromGroupInfos)
+        {
+            // For now, brute-force, because these lists should be very short and not commonly more than a single entry
+            foreach (var chromGroupInfo in chromGroupInfos)
+            {
+                if (ReferenceEquals(FileId, chromGroupInfo.FileId) &&
+                    OptimizationStep == chromGroupInfo.OptimizationStep)
+                {
+                    return chromGroupInfo.QValue ?? 1;
+                }
+            }
+            return 1;
+        }
+
+        /// <summary>
+        /// Used in <see cref="TransitionGroupDocNode.ChangeResults"/> so compare both peak and ion mobility
+        /// </summary>
+        public bool Equivalent(ChromFileInfoId fileId, int step, ChromPeak peak, IonMobilityFilter ionMobilityFilter)
         {
             return ReferenceEquals(fileId, FileId) &&
                    step == OptimizationStep &&
+                   Equals(IonMobility, ionMobilityFilter) &&    // Unlikely to change, but still confirm
                    Equals(peak.MassError, MassError) &&
                    peak.RetentionTime == RetentionTime &&
                    peak.StartTime == StartRetentionTime &&
@@ -486,6 +563,9 @@ namespace pwiz.Skyline.Model.Results
                    Equals(peak.Identified, Identified);
         }
 
+        /// <summary>
+        /// Used to validate need for a <see cref="ChangePeak"/>, so only compare peak informatio
+        /// </summary>
         public bool EquivalentTolerant(ChromFileInfoId fileId, int step, ChromPeak peak)
         {
             const double tol = 1e-4;
@@ -529,6 +609,8 @@ namespace pwiz.Skyline.Model.Results
             chromInfo.IsTruncated = peak.IsTruncated;
             chromInfo.Identified = peak.Identified;
             chromInfo.UserSet = userSet;
+            chromInfo.PointsAcrossPeak = peak.PointsAcross;
+            chromInfo.IsForcedIntegration = peak.IsForcedIntegration;
             return chromInfo;
         }
 
@@ -537,9 +619,24 @@ namespace pwiz.Skyline.Model.Results
             return ChangeProp(ImClone(this), im => im.Ratios = prop);
         }
 
-        public TransitionChromInfo ChangeRank(int prop)
+        /// <summary>
+        /// Because creating a copy shows up in a profiler, and this is currently only used
+        /// during calculation of this object, a copy flag was added to allow modified
+        /// immutability with direct setting allowed during extended creation time.
+        /// </summary>
+        public TransitionChromInfo ChangeRank(bool copy, short prop, short propByLevel)
         {
-            return ChangeProp(ImClone(this), im => im.Rank = prop);
+            if (!copy)
+            {
+                Rank = prop;
+                RankByLevel = propByLevel;
+                return this;
+            }
+            return ChangeProp(ImClone(this), im =>
+            {
+                im.Rank = prop;
+                im.RankByLevel = propByLevel;
+            });
         }
 
         public TransitionChromInfo ChangeAnnotations(Annotations annotations)
@@ -552,6 +649,11 @@ namespace pwiz.Skyline.Model.Results
         public TransitionChromInfo ChangeUserSet(UserSet prop)
         {
             return ChangeProp(ImClone(this), im => im.UserSet = prop);
+        }
+
+        public TransitionChromInfo ChangeIsForcedIntegration(bool isForcedCoelution)
+        {
+            return ChangeProp(ImClone(this), im => im.IsForcedIntegration = isForcedCoelution);
         }
 
         #endregion
@@ -575,10 +677,14 @@ namespace pwiz.Skyline.Model.Results
                    Equals(other.IsTruncated, IsTruncated) &&
                    Equals(other.Identified, Identified) &&
                    other.Rank == Rank &&
+                   other.RankByLevel == RankByLevel &&
                    ArrayUtil.EqualsDeep(other.Ratios, Ratios) &&
                    other.OptimizationStep.Equals(OptimizationStep) &&
                    other.Annotations.Equals(Annotations) &&
-                   other.UserSet.Equals(UserSet);
+                   other.UserSet.Equals(UserSet) &&
+                   Equals(other.IonMobility, IonMobility) &&
+                   other.PointsAcrossPeak.Equals(PointsAcrossPeak) &&
+                   Equals(IsForcedIntegration, other.IsForcedIntegration);
         }
 
         public override bool Equals(object obj)
@@ -605,15 +711,93 @@ namespace pwiz.Skyline.Model.Results
                 result = (result*397) ^ Identified.GetHashCode();
                 result = (result*397) ^ (IsTruncated.HasValue ? IsTruncated.Value.GetHashCode() : 0);
                 result = (result*397) ^ Rank;
+                result = (result*397) ^ RankByLevel;
                 result = (result*397) ^ Ratios.GetHashCodeDeep();
                 result = (result*397) ^ OptimizationStep.GetHashCode();
                 result = (result*397) ^ Annotations.GetHashCode();
                 result = (result*397) ^ UserSet.GetHashCode();
+                result = (result*397) ^ IonMobility.GetHashCode();
+                result = (result*397) ^ PointsAcrossPeak.GetHashCode();
+                result = (result*397) ^ IsForcedIntegration.GetHashCode();
                 return result;
             }
         }
 
         #endregion
+
+        public static Results<TransitionChromInfo> FromProtoTransitionResults(StringPool stringPool, SrmSettings settings,
+            SkylineDocumentProto.Types.TransitionResults transitionResults)
+        {
+            if (transitionResults == null)
+            {
+                return null;
+            }
+            var measuredResults = settings.MeasuredResults;
+            var peaksByReplicate = transitionResults.Peaks.ToLookup(peak => peak.ReplicateIndex);
+            var lists = new List<ChromInfoList<TransitionChromInfo>>();
+            for (int replicateIndex = 0; replicateIndex < measuredResults.Chromatograms.Count; replicateIndex++)
+            {
+                var transitionChromInfos = peaksByReplicate[replicateIndex]
+                    .Select(transitionPeak => FromProtoTransitionPeak(stringPool, settings, transitionPeak)).ToArray();
+                lists.Add(new ChromInfoList<TransitionChromInfo>(transitionChromInfos));
+            }
+            return new Results<TransitionChromInfo>(lists);
+        }
+
+        private static TransitionChromInfo FromProtoTransitionPeak(StringPool stringPool, SrmSettings settings,
+            SkylineDocumentProto.Types.TransitionPeak transitionPeak)
+        {
+            var measuredResults = settings.MeasuredResults;
+            var msDataFileInfo = measuredResults.Chromatograms[transitionPeak.ReplicateIndex]
+                .MSDataFileInfos[transitionPeak.FileIndexInReplicate];
+            var fileId = msDataFileInfo.FileId;
+            var ionMobilityValue = DataValues.FromOptional(transitionPeak.IonMobility);
+            IonMobilityFilter ionMobility;
+            if (ionMobilityValue.HasValue)
+            {
+                var ionMobilityWidth = DataValues.FromOptional(transitionPeak.IonMobilityWindow);
+                var ionMobilityUnits = msDataFileInfo.IonMobilityUnits;
+                ionMobility = IonMobilityFilter.GetIonMobilityFilter(IonMobilityValue.GetIonMobilityValue(ionMobilityValue, ionMobilityUnits), ionMobilityWidth, null);
+            }
+            else
+            {
+                ionMobility = IonMobilityFilter.EMPTY;
+            }
+            short? pointsAcrossPeak = (short?) DataValues.FromOptional(transitionPeak.PointsAcrossPeak);
+            PeakIdentification peakIdentification = PeakIdentification.FALSE;
+            switch (transitionPeak.Identified)
+            {
+                case SkylineDocumentProto.Types.PeakIdentification.Aligned:
+                    peakIdentification = PeakIdentification.ALIGNED;
+                    break;
+                case SkylineDocumentProto.Types.PeakIdentification.True:
+                    peakIdentification = PeakIdentification.TRUE;
+                    break;
+            }
+            return new TransitionChromInfo(
+                fileId, 
+                transitionPeak.OptimizationStep,
+                DataValues.FromOptional(transitionPeak.MassError),
+                transitionPeak.RetentionTime,
+                transitionPeak.StartRetentionTime,
+                transitionPeak.EndRetentionTime,
+                ionMobility,
+                transitionPeak.Area,
+                transitionPeak.BackgroundArea,
+                transitionPeak.Height,
+                transitionPeak.Fwhm,
+                transitionPeak.IsFwhmDegenerate,
+                DataValues.FromOptional(transitionPeak.Truncated),
+                pointsAcrossPeak,
+                peakIdentification,
+                (short) transitionPeak.Rank,
+                (short) transitionPeak.RankByLevel,
+                GetEmptyRatios(settings.PeptideSettings.Modifications.RatioInternalStandardTypes.Count),
+                Annotations.FromProtoAnnotations(stringPool, transitionPeak.Annotations), 
+                DataValues.FromUserSet(transitionPeak.UserSet),
+                transitionPeak.ForcedIntegration
+                );
+        }
     }
 
     /// <summary>
@@ -628,18 +812,33 @@ namespace pwiz.Skyline.Model.Results
     /// in <see cref="SrmSettings.MeasuredResults"/>.  This collection will have the same
     /// number of items as the chromatograms list.
     /// </summary>
-    public class Results<TItem> : OneOrManyList<ChromInfoList<TItem>>
-//        VS Issue: https://connect.microsoft.com/VisualStudio/feedback/ViewFeedback.aspx?FeedbackID=324473 (seems fixed)
+    public sealed class Results<TItem> : AbstractReadOnlyList<ChromInfoList<TItem>>
         where TItem : ChromInfo
     {
+        private readonly ImmutableList<ChromInfoList<TItem>> _list;
         public Results(params ChromInfoList<TItem>[] elements)
-            : base(elements)
         {
+            _list = ImmutableList.ValueOf(elements);
         }
 
         public Results(IList<ChromInfoList<TItem>> elements)
-            : base(elements)
         {
+            _list = ImmutableList.ValueOf(elements);
+        }
+
+        public override int Count
+        {
+            get { return _list.Count; }
+        }
+
+        public override ChromInfoList<TItem> this[int index]
+        {
+            get { return _list[index]; }
+        }
+
+        public Results<TItem> ChangeAt(int index, ChromInfoList<TItem> list)
+        {
+            return new Results<TItem>(_list.ReplaceAt(index, list));
         }
 
         public static Results<TItem> Merge(Results<TItem> resultsOld, List<IList<TItem>> chromInfoSet)
@@ -650,13 +849,12 @@ namespace pwiz.Skyline.Model.Results
             {
                 for (int i = 0, len = Math.Min(resultsOld.Count, chromInfoSet.Count); i < len; i++)
                 {
-                    if (EqualsDeep(resultsOld[i], chromInfoSet[i]))
+                    if (ArrayUtil.ReferencesEqual(resultsOld[i], chromInfoSet[i]) || EqualsDeep(resultsOld[i], chromInfoSet[i]))
                         chromInfoSet[i] = resultsOld[i];
                 }
             }
-            var listInfo = chromInfoSet.ConvertAll(l => l as ChromInfoList<TItem> ??
-                                                        (l != null ? new ChromInfoList<TItem>(l) : null));
-            if (ArrayUtil.ReferencesEqual(listInfo, resultsOld))
+            var listInfo = chromInfoSet.ConvertAll(l => new ChromInfoList<TItem>(l));
+            if (ArrayUtil.InnerReferencesEqual<TItem, ChromInfoList<TItem>>(listInfo, resultsOld))
                 return resultsOld;
 
             return new Results<TItem>(listInfo);
@@ -669,9 +867,9 @@ namespace pwiz.Skyline.Model.Results
             foreach (var replicate in results)
             {
                 var chromInfoList = new List<TItem>();
-                if (replicate == null)
+                if (replicate.IsEmpty)
                 {
-                    elements.Add(null);
+                    elements.Add(default(ChromInfoList<TItem>));
                     continue;
                 }
                 foreach (var chromInfo in replicate)
@@ -730,7 +928,7 @@ namespace pwiz.Skyline.Model.Results
 
             foreach (var result in this)
             {
-                if (result == null)
+                if (result.IsEmpty)
                     continue;
                 foreach (var chromInfo in result)
                 {
@@ -758,7 +956,7 @@ namespace pwiz.Skyline.Model.Results
 
             foreach (var result in this)
             {
-                if (result == null)
+                if (result.IsEmpty)
                     continue;
                 foreach (var chromInfo in result)
                 {
@@ -789,7 +987,7 @@ namespace pwiz.Skyline.Model.Results
             for (int i = 0; i < chromatogramSets.Count; i++)
             {
                 var chromList = this[i];
-                if (chromList == null)
+                if (chromList.IsEmpty)
                     continue;
 
                 var chromatogramSet = chromatogramSets[i];
@@ -799,6 +997,23 @@ namespace pwiz.Skyline.Model.Results
                         string.Format(Resources.Results_Validate_DocNode_peak_info_found_for_file_with_no_match_in_document_results));
                 }
             }
+        }
+
+        private bool Equals(Results<TItem> other)
+        {
+            return _list.Equals(other._list);
+        }
+
+        public override bool Equals(object obj)
+        {
+            if (ReferenceEquals(null, obj)) return false;
+            if (ReferenceEquals(this, obj)) return true;
+            return obj is Results<TItem> && Equals((Results<TItem>) obj);
+        }
+
+        public override int GetHashCode()
+        {
+            return _list.GetHashCode();
         }
     }
 
@@ -821,18 +1036,29 @@ namespace pwiz.Skyline.Model.Results
     /// with an unlabeled internal standard will have measurements for that standard
     /// in every file.
     /// </summary>
-    public class ChromInfoList<TItem> : OneOrManyList<TItem>
-//        VS Issue: https://connect.microsoft.com/VisualStudio/feedback/ViewFeedback.aspx?FeedbackID=324473
-//        where T : ChromInfo
+    public struct ChromInfoList<TItem> : IList<TItem>
     {
-        public ChromInfoList(params TItem[] elements)
-            : base(elements)
+        private readonly object _oneOrManyItems;
+        public ChromInfoList(params TItem[] elements) : this((IEnumerable<TItem>) elements)
         {
         }
 
-        public ChromInfoList(IList<TItem> elements)
-            : base(elements)
+        public ChromInfoList(IEnumerable<TItem> elements)
         {
+            var list = ImmutableList.ValueOf(elements);
+            if (list == null || list.Count == 0)
+            {
+                _oneOrManyItems = null;
+            }
+            else if (list.Count == 1)
+            {
+                _oneOrManyItems = list[0];
+            }
+            else
+            {
+                _oneOrManyItems = list;
+            }
+
         }
 
         public float? GetAverageValue(Func<TItem, float?> getVal)
@@ -857,6 +1083,116 @@ namespace pwiz.Skyline.Model.Results
 
             return (float)(valTotal / valCount);
         }
+
+        public ChromInfoList<TItem> ChangeAt(int i, TItem item)
+        {
+            var list = AsList().ToArray();
+            list[i] = item;
+            return new ChromInfoList<TItem>(list);
+        }
+
+        public int Count 
+        {
+            get
+            {
+                if (_oneOrManyItems == null)
+                {
+                    return 0;
+                }
+                if (_oneOrManyItems is TItem)
+                {
+                    return 1;
+                }
+                return ((IList<TItem>) _oneOrManyItems).Count;
+            } 
+        }
+        IEnumerator IEnumerable.GetEnumerator()
+        {
+            return GetEnumerator();
+        }
+
+        public IEnumerator<TItem> GetEnumerator()
+        {
+            return AsList().GetEnumerator();
+        }
+
+        public TItem this[int index]
+        {
+            get { return AsList()[index]; }
+        }
+
+        public IList<TItem> AsList()
+        {
+            if (_oneOrManyItems == null)
+            {
+                return ImmutableList<TItem>.EMPTY;
+            }
+            if (_oneOrManyItems is TItem)
+            {
+                return ImmutableList.Singleton((TItem) _oneOrManyItems);
+            }
+            return (IList<TItem>) _oneOrManyItems;
+        }
+
+        public bool IsEmpty
+        {
+            get { return null == _oneOrManyItems; }
+        }
+
+        public bool Contains(TItem item)
+        {
+            return AsList().Contains(item);
+        }
+
+        public void CopyTo(TItem[] array, int arrayIndex)
+        {
+            AsList().CopyTo(array, arrayIndex);
+        }
+
+        public int IndexOf(TItem item)
+        {
+            return AsList().IndexOf(item);
+        }
+
+        bool ICollection<TItem>.IsReadOnly { get { return true; } }
+
+
+        void ICollection<TItem>.Add(TItem item)
+        {
+            throw new InvalidOperationException();
+        }
+
+        void ICollection<TItem>.Clear()
+        {
+            throw new InvalidOperationException();
+        }
+
+        void IList<TItem>.Insert(int index, TItem item)
+        {
+            throw new InvalidOperationException();
+        }
+
+        bool ICollection<TItem>.Remove(TItem item)
+        {
+            throw new InvalidOperationException();
+        }
+
+        void IList<TItem>.RemoveAt(int index)
+        {
+            throw new InvalidOperationException();
+        }
+
+        TItem IList<TItem>.this[int index]
+        {
+            get
+            {
+                return this[index];
+            }
+            set
+            {
+                throw new InvalidOperationException();
+            }
+        }
     }
 
     public enum UserSet
@@ -866,6 +1202,12 @@ namespace pwiz.Skyline.Model.Results
         IMPORTED,   // Import peak boundaries
         REINTEGRATED,   // Edit > Refine > Reintagrate
         MATCHED // Forced by peak matching when adding missing label type precursors
+    }
+
+    public static class UserSetFastLookup
+    {
+        public static readonly Dictionary<string, UserSet> Dict = XmlUtil.GetEnumLookupDictionary(
+            UserSet.TRUE, UserSet.FALSE, UserSet.IMPORTED, UserSet.REINTEGRATED, UserSet.MATCHED);
     }
 
     public static class UserSetExtension
@@ -948,7 +1290,7 @@ namespace pwiz.Skyline.Model.Results
 
         public override string ToString()
         {
-            return String.Format("FileId = {0}", FileId.GlobalIndex); // Not L10N : For debugging
+            return String.Format(@"FileId = {0}", FileId.GlobalIndex); // For debugging
         }
 
         #endregion

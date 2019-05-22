@@ -33,12 +33,12 @@ using System.Text;
 using System.Windows.Forms;
 using NHibernate;
 using NHibernate.Linq;
-using NHibernate.Util;
 using DigitalRune.Windows.Docking;
 using IDPicker.DataModel;
 using ZedGraph;
 using MathNet.Numerics.Distributions;
 using MathNet.Numerics.Statistics;
+using pwiz.Common.Collections;
 
 namespace IDPicker.Forms
 {

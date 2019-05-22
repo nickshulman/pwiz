@@ -39,13 +39,17 @@ using pwiz.SkylineTestUtil;
 namespace pwiz.SkylineTestFunctional
 {
     [TestClass]
-    public class IrtTest : AbstractFunctionalTest
+    public class IrtTest : AbstractFunctionalTestEx
     {
         [TestMethod]
         public void IrtFunctionalTest()
         {
             TestFilesZip = @"TestFunctional\IrtTest.zip";
             RunFunctionalTest();
+        }
+        private MeasuredPeptide BuildMeasuredPeptide(string seq, double rt)
+        {
+            return new MeasuredPeptide(new Target(seq), rt);
         }
 
         protected override void DoTest()
@@ -148,17 +152,17 @@ namespace pwiz.SkylineTestFunctional
             //Now paste in iRT with each peptide truncated by one amino acid
             var standard = new[]
                                {
-                                   new MeasuredPeptide("LGGNEQVTR", -24.92),
-                                   new MeasuredPeptide("GAGSSEPVTGLDAK", 0.00),
-                                   new MeasuredPeptide("VEATFGVDESNAK", 12.39),
-                                   new MeasuredPeptide("YILAGVENSK", 19.79),
-                                   new MeasuredPeptide("TPVISGGPYEYR", 28.71),
-                                   new MeasuredPeptide("TPVITGAPYEYR", 33.38),
-                                   new MeasuredPeptide("DGLDAASYYAPVR", 42.26),
-                                   new MeasuredPeptide("ADVTPADFSEWSK", 54.62),
-                                   new MeasuredPeptide("GTFIIDPGGVIR", 70.52),
-                                   new MeasuredPeptide("GTFIIDPAAVIR", 87.23),
-                                   new MeasuredPeptide("LFLQFGAQGSPFLK", 100.00),
+                                   BuildMeasuredPeptide("LGGNEQVTR", -24.92),
+                                   BuildMeasuredPeptide("GAGSSEPVTGLDAK", 0.00),
+                                   BuildMeasuredPeptide("VEATFGVDESNAK", 12.39),
+                                   BuildMeasuredPeptide("YILAGVENSK", 19.79),
+                                   BuildMeasuredPeptide("TPVISGGPYEYR", 28.71),
+                                   BuildMeasuredPeptide("TPVITGAPYEYR", 33.38),
+                                   BuildMeasuredPeptide("DGLDAASYYAPVR", 42.26),
+                                   BuildMeasuredPeptide("ADVTPADFSEWSK", 54.62),
+                                   BuildMeasuredPeptide("GTFIIDPGGVIR", 70.52),
+                                   BuildMeasuredPeptide("GTFIIDPAAVIR", 87.23),
+                                   BuildMeasuredPeptide("LFLQFGAQGSPFLK", 100.00),
                                };
 
             RunUI(() =>
@@ -169,7 +173,7 @@ namespace pwiz.SkylineTestFunctional
                       });
 
             // Cannot add results because standard peptides are not in the document
-            RunDlg<MessageDlg>(irtDlg1.AddResults, messageDlg => messageDlg.OkDialog());
+            RunDlg<AddIrtPeptidesDlg>(irtDlg1.AddResults, messageDlg => messageDlg.OkDialog());
 
             // Paste Biognosys-provided values
             RunUI(() =>
@@ -184,7 +188,9 @@ namespace pwiz.SkylineTestFunctional
                       });
 
             //Add results
-            RunDlg<AddIrtPeptidesDlg>(irtDlg1.AddResults, addPeptidesDlg => addPeptidesDlg.OkDialog());
+            var addPeptidesDlg1 = ShowDialog<AddIrtPeptidesDlg>(irtDlg1.AddResults);
+            var recalibrateDlg1 = ShowDialog<MultiButtonMsgDlg>(addPeptidesDlg1.OkDialog);
+            OkDialog(recalibrateDlg1, recalibrateDlg1.Btn1Click);
 
             RunUI(() => Assert.AreEqual(numLibraryPeps, irtDlg1.LibraryPeptideCount));
 
@@ -224,8 +230,8 @@ namespace pwiz.SkylineTestFunctional
                 changeDlg.Peptides = changePeptides;
                 changeDlg.OkDialog();
             });
-            Assert.IsTrue(ArrayUtil.EqualsDeep(changePeptides.Select(p => p.Sequence).ToArray(),
-                irtDlg1.StandardPeptides.Select(p => p.Sequence).ToArray()));
+            Assert.IsTrue(ArrayUtil.EqualsDeep(changePeptides.Select(p => p.Target).ToArray(),
+                irtDlg1.StandardPeptides.Select(p => p.Target).ToArray()));
             Assert.IsTrue(ArrayUtil.EqualsDeep(changePeptides.Select(p => p.Irt).ToArray(),
                 irtDlg1.StandardPeptides.Select(p => p.Irt).ToArray()));
             RunDlg<ChangeIrtPeptidesDlg>(irtDlg1.ChangeStandardPeptides, changeDlg =>
@@ -306,23 +312,25 @@ namespace pwiz.SkylineTestFunctional
                           foreach (var docPepNode in document.Peptides)
                           {
                               docPeptides.Add(new MeasuredRetentionTime(document.Settings.GetModifiedSequence(docPepNode),
-                                                                        docPepNode.AverageMeasuredRetentionTime.HasValue
-                                                                        ? docPepNode.AverageMeasuredRetentionTime.Value
-                                                                        : 0));
+                                                                        docPepNode.AverageMeasuredRetentionTime ?? 0));
                           }
                       });
 
             RetentionTimeStatistics stats = null;
             RegressionLineElement line = null;
+            RunUI(() => SkylineWindow.ShowRTRegressionGraphScoreToRun());
+            WaitForRegression();
             RunUI(() =>
-                      {
-                          SkylineWindow.ShowRTLinearRegressionGraph();
-                          SkylineWindow.SetupCalculatorChooser();
-                          SkylineWindow.ChooseCalculator(irtCalc);
-
-                          stats = SkylineWindow.RTGraphController.RegressionRefined.CalcStatistics(docPeptides, null);
-                          line = SkylineWindow.RTGraphController.RegressionRefined.Conversion;
-                      });
+            {
+                SkylineWindow.SetupCalculatorChooser();
+                SkylineWindow.ChooseCalculator(irtCalc);
+            });
+            WaitForRegression();
+            RunUI(() =>
+            {
+                stats = SkylineWindow.RTGraphController.RegressionRefined.CalcStatistics(docPeptides, null);
+                line = SkylineWindow.RTGraphController.RegressionRefined.Conversion as RegressionLineElement;
+            });
             Assert.IsNotNull(stats);
             Assert.IsTrue(stats.R > 0.999);
             Assert.IsNotNull(line);
@@ -331,12 +339,10 @@ namespace pwiz.SkylineTestFunctional
             Assert.IsTrue(Math.Abs(line.Intercept - 14.17) < 0.01);
             Assert.IsTrue(Math.Abs(line.Slope - 0.15) < 0.01);
 
-            RunUI(() =>
-                      {
-                          SkylineWindow.ChooseCalculator(ssrCalc);
+            RunUI(() => SkylineWindow.ChooseCalculator(ssrCalc));
+            WaitForRegression();
+            RunUI(() => stats = SkylineWindow.RTGraphController.RegressionRefined.CalcStatistics(docPeptides, null));
 
-                          stats = SkylineWindow.RTGraphController.RegressionRefined.CalcStatistics(docPeptides, null);
-                      });
             Assert.IsNotNull(stats);
             Assert.IsTrue(Math.Abs(stats.R - 0.97) < 0.01);
 
@@ -426,7 +432,9 @@ namespace pwiz.SkylineTestFunctional
                 });
 
                 RunUI(() => addDlg.FilePath = databasePath);
-                RunDlg<AddIrtPeptidesDlg>(addDlg.OkDialog, addPepDlg => addPepDlg.OkDialog());
+                var addPepDlg = ShowDialog<AddIrtPeptidesDlg>(addDlg.OkDialog);
+                var recalibrateDlg = ShowDialog<MultiButtonMsgDlg>(addPepDlg.OkDialog);
+                OkDialog(recalibrateDlg, recalibrateDlg.Btn1Click);
                 Assert.AreEqual(18, irtDlgAdd.LibraryPeptideCount);
 
                 OkDialog(irtDlgAdd, irtDlgAdd.CancelButton.PerformClick);
@@ -437,22 +445,67 @@ namespace pwiz.SkylineTestFunctional
                 var irtDlgAdd = ShowDialog<EditIrtCalcDlg>(editRT2.EditCurrentCalculator);
                 var addDlg = ShowDialog<AddIrtCalculatorDlg>(irtDlgAdd.AddIrtDatabase);
                 RunUI(() => addDlg.CalculatorName = irtCalc);
-                RunDlg<AddIrtPeptidesDlg>(addDlg.OkDialog, addPepDlg => addPepDlg.OkDialog());
+                var addPepDlg = ShowDialog<AddIrtPeptidesDlg>(addDlg.OkDialog);
+                var recalibrateDlg = ShowDialog<MultiButtonMsgDlg>(addPepDlg.OkDialog);
+                OkDialog(recalibrateDlg, recalibrateDlg.Btn1Click);
                 Assert.AreEqual(18, irtDlgAdd.LibraryPeptideCount);
 
                 OkDialog(irtDlgAdd, irtDlgAdd.CancelButton.PerformClick);
             }
 
-            OkDialog(editRT2, editRT2.CancelButton.PerformClick);
-            OkDialog(peptideSettingsDlg2, peptideSettingsDlg2.CancelButton.PerformClick);
+
+            var docIrtBefore = SkylineWindow.Document;
+
+            OkDialog(editRT2, editRT2.OkDialog);
+            OkDialog(peptideSettingsDlg2, peptideSettingsDlg2.OkDialog);
             WaitForClosedForm(peptideSettingsDlg2);
 
-            //Restore the document to contain all 29 peptides
-            RunUI(SkylineWindow.Undo);
+            var docIrt = VerifyIrtStandards(docIrtBefore, true);
 
+            RunUI(() =>
+            {
+                // Select 3 of the standards and delete them
+                SkylineWindow.SequenceTree.KeysOverride = Keys.None;
+                SkylineWindow.SelectedPath = SkylineWindow.DocumentUI.GetPathTo((int)SrmDocument.Level.Molecules, 0);
+                SkylineWindow.SequenceTree.KeysOverride = Keys.Shift;
+                SkylineWindow.SelectedPath = SkylineWindow.DocumentUI.GetPathTo((int)SrmDocument.Level.Molecules, 2);
+                SkylineWindow.SequenceTree.KeysOverride = Keys.None;
+                SkylineWindow.EditDelete();
+            });
+
+            // Should still have iRT peptides
+            docIrt = VerifyIrtStandards(docIrt, true);             
+            // Remove one more and standards should be cleared
+            RunUI(SkylineWindow.Cut);
+            docIrt = VerifyIrtStandards(docIrt, false);
+            RunUI(SkylineWindow.Paste);
+            docIrt = VerifyIrtStandards(docIrt, true);             
+            
+            // Repeat without results
+            RunDlg<ManageResultsDlg>(SkylineWindow.ManageResults, dlg =>
+            {
+                dlg.RemoveAllReplicates();
+                dlg.OkDialog();
+            });
+
+            docIrt = VerifyIrtStandards(docIrt, true);
+            RunUI(SkylineWindow.EditDelete);
+            docIrt = VerifyIrtStandards(docIrt, false);
+            RunUI(SkylineWindow.Paste);
+            VerifyIrtStandards(docIrt, true);             
+
+            //Restore the document to contain all 29 peptides
+            RunUI(() => SkylineWindow.UndoRestore(7));
 
             //Open peptide settings
             var peptideSettingsDlg3 = ShowDialog<PeptideSettingsUI>(SkylineWindow.ShowPeptideSettingsUI);
+            RunDlg<EditListDlg<SettingsListBase<RetentionTimeRegression>, RetentionTimeRegression>>(peptideSettingsDlg3.EditRegressionList,
+                dlg =>
+                {
+                    dlg.SelectLastItem();
+                    dlg.RemoveItem();
+                    dlg.OkDialog();
+                });
 
             //Add a new regression
             var editRT3 = ShowDialog<EditRTDlg>(peptideSettingsDlg3.AddRTRegression);
@@ -470,7 +523,9 @@ namespace pwiz.SkylineTestFunctional
             var irtDlg3 = ShowDialog<EditIrtCalcDlg>(editCalculator.EditItem);
 
             //Add the 18 non-standard peptides to the calculator, then OkDialog back to Skyline
-            RunDlg<AddIrtPeptidesDlg>(irtDlg3.AddResults, addPeptidesDlg => addPeptidesDlg.OkDialog());
+            var addPeptidesDlg = ShowDialog<AddIrtPeptidesDlg>(irtDlg3.AddResults);
+            var recalibrateDlg2 = ShowDialog<MultiButtonMsgDlg>(addPeptidesDlg.OkDialog);
+            OkDialog(recalibrateDlg2, recalibrateDlg2.Btn1Click);
 
             RunUI(() =>
                       {
@@ -648,6 +703,28 @@ namespace pwiz.SkylineTestFunctional
             Assert.IsNull(FindOpenForm<MessageDlg>());
         }
 
+        private SrmDocument VerifyIrtStandards(SrmDocument docBefore, bool expectStandards)
+        {
+            var doc = WaitForDocumentChangeLoaded(docBefore);
+
+            // Either all standards or all not standards
+            foreach (var nodePep in doc.Peptides)
+            {
+                if (expectStandards)
+                {
+                    Assert.IsTrue(nodePep.GlobalStandardType == StandardType.IRT,
+                        string.Format("{0} expected marked as iRT standard", nodePep.Peptide.Target));
+                }
+                else
+                {
+                    Assert.IsFalse(nodePep.GlobalStandardType == StandardType.IRT,
+                        string.Format("{0} expected cleared of iRT standard", nodePep.Peptide.Target));
+                }
+            }
+
+            return doc;
+        }
+
         private static string BuildStandardText(IEnumerable<MeasuredPeptide> standard, Func<string, string> adjustSeq)
         {
             var standardBuilder = new StringBuilder();
@@ -691,15 +768,124 @@ namespace pwiz.SkylineTestFunctional
 
             if(add)
             {
-                RunDlg<AddIrtPeptidesDlg>(dlg.AddResults, addDlg =>
-                                                              {
-                                                                  addDlg.Action = AddIrtPeptidesAction.skip;
-                                                                  addDlg.OkDialog();
-                                                              });
+                var addDlg = ShowDialog<AddIrtPeptidesDlg>(dlg.AddResults);
+                RunUI(() => addDlg.Action = AddIrtPeptidesAction.skip);
+                var recalibrateDlg = ShowDialog<MultiButtonMsgDlg>(addDlg.OkDialog);
+                OkDialog(recalibrateDlg, recalibrateDlg.Btn1Click);
             }
 
             RunUI(dlg.OkDialog);
             WaitForClosedForm(dlg);
+        }
+    }
+
+    [TestClass]
+    public class IrtImportResultsTest : AbstractFunctionalTest
+    {
+        [TestMethod]
+        public void IrtImportResultsFunctionalTest()
+        {
+            RunFunctionalTest();
+        }
+
+        protected override void DoTest()
+        {
+            var peptideSettings = ShowDialog<PeptideSettingsUI>(SkylineWindow.ShowPeptideSettingsUI);
+            var irtCalc = ShowDialog<EditIrtCalcDlg>(peptideSettings.AddCalculator);
+            var testDir = TestContext.TestDir;
+            RunUI(() =>
+            {
+                irtCalc.CalcName = "Biognosys-10";
+                irtCalc.CreateDatabase(Path.Combine(testDir, "test.irtdb"));
+                irtCalc.IrtStandards = IrtStandard.BIOGNOSYS_10;
+            });
+            OkDialog(irtCalc, irtCalc.OkDialog);
+            var addPeptides = ShowDialog<AddIrtStandardsToDocumentDlg>(peptideSettings.OkDialog);
+            RunUI(() => addPeptides.NumTransitions = 3);
+            OkDialog(addPeptides, addPeptides.BtnYesClick);
+            RunUI(() => SkylineWindow.SaveDocument(Path.Combine(testDir, "test.sky")));
+            
+            // Test opening ImportResultsDlg with all 10 iRT standard peptides in the document
+            removePeptidesAndImport(IrtStandard.BIOGNOSYS_10, 0);
+
+            // Test with 1 missing
+            removePeptidesAndImport(IrtStandard.BIOGNOSYS_10, 1);
+
+            // Test with 2 missing (minimum)
+            removePeptidesAndImport(IrtStandard.BIOGNOSYS_10, 1);
+
+            // Test with 3 missing (below minimum)
+            removePeptidesAndImport(IrtStandard.BIOGNOSYS_10, 1);
+
+            // Test with all missing
+            WaitForDocumentLoaded();    // Changes from background loaders can cause the paste below to fail
+            RunUI(() => SkylineWindow.Paste("PEPTIDER")); // Put in a single peptide so we don't get an error on import results
+            removePeptidesAndImport(IrtStandard.BIOGNOSYS_10, 7);
+        }
+
+        private static void removePeptidesAndImport(IrtStandard standard, int numPeptides)
+        {
+            Target[] standardPeptides = null;
+            List<Target> removedPeptides = null;
+            RunUI(() =>
+            {
+                standardPeptides = standard.Peptides.Select(pep => pep.Target).ToArray();
+                removedPeptides = standardPeptides.Except(SkylineWindow.DocumentUI.Peptides.Select(nodePep => nodePep.ModifiedTarget)).ToList();
+            }); 
+            var toRemove = standardPeptides.Except(removedPeptides).ToArray();
+            if (numPeptides > toRemove.Length)
+                Assert.Fail("Not enough peptides to remove");
+
+            for (var i = 0; i < numPeptides; i++)
+            {
+                RemovePeptide(toRemove[i]);
+                removedPeptides.Add(toRemove[i]);
+            }
+
+            if (!removedPeptides.Any())
+            {
+                var importResultsDlg = ShowDialog<ImportResultsDlg>(SkylineWindow.ImportResults);
+                OkDialog(importResultsDlg, importResultsDlg.CancelDialog);
+                return;
+            }
+
+            var docCount = standardPeptides.Length - removedPeptides.Count;
+            if (docCount >= RCalcIrt.MinStandardCount(standardPeptides.Length))
+            {
+                var allowedMissing = docCount - RCalcIrt.MinStandardCount(standardPeptides.Length);
+                var warningDlg = ShowDialog<MultiButtonMsgDlg>(SkylineWindow.ImportResults);
+                RunUI(() =>
+                {
+                    foreach (var pep in removedPeptides)
+                    {
+                        Assert.IsTrue(warningDlg.Message.Contains(pep.ToString()));
+                    }
+                    Assert.IsTrue(warningDlg.Message.Contains(
+                        string.Format(Resources.SkylineWindow_ImportResults_The_document_contains__0__of_these_iRT_standard_peptides_, docCount)));
+                    Assert.IsTrue(warningDlg.Message.Contains(
+                        allowedMissing > 0
+                            ? string.Format(Resources.SkylineWindow_ImportResults_A_maximum_of__0__may_be_missing_and_or_outliers_for_a_successful_import_, allowedMissing)
+                            : Resources.SkylineWindow_ImportResults_None_may_be_missing_or_outliers_for_a_successful_import_));
+                });
+                OkDialog(warningDlg, warningDlg.BtnCancelClick);
+            }
+            else
+            {
+                var errorDlg = ShowDialog<MessageDlg>(SkylineWindow.ImportResults);
+                RunUI(() =>
+                {
+                    foreach (var pep in removedPeptides)
+                    {
+                        Assert.IsTrue(errorDlg.Message.Contains(pep.ToString()));
+                    }
+                    Assert.IsTrue(errorDlg.Message.Contains(
+                        docCount > 0
+                            ? string.Format(Resources.SkylineWindow_ImportResults_The_document_only_contains__0__of_these_iRT_standard_peptides_, docCount)
+                            : Resources.SkylineWindow_ImportResults_The_document_does_not_contain_any_of_these_iRT_standard_peptides_));
+                    Assert.IsTrue(errorDlg.Message.Contains(Resources.SkylineWindow_ImportResults_Add_missing_iRT_standard_peptides_to_your_document_or_change_the_retention_time_predictor_));
+                });
+                OkDialog(errorDlg, errorDlg.OkDialog);
+            }
         }
     }
 }

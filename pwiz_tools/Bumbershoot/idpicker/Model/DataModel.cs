@@ -28,9 +28,11 @@ using System.Collections.Generic;
 using System.Linq;
 using System.IO;
 using System.Data;
+using System.Data.Common;
 using NHibernate;
 using NHibernate.Linq;
 using Iesi.Collections.Generic;
+using NHibernate.Engine;
 using pwiz.CLI.chemistry;
 using pwiz.CLI.msdata;
 using msdata = pwiz.CLI.msdata;
@@ -64,6 +66,7 @@ namespace IDPicker.DataModel
         public virtual double TotalIonCurrentMS2 { get; protected set; }
 
         public virtual QuantitationMethod QuantitationMethod { get; protected set; }
+        public virtual string QuantitationSettings { get; protected set; }
 
         public virtual IList<Spectrum> Spectra { get; set; }
 
@@ -178,6 +181,8 @@ namespace IDPicker.DataModel
         public virtual string Chromosome { get; set; }
         public virtual string GeneFamily { get; set; }
         public virtual string GeneDescription { get; set; }
+
+        public virtual byte[] Hash { get; protected set; }
 
         #region Transient instance members
         public Protein()
@@ -572,12 +577,12 @@ namespace IDPicker.DataModel
             return x.GetHashCode();
         }
 
-        public object NullSafeGet(IDataReader rs, string[] names, object owner)
+        public object NullSafeGet(DbDataReader rs, string[] names, ISessionImplementor session, object owner)
         {
             return Assemble(rs.GetValue(rs.GetOrdinal(names[0])), owner);
         }
 
-        public void NullSafeSet(IDbCommand cmd, object value, int index)
+        public void NullSafeSet(DbCommand cmd, object value, int index, ISessionImplementor session)
         {
             (cmd.Parameters[index] as IDataParameter).Value = Disassemble(value);
         }
@@ -681,12 +686,12 @@ namespace IDPicker.DataModel
             return x.GetHashCode();
         }
 
-        public object NullSafeGet (IDataReader rs, string[] names, object owner)
+        public object NullSafeGet(DbDataReader rs, string[] names, ISessionImplementor session, object owner)
         {
             return Assemble(rs.GetValue(0), owner);
         }
 
-        public void NullSafeSet (IDbCommand cmd, object value, int index)
+        public void NullSafeSet(DbCommand cmd, object value, int index, ISessionImplementor session)
         {
             (cmd.Parameters[index] as IDataParameter).Value = Disassemble(value);
         }
@@ -790,12 +795,12 @@ namespace IDPicker.DataModel
             return x.GetHashCode();
         }
 
-        public object NullSafeGet (IDataReader rs, string[] names, object owner)
+        public object NullSafeGet(DbDataReader rs, string[] names, ISessionImplementor session, object owner)
         {
             return Assemble(rs.GetValue(rs.GetOrdinal(names[0])), owner);
         }
 
-        public void NullSafeSet (IDbCommand cmd, object value, int index)
+        public void NullSafeSet(DbCommand cmd, object value, int index, ISessionImplementor session)
         {
             (cmd.Parameters[index] as IDataParameter).Value = Disassemble(value);
         }
@@ -832,7 +837,6 @@ namespace IDPicker.DataModel
                 return false;
             return mask1.SequenceEqual(mask2);
         }
-
         #endregion
     }
     #endregion

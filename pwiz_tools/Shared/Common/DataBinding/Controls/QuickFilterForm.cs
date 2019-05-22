@@ -18,15 +18,15 @@
  */
 using System;
 using System.Collections.Generic;
-using System.ComponentModel;
 using System.Linq;
 using System.Windows.Forms;
-using pwiz.Common.DataBinding.Internal;
+using pwiz.Common.Controls;
+using pwiz.Common.DataBinding.Layout;
 using pwiz.Common.Properties;
 
 namespace pwiz.Common.DataBinding.Controls
 {
-    public partial class QuickFilterForm : Form
+    public partial class QuickFilterForm : CommonFormEx
     {
         public QuickFilterForm()
         {
@@ -34,10 +34,10 @@ namespace pwiz.Common.DataBinding.Controls
         }
         public DataSchema DataSchema { get; private set; }
         public IViewContext ViewContext { get; set; }
-        public PropertyDescriptor PropertyDescriptor { get; private set; }
+        public DataPropertyDescriptor PropertyDescriptor { get; private set; }
         public RowFilter RowFilter { get; private set; }
 
-        public void SetPropertyDescriptor(DataSchema dataSchema, PropertyDescriptor propertyDescriptor)
+        public void SetPropertyDescriptor(DataSchema dataSchema, DataPropertyDescriptor propertyDescriptor)
         {
             DataSchema = dataSchema;
             PropertyDescriptor = propertyDescriptor;
@@ -69,7 +69,7 @@ namespace pwiz.Common.DataBinding.Controls
             }
         }
 
-        public void SetFilter(DataSchema dataSchema, PropertyDescriptor propertyDescriptor, RowFilter rowFilter)
+        public void SetFilter(DataSchema dataSchema, DataPropertyDescriptor propertyDescriptor, RowFilter rowFilter)
         {
             RowFilter = rowFilter;
             SetPropertyDescriptor(dataSchema, propertyDescriptor);
@@ -77,7 +77,7 @@ namespace pwiz.Common.DataBinding.Controls
             if (columnFilters.Length >= 1)
             {
                 SetFilterOperation(comboOperation1, tbxOperand1, columnFilters[0]);
-                tbxOperand1.Text = columnFilters[0].Operand;
+                tbxOperand1.Text = columnFilters[0].Predicate.GetOperandDisplayText(dataSchema, propertyDescriptor.PropertyType);
             }
             if (columnFilters.Length >= 2)
             {
@@ -99,8 +99,9 @@ namespace pwiz.Common.DataBinding.Controls
             {
                 columnFilters.Add(columnFilter);
             }
+            var columnId = ColumnId.GetColumnId(PropertyDescriptor);
             columnFilters.AddRange(rowFilter.ColumnFilters.Where(
-                filter => filter.ColumnCaption != PropertyDescriptor.DisplayName));
+                filter => !Equals(filter.ColumnId, columnId)));
             return rowFilter.SetColumnFilters(columnFilters);
         }
 
@@ -109,13 +110,13 @@ namespace pwiz.Common.DataBinding.Controls
             for (int i = 0; i < comboOperation.Items.Count; i++)
             {
                 FilterItem filterItem = comboOperation.Items[i] as FilterItem;
-                if (null != filterItem && Equals(columnFilter.FilterOperation, filterItem.FilterOperation))
+                if (null != filterItem && Equals(columnFilter.Predicate.FilterOperation, filterItem.FilterOperation))
                 {
                     comboOperation.SelectedIndex = i;
                     break;
                 }
             }
-            textBoxOperand.Text = columnFilter.Operand;
+            textBoxOperand.Text = columnFilter.Predicate.GetOperandDisplayText(DataSchema, PropertyDescriptor.PropertyType);
         }
 
         private RowFilter.ColumnFilter MakeColumnFilter(ComboBox comboOperation, TextBox text)
@@ -125,7 +126,9 @@ namespace pwiz.Common.DataBinding.Controls
             {
                 return null;
             }
-            return new RowFilter.ColumnFilter(PropertyDescriptor.DisplayName, filterItem.FilterOperation, text.Text);
+            var filterPredicate = FilterPredicate.CreateFilterPredicate(DataSchema, PropertyDescriptor.PropertyType,
+                filterItem.FilterOperation, text.Text);
+            return new RowFilter.ColumnFilter(ColumnId.GetColumnId(PropertyDescriptor), filterPredicate);
         }
 
         private void FilterChanged(ComboBox comboOperation, TextBox text)
@@ -165,10 +168,10 @@ namespace pwiz.Common.DataBinding.Controls
 
         public void OkDialog()
         {
-            RowFilter = GetCurrentFilter();
             try
             {
-                RowFilter.GetPredicate(PropertyDescriptor);
+                RowFilter = GetCurrentFilter();
+                RowFilter.GetPredicate(DataSchema, PropertyDescriptor);
             }
             catch (Exception e)
             {
@@ -192,9 +195,10 @@ namespace pwiz.Common.DataBinding.Controls
 
         private void btnClearFilter_Click(object sender, EventArgs e)
         {
+            var columnId = ColumnId.GetColumnId(PropertyDescriptor);
             RowFilter = RowFilter.SetColumnFilters(
                 RowFilter.ColumnFilters.Where(
-                    columnFilter => PropertyDescriptor.DisplayName != columnFilter.ColumnCaption));
+                    columnFilter => !Equals(columnId, columnFilter.ColumnId)));
             DialogResult = DialogResult.OK;
         }
 

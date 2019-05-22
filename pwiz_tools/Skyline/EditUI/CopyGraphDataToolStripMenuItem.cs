@@ -17,7 +17,6 @@
  * limitations under the License.
  */
 using System;
-using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using pwiz.Common.Graph;
 using pwiz.Skyline.Properties;
@@ -29,7 +28,7 @@ namespace pwiz.Skyline.EditUI
     /// <summary>
     /// Menu item to copy the data from a ZedGraph to the clipboard as tab separated values
     /// </summary>
-    public class CopyGraphDataToolStripMenuItem : ToolStripMenuItem
+    public sealed class CopyGraphDataToolStripMenuItem : ToolStripMenuItem
     {
         public CopyGraphDataToolStripMenuItem(ZedGraphControl zedGraphControl)
         {
@@ -55,15 +54,7 @@ namespace pwiz.Skyline.EditUI
             {
                 return;
             }
-            try
-            {
-                ClipboardEx.Clear();
-                ClipboardEx.SetText(graphData.ToString());
-            }
-            catch (ExternalException)
-            {
-                MessageBox.Show(ClipboardHelper.GetOpenClipboardMessage(Resources.CopyGraphDataToolStripMenuItem_CopyGraphData_Failed_setting_data_to_clipboard), Program.Name);
-            }
+            ClipboardHelper.SetClipboardText(zedGraphControl, graphData.ToString());
         }
     }
 }

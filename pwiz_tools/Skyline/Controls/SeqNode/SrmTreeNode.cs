@@ -23,6 +23,7 @@ using System.IO;
 using System.Linq;
 using System.Windows.Forms;
 using System.Drawing.Imaging;
+using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Alerts;
 using pwiz.Skyline.Model;
 using pwiz.Skyline.Model.DocSettings;
@@ -43,7 +44,7 @@ namespace pwiz.Skyline.Controls.SeqNode
 
     public class EmptyNode : TreeNodeMS
     {
-        public const string TEXT_EMPTY = "                 "; // Not L10N
+        public const string TEXT_EMPTY = "                 ";
 
         public EmptyNode(): base(TEXT_EMPTY)
         {
@@ -266,6 +267,13 @@ namespace pwiz.Skyline.Controls.SeqNode
             get { return !Model.Annotations.IsEmpty; }
         }
 
+        protected static string FormatAdductTip(Adduct adduct)
+        {
+            return adduct.IsProteomic
+                ? string.Format(adduct.AdductCharge.ToString(LocalizationHelper.CurrentCulture))
+                : string.Format(@"{0} ({1})", adduct.AdductCharge.ToString(LocalizationHelper.CurrentCulture), adduct.AdductFormula);
+        }
+
         public virtual Size RenderTip(Graphics g, Size sizeMax, bool draw)
         {
             var table = new TableDesc();
@@ -305,7 +313,7 @@ namespace pwiz.Skyline.Controls.SeqNode
                     }
                     // If the last row was multi-line, add a spacer line.
                     if (lastMultiLine)
-                        table.AddDetailRow(" ", " ", rt); // Not L10N
+                        table.AddDetailRow(@" ", @" ", rt);
                     lastMultiLine = table.AddDetailRowLineWrap(g, annotationName, annotationValue, rt);
                 }
                 SizeF size = table.CalcDimensions(g);
@@ -340,34 +348,6 @@ namespace pwiz.Skyline.Controls.SeqNode
             }
         }
 
-        #region object overrides
-
-        /// <summary>
-        /// Node equality determined as content equality between the
-        /// <see cref="Model"/> property of two tree nodes.
-        /// </summary>
-        /// <param name="obj">Other tree node to compare against</param>
-        /// <returns>Tree if the <see cref="Model"/> properties are equal</returns>
-        public bool Equals(SrmTreeNode obj)
-        {
-            if (ReferenceEquals(null, obj)) return false;
-            if (ReferenceEquals(this, obj)) return true;
-            return Equals(obj.Model, Model);
-        }
-
-        public override bool Equals(object obj)
-        {
-            if (ReferenceEquals(null, obj)) return false;
-            if (ReferenceEquals(this, obj)) return true;
-            if (obj.GetType() != typeof (SrmTreeNode)) return false;
-            return Equals((SrmTreeNode) obj);
-        }
-
-        public override int GetHashCode()
-        {
-            return Tag.GetHashCode();
-        }
-
         public DataObject ProvideData()
         {
             return GetNodeData();
@@ -381,9 +361,6 @@ namespace pwiz.Skyline.Controls.SeqNode
 
             return data;
         }
-
-        #endregion // object overrides
-
     }
 
     /// <summary>
@@ -421,6 +398,17 @@ namespace pwiz.Skyline.Controls.SeqNode
             }
         }
 
+        public void CollapseAndClear()
+        {
+            if (IsExpanded)
+                Collapse();
+            if (Nodes.Count > 0 && !(Nodes[0] is DummyNode))
+            {
+                Nodes.Clear();
+                Nodes.Add(new DummyNode());
+            }
+        }
+
         /// <summary>
         /// Called when children are updated during model changes.
         /// </summary>
@@ -443,11 +431,10 @@ namespace pwiz.Skyline.Controls.SeqNode
         public void ShowPickList(Point location, bool okOnDeactivate)
         {
             Exception exception = null;
-
             try
             {
                 PopupPickList popup = new PopupPickList(this, ChildHeading, okOnDeactivate) { Location = location };
-                popup.Show();
+                popup.Show(FormEx.GetParentForm(TreeView));
                 popup.Focus();
             }
             // Catch exceptions that may be caused trying to read results information from SKYD file
@@ -661,8 +648,6 @@ namespace pwiz.Skyline.Controls.SeqNode
             // This code is highly optimized to make as few modifications to the
             // tree as possible, as they can have negative impact on the selection.
 
-            TreeNode selNodeTemp = tree.SelectedNode;
-
             // First short-cut all the complexity, if the end result will be an
             // empty list.  This is way faster at removing all the proteins in the
             // File/New case.
@@ -677,6 +662,9 @@ namespace pwiz.Skyline.Controls.SeqNode
             }
             else if (!materialize)
             {
+                // Avoid updating a lot of nodes just because a parent tree node was opened
+                if (docNodes.Count > 1000)
+                    treeNodes.Clear();
                 if (treeNodes.Count == 0)
                     treeNodes.Add(new DummyNode());
                 if (treeNodes[0] is DummyNode)
@@ -771,10 +759,17 @@ namespace pwiz.Skyline.Controls.SeqNode
                 nodeDoc = docNodes[i];
                 TNode nodeTree;
                 if (!remaining.TryGetValue(nodeDoc.Id.GlobalIndex, out nodeTree))
+                {
                     nodeTree = create(tree, nodeDoc);
-                else if (!ReferenceEquals(nodeTree.Model, nodeDoc))
-                    nodeTree.Model = nodeDoc;
-                treeNodes.Insert(i, nodeTree);
+                    treeNodes.Insert(i, nodeTree);
+                }
+                else
+                {
+                    // Insert first, or node icons may not update correctly for a tree node with no tree
+                    treeNodes.Insert(i, nodeTree);
+                    if (!ReferenceEquals(nodeTree.Model, nodeDoc)) 
+                        nodeTree.Model = nodeDoc;
+                }
                 // Best replicate display, requires that the node have correct
                 // parenting, before the text and icons can be set correctly.
                 // So, force a model change to update those values.
@@ -785,7 +780,7 @@ namespace pwiz.Skyline.Controls.SeqNode
             if (selChanged)
                 tree.FireSelectedNodeChanged();
             else
-                tree.SelectedNode = selNodeTemp;
+                tree.SelectedNode = nodeSel;
         }
     }
 
@@ -1003,8 +998,10 @@ namespace pwiz.Skyline.Controls.SeqNode
 
     public class NodeTip : CustomTip
     {
-        public static string FontFace { get { return "Arial"; } } // Not L10N
+        public static string FontFace { get { return @"Arial"; } }
         public static float FontSize { get { return 8f; } }
+
+        public static int TipDelayMs { get { return 500; } }
 
         private ITipProvider _tipProvider;
         private readonly ITipDisplayer _tipDisplayer;
@@ -1016,7 +1013,7 @@ namespace pwiz.Skyline.Controls.SeqNode
 
         public NodeTip(ITipDisplayer tipDisplayer)
         {
-            _timer = new Timer { Interval = 500 };
+            _timer = new Timer { Interval = TipDelayMs };
             _timer.Tick += Timer_Tick;
             _tipDisplayer = tipDisplayer;
         }
@@ -1109,7 +1106,7 @@ namespace pwiz.Skyline.Controls.SeqNode
                 }
             }
 
-            ShowAnimate(X, Y, animate);
+            ShowAnimate(X, Y, animate); // Not really animated anymore, because of GDI handle leak on Windows 10
         }
     }
 
@@ -1168,7 +1165,7 @@ namespace pwiz.Skyline.Controls.SeqNode
         }
 
         private const string X80 =
-        "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"; // Not L10N
+        @"XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX";
 
         /// <summary>
         /// Adds a text column a with potential line wrap.
@@ -1203,7 +1200,7 @@ namespace pwiz.Skyline.Controls.SeqNode
             AddDetailRow(firstRow ? name : string.Empty, line, rt);
             // The text is multi-line if either it required wrapping to multiple rows,
             // or it contains new-line characters.
-            return !firstRow || value.Contains('\n'); // Not L10N
+            return !firstRow || value.Contains('\n');
         }
 
         public SizeF CalcDimensions(Graphics g)

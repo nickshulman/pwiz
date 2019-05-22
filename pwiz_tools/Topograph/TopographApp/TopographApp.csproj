@@ -59,7 +59,7 @@
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>pwiz.Topograph.ui</RootNamespace>
     <AssemblyName>Topograph-daily</AssemblyName>
-    <TargetFrameworkVersion>v4.5.1</TargetFrameworkVersion>
+    <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <IsWebBootstrapper>true</IsWebBootstrapper>
     <ManifestCertificateThumbprint>27BD7FEB06BDFFE53FBDA13C6D127DF8B5BDEFE9</ManifestCertificateThumbprint>
@@ -728,6 +728,10 @@
       <Link>EULA.MHDAC</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <Content Condition=" '$(Configuration)|$(Platform)' == 'Release|x64'" Include="..\..\Shared\ProteowizardWrapper\obj\x64\timsdata.dll">
+      <Link>timsdata.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
     <None Condition="'$(Platform)' == 'x86'" Include="..\..\..\pwiz_aux\msrc\utility\vendor_api\Bruker\x86\Interop.EDAL.SxS.manifest">
       <Link>Interop.EDAL.SxS.manifest</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
@@ -799,10 +803,6 @@
       <Project>{13BF2FFB-50A1-4AB1-83A4-5733E36905CE}</Project>
       <Name>CommonUtil</Name>
     </ProjectReference>
-    <ProjectReference Include="..\..\Shared\Crawdad\Crawdad.vcxproj">
-      <Project>{5C81BB57-E46C-4B3B-9764-82F835E643B8}</Project>
-      <Name>Crawdad</Name>
-    </ProjectReference>
     <ProjectReference Include="..\..\Shared\MSGraph\MSGraph.csproj">
       <Project>{26CFD1FF-F4F7-4F66-B5B4-E686BDB9B34E}</Project>
       <Name>MSGraph</Name>
@@ -861,28 +861,180 @@
     </BootstrapperPackage>
   </ItemGroup>
   <ItemGroup>
-    <Content Condition="'$(Platform)' == 'x86'" Include="..\..\Shared\Lib\Microsoft.VC100.CRT\x86\msvcp100.dll">
-      <Link>msvcp100.dll</Link>
+    <Content Include="..\..\Shared\Lib\Microsoft.VC140.CRT\$(Platform)\api-ms-win-core-console-l1-1-0.dll">
+      <Link>api-ms-win-core-console-l1-1-0.dll</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
-    <Content Condition="'$(Platform)' == 'x64'" Include="..\..\Shared\Lib\Microsoft.VC100.CRT\x64\msvcp100.dll">
-      <Link>msvcp100.dll</Link>
+    <Content Include="..\..\Shared\Lib\Microsoft.VC140.CRT\$(Platform)\api-ms-win-core-datetime-l1-1-0.dll">
+      <Link>api-ms-win-core-datetime-l1-1-0.dll</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
-    <Content Condition="'$(Platform)' == 'x86'" Include="..\..\Shared\Lib\Microsoft.VC100.CRT\x86\msvcr100.dll">
-      <Link>msvcr100.dll</Link>
+    <Content Include="..\..\Shared\Lib\Microsoft.VC140.CRT\$(Platform)\api-ms-win-core-debug-l1-1-0.dll">
+      <Link>api-ms-win-core-debug-l1-1-0.dll</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
-    <Content Condition="'$(Platform)' == 'x64'" Include="..\..\Shared\Lib\Microsoft.VC100.CRT\x64\msvcr100.dll">
-      <Link>msvcr100.dll</Link>
+    <Content Include="..\..\Shared\Lib\Microsoft.VC140.CRT\$(Platform)\api-ms-win-core-errorhandling-l1-1-0.dll">
+      <Link>api-ms-win-core-errorhandling-l1-1-0.dll</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
-    <Content Condition="'$(Platform)' == 'x86'" Include="..\..\Shared\Lib\Microsoft.VC100.MFC\x86\mfc100u.dll">
-      <Link>mfc100u.dll</Link>
+    <Content Include="..\..\Shared\Lib\Microsoft.VC140.CRT\$(Platform)\api-ms-win-core-file-l1-1-0.dll">
+      <Link>api-ms-win-core-file-l1-1-0.dll</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
-    <Content Condition="'$(Platform)' == 'x64'" Include="..\..\Shared\Lib\Microsoft.VC100.MFC\x64\mfc100u.dll">
-      <Link>mfc100u.dll</Link>
+    <Content Include="..\..\Shared\Lib\Microsoft.VC140.CRT\$(Platform)\api-ms-win-core-file-l1-2-0.dll">
+      <Link>api-ms-win-core-file-l1-2-0.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\..\Shared\Lib\Microsoft.VC140.CRT\$(Platform)\api-ms-win-core-file-l2-1-0.dll">
+      <Link>api-ms-win-core-file-l2-1-0.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\..\Shared\Lib\Microsoft.VC140.CRT\$(Platform)\api-ms-win-core-handle-l1-1-0.dll">
+      <Link>api-ms-win-core-handle-l1-1-0.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\..\Shared\Lib\Microsoft.VC140.CRT\$(Platform)\api-ms-win-core-heap-l1-1-0.dll">
+      <Link>api-ms-win-core-heap-l1-1-0.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\..\Shared\Lib\Microsoft.VC140.CRT\$(Platform)\api-ms-win-core-interlocked-l1-1-0.dll">
+      <Link>api-ms-win-core-interlocked-l1-1-0.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\..\Shared\Lib\Microsoft.VC140.CRT\$(Platform)\api-ms-win-core-libraryloader-l1-1-0.dll">
+      <Link>api-ms-win-core-libraryloader-l1-1-0.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\..\Shared\Lib\Microsoft.VC140.CRT\$(Platform)\api-ms-win-core-localization-l1-2-0.dll">
+      <Link>api-ms-win-core-localization-l1-2-0.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\..\Shared\Lib\Microsoft.VC140.CRT\$(Platform)\api-ms-win-core-memory-l1-1-0.dll">
+      <Link>api-ms-win-core-memory-l1-1-0.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\..\Shared\Lib\Microsoft.VC140.CRT\$(Platform)\api-ms-win-core-namedpipe-l1-1-0.dll">
+      <Link>api-ms-win-core-namedpipe-l1-1-0.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\..\Shared\Lib\Microsoft.VC140.CRT\$(Platform)\api-ms-win-core-processenvironment-l1-1-0.dll">
+      <Link>api-ms-win-core-processenvironment-l1-1-0.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\..\Shared\Lib\Microsoft.VC140.CRT\$(Platform)\api-ms-win-core-processthreads-l1-1-0.dll">
+      <Link>api-ms-win-core-processthreads-l1-1-0.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\..\Shared\Lib\Microsoft.VC140.CRT\$(Platform)\api-ms-win-core-processthreads-l1-1-1.dll">
+      <Link>api-ms-win-core-processthreads-l1-1-1.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\..\Shared\Lib\Microsoft.VC140.CRT\$(Platform)\api-ms-win-core-profile-l1-1-0.dll">
+      <Link>api-ms-win-core-profile-l1-1-0.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\..\Shared\Lib\Microsoft.VC140.CRT\$(Platform)\api-ms-win-core-rtlsupport-l1-1-0.dll">
+      <Link>api-ms-win-core-rtlsupport-l1-1-0.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\..\Shared\Lib\Microsoft.VC140.CRT\$(Platform)\api-ms-win-core-string-l1-1-0.dll">
+      <Link>api-ms-win-core-string-l1-1-0.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\..\Shared\Lib\Microsoft.VC140.CRT\$(Platform)\api-ms-win-core-synch-l1-1-0.dll">
+      <Link>api-ms-win-core-synch-l1-1-0.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\..\Shared\Lib\Microsoft.VC140.CRT\$(Platform)\api-ms-win-core-synch-l1-2-0.dll">
+      <Link>api-ms-win-core-synch-l1-2-0.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\..\Shared\Lib\Microsoft.VC140.CRT\$(Platform)\api-ms-win-core-sysinfo-l1-1-0.dll">
+      <Link>api-ms-win-core-sysinfo-l1-1-0.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\..\Shared\Lib\Microsoft.VC140.CRT\$(Platform)\api-ms-win-core-timezone-l1-1-0.dll">
+      <Link>api-ms-win-core-timezone-l1-1-0.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\..\Shared\Lib\Microsoft.VC140.CRT\$(Platform)\api-ms-win-core-util-l1-1-0.dll">
+      <Link>api-ms-win-core-util-l1-1-0.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\..\Shared\Lib\Microsoft.VC140.CRT\$(Platform)\api-ms-win-crt-conio-l1-1-0.dll">
+      <Link>api-ms-win-crt-conio-l1-1-0.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\..\Shared\Lib\Microsoft.VC140.CRT\$(Platform)\api-ms-win-crt-convert-l1-1-0.dll">
+      <Link>api-ms-win-crt-convert-l1-1-0.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\..\Shared\Lib\Microsoft.VC140.CRT\$(Platform)\api-ms-win-crt-environment-l1-1-0.dll">
+      <Link>api-ms-win-crt-environment-l1-1-0.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\..\Shared\Lib\Microsoft.VC140.CRT\$(Platform)\api-ms-win-crt-filesystem-l1-1-0.dll">
+      <Link>api-ms-win-crt-filesystem-l1-1-0.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\..\Shared\Lib\Microsoft.VC140.CRT\$(Platform)\api-ms-win-crt-heap-l1-1-0.dll">
+      <Link>api-ms-win-crt-heap-l1-1-0.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\..\Shared\Lib\Microsoft.VC140.CRT\$(Platform)\api-ms-win-crt-locale-l1-1-0.dll">
+      <Link>api-ms-win-crt-locale-l1-1-0.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\..\Shared\Lib\Microsoft.VC140.CRT\$(Platform)\api-ms-win-crt-math-l1-1-0.dll">
+      <Link>api-ms-win-crt-math-l1-1-0.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\..\Shared\Lib\Microsoft.VC140.CRT\$(Platform)\api-ms-win-crt-multibyte-l1-1-0.dll">
+      <Link>api-ms-win-crt-multibyte-l1-1-0.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\..\Shared\Lib\Microsoft.VC140.CRT\$(Platform)\api-ms-win-crt-private-l1-1-0.dll">
+      <Link>api-ms-win-crt-private-l1-1-0.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\..\Shared\Lib\Microsoft.VC140.CRT\$(Platform)\api-ms-win-crt-process-l1-1-0.dll">
+      <Link>api-ms-win-crt-process-l1-1-0.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\..\Shared\Lib\Microsoft.VC140.CRT\$(Platform)\api-ms-win-crt-runtime-l1-1-0.dll">
+      <Link>api-ms-win-crt-runtime-l1-1-0.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\..\Shared\Lib\Microsoft.VC140.CRT\$(Platform)\api-ms-win-crt-stdio-l1-1-0.dll">
+      <Link>api-ms-win-crt-stdio-l1-1-0.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\..\Shared\Lib\Microsoft.VC140.CRT\$(Platform)\api-ms-win-crt-string-l1-1-0.dll">
+      <Link>api-ms-win-crt-string-l1-1-0.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\..\Shared\Lib\Microsoft.VC140.CRT\$(Platform)\api-ms-win-crt-time-l1-1-0.dll">
+      <Link>api-ms-win-crt-time-l1-1-0.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\..\Shared\Lib\Microsoft.VC140.CRT\$(Platform)\api-ms-win-crt-utility-l1-1-0.dll">
+      <Link>api-ms-win-crt-utility-l1-1-0.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\..\Shared\Lib\Microsoft.VC140.CRT\$(Platform)\msvcp140.dll">
+      <Link>msvcp140.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\..\Shared\Lib\Microsoft.VC140.CRT\$(Platform)\ucrtbase.dll">
+      <Link>ucrtbase.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\..\Shared\Lib\Microsoft.VC140.CRT\$(Platform)\vcomp140.dll">
+      <Link>vcomp140.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\..\Shared\Lib\Microsoft.VC140.CRT\$(Platform)\vcruntime140.dll">
+      <Link>vcruntime140.dll</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <Content Condition="'$(Platform)' == 'x86'" Include="..\..\..\pwiz_aux\msrc\utility\vendor_api\Waters\vc12_x86\cdt.dll">
@@ -925,24 +1077,28 @@
       <Link>BlibFilter.exe</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
-    <Content Condition=" '$(Configuration)|$(Platform)' == 'Release|x86' " Include="..\..\Shared\BiblioSpec\obj\x86\msparser.dll">
+    <Content Condition=" '$(Configuration)|$(Platform)' == 'Release|x86' " Include="..\..\Shared\ProteowizardWrapper\obj\x86\msparser.dll">
       <Link>msparser.dll</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
-    <Content Condition=" '$(Configuration)|$(Platform)' == 'Debug|x86' " Include="..\..\Shared\BiblioSpec\obj\x86\msparserD.dll">
-      <Link>msparserD.dll</Link>
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Condition=" '$(Configuration)|$(Platform)' == 'Release|x64' " Include="..\..\Shared\BiblioSpec\obj\x64\msparser.dll">
+    <Content Condition=" '$(Configuration)|$(Platform)' == 'Debug|x86' " Include="..\..\Shared\ProteowizardWrapper\obj\x86\msparser.dll">
       <Link>msparser.dll</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
-    <Content Condition=" '$(Configuration)|$(Platform)' == 'Debug|x64' " Include="..\..\Shared\BiblioSpec\obj\x64\msparserD.dll">
+    <Content Condition=" '$(Configuration)|$(Platform)' == 'Debug|x86' " Include="..\..\Shared\ProteowizardWrapper\obj\x86\msparserD.dll">
       <Link>msparserD.dll</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
-    <Content Condition="'$(Platform)' == 'x86'" Include="..\..\Shared\Lib\Microsoft.VC100.MFC\x86\Microsoft.VC100.MFC.manifest">
-      <Link>Microsoft.VC100.MFC\Microsoft.VC100.MFC.manifest</Link>
+    <Content Condition=" '$(Configuration)|$(Platform)' == 'Release|x64' " Include="..\..\Shared\ProteowizardWrapper\obj\x64\msparser.dll">
+      <Link>msparser.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Condition=" '$(Configuration)|$(Platform)' == 'Debug|x64' " Include="..\..\Shared\ProteowizardWrapper\obj\x64\msparser.dll">
+      <Link>msparser.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Condition=" '$(Configuration)|$(Platform)' == 'Debug|x64' " Include="..\..\Shared\ProteowizardWrapper\obj\x64\msparserD.dll">
+      <Link>msparserD.dll</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <None Include="Resources\Collapse.png" />

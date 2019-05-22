@@ -320,19 +320,22 @@ namespace pwiz.Skyline.Controls
             Font = new Font(Font.FontFamily, (float)(DEFAULT_FONT_SIZE * Settings.Default.TextZoom));
         }
 
-	    private void InvalidateChangedNodes(IEnumerable<TreeNodeMS> nodes, ICollection<TreeNodeMS> unchangedNodes)
-	    {
-	        foreach (var node in nodes)
-	        {
-	            if (!unchangedNodes.Contains(node))
-	                InvalidateNode(node);
-	        }
-	    }
+        private void InvalidateChangedNodes(IEnumerable<TreeNodeMS> nodes, ICollection<TreeNodeMS> unchangedNodes)
+        {
+            if (IsInUpdate)
+                return;
 
-	    protected void InvalidateNode(TreeNodeMS node)
-	    {
-	        Invalidate(new Rectangle(0, node.BoundsMS.Top, ClientRectangle.Width, node.BoundsMS.Height));
-	    }
+            foreach (var node in nodes)
+            {
+                if (!unchangedNodes.Contains(node))
+                    InvalidateNode(node);
+            }
+        }
+
+        protected void InvalidateNode(TreeNodeMS node)
+        {
+            Invalidate(new Rectangle(0, node.BoundsMS.Top, ClientRectangle.Width, node.BoundsMS.Height));
+        }
 
         protected override void OnPaintBackground(PaintEventArgs pevent)
         {
@@ -356,6 +359,7 @@ namespace pwiz.Skyline.Controls
 
             // Draw all nodes exposed in the paint clipping rectangle.
             var drawRect = e.Graphics.ClipBounds;
+            drawRect.Intersect(e.ClipRectangle);
             int bottom = (int)drawRect.Bottom;
             for (var node = TopNode;
                 node != null && node.Bounds.Top <= bottom;
@@ -400,6 +404,10 @@ namespace pwiz.Skyline.Controls
 
             public void Add(TreeNodeMS item)
             {
+                if (item == null)
+                {
+                    throw new ArgumentNullException();
+                }
                 item.IsInSelection = true;
                 _nodes.Add(item);                
             }
@@ -422,6 +430,10 @@ namespace pwiz.Skyline.Controls
 
             public bool Remove(TreeNodeMS item)
             {
+                if (item == null)
+                {
+                    return false;
+                }
                 if (_nodes.Remove(item))
                 {
                     item.IsInSelection = false;
@@ -508,6 +520,7 @@ namespace pwiz.Skyline.Controls
         protected double _textZoomFactor;
         protected string _widthText;
         protected int _widthCustom;
+        protected IList<Color> _groupColors;
 
         protected virtual int WidthCustom
         {

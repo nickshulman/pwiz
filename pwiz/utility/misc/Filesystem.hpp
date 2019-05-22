@@ -25,6 +25,11 @@
 #ifndef _FILESYSTEM_HPP_
 #define _FILESYSTEM_HPP_
 
+#ifdef __cplusplus_cli
+// "boost/filesystem/path.hpp" uses "generic" as an identifier which is a reserved word in C++/CLI
+#define generic __identifier(generic)
+#endif
+
 #include "Export.hpp"
 #include "String.hpp"
 #include "Container.hpp"
@@ -66,6 +71,15 @@ namespace pwiz {
 namespace util {
 
 
+/// on Windows, closes all file handles and memory mapped sections relating to the given filepath
+PWIZ_API_DECL void force_close_handles_to_filepath(const std::string& filepath, bool closeMemoryMappedSections = false) noexcept(true);
+
+
+/// adds utf8_codecvt_facet to boost::filesystem::path's default behavior so it works with UTF-8 std::strings;
+/// uses a singleton so the imbuement is only done once
+PWIZ_API_DECL void enable_utf8_path_operations();
+
+
 /// expands (aka globs) a pathmask to zero or more matching paths and returns the number of matching paths
 /// - matching paths can be either files or directories
 /// - matching paths will be absolute if input pathmask was absolute
@@ -100,6 +114,8 @@ PWIZ_API_DECL
 std::string abbreviate_byte_size(boost::uintmax_t byteSize,
                                  ByteSizeAbbreviation abbreviationType = ByteSizeAbbreviation_SI);
 
+
+PWIZ_API_DECL bool isHTTP(const std::string& filepath);
 
 PWIZ_API_DECL std::string read_file_header(const std::string& filepath, size_t length = 512);
 

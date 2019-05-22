@@ -18,6 +18,8 @@
  */
 using System;
 using System.Collections.Generic;
+using System.Threading;
+using System.Linq;
 using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Util;
 
@@ -27,8 +29,11 @@ namespace pwiz.Skyline.Model
     {
         private IStreamManager _streamManager = FileStreamManager.Default;
 
+        private int _activeThreadCount;
         private readonly Dictionary<int, IDocumentContainer> _processing =
             new Dictionary<int, IDocumentContainer>();
+
+        protected bool IsMultiThreadAware { get; set; }
 
         public event EventHandler<ProgressUpdateEventArgs> ProgressUpdateEvent;
 
@@ -41,11 +46,13 @@ namespace pwiz.Skyline.Model
         public void Register(IDocumentContainer container)
         {
             container.Listen(OnDocumentChanged);
+            container.AddBackgroundLoader(this);  // Useful information for enforcing orderly test shutdown
         }
 
         public void Unregister(IDocumentContainer container)
         {
             container.Unlisten(OnDocumentChanged);
+            container.RemoveBackgroundLoader(this);  // Useful information for enforcing orderly test shutdown
         }
 
         protected void OnDocumentChanged(object sender, DocumentChangedEventArgs e)
@@ -61,18 +68,22 @@ namespace pwiz.Skyline.Model
                     EndProcessing(document);
                 else
                 {
-                    int docIndex = document.Id.GlobalIndex;
-                    lock (_processing)
+                    if (!IsMultiThreadAware)
                     {
-                        // Keep track of the documents being processed, to avoid running
-                        // processing on the same document on multiple threads.
-                        if (_processing.ContainsKey(docIndex))
-                            return;
-                        _processing.Add(docIndex, container);
+                        int docIndex = document.Id.GlobalIndex;
+                        lock (_processing)
+                        {
+                            // Keep track of the documents being processed, to avoid running
+                            // processing on the same document on multiple threads.
+                            if (_processing.ContainsKey(docIndex))
+                                return;
+                            _processing.Add(docIndex, container);
+                        }
                     }
 
-                    Action<IDocumentContainer, SrmDocument> loader = OnLoadBackground;
-                    loader.BeginInvoke(container, document, loader.EndInvoke, null);
+                    var loadThread = new Thread(() => OnLoadBackground(container, document));
+                    Interlocked.Increment(ref _activeThreadCount);
+                    loadThread.Start();
                 }
             }
         }
@@ -87,16 +98,23 @@ namespace pwiz.Skyline.Model
             foreach (var id in GetOpenStreams(previous))
             {
                 if (!set.Contains(id.GlobalIndex))
+                {
+                    // DebugLog.Info(@"{0}. {1} - {2}", id.GlobalIndex, id.GetType(), id.IsOpen ? @"removed" : @"checked");
                     id.CloseStream();
+                }
             }
         }
+
+        // For use on container shutdown, clear anything cached to restore minimal memory footprint
+        public abstract void ClearCache();
 
         private void OnLoadBackground(IDocumentContainer container, SrmDocument document)
         {
             try
             {
                 // Made on a new thread.
-                LocalizationHelper.InitThread(GetType().Name + " thread"); // Not L10N
+                LocalizationHelper.InitThread(GetType().Name + @" thread");
+                Thread.CurrentThread.Priority = ThreadPriority.BelowNormal;
                 SrmDocument docCurrent = container.Document;
                 // If the document identity has changed, or the current document is loaded,
                 // then end the processing.
@@ -108,13 +126,24 @@ namespace pwiz.Skyline.Model
 
                 LoadBackground(container, document, docCurrent);
 
-                // Force a document changed notification, since loading blocks them
-                // from triggering new processing, but new processing may have accumulated
-                OnDocumentChanged(container, new DocumentChangedEventArgs(docCurrent));
+                // Did the container change out its document while we were working?
+                EndProcessingNotInContainer(container);
+
+                if (!IsMultiThreadAware)
+                {
+                    // Force a document changed notification, since loading blocks them
+                    // from triggering new processing, but new processing may have accumulated
+                    if (!container.IsClosing)
+                        OnDocumentChanged(container, new DocumentChangedEventArgs(docCurrent));
+                }
             }
             catch (Exception exception)
             {
                 Program.ReportException(exception);
+            }
+            finally
+            {
+                Interlocked.Decrement(ref _activeThreadCount);
             }
         }
 
@@ -179,7 +208,7 @@ namespace pwiz.Skyline.Model
         protected abstract bool LoadBackground(IDocumentContainer container,
             SrmDocument document, SrmDocument docCurrent);
 
-        protected UpdateProgressResponse UpdateProgress(ProgressStatus status)
+        public UpdateProgressResponse UpdateProgress(IProgressStatus status)
         {
             if (ProgressUpdateEvent != null)
             {
@@ -190,27 +219,71 @@ namespace pwiz.Skyline.Model
             return UpdateProgressResponse.normal;
         }
 
-        protected bool CompleteProcessing(IDocumentContainer container, SrmDocument docNew, SrmDocument docOriginal)
+        private bool IsProcessing(SrmDocument document)
         {
             lock (_processing)
             {
+                return _processing.ContainsKey(document.Id.GlobalIndex);
+            }
+        }
+
+        public virtual bool AnyProcessing()
+        {
+            if (_activeThreadCount > 0)
+                return true;
+
+            lock (_processing)
+            {
+                return _processing.Count > 0;
+            }
+        }
+
+        protected bool CompleteProcessing(IDocumentContainer container, SrmDocument docNew, SrmDocument docOriginal)
+        {
+            // Has docOriginal already been removed from the processing list?  If so, don't attempt an update.
+            // Unless the brackground loader handles its own thread safety, in which case the processing list
+            // is not used.
+            if (IsMultiThreadAware || IsProcessing(docOriginal))
+            {
                 if (!container.SetDocument(docNew, docOriginal))
                     return false;
-
-                EndProcessing(docOriginal);
             }
+
+            EndProcessing(docOriginal);
             return true;
+        }
+
+        private void EndProcessingNotInContainer(IDocumentContainer container)
+        {
+            lock (_processing)
+            {
+                foreach (var idContainer in _processing.ToArray())
+                {
+                    var docNew = container.Document;
+                    if (ReferenceEquals(idContainer.Value, container) && idContainer.Key != docNew.Id.GlobalIndex)
+                        EndProcessing(idContainer.Key);
+                }
+            }
         }
 
         protected void EndProcessing(SrmDocument document)
         {
+            EndProcessing(document.Id.GlobalIndex);
+        }
+
+        protected void EndProcessing(int documentId)
+        {
             lock (_processing)
             {
-                _processing.Remove(document.Id.GlobalIndex);
+                _processing.Remove(documentId);
             }
         }
 
-        protected class LoadMonitor : ILoadMonitor
+        public virtual void ResetProgress(SrmDocument document)
+        {            
+        }
+
+        public class LoadMonitor : ILoadMonitor
         {
             private readonly BackgroundLoader _manager;
             private readonly IDocumentContainer _container;
@@ -223,7 +296,11 @@ namespace pwiz.Skyline.Model
                 _tag = tag;
             }
 
-            public IStreamManager StreamManager
+            protected LoadMonitor()
+            {
+            }
+
+            public virtual IStreamManager StreamManager
             {
                 get { return _manager.StreamManager; }
             }
@@ -232,19 +309,29 @@ namespace pwiz.Skyline.Model
             /// Cancels loading, if the <see cref="SrmDocument"/> for which it is
             /// being loaded is found not to contain the library.
             /// </summary>
-            public bool IsCanceled
+            public virtual bool IsCanceled
             {
                 get
                 {
-                    return _manager.IsCanceled(_container, _tag);
+                    // Check for global cancelation of the progress monitor
+                    var monitor = _container as IProgressMonitor;
+                    if (monitor != null && monitor.IsCanceled)
+                        return true;
+                    // Check for cancelation of just this item
+                    return IsCanceledItem(_tag);
                 }
+            }
+
+            protected bool IsCanceledItem(object tag)
+            {
+                return _manager.IsCanceled(_container, tag);
             }
 
             /// <summary>
             /// Updates progress reporting for this operation.
             /// </summary>
             /// <param name="status"></param>
-            public UpdateProgressResponse UpdateProgress(ProgressStatus status)
+            public virtual UpdateProgressResponse UpdateProgress(IProgressStatus status)
             {
                 return _manager.UpdateProgress(status);
             }
@@ -282,7 +369,7 @@ namespace pwiz.Skyline.Model
             get { return _monitor.IsCanceled; }
         }
 
-        public UpdateProgressResponse UpdateProgress(ProgressStatus status)
+        public UpdateProgressResponse UpdateProgress(IProgressStatus status)
         {
             return _monitor.UpdateProgress(status);
         }

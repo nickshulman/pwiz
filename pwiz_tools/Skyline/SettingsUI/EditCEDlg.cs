@@ -267,13 +267,13 @@ namespace pwiz.Skyline.SettingsUI
 
         public void UseCurrentData()
         {
-            CERegressionData[] arrayData = GetRegressionDatas();
+            var arrayData = GetRegressionDatas();
             if (arrayData == null)
                 return;
 
             bool hasRegressionLines = false;
-            var regressionLines = new RegressionLine[arrayData.Length];
-            for (int i = 0; i < arrayData.Length; i++)
+            var regressionLines = new AdductMap<RegressionLine>();
+            foreach (var i in arrayData.Keys)
             {
                 if (arrayData[i] == null)
                     continue;
@@ -289,16 +289,16 @@ namespace pwiz.Skyline.SettingsUI
             }
 
             gridRegression.Rows.Clear();
-            for (int i = 0; i < regressionLines.Length; i++)
+            foreach (var i in regressionLines.Keys)
             {
                 var regressionLine = regressionLines[i];
                 if (regressionLine == null)
                     continue;
                 gridRegression.Rows.Add(new object[]
                                             {
-                                                i.ToString(LocalizationHelper.CurrentCulture),
-                                                string.Format("{0:F04}", regressionLine.Slope), // Not L10N
-                                                string.Format("{0:F04}", regressionLine.Intercept) // Not L10N
+                                                i.AdductCharge.ToString(LocalizationHelper.CurrentCulture),
+                                                string.Format(@"{0:F04}", regressionLine.Slope),
+                                                string.Format(@"{0:F04}", regressionLine.Intercept)
                                             });
             }
         }
@@ -311,12 +311,12 @@ namespace pwiz.Skyline.SettingsUI
         public void ShowGraph()
         {
             CheckDisposed();
-            CERegressionData[] arrayData = GetRegressionDatas();
+            var arrayData = GetRegressionDatas();
             if (arrayData == null)
                 return;
 
             var listGraphData = new List<RegressionGraphData>();
-            for (int charge = 0; charge < arrayData.Length; charge++)
+            foreach (var charge in arrayData.Keys)
             {
                 var regressionData = arrayData[charge];
                 if (regressionData == null)
@@ -339,7 +339,7 @@ namespace pwiz.Skyline.SettingsUI
             }
         }
 
-        private CERegressionData[] GetRegressionDatas()
+        private AdductMap<CERegressionData> GetRegressionDatas()
         {
             var document = Program.ActiveDocumentUI;
             if (!document.Settings.HasResults)
@@ -354,7 +354,7 @@ namespace pwiz.Skyline.SettingsUI
             var regressionCurrent = _regression ??
                 document.Settings.TransitionSettings.Prediction.CollisionEnergy;
 
-            var arrayData = new CERegressionData[TransitionGroup.MAX_PRECURSOR_CHARGE + 1];
+            var arrayData = new AdductMap<CERegressionData>();
             var chromatograms = document.Settings.MeasuredResults.Chromatograms;
             for (int i = 0; i < chromatograms.Count; i++)
             {
@@ -365,7 +365,7 @@ namespace pwiz.Skyline.SettingsUI
 
                 foreach (var nodeGroup in document.MoleculeTransitionGroups)
                 {
-                    int charge = nodeGroup.TransitionGroup.PrecursorCharge;
+                    var charge = nodeGroup.TransitionGroup.PrecursorAdduct;
                     if (arrayData[charge] == null)
                     {
                         var chargeRegression = (regressionCurrent != null ?
@@ -389,7 +389,7 @@ namespace pwiz.Skyline.SettingsUI
             protected override double GetValue(CollisionEnergyRegression regression,
                 TransitionGroupDocNode nodeGroup, int step)
             {
-                return regression.GetCollisionEnergy(nodeGroup.TransitionGroup.PrecursorCharge,
+                return regression.GetCollisionEnergy(nodeGroup.TransitionGroup.PrecursorAdduct,
                                                       nodeGroup.PrecursorMz, step);
             }
         }
@@ -440,8 +440,8 @@ namespace pwiz.Skyline.SettingsUI
             get
             {
                 return (from nodeGroup in _dictGroupToOptTotals.Keys
-                        orderby nodeGroup.PrecursorMz
-                        select nodeGroup.PrecursorMz).ToArray();
+                        orderby nodeGroup.PrecursorMz.Value
+                        select nodeGroup.PrecursorMz.Value).ToArray();  // CONSIDER(bspratt) - this ignores polarity, is that proper?
             }
         }
 
@@ -484,7 +484,7 @@ namespace pwiz.Skyline.SettingsUI
         public void Add(TReg regression, TransitionGroupDocNode nodeGroup, int iResult)
         {
             var result = nodeGroup.Results[iResult];
-            if (result == null)
+            if (result.IsEmpty)
                 return;
 
             Dictionary<TReg, Dictionary<int, double>> dictOptTotals;

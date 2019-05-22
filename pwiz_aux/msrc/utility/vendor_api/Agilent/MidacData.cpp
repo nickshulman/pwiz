@@ -111,8 +111,8 @@ struct DriftScanImpl : public DriftScan
     virtual int getScanId() const;
 
     virtual int getTotalDataPoints() const;
-    virtual const std::vector<double>& getXArray() const;
-    virtual const std::vector<float>& getYArray() const;
+    virtual const pwiz::util::BinaryData<double>& getXArray() const;
+    virtual const pwiz::util::BinaryData<float>& getYArray() const;
 
     private:
     MSStorageMode msStorageMode_;
@@ -124,12 +124,14 @@ struct DriftScanImpl : public DriftScan
     double collisionEnergy_;
     double driftTime_;
     int scanId_;
-    std::vector<double> xArray_;
-    std::vector<float> yArray_;
+    pwiz::util::BinaryData<double> xArray_;
+    pwiz::util::BinaryData<float> yArray_;
 };
 
 MidacDataImpl::MidacDataImpl(const std::string& path)
 {
+    massHunterRootPath_ = path;
+
     try
     {
         String^ filepath = ToSystemString(path);
@@ -138,6 +140,10 @@ MidacDataImpl::MidacDataImpl(const std::string& path)
             boost::mutex::scoped_lock lock(massHunterInitMutex);
 
             imsReader_ = MIDAC::MidacFileAccess::ImsDataReader(filepath);
+
+            imsCcsReader_ = gcnew MIDAC::ImsCcsInfoReader();
+
+            imsCcsReader_->Read(filepath);
 
             // Force read of some data before we start; gets some assertions out of the way.
             imsReader_->FrameInfo(1)->FrameUnitConverter;
@@ -148,7 +154,7 @@ MidacDataImpl::MidacDataImpl(const std::string& path)
     CATCH_AND_FORWARD
 }
 
-MidacDataImpl::~MidacDataImpl()
+MidacDataImpl::~MidacDataImpl() noexcept(false)
 {
     try {imsReader_->Close();} CATCH_AND_FORWARD
 }
@@ -168,7 +174,7 @@ std::string MidacDataImpl::getDeviceName(DeviceType deviceType) const
     try {return ToStdString(imsReader_->FileInfo->InstrumentName);} CATCH_AND_FORWARD
 }
 
-blt::local_date_time MidacDataImpl::getAcquisitionTime() const
+blt::local_date_time MidacDataImpl::getAcquisitionTime(bool adjustToHostTime) const
 {
     try
     {
@@ -180,8 +186,16 @@ blt::local_date_time MidacDataImpl::getAcquisitionTime() const
         else if (acquisitionTime.Year < 1400)
             acquisitionTime = acquisitionTime.AddYears(1400 - acquisitionTime.Year);
 
-        bpt::ptime pt(bdt::time_from_OADATE<bpt::ptime>(acquisitionTime.ToUniversalTime().ToOADate()));
-        return blt::local_date_time(pt, blt::time_zone_ptr()); // keep time as UTC
+        bpt::ptime pt(boost::gregorian::date(acquisitionTime.Year, boost::gregorian::greg_month(acquisitionTime.Month), acquisitionTime.Day),
+                      bpt::time_duration(acquisitionTime.Hour, acquisitionTime.Minute, acquisitionTime.Second, bpt::millisec(acquisitionTime.Millisecond).fractional_seconds()));
+
+        if (adjustToHostTime)
+        {
+            bpt::time_duration tzOffset = bpt::second_clock::universal_time() - bpt::second_clock::local_time();
+            return blt::local_date_time(pt + tzOffset, blt::time_zone_ptr()); // treat time as if it came from host's time zone; actual time zone may not be provided by Sciex
+        }
+        else
+            return blt::local_date_time(pt, blt::time_zone_ptr());
     }
     CATCH_AND_FORWARD
 }
@@ -221,6 +235,21 @@ int MidacDataImpl::getTotalIonMobilityFramesPresent() const
 FramePtr MidacDataImpl::getIonMobilityFrame(int frameIndex) const
 {
     try {return FramePtr(new FrameImpl(imsReader_, frameIndex));} CATCH_AND_FORWARD
+}
+
+bool MidacDataImpl::canConvertDriftTimeAndCCS() const
+{
+    try { return  imsCcsReader_->HasSingleFieldCcsInformation; } CATCH_AND_FORWARD
+}
+
+double MidacDataImpl::driftTimeToCCS(double driftTimeInMilliseconds, double mz, int charge) const
+{
+    try { return imsCcsReader_->CcsFromDriftTime(driftTimeInMilliseconds, mz, abs(charge)); } CATCH_AND_FORWARD
+}
+
+double MidacDataImpl::ccsToDriftTime(double ccs, double mz, int charge) const
+{
+    try { return imsCcsReader_->DriftTimeFromCcs(ccs, mz, abs(charge)); } CATCH_AND_FORWARD
 }
 
 ScanRecordPtr MidacDataImpl::getScanRecord(int rowNumber) const
@@ -286,7 +315,7 @@ int MidacScanRecord::getScanId() const
 
 double MidacScanRecord::getRetentionTime() const
 {
-    try {return frameInfo_->AcqTimeRange->Min;} CATCH_AND_FORWARD
+    try { return specDetails_->AcqTimeRanges[0]->Min; } CATCH_AND_FORWARD
 }
 
 int MidacScanRecord::getMSLevel() const
@@ -326,7 +355,7 @@ IonPolarity MidacScanRecord::getIonPolarity() const
 
 double MidacScanRecord::getMZOfInterest() const
 {
-    try {return specDetails_->MzOfInterestRanges != nullptr && specDetails_->MzOfInterestRanges->Length > 0 ? (frameInfo_->SpectrumDetails->MzOfInterestRanges[0]->Max + frameInfo_->SpectrumDetails->MzOfInterestRanges[0]->Min) / 2.0 : 0;} CATCH_AND_FORWARD
+    try {return specDetails_->MzOfInterestRanges != nullptr && specDetails_->MzOfInterestRanges->Length > 0 && !specDetails_->MzOfInterestRanges[0]->IsEmpty ? specDetails_->MzOfInterestRanges[0]->Center : 0;} CATCH_AND_FORWARD
 }
 
 int MidacScanRecord::getTimeSegment() const
@@ -341,7 +370,13 @@ double MidacScanRecord::getFragmentorVoltage() const
 
 double MidacScanRecord::getCollisionEnergy() const
 {
-    try {return specDetails_->FragmentationEnergyRange != nullptr ? specDetails_->FragmentationEnergyRange->Min : 0;} CATCH_AND_FORWARD
+    // From an email from MattC 6/3/2016
+    // I've confirmed that half the scans have 0,0 and half have 0,48 for FragmentationEnergyRange. But I'm not exactly sure what you would consider a "fix" here for the ramped case 
+    // since we can only have one CE value for the scan in the mzML data model.Do you want the halfway point between min / max or do you want the max ? IIRC, we've been using Min 
+    // because in the non-ramped case, Min is actually set but Max is often 0.
+    //
+    // So now we take the max of min and max (!) - bspratt
+    try { return specDetails_->FragmentationEnergyRange != nullptr ? max(specDetails_->FragmentationEnergyRange->Min, specDetails_->FragmentationEnergyRange->Max) : 0; } CATCH_AND_FORWARD
 }
 
 bool MidacScanRecord::getIsFragmentorVoltageDynamic() const
@@ -414,8 +449,8 @@ DriftScanPtr FrameImpl::getTotalScan() const
 
 DriftScanImpl::DriftScanImpl(MIDAC::IMidacSpecDataMs^ specData)
 {
-    ToStdVector<double, double>(specData->XArray, xArray_);
-    ToStdVector<float, float>(specData->YArray, yArray_);
+    ToBinaryData(specData->XArray, xArray_);
+    ToBinaryData(specData->YArray, yArray_);
     msStorageMode_ = (MSStorageMode)specData->MsStorageMode;
     deviceType_ = specData->DeviceInfo != nullptr ? (DeviceType)specData->DeviceInfo->DeviceType : DeviceType_Unknown;
     if (specData->MzOfInterestRanges != nullptr)
@@ -434,8 +469,8 @@ double DriftScanImpl::getDriftTime() const { return driftTime_; }
 int DriftScanImpl::getScanId() const { return scanId_; }
 
 int DriftScanImpl::getTotalDataPoints() const { return xArray_.size(); }
-const std::vector<double>& DriftScanImpl::getXArray() const { return xArray_; }
-const std::vector<float>& DriftScanImpl::getYArray() const { return yArray_; }
+const pwiz::util::BinaryData<double>& DriftScanImpl::getXArray() const { return xArray_; }
+const pwiz::util::BinaryData<float>& DriftScanImpl::getYArray() const { return yArray_; }
 
 
 } // Agilent

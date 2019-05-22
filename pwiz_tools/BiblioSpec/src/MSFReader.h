@@ -33,8 +33,6 @@
 #include "zlib.h"
 #include "contrib/minizip/unzip.h"
 
-using namespace std;
-using namespace boost;
 
 namespace BiblioSpec
 {
@@ -72,7 +70,7 @@ namespace BiblioSpec
             bool ambiguous;
 
             ProcessedMsfSpectrum():
-                psm(NULL), qvalue(numeric_limits<double>::max()), altScore(-numeric_limits<double>::max()), ambiguous(false) {
+                psm(NULL), qvalue(std::numeric_limits<double>::max()), altScore(-std::numeric_limits<double>::max()), ambiguous(false) {
             };
 
             ProcessedMsfSpectrum(PSM* psmPtr, double qvalueScore, double alt):
@@ -80,18 +78,34 @@ namespace BiblioSpec
             };
         };
 
+        class ModSet {
+        public:
+            ModSet(sqlite3* db, bool filtered);
+            ~ModSet() {}
+
+            const vector<SeqMod>& getMods(int peptideId);
+            const vector<SeqMod>& getMods(int workflowId, int peptideId);
+        private:
+            map< int, map< int, vector<SeqMod> > > mods_; // workflowId -> peptideId -> mods
+            vector<SeqMod> dummy_;
+
+            map< int, vector<SeqMod> >& getWorkflowMap(int workflowId);
+            void addMod(int workflowId, int peptideId, int position, double mass);
+        };
+
         sqlite3* msfFile_;
         const char* msfName_;
-        int schemaVersion_;
+        int schemaVersionMajor_, schemaVersionMinor_;
         bool filtered_; // msf is complete, unfiltered; pdResult is filtered and persistent version of msf
         map< string, map< PSM_SCORE_TYPE, vector<PSM*> > > fileMap_;
         map<int, string> fileNameMap_;
-        map<int, SpecData*> spectra_;
-        map<int, int> spectraChargeStates_;
+        map<string, SpecData*> spectra_;
 
+        bool versionLess(int major, int minor) const;
+        static string uniqueSpecId(int specId, int workflowId);
         void collectSpectra();
-        string unzipSpectrum(int specId, const void* src, size_t srcLen);
-        void readSpectrum(int specId, string& spectrumXml, int* numPeaks, double** mzs, float** intensities);
+        string unzipSpectrum(const string& specId, const void* src, size_t srcLen);
+        void readSpectrum(const string& specId, string& spectrumXml, int* numPeaks, double** mzs, float** intensities);
         void collectPsms();
         void initFileNameMap();
         void removeFromFileMap(PSM* psm);
@@ -110,9 +124,12 @@ namespace BiblioSpec
         static int ZCALLBACK ferrorMem(voidpf opaque, voidpf stream);
 
         // sqlite helper functions
-        sqlite3_stmt* getStmt(string query);
-        bool hasNext(sqlite3_stmt* statement);
+        sqlite3_stmt* getStmt(const string& query);
+        static sqlite3_stmt* getStmt(sqlite3* handle, const string& query);
+        static bool hasNext(sqlite3_stmt** statement);
         int getRowCount(string table);
+        static bool tableExists(sqlite3* handle, string table);
+        static bool columnExists(sqlite3* handle, string table, string columnName);
 
         // SpecFileReader interface
         virtual void openFile(const char*, bool mzSort = false);

@@ -23,7 +23,6 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 using pwiz.Common.DataBinding;
 using pwiz.Common.DataBinding.Controls;
 using pwiz.Common.DataBinding.Controls.Editor;
-using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Alerts;
 using pwiz.Skyline.Controls.Databinding;
 using pwiz.Skyline.Model;
@@ -42,8 +41,6 @@ namespace pwiz.SkylineTestFunctional
         [TestMethod]
         public void TestLiveReportsFilter()
         {
-            LocalizationHelper.CurrentCulture =
-                LocalizationHelper.CurrentUICulture = CultureInfo.GetCultureInfo("fr-FR");
             TestFilesZip = @"TestFunctional\LiveReportsFilterTest.zip";
             RunFunctionalTest();
         }
@@ -82,15 +79,16 @@ namespace pwiz.SkylineTestFunctional
                 var allPeptides = new Peptides(new SkylineDataSchema(SkylineWindow, DataSchemaLocalizer.INVARIANT), new []{IdentityPath.ROOT});
                 var ratioIndex = modifications.InternalStandardTypes.IndexOf(isotopeLabel);
                 Assert.IsTrue(ratioIndex >= 0);
-                foreach (var peptide in allPeptides)
+                foreach (var peptide in allPeptides.GetItems().OfType<Peptide>())
                 {
+                    var peptidePath = peptide.IdentityPath;
                     bool hasMatchingPrecursorResult =
                         peptide.Precursors.Any(
                             precursor =>
                                 precursor.Results.Values.Any(
                                     precursorResult =>
                                         RatioValue.GetRatio(precursorResult.ChromInfo.Ratios[ratioIndex]) >= filterValue));
-                    Assert.AreEqual(hasMatchingPrecursorResult, filteredPeptides.Any(filteredPeptide => filteredPeptide.IdentityPath.Equals(peptide.IdentityPath)));
+                    Assert.AreEqual(hasMatchingPrecursorResult, filteredPeptides.Any(filteredPeptide => filteredPeptide.IdentityPath.Equals(peptidePath)));
                 }
             }
             );

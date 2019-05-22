@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Original author: Brendan MacLean <brendanx .at. u.washington.edu>,
  *                  MacCoss Lab, Department of Genome Sciences, UW
  *
@@ -19,13 +19,13 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Text.RegularExpressions;
 using System.Windows.Forms;
 using pwiz.BiblioSpec;
 using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Alerts;
 using pwiz.Skyline.Controls;
 using pwiz.Skyline.Model;
+using pwiz.Skyline.Model.Irt;
 using pwiz.Skyline.Model.Lib;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
@@ -40,7 +40,7 @@ namespace pwiz.Skyline.SettingsUI
             BiblioSpecLiteBuilder.EXT_DAT,
             BiblioSpecLiteBuilder.EXT_PEP_XML,
             BiblioSpecLiteBuilder.EXT_PEP_XML_ONE_DOT,
-            BiblioSpecLiteBuilder.EXI_MZID,
+            BiblioSpecLiteBuilder.EXT_MZID,
             BiblioSpecLiteBuilder.EXT_XTAN_XML,
             BiblioSpecLiteBuilder.EXT_PROTEOME_DISC,
             BiblioSpecLiteBuilder.EXT_PROTEOME_DISC_FILTERED,
@@ -54,7 +54,12 @@ namespace pwiz.Skyline.SettingsUI
             BiblioSpecLiteBuilder.EXT_PERCOLATOR_XML,
             BiblioSpecLiteBuilder.EXT_MAX_QUANT,
             BiblioSpecLiteBuilder.EXT_WATERS_MSE,
-        };
+            BiblioSpecLiteBuilder.EXT_PROXL_XML,
+            BiblioSpecLiteBuilder.EXT_TSV,
+            BiblioSpecLiteBuilder.EXT_MZTAB,
+            BiblioSpecLiteBuilder.EXT_MZTAB_TXT,
+            BiblioSpecLiteBuilder.EXT_OPEN_SWATH,
+       };
 
         private BiblioSpecLiteBuilder _builder;
 
@@ -78,7 +83,6 @@ namespace pwiz.Skyline.SettingsUI
             textPath.Text = Settings.Default.LibraryDirectory;
             comboAction.SelectedItem = LibraryBuildAction.Create.GetLocalizedString();
             textCutoff.Text = Settings.Default.LibraryResultCutOff.ToString(LocalizationHelper.CurrentCulture);
-            textAuthority.Text = Settings.Default.LibraryAuthority;
 
             if (documentContainer.Document.PeptideCount == 0)
                 cbFilter.Hide();
@@ -88,6 +92,9 @@ namespace pwiz.Skyline.SettingsUI
             cbKeepRedundant.Checked = Settings.Default.LibraryKeepRedundant;
 
             _helper = new MessageBoxHelper(this);
+
+            foreach (var standard in IrtStandard.ALL)
+                comboStandards.Items.Add(standard);
         }
 
         public ILibraryBuilder Builder { get { return _builder;  } }
@@ -119,7 +126,7 @@ namespace pwiz.Skyline.SettingsUI
                     bool checkFile;
                     if (!checkStates.TryGetValue(fileName, out checkFile))
                         checkFile = true;   // New files start out checked
-                    listInputFiles.Items.Add(fileName.Substring(_dirInputRoot.Length), checkFile);
+                    listInputFiles.Items.Add(PathEx.RemovePrefix(fileName, _dirInputRoot), checkFile);
                 }
                 int count = listInputFiles.CheckedItems.Count;
                 btnNext.Enabled = (panelProperties.Visible || count > 0);
@@ -183,26 +190,6 @@ namespace pwiz.Skyline.SettingsUI
             Settings.Default.LibraryResultCutOff = cutOffScore;
 
             var libraryBuildAction = LibraryBuildAction;
-            string authority = null;
-            string id = null;
-            if (libraryBuildAction == LibraryBuildAction.Create)
-            {
-                authority = LibraryAuthority;
-                if (Uri.CheckHostName(authority) != UriHostNameType.Dns)
-                {
-                    _helper.ShowTextBoxError(textAuthority, Resources.BuildLibraryDlg_ValidateBuilder_The_lab_authority_name__0__is_not_valid_This_should_look_like_an_internet_server_address_e_g_mylab_myu_edu_and_be_unlikely_to_be_used_by_any_other_lab_but_need_not_refer_to_an_actual_server,
-                                             authority);
-                    return false;
-                }
-                Settings.Default.LibraryAuthority = authority;
-
-                id = textID.Text;
-                if (!Regex.IsMatch(id, @"\w[0-9A-Za-z_\-]*")) // Not L10N: Easier to keep IDs restricted to these values.
-                {
-                    _helper.ShowTextBoxError(textID, Resources.BuildLibraryDlg_ValidateBuilder_The_library_identifier__0__is_not_valid_Identifiers_start_with_a_letter_number_or_underscore_and_contain_only_letters_numbers_underscores_and_dashes, id);
-                    return false;
-                }
-            }
 
             if (validateInputFiles)
             {
@@ -212,21 +199,21 @@ namespace pwiz.Skyline.SettingsUI
                     inputFilesChosen.Add(_inputFileNames[i]);
                 }
 
-                List<string> targetPeptidesChosen = null;
+                List<Target> targetPeptidesChosen = null;
                 if (cbFilter.Checked)
                 {
-                    targetPeptidesChosen = new List<string>();
+                    targetPeptidesChosen = new List<Target>();
                     var doc = _documentUiContainer.Document;
                     foreach (PeptideDocNode nodePep in doc.Peptides)
                     {
                         // Add light modified sequences
-                        targetPeptidesChosen.Add(nodePep.ModifiedSequence);
+                        targetPeptidesChosen.Add(nodePep.ModifiedTarget);
                         // Add heavy modified sequences
                         foreach (var nodeGroup in nodePep.TransitionGroups)
                         {
                             if (nodeGroup.TransitionGroup.LabelType.IsLight)
                                 continue;
-                            targetPeptidesChosen.Add(doc.Settings.GetModifiedSequence(nodePep.Peptide.Sequence,
+                            targetPeptidesChosen.Add(doc.Settings.GetModifiedSequence(nodePep.Peptide.Target,
                                                                                       nodeGroup.TransitionGroup.LabelType,
                                                                                       nodePep.ExplicitMods));
                         }
@@ -236,10 +223,12 @@ namespace pwiz.Skyline.SettingsUI
                 _builder = new BiblioSpecLiteBuilder(name, outputPath, inputFilesChosen, targetPeptidesChosen)
                               {
                                   Action = libraryBuildAction,
+                                  IncludeAmbiguousMatches = cbIncludeAmbiguousMatches.Checked,
                                   KeepRedundant = LibraryKeepRedundant,
                                   CutOffScore = cutOffScore,
-                                  Authority = authority,
-                                  Id = id
+                                  Id = Helpers.MakeId(textName.Text),
+                                  IrtStandard = comboStandards.SelectedItem as IrtStandard,
+                                  PreferEmbeddedSpectra = PreferEmbeddedSpectra
                               };
             }
             return true;
@@ -253,6 +242,7 @@ namespace pwiz.Skyline.SettingsUI
             {
                 try
                 {
+                    // ReSharper disable once ConstantNullCoalescingCondition
                     outputPath = Path.GetDirectoryName(outputPath) ?? string.Empty;                
                 }
                 catch (Exception)
@@ -261,7 +251,6 @@ namespace pwiz.Skyline.SettingsUI
                 }
             }
             string id = (name.Length == 0 ? string.Empty : Helpers.MakeId(textName.Text));
-            textID.Text = id;
             textPath.Text = id.Length == 0
                                 ? outputPath
                                 : Path.Combine(outputPath, id + BiblioSpecLiteSpec.EXT);
@@ -353,7 +342,7 @@ namespace pwiz.Skyline.SettingsUI
         {
             var wildExts = new string[RESULTS_EXTS.Length];
             for (int i = 0; i < wildExts.Length; i++)
-                wildExts[i] = "*" + RESULTS_EXTS[i]; // Not L10N
+                wildExts[i] = @"*" + RESULTS_EXTS[i];
 
             using (var dlg = new OpenFileDialog
                 {
@@ -364,8 +353,8 @@ namespace pwiz.Skyline.SettingsUI
                     Multiselect = true,
                     DefaultExt = BiblioSpecLibSpec.EXT,
                     Filter = TextUtil.FileDialogFiltersAll(
-                        Resources.BuildLibraryDlg_btnAddFile_Click_Matched_Peptides + string.Join(",", wildExts) + ")|" + // Not L10N
-                        string.Join(";", wildExts), // Not L10N
+                        Resources.BuildLibraryDlg_btnAddFile_Click_Matched_Peptides + string.Join(@",", wildExts) + @")|" +
+                        string.Join(@";", wildExts),
                         BiblioSpecLiteSpec.FILTER_BLIB)
                 })
             {
@@ -516,7 +505,9 @@ namespace pwiz.Skyline.SettingsUI
                 {
                     var message = TextUtil.SpaceSeparate(Resources.BuildLibraryDlg_AddInputFiles_The_following_files_are_not_valid_library_input_files,
                                   string.Empty,
-                                  "\t" + string.Join("\n\t", filesError.ToArray())); // Not L10N                    
+                                  // ReSharper disable LocalizableElement
+                                  "\t" + string.Join("\n\t", filesError.ToArray()));
+                                  // ReSharper restore LocalizableElement
                     MessageDlg.Show(parent, message);
                 }
             }
@@ -576,18 +567,9 @@ namespace pwiz.Skyline.SettingsUI
 
         private void comboAction_SelectedIndexChanged(object sender, EventArgs e)
         {
-            bool append = Equals(comboAction.SelectedItem, LibraryBuildAction.Append.GetLocalizedString());
-            textAuthority.Enabled = !append;
-            textID.Enabled = !append;
-            if (append)
+            if (Equals(comboAction.SelectedItem, LibraryBuildAction.Append.GetLocalizedString()))
             {
-                textAuthority.Text = string.Empty;
-                textID.Text = string.Empty;
                 cbKeepRedundant.Checked = true;
-            }
-            else
-            {
-                textID.Text = Helpers.MakeId(textName.Text);
             }
         }
 
@@ -635,18 +617,6 @@ namespace pwiz.Skyline.SettingsUI
             set { textCutoff.Text = value.ToString(LocalizationHelper.CurrentCulture); }
         }
 
-        public string LibraryAuthority
-        {
-            get { return textAuthority.Text; }
-            set { textAuthority.Text = value; }
-        }
-
-        public string LibraryId
-        {
-            get { return textID.Text; }
-            set { textID.Text = value; }
-        }
-
         public bool LibraryKeepRedundant
         {
             get { return cbKeepRedundant.Checked; }
@@ -673,5 +643,13 @@ namespace pwiz.Skyline.SettingsUI
                 comboAction.SelectedIndex = (value == LibraryBuildAction.Create ? 0 : 1);
             }
         }
+
+        public IrtStandard IrtStandard
+        {
+            get { return comboStandards.SelectedItem as IrtStandard ?? IrtStandard.EMPTY; }
+            set { comboStandards.SelectedIndex = comboStandards.Items.IndexOf(value); }
+        }
+
+        public bool? PreferEmbeddedSpectra { get; set; }
     }
 }

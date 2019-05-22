@@ -44,6 +44,8 @@ namespace SkylineTool
 
         void ImportFasta(string fasta);
 
+        void InsertSmallMoleculeTransitionList(string csvText); // Accepts CSV data using headers as found in the Skyline UI's Insert Transition List dialog
+
         void AddSpectralLibrary(string libraryName, string libraryPath);
 
         void AddDocumentChangeReceiver(string receiverName, string toolName);
@@ -68,7 +70,7 @@ namespace SkylineTool
 
         public override string ToString()
         {
-            return string.Format("{0},{1},{2},{3}", Major, Minor, Build, Revision); // Not L10N
+            return string.Format(@"{0},{1},{2},{3}", Major, Minor, Build, Revision);
         }
 
         private bool Equals(Version other)

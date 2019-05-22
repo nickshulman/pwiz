@@ -942,7 +942,7 @@ namespace pwiz.Skyline.Model.Results
     /// A single set of peaks for all transitions in a transition group, and
     /// a pointer to its entire peak set.
     /// </summary>
-    internal sealed class PeptideChromDataPeak : ITransitionGroupPeakData<IDetailedPeakData>
+    internal sealed class PeptideChromDataPeak : ITransitionGroupDetailData
     {
         private ChromDataPeakList _peakGroup;
 
@@ -1041,6 +1041,11 @@ namespace pwiz.Skyline.Model.Results
         public bool IsContained(PeptideChromDataPeak peak)
         {
             return StartIndex <= peak.TimeIndex && peak.TimeIndex <= EndIndex;
+        }
+
+        public TimeIntensities XCorrChromatogram
+        {
+            get { return Data.XCorrChromatogram?.TimeIntensities; }
         }
     }
 

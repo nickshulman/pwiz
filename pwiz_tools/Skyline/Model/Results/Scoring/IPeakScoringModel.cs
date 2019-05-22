@@ -578,6 +578,11 @@ namespace pwiz.Skyline.Model.Results.Scoring
         IList<ITransitionPeakData<TData>> DefaultTranstionPeakData { get; }
     }
 
+    public interface ITransitionGroupDetailData : ITransitionGroupPeakData<IDetailedPeakData>
+    {
+        TimeIntensities XCorrChromatogram { get; }
+    }
+
     public interface ITransitionPeakData<out TData>
     {
         TransitionDocNode NodeTran { get; }
@@ -677,7 +682,9 @@ namespace pwiz.Skyline.Model.Results.Scoring
             new LegacyUnforcedCountScoreDefaultCalc(), 
             new MQuestDefaultIntensityCorrelationCalc(), 
             new MQuestDefaultWeightedCoElutionCalc(), 
-            new MQuestDefaultWeightedShapeCalc(), 
+            new MQuestDefaultWeightedShapeCalc(),
+
+            new XCorrFeatureCalculator(),
         };
 
         public static IEnumerable<IPeakFeatureCalculator> Calculators

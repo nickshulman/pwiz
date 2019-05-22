@@ -47,10 +47,10 @@ namespace pwiz.Skyline.Model
         /// </summary>
         public PersistedViews(ReportSpecList reportSpecList, ViewSpecList viewSpecList, ToolList toolList)
         {
-            var viewItems = new List<ViewSpec>();
+            var viewItems = new List<ViewSpecLayout>();
             if (null != viewSpecList)
             {
-                viewItems.AddRange(viewSpecList.ViewSpecs);
+                viewItems.AddRange(viewSpecList.ViewSpecLayouts);
             }
             if (null != reportSpecList)
             {
@@ -65,7 +65,7 @@ namespace pwiz.Skyline.Model
                     viewItems.Add(newView);
                 }
             }
-            var viewSpecLists = new Dictionary<ViewGroup, Dictionary<string, ViewSpec>>();
+            var viewSpecLists = new Dictionary<ViewGroup, Dictionary<string, ViewSpecLayout>>();
             foreach (var viewItem in viewItems)
             {
                 ViewGroup group;
@@ -77,10 +77,10 @@ namespace pwiz.Skyline.Model
                 {
                     group = MainGroup;
                 }
-                Dictionary<string, ViewSpec> list;
+                Dictionary<string, ViewSpecLayout> list;
                 if (!viewSpecLists.TryGetValue(group, out list))
                 {
-                    list = new Dictionary<string, ViewSpec>();
+                    list = new Dictionary<string, ViewSpecLayout>();
                     viewSpecLists.Add(group, list);
                 }
                 if (!list.ContainsKey(viewItem.Name))
@@ -94,7 +94,7 @@ namespace pwiz.Skyline.Model
                         string name = viewItem.Name + i;
                         if (!list.ContainsKey(name))
                         {
-                            list.Add(name, viewItem.SetName(name));
+                            list.Add(name, viewItem.ChangeName(name));
                             break;
                         }
                     }
@@ -112,7 +112,7 @@ namespace pwiz.Skyline.Model
         }
 
         public int RevisionIndex { get; private set; }
-        public int RevisionIndexCurrent { get { return 9; } }
+        public int RevisionIndexCurrent { get { return 10; } }
         public override void ReadXml(XmlReader reader)
         {
             RevisionIndex = reader.GetIntAttribute(Attr.revision);
@@ -161,11 +161,11 @@ namespace pwiz.Skyline.Model
             {
                 reportStrings.Add(REPORTS_V8);
             }
-
-            if (revisionIndex >= 9)
+            if (revisionIndex >= 10)
             {
-                reportStrings.Add(REPORTS_V9);
+                reportStrings.Add(REPORTS_V10);
             }
+
             var list = new List<KeyValuePair<ViewGroupId, ViewSpec>>();
             var xmlSerializer = new XmlSerializer(typeof(ViewSpecList));
             foreach (var reportString in reportStrings)
@@ -315,7 +315,7 @@ namespace pwiz.Skyline.Model
     <column name='Precursor.Mz' />
     <column name='Precursor.Charge' />
     <column name='Precursor.CollisionEnergy' />
-    <column name='ExplicitCollisionEnergy' />
+    <column name='Precursor.ExplicitCollisionEnergy' />
     <column name='Precursor.Peptide.ExplicitRetentionTime' />
     <column name='Precursor.Peptide.ExplicitRetentionTimeWindow' />
     <column name='ProductMz' />
@@ -348,7 +348,7 @@ namespace pwiz.Skyline.Model
     <column name='Precursor.Mz' />
     <column name='Precursor.Charge' />
     <column name='Precursor.CollisionEnergy' />
-    <column name='ExplicitCollisionEnergy' />
+    <column name='Precursor.ExplicitCollisionEnergy' />
     <column name='Precursor.Peptide.ExplicitRetentionTime' />
     <column name='Precursor.Peptide.ExplicitRetentionTimeWindow' />
     <column name='ProductMz' />
@@ -447,7 +447,10 @@ namespace pwiz.Skyline.Model
   </view>
 </views>
 ";
-        private const string REPORTS_V9 = @"<views>
+
+        // There is no REPORTS_V9 in order to work around a problem where V4 was changed.
+
+        private const string REPORTS_V10 = @"<views>
   <view name='Mixed Transition List' rowsource='pwiz.Skyline.Model.Databinding.Entities.Transition' sublist='Results!*' uimode='mixed'>
     <column name='Precursor.Peptide.Protein.Name' />
     <column name='Precursor.Peptide.ModifiedSequence' />
@@ -537,7 +540,7 @@ namespace pwiz.Skyline.Model
                 var currentView = viewSpecList.ViewSpecs.FirstOrDefault(view => view.Name == viewSpec.Name);
                 if (currentView == null || previousDefaults.Contains(new KeyValuePair<ViewGroupId, ViewSpec>(viewGroup, currentView)))
                 {
-                    viewSpecList = viewSpecList.ReplaceView(viewSpec.Name, viewSpec);
+                    viewSpecList = viewSpecList.ReplaceView(viewSpec.Name, new ViewSpecLayout(viewSpec, viewSpecList.GetViewLayouts(viewSpec.Name)));
                     _viewSpecLists[viewGroup.Name] = viewSpecList;
                 }
             }

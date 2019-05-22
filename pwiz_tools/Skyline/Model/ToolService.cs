@@ -21,7 +21,6 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
-using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -426,7 +425,6 @@ namespace pwiz.Skyline.Model
             SendChange((sender, arg) => sender.SelectionChanged());
         }
 
-<<<<<<< HEAD
         public void DefineModification(ToolModification modification)
         {
             Program.MainWindow.Invoke(new Action(() =>
@@ -518,7 +516,7 @@ namespace pwiz.Skyline.Model
                 {
                     // Attempt to create node for error checking.
                     nodePepNew = fastaSequence.CreateFullPeptideDocNode(document.Settings,
-                                                                        FastaSequence.StripModifications(pepModSequence));
+                                                                        new Target(FastaSequence.StripModifications(pepModSequence)));
                     if (nodePepNew == null)
                     {
                         throw new ArgumentException(
@@ -582,10 +580,6 @@ namespace pwiz.Skyline.Model
 
         private class DocumentChangeSender : RemoteClient, IDocumentChangeReceiver
         {
-=======
-        private class DocumentChangeSender : RemoteClient, IDocumentChangeReceiver
-        {
->>>>>>> remotes/origin/master
             private int _timeoutCount;
 
             public string Name { get; private set; }

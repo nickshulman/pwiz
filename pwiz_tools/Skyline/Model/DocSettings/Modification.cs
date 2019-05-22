@@ -593,9 +593,10 @@ namespace pwiz.Skyline.Model.DocSettings
             return dictCounts;
         }
 
+        private static SequenceMassCalc _sequenceMassCalc;
         private bool EquivalentFormulas(char aa, StaticMod obj)
         {
-            SequenceMassCalc modCalc = new SequenceMassCalc(MassType.Monoisotopic);
+            SequenceMassCalc modCalc = _sequenceMassCalc = _sequenceMassCalc ?? new SequenceMassCalc(MassType.Monoisotopic);
 
             double unexplainedMassThis, unexplainedMassObj;
 

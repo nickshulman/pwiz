@@ -48,6 +48,8 @@ namespace SkylineTool
 
         void AddDocumentChangeReceiver(string receiverName, string toolName);
         void RemoveDocumentChangeReceiver(string receiverName);
+        void DefineModification(ToolModification modification);
+        void AddPeptides(ToolPeptide[] peptides);
     }
 
     public interface IDocumentChangeReceiver
@@ -134,5 +136,22 @@ namespace SkylineTool
                 return hashCode;
             }
         }
+    }
+
+    [Serializable]
+    public class ToolModification
+    {
+        public string Name { get; set; }
+        public string Formula { get; set; }
+        public string AminoAcids { get; set; }
+        public bool Variable { get; set; }
+    }
+
+    [Serializable]
+    public class ToolPeptide
+    {
+        public string PeptideSequence { get; set; }
+        public string ProteinName { get; set; }
+        public string ProteinDescription { get; set; }
     }
 }

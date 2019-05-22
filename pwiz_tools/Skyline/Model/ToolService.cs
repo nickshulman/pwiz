@@ -28,9 +28,11 @@ using System.Text;
 using System.Threading;
 using pwiz.Common.DataBinding;
 using pwiz.Common.SystemUtil;
+using pwiz.ProteomeDatabase.API;
 using pwiz.Skyline.Controls;
 using pwiz.Skyline.Controls.Graphs;
 using pwiz.Skyline.Model.Databinding;
+using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.DocSettings.Extensions;
 using pwiz.Skyline.Model.Find;
 using pwiz.Skyline.Model.Lib;
@@ -412,6 +414,159 @@ namespace pwiz.Skyline.Model
         public void SendSelectionChange()
         {
             SendChange((sender, arg) => sender.SelectionChanged());
+        }
+
+        public void DefineModification(ToolModification modification)
+        {
+            Program.MainWindow.Invoke(new Action(() =>
+            {
+                var newStaticMod = new StaticMod(modification.Name, modification.AminoAcids, null,
+                    modification.Formula).ChangeVariable(modification.Variable);
+                Settings.Default.StaticModList.Add(newStaticMod);
+            }));
+        }
+
+        public void AddPeptides(ToolPeptide[] peptides)
+        {
+            Program.MainWindow.Invoke(new Action(() =>
+            {
+                _skylineWindow.ModifyDocument("Add Peptides", doc => AddPeptidesToDocument(doc, peptides));
+            }));
+        }
+
+        private SrmDocument AddPeptidesToDocument(SrmDocument document, ToolPeptide[] toolPeptides)
+        {
+            IdentityPath selectedPath = _skylineWindow.SelectedPath;
+            if (ReferenceEquals(selectedPath.GetIdentity((int)SrmDocument.Level.MoleculeGroups), SequenceTree.NODE_INSERT_ID))
+            {
+                selectedPath = null;
+            }
+            var matcher = new ModificationMatcher();
+            var listPeptideSequences = toolPeptides.Select(pep=>pep.PeptideSequence).ToArray();
+            matcher.CreateMatches(document.Settings, listPeptideSequences, Settings.Default.StaticModList,
+                                      Settings.Default.HeavyModList);
+            var backgroundProteome = document.Settings.PeptideSettings.BackgroundProteome;
+            for (int i = toolPeptides.Length - 1; i >= 0; i--)
+            {
+                PeptideGroupDocNode peptideGroupDocNode;
+                var row = toolPeptides[i];
+                var pepModSequence = row.PeptideSequence;
+                var proteinName = row.ProteinName;
+                if (string.IsNullOrEmpty(proteinName))
+                {
+                    peptideGroupDocNode = GetSelectedPeptideGroupDocNode(document, selectedPath);
+                    if (null != peptideGroupDocNode && !peptideGroupDocNode.IsPeptideList)
+                    {
+                        peptideGroupDocNode = null;
+                    }
+                }
+                else
+                {
+                    peptideGroupDocNode = document.MoleculeGroups.FirstOrDefault(n => Equals(proteinName, n.Name));
+                }
+                if (peptideGroupDocNode == null)
+                {
+                    if (string.IsNullOrEmpty(proteinName))
+                    {
+                        peptideGroupDocNode = new PeptideGroupDocNode(new PeptideGroup(),
+                                                                      document.GetPeptideGroupId(true), null,
+                                                                      new PeptideDocNode[0]);
+                    }
+                    else
+                    {
+                        ProteinMetadata metadata = null;
+                        PeptideGroup peptideGroup = backgroundProteome.IsNone ? new PeptideGroup()
+                            : (backgroundProteome.GetFastaSequence(proteinName, out metadata) ??
+                                                    new PeptideGroup());
+                        if (metadata != null)
+                            peptideGroupDocNode = new PeptideGroupDocNode(peptideGroup, metadata, new PeptideDocNode[0]);
+                        else
+                            peptideGroupDocNode = new PeptideGroupDocNode(peptideGroup, proteinName,
+                                                                      peptideGroup.Description, new PeptideDocNode[0]);
+                    }
+                    // Add to the end, if no insert node
+                    var to = selectedPath;
+                    if (to == null || to.Depth < (int)SrmDocument.Level.MoleculeGroups)
+                        document = (SrmDocument)document.Add(peptideGroupDocNode);
+                    else
+                    {
+                        Identity toId = selectedPath.GetIdentity((int)SrmDocument.Level.MoleculeGroups);
+                        document = (SrmDocument)document.Insert(toId, peptideGroupDocNode);
+                    }
+                    selectedPath = new IdentityPath(peptideGroupDocNode.Id);
+                }
+                var peptides = new List<PeptideDocNode>();
+                foreach (PeptideDocNode peptideDocNode in peptideGroupDocNode.Children)
+                {
+                    peptides.Add(peptideDocNode);
+                }
+
+                var fastaSequence = peptideGroupDocNode.PeptideGroup as FastaSequence;
+                PeptideDocNode nodePepNew;
+                if (fastaSequence != null)
+                {
+                    // Attempt to create node for error checking.
+                    nodePepNew = fastaSequence.CreateFullPeptideDocNode(document.Settings,
+                                                                        FastaSequence.StripModifications(pepModSequence));
+                    if (nodePepNew == null)
+                    {
+                        throw new ArgumentException(
+                            Resources.PasteDlg_AddPeptides_This_peptide_sequence_was_not_found_in_the_protein_sequence);
+                    }
+                }
+                // Create node using ModificationMatcher.
+                nodePepNew = matcher.GetModifiedNode(pepModSequence, fastaSequence).ChangeSettings(document.Settings,
+                                                                                                  SrmSettingsDiff.ALL);
+                // Avoid adding an existing peptide a second time.
+                if (!peptides.Contains(nodePep => Equals(nodePep.Key, nodePepNew.Key)))
+                {
+                    peptides.Add(nodePepNew);
+                    if (nodePepNew.Peptide.FastaSequence != null)
+                        peptides.Sort(FastaSequence.ComparePeptides);
+                    var newPeptideGroupDocNode = new PeptideGroupDocNode(peptideGroupDocNode.PeptideGroup, peptideGroupDocNode.Annotations, peptideGroupDocNode.Name, peptideGroupDocNode.Description, peptides.ToArray(), false);
+                    document = (SrmDocument)document.ReplaceChild(newPeptideGroupDocNode);
+                }
+            }
+            var pepModsNew = matcher.GetDocModifications(document);
+            document = document.ChangeSettings(document.Settings.ChangePeptideModifications(mods => pepModsNew));
+            document.Settings.UpdateDefaultModifications(false);
+            return document;
+        }
+
+        private PeptideGroupDocNode GetSelectedPeptideGroupDocNode(SrmDocument document, IdentityPath selectedPath)
+        {
+            var to = selectedPath;
+            if (to != null && to.Depth >= (int)SrmDocument.Level.MoleculeGroups)
+                return (PeptideGroupDocNode)document.FindNode(to.GetIdentity((int)SrmDocument.Level.MoleculeGroups));
+
+            PeptideGroupDocNode lastPeptideGroupDocuNode = null;
+            foreach (PeptideGroupDocNode peptideGroupDocNode in document.MoleculeGroups)
+            {
+                lastPeptideGroupDocuNode = peptideGroupDocNode;
+            }
+            return lastPeptideGroupDocuNode;
+        }
+
+
+        private IEnumerable<StaticMod> ReplaceModification(IEnumerable<StaticMod> mods, StaticMod newMod)
+        {
+            bool found = false;
+            foreach (var staticMod in mods)
+            {
+                if (staticMod.Name == newMod.Name)
+                {
+                    found = true;
+                    yield return newMod;
+                }
+                else
+                {
+                    yield return staticMod;
+                }
+            }
+            if (!found)
+            {
+                yield return newMod;
+            }
         }
 
         private class DocumentChangeSender : RemoteClient, IDocumentChangeReceiver

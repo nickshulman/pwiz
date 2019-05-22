@@ -101,6 +101,16 @@ namespace SkylineTool
             _client.AddSpectralLibrary(libraryName, libraryPath);
         }
 
+        public void DefineModification(ToolModification modification)
+        {
+            _client.DefineModification(modification);
+        }
+
+        public void AddPeptides(ToolPeptide[] peptides)
+        {
+            _client.AddPeptides(peptides);
+        }
+
         private class DocumentChangeReceiver : RemoteService, IDocumentChangeReceiver
         {
             private readonly SkylineToolClient _toolClient;
@@ -194,6 +204,16 @@ namespace SkylineTool
             public void RemoveDocumentChangeReceiver(string receiverName)
             {
                 RemoteCall(RemoveDocumentChangeReceiver, receiverName);
+            }
+
+            public void DefineModification(ToolModification modification)
+            {
+                RemoteCall(DefineModification, modification);
+            }
+
+            public void AddPeptides(ToolPeptide[] peptides)
+            {
+                RemoteCall(AddPeptides, peptides);
             }
         }
 

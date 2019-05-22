@@ -9,7 +9,7 @@
     <OutputType>WinExe</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>pwiz.Skyline</RootNamespace>
-    <AssemblyName>Skyline-daily</AssemblyName>
+    <AssemblyName>Skyline-daily-xlink</AssemblyName>
     <TargetFrameworkVersion>v4.5.1</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <ApplicationIcon>Skyline.ico</ApplicationIcon>
@@ -28,7 +28,7 @@
     <UpgradeBackupLocation />
     <TargetFrameworkProfile />
     <ResolveAssemblyWarnOrErrorOnTargetArchitectureMismatch>None</ResolveAssemblyWarnOrErrorOnTargetArchitectureMismatch>
-    <PublishUrl>S:\webapps\ROOT\software\Skyline-daily13-64\</PublishUrl>
+    <PublishUrl>publish\</PublishUrl>
     <Install>true</Install>
     <InstallFrom>Web</InstallFrom>
     <UpdateEnabled>false</UpdateEnabled>
@@ -38,15 +38,14 @@
     <UpdatePeriodically>false</UpdatePeriodically>
     <UpdateRequired>false</UpdateRequired>
     <MapFileExtensions>false</MapFileExtensions>
-    <InstallUrl>https://skyline.gs.washington.edu/software/Skyline-daily13-64/</InstallUrl>
-    <UpdateUrl>https://skyline.gs.washington.edu/software/Skyline-daily13-64/</UpdateUrl>
+    <InstallUrl>http://proteome.gs.washington.edu/~nicksh/rj8/xlink/</InstallUrl>
     <SupportUrl>https://skyline.gs.washington.edu/labkey/project/home/support/begin.view%3f</SupportUrl>
-    <ProductName>Skyline-daily</ProductName>
-    <PublisherName>MacCoss Lab, UW</PublisherName>
+    <ProductName>Skyline-xlink</ProductName>
+    <PublisherName>MacCosSoft Corporation</PublisherName>
     <CreateWebPageOnPublish>true</CreateWebPageOnPublish>
     <WebPage>index.html</WebPage>
     <ApplicationRevision>9155</ApplicationRevision>
-    <ApplicationVersion>3.4.9.9155</ApplicationVersion>
+    <ApplicationVersion>3.5.2.9155</ApplicationVersion>
     <UseApplicationTrust>false</UseApplicationTrust>
     <PublishWizardCompleted>true</PublishWizardCompleted>
     <BootstrapperEnabled>true</BootstrapperEnabled>
@@ -3612,6 +3611,7 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <EmbeddedResource Include="Resources\add-pro32.bmp" />
+    <None Include="SignAfterPublish.bat" />
     <None Include="SkylineLog4Net.config">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
@@ -3767,9 +3767,6 @@
     </PublishFile>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
-  <Target Name="AfterPublish">
-    <Exec Command="SignAfterPublish.bat &quot;$(ProjectDir)University of Washington (MacCoss Lab).pfx&quot; password &quot;$(ProjectDir)bin\$(Platform)\$(ConfigurationName)\app.publish&quot; $(TargetName)" />
-  </Target>
   <PropertyGroup>
     <PostBuildEvent>
     </PostBuildEvent>

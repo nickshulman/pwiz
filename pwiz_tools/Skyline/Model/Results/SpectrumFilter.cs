@@ -680,7 +680,7 @@ namespace pwiz.Skyline.Model.Results
         public IEnumerable<ExtractedSpectrum> Extract(double? retentionTime, MsDataSpectrum[] spectra)
         {
             if (!EnabledMsMs || !retentionTime.HasValue || !spectra.Any())
-                yield break;
+                return new ExtractedSpectrum[0];
 
             var handlingType = _fullScan.IsolationScheme == null || _fullScan.IsolationScheme.SpecialHandling == null
                 ? IsolationScheme.SpecialHandlingType.NONE
@@ -688,51 +688,53 @@ namespace pwiz.Skyline.Model.Results
             bool ignoreIso = handlingType == IsolationScheme.SpecialHandlingType.OVERLAP ||
                              handlingType == IsolationScheme.SpecialHandlingType.OVERLAP_MULTIPLEXED ||
                              handlingType == IsolationScheme.SpecialHandlingType.FAST_OVERLAP;
+            var filterPairs = GetIsolationWindows(spectra[0].Precursors)
+                .SelectMany(isoWin => FindFilterPairs(isoWin, _acquisitionMethod, ignoreIso))
+                .Where(fp => fp.ContainsRetentionTime(retentionTime.Value))
+                .ToArray();
             SparseXCorrSpectrum xCorrSpectrum = null;
-            foreach (var isoWin in GetIsolationWindows(spectra[0].Precursors))
+            if (filterPairs.Any(fp => fp.XCorrCalculator != null))
             {
-                foreach (var filterPair in FindFilterPairs(isoWin, _acquisitionMethod, ignoreIso))
-                {
-                    if (!filterPair.ContainsRetentionTime(retentionTime.Value))
-                        continue;
-                    var filteredSrmSpectrum = filterPair.FilterQ3SpectrumList(spectra, GetMseLevel() > 1);
-                    if (filterPair.XCorrCalculator != null)
-                    {
-                        xCorrSpectrum = xCorrSpectrum ?? MakeXCorrCalculator(spectra);
-                        filteredSrmSpectrum = filteredSrmSpectrum ?? new ExtractedSpectrum(filterPair.ModifiedSequence,
-                                                  filterPair.PeptideColor,
-                                                  filterPair.Q1,
-                                                  filterPair.GetIonMobilityWindow(),
-                                                  filterPair.Extractor,
-                                                  filterPair.Id,
-                                                  new SpectrumProductFilter[0],
-                                                  new float[0],
-                                                  null);
-                        float xCorr = filterPair.XCorrCalculator.score(xCorrSpectrum);
-                        filteredSrmSpectrum = new ExtractedSpectrum(filteredSrmSpectrum.Target,
-                            filteredSrmSpectrum.PeptideColor,
-                            filteredSrmSpectrum.PrecursorMz,
-                            filteredSrmSpectrum.IonMobility,
-                            filteredSrmSpectrum.Extractor,
-                            filteredSrmSpectrum.FilterIndex,
-                            filteredSrmSpectrum.ProductFilters.Append(filterPair.XCorrProductFilter).ToArray(),
-                            filteredSrmSpectrum.Intensities.Append(xCorr).ToArray(),
-                            filteredSrmSpectrum.MassErrors == null
-                                ? null
-                                : filteredSrmSpectrum.MassErrors.Append(0).ToArray());
-                    }
-
-                    if (filteredSrmSpectrum != null)
-                        yield return filteredSrmSpectrum;
-                }
+                xCorrSpectrum = MakeXCorrCalculator(spectra);
             }
+            var extractedSpectra = new ExtractedSpectrum[filterPairs.Length];
+            ParallelEx.For(0, filterPairs.Length, iFilterPair =>
+            {
+                var filterPair = filterPairs[iFilterPair];
+                var filteredSrmSpectrum = filterPair.FilterQ3SpectrumList(spectra, GetMseLevel() > 1);
+                if (filterPair.XCorrCalculator != null)
+                {
+                    filteredSrmSpectrum = filteredSrmSpectrum ?? new ExtractedSpectrum(filterPair.ModifiedSequence,
+                                              filterPair.PeptideColor,
+                                              filterPair.Q1,
+                                              filterPair.GetIonMobilityWindow(),
+                                              filterPair.Extractor,
+                                              filterPair.Id,
+                                              new SpectrumProductFilter[0],
+                                              new float[0],
+                                              null);
+                    float xCorr = filterPair.XCorrCalculator.score(xCorrSpectrum);
+                    filteredSrmSpectrum = new ExtractedSpectrum(filteredSrmSpectrum.Target,
+                        filteredSrmSpectrum.PeptideColor,
+                        filteredSrmSpectrum.PrecursorMz,
+                        filteredSrmSpectrum.IonMobility,
+                        filteredSrmSpectrum.Extractor,
+                        filteredSrmSpectrum.FilterIndex,
+                        filteredSrmSpectrum.ProductFilters.Append(filterPair.XCorrProductFilter).ToArray(),
+                        filteredSrmSpectrum.Intensities.Append(xCorr).ToArray(),
+                        filteredSrmSpectrum.MassErrors == null
+                            ? null
+                            : filteredSrmSpectrum.MassErrors.Append(0).ToArray());
+                }
+
+                extractedSpectra[iFilterPair] = filteredSrmSpectrum;
+            });
+            return extractedSpectra.Where(extractedSpectrum => null != extractedSpectrum);
         }
 
         private SparseXCorrSpectrum MakeXCorrCalculator(MsDataSpectrum[] spectra)
         {
-            var pairs = spectra.SelectMany(s =>
-                    Enumerable.Range(0, s.Mzs.Length).Select(i => Tuple.Create(s.Mzs[i], s.Intensities[i])))
-                .ToLookup(tuple => tuple.Item1, tuple => tuple.Item2)
+            var pairs = spectra.SelectMany(s => Enumerable.Range(0, s.Mzs.Length).ToLookup(i => s.Mzs[i], i=>s.Intensities[i]))
                 .Select(grouping => Tuple.Create(grouping.Key, (float)Math.Sqrt(grouping.Sum())))
                 .OrderBy(tuple => tuple.Item1)
                 .ToArray();

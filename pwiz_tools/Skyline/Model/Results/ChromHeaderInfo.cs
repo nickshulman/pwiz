@@ -2534,7 +2534,7 @@ namespace pwiz.Skyline.Model.Results
         {
             get
             {
-                if (_transitionIndex.HasValue)
+                if (!_transitionIndex.HasValue)
                 {
                     return new ChromPeak[0];
                 }

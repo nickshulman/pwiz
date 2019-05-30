@@ -685,6 +685,7 @@ namespace pwiz.Skyline.Model.Results.Scoring
             new MQuestDefaultWeightedShapeCalc(),
 
             new XCorrFeatureCalculator(),
+            new XCorrDistanceFeatureCalculator(), 
         };
 
         public static IEnumerable<IPeakFeatureCalculator> Calculators

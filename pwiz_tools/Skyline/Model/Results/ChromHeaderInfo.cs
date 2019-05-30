@@ -2422,7 +2422,7 @@ namespace pwiz.Skyline.Model.Results
 
         public ChromatogramInfo(ChromatogramGroupInfo groupInfo, int transitionIndex)
         {
-            if (transitionIndex >= groupInfo.NumTransitions)
+            if (transitionIndex > groupInfo.NumTransitions)
             {
                 throw new IndexOutOfRangeException(
                     string.Format(Resources.ChromatogramInfo_ChromatogramInfo_The_index__0__must_be_between_0_and__1__,

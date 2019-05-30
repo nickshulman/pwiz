@@ -153,6 +153,7 @@ namespace pwiz.Skyline.Model.Results.Scoring
             new LegacyIdentifiedCountCalc(),
 
             new XCorrFeatureCalculator(), 
+            new XCorrDistanceFeatureCalculator(), 
         };
 
         protected MProphetPeakScoringModel()

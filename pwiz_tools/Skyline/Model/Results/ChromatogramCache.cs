@@ -1165,6 +1165,8 @@ namespace pwiz.Skyline.Model.Results
                 var groupInfo = _chromatogramEntries[i];
                 if (groupInfo.FileIndex != fileIndex)
                     continue;
+                int id = groupInfo.HasStatusId ? groupInfo.StatusId : i;
+                int rank = groupInfo.HasStatusRank ? groupInfo.StatusRank : -1;
 
                 IonMobilityValue ionMobilityValue = null;
                 for (int j = 0; j < groupInfo.NumTransitions; j++)
@@ -1181,14 +1183,30 @@ namespace pwiz.Skyline.Model.Results
                         IonMobilityValue.GetIonMobilityValue(tranInfo.IonMobilityValue, units) :
                         ionMobilityValue.ChangeIonMobility(tranInfo.IonMobilityValue); // This likely doesn't change from transition to transition, so reuse it
                     ChromKey key = new ChromKey(_textIdBytes, groupInfo.TextIdIndex, groupInfo.TextIdLen,
-                        groupInfo.Precursor, product, extractionWidth, 
+                        groupInfo.Precursor, product, extractionWidth,
                         IonMobilityFilter.GetIonMobilityFilter(ionMobilityValue, tranInfo.IonMobilityExtractionWidth, groupInfo.CollisionalCrossSection),
                         source, groupInfo.Extractor, true, true,
                         null, null);    // this provider can't provide these optional times
 
-                    int id = groupInfo.HasStatusId ? groupInfo.StatusId : i;
-                    int rank = groupInfo.HasStatusRank ? groupInfo.StatusRank : -1;
                     yield return new ChromKeyIndices(key, groupInfo.LocationPoints, i, id, rank, j);
+                }
+
+                if (groupInfo.HasRawChromatograms)
+                {
+                    var chromatogramGroupInfo = LoadChromatogramInfo(groupInfo);
+                    chromatogramGroupInfo.ReadChromatogram(this, false);
+                    if (chromatogramGroupInfo.TimeIntensitiesGroup.TransitionTimeIntensities.Count >
+                        groupInfo.NumTransitions)
+                    {
+                        ChromKey key = new ChromKey(_textIdBytes, groupInfo.TextIdIndex, groupInfo.TextIdLen,
+                            groupInfo.Precursor, SignedMz.ZERO, 0,
+                            IonMobilityFilter.EMPTY, 
+                            ChromSource.fragment, groupInfo.Extractor, true, true,
+                            null, null);
+
+                        yield return new ChromKeyIndices(key, groupInfo.LocationPoints, i, id, rank,
+                            chromatogramGroupInfo.NumTransitions);
+                    }
                 }
             }
         }

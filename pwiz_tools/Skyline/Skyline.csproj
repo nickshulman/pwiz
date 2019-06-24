@@ -389,6 +389,12 @@
     <Compile Include="Model\Databinding\RowActions\DeleteNodesAction.cs" />
     <Compile Include="Model\Databinding\RowActions\RemovePeaksAction.cs" />
     <Compile Include="Model\Databinding\RowActions\RowAction.cs" />
+    <Compile Include="Model\Databinding\Settings\Modification.cs" />
+    <Compile Include="Model\Databinding\Settings\PersistedSettings.cs" />
+    <Compile Include="Model\Databinding\Settings\SettingsCollection.cs" />
+    <Compile Include="Model\Databinding\Settings\SettingsObject.cs" />
+    <Compile Include="Model\Databinding\Settings\SimpleSetting.cs" />
+    <Compile Include="Model\Databinding\Settings\ScalarSettings.cs" />
     <Compile Include="Model\ElementLocators\ElementLocator.cs" />
     <Compile Include="Model\ElementLocators\ListRef.cs" />
     <Compile Include="Model\DocSettings\FullScanAcquisitionMethod.cs" />

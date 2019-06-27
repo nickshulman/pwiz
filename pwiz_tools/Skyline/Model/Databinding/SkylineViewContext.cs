@@ -46,7 +46,9 @@ namespace pwiz.Skyline.Model.Databinding
     public class SkylineViewContext : AbstractViewContext
     {
         private ViewChangeListener _viewChangeListener;
-        public SkylineViewContext(SkylineDataSchema dataSchema, IEnumerable<RowSourceInfo> rowSources) : base(dataSchema, rowSources)
+
+        public SkylineViewContext(SkylineDataSchema dataSchema, IEnumerable<RowSourceInfo> rowSources) : base(
+            dataSchema, rowSources)
         {
             ApplicationIcon = Resources.Skyline;
         }
@@ -79,15 +81,15 @@ namespace pwiz.Skyline.Model.Databinding
         public override ViewSpecList GetViewSpecList(ViewGroupId viewGroup)
         {
             return base.GetViewSpecList(viewGroup)
-                ?? SortViewSpecList(Settings.Default.PersistedViews.GetViewSpecList(viewGroup)) 
-                ?? ViewSpecList.EMPTY;
+                   ?? SortViewSpecList(Settings.Default.PersistedViews.GetViewSpecList(viewGroup))
+                   ?? ViewSpecList.EMPTY;
         }
 
         private ViewSpecList SortViewSpecList(ViewSpecList viewSpecList)
         {
             var viewSpecs = viewSpecList.ViewSpecs.ToArray();
             var stringComparer = StringComparer.Create(SkylineDataSchema.DataSchemaLocalizer.FormatProvider, true);
-            Array.Sort(viewSpecs, (v1,v2)=>stringComparer.Compare(v1.Name, v2.Name));
+            Array.Sort(viewSpecs, (v1, v2) => stringComparer.Compare(v1.Name, v2.Name));
             return new ViewSpecList(viewSpecs, viewSpecList.ViewLayouts);
         }
 
@@ -98,6 +100,7 @@ namespace pwiz.Skyline.Model.Databinding
             {
                 ChangeDocumentViewSpecList(viewSpecList => viewSpecList.AddOrReplaceViews(viewSpecsArray));
             }
+
             base.AddOrReplaceViews(groupId, viewSpecsArray);
         }
 
@@ -108,6 +111,7 @@ namespace pwiz.Skyline.Model.Databinding
             {
                 ChangeDocumentViewSpecList(viewSpecList => viewSpecList.DeleteViews(viewNameSet));
             }
+
             base.DeleteViews(groupId, viewNameSet);
         }
 
@@ -117,10 +121,12 @@ namespace pwiz.Skyline.Model.Databinding
             {
                 return false;
             }
+
             if (Equals(groupId, PersistedViews.MainGroup.Id))
             {
                 ChangeDocumentViewSpecList(viewSpecList => viewSpecList.RenameView(oldName, newName));
             }
+
             return true;
         }
 
@@ -136,6 +142,7 @@ namespace pwiz.Skyline.Model.Databinding
                     {
                         newViews[viewSpec.Name] = viewSpec;
                     }
+
                     var newDocViews = new List<ViewSpec>();
                     var newLayouts = new List<ViewLayoutList>();
                     foreach (var oldDocView in docViewSpecList.ViewSpecs)
@@ -151,24 +158,27 @@ namespace pwiz.Skyline.Model.Databinding
                             }
                         }
                     }
+
                     return new ViewSpecList(newDocViews, newLayouts);
                 });
 
                 var skylineWindow = SkylineDataSchema.SkylineWindow;
                 if (skylineWindow != null)
                 {
-                    skylineWindow.ModifyDocument(Resources.SkylineViewContext_SaveViewSpecList_Change_Document_Reports, doc =>
-                    {
-                        var oldViewNames = new HashSet<string>(
-                            doc.Settings.DataSettings.ViewSpecList.ViewSpecs.Select(spec => spec.Name));
-                        var newViewSpecList = viewSpecList.Filter(spec => oldViewNames.Contains(spec.Name));
-                        if (Equals(newViewSpecList, doc.Settings.DataSettings.ViewSpecList))
+                    skylineWindow.ModifyDocument(Resources.SkylineViewContext_SaveViewSpecList_Change_Document_Reports,
+                        doc =>
                         {
-                            return doc;
-                        }
-                        return doc.ChangeSettings(doc.Settings.ChangeDataSettings(
-                            doc.Settings.DataSettings.ChangeViewSpecList(newViewSpecList)));
-                    }, AuditLogEntry.SettingsLogFunction);
+                            var oldViewNames = new HashSet<string>(
+                                doc.Settings.DataSettings.ViewSpecList.ViewSpecs.Select(spec => spec.Name));
+                            var newViewSpecList = viewSpecList.Filter(spec => oldViewNames.Contains(spec.Name));
+                            if (Equals(newViewSpecList, doc.Settings.DataSettings.ViewSpecList))
+                            {
+                                return doc;
+                            }
+
+                            return doc.ChangeSettings(doc.Settings.ChangeDataSettings(
+                                doc.Settings.DataSettings.ChangeViewSpecList(newViewSpecList)));
+                        }, AuditLogEntry.SettingsLogFunction);
                 }
             }
         }
@@ -178,22 +188,27 @@ namespace pwiz.Skyline.Model.Databinding
             var skylineWindow = SkylineDataSchema.SkylineWindow;
             if (skylineWindow != null)
             {
-                skylineWindow.ModifyDocument(Resources.SkylineViewContext_ChangeDocumentViewSpec_Change_Document_Reports, doc =>
-                {
-                    var oldViewSpecList = doc.Settings.DataSettings.ViewSpecList;
-                    var newViewSpecList = changeViewSpecFunc(oldViewSpecList);
-                    if (Equals(newViewSpecList, oldViewSpecList))
+                skylineWindow.ModifyDocument(
+                    Resources.SkylineViewContext_ChangeDocumentViewSpec_Change_Document_Reports, doc =>
                     {
-                        return doc;
-                    }
-                    return doc.ChangeSettings(doc.Settings.ChangeDataSettings(
-                        doc.Settings.DataSettings.ChangeViewSpecList(newViewSpecList)));
-                }, AuditLogEntry.SettingsLogFunction);
+                        var oldViewSpecList = doc.Settings.DataSettings.ViewSpecList;
+                        var newViewSpecList = changeViewSpecFunc(oldViewSpecList);
+                        if (Equals(newViewSpecList, oldViewSpecList))
+                        {
+                            return doc;
+                        }
+
+                        return doc.ChangeSettings(doc.Settings.ChangeDataSettings(
+                            doc.Settings.DataSettings.ChangeViewSpecList(newViewSpecList)));
+                    }, AuditLogEntry.SettingsLogFunction);
             }
-            
+
         }
 
-        public SkylineDataSchema SkylineDataSchema { get { return (SkylineDataSchema) DataSchema; } }
+        public SkylineDataSchema SkylineDataSchema
+        {
+            get { return (SkylineDataSchema) DataSchema; }
+        }
 
         public override string GetExportDirectory()
         {
@@ -219,7 +234,8 @@ namespace pwiz.Skyline.Model.Databinding
         {
             using (var longWaitDlg = new LongWaitDlg())
             {
-                var status = longWaitDlg.PerformWork(FormUtil.FindTopLevelOwner(owner), 1000, progressMonitor => job(longWaitDlg.CancellationToken, progressMonitor));
+                var status = longWaitDlg.PerformWork(FormUtil.FindTopLevelOwner(owner), 1000,
+                    progressMonitor => job(longWaitDlg.CancellationToken, progressMonitor));
                 return status.IsComplete;
             }
         }
@@ -230,7 +246,8 @@ namespace pwiz.Skyline.Model.Databinding
             bool finished = false;
             longOperationRunner.Run(longWaitBroker =>
             {
-                var progressWaitBroker = new ProgressWaitBroker(progressMonitor=>job(longWaitBroker.CancellationToken, progressMonitor));
+                var progressWaitBroker = new ProgressWaitBroker(progressMonitor =>
+                    job(longWaitBroker.CancellationToken, progressMonitor));
                 progressWaitBroker.PerformWork(longWaitBroker);
                 finished = !longWaitBroker.IsCanceled;
             });
@@ -253,6 +270,7 @@ namespace pwiz.Skyline.Model.Databinding
                 {
                     return false;
                 }
+
                 char separator = saveFileDialog.FilterIndex == 2
                     ? TextUtil.SEPARATOR_TSV
                     : TextUtil.GetCsvSeparator(DataSchema.DataSchemaLocalizer.FormatProvider);
@@ -268,11 +286,13 @@ namespace pwiz.Skyline.Model.Databinding
 
         public DsvWriter GetDsvWriter(char separator)
         {
-            DsvWriter dsvWriter = new DsvWriter(DataSchema.DataSchemaLocalizer.FormatProvider, DataSchema.DataSchemaLocalizer.Language, separator);
+            DsvWriter dsvWriter = new DsvWriter(DataSchema.DataSchemaLocalizer.FormatProvider,
+                DataSchema.DataSchemaLocalizer.Language, separator);
             if (IsInvariantLanguage())
             {
                 dsvWriter.NumberFormatOverride = Formats.RoundTrip;
             }
+
             return dsvWriter;
         }
 
@@ -296,13 +316,16 @@ namespace pwiz.Skyline.Model.Databinding
                     {
                         var action = new Action<IProgressMonitor>(progressMonitor =>
                         {
-                            IProgressStatus status = new ProgressStatus(Resources.ExportReportDlg_ExportReport_Building_report);
+                            IProgressStatus status =
+                                new ProgressStatus(Resources.ExportReportDlg_ExportReport_Building_report);
                             progressMonitor.UpdateProgress(status);
                             using (var writer = new StreamWriter(stream))
                             {
-                                success = Export(longWait.CancellationToken, progressMonitor, ref status, viewInfo, writer, dsvWriter);
+                                success = Export(longWait.CancellationToken, progressMonitor, ref status, viewInfo,
+                                    writer, dsvWriter);
                                 writer.Close();
                             }
+
                             if (success)
                             {
                                 progressMonitor.UpdateProgress(status.Complete());
@@ -310,6 +333,7 @@ namespace pwiz.Skyline.Model.Databinding
                         });
                         longWait.PerformWork(owner, 1500, action);
                     }
+
                     return success;
                 });
             }
@@ -338,7 +362,9 @@ namespace pwiz.Skyline.Model.Databinding
             return Export(cancellationToken, progressMonitor, ref status, viewInfo, viewLayout, writer, dsvWriter);
         }
 
-        public bool Export(CancellationToken cancellationToken, IProgressMonitor progressMonitor, ref IProgressStatus status, ViewInfo viewInfo, ViewLayout viewLayout, TextWriter writer, DsvWriter dsvWriter)
+        public bool Export(CancellationToken cancellationToken, IProgressMonitor progressMonitor,
+            ref IProgressStatus status, ViewInfo viewInfo, ViewLayout viewLayout, TextWriter writer,
+            DsvWriter dsvWriter)
         {
             progressMonitor = progressMonitor ?? new SilentProgressMonitor();
             using (var bindingListSource = new BindingListSource(cancellationToken))
@@ -347,13 +373,14 @@ namespace pwiz.Skyline.Model.Databinding
                 progressMonitor.UpdateProgress(status = status.ChangePercentComplete(5)
                     .ChangeMessage(Resources.ExportReportDlg_ExportReport_Writing_report));
 
-                WriteDataWithStatus( progressMonitor, ref status, writer, bindingListSource, dsvWriter);
+                WriteDataWithStatus(progressMonitor, ref status, writer, bindingListSource, dsvWriter);
                 if (progressMonitor.IsCanceled)
                     return false;
 
                 writer.Flush();
                 progressMonitor.UpdateProgress(status = status.Complete());
             }
+
             return true;
         }
 
@@ -365,12 +392,14 @@ namespace pwiz.Skyline.Model.Databinding
                 {
                     return false;
                 }
+
                 if (writeFunc(fileSaver.Stream))
                 {
                     fileSaver.Commit();
                     return true;
                 }
             }
+
             return false;
         }
 
@@ -379,7 +408,7 @@ namespace pwiz.Skyline.Model.Databinding
         {
             ViewSpec viewSpec = GetDefaultViewSpec(columnDescriptor);
             bool addAnnotations = false;
-            if (columnDescriptor.PropertyType == typeof (TransitionResult))
+            if (columnDescriptor.PropertyType == typeof(TransitionResult))
             {
                 viewSpec = viewSpec.SetColumns(new[]
                 {
@@ -396,13 +425,13 @@ namespace pwiz.Skyline.Model.Databinding
                     new ColumnSpec().SetName("PeakRank"),
                 });
                 addAnnotations = true;
-            } 
-            else if (columnDescriptor.PropertyType == typeof (PrecursorResult))
+            }
+            else if (columnDescriptor.PropertyType == typeof(PrecursorResult))
             {
                 viewSpec = viewSpec.SetColumns(new[]
                 {
                     new ColumnSpec().SetName("PeptideResult.ResultFile.Replicate"),
-                    new ColumnSpec().SetName("Note"), 
+                    new ColumnSpec().SetName("Note"),
                     new ColumnSpec().SetName("PrecursorPeakFoundRatio"),
                     new ColumnSpec().SetName("BestRetentionTime"),
                     new ColumnSpec().SetName("MaxFwhm"),
@@ -417,31 +446,33 @@ namespace pwiz.Skyline.Model.Databinding
                 });
                 addAnnotations = true;
             }
-            else if (columnDescriptor.PropertyType == typeof (PeptideResult))
+            else if (columnDescriptor.PropertyType == typeof(PeptideResult))
             {
                 viewSpec = viewSpec.SetColumns(new[]
                 {
                     new ColumnSpec().SetName("ResultFile.Replicate"),
-                    new ColumnSpec().SetName("PeptidePeakFoundRatio"), 
-                    new ColumnSpec().SetName("PeptideRetentionTime"), 
-                    new ColumnSpec().SetName("RatioToStandard"), 
+                    new ColumnSpec().SetName("PeptidePeakFoundRatio"),
+                    new ColumnSpec().SetName("PeptideRetentionTime"),
+                    new ColumnSpec().SetName("RatioToStandard"),
                 });
-                
-                var skylineDataSchema = (SkylineDataSchema)columnDescriptor.DataSchema;
+
+                var skylineDataSchema = (SkylineDataSchema) columnDescriptor.DataSchema;
                 PropertyPath propertyPathReplicate = PropertyPath.Parse("ResultFile.Replicate");
                 viewSpec = viewSpec.SetColumns(viewSpec.Columns.Concat(
-                    skylineDataSchema.GetAnnotations(typeof (Replicate))
+                    skylineDataSchema.GetAnnotations(typeof(Replicate))
                         .Select(pd => new ColumnSpec(propertyPathReplicate.Property(pd.Name))))
-                    );
+                );
             }
             else
             {
-                var columnsToRemove = new HashSet<PropertyPath> 
+                var columnsToRemove = new HashSet<PropertyPath>
                     {PropertyPath.Root.Property("Locator")};
                 bool addRoot = false;
-                bool docHasCustomIons = ((SkylineDataSchema)columnDescriptor.DataSchema).Document.CustomIonCount != 0;
-                bool docHasOnlyCustomIons = docHasCustomIons && ((SkylineDataSchema)columnDescriptor.DataSchema).Document.PeptideCount == 0;
-                
+                bool docHasCustomIons = ((SkylineDataSchema) columnDescriptor.DataSchema).Document.CustomIonCount != 0;
+                bool docHasOnlyCustomIons = docHasCustomIons &&
+                                            ((SkylineDataSchema) columnDescriptor.DataSchema).Document.PeptideCount ==
+                                            0;
+
                 if (columnDescriptor.PropertyType == typeof(Protein))
                 {
                     columnsToRemove.Add(PropertyPath.Root.Property("Name"));
@@ -455,6 +486,7 @@ namespace pwiz.Skyline.Model.Databinding
                         columnsToRemove.Add(PropertyPath.Root.Property("Species"));
                         columnsToRemove.Add(PropertyPath.Root.Property("Sequence"));
                     }
+
                     addRoot = true;
                 }
                 else if (columnDescriptor.PropertyType == typeof(Entities.Peptide))
@@ -482,6 +514,7 @@ namespace pwiz.Skyline.Model.Databinding
                         columnsToRemove.Add(PropertyPath.Root.Property("EndPos"));
                         columnsToRemove.Add(PropertyPath.Root.Property("MissedCleavages"));
                     }
+
                     if (!docHasCustomIons)
                     {
                         columnsToRemove.Add(PropertyPath.Root.Property("MoleculeName"));
@@ -489,6 +522,7 @@ namespace pwiz.Skyline.Model.Databinding
                         columnsToRemove.Add(PropertyPath.Root.Property("ExplicitRetentionTime"));
                         columnsToRemove.Add(PropertyPath.Root.Property("ExplicitRetentionTimeWindow"));
                     }
+
                     addRoot = true;
                 }
                 else if (columnDescriptor.PropertyType == typeof(Precursor))
@@ -498,6 +532,7 @@ namespace pwiz.Skyline.Model.Databinding
                         columnsToRemove.Add(PropertyPath.Root.Property("ModifiedSequence"));
                         columnsToRemove.Add(PropertyPath.Root.Property("IsDecoy"));
                     }
+
                     if (!docHasCustomIons)
                     {
                         columnsToRemove.Add(PropertyPath.Root.Property("IonName"));
@@ -505,6 +540,7 @@ namespace pwiz.Skyline.Model.Databinding
                         columnsToRemove.Add(PropertyPath.Root.Property("NeutralFormula"));
                         columnsToRemove.Add(PropertyPath.Root.Property("Adduct"));
                     }
+
                     columnsToRemove.Add(PropertyPath.Root.Property("CollisionEnergy"));
                     columnsToRemove.Add(PropertyPath.Root.Property("ResultSummary"));
                     columnsToRemove.Add(PropertyPath.Root.Property("NeutralMass"));
@@ -551,9 +587,14 @@ namespace pwiz.Skyline.Model.Databinding
 
                     if (docHasOnlyCustomIons)
                     {
-                        columnsToRemove.Add(PropertyPath.Root.Property("FragmentIon")); // Not interesting - only one product per precursor for small molecules
-                        columnsToRemove.Add(PropertyPath.Root.Property("Losses")); // Doesn't mean anything for non-peptides
+                        columnsToRemove.Add(
+                            PropertyPath.Root
+                                .Property(
+                                    "FragmentIon")); // Not interesting - only one product per precursor for small molecules
+                        columnsToRemove.Add(
+                            PropertyPath.Root.Property("Losses")); // Doesn't mean anything for non-peptides
                     }
+
                     if (!docHasCustomIons)
                     {
                         // Stuff that only applies to small molecules
@@ -561,6 +602,7 @@ namespace pwiz.Skyline.Model.Databinding
                         columnsToRemove.Add(PropertyPath.Root.Property("ProductNeutralFormula"));
                         columnsToRemove.Add(PropertyPath.Root.Property("ProductAdduct"));
                     }
+
                     addRoot = true;
                 }
                 else if (columnDescriptor.PropertyType == typeof(Replicate))
@@ -570,14 +612,17 @@ namespace pwiz.Skyline.Model.Databinding
                     columnsToRemove.Add(PropertyPath.Root.Property(nameof(Replicate.BatchName)));
                     addRoot = true;
                 }
+
                 viewSpec = viewSpec.SetSublistId(GetReplicateSublist(columnDescriptor.PropertyType));
                 if (addRoot)
                 {
-                    viewSpec = viewSpec.SetColumns(new[] { new ColumnSpec(PropertyPath.Root) }.Concat(viewSpec.Columns));
+                    viewSpec = viewSpec.SetColumns(new[] {new ColumnSpec(PropertyPath.Root)}.Concat(viewSpec.Columns));
                 }
+
                 viewSpec = viewSpec.SetColumns(viewSpec.Columns
                     .Where(columnSpec => !columnsToRemove.Contains(columnSpec.PropertyPath)));
             }
+
             if (addAnnotations)
             {
                 var skylineDataSchema = (SkylineDataSchema) columnDescriptor.DataSchema;
@@ -585,6 +630,7 @@ namespace pwiz.Skyline.Model.Databinding
                     skylineDataSchema.GetAnnotations(columnDescriptor.PropertyType)
                         .Select(pd => new ColumnSpec(PropertyPath.Root.Property(pd.Name)))));
             }
+
             return new ViewInfo(columnDescriptor, viewSpec).ChangeViewGroup(ViewGroup.BUILT_IN);
         }
 
@@ -594,10 +640,12 @@ namespace pwiz.Skyline.Model.Databinding
             {
                 return PropertyPath.Root.Property("Replicates").LookupAllItems();
             }
+
             if (rowType == typeof(Replicate))
             {
                 return PropertyPath.Root.Property("Files").LookupAllItems();
             }
+
             return PropertyPath.Root.Property("Results").LookupAllItems();
         }
         // ReSharper restore LocalizableElement
@@ -608,7 +656,8 @@ namespace pwiz.Skyline.Model.Databinding
             {
                 InitialDirectory = Settings.Default.ActiveDirectory,
                 CheckPathExists = true,
-                Filter = TextUtil.FileDialogFilterAll(Resources.ExportReportDlg_ShowShare_Skyline_Reports, ReportSpecList.EXT_REPORTS)
+                Filter = TextUtil.FileDialogFilterAll(Resources.ExportReportDlg_ShowShare_Skyline_Reports,
+                    ReportSpecList.EXT_REPORTS)
             })
             {
                 saveFileDialog.ShowDialog(FormUtil.FindTopLevelOwner(owner));
@@ -645,6 +694,7 @@ namespace pwiz.Skyline.Model.Databinding
                 {
                     return;
                 }
+
                 ImportViewsFromFile(owner, group, importDialog.FileName);
             }
         }
@@ -663,12 +713,14 @@ namespace pwiz.Skyline.Model.Databinding
                     fileName, x.InnerException ?? x);
                 return;
             }
+
             if (!views.ViewSpecs.Any())
             {
                 ShowMessageBox(owner, Resources.SkylineViewContext_ImportViews_No_views_were_found_in_that_file_,
                     MessageBoxButtons.OK);
                 return;
             }
+
             CopyViewsToGroup(owner, group, views);
         }
 
@@ -677,7 +729,8 @@ namespace pwiz.Skyline.Model.Databinding
             using (var stream = File.OpenRead(filename))
             {
                 var reportOrViewSpecs = ReportSharing.DeserializeReportList(stream);
-                return new ViewSpecList(ReportSharing.ConvertAll(reportOrViewSpecs, ((SkylineDataSchema) DataSchema).Document));
+                return new ViewSpecList(ReportSharing.ConvertAll(reportOrViewSpecs,
+                    ((SkylineDataSchema) DataSchema).Document));
             }
         }
 
@@ -689,22 +742,31 @@ namespace pwiz.Skyline.Model.Databinding
         public static IEnumerable<RowSourceInfo> GetDocumentGridRowSources(SkylineDataSchema dataSchema)
         {
             bool proteomic = dataSchema.DefaultUiMode == UiModes.PROTEOMIC;
-            yield return MakeRowSource<Protein>(dataSchema, 
-                proteomic ? Resources.SkylineViewContext_GetDocumentGridRowSources_Proteins : Resources.SkylineViewContext_GetDocumentGridRowSources_Molecule_Lists,
+            yield return MakeRowSource<Protein>(dataSchema,
+                proteomic
+                    ? Resources.SkylineViewContext_GetDocumentGridRowSources_Proteins
+                    : Resources.SkylineViewContext_GetDocumentGridRowSources_Molecule_Lists,
                 () => new Proteins(dataSchema));
-            yield return MakeRowSource<Entities.Peptide>(dataSchema, 
-                proteomic ? Resources.SkylineViewContext_GetDocumentGridRowSources_Peptides : Resources.SkylineViewContext_GetDocumentGridRowSources_Molecules,
+            yield return MakeRowSource<Entities.Peptide>(dataSchema,
+                proteomic
+                    ? Resources.SkylineViewContext_GetDocumentGridRowSources_Peptides
+                    : Resources.SkylineViewContext_GetDocumentGridRowSources_Molecules,
                 () => new Peptides(dataSchema, new[] {IdentityPath.ROOT}));
-            yield return MakeRowSource<Precursor>(dataSchema, Resources.SkylineViewContext_GetDocumentGridRowSources_Precursors, 
-                () => new Precursors(dataSchema, new[] { IdentityPath.ROOT }));
-            yield return MakeRowSource<Entities.Transition>(dataSchema, Resources.SkylineViewContext_GetDocumentGridRowSources_Transitions, 
-                () => new Transitions(dataSchema, new[] { IdentityPath.ROOT }));
-            yield return MakeRowSource<Replicate>(dataSchema, Resources.SkylineViewContext_GetDocumentGridRowSources_Replicates, 
+            yield return MakeRowSource<Precursor>(dataSchema,
+                Resources.SkylineViewContext_GetDocumentGridRowSources_Precursors,
+                () => new Precursors(dataSchema, new[] {IdentityPath.ROOT}));
+            yield return MakeRowSource<Entities.Transition>(dataSchema,
+                Resources.SkylineViewContext_GetDocumentGridRowSources_Transitions,
+                () => new Transitions(dataSchema, new[] {IdentityPath.ROOT}));
+            yield return MakeRowSource<Replicate>(dataSchema,
+                Resources.SkylineViewContext_GetDocumentGridRowSources_Replicates,
                 () => new ReplicateList(dataSchema));
-            yield return new RowSourceInfo(typeof(SkylineDocument), new StaticRowSource(new SkylineDocument[0]), new ViewInfo[0]);
+            yield return new RowSourceInfo(typeof(SkylineDocument), new StaticRowSource(new SkylineDocument[0]),
+                new ViewInfo[0]);
         }
 
-        private static RowSourceInfo MakeRowSource<T>(SkylineDataSchema dataSchema, string name, Func<IRowSource> rowProvider) where T : SkylineObject
+        private static RowSourceInfo MakeRowSource<T>(SkylineDataSchema dataSchema, string name,
+            Func<IRowSource> rowProvider) where T : SkylineObject
         {
             var parentColumn = ColumnDescriptor.RootColumn(dataSchema, typeof(T));
             var viewInfo = new ViewInfo(parentColumn, GetDefaultViewInfo(parentColumn).GetViewSpec().SetName(name));
@@ -726,31 +788,34 @@ namespace pwiz.Skyline.Model.Databinding
                 {
                     type = type.GenericTypeArguments[0];
                 }
-                if (type == typeof (float) ||
-                    type == typeof (float?) ||
-                    type == typeof (double) ||
-                    type == typeof (double?))
+
+                if (type == typeof(float) ||
+                    type == typeof(float?) ||
+                    type == typeof(double) ||
+                    type == typeof(double?))
                 {
                     column.DefaultCellStyle.Format = Formats.RoundTrip;
                 }
             }
+
             return column;
         }
 
-        private static readonly IDictionary<string, Tuple<int, int>> _imageIndexes = new Dictionary<string, Tuple<int, int>>
-        {
-            // ReSharper disable RedundantNameQualifier
-            {typeof (Entities.Protein).FullName, Tuple.Create(1, 6)},
-            {typeof (Entities.Peptide).FullName, Tuple.Create(2, 7)},
-            {typeof (Entities.Precursor).FullName, Tuple.Create(3, 3)},
-            {typeof (Entities.Transition).FullName, Tuple.Create(4, 4)},
-            {typeof (Entities.Replicate).FullName, Tuple.Create(5, 5)}
-            // ReSharper restore RedundantNameQualifier
-        };
+        private static readonly IDictionary<string, Tuple<int, int>> _imageIndexes =
+            new Dictionary<string, Tuple<int, int>>
+            {
+                // ReSharper disable RedundantNameQualifier
+                {typeof(Entities.Protein).FullName, Tuple.Create(1, 6)},
+                {typeof(Entities.Peptide).FullName, Tuple.Create(2, 7)},
+                {typeof(Entities.Precursor).FullName, Tuple.Create(3, 3)},
+                {typeof(Entities.Transition).FullName, Tuple.Create(4, 4)},
+                {typeof(Entities.Replicate).FullName, Tuple.Create(5, 5)}
+                // ReSharper restore RedundantNameQualifier
+            };
 
         public override Image[] GetImageList()
         {
-            return new []
+            return new[]
             {
                 Resources.Folder,
                 Resources.Protein,
@@ -772,8 +837,10 @@ namespace pwiz.Skyline.Model.Databinding
                 {
                     return imageIndex.Item1;
                 }
+
                 return imageIndex.Item2;
             }
+
             return -1;
         }
 
@@ -785,12 +852,10 @@ namespace pwiz.Skyline.Model.Databinding
                 {
                     _viewChangeListener = new ViewChangeListener(Settings.Default.PersistedViews, SkylineDataSchema);
                 }
+
                 _viewChangeListener.AddListener(value);
             }
-            remove
-            {
-                _viewChangeListener.RemoveListener(value);
-            }
+            remove { _viewChangeListener.RemoveListener(value); }
         }
 
         private class ViewChangeListener : IDocumentChangeListener
@@ -799,6 +864,7 @@ namespace pwiz.Skyline.Model.Databinding
             private readonly SkylineDataSchema _skylineDataSchema;
             private ViewSpecList _documentViews;
             private HashSet<Action> _listeners;
+
             public ViewChangeListener(PersistedViews persistedViews, SkylineDataSchema skylineDataSchema)
             {
                 _persistedViews = persistedViews;
@@ -813,13 +879,16 @@ namespace pwiz.Skyline.Model.Databinding
                     {
                         _persistedViews.Changed += PersistedViewsOnChanged;
                     }
+
                     if (null != _skylineDataSchema)
                     {
                         _documentViews = _skylineDataSchema.Document.Settings.DataSettings.ViewSpecList;
-                        _skylineDataSchema.Listen(this);
+                        _skylineDataSchema.DocumentSettingsContainer.Listen(PersistedViewsOnChanged);
                     }
+
                     _listeners = new HashSet<Action>();
                 }
+
                 if (!_listeners.Add(listener))
                 {
                     throw new InvalidOperationException(@"Listener already added");
@@ -832,16 +901,19 @@ namespace pwiz.Skyline.Model.Databinding
                 {
                     throw new InvalidOperationException(@"No such listener");
                 }
+
                 if (_listeners.Count == 0)
                 {
                     if (null != _persistedViews)
                     {
                         _persistedViews.Changed -= PersistedViewsOnChanged;
                     }
+
                     if (null != _skylineDataSchema)
                     {
                         _skylineDataSchema.Unlisten(this);
                     }
+
                     _listeners = null;
                 }
             }

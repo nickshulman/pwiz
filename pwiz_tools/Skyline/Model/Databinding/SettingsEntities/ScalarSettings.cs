@@ -1,8 +1,11 @@
-﻿using System.ComponentModel;
-using System.Net.Configuration;
+﻿using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Linq;
 using pwiz.Skyline.Model.DocSettings;
+using pwiz.Skyline.Model.Proteome;
 
-namespace pwiz.Skyline.Model.Databinding.Settings
+namespace pwiz.Skyline.Model.Databinding.SettingsEntities
 {
     public class ScalarSettings
     {
@@ -38,12 +41,20 @@ namespace pwiz.Skyline.Model.Databinding.Settings
                     return;
                 }
 
-                var backgroundProteome = Settings.ApplicationSettings.BackgroundProteomeList[value];
-                if (backgroundProteome == null)
+                var backgroundProteomeSpec = Settings.ApplicationSettings.BackgroundProteomeList[value];
+                if (backgroundProteomeSpec == null)
                 {
-                    throw new 
+                    throw new ArgumentException();
                 }
+
+                Settings.PeptideSettings = Settings.PeptideSettings
+                    .ChangeBackgroundProteome(new BackgroundProteome(backgroundProteomeSpec));
             }
+        }
+
+        public static IEnumerable<PropertyDescriptor> EnumerateSettings()
+        {
+            return TypeDescriptor.GetProperties(typeof(ScalarSettings)).Cast<PropertyDescriptor>();
         }
     }
 }

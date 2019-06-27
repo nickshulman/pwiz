@@ -47,9 +47,7 @@ namespace pwiz.Skyline.Model.Databinding.Collections
 
         protected override void BeforeFirstListenerAdded()
         {
-            Debug.Assert(null == _documentChangeListener);
-            _documentChangeListener = new DocumentChangeListener(this);
-            DataSchema.Listen(_documentChangeListener);
+            DataSchema.DocumentSettingsContainer.DocumentSettingsChanged += DocumentOnChanged;
             base.BeforeFirstListenerAdded();
         }
 
@@ -61,7 +59,7 @@ namespace pwiz.Skyline.Model.Databinding.Collections
             _documentChangeListener = null;
         }
 
-        private void DocumentOnChanged(object sender, DocumentChangedEventArgs documentChangedEventArgs)
+        private void DocumentOnChanged()
         {
             FireListChanged();
         }
@@ -72,23 +70,6 @@ namespace pwiz.Skyline.Model.Databinding.Collections
         }
 
         protected abstract IEnumerable<TKey> ListKeys();
-
-
-
-        private class DocumentChangeListener : IDocumentChangeListener
-        {
-            private readonly SkylineObjectList<TKey, TItem> _skylineObjectList;
-            public DocumentChangeListener(SkylineObjectList<TKey, TItem> skylineObjectList)
-            {
-                _skylineObjectList = skylineObjectList;
-            }
-
-            public void DocumentOnChanged(object sender, DocumentChangedEventArgs args)
-            {
-                _skylineObjectList.DocumentOnChanged(sender, args);
-            }
-        }
-
         protected abstract TItem ConstructItem(TKey key);
     }
 }

@@ -1,7 +1,7 @@
 ﻿using System.Collections.Generic;
 using pwiz.Skyline.Util;
 
-namespace pwiz.Skyline.Model.Databinding.Settings
+namespace pwiz.Skyline.Model.Databinding.SettingsEntities
 {
     public abstract class SettingsCollection<T> where T : IKeyContainer<string>
     {

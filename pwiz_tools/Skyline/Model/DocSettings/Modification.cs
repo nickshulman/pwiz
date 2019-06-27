@@ -356,6 +356,11 @@ namespace pwiz.Skyline.Model.DocSettings
                                                  });
         }
 
+        public StaticMod ChangeAAs(string prop)
+        {
+            return ChangeProp(ImClone(this), im => im.AAs = prop);
+        }
+
         public StaticMod ChangeVariable(bool prop)
         {
             return ChangeProp(ImClone(this), im => im.IsVariable = im.IsExplicit = prop);

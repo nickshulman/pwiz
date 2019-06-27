@@ -18,8 +18,10 @@
  */
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
+using pwiz.Common.Collections;
 using pwiz.Common.DataBinding;
 using pwiz.Skyline.Util.Extensions;
 
@@ -35,6 +37,10 @@ namespace pwiz.Skyline.Util
         public FormattableList(IList<T> list)
         {
             _list = list;
+        }
+
+        public FormattableList(IEnumerable<T> items) : this(ImmutableList.ValueOfOrEmpty(items))
+        {
         }
 
         public string ToString(string format, IFormatProvider formatProvider)
@@ -87,6 +93,24 @@ namespace pwiz.Skyline.Util
                 return value.ToString();
             }
             return formattableValue.ToString(format, formatProvider);
+        }
+
+        public static IEnumerable<T> Parse(string str)
+        {
+            var separator = TextUtil.CsvSeparator;
+            var csvReader = new DsvFileReader(new StringReader(str), separator, false);
+            var line = csvReader.ReadLine();
+            return line.Select(ParseValue).ToArray();
+        }
+
+        private static T ParseValue(string strValue)
+        {
+            if (string.IsNullOrEmpty(strValue))
+            {
+                return default(T);
+            }
+
+            return (T) Convert.ChangeType(strValue, typeof(T));
         }
     }
 }

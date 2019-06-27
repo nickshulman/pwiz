@@ -71,6 +71,7 @@ namespace pwiz.Skyline
         private DocumentGridForm _documentGridForm;
         private CalibrationForm _calibrationForm;
         private AuditLogForm _auditLogForm;
+        private SettingsGridForm _settingsGridForm;
         private readonly List<GraphChromatogram> _listGraphChrom = new List<GraphChromatogram>();
         private bool _inGraphUpdate;
         private ChromFileInfoId _alignToFile;
@@ -701,7 +702,12 @@ namespace pwiz.Skyline
             }
             if (Equals(persistentString, typeof(ImmediateWindow).ToString()))
             {
-                 return _immediateWindow ?? CreateImmediateWindow();
+                return _immediateWindow ?? CreateImmediateWindow();
+            }
+
+            if (Equals(persistentString, typeof(SettingsGridForm).ToString()))
+            {
+                return _settingsGridForm ?? CreateSettingsGrid();
             }
             if (persistentString.StartsWith(typeof(GraphChromatogram).ToString()))
             {
@@ -5850,6 +5856,74 @@ namespace pwiz.Skyline
                     document => document.ChangeAuditLog(AuditLogEntry.ROOT), docPair => AuditLogEntry.ClearLogEntry(docPair.OldDoc));
             } 
         }
+
+        #endregion
+
+        #region Settings Grid
+        private void settingsGridMenuItem_Click(object sender, EventArgs e)
+        {
+            ShowSettingsGrid(true);
+        }
+
+        public void ShowSettingsGrid(bool show)
+        {
+            if (show)
+            {
+                if (_settingsGridForm != null && !Program.SkylineOffscreen)
+                {
+                    _settingsGridForm.Activate();
+                }
+                else
+                {
+                    _settingsGridForm = _settingsGridForm ?? CreateSettingsGrid();
+                    if (_settingsGridForm != null)
+                    {
+                        var rectFloat = GetFloatingRectangleForNewWindow();
+                        _settingsGridForm.Show(dockPanel, rectFloat);
+                    }
+                }
+            }
+            else
+            {
+                if (_settingsGridForm != null)
+                {
+                    _settingsGridForm.Close();
+                }
+            }
+
+        }
+
+        private SettingsGridForm CreateSettingsGrid()
+        {
+            Assume.IsNull(_documentGridForm);
+            _settingsGridForm = new SettingsGridForm(this);
+            _settingsGridForm.FormClosed += settingsGrid_FormClosed;
+//            if (!string.IsNullOrEmpty(Settings.Default.DocumentGridView))
+//            {
+//                var viewName = ViewName.Parse(Settings.Default.DocumentGridView);
+//                if (viewName.HasValue)
+//                {
+//                    _documentGridForm.DataboundGridControl.ChooseView(viewName.Value);
+//                }
+//            }
+            return _settingsGridForm;
+        }
+
+        private void DestroySettingsGrid()
+        {
+            if (null != _settingsGridForm)
+            {
+                _settingsGridForm.FormClosed -= settingsGrid_FormClosed;
+                _settingsGridForm.Close();
+                _settingsGridForm = null;
+            }
+        }
+
+        void settingsGrid_FormClosed(object sender, FormClosedEventArgs e)
+        {
+            _settingsGridForm = null;
+        }
+
 
         #endregion
 

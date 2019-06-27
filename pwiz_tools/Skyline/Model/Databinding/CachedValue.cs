@@ -31,7 +31,7 @@ namespace pwiz.Skyline.Model.Databinding
 
         public T GetValue()
         {
-            if (!ReferenceEquals(_documentReference, _dataSchema.Document.ReferenceId))
+            if (!ReferenceEquals(_documentReference, _dataSchema.DocumentSettings.ReferenceId))
             {
                 var newValue = _getterFunc();
                 if (!ReferenceEquals(null, newValue))

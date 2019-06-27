@@ -319,6 +319,9 @@
     <Compile Include="Controls\AuditLog\AuditLogExtraInfoForm.Designer.cs">
       <DependentUpon>AuditLogExtraInfoForm.cs</DependentUpon>
     </Compile>
+    <Compile Include="Controls\Databinding\SettingsGridForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
     <Compile Include="Controls\Graphs\ReplicateGroupOp.cs" />
     <Compile Include="Controls\Graphs\ReplicateValue.cs" />
     <Compile Include="Controls\ImageListBox.cs">
@@ -371,6 +374,7 @@
     </Compile>
     <Compile Include="Model\AuditLog\ReflectorEnumerator.cs" />
     <Compile Include="Model\AuditLog\ReflectorToString.cs" />
+    <Compile Include="Model\Databinding\Collections\ModificationsRowSource.cs" />
     <Compile Include="Model\Databinding\Entities\ColumnCaptions.Designer.cs">
       <DesignTime>True</DesignTime>
       <AutoGen>True</AutoGen>
@@ -389,12 +393,19 @@
     <Compile Include="Model\Databinding\RowActions\DeleteNodesAction.cs" />
     <Compile Include="Model\Databinding\RowActions\RemovePeaksAction.cs" />
     <Compile Include="Model\Databinding\RowActions\RowAction.cs" />
-    <Compile Include="Model\Databinding\Settings\Modification.cs" />
-    <Compile Include="Model\Databinding\Settings\PersistedSettings.cs" />
-    <Compile Include="Model\Databinding\Settings\SettingsCollection.cs" />
-    <Compile Include="Model\Databinding\Settings\SettingsObject.cs" />
-    <Compile Include="Model\Databinding\Settings\SimpleSetting.cs" />
-    <Compile Include="Model\Databinding\Settings\ScalarSettings.cs" />
+    <Compile Include="Model\Databinding\SettingsEntities\IsotopeModification.cs" />
+    <Compile Include="Model\Databinding\SettingsEntities\Modification.cs" />
+    <Compile Include="Model\Databinding\SettingsEntities\PersistedSettings.cs" />
+    <Compile Include="Model\Databinding\SettingsEntities\SettingsCollection.cs" />
+    <Compile Include="Model\Databinding\SettingsEntities\SettingsObject.cs" />
+    <Compile Include="Model\Databinding\SettingsEntities\ScalarSettings.cs" />
+    <Compile Include="Model\DocumentContainers\DocumentSettings.cs" />
+    <Compile Include="Model\DocumentContainers\IDocumentSettingsContainer.cs" />
+    <Compile Include="Model\DocumentContainers\SettingsSnapshot.cs" />
+    <Compile Include="Model\Databinding\SettingsEntities\StructuralModification.cs" />
+    <Compile Include="Model\DocumentContainers\DocumentSettingsContainer.cs" />
+    <Compile Include="Model\DocumentContainers\SkylineWindowDocumentSettingsContainer.cs" />
+    <Compile Include="Model\DocumentContainers\WritableDocumentSettingsContainer.cs" />
     <Compile Include="Model\ElementLocators\ElementLocator.cs" />
     <Compile Include="Model\ElementLocators\ListRef.cs" />
     <Compile Include="Model\DocSettings\FullScanAcquisitionMethod.cs" />
@@ -419,6 +430,7 @@
     <Compile Include="Model\AuditLog\AuditLogEntry.cs" />
     <Compile Include="Model\AuditLog\DiffNode.cs" />
     <Compile Include="Model\AuditLog\PropertyName.cs" />
+    <Compile Include="Model\ElementLocators\SettingsListRef.cs" />
     <Compile Include="Model\ExplicitTransitionValues.cs" />
     <Compile Include="Model\Lib\BlibData\DbRefSpectraPeakAnnotations.cs" />
     <Compile Include="Model\Lib\ExplicitPeakBounds.cs" />
@@ -440,6 +452,7 @@
     <Compile Include="Model\Results\RemoteApi\RemoteUrl.cs" />
     <Compile Include="Model\Serialization\Pre372CustomIonTransitionGroupHandler.cs" />
     <Compile Include="Model\Serialization\XmlReadAhead.cs" />
+    <Compile Include="Model\SettingsViewContext.cs" />
     <Compile Include="Model\TargetMap.cs" />
     <Compile Include="Controls\Databinding\ChooseFormatDlg.cs">
       <SubType>Form</SubType>

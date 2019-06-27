@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace pwiz.Skyline.Model.Databinding.Settings
+namespace pwiz.Skyline.Model.Databinding.SettingsEntities
 {
     public class PersistedSettings
     {

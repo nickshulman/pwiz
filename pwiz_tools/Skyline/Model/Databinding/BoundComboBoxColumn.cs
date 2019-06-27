@@ -29,7 +29,6 @@ namespace pwiz.Skyline.Model.Databinding
     public abstract class BoundComboBoxColumn : DataGridViewComboBoxColumn
     {
         private ColumnPropertyDescriptor _columnPropertyDescriptor;
-        private readonly IDocumentChangeListener _documentChangeListener;
 
         protected BoundComboBoxColumn(DataGridViewComboBoxCell cellTemplate)
         {
@@ -38,7 +37,6 @@ namespace pwiz.Skyline.Model.Databinding
             // ReSharper restore VirtualMemberCallInConstructor
             FlatStyle = FlatStyle.Flat;
             DisplayStyleForCurrentCellOnly = true;
-            _documentChangeListener = new DocumentChangeListener(this);
         }
 
         protected BoundComboBoxColumn()
@@ -75,12 +73,12 @@ namespace pwiz.Skyline.Model.Databinding
                 }
                 if (SkylineDataSchema != null)
                 {
-                    SkylineDataSchema.Unlisten(_documentChangeListener);
+                    SkylineDataSchema.DocumentSettingsContainer.Unlisten(UpdateDropdownItems);
                 }
                 _columnPropertyDescriptor = value;
                 if (SkylineDataSchema != null)
                 {
-                    SkylineDataSchema.Listen(_documentChangeListener);
+                    SkylineDataSchema.DocumentSettingsContainer.Listen(UpdateDropdownItems);
                     UpdateDropdownItems();
                 }
             }
@@ -124,21 +122,6 @@ namespace pwiz.Skyline.Model.Databinding
                 return null;
             }
             return bindingSource.GetItemProperties(null)[DataPropertyName] as ColumnPropertyDescriptor;
-        }
-
-        private class DocumentChangeListener : IDocumentChangeListener
-        {
-            private readonly BoundComboBoxColumn _boundComboBoxColumn;
-
-            public DocumentChangeListener(BoundComboBoxColumn column)
-            {
-                _boundComboBoxColumn = column;
-            }
-
-            public void DocumentOnChanged(object sender, DocumentChangedEventArgs args)
-            {
-                _boundComboBoxColumn.UpdateDropdownItems();
-            }
         }
 
         protected override void Dispose(bool disposing)

@@ -1,6 +1,6 @@
 ﻿using pwiz.Skyline.Model.DocSettings;
 
-namespace pwiz.Skyline.Model.Databinding.Settings
+namespace pwiz.Skyline.Model.Databinding.SettingsEntities
 {
     public class SettingsObject
     {

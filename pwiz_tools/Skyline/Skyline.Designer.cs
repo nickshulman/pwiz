@@ -478,6 +478,7 @@ namespace pwiz.Skyline
             this.listsMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.defineNewListMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.auditLogMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.settingsGridMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.toolStripSeparator36 = new System.Windows.Forms.ToolStripSeparator();
             this.toolBarToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.statusToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
@@ -509,6 +510,10 @@ namespace pwiz.Skyline
             this.videosMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.webinarsMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.tutorialsMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.documentationToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.reportsHelpMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.commandLineHelpMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.otherDocsHelpMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.supportMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.issuesMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.checkForUpdatesSeparator = new System.Windows.Forms.ToolStripSeparator();
@@ -543,10 +548,6 @@ namespace pwiz.Skyline
             this.massErrorMassToChargContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.massErrorlogScaleContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             ((System.ComponentModel.ISupportInitialize)(this.modeUIHandler)).BeginInit();
-            this.documentationToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-            this.reportsHelpMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-            this.commandLineHelpMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-            this.otherDocsHelpMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.contextMenuTreeNode.SuspendLayout();
             this.contextMenuSpectrum.SuspendLayout();
             this.contextMenuChromatogram.SuspendLayout();
@@ -3680,7 +3681,8 @@ namespace pwiz.Skyline
             this.resultsGridMenuItem,
             this.groupComparisonsMenuItem,
             this.listsMenuItem,
-            this.auditLogMenuItem});
+            this.auditLogMenuItem,
+            this.settingsGridMenuItem});
             this.otherGridsMenuItem.Name = "otherGridsMenuItem";
             resources.ApplyResources(this.otherGridsMenuItem, "otherGridsMenuItem");
             // 
@@ -3730,6 +3732,12 @@ namespace pwiz.Skyline
             this.auditLogMenuItem.Name = "auditLogMenuItem";
             resources.ApplyResources(this.auditLogMenuItem, "auditLogMenuItem");
             this.auditLogMenuItem.Click += new System.EventHandler(this.auditLogMenuItem_Click);
+            // 
+            // settingsGridMenuItem
+            // 
+            this.settingsGridMenuItem.Name = "settingsGridMenuItem";
+            resources.ApplyResources(this.settingsGridMenuItem, "settingsGridMenuItem");
+            this.settingsGridMenuItem.Click += new System.EventHandler(this.settingsGridMenuItem_Click);
             // 
             // toolStripSeparator36
             // 
@@ -3947,6 +3955,33 @@ namespace pwiz.Skyline
             this.tutorialsMenuItem.Name = "tutorialsMenuItem";
             resources.ApplyResources(this.tutorialsMenuItem, "tutorialsMenuItem");
             this.tutorialsMenuItem.Click += new System.EventHandler(this.tutorialsMenuItem_Click);
+            // 
+            // documentationToolStripMenuItem
+            // 
+            this.documentationToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.reportsHelpMenuItem,
+            this.commandLineHelpMenuItem,
+            this.otherDocsHelpMenuItem});
+            this.documentationToolStripMenuItem.Name = "documentationToolStripMenuItem";
+            resources.ApplyResources(this.documentationToolStripMenuItem, "documentationToolStripMenuItem");
+            // 
+            // reportsHelpMenuItem
+            // 
+            this.reportsHelpMenuItem.Name = "reportsHelpMenuItem";
+            resources.ApplyResources(this.reportsHelpMenuItem, "reportsHelpMenuItem");
+            this.reportsHelpMenuItem.Click += new System.EventHandler(this.reportsHelpMenuItem_Click);
+            // 
+            // commandLineHelpMenuItem
+            // 
+            this.commandLineHelpMenuItem.Name = "commandLineHelpMenuItem";
+            resources.ApplyResources(this.commandLineHelpMenuItem, "commandLineHelpMenuItem");
+            this.commandLineHelpMenuItem.Click += new System.EventHandler(this.commandLineHelpMenuItem_Click);
+            // 
+            // otherDocsHelpMenuItem
+            // 
+            this.otherDocsHelpMenuItem.Name = "otherDocsHelpMenuItem";
+            resources.ApplyResources(this.otherDocsHelpMenuItem, "otherDocsHelpMenuItem");
+            this.otherDocsHelpMenuItem.Click += new System.EventHandler(this.otherDocsHelpMenuItem_Click);
             // 
             // supportMenuItem
             // 
@@ -4173,33 +4208,6 @@ namespace pwiz.Skyline
             this.massErrorlogScaleContextMenuItem.Name = "massErrorlogScaleContextMenuItem";
             resources.ApplyResources(this.massErrorlogScaleContextMenuItem, "massErrorlogScaleContextMenuItem");
             this.massErrorlogScaleContextMenuItem.Click += new System.EventHandler(this.massErrorlogScaleContextMenuItem_Click);
-            // 
-            // documentationToolStripMenuItem
-            // 
-            this.documentationToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
-            this.reportsHelpMenuItem,
-            this.commandLineHelpMenuItem,
-            this.otherDocsHelpMenuItem});
-            this.documentationToolStripMenuItem.Name = "documentationToolStripMenuItem";
-            resources.ApplyResources(this.documentationToolStripMenuItem, "documentationToolStripMenuItem");
-            // 
-            // reportsHelpMenuItem
-            // 
-            this.reportsHelpMenuItem.Name = "reportsHelpMenuItem";
-            resources.ApplyResources(this.reportsHelpMenuItem, "reportsHelpMenuItem");
-            this.reportsHelpMenuItem.Click += new System.EventHandler(this.reportsHelpMenuItem_Click);
-            // 
-            // commandLineHelpMenuItem
-            // 
-            this.commandLineHelpMenuItem.Name = "commandLineHelpMenuItem";
-            resources.ApplyResources(this.commandLineHelpMenuItem, "commandLineHelpMenuItem");
-            this.commandLineHelpMenuItem.Click += new System.EventHandler(this.commandLineHelpMenuItem_Click);
-            // 
-            // otherDocsHelpMenuItem
-            // 
-            this.otherDocsHelpMenuItem.Name = "otherDocsHelpMenuItem";
-            resources.ApplyResources(this.otherDocsHelpMenuItem, "otherDocsHelpMenuItem");
-            this.otherDocsHelpMenuItem.Click += new System.EventHandler(this.otherDocsHelpMenuItem_Click);
             // 
             // SkylineWindow
             // 
@@ -4747,6 +4755,7 @@ namespace pwiz.Skyline
         private System.Windows.Forms.ToolStripMenuItem reportsHelpMenuItem;
         private System.Windows.Forms.ToolStripMenuItem commandLineHelpMenuItem;
         private System.Windows.Forms.ToolStripMenuItem otherDocsHelpMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem settingsGridMenuItem;
     }
 }
 

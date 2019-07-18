@@ -30,10 +30,11 @@
 #define _MATRIX_USE_STATIC_LIB
 #endif
 
+#include "pwiz/utility/misc/Filesystem.hpp"
+#include "CommandLine.h"
 #include "BlibBuilder.h"
 #include "AllBuildParsers.h"
 
-using namespace std;
 using namespace BiblioSpec;
 
 static void WriteErrorLines(string s)
@@ -56,6 +57,8 @@ int main(int argc, char* argv[])
     //    _crtBreakAlloc = 624219;
 #endif
 #endif
+    bnw::args utf8ArgWrapper(argc, argv); // modifies argv in-place with UTF-8 version on Windows
+    pwiz::util::enable_utf8_path_operations();
 
     // Are we anticipating an error message?
     string expectedError="";
@@ -203,18 +206,27 @@ int main(int argc, char* argv[])
         } catch(string s){ // in case a throwParseError is not caught
             failureMessage = s;
             cerr << "ERROR: " << s << endl;
+            cerr << "ERROR: reading file " << inFiles.at(i) << endl;
             success = false;
-        }
-        catch (const char *str){
+        } catch (const char *str){
             failureMessage = str;
-            cerr << str << endl;
-            cerr << "ERROR: reading file '" << inFiles.at(i) << "'" << endl;
+            cerr << "ERROR: " << str << endl;
+            cerr << "ERROR: reading file " << inFiles.at(i) << endl;
             success = false;
-        }
-        catch (...){
+        } catch (...){
             failureMessage = "Unknown ERROR";
-            cerr << "Unknown ERROR: reading file '" << inFiles.at(i) << "'" << endl;
+            cerr << "xERROR: Unknown error reading file " << inFiles.at(i) << endl;
             success = false;
+
+            // Write first 10 lines
+            std::ifstream fileStream(inFiles.at(i));
+            for (int i = 0; i < 100 && !fileStream.eof(); i++)
+            {
+                std::string line;
+                std::getline(fileStream, line);
+                
+                Verbosity::debug(line.c_str());
+            }
         }
     }
 

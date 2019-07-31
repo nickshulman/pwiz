@@ -73,12 +73,12 @@ namespace pwiz.Skyline.Model.Databinding
                 }
                 if (SkylineDataSchema != null)
                 {
-                    SkylineDataSchema.DocumentSettingsContainer.Unlisten(UpdateDropdownItems);
+                    SkylineDataSchema.Unlisten(new ActionDocumentChangeListener(UpdateDropdownItems));
                 }
                 _columnPropertyDescriptor = value;
                 if (SkylineDataSchema != null)
                 {
-                    SkylineDataSchema.DocumentSettingsContainer.Listen(UpdateDropdownItems);
+                    SkylineDataSchema.Listen(new ActionDocumentChangeListener(UpdateDropdownItems));
                     UpdateDropdownItems();
                 }
             }

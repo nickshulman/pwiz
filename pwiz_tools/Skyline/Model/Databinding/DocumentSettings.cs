@@ -1,11 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using NHibernate.Mapping;
-
-namespace pwiz.Skyline.Model.DocumentContainers
+﻿namespace pwiz.Skyline.Model.Databinding
 {
     public class DocumentSettings
     {
@@ -27,6 +20,16 @@ namespace pwiz.Skyline.Model.DocumentContainers
                 return this;
             }
             return new DocumentSettings(Document.BeginDeferSettingsChanges(), Settings);
+        }
+
+        public DocumentSettings ChangeDocument(SrmDocument document)
+        {
+            return new DocumentSettings(document, Settings);
+        }
+
+        public DocumentSettings ChangeSettings(SettingsSnapshot settingsSnapshot)
+        {
+            return new DocumentSettings(Document, settingsSnapshot);
         }
     }
 }

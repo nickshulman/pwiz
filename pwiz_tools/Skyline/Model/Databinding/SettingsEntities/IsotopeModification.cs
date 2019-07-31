@@ -10,22 +10,15 @@ namespace pwiz.Skyline.Model.Databinding.SettingsEntities
 {
     public class IsotopeModification : AbstractModification
     {
-        private readonly CachedValue<ModificationInfo> _modInfo;
         public IsotopeModification(SkylineDataSchema dataSchema, string name) : base(dataSchema, name)
         {
-            _modInfo = CachedValue.Create(dataSchema, GetModificationInfo);
-        }
-
-        protected override StaticMod StaticMod
-        {
-            get { return _modInfo.Value.StaticMod; }
         }
 
         public string LabelTypes
         {
             get
             {
-                return DataSchema.DataSchemaLocalizer.CallWithCultureInfo(new FormattableList<string>(_modInfo.Value.LabelTypes.Select(label => label.Name).ToArray()).ToString);
+                return DataSchema.DataSchemaLocalizer.CallWithCultureInfo(new FormattableList<string>(_modificationInfo.Value.LabelTypes.Select(label => label.Name).ToArray()).ToString);
             }
 
             set
@@ -68,7 +61,7 @@ namespace pwiz.Skyline.Model.Databinding.SettingsEntities
                         if (newContains)
                         {
                             peptideModifications = peptideModifications.ChangeModifications(labelType,
-                                ImmutableList.ValueOf(mods.Append(_modInfo.Value.StaticMod)));
+                                ImmutableList.ValueOf(mods.Append(_modificationInfo.Value.StaticMod)));
                         }
                         else
                         {
@@ -85,17 +78,17 @@ namespace pwiz.Skyline.Model.Databinding.SettingsEntities
         }
 
 
-        private ModificationInfo GetModificationInfo()
+        protected override ModificationInfo GetModificationInfo(DocumentSettings documentSettings)
         {
             ModificationInfo modInfo = new ModificationInfo();
-            foreach (var heavyMods in SrmDocument.Settings.PeptideSettings.Modifications.HeavyModifications)
+            foreach (var heavyMods in documentSettings.Document.Settings.PeptideSettings.Modifications.HeavyModifications)
             {
                 foreach (var mod in heavyMods.Modifications)
                 {
                     if (mod.Name == Name)
                     {
-                        modInfo.StaticMod = modInfo.StaticMod ?? mod;
-                        modInfo.LabelTypes.Add(heavyMods.LabelType);
+                        modInfo = modInfo.ChangeStaticMod(modInfo.StaticMod ?? mod);
+                        modInfo = modInfo.ChangeLabelTypes(modInfo.LabelTypes.Append(heavyMods.LabelType));
                     }
                 }
             }
@@ -106,7 +99,7 @@ namespace pwiz.Skyline.Model.Databinding.SettingsEntities
                 {
                     if (mod.Name == Name)
                     {
-                        modInfo.StaticMod = mod;
+                        modInfo = modInfo.ChangeStaticMod(mod);
                     }
                 }
             }
@@ -114,20 +107,16 @@ namespace pwiz.Skyline.Model.Databinding.SettingsEntities
             return modInfo;
         }
 
+        protected override DocumentSettings ChangeDocumentSettingsModificationInfo(DocumentSettings documentSettings,
+            ModificationInfo modificationInfoNew)
+        {
+            throw new NotImplementedException();
+        }
+
         public override ElementRef GetElementRef()
         {
             return SettingsListItemRef.PROTOTYPE.ChangeName(Name)
                 .ChangeParent(SettingsListRef.IsotopeModification);
-        }
-
-        private class ModificationInfo
-        {
-            public ModificationInfo()
-            {
-                LabelTypes = new List<IsotopeLabelType>();
-            }
-            public StaticMod StaticMod { get; set; }
-            public List<IsotopeLabelType> LabelTypes { get; private set; }
         }
     }
 }

@@ -5,7 +5,7 @@ using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Properties;
 
-namespace pwiz.Skyline.Model.DocumentContainers
+namespace pwiz.Skyline.Model.Databinding
 {
     public class SettingsSnapshot : Immutable
     {
@@ -25,7 +25,7 @@ namespace pwiz.Skyline.Model.DocumentContainers
             };
         }
 
-        public void UpdateSettings(SettingsSnapshot previous, Properties.Settings settings)
+        public void UpdateSettings(SettingsSnapshot previous, Settings settings)
         {
             UpdateSettingsList(settings.EnzymeList, Enzymes, previous?.Enzymes);
             UpdateSettingsList(settings.AnnotationDefList, AnnotationDefs, previous?.AnnotationDefs);
@@ -93,6 +93,43 @@ namespace pwiz.Skyline.Model.DocumentContainers
                     settingsList.Remove(item);
                 }
             }
+        }
+
+        protected bool Equals(SettingsSnapshot other)
+        {
+            return Enzymes.Equals(other.Enzymes) && AnnotationDefs.Equals(other.AnnotationDefs) &&
+                   StructuralModifications.Equals(other.StructuralModifications) &&
+                   IsotopeModifications.Equals(other.IsotopeModifications);
+        }
+
+        public override bool Equals(object obj)
+        {
+            if (ReferenceEquals(null, obj)) return false;
+            if (ReferenceEquals(this, obj)) return true;
+            if (obj.GetType() != this.GetType()) return false;
+            return Equals((SettingsSnapshot) obj);
+        }
+
+        public override int GetHashCode()
+        {
+            unchecked
+            {
+                var hashCode = Enzymes.GetHashCode();
+                hashCode = (hashCode * 397) ^ AnnotationDefs.GetHashCode();
+                hashCode = (hashCode * 397) ^ StructuralModifications.GetHashCode();
+                hashCode = (hashCode * 397) ^ IsotopeModifications.GetHashCode();
+                return hashCode;
+            }
+        }
+
+        public static bool operator ==(SettingsSnapshot left, SettingsSnapshot right)
+        {
+            return Equals(left, right);
+        }
+
+        public static bool operator !=(SettingsSnapshot left, SettingsSnapshot right)
+        {
+            return !Equals(left, right);
         }
     }
 }

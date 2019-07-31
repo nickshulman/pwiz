@@ -2059,6 +2059,21 @@ namespace pwiz.Skyline.Model
             return doc;
         }
 
+        private object _referenceId = new object();
+        /// <summary>
+        /// Value which is unique to this instance of the SrmDocument.
+        /// This enables you to determine whether another SrmDocument is ReferenceEquals to this, without
+        /// having to hold onto a reference to this.
+        /// <see cref="pwiz.Skyline.Model.Databinding.CachedValue{T}"/>
+        /// </summary>
+        public object ReferenceId { get { return _referenceId; } }
+        protected override object ImmutableClone()
+        {
+            SrmDocument document = (SrmDocument) base.ImmutableClone();
+            document._referenceId = new object();
+            return document;
+        }
+
         #region Implementation of IXmlSerializable
         /// <summary>
         /// For deserialization

@@ -1,48 +1,35 @@
-﻿using System;
-using pwiz.Common.SystemUtil;
-using pwiz.Skyline.Model.DocSettings;
+﻿using System.Linq;
+using pwiz.Common.Collections;
 using pwiz.Skyline.Model.ElementLocators;
+using pwiz.Skyline.Util;
 
 namespace pwiz.Skyline.Model.Databinding.SettingsEntities
 {
     public class StructuralModification : AbstractModification
     {
-        private CachedValue<StructuralModificationInfo> _modInfo;
         public StructuralModification(SkylineDataSchema dataSchema, string name) : base(dataSchema, name)
         {
-            _modInfo = CachedValue.Create(dataSchema, GetModificationInfo);
         }
 
-        protected override StaticMod StaticMod
+        protected override ModificationInfo GetModificationInfo(DocumentSettings documentSettings)
         {
-            get { return _modInfo.Value.StaticMod; }
-        }
-
-        protected override void ChangeStaticMod(EditDescription editDescription, Func<StaticMod, StaticMod> staticMod)
-        {
-            
-        }
-
-        protected StructuralModificationInfo GetModificationInfo()
-        {
-            var modInfo = new StructuralModificationInfo();
-            foreach (var mod in SrmDocument.Settings.PeptideSettings.Modifications.StaticModifications)
+            var modInfo = new ModificationInfo();
+            foreach (var mod in documentSettings.Document.Settings.PeptideSettings.Modifications.StaticModifications)
             {
                 if (mod.Name == Name)
                 {
-                    modInfo = modInfo.ChangeStaticMod(mod);
+                    modInfo = modInfo.ChangeStaticMod(mod).ChangeLabelTypes(ImmutableList.Singleton(IsotopeLabelType.light));
                     break;
                 }
             }
 
             if (modInfo.StaticMod == null)
             {
-                foreach (var mod in Properties.Settings.Default.StaticModList)
+                foreach (var mod in documentSettings.Settings.StructuralModifications)
                 {
                     if (mod.Name == Name)
                     {
                         modInfo = modInfo.ChangeStaticMod(mod);
-                        modInfo = modInfo.ChangeExplicit(true);
                         break;
                     }
                 }
@@ -51,26 +38,34 @@ namespace pwiz.Skyline.Model.Databinding.SettingsEntities
             return modInfo;
         }
 
+        protected override DocumentSettings ChangeDocumentSettingsModificationInfo(DocumentSettings documentSettings,
+            ModificationInfo modificationInfoNew)
+        {
+            var staticModifications = ImmutableList.ValueOf(ReplaceModInList(
+                documentSettings.Document.Settings.PeptideSettings.Modifications.StaticModifications,
+                modificationInfoNew.StaticMod));
+
+            if (!ArrayUtil.EqualsDeep(staticModifications,
+                documentSettings.Document.Settings.PeptideSettings.Modifications.StaticModifications))
+            {
+                var settings = documentSettings.Document.Settings;
+                settings = settings.ChangePeptideSettings(settings.PeptideSettings.ChangeModifications(
+                    settings.PeptideSettings.Modifications.ChangeStaticModifications(staticModifications)));
+                var document = documentSettings.Document;
+                document = document.ChangeSettings(settings);
+                documentSettings = documentSettings.ChangeDocument(document);
+            }
+
+            documentSettings = documentSettings.ChangeSettings(documentSettings.Settings.ChangeStructuralModifications(
+                ReplaceModInList(documentSettings.Settings.StructuralModifications, modificationInfoNew.StaticMod)));
+            return documentSettings;
+        }
+
         public override ElementRef GetElementRef()
         {
             return SettingsListItemRef.PROTOTYPE
                 .ChangeName(Name)
                 .ChangeParent(SettingsListRef.StructuralModification);
-        }
-
-        protected class StructuralModificationInfo : Immutable
-        {
-            public StaticMod StaticMod { get; private set; }
-
-            public StructuralModificationInfo ChangeStaticMod(StaticMod staticMod)
-            {
-                return ChangeProp(ImClone(this), im => im.StaticMod = staticMod);
-            }
-            public bool Explicit { get; private set; }
-            public StructuralModificationInfo ChangeExplicit(bool value)
-            {
-                return ChangeProp(ImClone(this), im => im.Explicit = value);
-            }
         }
     }
 }

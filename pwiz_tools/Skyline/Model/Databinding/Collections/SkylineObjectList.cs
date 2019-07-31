@@ -47,7 +47,7 @@ namespace pwiz.Skyline.Model.Databinding.Collections
 
         protected override void BeforeFirstListenerAdded()
         {
-            DataSchema.DocumentSettingsContainer.DocumentSettingsChanged += DocumentOnChanged;
+            DataSchema.Listen(_documentChangeListener = new ActionDocumentChangeListener(DocumentOnChanged));
             base.BeforeFirstListenerAdded();
         }
 

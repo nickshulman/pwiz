@@ -883,7 +883,7 @@ namespace pwiz.Skyline.Model.Databinding
                     if (null != _skylineDataSchema)
                     {
                         _documentViews = _skylineDataSchema.Document.Settings.DataSettings.ViewSpecList;
-                        _skylineDataSchema.DocumentSettingsContainer.Listen(PersistedViewsOnChanged);
+                        _skylineDataSchema.Listen(this);
                     }
 
                     _listeners = new HashSet<Action>();

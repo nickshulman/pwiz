@@ -54,7 +54,7 @@ namespace pwiz.Skyline.Controls.GroupComparison
         {
             if (Interlocked.Increment(ref _referenceCount) == 1)
             {
-                _skylineDataSchema = new SkylineDataSchema(GroupComparisonModel.DocumentContainer,
+                _skylineDataSchema = new SkylineDataSchema((IDocumentUIContainer) GroupComparisonModel.DocumentContainer,
                     SkylineDataSchema.GetLocalizedSchemaLocalizer());
                 var viewInfo = new ViewInfo(_skylineDataSchema, typeof(FoldChangeRow), GetDefaultViewSpec(new FoldChangeRow[0]))
                     .ChangeViewGroup(ViewGroup.BUILT_IN);

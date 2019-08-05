@@ -30,7 +30,7 @@ namespace pwiz.Skyline.Controls.Lists
 {
     public class ListGridForm : DataboundGridForm
     {
-        public ListGridForm(IDocumentContainer documentContainer, string listName)
+        public ListGridForm(IDocumentUIContainer documentContainer, string listName)
         {
             var skylineDataSchema = new SkylineDataSchema(documentContainer, SkylineDataSchema.GetLocalizedSchemaLocalizer());
             ListViewContext = ListViewContext.CreateListViewContext(skylineDataSchema, listName);

@@ -37,6 +37,7 @@ using pwiz.Skyline.Model.AuditLog;
 using pwiz.Skyline.Model.Databinding.Collections;
 using pwiz.Skyline.Model.Databinding.Entities;
 using pwiz.Skyline.Model.Databinding.RowActions;
+using pwiz.Skyline.Model.DocumentContainers;
 using pwiz.Skyline.Model.Hibernate;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
@@ -858,7 +859,7 @@ namespace pwiz.Skyline.Model.Databinding
             remove { _viewChangeListener.RemoveListener(value); }
         }
 
-        private class ViewChangeListener : IDocumentChangeListener
+        private class ViewChangeListener : IDocumentSettingsListener
         {
             private readonly PersistedViews _persistedViews;
             private readonly SkylineDataSchema _skylineDataSchema;
@@ -923,7 +924,7 @@ namespace pwiz.Skyline.Model.Databinding
                 FireChanged();
             }
 
-            void IDocumentChangeListener.DocumentOnChanged(object sender, DocumentChangedEventArgs args)
+            void IDocumentSettingsListener.DocumentSettingsChanged()
             {
                 var viewSpecList = _skylineDataSchema.Document.Settings.DataSettings.ViewSpecList;
                 if (!Equals(viewSpecList, _documentViews))

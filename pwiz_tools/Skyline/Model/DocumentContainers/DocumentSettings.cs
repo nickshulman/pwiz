@@ -1,4 +1,4 @@
-﻿namespace pwiz.Skyline.Model.Databinding
+﻿namespace pwiz.Skyline.Model.DocumentContainers
 {
     public class DocumentSettings
     {

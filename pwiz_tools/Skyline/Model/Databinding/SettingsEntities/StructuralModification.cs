@@ -1,5 +1,6 @@
 ﻿using System.Linq;
 using pwiz.Common.Collections;
+using pwiz.Skyline.Model.DocumentContainers;
 using pwiz.Skyline.Model.ElementLocators;
 using pwiz.Skyline.Util;
 

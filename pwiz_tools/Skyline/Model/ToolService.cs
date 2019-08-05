@@ -92,9 +92,7 @@ namespace pwiz.Skyline.Model
 
         private string GetReportRows(SrmDocument document, ViewSpecLayout viewSpec, IProgressMonitor progressMonitor)
         {
-            var container = new MemoryDocumentContainer();
-            container.SetDocument(document, container.Document);
-            var dataSchema = new SkylineDataSchema(container, DataSchemaLocalizer.INVARIANT);
+            var dataSchema = SkylineDataSchema.MemoryDataSchema(document, DataSchemaLocalizer.INVARIANT);
             var viewContext = new DocumentGridViewContext(dataSchema);
             IProgressStatus status = new ProgressStatus(string.Format(Resources.ReportSpec_ReportToCsvString_Exporting__0__report,
                 viewSpec.Name));

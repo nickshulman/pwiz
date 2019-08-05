@@ -4,7 +4,7 @@ using pwiz.Common.Collections;
 using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Model.Databinding.Entities;
 using pwiz.Skyline.Model.DocSettings;
-using pwiz.Skyline.Properties;
+using pwiz.Skyline.Model.DocumentContainers;
 
 namespace pwiz.Skyline.Model.Databinding.SettingsEntities
 {
@@ -106,5 +106,7 @@ namespace pwiz.Skyline.Model.Databinding.SettingsEntities
                 yield return newMod;
             }
         }
+
+        public string Locator { get { return GetLocator(); } }
     }
 }

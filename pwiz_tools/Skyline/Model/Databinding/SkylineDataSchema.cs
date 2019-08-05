@@ -22,15 +22,16 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Globalization;
 using System.Linq;
+using System.Threading;
 using pwiz.Common.Collections;
 using pwiz.Common.DataBinding;
-using pwiz.Skyline.Controls;
 using pwiz.Skyline.Model.AuditLog;
 using pwiz.Skyline.Model.AuditLog.Databinding;
 using pwiz.Skyline.Model.Databinding.Collections;
 using pwiz.Skyline.Model.Databinding.Entities;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.DocSettings.AbsoluteQuantification;
+using pwiz.Skyline.Model.DocumentContainers;
 using pwiz.Skyline.Model.ElementLocators;
 using pwiz.Skyline.Model.GroupComparison;
 using pwiz.Skyline.Model.Lists;
@@ -42,23 +43,22 @@ namespace pwiz.Skyline.Model.Databinding
 {
     public class SkylineDataSchema : DataSchema
     {
-        private readonly IDocumentContainer _documentContainer;
-        private readonly HashSet<IDocumentChangeListener> _documentChangedEventHandlers 
-            = new HashSet<IDocumentChangeListener>();
+        private readonly DocumentSettingsContainer _documentSettingsContainer;
         private readonly CachedValue<ImmutableSortedList<ResultKey, Replicate>> _replicates;
         private readonly CachedValue<IDictionary<ResultFileKey, ResultFile>> _resultFiles;
         private readonly CachedValue<ElementRefs> _elementRefCache;
 
-        private IDisposable _queryLockDisposable;
-        private DocumentSettings _batchChangesOriginalDocument;
-        private List<EditDescription> _batchEditDescriptions;
 
-        private DocumentSettings _documentSettings;
-        public SkylineDataSchema(IDocumentContainer documentContainer, DataSchemaLocalizer dataSchemaLocalizer) : base(dataSchemaLocalizer)
+        public SkylineDataSchema(IDocumentUIContainer documentContainer, DataSchemaLocalizer dataSchemaLocalizer) 
+            : this(DocumentSettingsContainer.FromDocumentUi(documentContainer, dataSchemaLocalizer))
         {
-            _documentContainer = documentContainer;
-            _documentSettings = new DocumentSettings(_documentContainer.Document, SettingsSnapshot.FromSettings(Settings.Default));
+        }
+
+        public SkylineDataSchema(DocumentSettingsContainer documentSettingsContainer) : base(documentSettingsContainer.QueryLock, documentSettingsContainer.DataSchemaLocalizer)
+        {
+            _documentSettingsContainer = documentSettingsContainer;
             ChromDataCache = new ChromDataCache();
+            
 
             _replicates = CachedValue.Create(this, CreateReplicateList);
             _resultFiles = CachedValue.Create(this, CreateResultFileList);
@@ -82,9 +82,9 @@ namespace pwiz.Skyline.Model.Databinding
                     return SkylineWindow.ModeUI;
                 }
 
-                if (_documentContainer.Document.DocumentType == Program.ModeUI)
+                if (DocumentSettings.Document.DocumentType == Program.ModeUI)
                 {
-                    return _documentContainer.Document.DocumentType;
+                    return DocumentSettings.Document.DocumentType;
                 }
 
                 return SrmDocument.DOCUMENT_TYPE.mixed;
@@ -179,96 +179,26 @@ namespace pwiz.Skyline.Model.Databinding
         {
             get
             {
-                return _documentSettings.Document;
+                return DocumentSettings.Document;
             }
         }
 
         public DocumentSettings DocumentSettings
         {
-            get { return _documentSettings; }
+            get { return _documentSettingsContainer.DocumentSettings; }
         }
 
-        public void Listen(IDocumentChangeListener listener)
+        public void Listen(IDocumentSettingsListener listener)
         {
-            lock (_documentChangedEventHandlers)
-            {
-                bool firstListener = _documentChangedEventHandlers.Count == 0;
-                if (!_documentChangedEventHandlers.Add(listener))
-                {
-                    throw new ArgumentException(@"Listener already added");
-                }
-                if (firstListener)
-                {
-                    var documentUiContainer = _documentContainer as IDocumentUIContainer;
-                    if (null == documentUiContainer)
-                    {
-                        _documentContainer.Listen(DocumentChangedEventHandler);
-                    }
-                    else
-                    {
-                        documentUiContainer.ListenUI(DocumentChangedEventHandler);
-                    }
-                }
-            }
+            _documentSettingsContainer.Listen(listener);
         }
 
-        public void Listen(Action documentChangeListenerAction)
+        public void Unlisten(IDocumentSettingsListener listener)
         {
-
+            _documentSettingsContainer.Unlisten(listener);
         }
 
-        public void Unlisten(IDocumentChangeListener listener)
-        {
-            lock (_documentChangedEventHandlers)
-            {
-                if (!_documentChangedEventHandlers.Remove(listener))
-                {
-                    throw new ArgumentException(@"Listener not added");
-                }
-                if (_documentChangedEventHandlers.Count == 0)
-                {
-                    var documentUiContainer = _documentContainer as IDocumentUIContainer;
-                    if (null == documentUiContainer)
-                    {
-                        _documentContainer.Unlisten(DocumentChangedEventHandler);
-                    }
-                    else
-                    {
-                        documentUiContainer.UnlistenUI(DocumentChangedEventHandler);
-                    }
-                }
-            }
-        }
-
-        private void DocumentChangedEventHandler(object sender, DocumentChangedEventArgs args)
-        {
-            SetDocumentSettings(_documentSettings.ChangeDocument(_documentContainer.Document));
-        }
-
-        private void SetDocumentSettings(DocumentSettings documentSettingsNew)
-        {
-            if (ReferenceEquals(documentSettingsNew.Document, _documentSettings.Document) &&
-                Equals(documentSettingsNew.Settings, _documentSettings.Settings))
-            {
-                return;
-            }
-
-            using (QueryLock.CancelAndGetWriteLock())
-            {
-                _documentSettings = documentSettingsNew;
-            }
-            IList<IDocumentChangeListener> listeners;
-            lock (_documentChangedEventHandlers)
-            {
-                listeners = _documentChangedEventHandlers.ToArray();
-            }
-            foreach (var listener in listeners)
-            {
-                listener.DocumentOnChanged(null, null);
-            }
-        }
-
-        public SkylineWindow SkylineWindow { get { return _documentContainer as SkylineWindow; } }
+        public SkylineWindow SkylineWindow { get { return _documentSettingsContainer.SkylineWindow; } }
 
         private ReplicateSummaries _replicateSummaries;
         public ReplicateSummaries GetReplicateSummaries()
@@ -357,133 +287,17 @@ namespace pwiz.Skyline.Model.Databinding
 
         public void BeginBatchModifyDocument()
         {
-            if (null != _batchChangesOriginalDocument)
-            {
-                throw new InvalidOperationException();
-            }
-            _queryLockDisposable = QueryLock.CancelAndGetWriteLock();
-            if (!ReferenceEquals(_documentSettings.Document, _documentContainer.Document))
-            {
-                DocumentChangedEventHandler(_documentContainer, new DocumentChangedEventArgs(_documentSettings.Document));
-            }
-
-            _batchChangesOriginalDocument = _documentSettings;
-            _batchEditDescriptions = new List<EditDescription>();
+            _documentSettingsContainer.BeginBatchModifyDocument();
         }
 
         public void CommitBatchModifyDocument(string description, DataGridViewPasteHandler.BatchModifyInfo batchModifyInfo)
         {
-            if (null == _batchChangesOriginalDocument)
-            {
-                throw new InvalidOperationException();
-            }
-            string message = Resources.DataGridViewPasteHandler_EndDeferSettingsChangesOnDocument_Updating_settings;
-            if (SkylineWindow != null)
-            {
-                SkylineWindow.ModifyDocument(description, document =>
-                {
-                    VerifyDocumentCurrent(_batchChangesOriginalDocument.Document, document);
-                    using (var longWaitDlg = new LongWaitDlg
-                    {
-                        Message = message
-                    })
-                    {
-                        SrmDocument newDocument = document;
-                        longWaitDlg.PerformWork(SkylineWindow, 1000, progressMonitor =>
-                        {
-                            var srmSettingsChangeMonitor = new SrmSettingsChangeMonitor(progressMonitor,
-                                message);
-                            newDocument = _documentSettings.Document.EndDeferSettingsChanges(_batchChangesOriginalDocument.Document,
-                                srmSettingsChangeMonitor);
-                        });
-                        return newDocument;
-                    }
-                }, GetAuditLogFunction(batchModifyInfo));
-            }
-            else
-            {
-                VerifyDocumentCurrent(_batchChangesOriginalDocument.Document, _documentContainer.Document);
-                if (!_documentContainer.SetDocument(
-                    _documentSettings.Document.EndDeferSettingsChanges(_batchChangesOriginalDocument.Document, null),
-                    _batchChangesOriginalDocument.Document))
-                {
-                    throw new InvalidOperationException(Resources
-                        .SkylineDataSchema_VerifyDocumentCurrent_The_document_was_modified_in_the_middle_of_the_operation_);
-                }
-            }
-            _batchChangesOriginalDocument = null;
-            _batchEditDescriptions = null;
-            DocumentChangedEventHandler(_documentContainer, new DocumentChangedEventArgs(_documentSettings.Document));
-        }
-
-        private Func<SrmDocumentPair, AuditLogEntry> GetAuditLogFunction(
-            DataGridViewPasteHandler.BatchModifyInfo batchModifyInfo)
-        {
-            if (batchModifyInfo == null)
-            {
-                return null;
-            }
-            return docPair =>
-            {
-                MessageType singular, plural;
-                var detailType = MessageType.set_to_in_document_grid;
-                Func<EditDescription, object[]> getArgsFunc = descr => new object[]
-                {
-                    descr.AuditLogParseString, descr.ElementRefName,
-                    CellValueToString(descr.Value)
-                };
-
-                switch (batchModifyInfo.BatchModifyAction)
-                {
-                    case DataGridViewPasteHandler.BatchModifyAction.Paste:
-                        singular = MessageType.pasted_document_grid_single;
-                        plural = MessageType.pasted_document_grid;
-                        break;
-                    case DataGridViewPasteHandler.BatchModifyAction.Clear:
-                        singular = MessageType.cleared_document_grid_single;
-                        plural = MessageType.cleared_document_grid;
-                        detailType = MessageType.cleared_cell_in_document_grid;
-                        getArgsFunc = descr => new[]
-                            {(object) descr.ColumnCaption.GetCaption(DataSchemaLocalizer), descr.ElementRefName};
-                        break;
-                    case DataGridViewPasteHandler.BatchModifyAction.FillDown:
-                        singular = MessageType.fill_down_document_grid_single;
-                        plural = MessageType.fill_down_document_grid;
-                        break;
-                    default:
-                        return null;
-                }
-
-                var entry = AuditLogEntry.CreateCountChangeEntry(singular, plural, docPair.NewDocumentType,
-                    _batchEditDescriptions,
-                    descr => MessageArgs.Create(descr.ColumnCaption.GetCaption(DataSchemaLocalizer)),
-                    null).ChangeExtraInfo(batchModifyInfo.ExtraInfo + Environment.NewLine);
-
-                entry = entry.Merge(batchModifyInfo.EntryCreator.Create(docPair));
-
-                return entry.AppendAllInfo(_batchEditDescriptions.Select(descr => new MessageInfo(detailType, docPair.NewDocumentType,
-                    getArgsFunc(descr))).ToList());
-            };
+            _documentSettingsContainer.CommitBatchModifyDocument(description, batchModifyInfo);
         }
 
         public void RollbackBatchModifyDocument()
         {
-            using (_queryLockDisposable)
-            {
-                _batchChangesOriginalDocument = null;
-                _batchEditDescriptions = null;
-                SetDocumentSettings(_documentSettings.ChangeDocument(_documentContainer.Document));
-            }
-        }
-
-        private static string CellValueToString(object value)
-        {
-            if (value == null)
-                return string.Empty;
-
-            // TODO: only allow reflection for all info?
-            bool unused;
-            return DiffNode.ObjectToString(true, value, out unused);
+            _documentSettingsContainer.RollbackBatchModifyDocument();
         }
 
         public void ModifyDocument(EditDescription editDescription, Func<SrmDocument, SrmDocument> action, Func<SrmDocumentPair, AuditLogEntry> logFunc = null)
@@ -494,48 +308,7 @@ namespace pwiz.Skyline.Model.Databinding
         public void ModifyDocumentAndSettings(EditDescription editDescription,
             Func<DocumentSettings, DocumentSettings> action, Func<SrmDocumentPair, AuditLogEntry> logFunc = null)
         {
-            if (_batchChangesOriginalDocument == null)
-            {
-                DocumentSettings newDocumentSettings = null;
-                if (SkylineWindow != null)
-                {
-                    SkylineWindow.ModifyDocument(editDescription.GetUndoText(DataSchemaLocalizer), doc=>
-                        {
-                            newDocumentSettings = action(_documentSettings.ChangeDocument(doc));
-                            return newDocumentSettings.Document;
-                        },
-                        logFunc ?? (docPair => AuditLogEntry.CreateSimpleEntry(MessageType.set_to_in_document_grid, docPair.NewDocumentType,
-                            editDescription.AuditLogParseString, editDescription.ElementRefName, CellValueToString(editDescription.Value))));
-                }
-                else
-                {
-                    var doc = _documentContainer.Document;
-                    newDocumentSettings = action(_documentSettings.ChangeDocument(doc));
-                    if (!_documentContainer.SetDocument(newDocumentSettings.Document, doc))
-                    {
-                        throw new InvalidOperationException(Resources
-                            .SkylineDataSchema_VerifyDocumentCurrent_The_document_was_modified_in_the_middle_of_the_operation_);
-                    }
-                }
-                UpdateApplicationSettings(newDocumentSettings.Settings);
-                return;
-            }
-            VerifyDocumentCurrent(_batchChangesOriginalDocument.Document, _documentContainer.Document);
-            _batchEditDescriptions.Add(editDescription);
-            _documentSettings = action(_documentSettings);
-        }
-
-        private void UpdateApplicationSettings(SettingsSnapshot newSettingsSnapshot)
-        {
-            newSettingsSnapshot.UpdateSettings(_documentSettings.Settings, Settings.Default);
-        }
-
-        private void VerifyDocumentCurrent(SrmDocument expectedCurrentDocument, SrmDocument actualCurrentDocument)
-        {
-            if (!ReferenceEquals(expectedCurrentDocument, actualCurrentDocument))
-            {
-                throw new InvalidOperationException(Resources.SkylineDataSchema_VerifyDocumentCurrent_The_document_was_modified_in_the_middle_of_the_operation_);
-            }
+            _documentSettingsContainer.ModifyDocumentAndSettings(editDescription, action, logFunc);
         }
 
         private ImmutableSortedList<ResultKey, Replicate> CreateReplicateList()
@@ -581,9 +354,11 @@ namespace pwiz.Skyline.Model.Databinding
 
         public static SkylineDataSchema MemoryDataSchema(SrmDocument document, DataSchemaLocalizer localizer)
         {
-            var documentContainer = new MemoryDocumentContainer();
-            documentContainer.SetDocument(document, documentContainer.Document);
-            return new SkylineDataSchema(documentContainer, localizer);
+            var documentSettingsContainer = DocumentSettingsContainer.FromDocumentSettings(
+                new DocumentSettings(document, 
+                    // TODO: unsafe
+                    SettingsSnapshot.FromSettings(Settings.Default)), localizer);
+            return new SkylineDataSchema(documentSettingsContainer);
         }
 
         public override string NormalizeUiMode(string uiMode)

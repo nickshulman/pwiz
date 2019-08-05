@@ -5,7 +5,7 @@ using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Properties;
 
-namespace pwiz.Skyline.Model.Databinding
+namespace pwiz.Skyline.Model.DocumentContainers
 {
     public class SettingsSnapshot : Immutable
     {

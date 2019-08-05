@@ -24,12 +24,13 @@ using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using pwiz.Common.DataBinding;
+using pwiz.Skyline.Model.DocumentContainers;
 
 namespace pwiz.Skyline.Model.Databinding.Collections
 {
     public abstract class SkylineObjectList<TKey, TItem> : AbstractRowSource
     {
-        private IDocumentChangeListener _documentChangeListener;
+        private IDocumentSettingsListener _documentChangeListener;
         protected IDictionary<TKey, int> _keyIndexes 
             = new Dictionary<TKey, int>();
 
@@ -47,7 +48,7 @@ namespace pwiz.Skyline.Model.Databinding.Collections
 
         protected override void BeforeFirstListenerAdded()
         {
-            DataSchema.Listen(_documentChangeListener = new ActionDocumentChangeListener(DocumentOnChanged));
+            DataSchema.Listen(_documentChangeListener = new DocumentSettingsListener(DocumentOnChanged));
             base.BeforeFirstListenerAdded();
         }
 

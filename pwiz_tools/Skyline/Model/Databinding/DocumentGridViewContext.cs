@@ -26,6 +26,7 @@ using pwiz.Common.DataBinding.Controls.Editor;
 using pwiz.Skyline.Controls.Databinding;
 using pwiz.Skyline.Model.Databinding.Entities;
 using pwiz.Skyline.Model.Databinding.RowActions;
+using pwiz.Skyline.Model.DocumentContainers;
 using pwiz.Skyline.Properties;
 
 namespace pwiz.Skyline.Model.Databinding
@@ -136,9 +137,11 @@ namespace pwiz.Skyline.Model.Databinding
             {
                 document = new SrmDocument(SrmSettingsList.GetDefault());
             }
-            var memoryDocumentContainer = new MemoryDocumentContainer();
-            memoryDocumentContainer.SetDocument(document, memoryDocumentContainer.Document);
-            return new DocumentGridViewContext(new SkylineDataSchema(memoryDocumentContainer, dataSchemaLocalizer));
+
+            var documentSettings = new DocumentSettings(document, 
+                // TODO: Unsafe
+                SettingsSnapshot.FromSettings(Settings.Default));
+            return new DocumentGridViewContext(new SkylineDataSchema(DocumentSettingsContainer.FromDocumentSettings(documentSettings, dataSchemaLocalizer)));
         }
 
         protected override ViewSpec GetBlankView()

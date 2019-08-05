@@ -21,11 +21,13 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
+using System.Threading;
 using System.Windows.Forms;
 using pwiz.Common.DataBinding;
 using pwiz.Common.DataBinding.Controls.Editor;
 using pwiz.Skyline.Model;
 using pwiz.Skyline.Model.Databinding;
+using pwiz.Skyline.Model.DocumentContainers;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
 
@@ -175,13 +177,12 @@ namespace pwiz.Skyline.Controls.Databinding
             SkylineDataSchema dataSchema;
             if (clone)
             {
-                var documentContainer = new MemoryDocumentContainer();
-                documentContainer.SetDocument(_documentUiContainer.DocumentUI, documentContainer.Document);
-                dataSchema = new SkylineDataSchema(documentContainer, GetDataSchemaLocalizer());
+                dataSchema =
+                    SkylineDataSchema.MemoryDataSchema(_documentUiContainer.DocumentUI, GetDataSchemaLocalizer());
             }
             else
             {
-                dataSchema = new SkylineDataSchema(_documentUiContainer, GetDataSchemaLocalizer());
+                dataSchema = new SkylineDataSchema(DocumentSettingsContainer.FromDocumentUi(_documentUiContainer, GetDataSchemaLocalizer()));
             }
             return new DocumentGridViewContext(dataSchema) {EnablePreview = true};
         }

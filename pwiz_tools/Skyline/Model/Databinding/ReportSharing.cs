@@ -25,6 +25,7 @@ using System.Xml.Serialization;
 using pwiz.Common.DataBinding;
 using pwiz.Common.DataBinding.Layout;
 using pwiz.Skyline.Model.DocSettings;
+using pwiz.Skyline.Model.DocumentContainers;
 using pwiz.Skyline.Properties;
 
 namespace pwiz.Skyline.Model.Databinding
@@ -138,10 +139,9 @@ namespace pwiz.Skyline.Model.Databinding
 
         private static SkylineDataSchema GetSkylineDataSchema(SrmDocument srmDocument, DataSchemaLocalizer dataSchemaLocalizer)
         {
-            var memoryDocumentContainer = new MemoryDocumentContainer();
-            memoryDocumentContainer.SetDocument(srmDocument,
-                memoryDocumentContainer.Document);
-            return new SkylineDataSchema(memoryDocumentContainer, dataSchemaLocalizer);
+            return new SkylineDataSchema(DocumentSettingsContainer.FromDocumentSettings(
+                new DocumentSettings(srmDocument, SettingsSnapshot.FromSettings(Settings.Default)),
+                dataSchemaLocalizer));
         }
 
         private static IDictionary<TKey, TValue> SafeToDictionary<TKey, TValue>(IEnumerable<KeyValuePair<TKey, TValue>> items)

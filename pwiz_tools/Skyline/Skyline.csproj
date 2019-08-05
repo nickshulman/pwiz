@@ -374,7 +374,6 @@
     </Compile>
     <Compile Include="Model\AuditLog\ReflectorEnumerator.cs" />
     <Compile Include="Model\AuditLog\ReflectorToString.cs" />
-    <Compile Include="Model\Databinding\ActionDocumentChangeListener.cs" />
     <Compile Include="Model\Databinding\Collections\ModificationsRowSource.cs" />
     <Compile Include="Model\Databinding\Entities\ColumnCaptions.Designer.cs">
       <DesignTime>True</DesignTime>
@@ -400,9 +399,11 @@
     <Compile Include="Model\Databinding\SettingsEntities\SettingsCollection.cs" />
     <Compile Include="Model\Databinding\SettingsEntities\SettingsObject.cs" />
     <Compile Include="Model\Databinding\SettingsEntities\ScalarSettings.cs" />
-    <Compile Include="Model\Databinding\DocumentSettings.cs" />
-    <Compile Include="Model\Databinding\SettingsSnapshot.cs" />
+    <Compile Include="Model\DocumentContainers\DocumentSettings.cs" />
+    <Compile Include="Model\DocumentContainers\DocumentSettingsChangeListener.cs" />
+    <Compile Include="Model\DocumentContainers\SettingsSnapshot.cs" />
     <Compile Include="Model\Databinding\SettingsEntities\StructuralModification.cs" />
+    <Compile Include="Model\DocumentContainers\DocumentSettingsContainer.cs" />
     <Compile Include="Model\ElementLocators\ElementLocator.cs" />
     <Compile Include="Model\ElementLocators\ListRef.cs" />
     <Compile Include="Model\DocSettings\FullScanAcquisitionMethod.cs" />
@@ -1084,7 +1085,6 @@
     <Compile Include="Model\Databinding\Entities\SummaryValue.cs" />
     <Compile Include="Model\Databinding\Entities\Transition.cs" />
     <Compile Include="Model\Databinding\Entities\TransitionResult.cs" />
-    <Compile Include="Model\Databinding\IDocumentChangeListener.cs" />
     <Compile Include="Model\Databinding\NormalizationMethodDataGridViewColumn.cs" />
     <Compile Include="Model\Databinding\RatioPropertyDescriptor.cs" />
     <Compile Include="Model\Databinding\ReplicateSummaries.cs" />
@@ -4984,7 +4984,6 @@
     </PublishFile>
   </ItemGroup>
   <ItemGroup>
-    <Folder Include="Model\DocumentContainers\" />
     <Folder Include="Model\Unifi\" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

@@ -19,6 +19,7 @@
 using System.Linq;
 using System.Windows.Forms;
 using pwiz.Common.DataBinding;
+using pwiz.Skyline.Model.DocumentContainers;
 
 namespace pwiz.Skyline.Model.Databinding
 {
@@ -73,12 +74,12 @@ namespace pwiz.Skyline.Model.Databinding
                 }
                 if (SkylineDataSchema != null)
                 {
-                    SkylineDataSchema.Unlisten(new ActionDocumentChangeListener(UpdateDropdownItems));
+                    SkylineDataSchema.Unlisten(new DocumentSettingsListener(UpdateDropdownItems));
                 }
                 _columnPropertyDescriptor = value;
                 if (SkylineDataSchema != null)
                 {
-                    SkylineDataSchema.Listen(new ActionDocumentChangeListener(UpdateDropdownItems));
+                    SkylineDataSchema.Listen(new DocumentSettingsListener(UpdateDropdownItems));
                     UpdateDropdownItems();
                 }
             }

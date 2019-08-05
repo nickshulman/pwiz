@@ -15,7 +15,7 @@ namespace pwiz.Skyline.Controls.Databinding
 
         }
 
-        public SettingsGridForm(IDocumentContainer documentContainer) : this(new SettingsViewContext(new SkylineDataSchema(documentContainer, SkylineDataSchema.GetLocalizedSchemaLocalizer())))
+        public SettingsGridForm(IDocumentUIContainer documentContainer) : this(new SettingsViewContext(new SkylineDataSchema(documentContainer, SkylineDataSchema.GetLocalizedSchemaLocalizer())))
         {
 
         }

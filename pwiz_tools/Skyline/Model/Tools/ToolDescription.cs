@@ -859,9 +859,7 @@ namespace pwiz.Skyline.Model.Tools
         /// <returns> Returns a string representation of the ReportTitle report, or throws an error that the reportSpec no longer exist. </returns>
         public static void GetReport(SrmDocument doc, string reportTitle, string toolTitle, IProgressMonitor progressMonitor, TextWriter writer)
         {
-            var container = new MemoryDocumentContainer();
-            container.SetDocument(doc, container.Document);
-            var dataSchema = new SkylineDataSchema(container, DataSchemaLocalizer.INVARIANT);
+            var dataSchema = SkylineDataSchema.MemoryDataSchema(doc, DataSchemaLocalizer.INVARIANT);
             var viewContext = new DocumentGridViewContext(dataSchema);
             ViewInfo viewInfo = viewContext.GetViewInfo(PersistedViews.ExternalToolsGroup.Id.ViewName(reportTitle));
             if (null == viewInfo)

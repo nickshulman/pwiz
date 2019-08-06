@@ -78,9 +78,7 @@ namespace pwiz.SkylineTest.Reporting
                 assembly.GetManifestResourceStream(typeof(ReportSpecConverterTest), "LiveReportPivots.skyr"));
             var view = views.First(reportSpec => reportSpec.Name == "ResultSummaryPivotResultsThenLabelType").ViewSpecLayout;
             var bindingListSource = new BindingListSource();
-            var documentContainer = new MemoryDocumentContainer();
-            Assert.IsTrue(documentContainer.SetDocument(document, null));
-            var dataSchema = new SkylineDataSchema(documentContainer, DataSchemaLocalizer.INVARIANT);
+            var dataSchema = SkylineDataSchema.MemoryDataSchema(document, DataSchemaLocalizer.INVARIANT);
             bindingListSource.SetViewContext(new DocumentGridViewContext(dataSchema), new ViewInfo(dataSchema, typeof(Precursor), view.ViewSpec));
             var expectedColumnNames = new[] {
                     "PeptideSequence",

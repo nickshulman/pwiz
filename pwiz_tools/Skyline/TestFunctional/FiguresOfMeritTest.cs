@@ -103,9 +103,7 @@ namespace pwiz.SkylineTestFunctional
                 var colFiguresOfMerit = documentGrid.DataGridView.Columns.Cast<DataGridViewColumn>()
                     .FirstOrDefault(col => col.HeaderText == ColumnCaptions.FiguresOfMerit);
                 Assert.IsNotNull(colFiguresOfMerit);
-                var docContainer = new MemoryDocumentContainer();
-                Assert.IsTrue(docContainer.SetDocument(SkylineWindow.Document, docContainer.Document));
-                var dataSchema = new SkylineDataSchema(docContainer, SkylineDataSchema.GetLocalizedSchemaLocalizer());
+                var dataSchema = SkylineDataSchema.MemoryDataSchema(SkylineWindow.Document, SkylineDataSchema.GetLocalizedSchemaLocalizer());
                 foreach (var group in SkylineWindow.Document.MoleculeGroups)
                 {
                     foreach (var peptide in group.Molecules)

@@ -54,9 +54,7 @@ namespace pwiz.SkylineTest.Reporting
         [TestMethod]
         public void TestGenerateResxFile()
         {
-            var documentContainer = new MemoryDocumentContainer();
-            Assert.IsTrue(documentContainer.SetDocument(new SrmDocument(SrmSettingsList.GetDefault()), documentContainer.Document));
-            GenerateResXFile(new StringWriter() /* Console.Out */, new SkylineDataSchema(documentContainer, DataSchemaLocalizer.INVARIANT), STARTING_TYPES);
+            GenerateResXFile(new StringWriter() /* Console.Out */, SkylineDataSchema.MemoryDataSchema(new SrmDocument(SrmSettingsList.GetDefault()), DataSchemaLocalizer.INVARIANT), STARTING_TYPES);
         }
 
         /// <summary>
@@ -193,9 +191,7 @@ namespace pwiz.SkylineTest.Reporting
 
         public IEnumerable<SkylineDataSchema> EnumerateDataSchemas()
         {
-            var documentContainer = new MemoryDocumentContainer();
-            Assert.IsTrue(documentContainer.SetDocument(new SrmDocument(SrmSettingsList.GetDefault()), documentContainer.Document));
-            var dataSchema = new SkylineDataSchema(documentContainer, SkylineDataSchema.GetLocalizedSchemaLocalizer());
+            var dataSchema = SkylineDataSchema.MemoryDataSchema(new SrmDocument(SrmSettingsList.GetDefault()), SkylineDataSchema.GetLocalizedSchemaLocalizer());
             yield return dataSchema;
         }
 

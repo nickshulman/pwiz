@@ -45,9 +45,7 @@ namespace pwiz.SkylineTest.MSstats.Normalization
         public void TestGenerateMsStatsInput()
         {
             SrmDocument testDocument = OpenTestDocument();
-            var memoryDocumentContainer = new MemoryDocumentContainer();
-            Assert.IsTrue(memoryDocumentContainer.SetDocument(testDocument, memoryDocumentContainer.Document));
-            SkylineDataSchema skylineDataSchema = new SkylineDataSchema(memoryDocumentContainer, DataSchemaLocalizer.INVARIANT);
+            SkylineDataSchema skylineDataSchema = SkylineDataSchema.MemoryDataSchema(testDocument, DataSchemaLocalizer.INVARIANT);
             var view = ReportSharing.DeserializeReportList(OpenTestFile("MSstats_report.skyr")).First().ViewSpecLayout;
             var viewContext = new DocumentGridViewContext(skylineDataSchema);
             StringWriter stringWriter = new StringWriter();

@@ -101,9 +101,7 @@ namespace pwiz.SkylineTest.Reporting
         private SkylineDataSchema GetDataSchema()
         {
             var document = new SrmDocument(SrmSettingsList.GetDefault());
-            var container = new MemoryDocumentContainer();
-            Assert.IsTrue(container.SetDocument(document, container.Document));
-            return new SkylineDataSchema(container, DataSchemaLocalizer.INVARIANT);
+            return SkylineDataSchema.MemoryDataSchema(document, DataSchemaLocalizer.INVARIANT);
         }
     }
 }

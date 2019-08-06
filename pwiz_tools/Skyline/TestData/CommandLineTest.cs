@@ -300,9 +300,7 @@ namespace pwiz.SkylineTestData
                 doc = docContainer.Document;
             }
 
-            MemoryDocumentContainer memoryDocumentContainer = new MemoryDocumentContainer();
-            Assert.IsTrue(memoryDocumentContainer.SetDocument(doc, memoryDocumentContainer.Document));
-            SkylineDataSchema skylineDataSchema = new SkylineDataSchema(memoryDocumentContainer, SkylineDataSchema.GetLocalizedSchemaLocalizer());
+            SkylineDataSchema skylineDataSchema = SkylineDataSchema.MemoryDataSchema(doc, SkylineDataSchema.GetLocalizedSchemaLocalizer());
             DocumentGridViewContext viewContext = new DocumentGridViewContext(skylineDataSchema);
             ViewInfo viewInfo = viewContext.GetViewInfo(PersistedViews.MainGroup.Id.ViewName(reportName));
             StringWriter writer = new StringWriter();

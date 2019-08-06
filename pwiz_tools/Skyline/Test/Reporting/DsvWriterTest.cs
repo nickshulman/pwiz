@@ -40,7 +40,7 @@ namespace pwiz.SkylineTest.Reporting
         public void TestInvariantExport()
         {
             SkylineDataSchema skylineDataSchema =
-                new SkylineDataSchema(CreateMemoryDocumentContainer(LoadTestDocument()), DataSchemaLocalizer.INVARIANT);
+                SkylineDataSchema.MemoryDataSchema(LoadTestDocument(), DataSchemaLocalizer.INVARIANT);
             SkylineViewContext viewContext = new DocumentGridViewContext(skylineDataSchema);
 
             string testFile = Path.Combine(TestContext.TestDir, "TestInvariantExport.csv");
@@ -57,8 +57,7 @@ namespace pwiz.SkylineTest.Reporting
         public void TestExportWithCurrentLanguage()
         {
             CultureInfo cultureInfo = CultureInfo.CurrentUICulture;
-            SkylineDataSchema skylineDataSchema =
-                new SkylineDataSchema(CreateMemoryDocumentContainer(LoadTestDocument()), SkylineDataSchema.GetLocalizedSchemaLocalizer());
+            SkylineDataSchema skylineDataSchema = SkylineDataSchema.MemoryDataSchema(LoadTestDocument(), SkylineDataSchema.GetLocalizedSchemaLocalizer());
             SkylineViewContext viewContext = new DocumentGridViewContext(skylineDataSchema);
 
             string testFile = Path.Combine(TestContext.TestDir, "TestExportWithCurrentLanguage.csv");
@@ -96,13 +95,6 @@ namespace pwiz.SkylineTest.Reporting
             var serializer = new XmlSerializer(typeof(ViewSpecList));
             ViewSpec viewSpec = ((ViewSpecList) serializer.Deserialize(new StringReader(TestReport))).ViewSpecs.First();
             return new ViewInfo(dataSchema, typeof (Skyline.Model.Databinding.Entities.Transition), viewSpec);
-        }
-
-        private MemoryDocumentContainer CreateMemoryDocumentContainer(SrmDocument document)
-        {
-            MemoryDocumentContainer memoryDocumentContainer = new MemoryDocumentContainer();
-            Assert.IsTrue(memoryDocumentContainer.SetDocument(document, memoryDocumentContainer.Document));
-            return memoryDocumentContainer;
         }
 
         private const string ExpectedInvariantReport = @"ProteinName,Peptide,Precursor,Transition,Numeric Annotation

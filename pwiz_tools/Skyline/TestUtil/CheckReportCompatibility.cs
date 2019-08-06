@@ -41,7 +41,7 @@ namespace pwiz.SkylineTestUtil
         {
             IDocumentContainer documentContainer = new MemoryDocumentContainer();
             Assert.IsTrue(documentContainer.SetDocument(document, null));
-            _dataSchema = new SkylineDataSchema(documentContainer, DataSchemaLocalizer.INVARIANT);
+            _dataSchema = SkylineDataSchema.MemoryDataSchema(document, DataSchemaLocalizer.INVARIANT);
         }
 
         public void Dispose()
@@ -91,9 +91,7 @@ namespace pwiz.SkylineTestUtil
 
         public static void ReportToCsv(ReportSpec reportSpec, SrmDocument doc, string fileName, CultureInfo cultureInfo)
         {
-            var documentContainer = new MemoryDocumentContainer();
-            Assert.IsTrue(documentContainer.SetDocument(doc, documentContainer.Document));
-            var skylineDataSchema = new SkylineDataSchema(documentContainer, new DataSchemaLocalizer(cultureInfo, cultureInfo));
+            var skylineDataSchema = SkylineDataSchema.MemoryDataSchema(doc, new DataSchemaLocalizer(cultureInfo, cultureInfo));
             var viewSpec = ReportSharing.ConvertAll(new[] {new ReportOrViewSpec(reportSpec)}, doc).First();
             var viewContext = new DocumentGridViewContext(skylineDataSchema);
             using (var writer = new StreamWriter(fileName))

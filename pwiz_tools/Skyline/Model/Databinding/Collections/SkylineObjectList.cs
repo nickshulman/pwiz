@@ -46,15 +46,15 @@ namespace pwiz.Skyline.Model.Databinding.Collections
 
         public CancellationToken CancellationToken { get { return DataSchema.QueryLock.CancellationToken; } }
 
-        protected override void BeforeFirstListenerAdded()
+        protected override void FirstListenerAdded()
         {
             DataSchema.Listen(_documentChangeListener = new DocumentSettingsListener(DocumentOnChanged));
-            base.BeforeFirstListenerAdded();
+            base.FirstListenerAdded();
         }
 
-        protected override void AfterLastListenerRemoved()
+        protected override void LastListenerRemoved()
         {
-            base.AfterLastListenerRemoved();
+            base.LastListenerRemoved();
             Debug.Assert(null != _documentChangeListener);
             DataSchema.Unlisten(_documentChangeListener);
             _documentChangeListener = null;

@@ -70,32 +70,39 @@ namespace pwiz.Common.DataBinding
                 {
                     if (_eventHandlers == null)
                     {
-                        BeforeFirstListenerAdded();
+                        FirstListenerAdded();
                         _eventHandlers = new HashSet<Action>();
                     }
-                    _eventHandlers.Add(value);
+
+                    if (!_eventHandlers.Add(value))
+                    {
+                        throw new ArgumentException(@"Listener already added");
+                    }
                 }
             }
             remove
             {
                 lock (this)
                 {
-                    _eventHandlers.Remove(value);
+                    if (_eventHandlers == null || !_eventHandlers.Remove(value))
+                    {
+                        throw new ArgumentException(@"Listener not added");
+                    }
                     if (_eventHandlers.Count == 0)
                     {
                         _eventHandlers = null;
-                        AfterLastListenerRemoved();
+                        LastListenerRemoved();
                     }
                 }
             }
         }
 
-        protected virtual void BeforeFirstListenerAdded()
+        protected virtual void FirstListenerAdded()
         {
             
         }
 
-        protected virtual void AfterLastListenerRemoved()
+        protected virtual void LastListenerRemoved()
         {
             
         }
@@ -148,12 +155,12 @@ namespace pwiz.Common.DataBinding
                 return _items;
             }
 
-            protected override void AfterLastListenerRemoved()
+            protected override void LastListenerRemoved()
             {
                 _removeAction(OnListChanged);
             }
 
-            protected override void BeforeFirstListenerAdded()
+            protected override void FirstListenerAdded()
             {
                 _addAction(OnListChanged);
             }

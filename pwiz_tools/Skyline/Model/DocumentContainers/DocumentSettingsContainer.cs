@@ -102,15 +102,29 @@ namespace pwiz.Skyline.Model.DocumentContainers
 
             if (SkylineWindow != null)
             {
-                SkylineWindow.Invoke(new Action(() => {
-                    _timer = new Timer()
-                    {
-                        Enabled = true,
-                        Interval = 10000,
-                    };
-                    _timer.Tick += TimerOnTick;
-                }));
+                if (SkylineWindow.InvokeRequired)
+                {
+                    SkylineWindow.Invoke(new Action(CreateSettingsTimer));
+                }
+                else
+                {
+                    CreateSettingsTimer();
+                }
             }
+        }
+
+        private void CreateSettingsTimer()
+        {
+            if (_timer != null)
+            {
+                throw new InvalidOperationException();
+            }
+            _timer = new Timer()
+            {
+                Enabled = true,
+                Interval = 10000,
+            };
+            _timer.Tick += TimerOnTick;
         }
 
         protected void LastListenerRemoved()

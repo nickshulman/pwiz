@@ -152,6 +152,16 @@ namespace pwiz.Skyline.Model.DocumentContainers
 
         public void BeginBatchModifyDocument()
         {
+            if (null != _batchChangesOriginalDocument)
+            {
+                throw new InvalidOperationException();
+            }
+            if (!ReferenceEquals(DocumentSettings.Document, DocumentContainer.Document))
+            {
+                SetDocumentSettings(_documentSettings.ChangeDocument(DocumentContainer.Document));
+            }
+            _batchChangesOriginalDocument = _documentSettings;
+            _batchEditDescriptions = new List<EditDescription>();
 
         }
 

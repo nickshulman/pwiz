@@ -395,6 +395,7 @@
     <Compile Include="Model\Databinding\RowActions\RowAction.cs" />
     <Compile Include="Model\Databinding\SettingsEntities\IsotopeModification.cs" />
     <Compile Include="Model\Databinding\SettingsEntities\Modification.cs" />
+    <Compile Include="Model\Databinding\SettingsEntities\NeutralLoss.cs" />
     <Compile Include="Model\Databinding\SettingsEntities\PersistedSettings.cs" />
     <Compile Include="Model\Databinding\SettingsEntities\SettingsCollection.cs" />
     <Compile Include="Model\Databinding\SettingsEntities\SettingsObject.cs" />

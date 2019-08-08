@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using DigitalRune.Windows.Docking;
 using pwiz.Common.Collections;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.DocumentContainers;
@@ -78,6 +79,14 @@ namespace pwiz.Skyline.Model.Databinding.SettingsEntities
             }
         }
 
+        public RelativeRT RelativeRetentionTime
+        {
+            get { return _modificationInfo.Value.StaticMod?.RelativeRT ?? RelativeRT.Unknown; }
+            set
+            {
+                ChangeStaticMod(EditDescription.SetColumn(nameof(RelativeRetentionTime), value), mod=>mod.ChangeRelativeRT(value));
+            }
+        }
 
         protected override ModificationInfo GetModificationInfo(DocumentSettings documentSettings)
         {
@@ -96,7 +105,7 @@ namespace pwiz.Skyline.Model.Databinding.SettingsEntities
 
             if (modInfo.StaticMod == null)
             {
-                foreach (var mod in Properties.Settings.Default.HeavyModList)
+                foreach (var mod in documentSettings.Settings.IsotopeModifications)
                 {
                     if (mod.Name == Name)
                     {
@@ -111,7 +120,29 @@ namespace pwiz.Skyline.Model.Databinding.SettingsEntities
         protected override DocumentSettings ChangeDocumentSettingsModificationInfo(DocumentSettings documentSettings,
             ModificationInfo modificationInfoNew)
         {
-            throw new NotImplementedException();
+            var modSettings = documentSettings.Document.Settings.PeptideSettings.Modifications;
+            foreach (var typedModifications in modSettings.HeavyModifications)
+            {
+                var modifications = typedModifications.Modifications;
+                if (modificationInfoNew.LabelTypes.Contains(typedModifications.LabelType))
+                {
+                    modifications = ImmutableList.ValueOf(ReplaceModInList(modifications, modificationInfoNew.StaticMod));
+                }
+                else
+                {
+                    modifications = ImmutableList.ValueOf(ReplaceModInList(modifications, null));
+                }
+
+                modSettings = modSettings.ChangeModifications(typedModifications.LabelType, modifications);
+            }
+
+            var docSettings = documentSettings.Document.Settings;
+            docSettings =
+                docSettings.ChangePeptideSettings(docSettings.PeptideSettings.ChangeModifications(modSettings));
+            documentSettings = documentSettings.ChangeDocument(documentSettings.Document.ChangeSettings(docSettings));
+            documentSettings = documentSettings.ChangeSettings(documentSettings.Settings.ChangeIsotopeModifications(
+                ReplaceModInList(documentSettings.Settings.IsotopeModifications, modificationInfoNew.StaticMod)));
+            return documentSettings;
         }
 
         public override ElementRef GetElementRef()

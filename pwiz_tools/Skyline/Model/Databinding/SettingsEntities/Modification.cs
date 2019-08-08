@@ -61,6 +61,16 @@ namespace pwiz.Skyline.Model.Databinding.SettingsEntities
             get { return _modificationInfo.Value.StaticMod?.Formula; }
         }
 
+        public double? AverageMass
+        {
+            get { return _modificationInfo.Value.StaticMod?.AverageMass; }
+        }
+
+        public double? MonoisotopicMass
+        {
+            get { return _modificationInfo.Value.StaticMod?.MonoisotopicMass; }
+        }
+
         protected class ModificationInfo : Immutable
         {
             public ModificationInfo()

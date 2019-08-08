@@ -1,10 +1,5 @@
-﻿using System;
-using System.Collections;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using pwiz.Common.DataBinding;
 using pwiz.Skyline.Model.Databinding.SettingsEntities;
 
 namespace pwiz.Skyline.Model.Databinding.Collections
@@ -17,10 +12,10 @@ namespace pwiz.Skyline.Model.Databinding.Collections
 
         protected override IEnumerable<string> ListKeys()
         {
-            var modifications = DataSchema.Document.Settings.PeptideSettings.Modifications;
-            var settings = Properties.Settings.Default;
+            var documentSettings = DataSchema.DocumentSettings;
+            var modifications = documentSettings.Document.Settings.PeptideSettings.Modifications;
             return modifications.StaticModifications
-                .Concat(settings.StaticModList)
+                .Concat(documentSettings.Settings.StructuralModifications)
                 .Select(mod => mod.Name)
                 .Distinct();
         }
@@ -40,10 +35,10 @@ namespace pwiz.Skyline.Model.Databinding.Collections
 
         protected override IEnumerable<string> ListKeys()
         {
-            var modifications = DataSchema.Document.Settings.PeptideSettings.Modifications;
-            var settings = Properties.Settings.Default;
+            var documentSettings = DataSchema.DocumentSettings;
+            var modifications = documentSettings.Document.Settings.PeptideSettings.Modifications;
             return modifications.HeavyModifications.SelectMany(typedMods=>typedMods.Modifications)
-                .Concat(settings.HeavyModList)
+                .Concat(documentSettings.Settings.IsotopeModifications)
                 .Select(mod => mod.Name)
                 .Distinct();
         }

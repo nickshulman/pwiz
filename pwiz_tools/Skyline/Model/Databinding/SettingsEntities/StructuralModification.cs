@@ -1,4 +1,5 @@
-﻿using System.Linq;
+﻿using System.Collections.Generic;
+using System.Linq;
 using pwiz.Common.Collections;
 using pwiz.Skyline.Model.DocumentContainers;
 using pwiz.Skyline.Model.ElementLocators;
@@ -10,6 +11,15 @@ namespace pwiz.Skyline.Model.Databinding.SettingsEntities
     {
         public StructuralModification(SkylineDataSchema dataSchema, string name) : base(dataSchema, name)
         {
+        }
+
+        public bool Explicit
+        {
+            get { return _modificationInfo.Value.StaticMod?.IsExplicit ?? false; }
+            set
+            {
+                ChangeStaticMod(EditDescription.SetColumn(nameof(Explicit), value), mod=>mod.ChangeExplicit(value));
+            }
         }
 
         protected override ModificationInfo GetModificationInfo(DocumentSettings documentSettings)
@@ -60,6 +70,29 @@ namespace pwiz.Skyline.Model.Databinding.SettingsEntities
             documentSettings = documentSettings.ChangeSettings(documentSettings.Settings.ChangeStructuralModifications(
                 ReplaceModInList(documentSettings.Settings.StructuralModifications, modificationInfoNew.StaticMod)));
             return documentSettings;
+        }
+
+        public bool Variable
+        {
+            get { return _modificationInfo.Value.StaticMod?.IsVariable ?? false; }
+            set
+            {
+                ChangeStaticMod(EditDescription.SetColumn(nameof(Variable), value), mod=>mod.ChangeVariable(value));
+            }
+        }
+
+        public IList<NeutralLoss> Losses
+        {
+            get
+            {
+                var losses = _modificationInfo.Value.StaticMod?.Losses;
+                if (losses == null)
+                {
+                    return null;
+                }
+
+                return losses.Select(loss => new NeutralLoss(loss)).ToArray();
+            }
         }
 
         public override ElementRef GetElementRef()

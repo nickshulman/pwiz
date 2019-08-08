@@ -3,6 +3,7 @@ using System.Linq;
 using pwiz.Common.Collections;
 using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Model.DocSettings;
+using pwiz.Skyline.Model.Proteome;
 using pwiz.Skyline.Properties;
 
 namespace pwiz.Skyline.Model.DocumentContainers
@@ -44,6 +45,12 @@ namespace pwiz.Skyline.Model.DocumentContainers
         public SettingsSnapshot ChangeAnnotationDefs(IEnumerable<AnnotationDef> annotationDefs)
         {
             return ChangeProp(ImClone(this), im => im.AnnotationDefs = ImmutableList.ValueOf(annotationDefs));
+        }
+        public ImmutableList<BackgroundProteome> BackgroundProteomes { get; private set; }
+
+        public SettingsSnapshot ChangeBackgroundProteomes(IEnumerable<BackgroundProteome> backgroundProteomes)
+        {
+            return ChangeProp(ImClone(this), im => im.BackgroundProteomes = ImmutableList.ValueOf(backgroundProteomes));
         }
         public ImmutableList<StaticMod> StructuralModifications { get; private set; }
 

@@ -25,6 +25,7 @@ using pwiz.Skyline.Controls;
 using pwiz.Skyline.Model;
 using pwiz.Skyline.Model.Databinding;
 using pwiz.Skyline.Model.DocSettings;
+using pwiz.Skyline.Model.DocumentContainers;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
 using pwiz.Skyline.Util.Extensions;
@@ -385,13 +386,13 @@ namespace pwiz.Skyline.SettingsUI
         {
             public static BrowsingDataSchema GetBrowsingDataSchema()
             {
-                var memoryDocumentContainer = new MemoryDocumentContainer();
-                var document = new SrmDocument(SrmSettingsList.GetDefault());
-                memoryDocumentContainer.SetDocument(document, memoryDocumentContainer.Document);
-                return new BrowsingDataSchema(memoryDocumentContainer, GetLocalizedSchemaLocalizer());
+                var documentSettingsContainer = DocumentSettingsContainer.FromDocumentSettings(
+                    new DocumentSettings(new SrmDocument(SrmSettingsList.GetDefault()),
+                        SettingsSnapshot.FromSettings(Settings.Default)), GetLocalizedSchemaLocalizer());
+                return new BrowsingDataSchema(documentSettingsContainer);
             }
-            private BrowsingDataSchema(IDocumentContainer documentContainer, DataSchemaLocalizer dataSchemaLocalizer) :
-                base(documentContainer, dataSchemaLocalizer)
+            private BrowsingDataSchema(DocumentSettingsContainer documentSettingsContainer) :
+                base(documentSettingsContainer)
             {
 
             }

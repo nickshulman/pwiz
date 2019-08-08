@@ -3,12 +3,17 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
 using pwiz.Skyline.Model.DocSettings;
+using pwiz.Skyline.Model.DocumentContainers;
 using pwiz.Skyline.Model.Proteome;
 
 namespace pwiz.Skyline.Model.Databinding.SettingsEntities
 {
     public class ScalarSettings
     {
+        public ScalarSettings(DocumentSettings documentSettings)
+        {
+            Settings = new SettingsObject(documentSettings);
+        }
         [Browsable(false)]
         public SettingsObject Settings { get; private set; }
 
@@ -41,7 +46,7 @@ namespace pwiz.Skyline.Model.Databinding.SettingsEntities
                     return;
                 }
 
-                var backgroundProteomeSpec = Settings.ApplicationSettings.BackgroundProteomeList[value];
+                var backgroundProteomeSpec = Settings.DocumentSettings.Settings.BackgroundProteomes.FirstOrDefault(prot => prot.Name == value);
                 if (backgroundProteomeSpec == null)
                 {
                     throw new ArgumentException();
@@ -54,7 +59,7 @@ namespace pwiz.Skyline.Model.Databinding.SettingsEntities
 
         public static IEnumerable<PropertyDescriptor> EnumerateSettings()
         {
-            return TypeDescriptor.GetProperties(typeof(ScalarSettings)).Cast<PropertyDescriptor>();
+            return TypeDescriptor.GetProperties(typeof(ScalarSettings)).Cast<PropertyDescriptor>().Where(pd=>pd.IsBrowsable);
         }
     }
 }

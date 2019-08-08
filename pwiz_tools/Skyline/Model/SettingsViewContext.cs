@@ -16,6 +16,10 @@ namespace pwiz.Skyline.Model
 
         public static IEnumerable<RowSourceInfo> GetSettingsRowSources(SkylineDataSchema dataSchema)
         {
+            yield return new RowSourceInfo(typeof(ScalarSetting), new ScalarSettingRowSource(dataSchema), new []
+            {
+                GetViewInfo(dataSchema, typeof(ScalarSetting), "Simple Settings")
+            });
             yield return new RowSourceInfo(typeof(StructuralModification), new StructuralModificationsRowSource(dataSchema),
                 new[]
                 {
@@ -25,6 +29,7 @@ namespace pwiz.Skyline.Model
             yield return new RowSourceInfo(typeof(IsotopeModification), new IsotopeModificationsRowSource(dataSchema),
                 new[] {GetViewInfo(dataSchema, typeof(IsotopeModification), "Isotope Modifications")}
             );
+
         }
 
         private static ViewInfo GetViewInfo(SkylineDataSchema dataSchema, Type rowType, string name)

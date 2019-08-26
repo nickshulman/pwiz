@@ -137,10 +137,6 @@ namespace pwiz.Skyline.SettingsUI
                 DeconvolutionMethod.MSX_OVERLAP,
                 DeconvolutionMethod.FAST_OVERLAP
             };
-            comboDeconv.Items.AddRange(deconvOptions);
-            comboDeconv.SelectedItem = DeconvolutionMethod.NONE;
-            comboDeconvPre.Items.AddRange(deconvOptions);
-
             // Hide columns to match checkboxes, which start unchecked
             AdjustGridTop(-1);
             comboIsolation.Visible = false;
@@ -219,7 +215,6 @@ namespace pwiz.Skyline.SettingsUI
                         precursorFilter = _isolationScheme.PrecursorFilter.Value;
                         textPrecursorFilterMz.Text = precursorFilter.ToString(LocalizationHelper.CurrentCulture);
                     }
-                    UpdateDeconvCombo(comboDeconv);
                 }
 
                 // Handle predetermined isolation scheme.
@@ -254,11 +249,6 @@ namespace pwiz.Skyline.SettingsUI
 
                     cbSpecifyMargin.Checked = showMargin;
                     cbSpecifyCERange.Checked = showCERange;
-
-                    textWindowsPerScan.Text = _isolationScheme.WindowsPerScan.HasValue
-                        ? _isolationScheme.WindowsPerScan.Value.ToString(LocalizationHelper.CurrentCulture)
-                        : string.Empty;
-                    UpdateDeconvCombo(comboDeconvPre);
                 }
             }
         }
@@ -293,11 +283,6 @@ namespace pwiz.Skyline.SettingsUI
             else return IsolationScheme.SpecialHandlingType.NONE;
         }
 
-        private void UpdateDeconvCombo(ComboBox combo)
-        {
-            combo.SelectedItem = IsolationSchemeToDeconvType(_isolationScheme.SpecialHandling);
-        }
-
         private void rbFromResultsData_CheckedChanged(object sender, EventArgs e)
         {
             EnableControls();
@@ -318,13 +303,6 @@ namespace pwiz.Skyline.SettingsUI
             }
             labelIsolationWidth.Enabled = fromResults;
             labelTh.Enabled = fromResults;
-            labelDeconvolution.Enabled = fromResults;
-            if (comboDeconv.Enabled != fromResults)
-            {
-                comboDeconv.Enabled = fromResults;
-                deconvItem = comboDeconv.SelectedItem;
-                comboDeconv.SelectedItem = comboDeconvPre.SelectedItem;
-            }
 
             btnCalculate.Enabled = !fromResults;
             btnImport.Enabled = !fromResults;
@@ -332,15 +310,6 @@ namespace pwiz.Skyline.SettingsUI
             gridIsolationWindows.Enabled = !fromResults;
             cbSpecifyMargin.Enabled = !fromResults;
             cbSpecifyCERange.Enabled = !fromResults;
-            labelDeconvPre.Enabled = !fromResults;
-            if (comboDeconvPre.Enabled == fromResults)
-            {
-                comboDeconvPre.Enabled = !fromResults;
-                comboDeconvPre.SelectedItem = deconvItem;
-            }
-            labelWindowsPerScan.Enabled =
-                textWindowsPerScan.Enabled =
-                    (!fromResults && Equals(comboDeconvPre.SelectedItem, DeconvolutionMethod.MSX));
         }
 
         private void comboIsolationWidth_SelectedIndexChanged(object sender, EventArgs e)
@@ -401,7 +370,7 @@ namespace pwiz.Skyline.SettingsUI
                 }
                 try
                 {
-                    _isolationScheme = new IsolationScheme(name, SpecialHandling, precursorFilter, null, filterMargin);
+                    _isolationScheme = new IsolationScheme(name, IsolationScheme.SpecialHandlingType.NONE, precursorFilter, null, filterMargin);
                 }
                 catch (InvalidDataException exception)
                 {
@@ -429,24 +398,12 @@ namespace pwiz.Skyline.SettingsUI
                     return;
                 }
 
-                int? windowsPerScan = null;
-                if (Equals(SpecialHandling, IsolationScheme.SpecialHandlingType.MULTIPLEXED))
-                {
-                    int x;
-                    if (!helper.ValidateNumberTextBox(textWindowsPerScan,
-                        IsolationScheme.MIN_MULTIPLEXED_ISOLATION_WINDOWS,
-                        IsolationScheme.MAX_MULTIPLEXED_ISOLATION_WINDOWS,
-                        out x))
-                        return;
-                    windowsPerScan = x;
-                }
                 // Check for overlap and gaps
                 var sortedWindowList = windowList.OrderBy(o => o.Start).ToList();
                 bool gapsOk = false;
                 bool overlapsOk = false;
-                bool overlap = Overlap;
-                int increment = overlap ? 2 : 1;
-                int subtraction = overlap ? 3 : 1;
+                int increment = 1;
+                int subtraction = 1;
                 const double tolerance = 0.0001;
                 for (int i = 0; i < sortedWindowList.Count - subtraction; i += increment)
                 {
@@ -481,7 +438,7 @@ namespace pwiz.Skyline.SettingsUI
                 }
                 try
                 {
-                    _isolationScheme = new IsolationScheme(name, windowList, SpecialHandling, windowsPerScan);
+                    _isolationScheme = new IsolationScheme(name, windowList);
                 }
                 catch (InvalidDataException exception)
                 {
@@ -495,14 +452,6 @@ namespace pwiz.Skyline.SettingsUI
 
         private List<IsolationWindow> GetIsolationWindows()
         {
-            //Overlap requires an even number of windows
-            if (Overlap && _gridViewDriver.Items.Count%2 == 1)
-            {
-                MessageDlg.Show(this,
-                    Resources.EditIsolationSchemeDlg_GetIsolationWindows_Overlap_requires_an_even_number_of_windows_);
-                return null;
-            }
-
             // Validate prespecified windows.
             var windowList = new List<IsolationWindow>();
             for (int row = 0; row < _gridViewDriver.Items.Count; row++)
@@ -568,15 +517,6 @@ namespace pwiz.Skyline.SettingsUI
         private void btnOk_Click(object sender, EventArgs e)
         {
             OkDialog();
-        }
-
-        private void comboDeconv_SelectedIndexChanged(object sender, EventArgs e)
-        {
-            bool fromResults = rbUseResultsData.Checked;
-            labelWindowsPerScan.Enabled =
-                textWindowsPerScan.Enabled =
-                (!fromResults && (Equals(comboDeconvPre.SelectedItem, DeconvolutionMethod.MSX) ||
-                                  Equals(comboDeconvPre.SelectedItem, DeconvolutionMethod.MSX_OVERLAP)));
         }
 
         private void cbSpecifyMargin_CheckedChanged(object sender, EventArgs e)
@@ -650,12 +590,6 @@ namespace pwiz.Skyline.SettingsUI
                     {
                         _gridViewDriver.Items.Add(window);
                     }
-
-                    // Copy multiplexed windows settings.
-                    comboDeconvPre.SelectedItem = calculateDlg.Deconvolution;
-                    textWindowsPerScan.Text = calculateDlg.Multiplexed
-                        ? calculateDlg.WindowsPerScan.ToString(LocalizationHelper.CurrentCulture)
-                        : string.Empty;
                 }
             }
         }
@@ -879,26 +813,6 @@ namespace pwiz.Skyline.SettingsUI
             get { return _gridViewDriver; }
         }
 
-        public string SpecialHandling
-        {
-            get
-            {
-                var combo = rbPrespecified.Checked ? comboDeconvPre : comboDeconv;
-                return DeconvTypeToIsolationScheme((string) combo.SelectedItem);
-            }
-            set
-            {
-                var combo = rbPrespecified.Checked ? comboDeconvPre : comboDeconv;
-                combo.SelectedItem = IsolationSchemeToDeconvType(value);
-            }
-        }
-
-        public double? WindowsPerScan
-        {
-            get { return Helpers.ParseNullableDouble(textWindowsPerScan.Text); }
-            set { textWindowsPerScan.Text = Helpers.NullableDoubleToString(value); }
-        }
-
         public bool SpecifyMargin
         {
             get { return cbSpecifyMargin.Checked; }
@@ -919,16 +833,6 @@ namespace pwiz.Skyline.SettingsUI
                 if (!Equals(value, WindowType.MEASUREMENT) && !Equals(value, WindowType.EXTRACTION))
                     throw new ArgumentOutOfRangeException();
                 comboIsolation.SelectedItem = value;
-            }
-        }
-
-        public bool Overlap
-        {
-            get
-            {
-                return Equals(comboDeconvPre.SelectedItem, DeconvolutionMethod.OVERLAP) ||
-                       Equals(comboDeconvPre.SelectedItem, DeconvolutionMethod.MSX_OVERLAP) ||
-                       Equals(comboDeconvPre.SelectedItem, DeconvolutionMethod.FAST_OVERLAP);
             }
         }
 
@@ -993,22 +897,12 @@ namespace pwiz.Skyline.SettingsUI
 
         public void OpenGraph()
         {
-            if (Equals(comboDeconvPre.SelectedItem, DeconvolutionMethod.MSX) ||
-                Equals(comboDeconvPre.SelectedItem, DeconvolutionMethod.MSX_OVERLAP))
-            {
-                MessageDlg.Show(this, Resources.EditIsolationSchemeDlg_OpenGraph_Graphing_multiplexing_is_not_supported_);
-                return;
-            }
-
             List<IsolationWindow> windows = GetIsolationWindows();
             if (windows == null)
                 return;
-            int windowsPerScan;
-            if (!int.TryParse(textWindowsPerScan.Text, out windowsPerScan))
-                windowsPerScan = 1;
             bool useMargins = cbSpecifyMargin.Checked;
             using (var graphDlg = new DiaIsolationWindowsGraphForm(windows, useMargins,
-                comboDeconvPre.SelectedItem, windowsPerScan))
+                IsolationScheme.SpecialHandlingType.NONE, 0))
             {
                 graphDlg.ShowDialog(this);
             }
@@ -1048,9 +942,6 @@ namespace pwiz.Skyline.SettingsUI
                 if (isolationScheme != null)
                 {
                     cbSpecifyMargin.Checked = isolationScheme.PrespecifiedIsolationWindows.Count(w => w.StartMargin.HasValue) > 1;
-                    comboDeconvPre.SelectedItem = isolationScheme.SpecialHandling == IsolationScheme.SpecialHandlingType.OVERLAP_MULTIPLEXED
-                        ? DeconvolutionMethod.OVERLAP
-                        : DeconvolutionMethod.NONE;
                     _gridViewDriver.Items.Clear();
                     foreach (var isolationWindow in isolationScheme.PrespecifiedIsolationWindows)
                     {

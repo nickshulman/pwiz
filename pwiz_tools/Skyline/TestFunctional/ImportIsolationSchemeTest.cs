@@ -69,19 +69,7 @@ namespace pwiz.SkylineTestFunctional
             ImportIsoList(isoEditor, VARIABLE_64_SCIEX, 64, 0.5);
             ImportIsoList(isoEditor, VARIABLE_19_THERMO, 19, 1);
             ImportIsoList(isoEditor, DEMUX_6DA_400to500, 35);
-            ImportIsoList(isoEditor, OVERLAP_6DA_400to500, 36, null, true);
-            ImportIsoList(isoEditor, new[] {DEMUX_6DA_400to500, DEMUX_6DA_500to600}, 70, null, false, 1);
-            ImportIsoList(isoEditor, OVERLAP_24DA_1, 52, null, true, 1);
-            ImportIsoList(isoEditor, new[]
-            {
-                OVERLAP_6DA_400to500,
-                OVERLAP_6DA_500to600,
-                OVERLAP_6DA_600to700,
-                OVERLAP_6DA_700to800,
-                OVERLAP_6DA_800to900,
-                OVERLAP_6DA_900to1000,
-            }, 216, null, true, 5);
-            ImportIsoList(isoEditor, new[] {OVERLAP_24DA_1, OVERLAP_24DA_2}, 52, null, true, 1);
+            ImportIsoList(isoEditor, new[] {DEMUX_6DA_400to500, DEMUX_6DA_500to600}, 70, null, 1);
             ImportErrorMessage(isoEditor, NOWIDTH_SCIEX,
                 Resources.EditIsolationSchemeDlg_ReadIsolationRanges_Missing_isolation_range_for_the_isolation_target__0__m_z_in_the_file__1_, 2);
             ImportErrorMessage(isoEditor, CORRUPT_SCIEX,
@@ -115,13 +103,13 @@ namespace pwiz.SkylineTestFunctional
         }
 
         private void ImportIsoList(EditIsolationSchemeDlg isoEditor, string rawFileName, int windowCount,
-            double? marginWidth = null, bool overlapping = false, int misplacedRanges = 0)
+            double? marginWidth = null, int misplacedRanges = 0)
         {
-            ImportIsoList(isoEditor, new [] {rawFileName}, windowCount, marginWidth, overlapping, misplacedRanges);
+            ImportIsoList(isoEditor, new [] {rawFileName}, windowCount, marginWidth, misplacedRanges);
         }
 
         private void ImportIsoList(EditIsolationSchemeDlg isoEditor, string[] rawFileNames, int windowCount,
-            double? marginWidth = null, bool overlapping = false, int misplacedRanges = 0)
+            double? marginWidth = null, int misplacedRanges = 0)
         {
             PerformImport(isoEditor, rawFileNames);
 //            PauseTest();
@@ -132,17 +120,13 @@ namespace pwiz.SkylineTestFunctional
                     TextUtil.LineSeparate(isoEditor.IsolationWindowGrid.Items.Select(i => string.Format("{0}, {1}", i.Start, i.End))))));
             }
                 
-            double allowedDelta = overlapping ? 0.05 : 0.00001;
+            double allowedDelta = 0.00001;
             RunUI(() =>
             {
                 if (marginWidth.HasValue)
                     Assert.IsTrue(isoEditor.SpecifyMargin);
                 else
                     Assert.IsFalse(isoEditor.SpecifyMargin);
-                if (overlapping && misplacedRanges < 2)
-                    Assert.IsTrue(isoEditor.Overlap);
-                else
-                    Assert.IsFalse(isoEditor.Overlap);
 
                 double? lastEnd = null;
                 double overlap = marginWidth*2 ?? 0;
@@ -152,7 +136,7 @@ namespace pwiz.SkylineTestFunctional
                 {
                     var isolationWindow = isoEditor.IsolationWindowGrid.Items[i];
                     if (lastEnd.HasValue &&
-                        (!overlapping || isolationWindow.Start > isoEditor.IsolationWindowGrid.Items[overlapStartIndex].Start))
+                        (isolationWindow.Start > isoEditor.IsolationWindowGrid.Items[overlapStartIndex].Start))
                     {
                         try
                         {
@@ -164,8 +148,6 @@ namespace pwiz.SkylineTestFunctional
                             {
                                 lastEnd = null;
                                 misplaced++;
-                                if (overlapping)
-                                    overlapStartIndex = i;
                                 continue;
                             }
                             throw;

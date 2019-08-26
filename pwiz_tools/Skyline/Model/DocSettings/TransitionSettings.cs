@@ -154,13 +154,6 @@ namespace pwiz.Skyline.Model.DocSettings
                 throw new InvalidDataException(
                     Resources.TransitionSettings_DoValidate_High_resolution_MS1_filtering_requires_use_of_monoisotopic_precursor_masses);
             }
-
-            if (FullScan != null && FullScan.IsolationScheme != null && FullScan.IsolationScheme.WindowsPerScan.HasValue &&
-                (Instrument == null || !Instrument.MaxInclusions.HasValue))
-            {
-                throw new InvalidDataException(
-                    Resources.TransitionSettings_DoValidate_The_instrument_s_firmware_inclusion_limit_must_be_specified_before_doing_a_multiplexed_DIA_scan);
-            }
         }
 
         public static TransitionSettings Deserialize(XmlReader reader)

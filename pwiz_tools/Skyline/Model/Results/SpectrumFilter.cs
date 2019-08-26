@@ -1105,11 +1105,6 @@ namespace pwiz.Skyline.Model.Results
                 {
                     document.IsolationScheme.SpecialHandling = isolationScheme.SpecialHandling;
                 }
-                if (isolationScheme.WindowsPerScan.HasValue)
-                {
-                    document.IsolationScheme.WindowsPerScan = isolationScheme.WindowsPerScan.Value;
-                    document.IsolationScheme.WindowsPerScanSpecified = true;
-                }
                 document.IsolationScheme.IsolationWindow =
                     isolationScheme.PrespecifiedIsolationWindows.Select(
                         isolationWindow =>

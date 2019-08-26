@@ -1349,7 +1349,6 @@
     <Compile Include="Model\Proteome\BackgroundProteome.cs" />
     <Compile Include="Model\Proteome\BackgroundProteomeManager.cs" />
     <Compile Include="Model\Proteome\BackgroundProteomeSpec.cs" />
-    <Compile Include="Model\Results\AbstractDemultiplexer.cs" />
     <Compile Include="Model\Results\ArrayPool.cs" />
     <Compile Include="Model\Results\CachedChromatogramDataProvider.cs" />
     <Compile Include="Model\Results\CachedFileHeader.cs" />
@@ -1376,14 +1375,12 @@
     <Compile Include="Model\Results\ChromInfoData.cs" />
     <Compile Include="Model\Results\Crawdad\Crawdads.cs" />
     <Compile Include="Model\Results\IonMobilityFinder.cs" />
-    <Compile Include="Model\Results\FastOverlapDemultiplexer.cs" />
     <Compile Include="Model\RetentionTimes\LinearAligner.cs">
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="Model\Results\TimeIntensitiesGroup.cs" />
     <Compile Include="Model\Results\MsDataFileScanHelper.cs" />
     <Compile Include="Model\Results\MsDataFileScanIds.cs" />
-    <Compile Include="Model\Results\Demultiplexer.cs" />
     <Compile Include="Model\Results\DocNodeChromInfo.cs" />
     <Compile Include="Model\Results\Exception.cs" />
     <Compile Include="Model\Results\ExtractedSpectrum.cs" />
@@ -1391,13 +1388,6 @@
     <Compile Include="Model\Results\IsotopeDistInfo.cs" />
     <Compile Include="Model\Results\MeasuredResults.cs" />
     <Compile Include="Model\Results\MsDataFilePath.cs" />
-    <Compile Include="Model\Results\MsxDemultiplexer.cs">
-      <SubType>Code</SubType>
-    </Compile>
-    <Compile Include="Model\Results\NumericsLsSolver.cs" />
-    <Compile Include="Model\Results\OverlapDemultiplexer.cs">
-      <SubType>Code</SubType>
-    </Compile>
     <Compile Include="Model\Results\PeptideChromData.cs" />
     <Compile Include="Model\Results\PeptideFinder.cs" />
     <Compile Include="Model\Results\PrecursorTextId.cs" />

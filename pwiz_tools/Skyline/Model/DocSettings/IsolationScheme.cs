@@ -103,8 +103,6 @@ namespace pwiz.Skyline.Model.DocSettings
 
         [Track]
         public string SpecialHandling { get; private set; }
-        [Track]
-        public int? WindowsPerScan { get; private set; }
 
         public IsolationScheme(string name, string specialHandling, double? precursorFilter, double? precursorRightFilter = null, bool useMargin = false)
             : base(name)
@@ -132,7 +130,6 @@ namespace pwiz.Skyline.Model.DocSettings
         {
             PrespecifiedIsolationWindows = isolationWindows;
             SpecialHandling = specialHandling;
-            WindowsPerScan = windowsPerScan;
             DoValidate();
         }
 
@@ -286,10 +283,6 @@ namespace pwiz.Skyline.Model.DocSettings
                                                      TransitionFullScan.MAX_PRECURSOR_MULTI_FILTER,
                                                      Resources.IsolationScheme_DoValidate_The_precursor_m_z_filter_must_be_between__0__and__1_);
                 }
-                if (WindowsPerScan.HasValue)
-                {
-                    throw new InvalidDataException(Resources.IsolationScheme_DoValidate_Isolation_scheme_can_specify_multiplexed_windows_only_for_prespecified_isolation_windows);
-                }
             }
 
             else if (PrecursorRightFilter != null)
@@ -302,25 +295,6 @@ namespace pwiz.Skyline.Model.DocSettings
                 if (PrespecifiedIsolationWindows.Count != 0 && IsAllIons)
                 {
                     throw new InvalidDataException(Resources.IsolationScheme_DoValidate_Isolation_scheme_for_all_ions_cannot_contain_isolation_windows);
-                }
-
-                if (Equals(SpecialHandling, SpecialHandlingType.MULTIPLEXED))
-                {
-                    if (!WindowsPerScan.HasValue || WindowsPerScan.Value < 1)
-                    {
-                        throw new InvalidDataException(Resources.IsolationScheme_DoValidate_Multiplexed_windows_require_at_least_one_window_per_scan);
-                    }
-                    if (PrespecifiedIsolationWindows.Count % WindowsPerScan.Value != 0)
-                    {
-                        throw new InvalidDataException(Resources.IsolationScheme_DoValidate_The_number_of_prespecified_isolation_windows_must_be_a_multiple_of_the_windows_per_scan_in_multiplexed_sampling);
-                    }
-                }
-                else
-                {
-                    if (WindowsPerScan.HasValue)
-                    {
-                        throw new InvalidDataException(Resources.IsolationScheme_DoValidate_Windows_per_scan_requires_multiplexed_isolation_windows);
-                    }
                 }
             }
         }
@@ -365,8 +339,6 @@ namespace pwiz.Skyline.Model.DocSettings
                 PrecursorRightFilter = reader.GetNullableDoubleAttribute(ATTR.precursor_right_filter);
             }
 
-            WindowsPerScan = reader.GetNullableIntAttribute(ATTR.windows_per_scan);
-
             if (reader.IsEmptyElement)
                 reader.Read();
             else
@@ -404,7 +376,6 @@ namespace pwiz.Skyline.Model.DocSettings
 
             if (!Equals(SpecialHandling, SpecialHandlingType.NONE))
                 writer.WriteAttribute(ATTR.special_handling, SpecialHandling);
-            writer.WriteAttributeNullable(ATTR.windows_per_scan, WindowsPerScan);
 
             writer.WriteElements(_prespecifiedIsolationWindows);
         }
@@ -422,7 +393,6 @@ namespace pwiz.Skyline.Model.DocSettings
                    other.PrecursorFilter.Equals(PrecursorFilter) &&
                    other.PrecursorRightFilter.Equals(PrecursorRightFilter) &&
                    other.SpecialHandling.Equals(SpecialHandling) &&
-                   other.WindowsPerScan.Equals(WindowsPerScan) &&
                    other.UseMargin == UseMargin;
         }
 
@@ -442,7 +412,6 @@ namespace pwiz.Skyline.Model.DocSettings
                 result = (result*397) ^ (PrecursorFilter.HasValue ? PrecursorFilter.Value.GetHashCode() : 0);
                 result = (result*397) ^ (PrecursorRightFilter.HasValue ? PrecursorRightFilter.Value.GetHashCode() : 0);
                 result = (result*397) ^ (SpecialHandling.GetHashCode());
-                result = (result*397) ^ (WindowsPerScan.HasValue ? WindowsPerScan.Value.GetHashCode() : 0);
                 result = (result*397) ^ (UseMargin.GetHashCode());
                 return result;
             }

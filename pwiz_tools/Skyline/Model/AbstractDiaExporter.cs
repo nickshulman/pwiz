@@ -73,10 +73,7 @@ namespace pwiz.Skyline.Model
                 StringWriter writer = new StringWriter();
                 if (HasHeaders)
                     WriteHeaders(writer);
-                if (IsolationScheme.WindowsPerScan.HasValue)
-                    WriteMultiplexedWindows(writer, IsolationScheme.WindowsPerScan.Value, progressMonitor);
-                else
-                    WriteWindows(writer);
+                WriteWindows(writer);
                 ExportString = writer.ToString();
             }
 

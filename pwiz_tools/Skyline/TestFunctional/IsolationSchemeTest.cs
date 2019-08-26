@@ -347,79 +347,6 @@ namespace pwiz.SkylineTestFunctional
             {
                 var editDlg = ShowDialog<EditIsolationSchemeDlg>(editList.EditItem);
 
-                // Verify windows per scan, test minimum value.
-                RunUI(() =>
-                    {
-                        editDlg.CurrentWindowType = EditIsolationSchemeDlg.WindowType.MEASUREMENT;
-                        Assert.AreEqual("test2", editDlg.IsolationSchemeName); // Not L10N
-                        Assert.IsFalse(editDlg.UseResults);
-                        VerifyCellValues(editDlg, new[]
-                            {
-                                new double?[] {100.0, 500.0}
-                            });
-                        editDlg.IsolationWindowGrid.SelectCell(EditIsolationSchemeDlg.COLUMN_START, 1);
-                        editDlg.IsolationWindowGrid.SetCellValue(500);
-                        editDlg.IsolationWindowGrid.SelectCell(EditIsolationSchemeDlg.COLUMN_END, 1);
-                        editDlg.IsolationWindowGrid.SetCellValue(1000);
-                        editDlg.IsolationWindowGrid.SelectCell(EditIsolationSchemeDlg.COLUMN_START, 2);
-                        editDlg.IsolationWindowGrid.SetCellValue(1000);
-                        editDlg.IsolationWindowGrid.SelectCell(EditIsolationSchemeDlg.COLUMN_END, 2);
-                        editDlg.IsolationWindowGrid.SetCellValue(1500);
-                        editDlg.SpecialHandling = IsolationScheme.SpecialHandlingType.MULTIPLEXED;
-                        editDlg.WindowsPerScan =
-                            IsolationScheme.MIN_MULTIPLEXED_ISOLATION_WINDOWS - 1; // Below minimum value
-                    });
-                RunDlg<MessageDlg>(editDlg.OkDialog, messageDlg =>
-                    {
-                        AssertEx.AreComparableStrings(Resources.MessageBoxHelper_ValidateDecimalTextBox__0__must_be_greater_than_or_equal_to__1__, messageDlg.Message, 2);
-                        messageDlg.OkDialog();
-                    });
-
-                // Test maximum windows per scan.
-                RunUI(() => editDlg.WindowsPerScan = IsolationScheme.MAX_MULTIPLEXED_ISOLATION_WINDOWS + 1); // Above maximum value
-                RunDlg<MessageDlg>(editDlg.OkDialog, messageDlg =>
-                    {
-                        AssertEx.AreComparableStrings(Resources.MessageBoxHelper_ValidateDecimalTextBox__0__must_be_less_than_or_equal_to__1__, messageDlg.Message, 2);
-                        messageDlg.OkDialog();
-                    });
-
-                RunUI(() => editDlg.WindowsPerScan = 3);
-                OkDialog(editDlg, editDlg.OkDialog);
-            }
-
-            RunUI(() => editList.SelectItem("test2"));
-            {
-                var editDlg = ShowDialog<EditIsolationSchemeDlg>(editList.EditItem);
-
-                // Verify windows per scan, test minimum value.
-                RunUI(() =>
-                    {
-                        editDlg.CurrentWindowType = EditIsolationSchemeDlg.WindowType.EXTRACTION;
-                        Assert.AreEqual("test2", editDlg.IsolationSchemeName); // Not L10N
-                        Assert.IsFalse(editDlg.UseResults);
-                        VerifyCellValues(editDlg, new[]
-                            {
-                                new double?[] {100.0, 500.0},
-                                new double?[] {500.0, 1000.0},
-                                new double?[] {1000.0, 1500.0}
-                            });
-                        Assert.AreEqual(3, editDlg.WindowsPerScan);
-                        Assert.AreEqual(IsolationScheme.SpecialHandlingType.MULTIPLEXED, editDlg.SpecialHandling);
-                    });
-
-                // Test windows per scan without special handling.
-                RunUI(() =>
-                    {
-                        editDlg.SpecialHandling = IsolationScheme.SpecialHandlingType.NONE;
-                        editDlg.OkDialog();
-                    });
-                WaitForClosedForm(editDlg);
-            }
-
-            RunUI(() => editList.SelectItem("test2"));
-            {
-                var editDlg = ShowDialog<EditIsolationSchemeDlg>(editList.EditItem);
-
                 // Test negative margin.
                 RunUI(() =>
                     {
@@ -484,8 +411,6 @@ namespace pwiz.SkylineTestFunctional
                                 new double?[] { 497.0, 1000.0, 2.0},
                                 new double?[] { 995.0, 1500.0, 3.0}
                             });
-                        Assert.AreEqual(IsolationScheme.SpecialHandlingType.NONE, editDlg.SpecialHandling);
-                        Assert.AreEqual(null, editDlg.WindowsPerScan);
                     });
                 OkDialog(editDlg, editDlg.OkDialog);
             }

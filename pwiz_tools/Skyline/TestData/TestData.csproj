@@ -167,10 +167,8 @@
     <Compile Include="Results\FullScanTest.cs" />
     <Compile Include="Results\ImportSimTest.cs" />
     <Compile Include="Results\MeasuredDriftValuesTest.cs" />
-    <Compile Include="Results\MsxTest.cs" />
     <Compile Include="Results\MultiLabelRatioTest.cs" />
     <Compile Include="Results\MultiplePeptidesSameMzTest.cs" />
-    <Compile Include="Results\NumericsLsSolverTest.cs" />
     <Compile Include="Results\PeptideQuantifierTest.cs" />
     <Compile Include="Results\RestultNameMapTest.cs" />
     <Compile Include="Results\ResultsUtilTest.cs" />
@@ -241,7 +239,6 @@
     <None Include="Results\BlibDriftTimeTest.zip" />
     <None Include="Results\FullScan.zip" />
     <None Include="Results\ImportSim.zip" />
-    <None Include="Results\MsxTest.zip" />
     <EmbeddedResource Include="Results\MultiLabelCustomReports.skyr" />
     <EmbeddedResource Include="Results\MultiLabelWithResults.sky" />
     <EmbeddedResource Include="Results\PeptideQuantifierTest.sky" />

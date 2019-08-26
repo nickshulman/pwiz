@@ -573,14 +573,6 @@ namespace pwiz.Skyline.SettingsUI
                 return;
             }
 
-            if (isolationScheme != null && isolationScheme.WindowsPerScan.HasValue && !maxInclusions.HasValue)
-            {
-                MessageDlg.Show(this, Resources.TransitionSettingsUI_OkDialog_Before_performing_a_multiplexed_DIA_scan_the_instrument_s_firmware_inclusion_limit_must_be_specified);
-                tabControl1.SelectedIndex = (int)TABS.Instrument;
-                textMaxInclusions.Focus();
-                return;
-            }
-
             if (FullScanSettingsControl.IsDIA() && cbExclusionUseDIAWindow.Checked)
             {
                 if (FullScanSettingsControl.IsolationScheme.IsAllIons)

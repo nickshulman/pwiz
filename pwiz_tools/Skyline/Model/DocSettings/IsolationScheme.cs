@@ -104,6 +104,11 @@ namespace pwiz.Skyline.Model.DocSettings
         [Track]
         public string SpecialHandling { get; private set; }
 
+        public IsolationScheme ChangeSpecialHandling(string specialHandling)
+        {
+            return ChangeProp(ImClone(this), im => im.SpecialHandling = specialHandling);
+        }
+
         public IsolationScheme(string name, string specialHandling, double? precursorFilter, double? precursorRightFilter = null, bool useMargin = false)
             : base(name)
         {

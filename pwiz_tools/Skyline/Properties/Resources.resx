@@ -998,9 +998,6 @@
   <data name="QuaSAR_thumb" type="System.Resources.ResXFileRef, System.Windows.Forms">
     <value>..\Resources\StartPage\QuaSAR_thumb.jpg;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
   </data>
-  <data name="OverlapDemultiplexer_attempt_to_take_slice_of_deconvolution_matrix_failed_out_of_range" xml:space="preserve">
-    <value>Attempt to take slice of deconvolution matrix failed due to out of range error.</value>
-  </data>
   <data name="SkylineWindow_FindIonMobilityLibrary_Ion_Mobility_Library" xml:space="preserve">
     <value>Ion Mobility Library</value>
   </data>
@@ -2742,9 +2739,6 @@ Are you sure you want to continue?</value>
   <data name="ImportResultsDIAControl_btnBrowse_Click_Browse_for_Results_Files" xml:space="preserve">
     <value>Browse for Results Files</value>
   </data>
-  <data name="OverlapDemultiplexer_RowStart_Number_of_regions__0__in_overlap_demultiplexer_approximation_must_be_less_than_number_of_scans__1__" xml:space="preserve">
-    <value>Number of regions {0} in overlap demultiplexer approximation must be less than number of scans {1}.</value>
-  </data>
   <data name="RegressionGraphPane_RegressionGraphPane_Values" xml:space="preserve">
     <value>Values</value>
   </data>
@@ -3277,9 +3271,6 @@ Are you sure you want to continue?</value>
   <data name="SpectrumLibraryInfoDlg_SetLibraryLinks_Library_source" xml:space="preserve">
     <value>Library source:</value>
   </data>
-  <data name="IsolationScheme_DoValidate_Multiplexed_windows_require_at_least_one_window_per_scan" xml:space="preserve">
-    <value>Multiplexed windows require at least one window per scan</value>
-  </data>
   <data name="PeptideLib" type="System.Resources.ResXFileRef, System.Windows.Forms">
     <value>..\resources\peptidelib.bmp;System.Drawing.Bitmap, System.Drawing, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
   </data>
@@ -3348,9 +3339,6 @@ Are you sure you want to continue?</value>
   </data>
   <data name="ConfigureToolsDlg_btnFindCommand_Click_Python_Scripts" xml:space="preserve">
     <value>Python Scripts</value>
-  </data>
-  <data name="IsolationScheme_DoValidate_Windows_per_scan_requires_multiplexed_isolation_windows" xml:space="preserve">
-    <value>Windows per scan requires multiplexed isolation windows</value>
   </data>
   <data name="ComparePeakBoundaries_ComputeMatches_Documents_have_different_number_of_transition_groups___0__vs__1__" xml:space="preserve">
     <value>Documents have different number of transition groups, {0} vs {1}.</value>
@@ -3434,9 +3422,6 @@ Are you sure you want to continue?</value>
   <data name="AnnotationDef_AnnotationTarget_Proteins" xml:space="preserve">
     <value>Proteins</value>
   </data>
-  <data name="IsolationScheme_DoValidate_The_number_of_prespecified_isolation_windows_must_be_a_multiple_of_the_windows_per_scan_in_multiplexed_sampling" xml:space="preserve">
-    <value>The number of prespecified isolation windows must be a multiple of the windows per scan in multiplexed sampling.</value>
-  </data>
   <data name="ShareListDlg_ImportFile_Do_you_want_to_replace_them" xml:space="preserve">
     <value>Do you want to replace them?</value>
   </data>
@@ -3508,9 +3493,6 @@ Are you sure you want to continue?</value>
   </data>
   <data name="PythonInstaller_DownloadPython_Check_your_network_connection_or_contact_the_tool_provider_for_installation_support_" xml:space="preserve">
     <value>Check your network connection or contact the tool provider for installation support.</value>
-  </data>
-  <data name="IsolationScheme_DoValidate_Isolation_scheme_can_specify_multiplexed_windows_only_for_prespecified_isolation_windows" xml:space="preserve">
-    <value>Isolation scheme can specify multiplexed windows only for prespecified isolation windows</value>
   </data>
   <data name="CommandLine_ApplyNamingPattern_Error___0__does_not_match_the_regular_expression_" xml:space="preserve">
     <value>Error: {0} does not match the regular expression.</value>
@@ -4033,9 +4015,6 @@ Are you sure you want to continue?</value>
   <data name="PeptideExcludeList_Label_Exclusions" xml:space="preserve">
     <value>&amp;Exclusions:</value>
   </data>
-  <data name="OverlapDemultiplexer_attempt_to_insert_slice_of_deconvolution_matrix_failed_out_of_range" xml:space="preserve">
-    <value>Attempt to insert slice of deconvolution matrix failed due to out of range error.</value>
-  </data>
   <data name="PeptideGroupDocNode_ChangeSettings_The_current_document_settings_would_cause_the_number_of_targeted_transitions_to_exceed__0_n0___The_document_settings_must_be_more_restrictive_or_add_fewer_proteins_" xml:space="preserve">
     <value>The current document settings would cause the number of targeted transitions to exceed {0:n0}. The document settings must be more restrictive or add fewer proteins.</value>
   </data>
@@ -4225,9 +4204,6 @@ If you prefer you can choose to report anonymously.</value>
   </data>
   <data name="SrmDocument_AddIrtPeptides_Must_have_an_active_iRT_calculator_to_add_iRT_peptides" xml:space="preserve">
     <value>Must have an active iRT calculator to add iRT peptides.</value>
-  </data>
-  <data name="TransitionSettings_DoValidate_The_instrument_s_firmware_inclusion_limit_must_be_specified_before_doing_a_multiplexed_DIA_scan" xml:space="preserve">
-    <value>The instrument's firmware inclusion limit must be specified before doing a multiplexed DIA scan.</value>
   </data>
   <data name="BiblioSpecLiteLibrary_Load_Failed_loading_library__0__" xml:space="preserve">
     <value>Failed loading library '{0}'.</value>
@@ -4464,9 +4440,6 @@ If you prefer you can choose to report anonymously.</value>
   </data>
   <data name="SkylineWindow_SetStandardType_Set_standard_type_to__0_" xml:space="preserve">
     <value>Set standard type to {0}</value>
-  </data>
-  <data name="AbstractIsoWindowMapper_GetWindowMask_Tried_to_get_a_window_mask_for__0___a_spectrum_with_previously_unobserved_isolation_windows__Demultiplexing_requires_a_repeating_cycle_of_isolation_windows_" xml:space="preserve">
-    <value>Tried to get a window mask for {0}, a spectrum with previously unobserved isolation windows. Demultiplexing requires a repeating cycle of isolation windows.</value>
   </data>
   <data name="ExportMethodDlg_comboTargetType_SelectedIndexChanged_To_export_a_scheduled_list_you_must_first_import_results_for_all_peptides_in_the_document" xml:space="preserve">
     <value>To export a scheduled method, you must first import results for all peptides in the document.</value>
@@ -5474,9 +5447,6 @@ If you prefer you can choose to report anonymously.</value>
   <data name="TransitionSettingsUI_OkDialog_Isotope_enrichment_settings_are_required_for_MS1_filtering_on_high_resolution_mass_spectrometers" xml:space="preserve">
     <value>Isotope enrichment settings are required for MS1 filtering on high resolution mass spectrometers.</value>
   </data>
-  <data name="Demultiplexer_GetDeconvRegionsForMz_TheIsolationSchemeIsInconsistentlySpecified" xml:space="preserve">
-    <value>The Isolation Scheme in Full Scan Settings is Inconsistently Specified.</value>
-  </data>
   <data name="SkylineWindow_OpenSharedFile_Extracting_Files" xml:space="preserve">
     <value>Extracting Files</value>
   </data>
@@ -5807,9 +5777,6 @@ If you prefer you can choose to report anonymously.</value>
   </data>
   <data name="ValueMissingException_ValueMissingException_" xml:space="preserve">
     <value>The argument {0} requires a value and must be specified in the format --name=value</value>
-  </data>
-  <data name="AbstractDemultiplexer_AnalyzeFile_Isolation_scheme_is_set_to_multiplexing_but_file_does_not_appear_to_contain_multiplexed_acquisition_data_" xml:space="preserve">
-    <value>Isolation scheme is set to multiplexing but file does not appear to contain multiplexed acquisition data.</value>
   </data>
   <data name="PeptideGroupTreeNode_RenderTip_Original_Name" xml:space="preserve">
     <value>Original Name</value>
@@ -7562,9 +7529,6 @@ Please contact the Panorama server administrator to upgrade the server.</value>
   <data name="EditOptimizationLibraryDlg_UpdateNumOptimizations__0__optimized_declustering_potentials" xml:space="preserve">
     <value>{0} optimized declustering potentials</value>
   </data>
-  <data name="OverlapDemultiplexer_the_isolation_window_overlap_scheme_does_not_cover_all_isolation_windows" xml:space="preserve">
-    <value>The overlapiIsolation window scheme is missing some contiguous isolation windows.</value>
-  </data>
   <data name="ResultsGrid_ResultsGrid_Ratio_To_Standard_Dot_Product" xml:space="preserve">
     <value>Ratio To Standard Dot Product</value>
   </data>
@@ -7615,9 +7579,6 @@ Please contact the Panorama server administrator to upgrade the server.</value>
   </data>
   <data name="AddPeakCompareDlg_OkDialog_Error_applying_imported_peak_boundaries___0_" xml:space="preserve">
     <value>Error applying imported peak boundaries: {0}</value>
-  </data>
-  <data name="MsxDemultiplexer_FindStartStop_MsxDemultiplexer_MS_MS_index__0__not_found" xml:space="preserve">
-    <value>MS/MS scan index {0} not found</value>
   </data>
   <data name="ChromatogramSet_WriteXml_Attempt_to_serialize_list_containing_invalid_type" xml:space="preserve">
     <value>Attempt to serialize list containing invalid type.</value>
@@ -8714,9 +8675,6 @@ Go to the Peptide Settings Prediction tab to fix.</value>
   <data name="BlibDb_BuildRefSpectra_Multiple_reference_spectra_found_for_peptide__0__in_the_library__1__" xml:space="preserve">
     <value>Multiple reference spectra found for peptide {0} in the library {1}.</value>
   </data>
-  <data name="OverlapDeconvSolverHandler_BuildDeconvBlock_Missing_scan_time_value_on_scan__0___Scan_times_are_required_for_overlap_based_demultiplexing_" xml:space="preserve">
-    <value>Missing scan time value on scan {0}. Scan times are required for overlap-based demultiplexing.</value>
-  </data>
   <data name="AddRetentionTimePredictorDlg_OkDialog_A_retention_time_predictor_with_that_name_already_exists__Please_choose_a_new_name_" xml:space="preserve">
     <value>A retention time predictor with that name already exists. Please choose a new name.</value>
   </data>
@@ -8764,9 +8722,6 @@ Go to the Peptide Settings Prediction tab to fix.</value>
   </data>
   <data name="ExportMethodDlg_OkDialog_You_are_missing_medium_tune_optimized_compensation_voltages_for_the_following_" xml:space="preserve">
     <value>You are missing medium tune optimized compensation voltages for the following:</value>
-  </data>
-  <data name="OverlapDemultiplexer_InitializeFile_OverlapDemultiplexer_InitializeFile_Improperly_formed_overlap_multiplexing_file" xml:space="preserve">
-    <value>OverlapDemultiplexer:InitializeFile Improperly-formed overlap multiplexing file</value>
   </data>
   <data name="CopyEmfToolStripMenuItem_CopyEmf_Unable_to_copy_metafile_image_to_the_clipboard" xml:space="preserve">
     <value>Unable to copy metafile image to the clipboard.</value>
@@ -8960,9 +8915,6 @@ Here are the last 3 errors:
   </data>
   <data name="ChromCacheBuilder_BuildCache_This_document_contains_only_negative_ion_mode_transitions__and_the_imported_file_contains_only_positive_ion_mode_data_so_nothing_can_be_loaded_" xml:space="preserve">
     <value>This document contains only negative ion mode transitions, and the imported file contains only positive ion mode data so nothing can be loaded.</value>
-  </data>
-  <data name="CalculateIsolationSchemeDlg_OkDialog_Window_width_not_even" xml:space="preserve">
-    <value>Odd numbered window widths are not supported for overlapped demultiplexing with optimized window placement selected.</value>
   </data>
   <data name="CalculateIsolationSchemeDlg_OkDialog_Window_width_must_be_an_integer" xml:space="preserve">
     <value>Window width must be an integer value when optimize window placement is selected.</value>
@@ -10603,5 +10555,10 @@ Click 'Retry' to try building again with original spectrum files placed next to 
   </data>
   <data name="DocumentAnnotationUpdater_UpdateAnnotations_Updating_calculated_annotations" xml:space="preserve">
     <value>Updating calculated annotations</value>
+  </data>
+  <data name="SkylineWindow_HandleObsoleteSettings_UnsupportedDemultiplex" xml:space="preserve">
+    <value>The demultiplexing option '{0}' is no longer supported by Skyline.
+If your data needs to be demultiplexed, it is recommended that you use the Demultiplex filter in ProteoWizard MSConvert to create a demultiplexed .mzML file.
+In order to open this document, Skyline will change the demultiplexing option in this document to 'None'.</value>
   </data>
 </root>

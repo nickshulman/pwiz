@@ -87,27 +87,12 @@ namespace pwiz.SkylineTest
             // Filter and special handling
             //AssertEx.DeserializeError<IsolationScheme>(
             //    @"<isolation_scheme name=""Invalid (2)"" precursor_filter=""1"" special_handling=""MSe""/>");
-            // Filter and windows per scan
-            AssertEx.DeserializeError<IsolationScheme>(
-                @"<isolation_scheme name=""Invalid (3)"" precursor_filter=""1"" windows_per_scan=""3""/>");
             // Special handling but no windows (now uses results windows)
 //            AssertEx.DeserializeError<IsolationScheme>(
 //                @"<isolation_scheme name=""Invalid (4)"" special_handling=""Multiplexed""/>");
             // Right filter only
             AssertEx.DeserializeError<IsolationScheme>(
                 @"<isolation_scheme name=""Invalid (5)"" precursor_right_filter=""1""/>");
-            // Windows per scan with no special handling
-            AssertEx.DeserializeError<IsolationScheme>(
-                @"<isolation_scheme name=""Invalid (6)"" windows_per_scan=""2""><isolation_window start=""1"" end=""10""/></isolation_scheme>");
-            // Windows per scan with MSe
-            AssertEx.DeserializeError<IsolationScheme>(
-                @"<isolation_scheme name=""Invalid (7)"" windows_per_scan=""2"" special_handling=""MSe"" />");
-            // Multiplexed and no windows per scan
-            AssertEx.DeserializeError<IsolationScheme>(
-                @"<isolation_scheme name=""Invalid (8)"" special_handling=""Multiplexed""><isolation_window start=""1"" end=""10""/></isolation_scheme>");
-            // Multiplexed and invalid windows per scan
-            AssertEx.DeserializeError<IsolationScheme>(
-                @"<isolation_scheme name=""Invalid (9)"" windows_per_scan=""0"" special_handling=""Multiplexed""><isolation_window start=""1"" end=""10""/></isolation_scheme>");
             // Invalid special handling
             AssertEx.DeserializeError<IsolationScheme>(
                 @"<isolation_scheme name=""Invalid (10)"" special_handling=""invalid option""/>");

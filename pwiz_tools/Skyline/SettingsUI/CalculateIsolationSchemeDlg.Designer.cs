@@ -33,11 +33,8 @@
             this.btnCancel = new System.Windows.Forms.Button();
             this.comboWindowType = new System.Windows.Forms.ComboBox();
             this.labelWindowType = new System.Windows.Forms.Label();
-            this.textWindowsPerScan = new System.Windows.Forms.TextBox();
-            this.labelWindowsPerScan = new System.Windows.Forms.Label();
             this.labelWindowCount = new System.Windows.Forms.Label();
             this.cbOptimizeWindowPlacement = new System.Windows.Forms.CheckBox();
-            this.label8 = new System.Windows.Forms.Label();
             this.textMargin = new System.Windows.Forms.TextBox();
             this.label4 = new System.Windows.Forms.Label();
             this.textWidth = new System.Windows.Forms.TextBox();
@@ -46,10 +43,10 @@
             this.label2 = new System.Windows.Forms.Label();
             this.textStart = new System.Windows.Forms.TextBox();
             this.label1 = new System.Windows.Forms.Label();
-            this.comboDeconv = new System.Windows.Forms.ComboBox();
             this.label6 = new System.Windows.Forms.Label();
             this.textCERange = new System.Windows.Forms.TextBox();
             this.label5 = new System.Windows.Forms.Label();
+            ((System.ComponentModel.ISupportInitialize)(this.modeUIHandler)).BeginInit();
             this.SuspendLayout();
             // 
             // btnOk
@@ -79,17 +76,6 @@
             resources.ApplyResources(this.labelWindowType, "labelWindowType");
             this.labelWindowType.Name = "labelWindowType";
             // 
-            // textWindowsPerScan
-            // 
-            resources.ApplyResources(this.textWindowsPerScan, "textWindowsPerScan");
-            this.textWindowsPerScan.Name = "textWindowsPerScan";
-            this.textWindowsPerScan.TextChanged += new System.EventHandler(this.textWindowsPerScan_TextChanged);
-            // 
-            // labelWindowsPerScan
-            // 
-            resources.ApplyResources(this.labelWindowsPerScan, "labelWindowsPerScan");
-            this.labelWindowsPerScan.Name = "labelWindowsPerScan";
-            // 
             // labelWindowCount
             // 
             resources.ApplyResources(this.labelWindowCount, "labelWindowCount");
@@ -102,12 +88,6 @@
             this.cbOptimizeWindowPlacement.Name = "cbOptimizeWindowPlacement";
             this.cbOptimizeWindowPlacement.UseVisualStyleBackColor = true;
             this.cbOptimizeWindowPlacement.CheckedChanged += new System.EventHandler(this.cbOptimizeWindowPlacement_CheckedChanged);
-            // 
-            // label8
-            // 
-            resources.ApplyResources(this.label8, "label8");
-            this.label8.ForeColor = System.Drawing.SystemColors.ActiveCaptionText;
-            this.label8.Name = "label8";
             // 
             // textMargin
             // 
@@ -153,14 +133,6 @@
             resources.ApplyResources(this.label1, "label1");
             this.label1.Name = "label1";
             // 
-            // comboDeconv
-            // 
-            this.comboDeconv.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
-            this.comboDeconv.FormattingEnabled = true;
-            resources.ApplyResources(this.comboDeconv, "comboDeconv");
-            this.comboDeconv.Name = "comboDeconv";
-            this.comboDeconv.SelectedIndexChanged += new System.EventHandler(this.comboDeconv_SelectedIndexChanged);
-            // 
             // label6
             // 
             resources.ApplyResources(this.label6, "label6");
@@ -185,14 +157,10 @@
             this.Controls.Add(this.textCERange);
             this.Controls.Add(this.label5);
             this.Controls.Add(this.label6);
-            this.Controls.Add(this.comboDeconv);
             this.Controls.Add(this.comboWindowType);
             this.Controls.Add(this.labelWindowType);
-            this.Controls.Add(this.textWindowsPerScan);
-            this.Controls.Add(this.labelWindowsPerScan);
             this.Controls.Add(this.labelWindowCount);
             this.Controls.Add(this.cbOptimizeWindowPlacement);
-            this.Controls.Add(this.label8);
             this.Controls.Add(this.textMargin);
             this.Controls.Add(this.label4);
             this.Controls.Add(this.textWidth);
@@ -208,6 +176,7 @@
             this.MinimizeBox = false;
             this.Name = "CalculateIsolationSchemeDlg";
             this.ShowInTaskbar = false;
+            ((System.ComponentModel.ISupportInitialize)(this.modeUIHandler)).EndInit();
             this.ResumeLayout(false);
             this.PerformLayout();
 
@@ -225,14 +194,10 @@
         private System.Windows.Forms.Label label3;
         private System.Windows.Forms.Label label4;
         private System.Windows.Forms.TextBox textMargin;
-        private System.Windows.Forms.Label label8;
         private System.Windows.Forms.CheckBox cbOptimizeWindowPlacement;
         private System.Windows.Forms.Label labelWindowCount;
-        private System.Windows.Forms.TextBox textWindowsPerScan;
-        private System.Windows.Forms.Label labelWindowsPerScan;
         private System.Windows.Forms.Label labelWindowType;
         private System.Windows.Forms.ComboBox comboWindowType;
-        private System.Windows.Forms.ComboBox comboDeconv;
         private System.Windows.Forms.Label label6;
         private System.Windows.Forms.TextBox textCERange;
         private System.Windows.Forms.Label label5;

@@ -126,16 +126,6 @@ namespace pwiz.Skyline.Properties {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Isolation scheme is set to multiplexing but file does not appear to contain multiplexed acquisition data..
-        /// </summary>
-        public static string AbstractDemultiplexer_AnalyzeFile_Isolation_scheme_is_set_to_multiplexing_but_file_does_not_appear_to_contain_multiplexed_acquisition_data_ {
-            get {
-                return ResourceManager.GetString("AbstractDemultiplexer_AnalyzeFile_Isolation_scheme_is_set_to_multiplexing_but_fil" +
-                        "e_does_not_appear_to_contain_multiplexed_acquisition_data_", resourceCulture);
-            }
-        }
-        
-        /// <summary>
         ///   Looks up a localized string similar to Cannot save to {0}..
         /// </summary>
         public static string AbstractDiaExporter_Export_Cannot_save_to__0__ {
@@ -190,17 +180,6 @@ namespace pwiz.Skyline.Properties {
             get {
                 return ResourceManager.GetString("AbstractIsoWindowMapper_Add_The_isolation_width_for_a_scan_in_the_imported_file_c" +
                         "ould_not_be_determined_", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Tried to get a window mask for {0}, a spectrum with previously unobserved isolation windows. Demultiplexing requires a repeating cycle of isolation windows..
-        /// </summary>
-        public static string AbstractIsoWindowMapper_GetWindowMask_Tried_to_get_a_window_mask_for__0___a_spectrum_with_previously_unobserved_isolation_windows__Demultiplexing_requires_a_repeating_cycle_of_isolation_windows_ {
-            get {
-                return ResourceManager.GetString("AbstractIsoWindowMapper_GetWindowMask_Tried_to_get_a_window_mask_for__0___a_spect" +
-                        "rum_with_previously_unobserved_isolation_windows__Demultiplexing_requires_a_repe" +
-                        "ating_cycle_of_isolation_windows_", resourceCulture);
             }
         }
         
@@ -2967,15 +2946,6 @@ namespace pwiz.Skyline.Properties {
             get {
                 return ResourceManager.GetString("CalculateIsolationSchemeDlg_OkDialog_Window_width_must_be_less_than_or_equal_to_t" +
                         "he_isolation_range", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Odd numbered window widths are not supported for overlapped demultiplexing with optimized window placement selected..
-        /// </summary>
-        public static string CalculateIsolationSchemeDlg_OkDialog_Window_width_not_even {
-            get {
-                return ResourceManager.GetString("CalculateIsolationSchemeDlg_OkDialog_Window_width_not_even", resourceCulture);
             }
         }
         
@@ -7803,15 +7773,6 @@ namespace pwiz.Skyline.Properties {
         public static string DeleteTransitions_MenuItemText_Delete_Transitions___ {
             get {
                 return ResourceManager.GetString("DeleteTransitions_MenuItemText_Delete_Transitions___", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to The Isolation Scheme in Full Scan Settings is Inconsistently Specified..
-        /// </summary>
-        public static string Demultiplexer_GetDeconvRegionsForMz_TheIsolationSchemeIsInconsistentlySpecified {
-            get {
-                return ResourceManager.GetString("Demultiplexer_GetDeconvRegionsForMz_TheIsolationSchemeIsInconsistentlySpecified", resourceCulture);
             }
         }
         
@@ -14336,7 +14297,7 @@ namespace pwiz.Skyline.Properties {
         ///
         ///Multipliers (e.g. the &quot;2&quot; in &quot;[2M+K]&quot;) and isotope labels (e.g. the &quot;2Cl37&quot; in &quot;[M2Cl37+H]&quot;) are supported.
         ///
-        ///Recognized adduct components  [rest of string was truncated]&quot;;.
+        ///Recognized adduct com [rest of string was truncated]&quot;;.
         /// </summary>
         public static string IonInfo_AdductTips_ {
             get {
@@ -14726,16 +14687,6 @@ namespace pwiz.Skyline.Properties {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Isolation scheme can specify multiplexed windows only for prespecified isolation windows.
-        /// </summary>
-        public static string IsolationScheme_DoValidate_Isolation_scheme_can_specify_multiplexed_windows_only_for_prespecified_isolation_windows {
-            get {
-                return ResourceManager.GetString("IsolationScheme_DoValidate_Isolation_scheme_can_specify_multiplexed_windows_only_" +
-                        "for_prespecified_isolation_windows", resourceCulture);
-            }
-        }
-        
-        /// <summary>
         ///   Looks up a localized string similar to Isolation scheme cannot have a filter and a prespecifed isolation window.
         /// </summary>
         public static string IsolationScheme_DoValidate_Isolation_scheme_cannot_have_a_filter_and_a_prespecifed_isolation_window {
@@ -14766,32 +14717,12 @@ namespace pwiz.Skyline.Properties {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Multiplexed windows require at least one window per scan.
-        /// </summary>
-        public static string IsolationScheme_DoValidate_Multiplexed_windows_require_at_least_one_window_per_scan {
-            get {
-                return ResourceManager.GetString("IsolationScheme_DoValidate_Multiplexed_windows_require_at_least_one_window_per_sc" +
-                        "an", resourceCulture);
-            }
-        }
-        
-        /// <summary>
         ///   Looks up a localized string similar to Special handling applies only to prespecified isolation windows.
         /// </summary>
         public static string IsolationScheme_DoValidate_Special_handling_applies_only_to_prespecified_isolation_windows {
             get {
                 return ResourceManager.GetString("IsolationScheme_DoValidate_Special_handling_applies_only_to_prespecified_isolatio" +
                         "n_windows", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to The number of prespecified isolation windows must be a multiple of the windows per scan in multiplexed sampling..
-        /// </summary>
-        public static string IsolationScheme_DoValidate_The_number_of_prespecified_isolation_windows_must_be_a_multiple_of_the_windows_per_scan_in_multiplexed_sampling {
-            get {
-                return ResourceManager.GetString("IsolationScheme_DoValidate_The_number_of_prespecified_isolation_windows_must_be_a" +
-                        "_multiple_of_the_windows_per_scan_in_multiplexed_sampling", resourceCulture);
             }
         }
         
@@ -14810,16 +14741,6 @@ namespace pwiz.Skyline.Properties {
         public static string IsolationScheme_DoValidate_Unexpected_name___0___for__1__isolation_scheme {
             get {
                 return ResourceManager.GetString("IsolationScheme_DoValidate_Unexpected_name___0___for__1__isolation_scheme", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Windows per scan requires multiplexed isolation windows.
-        /// </summary>
-        public static string IsolationScheme_DoValidate_Windows_per_scan_requires_multiplexed_isolation_windows {
-            get {
-                return ResourceManager.GetString("IsolationScheme_DoValidate_Windows_per_scan_requires_multiplexed_isolation_window" +
-                        "s", resourceCulture);
             }
         }
         
@@ -17645,15 +17566,6 @@ namespace pwiz.Skyline.Properties {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to MS/MS scan index {0} not found.
-        /// </summary>
-        public static string MsxDemultiplexer_FindStartStop_MsxDemultiplexer_MS_MS_index__0__not_found {
-            get {
-                return ResourceManager.GetString("MsxDemultiplexer_FindStartStop_MsxDemultiplexer_MS_MS_index__0__not_found", resourceCulture);
-            }
-        }
-        
-        /// <summary>
         ///   Looks up a localized string similar to Downloading {0}.
         /// </summary>
         public static string MultiFileAsynchronousDownloadClient_DownloadFileAsync_Downloading__0 {
@@ -18516,16 +18428,6 @@ namespace pwiz.Skyline.Properties {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Missing scan time value on scan {0}. Scan times are required for overlap-based demultiplexing..
-        /// </summary>
-        public static string OverlapDeconvSolverHandler_BuildDeconvBlock_Missing_scan_time_value_on_scan__0___Scan_times_are_required_for_overlap_based_demultiplexing_ {
-            get {
-                return ResourceManager.GetString("OverlapDeconvSolverHandler_BuildDeconvBlock_Missing_scan_time_value_on_scan__0___" +
-                        "Scan_times_are_required_for_overlap_based_demultiplexing_", resourceCulture);
-            }
-        }
-        
-        /// <summary>
         ///   Looks up a localized string similar to Overlap deconvolution window scheme is rank deficient at scan {2}. Rank is {0} while matrix has dimension {1}. A non-degenerate overlapping window scheme is required..
         /// </summary>
         public static string OverlapDeconvSolverHandler_BuildDeconvBlock_Overlap_deconvolution_window_scheme_is_rank_deficient_at_scan__2___Rank_is__0__while_matrix_has_dimension__1____A_non_degenerate_overlapping_window_scheme_is_required_ {
@@ -18533,56 +18435,6 @@ namespace pwiz.Skyline.Properties {
                 return ResourceManager.GetString("OverlapDeconvSolverHandler_BuildDeconvBlock_Overlap_deconvolution_window_scheme_i" +
                         "s_rank_deficient_at_scan__2___Rank_is__0__while_matrix_has_dimension__1____A_non" +
                         "_degenerate_overlapping_window_scheme_is_required_", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Attempt to insert slice of deconvolution matrix failed due to out of range error..
-        /// </summary>
-        public static string OverlapDemultiplexer_attempt_to_insert_slice_of_deconvolution_matrix_failed_out_of_range {
-            get {
-                return ResourceManager.GetString("OverlapDemultiplexer_attempt_to_insert_slice_of_deconvolution_matrix_failed_out_o" +
-                        "f_range", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Attempt to take slice of deconvolution matrix failed due to out of range error..
-        /// </summary>
-        public static string OverlapDemultiplexer_attempt_to_take_slice_of_deconvolution_matrix_failed_out_of_range {
-            get {
-                return ResourceManager.GetString("OverlapDemultiplexer_attempt_to_take_slice_of_deconvolution_matrix_failed_out_of_" +
-                        "range", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to OverlapDemultiplexer:InitializeFile Improperly-formed overlap multiplexing file.
-        /// </summary>
-        public static string OverlapDemultiplexer_InitializeFile_OverlapDemultiplexer_InitializeFile_Improperly_formed_overlap_multiplexing_file {
-            get {
-                return ResourceManager.GetString("OverlapDemultiplexer_InitializeFile_OverlapDemultiplexer_InitializeFile_Improperl" +
-                        "y_formed_overlap_multiplexing_file", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Number of regions {0} in overlap demultiplexer approximation must be less than number of scans {1}..
-        /// </summary>
-        public static string OverlapDemultiplexer_RowStart_Number_of_regions__0__in_overlap_demultiplexer_approximation_must_be_less_than_number_of_scans__1__ {
-            get {
-                return ResourceManager.GetString("OverlapDemultiplexer_RowStart_Number_of_regions__0__in_overlap_demultiplexer_appr" +
-                        "oximation_must_be_less_than_number_of_scans__1__", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to The overlapiIsolation window scheme is missing some contiguous isolation windows..
-        /// </summary>
-        public static string OverlapDemultiplexer_the_isolation_window_overlap_scheme_does_not_cover_all_isolation_windows {
-            get {
-                return ResourceManager.GetString("OverlapDemultiplexer_the_isolation_window_overlap_scheme_does_not_cover_all_isola" +
-                        "tion_windows", resourceCulture);
             }
         }
         
@@ -18859,7 +18711,7 @@ namespace pwiz.Skyline.Properties {
         ///    
         ///Note that you can adjust column order in Skyline by dragging the column headers left or right.  For molecules, you can also select which columns to enable with the &quot;Columns...&quot; button.
         ///
-        ///Most peptide transition lists can be imported with the &quot;File|Import|Transition List...&quot; menu item or even pasted directly into the Targets window. You can also do this with molecule transit [rest of string was truncated]&quot;;.
+        ///Most peptide transition lists can be imported with the &quot;File|Import|Transition List...&quot; menu item or even pasted directly into the Targets window. You can also do this with molecule tra [rest of string was truncated]&quot;;.
         /// </summary>
         public static string PasteDlg_btnTransitionListHelp_Click_SmallMol_ {
             get {
@@ -25147,6 +24999,17 @@ namespace pwiz.Skyline.Properties {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to The demultiplexing option &apos;{0}&apos; is no longer supported by Skyline.
+        ///If your data needs to be demultiplexed, it is recommended that you use the Demultiplex filter in ProteoWizard MSConvert to create a demultiplexed .mzML file.
+        ///In order to open this document, Skyline will change the demultiplexing option in this document to &apos;None&apos;..
+        /// </summary>
+        public static string SkylineWindow_HandleObsoleteSettings_UnsupportedDemultiplex {
+            get {
+                return ResourceManager.GetString("SkylineWindow_HandleObsoleteSettings_UnsupportedDemultiplex", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Import Annotations.
         /// </summary>
         public static string SkylineWindow_ImportAnnotations_Import_Annotations {
@@ -30428,16 +30291,6 @@ namespace pwiz.Skyline.Properties {
             get {
                 return ResourceManager.GetString("TransitionSettings_DoValidate_High_resolution_MS1_filtering_requires_use_of_monoi" +
                         "sotopic_precursor_masses", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to The instrument&apos;s firmware inclusion limit must be specified before doing a multiplexed DIA scan..
-        /// </summary>
-        public static string TransitionSettings_DoValidate_The_instrument_s_firmware_inclusion_limit_must_be_specified_before_doing_a_multiplexed_DIA_scan {
-            get {
-                return ResourceManager.GetString("TransitionSettings_DoValidate_The_instrument_s_firmware_inclusion_limit_must_be_s" +
-                        "pecified_before_doing_a_multiplexed_DIA_scan", resourceCulture);
             }
         }
         

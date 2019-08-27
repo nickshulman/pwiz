@@ -78,7 +78,6 @@ namespace pwiz.SkylineTestFunctional
                 _calcDlg.Start = 100;
                 _calcDlg.End = 101;
                 _calcDlg.WindowWidth = 1;
-                _calcDlg.Deconvolution = EditIsolationSchemeDlg.DeconvolutionMethod.NONE;
                 _calcDlg.MarginLeft = 1951;
             },
             Resources.MessageBoxHelper_ValidateDecimalTextBox__0__must_be_less_than_or_equal_to__1__, 2);
@@ -93,19 +92,6 @@ namespace pwiz.SkylineTestFunctional
                     _calcDlg.MarginLeft = null;
                 },
                 100, 101);
-
-            // Two simple windows with overlap.
-            CheckWindows(() =>
-                {
-                    _calcDlg.Start = 100;
-                    _calcDlg.End = 101;
-                    _calcDlg.WindowWidth = 1;
-                    _calcDlg.Deconvolution = EditIsolationSchemeDlg.DeconvolutionMethod.OVERLAP;
-                },
-                100, 101,
-                101, 102,
-                99.5, 100.5,
-                100.5, 101.5);
 
             // One max-range window.
             CheckWindows(() =>
@@ -162,95 +148,6 @@ namespace pwiz.SkylineTestFunctional
                 },
                 55, 1901.1140, 5);
 
-            // Overlap without window optimization. Even window width
-            CheckWindows(() =>
-                {
-                    _calcDlg.WindowType = EditIsolationSchemeDlg.WindowType.MEASUREMENT;
-                    _calcDlg.Start = 495;
-                    _calcDlg.End = 545;
-                    _calcDlg.WindowWidth = 20;
-                    _calcDlg.Deconvolution = EditIsolationSchemeDlg.DeconvolutionMethod.OVERLAP;
-                    _calcDlg.OptimizeWindowPlacement = false;
-                },
-                495, 515,
-                515, 535,
-                535, 555,
-                485, 505,
-                505, 525,
-                525, 545);
-
-            // Overlap with window optimization. Even window width.
-            CheckWindows(() =>
-                {
-                    _calcDlg.WindowType = EditIsolationSchemeDlg.WindowType.MEASUREMENT;
-                    _calcDlg.Start = 495;
-                    _calcDlg.End = 545;
-                    _calcDlg.WindowWidth = 20;
-                    _calcDlg.Deconvolution = EditIsolationSchemeDlg.DeconvolutionMethod.OVERLAP;
-                    _calcDlg.OptimizeWindowPlacement = true;
-                },
-                495.4751, 515.4842,
-                515.4842, 535.4933,
-                535.4933, 555.5024,
-                485.4706, 505.4796,
-                505.4796, 525.4887,
-                525.4887, 545.4978);
-
-            // Overlap without window optimization. Even window width. Overlap range not divisble by overlap width.
-            CheckWindows(() =>
-                {
-                    _calcDlg.WindowType = EditIsolationSchemeDlg.WindowType.MEASUREMENT;
-                    _calcDlg.Start = 495;
-                    _calcDlg.End = 546;
-                    _calcDlg.WindowWidth = 20;
-                    _calcDlg.Deconvolution = EditIsolationSchemeDlg.DeconvolutionMethod.OVERLAP;
-                    _calcDlg.OptimizeWindowPlacement = false;
-                },
-                495, 515,
-                515, 535,
-                535, 555,
-                555, 575,
-                485, 505,
-                505, 525,
-                525, 545,
-                545, 565);
-
-            // Overlap with window optimization. Even window width. Overlap range not divisble by overlap width.
-            CheckWindows(() =>
-                {
-                    _calcDlg.WindowType = EditIsolationSchemeDlg.WindowType.MEASUREMENT;
-                    _calcDlg.Start = 495;
-                    _calcDlg.End = 546;
-                    _calcDlg.WindowWidth = 20;
-                    _calcDlg.Deconvolution = EditIsolationSchemeDlg.DeconvolutionMethod.OVERLAP;
-                    _calcDlg.OptimizeWindowPlacement = true;
-                },
-                495.4751, 515.4842,
-                515.4842, 535.4933,
-                535.4933, 555.5024,
-                555.5024, 575.5115,
-                485.4706, 505.4796,
-                505.4796, 525.4887,
-                525.4887, 545.4978,
-                545.4978, 565.5069);
-
-            // Overlap without window optimization. Odd window width.
-            CheckWindows(() =>
-                {
-                    _calcDlg.WindowType = EditIsolationSchemeDlg.WindowType.MEASUREMENT;
-                    _calcDlg.Start = 495;
-                    _calcDlg.End = 501;
-                    _calcDlg.WindowWidth = 3;
-                    _calcDlg.Deconvolution = EditIsolationSchemeDlg.DeconvolutionMethod.OVERLAP;
-                    _calcDlg.OptimizeWindowPlacement = false;
-                },
-                495.0, 498.0,
-                498.0, 501.0,
-                501.0, 504.0,
-                493.5, 496.5,
-                496.5, 499.5,
-                499.5, 502.5);
-
             // Four windows that fit exactly.
             CheckWindows(() =>
                 {
@@ -303,21 +200,6 @@ namespace pwiz.SkylineTestFunctional
                 });
             OkDialog(_calcDlg, _calcDlg.CancelButton.PerformClick);
             _calcDlg = ShowDialog<CalculateIsolationSchemeDlg>(_editDlg.Calculate);
-            // More than max number of windows.
-            RunUI(() =>
-            {
-                _calcDlg.WindowType = EditIsolationSchemeDlg.WindowType.MEASUREMENT;
-                _calcDlg.Start = 495;
-                _calcDlg.End = 501;
-                _calcDlg.WindowWidth = 3;
-                _calcDlg.Deconvolution = EditIsolationSchemeDlg.DeconvolutionMethod.OVERLAP;
-                _calcDlg.OptimizeWindowPlacement = true;
-            });
-            RunDlg<MessageDlg>(_calcDlg.OkDialog, messageDlg =>
-            {
-                AssertEx.AreComparableStrings(Resources.CalculateIsolationSchemeDlg_OkDialog_Window_width_not_even, messageDlg.Message);
-                messageDlg.OkDialog();
-            });
 
             // Cancel all dialogs to conclude test.
             OkDialog(_calcDlg, _calcDlg.CancelButton.PerformClick);

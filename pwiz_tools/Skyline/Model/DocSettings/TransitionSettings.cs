@@ -2276,6 +2276,11 @@ namespace pwiz.Skyline.Model.DocSettings
         [TrackChildren]
         public IsolationScheme IsolationScheme { get; private set; }
 
+        public TransitionFullScan ChangeIsolationScheme(IsolationScheme isolationScheme)
+        {
+            return ChangeProp(ImClone(this), im => im.IsolationScheme = isolationScheme);
+        }
+
         public double? PrecursorFilter
         {
             get { return IsolationScheme == null ? null : IsolationScheme.PrecursorFilter; }

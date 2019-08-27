@@ -398,7 +398,9 @@ namespace pwiz.Skyline
 
         private SrmDocument ConnectDocument(IWin32Window parent, SrmDocument document, string path)
         {
-            document = ConnectLibrarySpecs(parent, document, path);
+            document = HandleObsoleteSettings(parent, document);
+            if (document != null)
+                document = ConnectLibrarySpecs(parent, document, path);
             if (document != null)
                 document = ConnectBackgroundProteome(parent, document, path);
             if (document != null)
@@ -407,6 +409,33 @@ namespace pwiz.Skyline
                 document = ConnectOptimizationDatabase(parent, document, path);
             if (document != null)
                 document = ConnectIonMobilityLibrary(parent, document, path);
+            return document;
+        }
+
+        private SrmDocument HandleObsoleteSettings(IWin32Window parent, SrmDocument document)
+        {
+            var specialHandling = document.Settings.TransitionSettings.FullScan.IsolationScheme?.SpecialHandling;
+            if (specialHandling == IsolationScheme.SpecialHandlingType.MULTIPLEXED
+                || specialHandling == IsolationScheme.SpecialHandlingType.OVERLAP
+                || specialHandling == IsolationScheme.SpecialHandlingType.OVERLAP_MULTIPLEXED
+                || specialHandling == IsolationScheme.SpecialHandlingType.FAST_OVERLAP)
+            {
+                var message = string.Format(Resources.SkylineWindow_HandleObsoleteSettings_UnsupportedDemultiplex, specialHandling);
+                var response = MultiButtonMsgDlg.Show(parent, message, MultiButtonMsgDlg.BUTTON_OK);
+                if (response == DialogResult.Cancel)
+                {
+                    return null;
+                }
+
+                var fullScan = document.Settings.TransitionSettings.FullScan;
+                var newIsolationScheme = fullScan.IsolationScheme
+                    .ChangeSpecialHandling(IsolationScheme.SpecialHandlingType.NONE);
+
+                document = document.ChangeSettings(document.Settings.ChangeTransitionSettings(
+                    document.Settings.TransitionSettings.ChangeFullScan(
+                        document.Settings.TransitionSettings.FullScan.ChangeIsolationScheme(newIsolationScheme))));
+            }
+
             return document;
         }
 

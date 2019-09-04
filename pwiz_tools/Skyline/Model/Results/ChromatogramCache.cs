@@ -294,6 +294,7 @@ namespace pwiz.Skyline.Model.Results
         {
             return new ChromatogramGroupInfo(chromGroupHeaderInfo,
                                              _scoreTypeIndices,
+                                             _textIdBytes,
                                              _cachedFiles,
                                              _chromTransitions,
                                              _chromatogramPeaks,
@@ -645,6 +646,7 @@ namespace pwiz.Skyline.Model.Results
                 // ReSharper restore LocalizableElement
             var psi = new ProcessStartInfo
             {
+                // ReSharper disable once PossibleNullReferenceException
                 FileName = Process.GetCurrentProcess().MainModule.FileName,
                 Arguments = argsText,
                 UseShellExecute = false,

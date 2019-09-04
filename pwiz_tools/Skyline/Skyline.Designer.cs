@@ -121,6 +121,7 @@ namespace pwiz.Skyline
             this.toolStripSeparatorTran = new System.Windows.Forms.ToolStripSeparator();
             this.basePeakContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.ticContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.qcContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.xCorrContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.toolStripSeparatorOnlyQuantitative = new System.Windows.Forms.ToolStripSeparator();
             this.onlyQuantitativeContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
@@ -435,6 +436,7 @@ namespace pwiz.Skyline
             this.toolStripSeparatorTranMain = new System.Windows.Forms.ToolStripSeparator();
             this.basePeakMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.ticMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.qcMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.xCorrMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.toolStripSeparator56 = new System.Windows.Forms.ToolStripSeparator();
             this.onlyQuantitativeMenuItem = new System.Windows.Forms.ToolStripMenuItem();
@@ -1140,6 +1142,7 @@ namespace pwiz.Skyline
             this.toolStripSeparatorTran,
             this.basePeakContextMenuItem,
             this.ticContextMenuItem,
+            this.qcContextMenuItem,
             this.xCorrContextMenuItem,
             this.toolStripSeparatorOnlyQuantitative,
             this.onlyQuantitativeContextMenuItem,
@@ -1195,6 +1198,11 @@ namespace pwiz.Skyline
             this.ticContextMenuItem.Name = "ticContextMenuItem";
             resources.ApplyResources(this.ticContextMenuItem, "ticContextMenuItem");
             this.ticContextMenuItem.Click += new System.EventHandler(this.ticMenuItem_Click);
+            // 
+            // qcContextMenuItem
+            // 
+            this.qcContextMenuItem.Name = "qcContextMenuItem";
+            resources.ApplyResources(this.qcContextMenuItem, "qcContextMenuItem");
             // 
             // xCorrContextMenuItem
             // 
@@ -3388,6 +3396,7 @@ namespace pwiz.Skyline
             this.toolStripSeparatorTranMain,
             this.basePeakMenuItem,
             this.ticMenuItem,
+            this.qcMenuItem,
             this.xCorrMenuItem,
             this.toolStripSeparator56,
             this.onlyQuantitativeMenuItem,
@@ -3443,6 +3452,11 @@ namespace pwiz.Skyline
             this.ticMenuItem.Name = "ticMenuItem";
             resources.ApplyResources(this.ticMenuItem, "ticMenuItem");
             this.ticMenuItem.Click += new System.EventHandler(this.ticMenuItem_Click);
+            // 
+            // qcMenuItem
+            // 
+            this.qcMenuItem.Name = "qcMenuItem";
+            resources.ApplyResources(this.qcMenuItem, "qcMenuItem");
             // 
             // xCorrMenuItem
             // 
@@ -4600,9 +4614,11 @@ namespace pwiz.Skyline
         private System.Windows.Forms.ToolStripSeparator toolStripSeparatorTran;
         private System.Windows.Forms.ToolStripMenuItem basePeakContextMenuItem;
         private System.Windows.Forms.ToolStripMenuItem ticContextMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem qcContextMenuItem;
         private System.Windows.Forms.ToolStripSeparator toolStripSeparatorTranMain;
         private System.Windows.Forms.ToolStripMenuItem basePeakMenuItem;
         private System.Windows.Forms.ToolStripMenuItem ticMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem qcMenuItem;
         private System.Windows.Forms.ToolStripMenuItem idTimesNoneContextMenuItem;
         private System.Windows.Forms.ToolStripMenuItem idTimesMatchingContextMenuItem;
         private System.Windows.Forms.ToolStripMenuItem idTimesAlignedContextMenuItem;

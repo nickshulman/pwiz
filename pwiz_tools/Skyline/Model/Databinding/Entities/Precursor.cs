@@ -537,6 +537,11 @@ namespace pwiz.Skyline.Model.Databinding.Entities
             get { return PrecursorRef.PROTOTYPE; }
         }
 
+        protected override Type SkylineDocNodeType
+        {
+            get { return typeof(Precursor); }
+        }
+
         [InvariantDisplayName("PrecursorMzDistribution")]
         [ChildDisplayName("Precursor{0}")]
         [Format(Formats.Mz)]

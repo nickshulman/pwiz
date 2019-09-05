@@ -25,6 +25,7 @@ using System.Linq;
 using System.Net;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using pwiz.Common.SystemUtil;
+using pwiz.Skyline;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
 
@@ -45,7 +46,7 @@ namespace pwiz.SkylineTestUtil
         private static readonly Stopwatch STOPWATCH = new Stopwatch();
 
         // NB this text needs to agree with that in UpdateRun() in pwiz_tools\Skyline\SkylineTester\TabQuality.cs
-        public const string MSG_SKIPPING_SMALLMOLECULE_TEST_VERSION = " (RunSmallMoleculeTestVersions=False, skipping.) "; // Not L10N
+        public const string MSG_SKIPPING_SMALLMOLECULE_TEST_VERSION = " (RunSmallMoleculeTestVersions=False, skipping.) ";
 
 // ReSharper disable UnusedAutoPropertyAccessor.Global
 // ReSharper disable MemberCanBeProtected.Global
@@ -66,11 +67,18 @@ namespace pwiz.SkylineTestUtil
         }
 
         /// <summary>
+        /// Determines whether or not to (re)record audit logs for tests.
+        /// </summary>
+        protected bool RecordAuditLogs
+        {
+            get { return GetBoolValue("RecordAuditLogs", false); }  // Return false if unspecified
+            set { TestContext.Properties["RecordAuditLogs"] = value ? "true" : "false"; }
+        }
+
+        /// <summary>
         /// This controls whether we run the various tests that are small molecule versions of our standard tests,
         /// for example DocumentExportImportTestAsSmallMolecules().  Such tests convert the entire document to small
         /// molecule representations before proceeding.
-        /// Not to be confused with the "TestSmallMolecules"
-        /// propery below, which just adds an extra small molecule node to all tests and leaves them otherwise unchanged.
         /// Developers that want to see such tests execute within the IDE can add their machine name to the SmallMoleculeDevelopers
         /// list below (partial matches suffice, so name carefully!)
         /// </summary>
@@ -79,24 +87,6 @@ namespace pwiz.SkylineTestUtil
         {
             get { return GetBoolValue("RunSmallMoleculeTestVersions", false) || SmallMoleculeDevelopers.Any(smd => Environment.MachineName.Contains(smd)); }
             set { TestContext.Properties["RunSmallMoleculeTestVersions"] = value ? "true" : "false"; }
-        }
-
-        /// <summary>
-        /// Determines whether or not to add a special small molecule node to each document for test purposes.  Not commonly used.
-        /// See RunSmallMoleculeTestVersions above.
-        /// </summary>
-        private bool? _testSmallMolecules;
-        public bool TestSmallMolecules
-        {
-            get
-            {
-                return _testSmallMolecules ?? false;
-            }
-            set
-            {
-                // Communicate this value to Skyline via Settings.Default
-                Settings.Default.TestSmallMolecules = (_testSmallMolecules = value).Value;
-            }
         }
 
         /// <summary>
@@ -122,7 +112,9 @@ namespace pwiz.SkylineTestUtil
         {
             get
             {
-                Assert.AreEqual(1, _testFilesZips.Length, "Attempt to use TestFilesZip on test with multiple ZIP files.\nUse TestFilesZipPaths instead."); // Not L10N
+                // ReSharper disable LocalizableElement
+                Assert.AreEqual(1, _testFilesZips.Length, "Attempt to use TestFilesZip on test with multiple ZIP files.\nUse TestFilesZipPaths instead.");
+                // ReSharper restore LocalizableElement
                 return _testFilesZips[0];
             }
             set { TestFilesZipPaths = new[] { value }; }
@@ -156,12 +148,12 @@ namespace pwiz.SkylineTestUtil
                     var zipPath = zipPaths[i];
                     // If the file is on the web, save it to the local disk in the developer's
                     // Downloads folder for future use
-                    if (zipPath.Substring(0, 8).ToLower().Equals("https://") || zipPath.Substring(0, 7).ToLower().Equals("http://")) // Not L10N
+                    if (zipPath.Substring(0, 8).ToLower().Equals(@"https://") || zipPath.Substring(0, 7).ToLower().Equals(@"http://"))
                     {
                         string downloadsFolder = PathEx.GetDownloadsPath();
                         string urlFolder = zipPath.Split('/')[zipPath.Split('/').Length - 2]; // usually "tutorial" or "PerfTest"
                         string targetFolder = Path.Combine(downloadsFolder, char.ToUpper(urlFolder[0]) + urlFolder.Substring(1)); // "tutorial"->"Tutorial"
-                        string fileName = zipPath.Substring(zipPath.LastIndexOf('/') + 1); // Not L10N
+                        string fileName = zipPath.Substring(zipPath.LastIndexOf('/') + 1);
                         string zipFilePath = Path.Combine(targetFolder, fileName);
                         if (!File.Exists(zipFilePath) &&
                            (!IsPerfTest || RunPerfTests)) // If this is a perf test, skip download unless perf tests are enabled
@@ -196,12 +188,40 @@ namespace pwiz.SkylineTestUtil
         {
             get
             {
-                Assert.AreEqual(1, TestFilesDirs.Length, "Attempt to use TestFilesDir on test with multiple directories.\nUse TestFilesDirs instead."); // Not L10N
+                // ReSharper disable LocalizableElement
+                Assert.AreEqual(1, TestFilesDirs.Length, "Attempt to use TestFilesDir on test with multiple directories.\nUse TestFilesDirs instead.");
+                // ReSharper restore LocalizableElement
                 return TestFilesDirs[0];
             }
             set { TestFilesDirs = new[] { value }; }
         }
         public TestFilesDir[] TestFilesDirs { get; set; }
+
+        public static int CountInstances(string search, string searchSpace)
+        {
+            if (search.Length == 0)
+                return 0;
+
+            int count = 0;
+            for (int lastIndex = searchSpace.IndexOf(search, StringComparison.Ordinal);
+                lastIndex != -1;
+                lastIndex = searchSpace.IndexOf(search, lastIndex + 1, StringComparison.Ordinal))
+            {
+                count++;
+            }
+
+            return count;
+        }
+
+        public static int CountErrors(string searchSpace, bool allowUnlocalized = false)
+        {
+            const string enError = "Error";
+            string localError = Resources.CommandLineTest_ConsoleAddFastaTest_Error;
+            int count = CountInstances(localError, searchSpace);
+            if (allowUnlocalized && !Equals(localError, enError))
+                count += CountInstances(enError, searchSpace);
+            return count;
+        }
 
         /// <summary>
         /// Called by the unit test framework when a test begins.
@@ -209,6 +229,9 @@ namespace pwiz.SkylineTestUtil
         [TestInitialize]
         public void MyTestInitialize()
         {
+
+            Program.UnitTest = true;
+
             // Stop profiler if we are profiling.  The unit test will start profiling explicitly when it wants to.
             DotTraceProfile.Stop(true);
 
@@ -218,8 +241,6 @@ namespace pwiz.SkylineTestUtil
 //            log.Info(TestContext.TestName + " started");
 
             Settings.Init();
-
-            TestSmallMolecules = GetBoolValue("TestSmallMolecules", false);
 
             STOPWATCH.Restart();
             Initialize();

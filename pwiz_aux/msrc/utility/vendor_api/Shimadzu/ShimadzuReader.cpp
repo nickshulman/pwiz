@@ -64,8 +64,8 @@ class MRMChromatogramImpl : public SRMChromatogram
 
     virtual const SRMTransition& getTransition() const { return transition_; }
     virtual int getTotalDataPoints() const { try { return chromatogram_->NumDataPoints; } CATCH_AND_FORWARD }
-    virtual void getXArray(std::vector<double>& x) const { try { ToStdVector(chromatogram_->Times, x); } CATCH_AND_FORWARD }
-    virtual void getYArray(std::vector<double>& y) const { try { ToStdVector(chromatogram_->Intensities, y); } CATCH_AND_FORWARD }
+    virtual void getXArray(pwiz::util::BinaryData<double>& x) const { try { ToBinaryData<double>(chromatogram_->Times, x); } CATCH_AND_FORWARD }
+    virtual void getYArray(pwiz::util::BinaryData<double>& y) const { try { ToBinaryData<double>(chromatogram_->Intensities, y); } CATCH_AND_FORWARD }
 
     private:
     SRMTransition transition_;
@@ -82,7 +82,7 @@ class TOFChromatogramImpl : public SRMChromatogram
 
     virtual const SRMTransition& getTransition() const { return transition_; }
     virtual int getTotalDataPoints() const { try { return (int) chromatogram_->TotalPoints; } CATCH_AND_FORWARD }
-    virtual void getXArray(std::vector<double>& x) const
+    virtual void getXArray(pwiz::util::BinaryData<double>& x) const
     {
         try
         {
@@ -93,7 +93,7 @@ class TOFChromatogramImpl : public SRMChromatogram
         } CATCH_AND_FORWARD
     }
 
-    virtual void getYArray(std::vector<double>& y) const
+    virtual void getYArray(pwiz::util::BinaryData<double>& y) const
     {
         try
         {
@@ -116,19 +116,19 @@ class TICChromatogramImpl : public Chromatogram
     TICChromatogramImpl(const ShimadzuReaderImpl& reader, DataObject^ dataObject);
 
     virtual int getTotalDataPoints() const { try { return (int) x_.size(); } CATCH_AND_FORWARD }
-    virtual void getXArray(std::vector<double>& x) const
+    virtual void getXArray(pwiz::util::BinaryData<double>& x) const
     {
         x = x_;
     }
 
-    virtual void getYArray(std::vector<double>& y) const
+    virtual void getYArray(pwiz::util::BinaryData<double>& y) const
     {
         y = y_;
     }
 
     private:
-    std::vector<double> x_;
-    std::vector<double> y_;
+    pwiz::util::BinaryData<double> x_;
+    pwiz::util::BinaryData<double> y_;
 };
 
 
@@ -172,7 +172,7 @@ public:
     }
 
     virtual int getTotalDataPoints(bool doCentroid) const { try { return doCentroid ? spectrum_->CentroidList->Count : spectrum_->ProfileList->Count; } CATCH_AND_FORWARD }
-    virtual void getProfileArrays(std::vector<double>& x, std::vector<double>& y) const
+    virtual void getProfileArrays(pwiz::util::BinaryData<double>& x, pwiz::util::BinaryData<double>& y) const
     {
         try
         {
@@ -188,7 +188,7 @@ public:
         } CATCH_AND_FORWARD
     }
 
-    virtual void getCentroidArrays(std::vector<double>& x, std::vector<double>& y) const
+    virtual void getCentroidArrays(pwiz::util::BinaryData<double>& x, pwiz::util::BinaryData<double>& y) const
     {
         try
         {
@@ -227,9 +227,12 @@ class ShimadzuReaderImpl : public ShimadzuReader
             // first try to open with MRM reader
             ReaderResult result = reader_->OpenDataFile(systemFilepath);
 
-            // if that fails, try to load data with QTOF reader
-            if (result != ReaderResult::OK)
+            // if that fails or if the file has no transitions, try to load data with QTOF reader
+            if (result != ReaderResult::OK || getTransitions().empty())
             {
+                if (result == ReaderResult::OK)
+                    reader_->CloseDataFile();
+
                 dataObject_ = gcnew DataObject();
                 auto result2 = dataObject_->IO->LoadData(systemFilepath);
                 if (ShimadzuUtil::Failed(result2))
@@ -300,7 +303,7 @@ class ShimadzuReaderImpl : public ShimadzuReader
                 scanCount_ = lastScanNumber;
 
                 ShimadzuGeneric::PrecursorResultData^ precursorResultData;
-                dataObject_->MS->Spectrum->GetPrecoursorList(nullptr, precursorResultData);
+                dataObject_->MS->Spectrum->GetPrecursorList(gcnew ShimadzuGeneric::DdaPrecursorFilter(), precursorResultData);
                 if (precursorResultData->SurveyList->Count > 0)
                     for each(auto dependent in precursorResultData->SurveyList[0]->DependentList)
                         for each(int scan in dependent->ScanNoList)
@@ -456,7 +459,9 @@ TICChromatogramImpl::TICChromatogramImpl(const ShimadzuReaderImpl& reader, DataO
         auto& eventNumbers = reader.eventNumbersBySegment_[i - 1];
         for (short eventNumber : eventNumbers)
         {
-            chromatogramMng->GetTICChromatogram(eventTIC, i, eventNumber);
+            auto result = chromatogramMng->GetTICChromatogram(eventTIC, i, eventNumber);
+            if (ShimadzuUtil::Failed(result))
+                throw runtime_error("failed to get TIC chromatogram for segment " + lexical_cast<string>(i) + ", event " + lexical_cast<string>(eventNumber));
             for (int j = 0, end = eventTIC->ChromIntList->Length; j < end; ++j)
             {
                 int rt = eventTIC->RetTimeList[j];

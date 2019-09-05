@@ -226,8 +226,8 @@ class SpectrumList_MGF_Filter : public SpectrumListWrapper
             if (result->getMZArray() && result->getIntensityArray())
             {
                 // take only the first 100 points (100k points in MGF is not fun)
-                vector<double>& mzArray = result->getMZArray()->data;
-                vector<double>& intensityArray = result->getIntensityArray()->data;
+                BinaryData<double>& mzArray = result->getMZArray()->data;
+                BinaryData<double>& intensityArray = result->getIntensityArray()->data;
                 if (result->defaultArrayLength > 100)
                 {
                     result->defaultArrayLength = 100;
@@ -260,6 +260,8 @@ void testRead(const Reader& reader, const string& rawpath, const bfs::path& pare
     for (size_t i=0; i < msdCount; ++i)
     {
         MSData& msd = *msds[i];
+        if (os_) (*os_) << "MzML serialization test of " << config.resultFilename(msd.run.id + ".mzML") << endl;
+
         calculateSourceFileChecksums(msd.fileDescription.sourceFilePtrs);
         mangleSourceFileLocations(sourceName, msd.fileDescription.sourceFilePtrs);
         manglePwizSoftware(msd);
@@ -286,20 +288,24 @@ void testRead(const Reader& reader, const string& rawpath, const bfs::path& pare
         boost::shared_ptr<std::iostream> serializedStreamPtr(stringstreamPtr);
 #ifndef WITHOUT_MZ5
         // mzML <-> mz5
-        string targetResultFilename_mz5 = bfs::change_extension(targetResultFilename, ".mz5").string();
+        if (findUnicodeBytes(rawpath) == rawpath.end())
         {
-            MSData msd_mz5;
-            Serializer_mz5 serializer_mz5;
-            serializer_mz5.write(targetResultFilename_mz5, msd);
-            serializer_mz5.read(targetResultFilename_mz5, msd_mz5);
+            if (os_) (*os_) << "MZ5 serialization test of " << config.resultFilename(msd.run.id + ".mzML") << endl;
+            string targetResultFilename_mz5 = bfs::change_extension(targetResultFilename, ".mz5").string();
+            {
+                MSData msd_mz5;
+                Serializer_mz5 serializer_mz5;
+                serializer_mz5.write(targetResultFilename_mz5, msd);
+                serializer_mz5.read(targetResultFilename_mz5, msd_mz5);
 
-            DiffConfig diffConfig_mz5;
-            diffConfig_mz5.ignoreExtraBinaryDataArrays = true;
-            Diff<MSData, DiffConfig> diff_mz5(msd, msd_mz5, diffConfig_mz5);
-            if (diff_mz5) cerr << headDiff(diff_mz5, 5000) << endl;
-            unit_assert(!diff_mz5);
+                DiffConfig diffConfig_mz5;
+                diffConfig_mz5.ignoreExtraBinaryDataArrays = true;
+                Diff<MSData, DiffConfig> diff_mz5(msd, msd_mz5, diffConfig_mz5);
+                if (diff_mz5) cerr << headDiff(diff_mz5, 5000) << endl;
+                unit_assert(!diff_mz5);
+            }
+            bfs::remove(targetResultFilename_mz5);
         }
-        bfs::remove(targetResultFilename_mz5);
 #endif
         DiffConfig diffConfig_non_mzML;
         diffConfig_non_mzML.ignoreMetadata = true;
@@ -361,7 +367,6 @@ void testRead(const Reader& reader, const string& rawpath, const bfs::path& pare
     }
 
     msds.clear();
-    msdCount = msds.size();
 
     // test reverse iteration of metadata on a fresh document;
     // this tests that caching optimization for forward iteration doesn't hide problems;
@@ -370,6 +375,7 @@ void testRead(const Reader& reader, const string& rawpath, const bfs::path& pare
     {
         MSData msd_reverse;
         reader.read(rawpath, rawheader, msd_reverse, i, readerConfig);
+        if (os_) (*os_) << "Reverse iteration test of " << config.resultFilename(msd_reverse.run.id + ".mzML") << endl;
 
         if (msd_reverse.run.spectrumListPtr.get())
             for (size_t j = 0, end = msd_reverse.run.spectrumListPtr->size(); j < end; ++j)
@@ -379,8 +385,6 @@ void testRead(const Reader& reader, const string& rawpath, const bfs::path& pare
             for (size_t j = 0, end = msd_reverse.run.chromatogramListPtr->size(); j < end; ++j)
                 msd_reverse.run.chromatogramListPtr->chromatogram(end - j - 1);
     }
-
-    msds.clear();
 
     // no unicode test for HTTP paths
     if (isHTTP(rawpath))
@@ -399,7 +403,7 @@ void testRead(const Reader& reader, const string& rawpath, const bfs::path& pare
     else
     {
         // special case for wiff files with accompanying .scan files
-        if (bal::iequals(rawpathPath.extension().string(), ".wiff"))
+        if (bal::iends_with(rawpath, ".wiff") || bal::iends_with(rawpath, ".wiff2"))
         {
             bfs::path wiffscanPath(rawpathPath);
             wiffscanPath.replace_extension(".wiff.scan");
@@ -432,6 +436,7 @@ void testRead(const Reader& reader, const string& rawpath, const bfs::path& pare
         for (size_t i = 0; i < msdCount; ++i)
         {
             MSData& msd = *msds[i];
+            if (os_) (*os_) << "Unicode support mzML serialization test of " << config.resultFilename(msd.run.id + ".mzML") << endl;
 
             calculateSourceFileChecksums(msd.fileDescription.sourceFilePtrs);
             mangleSourceFileLocations(sourceNameAsPath.string(), msd.fileDescription.sourceFilePtrs, newSourceName.string());
@@ -460,18 +465,21 @@ void testRead(const Reader& reader, const string& rawpath, const bfs::path& pare
             boost::shared_ptr<std::iostream> serializedStreamPtr(stringstreamPtr);
 #ifndef WITHOUT_MZ5
             // mzML <-> mz5
-            string targetResultFilename_mz5 = bfs::change_extension(targetResultFilename, ".mz5").string();
+            if (findUnicodeBytes(rawpath) == rawpath.end())
             {
-                MSData msd_mz5;
-                Serializer_mz5 serializer_mz5;
-                serializer_mz5.write(targetResultFilename_mz5, msd);
-                serializer_mz5.read(targetResultFilename_mz5, msd_mz5);
+                string targetResultFilename_mz5 = bfs::change_extension(targetResultFilename, ".mz5").string();
+                {
+                    MSData msd_mz5;
+                    Serializer_mz5 serializer_mz5;
+                    serializer_mz5.write(targetResultFilename_mz5, msd);
+                    serializer_mz5.read(targetResultFilename_mz5, msd_mz5);
 
-                Diff<MSData, DiffConfig> diff_mz5(msd, msd_mz5);
-                if (diff_mz5) cerr << headDiff(diff_mz5, 5000) << endl;
-                unit_assert(!diff_mz5);
+                    Diff<MSData, DiffConfig> diff_mz5(msd, msd_mz5);
+                    if (diff_mz5) cerr << headDiff(diff_mz5, 5000) << endl;
+                    unit_assert(!diff_mz5);
+                }
+                bfs::remove(targetResultFilename_mz5);
             }
-            bfs::remove(targetResultFilename_mz5);
 #endif
         }
     }
@@ -601,6 +609,7 @@ string ReaderTestConfig::resultFilename(const string& baseFilename) const
     if (ignoreZeroIntensityPoints) bal::replace_all(result, ".mzML", "-ignoreZeros.mzML");
     if (combineIonMobilitySpectra) bal::replace_all(result, ".mzML", "-combineIMS.mzML");
     if (preferOnlyMsLevel) bal::replace_all(result, ".mzML", "-ms" + lexical_cast<string>(preferOnlyMsLevel) + ".mzML");
+    if (!allowMsMsWithoutPrecursor) bal::replace_all(result, ".mzML", "-noMsMsWithoutPrecursor.mzML");
     if (peakPicking) bal::replace_all(result, ".mzML", "-centroid.mzML");
     return result;
 }
@@ -653,20 +662,20 @@ int testReader(const Reader& reader, const vector<string>& args, bool testAccept
         
         for (size_t i=0; i < testpaths.size(); ++i)
         {
+            ++totalTests;
             const string& rawpath = testpaths[i];
             const string& parentPath = parentPaths[i];
             if (generateMzML && !testAcceptOnly)
                 generate(reader, rawpath, parentPath, config);
             else
             {
-                ++totalTests;
                 try
                 {
                     test(reader, testAcceptOnly, requireUnicodeSupport, rawpath, parentPath, config);
                 }
                 catch (exception& e)
                 {
-                    cerr << "Error testing on " << rawpath << ": " << e.what() << endl;
+                    cerr << "Error testing on " << rawpath << " (" << config.resultFilename("config.mzML") << "): " << e.what() << endl;
                     ++failedTests;
                 }
 
@@ -685,15 +694,19 @@ int testReader(const Reader& reader, const vector<string>& args, bool testAccept
                     }
                     catch (...)
                     {
-                        //string foo;
-                        //cin >> foo;
-                        //throw runtime_error("Cannot rename " + rawpath + ": there are unreleased file locks!");
-                        cerr << "Cannot rename " << rawpath << ": there are unreleased file locks!" << endl;
+                        // HACK: bug in CompassXtract, used only for YEP/FID formats now, keeps directory locked after opening it but has no problem with re-opening the file
+                        if (bfs::exists(bfs::path(rawpath) / "Analysis.yep"))
+                            cerr << "Cannot rename " << rawpath << ": there are unreleased file locks!" << endl;
+                        else
+                            throw runtime_error("Cannot rename " + rawpath + ": there are unreleased file locks!");
                     }
                 }
             }
         }
     }
+
+    if (totalTests == 0)
+        throw runtime_error("no vendor test data found (try running without --incremental)");
 
     if (failedTests > 0)
         throw runtime_error("failed " + lexical_cast<string>(failedTests) + " of " + lexical_cast<string>(totalTests) + " tests");

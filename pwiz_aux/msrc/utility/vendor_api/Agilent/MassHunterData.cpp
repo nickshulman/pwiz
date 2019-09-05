@@ -29,7 +29,7 @@
 #include "pwiz/utility/misc/Filesystem.hpp"
 #include "MassHunterData.hpp"
 #include "MidacData.hpp"
-
+#include "pwiz/utility/minimxml/SAXParser.hpp"
 
 #pragma managed
 #include "pwiz/utility/misc/cpp_cli_utilities.hpp"
@@ -49,6 +49,71 @@ namespace Agilent {
 
 
 namespace {
+
+using namespace pwiz::minimxml;
+using boost::iostreams::stream_offset;
+using boost::iostreams::offset_to_position;
+
+struct Device
+{
+    int DeviceID;
+    string Name;
+    string DriverVersion;
+    string FirmwareVersion;
+    string ModelNumber;
+    string OrdinalNumber;
+    string SerialNumber;
+    string Type;
+    string StoredDataType;
+    string Delay;
+    string Vendor;
+};
+
+struct HandlerDevices : public SAXParser::Handler
+{
+    vector<Device> devices;
+    string* currentProperty;
+
+    HandlerDevices() : currentProperty(nullptr)
+    {
+        parseCharacters = true;
+    }
+
+    virtual Status startElement(const string& name, const Attributes& attributes, stream_offset position)
+    {
+        if (name == "Device")
+        {
+            devices.push_back(Device());
+            getAttribute(attributes, "DeviceID", devices.back().DeviceID);
+        }
+        else if (name == "Devices" || name == "Version") return Status::Ok;
+        else if (name == "Name") currentProperty = &devices.back().Name;
+        else if (name == "DriverVersion") currentProperty = &devices.back().DriverVersion;
+        else if (name == "FirmwareVersion") currentProperty = &devices.back().FirmwareVersion;
+        else if (name == "ModelNumber") currentProperty = &devices.back().ModelNumber;
+        else if (name == "OrdinalNumber") currentProperty = &devices.back().OrdinalNumber;
+        else if (name == "SerialNumber") currentProperty = &devices.back().SerialNumber;
+        else if (name == "Type") currentProperty = &devices.back().Type;
+        else if (name == "StoredDataType") currentProperty = &devices.back().StoredDataType;
+        else if (name == "Delay") currentProperty = &devices.back().Delay;
+        else if (name == "Vendor") currentProperty = &devices.back().Vendor;
+        else
+            throw runtime_error(("[HandlerDevices] Unexpected element name: " + name).c_str());
+
+        return Status::Ok;
+    }
+
+    virtual Status characters(const SAXParser::saxstring& text, stream_offset position)
+    {
+        if (currentProperty)
+        {
+            currentProperty->assign(text.c_str());
+            currentProperty = nullptr;
+        }
+
+        return Status::Ok;
+    }
+};
 
 MHDAC::IMsdrPeakFilter^ msdrPeakFilter(PeakFilterPtr peakFilter)
 {
@@ -95,7 +160,7 @@ class MassHunterDataImpl : public MassHunterData
 {
     public:
     MassHunterDataImpl(const std::string& path);
-    ~MassHunterDataImpl();
+    ~MassHunterDataImpl() noexcept(false);
 
     virtual std::string getVersion() const;
     virtual DeviceType getDeviceType() const;
@@ -196,8 +261,8 @@ struct SpectrumImpl : public Spectrum
     virtual void getPrecursorIons(vector<double>& precursorIons) const;
     virtual bool getPrecursorCharge(int& charge) const;
     virtual bool getPrecursorIntensity(double& precursorIntensity) const;
-    virtual void getXArray(std::vector<double>& x) const;
-    virtual void getYArray(std::vector<float>& y) const;
+    virtual void getXArray(pwiz::util::BinaryData<double>& x) const;
+    virtual void getYArray(pwiz::util::BinaryData<float>& y) const;
 
     private:
     gcroot<MHDAC::IBDASpecData^> specData_;
@@ -263,6 +328,8 @@ bool MassHunterData::hasIonMobilityData(const string& path)
 
 MassHunterDataImpl::MassHunterDataImpl(const std::string& path)
 {
+    massHunterRootPath_ = path;
+
     try
     {
         String^ filepath = ToSystemString(path);
@@ -376,7 +443,7 @@ MassHunterDataImpl::MassHunterDataImpl(const std::string& path)
     CATCH_AND_FORWARD
 }
 
-MassHunterDataImpl::~MassHunterDataImpl()
+MassHunterDataImpl::~MassHunterDataImpl() noexcept(false)
 {
     try {reader_->CloseDataFile();} CATCH_AND_FORWARD
 }
@@ -394,6 +461,27 @@ DeviceType MassHunterDataImpl::getDeviceType() const
 std::string MassHunterDataImpl::getDeviceName(DeviceType deviceType) const
 {
     try {return ToStdString(reader_->FileInformation->GetDeviceName((MHDAC::DeviceType) deviceType));} CATCH_AND_FORWARD
+}
+
+std::string MassHunterData::getDeviceSerialNumber(DeviceType deviceType) const
+{
+    bfs::path massHunterDevicesPath(massHunterRootPath_);
+    massHunterDevicesPath /= "AcqData/Devices.xml";
+    if (!bfs::exists(massHunterDevicesPath))
+        return "";
+
+    ifstream devicesXml(massHunterDevicesPath.string().c_str());
+    HandlerDevices handler;
+    SAXParser::parse(devicesXml, handler);
+
+    if (handler.devices.empty())
+        return "";
+
+    auto findItr = std::find_if(handler.devices.begin(), handler.devices.end(), [&](const Device& device) { return lexical_cast<int>(device.Type) == (int) deviceType; });
+    if (findItr == handler.devices.end())
+        return "";
+
+    return findItr->SerialNumber;
 }
 
 blt::local_date_time MassHunterDataImpl::getAcquisitionTime(bool adjustToHostTime) const
@@ -663,14 +751,14 @@ bool SpectrumImpl::getPrecursorIntensity(double& precursorIntensity) const
     try {return specData_->GetPrecursorIntensity(precursorIntensity);} CATCH_AND_FORWARD
 }
 
-void SpectrumImpl::getXArray(std::vector<double>& x) const
+void SpectrumImpl::getXArray(pwiz::util::BinaryData<double>& x) const
 {
-    try {return ToStdVector(specData_->XArray, x);} CATCH_AND_FORWARD
+    try {return ToBinaryData(specData_->XArray, x);} CATCH_AND_FORWARD
 }
 
-void SpectrumImpl::getYArray(std::vector<float>& y) const
+void SpectrumImpl::getYArray(pwiz::util::BinaryData<float>& y) const
 {
-    try {return ToStdVector(specData_->YArray, y);} CATCH_AND_FORWARD
+    try {return ToBinaryData(specData_->YArray, y);} CATCH_AND_FORWARD
 }
 
 

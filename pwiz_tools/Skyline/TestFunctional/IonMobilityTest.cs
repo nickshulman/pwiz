@@ -23,8 +23,8 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using pwiz.Common.Chemistry;
 using pwiz.Common.SystemUtil;
-using pwiz.ProteowizardWrapper;
 using pwiz.Skyline.Alerts;
 using pwiz.Skyline.FileUI;
 using pwiz.Skyline.Model;
@@ -728,7 +728,7 @@ namespace pwiz.SkylineTestFunctional
         /// </summary>
         private void TestMeasuredDriftTimes()
         {
-            var testFilesDir = new TestFilesDir(TestContext, @"Test\Results\BlibDriftTimeTest.zip"); // Re-used from BlibDriftTimeTest
+            var testFilesDir = new TestFilesDir(TestContext, @"TestData\Results\BlibDriftTimeTest.zip"); // Re-used from BlibDriftTimeTest
             // Open document with some peptides but no results
             var documentFile = TestFilesDir.GetTestPath(@"..\BlibDriftTimeTest\BlibDriftTimeTest.sky");
             WaitForCondition(() => File.Exists(documentFile));
@@ -751,6 +751,7 @@ namespace pwiz.SkylineTestFunctional
                 driftTimePredictorDlg.SetIonMobilityUnits(eIonMobilityUnits.drift_time_msec); 
                 driftTimePredictorDlg.SetResolvingPower(resolvingPower);
                 driftTimePredictorDlg.SetPredictorName(predictorName);
+                driftTimePredictorDlg.SetOffsetHighEnergySpectraCheckbox(true);
                 driftTimePredictorDlg.GetDriftTimesFromResults();
                 driftTimePredictorDlg.OkDialog();
             });
@@ -788,7 +789,8 @@ namespace pwiz.SkylineTestFunctional
             WaitForDocumentLoaded();
             var progress = new SilentProgressMonitor();
             var exported = testFilesDir.GetTestPath("export.blib");
-            Skyline.SkylineWindow.ExportSpectralLibrary(SkylineWindow.DocumentFilePath, SkylineWindow.Document, exported, progress);
+            new SpectralLibraryExporter(SkylineWindow.Document, SkylineWindow.DocumentFilePath)
+                .ExportSpectralLibrary(exported, progress);
             var refSpectra = GetRefSpectra(exported);
             Assert.IsTrue(refSpectra.All(r => (r.IonMobility??0) > 0));
 

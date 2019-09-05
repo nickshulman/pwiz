@@ -17,17 +17,28 @@ namespace pwiz.Skyline.Model.AuditLog
             }
         };
 
-        private static string InvariantToString(object obj)
+        private static string InvariantToString(object obj, int? decimalPlaces)
         {
             if (Reflector.HasToString(obj))
             {
-                var objStr = string.Format(CultureInfo.InvariantCulture, "{0}", obj);
+                var objStr = string.Format(CultureInfo.InvariantCulture, @"{0}", obj);
                 var type = obj.GetType();
-                if (type == typeof(double) || type == typeof(bool) || type == typeof(int))
+                if (type == typeof(bool) || type == typeof(int))
                     return AuditLogParseHelper.GetParseString(ParseStringType.primitive, objStr);
+                else if (type == typeof(float) || type == typeof(double))
+                {
+                    string format = @"R";
+                    if (decimalPlaces.HasValue)
+                        format = @"0." + new string('#', decimalPlaces.Value);
+
+                    string replacementText = string.Format(@"{{0:{0}}}", format);
+                    string decimalText = string.Format(CultureInfo.InvariantCulture, replacementText, obj);
+
+                    return AuditLogParseHelper.GetParseString(ParseStringType.primitive, decimalText);
+                }
                 else if (type.IsEnum)
                     return LogMessage.Quote(AuditLogParseHelper.GetParseString(ParseStringType.enum_fn, type.Name + '_' + objStr));
-                return LogMessage.Quote(objStr); // Not L10N
+                return LogMessage.Quote(objStr);
             }
 
             return null;
@@ -36,14 +47,16 @@ namespace pwiz.Skyline.Model.AuditLog
         public class AuditLogToStringException : Exception
         {
             public AuditLogToStringException(object obj) : base(
-                string.Format("Failed to convert object of type \"{0}\" to a string", obj.GetType().Name)) // Not L10N
+                // ReSharper disable LocalizableElement
+                string.Format("Failed to convert object of type \"{0}\" to a string", obj.GetType().Name))
+                // ReSharper restore LocalizableElement
             {
             }
         }
 
-        public static string ToString(object obj, Func<object, string> defaultToString)
+        public static string ToString(object obj, int? decimalPlaces, Func<object, string> defaultToString)
         {
-            return InvariantToString(obj) ??
+            return InvariantToString(obj, decimalPlaces) ??
                    KnownTypeToString(obj) ??
                    defaultToString(obj) ??
                    throw new AuditLogToStringException(obj);

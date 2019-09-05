@@ -62,11 +62,12 @@ enum PWIZ_API_DECL ControllerType
 #ifdef _WIN64
     Controller_UV,
     Controller_PDA,
-    Controller_Other
+    Controller_Other,
 #else
     Controller_PDA,
-    Controller_UV
+    Controller_UV,
 #endif
+    Controller_Count
 };
 
 
@@ -202,9 +203,8 @@ enum PWIZ_API_DECL CutoffType
 
 struct PWIZ_API_DECL MassList
 {
-    // TODO: integrate BinaryData passthrough
-    std::vector<double> mzArray;
-    std::vector<double> intensityArray;
+    pwiz::util::BinaryData<double> mzArray;
+    pwiz::util::BinaryData<double> intensityArray;
     size_t size() const { return mzArray.size(); }
 };
 
@@ -266,6 +266,8 @@ class PWIZ_API_DECL ScanInfo
     virtual double precursorMZ(long index, bool preferMonoisotope = true) const = 0;
     virtual double precursorActivationEnergy(long index) const = 0;
 
+    virtual std::vector<double> getIsolationWidths() const = 0;
+
     virtual ActivationType supplementalActivationType() const = 0;
     virtual double supplementalActivationEnergy() const = 0;
 
@@ -325,11 +327,16 @@ struct PWIZ_API_DECL ErrorLogItem
 enum PWIZ_API_DECL ChromatogramType
 {
     Type_MassRange,
-    Type_ECD = Type_MassRange,
     Type_TIC,
-    Type_TotalScan = Type_TIC,
     Type_BasePeak,
-    Type_NeutralFragment
+    Type_NeutralFragment,
+#ifndef _WIN64
+    Type_TotalScan = Type_TIC,
+    Type_ECD = Type_MassRange
+#else
+    Type_ECD = 31, // TraceType.ChannelA
+    Type_TotalScan = 22 // TraceType.TotalAbsorbance
+#endif
 };
 
 
@@ -390,6 +397,9 @@ class PWIZ_API_DECL RawFile
 
     static shared_ptr<RawFile> create(const std::string& filename);
 
+    // on 64-bit (RawFileReader), returns a thread-specific accessor to avoid the need for locking
+    virtual RawFile* getRawByThread(size_t currentThreadId) const = 0;
+
     virtual std::string getFilename() const = 0;
     virtual boost::local_time::local_date_time getCreationDate(bool adjustToHostTime = true) const = 0;
 
@@ -424,7 +434,6 @@ class PWIZ_API_DECL RawFile
     virtual ScanFilterMassAnalyzerType getMassAnalyzerType(long scanNumber) const = 0;
     virtual ActivationType getActivationType(long scanNumber) const = 0;
     // getDetectorType is obsolete?
-    virtual std::vector<double> getIsolationWidths(long scanNumber) const = 0;
     virtual double getIsolationWidth(int scanSegment, int scanEvent) const = 0;
     virtual double getDefaultIsolationWidth(int scanSegment, int msLevel)const = 0;
 
@@ -438,6 +447,7 @@ class PWIZ_API_DECL RawFile
     virtual const std::vector<MassAnalyzerType>& getMassAnalyzers() const = 0;
     virtual const std::vector<DetectorType>& getDetectors() const = 0;
 
+    virtual std::string getSampleID() const = 0;
     virtual std::string getTrailerExtraValue(long scanNumber, const std::string& name) const = 0;
     virtual double getTrailerExtraValueDouble(long scanNumber, const std::string& name) const = 0;
     virtual long getTrailerExtraValueLong(long scanNumber, const std::string& name) const = 0;

@@ -99,8 +99,8 @@ PWIZ_API_DECL size_t SpectrumList_Bruker::find(const string& id) const
                 // fall through and return size_ (id not found)
             }
         }
-
-        return size_;
+        
+        return checkNativeIdFindResult(size_, id);
     }
     return scanItr->second;
 }
@@ -276,6 +276,7 @@ PWIZ_API_DECL SpectrumPtr SpectrumList_Bruker::spectrum(size_t index, DetailLeve
                      frameScanPair.first, *scanNumbers.begin());
 
             vector<Scan>& scans = result->scanList.scans;
+            scans.reserve(scanNumbers.size());
             for (auto itr = ++scanNumbers.begin(); itr != scanNumbers.end(); ++itr)
             {
                 scans.push_back(Scan());
@@ -423,15 +424,22 @@ PWIZ_API_DECL SpectrumPtr SpectrumList_Bruker::spectrum(size_t index, DetailLeve
         }
         else if (detailLevel == DetailLevel_FullMetadata)
         {
-            // N.B.: just getting the data size from the Bruker API is quite expensive.
-            if (msLevelsToCentroid.contains(msLevel) || ((result->defaultArrayLength = spectrum->getProfileDataSize())==0))
+            if (config_.combineIonMobilitySpectra)
             {
-                result->defaultArrayLength = spectrum->getLineDataSize();
-                result->set(MS_centroid_spectrum);
+                result->defaultArrayLength = spectrum->getCombinedSpectrumDataSize();
             }
             else
             {
-                result->set(MS_profile_spectrum);
+                // N.B.: just getting the data size from the Bruker API is quite expensive.
+                if (msLevelsToCentroid.contains(msLevel) || ((result->defaultArrayLength = spectrum->getProfileDataSize())==0))
+                {
+                    result->defaultArrayLength = spectrum->getLineDataSize();
+                    result->set(MS_centroid_spectrum);
+                }
+                else
+                {
+                    result->set(MS_profile_spectrum);
+                }
             }
         }
     /*}

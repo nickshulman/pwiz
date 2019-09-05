@@ -29,8 +29,9 @@
 #include <sstream>
 #include <stdexcept>
 
-using namespace std;
-using namespace boost;
+using boost::tokenizer;
+using boost::escaped_list_separator;
+
 
 namespace BiblioSpec {
 
@@ -188,13 +189,14 @@ private:
     string tsvName_;
     ifstream tsvFile_;
     string modsPath_;
+    string paramsPath_;
     double scoreThreshold_;
     int lineNum_;
     map< string, vector<MaxQuantPSM*> > fileMap_; // store psms by filename
     MaxQuantPSM* curMaxQuantPSM_; // use this instead of curPSM_
     vector<MaxQuantColumnTranslator> targetColumns_; // columns to extract
     set<string> optionalColumns_; // columns that are optional
-    set<MaxQuantModification> modBank_;   // full mod name -> delta mass
+    map<string, MaxQuantModification> modBank_;   // full mod name -> delta mass
     map< MaxQuantModification::MAXQUANT_MOD_POSITION, vector<const MaxQuantModification*> > fixedModBank_;
     vector<MaxQuantLabels> labelBank_;
 
@@ -208,7 +210,7 @@ private:
     void addDoublesToVector(vector<double>& v, const string& valueList);
     void addModsToVector(vector<SeqMod>& v, const string& modifications, string modSequence);
     void addLabelModsToVector(vector<SeqMod>& v, const string& rawFile, const string& sequence, int labelingState);
-    SeqMod searchForMod(vector<string>& modNames, string modSequence, int posOpenParen);
+    SeqMod searchForMod(vector<string>& modNames, const string& modSequence, int& posOpenParen);
     static int getModPosition(const string& modSeq, int posOpenParen);
     vector<SeqMod> getFixedMods(char aa, int aaPosition, const vector<const MaxQuantModification*>& mods);
 
@@ -219,7 +221,7 @@ class MaxQuantWrongSequenceException : public std::exception {
 public:
     MaxQuantWrongSequenceException(const std::string& mod, const std::string& seq, int line) {
         std::stringstream ss;
-        ss << "No matching mod for " << mod << " in sequence " << seq << " (line " << line << ")";
+        ss << "No matching mod for " << mod << " in sequence " << seq << " (line " << line << "). Make sure you have provided the correct modifications[.local].xml file.";
         message_ = ss.str();
     }
     virtual ~MaxQuantWrongSequenceException() throw () {}

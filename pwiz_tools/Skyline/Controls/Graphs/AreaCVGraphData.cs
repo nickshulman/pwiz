@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Original author: Tobias Rohde <tobiasr .at. uw.edu>,
  *                  MacCoss Lab, Department of Genome Sciences, UW
  *
@@ -90,6 +90,8 @@ namespace pwiz.Skyline.Controls.Graphs
 
                                 var groupChromInfo = transitionGroupDocNode.GetSafeChromInfo(i)
                                     .FirstOrDefault(c => c.OptimizationStep == 0);
+                                if (groupChromInfo == null)
+                                    continue;
 
                                 if (qvalueCutoff.HasValue)
                                 {
@@ -100,7 +102,7 @@ namespace pwiz.Skyline.Controls.Graphs
                                 var index = i;
                                 var sumArea = transitionGroupDocNode.Transitions.Where(t =>
                                 {
-                                    if (ms1 != t.IsMs1 || !t.Quantitative)
+                                    if (ms1 != t.IsMs1 || !t.ExplicitQuantitative)
                                         return false;
 
                                     var chromInfo = t.GetSafeChromInfo(index).FirstOrDefault(c => c.OptimizationStep == 0);
@@ -528,13 +530,13 @@ namespace pwiz.Skyline.Controls.Graphs
 
         public override string ToString()
         {
-            return string.Format(@"{0}, {1}, {2:R}, {3:R}, {4}, {5:R}, {6:R}, {7}, {8:R}, {9:R}, {10:R}", // Not L10N
+            return string.Format(@"{0}, {1}, {2:R}, {3:R}, {4}, {5:R}, {6:R}, {7}, {8:R}, {9:R}, {10:R}",
                 DataCount, Items, MinMeanArea, MaxMeanArea, Total, MaxCV, MinCV, MaxFrequency, MedianCV, MeanCV, BelowCVCutoff);
         }
 
         public string ToCode()
         {
-            return string.Format(@"new {0}({1}),", GetType().Name, ToString()); // Not L10N
+            return string.Format(@"new {0}({1}),", GetType().Name, ToString());
         }
 
         private int DataCount { get; set; }

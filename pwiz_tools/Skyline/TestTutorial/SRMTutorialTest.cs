@@ -42,6 +42,7 @@ namespace pwiz.SkylineTestTutorial
     public class SrmTutorialTest : AbstractFunctionalTestEx
     {
         [TestMethod]
+        [Timeout(60*60*1000)]  // These can take a long time in code coverage mode (1 hour)
         public void TestSrmTutorial()
         {
             //Set true to look at tutorial screenshots
@@ -188,7 +189,9 @@ namespace pwiz.SkylineTestTutorial
             PauseForScreenShot("Library Tab", 7);
             RunUI(() => transitionDlg.SelectedTab = TransitionSettingsUI.TABS.Instrument);
             PauseForScreenShot("Instrument Tab", 7);
+            var docBeforeTransitionSettings = SkylineWindow.Document;
             OkDialog(transitionDlg, transitionDlg.OkDialog);
+            WaitForDocumentChangeLoaded(docBeforeTransitionSettings);
             RunUI(() => SkylineWindow.SaveDocument(GetTestPath("Tutorial-1_Settings\\SRMcourse_20140210_Settings.sky")));
 
 

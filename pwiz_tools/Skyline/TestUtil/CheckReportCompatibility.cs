@@ -93,14 +93,14 @@ namespace pwiz.SkylineTestUtil
         {
             var documentContainer = new MemoryDocumentContainer();
             Assert.IsTrue(documentContainer.SetDocument(doc, documentContainer.Document));
-            var skylineDataSchema = new SkylineDataSchema(documentContainer, new DataSchemaLocalizer(cultureInfo));
+            var skylineDataSchema = new SkylineDataSchema(documentContainer, new DataSchemaLocalizer(cultureInfo, cultureInfo));
             var viewSpec = ReportSharing.ConvertAll(new[] {new ReportOrViewSpec(reportSpec)}, doc).First();
             var viewContext = new DocumentGridViewContext(skylineDataSchema);
             using (var writer = new StreamWriter(fileName))
             {
                 IProgressStatus status = new ProgressStatus();
                 viewContext.Export(CancellationToken.None, new SilentProgressMonitor(), ref status,
-                    viewContext.GetViewInfo(ViewGroup.BUILT_IN, viewSpec), writer, viewContext.GetCsvWriter());
+                    viewContext.GetViewInfo(ViewGroup.BUILT_IN, viewSpec.ViewSpec), writer, viewContext.GetCsvWriter());
             }
         }
     }

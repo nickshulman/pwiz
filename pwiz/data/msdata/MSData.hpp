@@ -26,6 +26,7 @@
 
 
 #include "pwiz/utility/misc/Export.hpp"
+#include "pwiz/utility/misc/BinaryData.hpp"
 #include "pwiz/data/common/ParamTypes.hpp"
 #include "boost/shared_ptr.hpp"
 #include "boost/iostreams/positioning.hpp"
@@ -406,7 +407,7 @@ struct PWIZ_API_DECL BinaryDataArray : public ParamContainer
     DataProcessingPtr dataProcessingPtr;
 
     /// the binary data.
-    std::vector<double> data;
+    pwiz::util::BinaryData<double> data;
 
     /// returns true iff the element contains no params and all members are empty or null
     bool empty() const;
@@ -565,7 +566,7 @@ struct PWIZ_API_DECL Spectrum : public SpectrumIdentity, public ParamContainer
 
     /// set m/z and intensity arrays separately (they must be the same size) by swapping the vector contents
     /// this allows for a more nearly zero copy setup.  Contents of mzArray and intensityArray are undefined after calling.
-    void swapMZIntensityArrays(std::vector<double>& mzArray, std::vector<double>& intensityArray, CVID intensityUnits);
+    void swapMZIntensityArrays(pwiz::util::BinaryData<double>& mzArray, pwiz::util::BinaryData<double>& intensityArray, CVID intensityUnits);
 };
 
 
@@ -692,7 +693,8 @@ class PWIZ_API_DECL SpectrumList
     virtual SpectrumPtr spectrum(const SpectrumPtr& seed, bool getBinaryData) const;
 
     /// retrieve a spectrum by index
-    /// - detailLevel determines what fields are guaranteed present on the spectrum after the call
+    /// - detailLevel determines what fields are present on the spectrum after the call
+    /// - only DetailLevel_FullMetadata or higher guarantees that defaultArrayLength is set (it may require getting the binary data just to check the number of points)
     /// - client may assume the underlying Spectrum* is valid 
     virtual SpectrumPtr spectrum(size_t index, DetailLevel detailLevel) const;
 
@@ -772,6 +774,12 @@ class PWIZ_API_DECL ChromatogramList
     /// - binary data arrays will be provided if (getBinaryData == true);
     /// - client may assume the underlying Chromatogram* is valid 
     virtual ChromatogramPtr chromatogram(size_t index, bool getBinaryData = false) const = 0;
+
+    /// retrieve a chromatogram by index
+    /// - detailLevel determines what fields are present on the chromatogram after the call
+    /// - only DetailLevel_FullMetadata or higher guarantees that defaultArrayLength is set (it may require getting the binary data just to check the number of points)
+    /// - client may assume the underlying Spectrum* is valid 
+    virtual ChromatogramPtr chromatogram(size_t index, DetailLevel detailLevel) const;
 
     /// returns the data processing affecting spectra retrieved through this interface
     /// - may return a null shared pointer

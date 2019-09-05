@@ -502,11 +502,29 @@ namespace pwiz.Skyline.Model.AuditLog {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Audit logging.
+        /// </summary>
+        public static string DataSettings_AuditLogging {
+            get {
+                return ResourceManager.GetString("DataSettings_AuditLogging", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Group Comparisons.
         /// </summary>
         public static string DataSettings_GroupComparisonDefs {
             get {
                 return ResourceManager.GetString("DataSettings_GroupComparisonDefs", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Lists.
+        /// </summary>
+        public static string DataSettings_Lists {
+            get {
+                return ResourceManager.GetString("DataSettings_Lists", resourceCulture);
             }
         }
         
@@ -867,6 +885,51 @@ namespace pwiz.Skyline.Model.AuditLog {
         public static string ExplicitTransitionGroupValues_SLens {
             get {
                 return ResourceManager.GetString("ExplicitTransitionGroupValues_SLens", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Collision energy.
+        /// </summary>
+        public static string ExplicitTransitionValues_CollisionEnergy {
+            get {
+                return ResourceManager.GetString("ExplicitTransitionValues_CollisionEnergy", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Cone voltage.
+        /// </summary>
+        public static string ExplicitTransitionValues_ConeVoltage {
+            get {
+                return ResourceManager.GetString("ExplicitTransitionValues_ConeVoltage", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Declustering potential.
+        /// </summary>
+        public static string ExplicitTransitionValues_DeclusteringPotential {
+            get {
+                return ResourceManager.GetString("ExplicitTransitionValues_DeclusteringPotential", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to High energy ion mobility offset.
+        /// </summary>
+        public static string ExplicitTransitionValues_IonMobilityHighEnergyOffset {
+            get {
+                return ResourceManager.GetString("ExplicitTransitionValues_IonMobilityHighEnergyOffset", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to S-Lens.
+        /// </summary>
+        public static string ExplicitTransitionValues_SLens {
+            get {
+                return ResourceManager.GetString("ExplicitTransitionValues_SLens", resourceCulture);
             }
         }
         
@@ -1690,6 +1753,42 @@ namespace pwiz.Skyline.Model.AuditLog {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Rows.
+        /// </summary>
+        public static string ListData_Rows {
+            get {
+                return ResourceManager.GetString("ListData_Rows", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Display property.
+        /// </summary>
+        public static string ListDef_DisplayProperty {
+            get {
+                return ResourceManager.GetString("ListDef_DisplayProperty", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to ID property.
+        /// </summary>
+        public static string ListDef_IdProperty {
+            get {
+                return ResourceManager.GetString("ListDef_IdProperty", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Properties.
+        /// </summary>
+        public static string ListDef_Properties {
+            get {
+                return ResourceManager.GetString("ListDef_Properties", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Manage Results.
         /// </summary>
         public static string ManageResultsSettings {
@@ -2055,6 +2154,15 @@ namespace pwiz.Skyline.Model.AuditLog {
         public static string PeptideFilter_MinPeptideLength {
             get {
                 return ResourceManager.GetString("PeptideFilter_MinPeptideLength", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Peptide Uniqueness.
+        /// </summary>
+        public static string PeptideFilter_PeptideUniqueness {
+            get {
+                return ResourceManager.GetString("PeptideFilter_PeptideUniqueness", resourceCulture);
             }
         }
         
@@ -2518,6 +2626,15 @@ namespace pwiz.Skyline.Model.AuditLog {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Add label type.
+        /// </summary>
+        public static string RefinementSettings_AddRefineLabelType {
+            get {
+                return ResourceManager.GetString("RefinementSettings_AddRefineLabelType", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Auto-select all peptides.
         /// </summary>
         public static string RefinementSettings_AutoPickPeptidesAll {
@@ -2595,6 +2712,15 @@ namespace pwiz.Skyline.Model.AuditLog {
         public static string RefinementSettings_MaxPepPeakRank {
             get {
                 return ResourceManager.GetString("RefinementSettings_MaxPepPeakRank", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Max precursor peak only.
+        /// </summary>
+        public static string RefinementSettings_MaxPrecursorPeakOnly {
+            get {
+                return ResourceManager.GetString("RefinementSettings_MaxPrecursorPeakOnly", resourceCulture);
             }
         }
         
@@ -3040,6 +3166,15 @@ namespace pwiz.Skyline.Model.AuditLog {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to 14C.
+        /// </summary>
+        public static string StaticMod_Label14C {
+            get {
+                return ResourceManager.GetString("StaticMod_Label14C", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to 15N.
         /// </summary>
         public static string StaticMod_Label15N {
@@ -3148,6 +3283,15 @@ namespace pwiz.Skyline.Model.AuditLog {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Explicit values.
+        /// </summary>
+        public static string TransitionDocNode_ExplicitValues {
+            get {
+                return ResourceManager.GetString("TransitionDocNode_ExplicitValues", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Auto-select all matching transitions.
         /// </summary>
         public static string TransitionFilter_AutoSelect {
@@ -3220,7 +3364,7 @@ namespace pwiz.Skyline.Model.AuditLog {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Small molecule Fragment adducts.
+        ///   Looks up a localized string similar to Molecule Fragment adducts.
         /// </summary>
         public static string TransitionFilter_SmallMoleculeFragmentAdductsString {
             get {
@@ -3229,7 +3373,7 @@ namespace pwiz.Skyline.Model.AuditLog {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Small molecule Ion types.
+        ///   Looks up a localized string similar to Molecule Ion types.
         /// </summary>
         public static string TransitionFilter_SmallMoleculeIonTypesString {
             get {
@@ -3238,7 +3382,7 @@ namespace pwiz.Skyline.Model.AuditLog {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Small molecule Precursor adducts.
+        ///   Looks up a localized string similar to Molecule Precursor adducts.
         /// </summary>
         public static string TransitionFilter_SmallMoleculePrecursorAdductsString {
             get {
@@ -3783,6 +3927,24 @@ namespace pwiz.Skyline.Model.AuditLog {
         public static string ViewSpec_Filters {
             get {
                 return ResourceManager.GetString("ViewSpec_Filters", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Default Layout Name.
+        /// </summary>
+        public static string ViewSpecLayout_DefaultLayoutName {
+            get {
+                return ResourceManager.GetString("ViewSpecLayout_DefaultLayoutName", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Layouts.
+        /// </summary>
+        public static string ViewSpecLayout_Layouts {
+            get {
+                return ResourceManager.GetString("ViewSpecLayout_Layouts", resourceCulture);
             }
         }
         

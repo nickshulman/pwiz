@@ -124,7 +124,9 @@ vector<InstrumentConfiguration> createInstrumentConfigurations(RawFile& rawfile)
     InstrumentModelType model = rawfile.getInstrumentModel();
 
     // source common to all configurations (TODO: handle multiple sources in a single run?)
-    ScanInfoPtr firstScanInfo = rawfile.getScanInfo(1);
+    auto raw = rawfile.getRawByThread(0);
+    raw->setCurrentController(Controller_MS, 1);
+    ScanInfoPtr firstScanInfo = raw->getScanInfo(1);
     CVID firstIonizationType = translateAsIonizationType(firstScanInfo->ionizationType());
     CVID firstInletType = translateAsInletType(firstScanInfo->ionizationType());
 
@@ -135,7 +137,15 @@ vector<InstrumentConfiguration> createInstrumentConfigurations(RawFile& rawfile)
     if (firstInletType != CVID_Unknown)
         commonSource.set(firstInletType);
 
-    return createInstrumentConfigurations(commonSource, model);
+    auto configurations = createInstrumentConfigurations(commonSource, model);
+
+    if (rawfile.getNumberOfControllersOfType(Controller_PDA) > 0)
+    {
+        configurations.push_back(InstrumentConfiguration());
+        configurations.back().componentList.push_back(Component(MS_PDA, 1));
+    }
+
+    return configurations;
 }
 
 

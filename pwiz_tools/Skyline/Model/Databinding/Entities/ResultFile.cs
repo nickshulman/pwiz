@@ -20,14 +20,15 @@
 using System;
 using System.ComponentModel;
 using System.Linq;
+using pwiz.Common.Chemistry;
 using pwiz.Common.DataBinding.Attributes;
-using pwiz.ProteowizardWrapper;
 using pwiz.Skyline.Model.Databinding.Collections;
 using pwiz.Skyline.Model.ElementLocators;
 using pwiz.Skyline.Model.Results;
 
 namespace pwiz.Skyline.Model.Databinding.Entities
 {
+    [InvariantDisplayName(nameof(ResultFile))]
     public class ResultFile : SkylineObject, IComparable
     {
         private readonly CachedValue<ChromFileInfo> _chromFileInfo;
@@ -80,9 +81,9 @@ namespace pwiz.Skyline.Model.Databinding.Entities
                     }
                 }
 
-                Replicate.ChangeChromatogramSet(EditDescription.SetColumn("ExplicitGlobalStandardArea", // Not L10N
-                    value), 
-                Replicate.ChromatogramSet.ChangeMSDataFileInfos(newFileInfos));
+                Replicate.ChangeChromatogramSet(
+                    EditColumnDescription(nameof(ExplicitGlobalStandardArea), value), 
+                    Replicate.ChromatogramSet.ChangeMSDataFileInfos(newFileInfos));
             }
         }
 

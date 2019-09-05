@@ -24,6 +24,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -42,7 +43,7 @@ namespace TestRunner
 {
     internal static class Program
     {
-        private static readonly string[] TEST_DLLS = { "Test.dll", "TestA.dll", "TestConnected.dll", "TestFunctional.dll", "TestTutorial.dll", "CommonTest.dll", "TestPerf.dll" };
+        private static readonly string[] TEST_DLLS = { "Test.dll", "TestData.dll", "TestConnected.dll", "TestFunctional.dll", "TestTutorial.dll", "CommonTest.dll", "TestPerf.dll" };
         private const int LeakTrailingDeltas = 7;   // Number of trailing deltas to average and check against thresholds below
         // CONSIDER: Ideally these thresholds would be zero, but memory and handle retention are not stable enough to support that
         //           The problem is that we don't reliably return to exactly the same state during EndTest and these numbers go both up and down
@@ -175,13 +176,11 @@ namespace TestRunner
             }
         }
 
-        [STAThread]
+        [STAThread, MethodImpl(MethodImplOptions.NoOptimization)]
         static int Main(string[] args)
         {
             Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
             Application.ThreadException += ThreadExceptionEventHandler;
-
-            Console.OutputEncoding = Encoding.UTF8;  // So we can send Japanese to SkylineTester, which monitors our stdout
 
             // Parse command line args and initialize default values.
             const string commandLineOptions =
@@ -193,9 +192,9 @@ namespace TestRunner
                 "quality=off;pass0=off;pass1=off;" +
                 "perftests=off;" +
                 "runsmallmoleculeversions=off;" +
-                "testsmallmolecules=off;" +
+                "recordauditlogs=off;" +
                 "clipboardcheck=off;profile=off;vendors=on;language=fr-FR,en-US;" +
-                "log=TestRunner.log;report=TestRunner.log";
+                "log=TestRunner.log;report=TestRunner.log;dmpdir=Minidumps;teamcitytestdecoration=off";
             var commandLineArgs = new CommandLineArgs(args, commandLineOptions);
 
             switch (commandLineArgs.SearchArgs("?;/?;-?;help;report"))
@@ -211,6 +210,9 @@ namespace TestRunner
                     Report(commandLineArgs.ArgAsString("report"));
                     return 0;
             }
+
+            if (commandLineArgs.ArgAsString("language") != "en" && commandLineArgs.ArgAsString("language") != "en-US")
+                Console.OutputEncoding = Encoding.UTF8;  // So we can send Japanese to SkylineTester, which monitors our stdout
 
             Console.WriteLine();
             if (!commandLineArgs.ArgAsBool("status") && !commandLineArgs.ArgAsBool("buildcheck"))
@@ -382,8 +384,8 @@ namespace TestRunner
             bool offscreen = commandLineArgs.ArgAsBool("offscreen");
             bool internet = commandLineArgs.ArgAsBool("internet");
             bool perftests = commandLineArgs.ArgAsBool("perftests");
-            bool addsmallmoleculenodes = commandLineArgs.ArgAsBool("testsmallmolecules"); // Add the magic small molecule test node to every document?
             bool runsmallmoleculeversions = commandLineArgs.ArgAsBool("runsmallmoleculeversions"); // Run the various tests that are versions of other tests with the document completely converted to small molecules?
+            bool recordauditlogs = commandLineArgs.ArgAsBool("recordauditlogs"); // Replace or create audit logs for tutorial tests
             bool useVendorReaders = commandLineArgs.ArgAsBool("vendors");
             bool showStatus = commandLineArgs.ArgAsBool("status");
             bool showFormNames = commandLineArgs.ArgAsBool("showformnames");
@@ -397,6 +399,8 @@ namespace TestRunner
             var pauseDialogs = (string.IsNullOrEmpty(formList)) ? null : formList.Split(',');
             var results = commandLineArgs.ArgAsString("results");
             var maxSecondsPerTest = commandLineArgs.ArgAsDouble("maxsecondspertest");
+            var dmpDir = commandLineArgs.ArgAsString("dmpdir");
+            bool teamcityTestDecoration = commandLineArgs.ArgAsBool("teamcitytestdecoration");
 
             bool asNightly = offscreen && qualityMode;  // While it is possible to run quality off screen from the Quality tab, this is what we use to distinguish for treatment of perf tests
 
@@ -435,10 +439,47 @@ namespace TestRunner
             }
 
             var runTests = new RunTests(
-                demoMode, buildMode, offscreen, internet, showStatus, perftests, addsmallmoleculenodes,
-                runsmallmoleculeversions,
+                demoMode, buildMode, offscreen, internet, showStatus, perftests,
+                runsmallmoleculeversions, recordauditlogs, teamcityTestDecoration,
                 pauseDialogs, pauseSeconds, useVendorReaders, timeoutMultiplier, 
                 results, log);
+            
+            if (asNightly && !string.IsNullOrEmpty(dmpDir) && Directory.Exists(dmpDir))
+            {
+                runTests.Log("# Deleting memory dumps.\r\n");
+
+                var dmpDirInfo = new DirectoryInfo(dmpDir);
+                var memoryDumps = dmpDirInfo.GetFileSystemInfos("*.dmp")
+                    .OrderBy(f => f.CreationTime)
+                    .ToArray();
+
+                runTests.Log("# Found {0} mempory dumps in {1}.\r\n", memoryDumps.Length, dmpDir);
+
+                // Only keep 5 pairs. If memory dumps are deleted manually it could
+                // happen that we delete a pre-dump but not a post-dump
+                if (memoryDumps.Length > 10)
+                {
+                    foreach (var dmp in memoryDumps.Take(memoryDumps.Length - 10))
+                    {
+                        // Just to double check that we don't delete other files
+                        if (dmp.Extension == ".dmp" &&
+                            (dmp.Name.StartsWith("pre_") || dmp.Name.StartsWith("post_")))
+                        {
+                            runTests.Log("# Deleting {0}.\r\n", dmp.FullName);
+                            File.Delete(dmp.FullName);
+
+                            if (File.Exists(dmp.FullName))
+                                runTests.Log("# WARNING: {0} not deleted.\r\n", dmp.FullName);
+                        }
+                        else
+                        {
+                            runTests.Log("# Skipping deletion of {0}.\r\n", dmp.FullName);
+                        }
+                    }
+                }
+
+                runTests.Log("\r\n");
+            }
 
             if (commandLineArgs.ArgAsBool("clipboardcheck"))
             {
@@ -487,7 +528,6 @@ namespace TestRunner
                 runTests.AccessInternet = false;
                 runTests.LiveReports = false;
                 runTests.RunPerfTests = false;
-                runTests.AddSmallMoleculeNodes = false;
                 runTests.CheckCrtLeaks = CrtLeakThreshold;
                 bool warnedPass0PerfTest = false;
                 for (int testNumber = 0; testNumber < testList.Count; testNumber++)
@@ -503,14 +543,13 @@ namespace TestRunner
                         }
                         continue;
                     }
-                    if (!runTests.Run(test, 0, testNumber))
+                    if (!runTests.Run(test, 0, testNumber, dmpDir))
                         removeList.Add(test);
                 }
                 runTests.Skyline.Set("NoVendorReaders", false);
                 runTests.AccessInternet = internet;
                 runTests.LiveReports = true;
                 runTests.RunPerfTests = perftests;
-                runTests.AddSmallMoleculeNodes = addsmallmoleculenodes;
                 runTests.CheckCrtLeaks = 0;
 
                 foreach (var removeTest in removeList)
@@ -555,7 +594,7 @@ namespace TestRunner
                         // Run the test in the next language.
                         runTests.Language =
                             new CultureInfo(qualityLanguages[i%qualityLanguages.Length]);
-                        if (!runTests.Run(test, 1, testNumber))
+                        if (!runTests.Run(test, 1, testNumber, dmpDir))
                         {
                             failed = true;
                             removeList.Add(test);
@@ -676,7 +715,7 @@ namespace TestRunner
                                 }
                                 break;
                             }
-                            if (!runTests.Run(test, pass, testNumber))
+                            if (!runTests.Run(test, pass, testNumber, dmpDir))
                             {
                                 removeList.Add(test);
                                 i = languages.Length - 1;   // Don't run other languages.
@@ -687,7 +726,7 @@ namespace TestRunner
                                 var maxSecondsPerTestPerLanguage = maxSecondsPerTest / languagesThisTest.Length; // We'd like no more than 5 minutes per test across all languages when doing stess tests
                                 if (stopWatch.Elapsed.TotalSeconds > maxSecondsPerTestPerLanguage && repeatCounter <= repeat - 1)
                                 {
-                                    runTests.Log(string.Format("# Breaking repeat test at count {0} of requested {1} (at {2} minutes), to allow other tests and languages to run.\r\n", repeatCounter, repeat, stopWatch.Elapsed.TotalMinutes));
+                                    runTests.Log("# Breaking repeat test at count {0} of requested {1} (at {2} minutes), to allow other tests and languages to run.\r\n", repeatCounter, repeat, stopWatch.Elapsed.TotalMinutes);
                                     break;
                                 }
                             }
@@ -700,7 +739,6 @@ namespace TestRunner
                 foreach (var removeTest in removeList)
                     testList.Remove(removeTest);
                 removeList.Clear();
-                runTests.AddSmallMoleculeNodes = addsmallmoleculenodes && (flip = !flip); // Do this in every other pass, so we get it both ways
             }
 
             return runTests.FailureCount == 0;

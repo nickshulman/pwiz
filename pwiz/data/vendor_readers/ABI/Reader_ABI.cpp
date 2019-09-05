@@ -46,7 +46,6 @@ PWIZ_API_DECL std::string pwiz::msdata::Reader_ABI::identify(const std::string& 
 #include "SpectrumList_ABI.hpp"
 #include "ChromatogramList_ABI.hpp"
 #include "Reader_ABI_Detail.hpp"
-#include <windows.h> // GetModuleFileName
 
 
 namespace pwiz {
@@ -142,8 +141,24 @@ void fillInMetadata(const string& wiffpath, MSData& msd, WiffFilePtr wifffile,
     if (sl) sl->setDataProcessingPtr(dpPwiz);
     if (cl) cl->setDataProcessingPtr(dpPwiz);
 
-    InstrumentConfigurationPtr ic = translateAsInstrumentConfiguration(wifffile->getInstrumentModel(), IonSpray);
+    auto instrumentModel = InstrumentModel_Unknown;
+    try
+    {
+        instrumentModel = wifffile->getInstrumentModel();
+    }
+    catch (runtime_error&)
+    {
+        if (config.unknownInstrumentIsError)
+            throw;
+    }
+
+    InstrumentConfigurationPtr ic = translateAsInstrumentConfiguration(instrumentModel, IonSpray);
     ic->softwarePtr = acquisitionSoftware;
+
+    auto serialNumber = wifffile->getInstrumentSerialNumber();
+    if (!serialNumber.empty())
+        ic->set(MS_instrument_serial_number, serialNumber);
+
     msd.instrumentConfigurationPtrs.push_back(ic);
     msd.run.defaultInstrumentConfigurationPtr = ic;
 
@@ -163,7 +178,6 @@ void cacheExperiments(WiffFilePtr wifffile, ExperimentsMap& experimentsMap, int 
 }
 
 } // namespace
-
 
 PWIZ_API_DECL
 void Reader_ABI::read(const string& filename,

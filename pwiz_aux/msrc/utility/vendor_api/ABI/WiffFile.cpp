@@ -35,9 +35,11 @@
 #include "pwiz/utility/misc/Container.hpp"
 #include <boost/icl/interval_set.hpp>
 #include <boost/icl/continuous_interval.hpp>
+#include <boost/smart_ptr/make_shared.hpp>
 
 #pragma managed
 #include "pwiz/utility/misc/cpp_cli_utilities.hpp"
+#include <msclr/auto_gcroot.h>
 #using <System.Xml.dll>
 using namespace pwiz::util;
 using namespace System;
@@ -50,6 +52,12 @@ using namespace Clearcore2::Data::DataAccess::SampleData;
 #if __CLR_VER > 40000000 // .NET 4
 using namespace Clearcore2::RawXYProcessing;
 #endif
+
+// peak areas from Sciex are very small values relative to peak heights;
+// multiplying them by this scaling factor makes them more comparable
+const int PEAK_AREA_SCALE_FACTOR = 100;
+
+#include "WiffFile2.ipp"
 
 namespace pwiz {
 namespace vendor_api {
@@ -64,8 +72,8 @@ class WiffFileImpl : public WiffFile
 
     gcroot<DataProvider^> provider;
     gcroot<Batch^> batch;
-    mutable gcroot<Clearcore2::Data::DataAccess::SampleData::Sample^> sample;
-    mutable gcroot<MassSpectrometerSample^> msSample;
+    mutable msclr::auto_gcroot<Clearcore2::Data::DataAccess::SampleData::Sample^> sample;
+    mutable msclr::auto_gcroot<MassSpectrometerSample^> msSample;
 
     virtual int getSampleCount() const;
     virtual int getPeriodCount(int sample) const;
@@ -75,12 +83,17 @@ class WiffFileImpl : public WiffFile
     virtual const vector<string>& getSampleNames() const;
 
     virtual InstrumentModel getInstrumentModel() const;
+    virtual std::string getInstrumentSerialNumber() const;
     virtual IonSourceType getIonSourceType() const;
     virtual blt::local_date_time getSampleAcquisitionTime(int sample, bool adjustToHostTime) const;
 
     virtual ExperimentPtr getExperiment(int sample, int period, int experiment) const;
     virtual SpectrumPtr getSpectrum(int sample, int period, int experiment, int cycle) const;
     virtual SpectrumPtr getSpectrum(ExperimentPtr experiment, int cycle) const;
+
+    virtual int getADCTraceCount(int sample) const;
+    virtual std::string getADCTraceName(int sample, int traceIndex) const;
+    virtual void getADCTrace(int sample, int traceIndex, ADCTrace& trace) const;
 
     void setSample(int sample) const;
     void setPeriod(int sample, int period) const;
@@ -111,17 +124,19 @@ struct ExperimentImpl : public Experiment
     virtual size_t getSRMSize() const;
     virtual void getSRM(size_t index, Target& target) const;
 
-    virtual void getSIC(size_t index, std::vector<double>& times, std::vector<double>& intensities) const;
-    virtual void getSIC(size_t index, std::vector<double>& times, std::vector<double>& intensities,
+    virtual void getSIC(size_t index, pwiz::util::BinaryData<double>& times, pwiz::util::BinaryData<double>& intensities) const;
+    virtual void getSIC(size_t index, pwiz::util::BinaryData<double>& times, pwiz::util::BinaryData<double>& intensities,
                         double& basePeakX, double& basePeakY) const;
 
     virtual bool getHasIsolationInfo() const;
-    virtual void getIsolationInfo(double& centerMz, double& lowerLimit, double& upperLimit) const;
+    virtual void getIsolationInfo(int cycle, double& centerMz, double& lowerLimit, double& upperLimit) const;
+    virtual void getPrecursorInfo(int cycle, double& centerMz, int& charge) const;
 
     virtual void getAcquisitionMassRange(double& startMz, double& stopMz) const;
     virtual ScanType getScanType() const;
     virtual ExperimentType getExperimentType() const;
     virtual Polarity getPolarity() const;
+    virtual int getMsLevel(int cycle) const;
 
     virtual double convertCycleToRetentionTime(int cycle) const;
     virtual double convertRetentionTimeToCycle(double rt) const;
@@ -180,7 +195,7 @@ struct SpectrumImpl : public Spectrum
 
     virtual bool getDataIsContinuous() const {return pointsAreContinuous;}
     size_t getDataSize(bool doCentroid, bool ignoreZeroIntensityPoints) const;
-    virtual void getData(bool doCentroid, std::vector<double>& mz, std::vector<double>& intensities, bool ignoreZeroIntensityPoints) const;
+    virtual void getData(bool doCentroid, pwiz::util::BinaryData<double>& mz, pwiz::util::BinaryData<double>& intensities, bool ignoreZeroIntensityPoints) const;
 
     virtual double getSumY() const {return sumY;}
     virtual double getBasePeakX() const {initializeBasePeak(); return bpX;}
@@ -340,6 +355,7 @@ InstrumentModel WiffFileImpl::getInstrumentModel() const
         if (modelName->Contains("5500"))            return API5500; // predicted
         if (modelName->Contains("QTRAP6500"))       return API6500QTrap; // predicted
         if (modelName->Contains("6500"))            return API6500; // predicted
+        if (modelName->Contains("QTRAP"))           return GenericQTrap;
         if (modelName->Contains("QSTARPULSAR"))     return QStarPulsarI; // also covers variants like "API QStar Pulsar i, 0, Qstar"
         if (modelName->Contains("QSTARXL"))         return QStarXL;
         if (modelName->Contains("QSTARELITE"))      return QStarElite;
@@ -360,6 +376,11 @@ InstrumentModel WiffFileImpl::getInstrumentModel() const
         throw gcnew Exception("unknown instrument type: " + sample->Details->InstrumentName);
     }
     CATCH_AND_FORWARD
+}
+
+std::string WiffFileImpl::getInstrumentSerialNumber() const
+{
+    try {return ToStdString(sample->Details->InstrumentSerialNumber);} CATCH_AND_FORWARD
 }
 
 IonSourceType WiffFileImpl::getIonSourceType() const
@@ -455,7 +476,7 @@ void ExperimentImpl::initializeBPC() const
 
     try
     {
-        BasePeakChromatogramSettings^ bpcs = gcnew BasePeakChromatogramSettings(0, 0, gcnew array<double>(0), gcnew array<double>(0));
+        BasePeakChromatogramSettings^ bpcs = gcnew BasePeakChromatogramSettings(0, nullptr, nullptr);
         BasePeakChromatogram^ bpc = msExperiment->GetBasePeakChromatogram(bpcs);
         BasePeakChromatogramInfo^ bpci = bpc->Info;
         ToStdVector(bpc->GetActualYValues(), basePeakIntensities_);
@@ -539,25 +560,35 @@ void ExperimentImpl::getSRM(size_t index, Target& target) const
     CATCH_AND_FORWARD
 }
 
-void ExperimentImpl::getSIC(size_t index, std::vector<double>& times, std::vector<double>& intensities) const
-{
-    double x, y;
-    getSIC(index, times, intensities, x, y);
-}
-
-void ExperimentImpl::getSIC(size_t index, std::vector<double>& times, std::vector<double>& intensities,
-                            double& basePeakX, double& basePeakY) const
+void ExperimentImpl::getSIC(size_t index, pwiz::util::BinaryData<double>& times, pwiz::util::BinaryData<double>& intensities) const
 {
     try
     {
-        if (index >= transitionCount && index >= simCount)
+        if (index >= transitionCount)
             throw std::out_of_range("[Experiment::getSIC()] index out of range");
 
         ExtractedIonChromatogramSettings^ option = gcnew ExtractedIonChromatogramSettings(index);
         ExtractedIonChromatogram^ xic = msExperiment->GetExtractedIonChromatogram(option);
 
-        ToStdVector(xic->GetActualXValues(), times);
-        ToStdVector(xic->GetActualYValues(), intensities);
+        ToBinaryData(xic->GetActualXValues(), times);
+        ToBinaryData(xic->GetActualYValues(), intensities);
+    }
+    CATCH_AND_FORWARD
+}
+
+void ExperimentImpl::getSIC(size_t index, pwiz::util::BinaryData<double>& times, pwiz::util::BinaryData<double>& intensities,
+                            double& basePeakX, double& basePeakY) const
+{
+    try
+    {
+        if (index >= transitionCount)
+            throw std::out_of_range("[Experiment::getSIC()] index " + lexical_cast<string>(index) + " out of range");
+
+        ExtractedIonChromatogramSettings^ option = gcnew ExtractedIonChromatogramSettings(index);
+        ExtractedIonChromatogram^ xic = msExperiment->GetExtractedIonChromatogram(option);
+
+        ToBinaryData(xic->GetActualXValues(), times);
+        ToBinaryData(xic->GetActualYValues(), intensities);
 
         basePeakY = xic->MaximumYValue;
         basePeakX = 0;
@@ -575,7 +606,8 @@ void ExperimentImpl::getAcquisitionMassRange(double& startMz, double& stopMz) co
 {
     try
     {
-        if ((ExperimentType) msExperiment->Details->ExperimentType != MRM)
+        if ((ExperimentType) msExperiment->Details->ExperimentType != MRM &&
+            (ExperimentType) msExperiment->Details->ExperimentType != SIM)
         {
             startMz = msExperiment->Details->StartMass;
             stopMz = msExperiment->Details->EndMass;
@@ -599,6 +631,11 @@ ExperimentType ExperimentImpl::getExperimentType() const
 Polarity ExperimentImpl::getPolarity() const
 {
     try {return (Polarity) msExperiment->Details->Polarity;} CATCH_AND_FORWARD
+}
+
+int ExperimentImpl::getMsLevel(int cycle) const
+{
+    return 0;
 }
 
 double ExperimentImpl::convertCycleToRetentionTime(int cycle) const
@@ -637,7 +674,7 @@ bool ExperimentImpl::getHasIsolationInfo() const
            msExperiment->Details->MassRangeInfo->Length > 0;
 }
 
-void ExperimentImpl::getIsolationInfo(double& centerMz, double& lowerLimit, double& upperLimit) const
+void ExperimentImpl::getIsolationInfo(int cycle, double& centerMz, double& lowerLimit, double& upperLimit) const
 {
     if (!getHasIsolationInfo())
         return;
@@ -651,6 +688,10 @@ void ExperimentImpl::getIsolationInfo(double& centerMz, double& lowerLimit, doub
         upperLimit = centerMz + isolationWidth / 2;
     }
     CATCH_AND_FORWARD
+}
+
+void ExperimentImpl::getPrecursorInfo(int cycle, double& centerMz, int& charge) const
+{
 }
 
 
@@ -747,7 +788,8 @@ size_t SpectrumImpl::getDataSize(bool doCentroid, bool ignoreZeroIntensityPoints
     CATCH_AND_FORWARD
 }
 
-void SpectrumImpl::getData(bool doCentroid, std::vector<double>& mz, std::vector<double>& intensities, bool ignoreZeroIntensityPoints) const
+
+void SpectrumImpl::getData(bool doCentroid, pwiz::util::BinaryData<double>& mz, pwiz::util::BinaryData<double>& intensities, bool ignoreZeroIntensityPoints) const
 {
     try
     {
@@ -762,7 +804,7 @@ void SpectrumImpl::getData(bool doCentroid, std::vector<double>& mz, std::vector
             {
                 PeakClass^ peak = peakList[(int)i];
                 mz[i] = peak->xValue;
-                intensities[i] = peak->area;
+                intensities[i] = peak->area * PEAK_AREA_SCALE_FACTOR;
             }
         }
         else
@@ -780,8 +822,9 @@ void SpectrumImpl::getData(bool doCentroid, std::vector<double>& mz, std::vector
                 }
 #endif
             }
-            ToStdVector(spectrum->GetActualXValues(), mz);
-            ToStdVector(spectrum->GetActualYValues(), intensities);
+
+            ToBinaryData(spectrum->GetActualXValues(), mz);
+            ToBinaryData(spectrum->GetActualYValues(), intensities);
         }
     }
     CATCH_AND_FORWARD
@@ -802,6 +845,44 @@ SpectrumPtr WiffFileImpl::getSpectrum(ExperimentPtr experiment, int cycle) const
 {
     SpectrumImplPtr spectrum(new SpectrumImpl(boost::static_pointer_cast<ExperimentImpl>(experiment), cycle));
     return spectrum;
+}
+
+
+int WiffFileImpl::getADCTraceCount(int sample) const
+{
+    try
+    {
+        setSample(sample);
+        if (!this->sample->HasADCData || this->sample->ADCSample == nullptr)
+            return 0;
+
+        return this->sample->ADCSample->ChannelCount;
+    }
+    CATCH_AND_FORWARD
+}
+
+string WiffFileImpl::getADCTraceName(int sample, int traceIndex) const
+{
+    try
+    {
+        setSample(sample);
+        return ToStdString(this->sample->ADCSample->GetChannelNameAt(traceIndex));
+    }
+    CATCH_AND_FORWARD
+}
+
+void WiffFileImpl::getADCTrace(int sample, int traceIndex, ADCTrace& trace) const
+{
+    try
+    {
+        setSample(sample);
+        auto adcData = this->sample->ADCSample->GetADCData(traceIndex);
+        ToBinaryData(adcData->GetActualXValues(), trace.x);
+        ToBinaryData(adcData->GetActualYValues(), trace.y);
+        trace.xUnits = ToStdString(adcData->XUnits);
+        trace.yUnits = ToStdString(adcData->YUnits);
+    }
+    CATCH_AND_FORWARD
 }
 
 
@@ -872,8 +953,28 @@ void WiffFileImpl::setCycle(int sample, int period, int experiment, int cycle) c
 PWIZ_API_DECL
 WiffFilePtr WiffFile::create(const string& wiffpath)
 {
-    WiffFileImplPtr wifffile(new WiffFileImpl(wiffpath));
-    return boost::static_pointer_cast<WiffFile>(wifffile);
+    WiffFilePtr wiffFile;
+
+    try
+    {
+        if (bal::iends_with(wiffpath, ".wiff2"))
+        {
+#ifndef _WIN64
+            throw std::runtime_error("[WiffFile] WIFF2 not supported in a 32-bit process");
+#endif
+            auto currentCulture = System::Globalization::CultureInfo::CurrentCulture;
+            if (currentCulture->NumberFormat->NumberDecimalSeparator == L"," &&
+                currentCulture->NumberFormat->NumberGroupSeparator == L"\xA0") // no break space
+                throw std::runtime_error("[WiffFile::create] WIFF2 files cannot be read with the current region/culture settings (group separator ' ' and decimal separator ','); try setting your region to \"English (United States)\"");
+
+            wiffFile = boost::static_pointer_cast<WiffFile>(boost::make_shared<WiffFile2Impl>(wiffpath));
+        }
+        else
+            wiffFile = boost::static_pointer_cast<WiffFile>(boost::make_shared<WiffFileImpl>(wiffpath));
+
+        return wiffFile;
+    }
+    CATCH_AND_FORWARD
 }
 
 

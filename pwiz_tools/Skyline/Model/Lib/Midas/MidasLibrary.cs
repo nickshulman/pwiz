@@ -100,7 +100,7 @@ namespace pwiz.Skyline.Model.Lib.Midas
             {
                 return new LibraryDetails
                 {
-                    Format = "MIDAS", // Not L10N
+                    Format = @"MIDAS",
                     Revision = Revision.ToString(LocalizationHelper.CurrentCulture),
                     SpectrumCount = 0,
                     DataFiles = LibraryFiles.FilePaths.Select(f => new SpectrumSourceFileDetails(f)).ToList()
@@ -131,7 +131,7 @@ namespace pwiz.Skyline.Model.Lib.Midas
 
         public override string IsNotLoadedExplained
         {
-            get { return _spectra != null ? null : "MIDAS: no dictionary"; } // Not L10N
+            get { return _spectra != null ? null : @"MIDAS: no dictionary"; }
         }
 
         public override bool IsSameLibrary(Library library)
@@ -216,9 +216,10 @@ namespace pwiz.Skyline.Model.Lib.Midas
                     yield break;
 
                 var spectrum = msd.GetSpectrum(i);
-                if (!spectrum.Precursors.Any())
+                var ms1Precursors = spectrum.GetPrecursorsByMsLevel(1);
+                if (!ms1Precursors.Any())
                     continue;
-                var precursor = spectrum.Precursors.First();
+                var precursor = ms1Precursors.First();
                 yield return new DbSpectrum(new DbResultsFile(msd.FilePath), precursor.PrecursorMz.GetValueOrDefault(),
                     null, null, null, spectrum.RetentionTime.GetValueOrDefault(), spectrum.Mzs, spectrum.Intensities);
             }

@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Original author: Brendan MacLean <brendanx .at. u.washington.edu>,
  *                  MacCoss Lab, Department of Genome Sciences, UW
  *
@@ -727,19 +727,11 @@ namespace pwiz.Skyline.Model
             List<DocNode> childrenNew = new List<DocNode>(Children);
             List<int> nodeCountStack = new List<int>(_nodeCountStack);
 
-            // Support for small molecule work - most tests have a special node added to see if it breaks anything
-            bool hasSpecialTestNode = childrenNew.Any() && SrmDocument.IsSpecialNonProteomicTestDocNode(childrenNew.Last());
-            if (hasSpecialTestNode)
-                childrenNew.RemoveAt(childrenNew.Count-1);
-
             foreach(DocNode childAdd in childrenAdd)
             {
                 childrenNew.Add(childAdd);
                 AddCounts(childAdd, nodeCountStack);
             }
-
-            if (hasSpecialTestNode)
-                childrenNew.Add(Children.Last()); // Restorethe special test node, at the end
 
             return ChangeChildren(childrenNew, nodeCountStack);
         }
@@ -808,7 +800,7 @@ namespace pwiz.Skyline.Model
         public DocNodeParent InsertAll(Identity idBefore, IEnumerable<DocNode> childrenAdd, bool after)
         {
             if (Children == null)
-                throw new InvalidOperationException("Invalid operation InsertAll before children set."); // Not L10N
+                throw new InvalidOperationException(@"Invalid operation InsertAll before children set.");
 
             List<DocNode> childrenNew = new List<DocNode>(Children);
             List<int> nodeCountStack = new List<int>(_nodeCountStack);
@@ -978,7 +970,7 @@ namespace pwiz.Skyline.Model
         public DocNodeParent ReplaceChild(DocNode childReplace)
         {
             if (Children == null)
-                throw new InvalidOperationException("Invalid operation ReplaceChild before children set."); // Not L10N
+                throw new InvalidOperationException(@"Invalid operation ReplaceChild before children set.");
 
             int index = _children.IndexOf(childReplace.Id);
             // If nothing was replaced throw an exception to let the caller know.
@@ -1033,7 +1025,7 @@ namespace pwiz.Skyline.Model
         public DocNodeParent RemoveChild(DocNode childRemove)
         {
             if (Children == null)
-                throw new InvalidOperationException("Invalid operation RemoveChild before children set.");  // Not L10N
+                throw new InvalidOperationException(@"Invalid operation RemoveChild before children set.");
 
             List<DocNode> childrenNew = new List<DocNode>();
             List<int> nodeCountStack = new List<int>(_nodeCountStack);

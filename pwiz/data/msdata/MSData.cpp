@@ -791,7 +791,7 @@ PWIZ_API_DECL void Spectrum::setMZIntensityPairs(const MZIntensityPair* input, s
 
 /// set m/z and intensity arrays separately (they must be the same size) by swapping the vector contents
 /// this allows for a more nearly zero copy setup.  Contents of mzArray and intensityArray are undefined after calling.
-PWIZ_API_DECL void Spectrum::swapMZIntensityArrays(std::vector<double>& mzArray, std::vector<double>& intensityArray, CVID intensityUnits)
+PWIZ_API_DECL void Spectrum::swapMZIntensityArrays(pwiz::util::BinaryData<double>& mzArray, pwiz::util::BinaryData<double>& intensityArray, CVID intensityUnits)
 {
     if (mzArray.size() != intensityArray.size())
         throw runtime_error("[MSData::Spectrum::swapMZIntensityArrays()] Sizes do not match.");
@@ -1168,6 +1168,16 @@ PWIZ_API_DECL size_t ChromatogramList::find(const string& id) const
         if (chromatogramIdentity(index).id == id) 
             return index;
     return size();
+}
+
+
+PWIZ_API_DECL ChromatogramPtr ChromatogramList::chromatogram(size_t index, DetailLevel detailLevel) const
+{
+    // By default faster metadata access is not implemented
+    if (detailLevel == DetailLevel_FastMetadata || detailLevel == DetailLevel_InstantMetadata)
+        return ChromatogramPtr(new Chromatogram);
+
+    return chromatogram(index, detailLevel == DetailLevel_FullData);
 }
 
 

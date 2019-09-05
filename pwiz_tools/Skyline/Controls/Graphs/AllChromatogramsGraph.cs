@@ -103,7 +103,9 @@ namespace pwiz.Skyline.Controls.Graphs
         private void ElapsedTimer_Tick(object sender, EventArgs e)
         {
             // Update timer and overall progress bar.
-            lblDuration.Text = _stopwatch.Elapsed.ToString(@"hh\:mm\:ss"); // Not L10N
+            // ReSharper disable LocalizableElement
+            lblDuration.Text = _stopwatch.Elapsed.ToString(@"hh\:mm\:ss");
+            // ReSharper restore LocalizableElement
 
             // Determine if we should automatically retry any failed file.
             if (_retryTime <= DateTime.Now)
@@ -628,7 +630,7 @@ namespace pwiz.Skyline.Controls.Graphs
             graphChromatograms.IsCanceled = IsUserCanceled = true;
             Program.MainWindow.ModifyDocument(Resources.AllChromatogramsGraph_btnCancel_Click_Cancel_import,
                 doc => FilterFiles(doc, info => IsCachedFile(doc, info)),
-                docPair => AuditLogEntry.CreateSimpleEntry(docPair.OldDoc, MessageType.canceled_import));
+                docPair => AuditLogEntry.CreateSimpleEntry(MessageType.canceled_import, docPair.OldDocumentType));
         }
 
         private bool IsCachedFile(SrmDocument doc, ChromFileInfo info)
@@ -734,15 +736,15 @@ namespace pwiz.Skyline.Controls.Graphs
                 foreach (FileProgressControl control in flowFileStatus.Controls)
                 {
                     if (ReferenceEquals(SelectedControl, control))
-                        sb.Append("-> ");    // Not L10N
+                        sb.Append(@"-> ");
                     if (control.Error != null)
-                        sb.AppendLine(string.Format("{0}: Error - {1}", control.FilePath, control.Error)); // Not L10N
+                        sb.AppendLine(string.Format(@"{0}: Error - {1}", control.FilePath, control.Error));
                     else if (control.IsCanceled)
-                        sb.AppendLine(string.Format("{0}: Canceled", control.FilePath)); // Not L10N
+                        sb.AppendLine(string.Format(@"{0}: Canceled", control.FilePath));
                     else
-                        sb.AppendLine(string.Format("{0}: {1}%", control.FilePath, control.Progress)); // Not L10N
+                        sb.AppendLine(string.Format(@"{0}: {1}%", control.FilePath, control.Progress));
                 }
-                return TextUtil.LineSeparate(sb.ToString(), string.Format("Total complete: {0}%", ProgressTotalPercent)); // Not L10N
+                return TextUtil.LineSeparate(sb.ToString(), string.Format(@"Total complete: {0}%", ProgressTotalPercent));
             }
         }
 

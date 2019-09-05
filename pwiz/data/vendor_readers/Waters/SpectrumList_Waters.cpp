@@ -66,7 +66,7 @@ PWIZ_API_DECL size_t SpectrumList_Waters::find(const string& id) const
 {
     map<string, size_t>::const_iterator scanItr = idToIndexMap_.find(id);
     if (scanItr == idToIndexMap_.end())
-        return size_;
+        return checkNativeIdFindResult(size_, id);
     return scanItr->second;
 }
 
@@ -135,11 +135,30 @@ PWIZ_API_DECL SpectrumPtr SpectrumList_Waters::spectrum(size_t index, DetailLeve
     int msLevel;
     CVID spectrumType;
     translateFunctionType(WatersToPwizFunctionType(rawdata_->Info.GetFunctionType(ie.function)), msLevel, spectrumType);
+    
+    bool isMS = cv::cvIsA(spectrumType, MS_mass_spectrum);
+    CVID xUnit = isMS ? MS_m_z : UO_nanometer;
+
+    double collisionEnergy = 0;
+    string collisionEnergyStr = isMS ? rawdata_->GetScanStat(ie.function, scanStatIndex, MassLynxScanItem::COLLISION_ENERGY) : "";
+    if (!collisionEnergyStr.empty())
+        collisionEnergy = lexical_cast<double>(collisionEnergyStr);
+
+    // heuristic to detect high-energy MSe function (must run for DetailLevel_InstantMetadata so that msLevel is the same at all detail levels)
+    if (msLevel == 1 && ie.function == 1 && collisionEnergy > 0)
+    {
+        double collisionEnergyFunction1 = 0;
+        string collisionEnergyStrFunction1 = rawdata_->GetScanStat(0, scanStatIndex, MassLynxScanItem::COLLISION_ENERGY);
+        if (collisionEnergy > collisionEnergyFunction1)
+        {
+            msLevel = 2;
+            spectrumType = MS_MSn_spectrum;
+        }
+    }
 
     result->set(spectrumType);
-    result->set(MS_ms_level, msLevel);
-
-    scan.set(MS_preset_scan_configuration, ie.function+1);
+    if (isMS) result->set(MS_ms_level, msLevel);
+    scan.set(MS_preset_scan_configuration, ie.function + 1);
 
     if (detailLevel == DetailLevel_InstantMetadata)
         return result;
@@ -153,18 +172,21 @@ PWIZ_API_DECL SpectrumPtr SpectrumList_Waters::spectrum(size_t index, DetailLeve
         binaryDataSource = rawdata_->CentroidRawDataFile();
     }
 
-    PwizPolarityType polarityType = WatersToPwizPolarityType(rawdata_->Info.GetIonMode(ie.function));
-    if (polarityType != PolarityType_Unknown)
-        result->set(translate(polarityType));
-
-    double lockmassMz = (polarityType == PolarityType_Negative) ? lockmassMzNegScans : lockmassMzPosScans;
-    if (lockmassMz != 0.0)
+    if (isMS)
     {
-        if (!rawdata_->ApplyLockMass(lockmassMz, lockmassTolerance)) // TODO: if false (cannot apply lockmass), log a warning
-            warn_once("[SpectrumList_Waters] failed to apply lockmass correction");
+        PwizPolarityType polarityType = WatersToPwizPolarityType(rawdata_->Info.GetIonMode(ie.function));
+        if (polarityType != PolarityType_Unknown)
+            result->set(translate(polarityType));
+
+        double lockmassMz = (polarityType == PolarityType_Negative) ? lockmassMzNegScans : lockmassMzPosScans;
+        if (lockmassMz != 0.0)
+        {
+            if (!rawdata_->ApplyLockMass(lockmassMz, lockmassTolerance)) // TODO: if false (cannot apply lockmass), log a warning
+                warn_once("[SpectrumList_Waters] failed to apply lockmass correction");
+        }
+        else
+            rawdata_->RemoveLockMass();
     }
-    else
-        rawdata_->RemoveLockMass();
 
     if (rawdata_->Info.IsContinuum(ie.function))
         result->set(MS_profile_spectrum);
@@ -189,7 +211,7 @@ PWIZ_API_DECL SpectrumPtr SpectrumList_Waters::spectrum(size_t index, DetailLeve
 
     float minMZ, maxMZ;
     rawdata_->Info.GetAcquisitionMassRange(ie.function, minMZ, maxMZ);
-    scan.scanWindows.push_back(ScanWindow(minMZ, maxMZ, MS_m_z));
+    scan.scanWindows.push_back(ScanWindow(minMZ, maxMZ, xUnit));
 
     if (detailLevel < DetailLevel_FastMetadata)
         return result;
@@ -201,33 +223,31 @@ PWIZ_API_DECL SpectrumPtr SpectrumList_Waters::spectrum(size_t index, DetailLeve
         scan.set(MS_ion_mobility_drift_time, driftTime, UO_millisecond);
     }
 
-    if (msLevel > 1)
+    if (msLevel > 1 && isMS)
     {
         string setMassStr = rawdata_->GetScanStat(ie.function, scanStatIndex, MassLynxScanItem::SET_MASS);
 
+        double setMass = 0;
         if (!setMassStr.empty())
+            setMass = lexical_cast<double>(setMassStr);
+
+        Precursor precursor;
+        if (setMass == 0)
         {
-            double setMass = lexical_cast<double>(setMassStr);
-            if (setMass > 0)
-            {
-                Precursor precursor;
-                SelectedIon selectedIon(setMass);
-                precursor.isolationWindow.set(MS_isolation_window_target_m_z, setMass, MS_m_z);
-
-                precursor.activation.set(MS_beam_type_collision_induced_dissociation); // AFAIK there is no Waters instrument with a trap collision cell
-
-                string collisionEnergyStr = rawdata_->GetScanStat(ie.function, scanStatIndex, MassLynxScanItem::COLLISION_ENERGY);
-                if (!collisionEnergyStr.empty())
-                {
-                    double collisionEnergy = lexical_cast<double>(collisionEnergyStr);
-                    if (collisionEnergy > 0)
-                        precursor.activation.set(MS_collision_energy, collisionEnergy, UO_electronvolt);
-                }
-
-                precursor.selectedIons.push_back(selectedIon);
-                result->precursors.push_back(precursor);
-            }
+            setMass = (maxMZ + minMZ) / 2;
+            precursor.isolationWindow.set(MS_isolation_window_upper_offset, maxMZ - setMass, xUnit);
+            precursor.isolationWindow.set(MS_isolation_window_lower_offset, maxMZ - setMass, xUnit);
         }
+        precursor.isolationWindow.set(MS_isolation_window_target_m_z, setMass, xUnit);
+
+        precursor.activation.set(MS_beam_type_collision_induced_dissociation); // AFAIK there is no Waters instrument with a trap collision cell
+
+        if (collisionEnergy > 0)
+            precursor.activation.set(MS_collision_energy, collisionEnergy, UO_electronvolt);
+
+        SelectedIon selectedIon(setMass);
+        precursor.selectedIons.push_back(selectedIon);
+        result->precursors.push_back(precursor);
     }
 
     if (detailLevel < DetailLevel_FullMetadata)
@@ -252,8 +272,14 @@ PWIZ_API_DECL SpectrumPtr SpectrumList_Waters::spectrum(size_t index, DetailLeve
                 binaryDataSource.lock()->Reader.ReadScan(ie.function, ie.scan, masses, intensities);
         }
 
-        vector<double> mzArray(masses.begin(), masses.end());
-        vector<double> intensityArray(intensities.begin(), intensities.end());
+        pwiz::util::BinaryData<double> mzArray(masses.size()), intensityArray(masses.size());
+        auto mzArrayItr = mzArray.begin();
+        auto intensityArrayItr = intensityArray.begin();
+        for (size_t i = 0; i < masses.size(); ++i, ++mzArrayItr, ++intensityArrayItr)
+        {
+            *mzArrayItr = masses[i];
+            *intensityArrayItr = intensities[i];
+        }
         result->swapMZIntensityArrays(mzArray, intensityArray, MS_number_of_detector_counts); // Donate mass and intensity buffers to result vectors
     }
 

@@ -205,6 +205,15 @@ namespace pwiz.Skyline.Model.AuditLog {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to DDA.
+        /// </summary>
+        public static string FullScanAcquisitionMethod_DDA {
+            get {
+                return ResourceManager.GetString("FullScanAcquisitionMethod_DDA", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to DIA.
         /// </summary>
         public static string FullScanAcquisitionMethod_DIA {
@@ -750,6 +759,42 @@ namespace pwiz.Skyline.Model.AuditLog {
         public static string PeptidePick_library {
             get {
                 return ResourceManager.GetString("PeptidePick_library", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to gene.
+        /// </summary>
+        public static string PeptideUniquenessConstraint_gene {
+            get {
+                return ResourceManager.GetString("PeptideUniquenessConstraint_gene", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to none.
+        /// </summary>
+        public static string PeptideUniquenessConstraint_none {
+            get {
+                return ResourceManager.GetString("PeptideUniquenessConstraint_none", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to protein.
+        /// </summary>
+        public static string PeptideUniquenessConstraint_protein {
+            get {
+                return ResourceManager.GetString("PeptideUniquenessConstraint_protein", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to species.
+        /// </summary>
+        public static string PeptideUniquenessConstraint_species {
+            get {
+                return ResourceManager.GetString("PeptideUniquenessConstraint_species", resourceCulture);
             }
         }
         

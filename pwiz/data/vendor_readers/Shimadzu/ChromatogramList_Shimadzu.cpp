@@ -70,7 +70,13 @@ PWIZ_API_DECL size_t ChromatogramList_Shimadzu::find(const string& id) const
 }
 
 
-PWIZ_API_DECL ChromatogramPtr ChromatogramList_Shimadzu::chromatogram(size_t index, bool getBinaryData) const 
+PWIZ_API_DECL ChromatogramPtr ChromatogramList_Shimadzu::chromatogram(size_t index, bool getBinaryData) const
+{
+    return chromatogram(index, getBinaryData ? DetailLevel_FullData : DetailLevel_FullMetadata);
+}
+
+
+PWIZ_API_DECL ChromatogramPtr ChromatogramList_Shimadzu::chromatogram(size_t index, DetailLevel detailLevel) const
 {
     boost::call_once(indexInitialized_.flag, boost::bind(&ChromatogramList_Shimadzu::createIndex, this));
     if (index>size())
@@ -84,6 +90,8 @@ PWIZ_API_DECL ChromatogramPtr ChromatogramList_Shimadzu::chromatogram(size_t ind
 
     result->set(ci.chromatogramType);
 
+    bool getBinaryData = detailLevel == DetailLevel_FullData;
+
     switch (ci.chromatogramType)
     {
         default:
@@ -91,6 +99,8 @@ PWIZ_API_DECL ChromatogramPtr ChromatogramList_Shimadzu::chromatogram(size_t ind
 
         case MS_TIC_chromatogram:
         {
+            if (detailLevel < DetailLevel_FullMetadata)
+                return result;
 
             auto ticPtr = rawfile_->getTIC();
             if (getBinaryData)
@@ -116,19 +126,15 @@ PWIZ_API_DECL ChromatogramPtr ChromatogramList_Shimadzu::chromatogram(size_t ind
             //result->product.isolationWindow.set(MS_isolation_window_lower_offset, ci.q3Offset, MS_m_z);
             //result->product.isolationWindow.set(MS_isolation_window_upper_offset, ci.q3Offset, MS_m_z);
 
+            if (detailLevel < DetailLevel_FullMetadata)
+                return result;
+
             if (getBinaryData)
             {
                 result->setTimeIntensityArrays(vector<double>(), vector<double>(), UO_minute, MS_number_of_detector_counts);
-
-                vector<double> xArray;
-                chromatogramPtr->getXArray(xArray);
-                result->getTimeArray()->data.assign(xArray.begin(), xArray.end());
-
-                vector<double> yArray;
-                chromatogramPtr->getYArray(yArray);
-                result->getIntensityArray()->data.assign(yArray.begin(), yArray.end());
-
-                result->defaultArrayLength = xArray.size();
+                chromatogramPtr->getXArray(result->getTimeArray()->data);
+                chromatogramPtr->getYArray(result->getIntensityArray()->data);
+                result->defaultArrayLength = result->getTimeArray()->data.size();
             }
             else
                 result->defaultArrayLength = chromatogramPtr->getTotalDataPoints();

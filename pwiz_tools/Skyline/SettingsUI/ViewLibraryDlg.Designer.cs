@@ -101,6 +101,7 @@ namespace pwiz.Skyline.SettingsUI
             this.toolStripSeparator15 = new System.Windows.Forms.ToolStripSeparator();
             this.zoomSpectrumContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.toolStripSeparator27 = new System.Windows.Forms.ToolStripSeparator();
+            ((System.ComponentModel.ISupportInitialize)(this.modeUIHandler)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.splitPeptideList)).BeginInit();
             this.splitPeptideList.Panel1.SuspendLayout();
             this.splitPeptideList.Panel2.SuspendLayout();
@@ -285,7 +286,6 @@ namespace pwiz.Skyline.SettingsUI
             // 
             resources.ApplyResources(this.toolStrip1, "toolStrip1");
             this.toolStrip1.GripStyle = System.Windows.Forms.ToolStripGripStyle.Hidden;
-            this.toolStrip1.ImageScalingSize = new System.Drawing.Size(20, 20);
             this.toolStrip1.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.btnAIons,
             this.btnBIons,
@@ -433,6 +433,7 @@ namespace pwiz.Skyline.SettingsUI
             // 
             resources.ApplyResources(this.cbAssociateProteins, "cbAssociateProteins");
             this.cbAssociateProteins.Name = "cbAssociateProteins";
+            this.modeUIHandler.SetUIMode(this.cbAssociateProteins, pwiz.Skyline.Util.Helpers.ModeUIExtender.MODE_UI_HANDLING_TYPE.proteomic);
             this.cbAssociateProteins.UseVisualStyleBackColor = true;
             // 
             // labelFilename
@@ -480,7 +481,6 @@ namespace pwiz.Skyline.SettingsUI
             // 
             // contextMenuSpectrum
             // 
-            this.contextMenuSpectrum.ImageScalingSize = new System.Drawing.Size(20, 20);
             this.contextMenuSpectrum.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.aionsContextMenuItem,
             this.bionsContextMenuItem,
@@ -700,6 +700,7 @@ namespace pwiz.Skyline.SettingsUI
             this.Load += new System.EventHandler(this.ViewLibraryDlg_Load);
             this.Shown += new System.EventHandler(this.ViewLibraryDlg_Shown);
             this.KeyDown += new System.Windows.Forms.KeyEventHandler(this.ViewLibraryDlg_KeyDown);
+            ((System.ComponentModel.ISupportInitialize)(this.modeUIHandler)).EndInit();
             this.splitPeptideList.Panel1.ResumeLayout(false);
             this.splitPeptideList.Panel2.ResumeLayout(false);
             this.splitPeptideList.Panel2.PerformLayout();

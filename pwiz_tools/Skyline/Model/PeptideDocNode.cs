@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Original author: Brendan MacLean <brendanx .at. u.washington.edu>,
  *                  MacCoss Lab, Department of Genome Sciences, UW
  *
@@ -19,7 +19,6 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
-using System.IO;
 using System.Linq;
 using pwiz.Common.Collections;
 using pwiz.Common.SystemUtil;
@@ -37,9 +36,9 @@ namespace pwiz.Skyline.Model
 {
     public class PeptideDocNode : DocNodeParent
     {
-        public static readonly StandardType STANDARD_TYPE_IRT = StandardType.IRT;  // Not L10N
-        public static readonly StandardType STANDARD_TYPE_QC = StandardType.QC;    // Not L10N
-        public static readonly StandardType STANDARD_TYPE_GLOBAL = StandardType.GLOBAL_STANDARD;  // Not L10N
+        public static readonly StandardType STANDARD_TYPE_IRT = StandardType.IRT;
+        public static readonly StandardType STANDARD_TYPE_QC = StandardType.QC;
+        public static readonly StandardType STANDARD_TYPE_GLOBAL = StandardType.GLOBAL_STANDARD;
 
         public PeptideDocNode(Peptide id, ExplicitMods mods = null, ExplicitRetentionTimeInfo explicitRetentionTime = null)
             : this(id, null, mods, null, null, null, explicitRetentionTime, Annotations.EMPTY, null, new TransitionGroupDocNode[0], true)
@@ -99,13 +98,13 @@ namespace pwiz.Skyline.Model
             get
             {
                 var label = PeptideTreeNode.GetLabel(this, string.Empty);
-                return (CustomMolecule != null && !string.IsNullOrEmpty(CustomMolecule.Formula)) ? string.Format("{0} ({1})", label, CustomMolecule.Formula) : label; // Not L10N
+                return (CustomMolecule != null && !string.IsNullOrEmpty(CustomMolecule.Formula)) ? string.Format(@"{0} ({1})", label, CustomMolecule.Formula) : label;
             }
         }
 
         protected override IList<DocNode> OrderedChildren(IList<DocNode> children)
         {
-            if (Peptide.IsCustomMolecule && children.Any() && !SrmDocument.IsSpecialNonProteomicTestDocNode(this))
+            if (Peptide.IsCustomMolecule && children.Any())
             {
                 // Enforce order for small molecules, except those that are fictions of the test system
                 return children.OrderBy(t => (TransitionGroupDocNode)t, new TransitionGroupDocNode.CustomIonPrecursorComparer()).ToArray();
@@ -518,6 +517,8 @@ namespace pwiz.Skyline.Model
 
         public NormalizationMethod NormalizationMethod { get; private set; }
 
+        public string AttributeGroupId { get; private set; }
+
         #region Property change methods
 
         private PeptideDocNode UpdateModifiedSequence(SrmSettings settingsNew)
@@ -621,6 +622,12 @@ namespace pwiz.Skyline.Model
         public PeptideDocNode ChangeNormalizationMethod(NormalizationMethod normalizationMethod)
         {
             return ChangeProp(ImClone(this), im => im.NormalizationMethod = normalizationMethod);
+        }
+
+        public PeptideDocNode ChangeAttributeGroupId(string attributeGroupId)
+        {
+            return ChangeProp(ImClone(this),
+                im => im.AttributeGroupId = string.IsNullOrEmpty(attributeGroupId) ? null : attributeGroupId);
         }
 
         #endregion
@@ -1110,10 +1117,19 @@ namespace pwiz.Skyline.Model
                 return ChangeResults(null);
             }
 
+            var transitionGroupKeys = new HashSet<Tuple<IsotopeLabelType, Adduct>>();
             // Update the results summary
             var resultsCalc = new PeptideResultsCalculator(settingsNew, NormalizationMethod);
             foreach (TransitionGroupDocNode nodeGroup in Children)
+            {
+                var transitionGroupKey =
+                    Tuple.Create(nodeGroup.LabelType, nodeGroup.TransitionGroup.PrecursorAdduct.Unlabeled);
+                if (!transitionGroupKeys.Add(transitionGroupKey))
+                {
+                    continue;
+                }
                 resultsCalc.AddGroupChromInfo(nodeGroup);
+            }
 
             return resultsCalc.UpdateResults(this);
         }
@@ -1205,7 +1221,7 @@ namespace pwiz.Skyline.Model
                     {
                         var calc = _listResultCalcs[i];
                         calc.AddChromInfoList(nodeGroup);
-                        foreach (TransitionDocNode nodeTran in nodeGroup.QuantitativeTransitions)
+                        foreach (TransitionDocNode nodeTran in nodeGroup.GetQuantitativeTransitions(Settings))
                             calc.AddChromInfoList(nodeGroup, nodeTran);
                     }
                 }
@@ -1457,7 +1473,7 @@ namespace pwiz.Skyline.Model
                         // first as a shortcut
                         var infoNew = info;
                         if (!ReferenceEquals(ratios, info.Ratios) && !ArrayUtil.EqualsDeep(ratios, info.Ratios))
-                            infoNew = infoNew.ChangeRatios(false, ratios);
+                            infoNew = infoNew.ChangeRatios(ratios);
                         if (isMatching && calc.IsSetMatching && !info.IsUserSetMatched)
                             infoNew = infoNew.ChangeUserSet(UserSet.MATCHED);
                         if (!ReferenceEquals(info, infoNew) && listInfoNew == null)
@@ -1645,17 +1661,12 @@ namespace pwiz.Skyline.Model
                     return;
 
                 var key = new TransitionKey(nodeGroup, nodeTran.Key(nodeGroup), nodeGroup.TransitionGroup.LabelType);
-                try
+                if (TranAreas.ContainsKey(key))
                 {
-                    TranAreas.Add(key, info.Area);
+                    return;
                 }
-                catch (Exception e)
-                {
-                    if (nodeTran.Transition.IsNonReporterCustomIon())
-                        throw new InvalidDataException(String.Format(Resources.PeptideChromInfoCalculator_AddChromInfo_Conflict_with_transition__0__in__1__for_peak_area_calculation__Did_you_mean_to_use_a_different_precursor_charge_state_or_label_, nodeTran.Transition, nodeGroup.TransitionGroup.Peptide), e);
-                    else
-                        throw new InvalidDataException(String.Format(Resources.PeptideChromInfoCalculator_AddChromInfo_Duplicate_transition___0___found_for_peak_areas, nodeTran.Transition), e);
-                }
+
+                TranAreas.Add(key, info.Area);
                 TranTypes.Add(nodeGroup.TransitionGroup.LabelType);
             }
 
@@ -1893,7 +1904,8 @@ namespace pwiz.Skyline.Model
                 other.BestResult == BestResult &&
                 Equals(other.InternalStandardConcentration, InternalStandardConcentration) &&
                 Equals(other.ConcentrationMultiplier, ConcentrationMultiplier) &&
-                Equals(other.NormalizationMethod, NormalizationMethod);
+                Equals(other.NormalizationMethod, NormalizationMethod) &&
+                Equals(other.AttributeGroupId, AttributeGroupId);
             return equal; // For debugging convenience
         }
 
@@ -1918,6 +1930,7 @@ namespace pwiz.Skyline.Model
                 result = (result*397) ^ InternalStandardConcentration.GetHashCode();
                 result = (result*397) ^ ConcentrationMultiplier.GetHashCode();
                 result = (result*397) ^ (NormalizationMethod == null ? 0 : NormalizationMethod.GetHashCode());
+                result = (result*397) ^ (AttributeGroupId == null ? 0 : AttributeGroupId.GetHashCode());
                 return result;
             }
         }

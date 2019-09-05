@@ -107,7 +107,7 @@ namespace pwiz.Skyline.Model.Results.Scoring
         public IPeakFeatureCalculator Calculator { get; private set; }
         [Track]
         public double Weight { get; private set; }
-        [Track]
+        [Track(decimalPlaces: 3)]   // Information only - store 3 decimal places, i.e. 0.105 == 10.5%
         public double PercentageContribution { get; private set; }
     }
 
@@ -291,11 +291,11 @@ namespace pwiz.Skyline.Model.Results.Scoring
                 if (!double.IsNaN(weights[i]))
                 {
                     if (scoreText.Length > 0)
-                        scoreText.Append(" + ");    // Not L10N
-                    scoreText.Append(string.Format("{0}*{1}", weights[i], features[i]));    // Not L10N
+                        scoreText.Append(@" + ");
+                    scoreText.Append(string.Format(@"{0}*{1}", weights[i], features[i]));
                 }
             }
-            scoreText.Append(string.Format(" = {0}", Score(features, weights, bias))); // Not L10N
+            scoreText.Append(string.Format(@" = {0}", Score(features, weights, bias)));
             return scoreText.ToString();
         }
 

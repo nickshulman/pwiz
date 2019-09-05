@@ -26,7 +26,6 @@ using System.Windows.Forms;
 using pwiz.Common.Chemistry;
 using pwiz.Common.Collections;
 using pwiz.MSGraph;
-using pwiz.ProteowizardWrapper;
 using pwiz.Skyline.Controls.SeqNode;
 using pwiz.Skyline.Model;
 using pwiz.Skyline.Model.DocSettings;
@@ -529,7 +528,7 @@ namespace pwiz.Skyline.Controls.Graphs
                                     }
                                     else
                                     {
-                                        label = chromData.Mz.ToString("0.####"); // Not L10N
+                                        label = chromData.Mz.ToString(@"0.####");
                                     }
                                     TransitionDocNode matchingTransition;
                                     Color color;
@@ -813,6 +812,7 @@ namespace pwiz.Skyline.Controls.Graphs
             var driftTimeFilter = IonMobilityFilter.EMPTY; // CONSIDER(bspratt) IMS in chromatogram libraries?
             var groupInfo = new ChromatogramGroupInfo(header,
                     new Dictionary<Type, int>(),
+                    new byte[0],
                     new ChromCachedFile[0],
                     new[] { new ChromTransition(chromData.Mz, 0, (float)(driftTimeFilter.IonMobility.Mobility??0), (float)(driftTimeFilter.IonMobilityExtractionWindowWidth??0), ChromSource.unknown), },
                     peaks,
@@ -1029,10 +1029,10 @@ namespace pwiz.Skyline.Controls.Graphs
         public override string ToString()
         {
             if (IsBest)
-                return ReferenceEquals(LabelType, IsotopeLabelType.light) ? LibName : String.Format("{0} ({1})", LibName, LabelType); // Not L10N
+                return ReferenceEquals(LabelType, IsotopeLabelType.light) ? LibName : String.Format(@"{0} ({1})", LibName, LabelType);
             if (IsReplicateUnique)
-                return string.Format("{0} ({1:F02} min)", ReplicateName, RetentionTime); // Not L10N
-            return string.Format("{0} - {1} ({2:F02} min)", ReplicateName, FileName, RetentionTime); // Not L10N
+                return string.Format(@"{0} ({1:F02} min)", ReplicateName, RetentionTime);
+            return string.Format(@"{0} - {1} ({2:F02} min)", ReplicateName, FileName, RetentionTime);
         }
     }
 

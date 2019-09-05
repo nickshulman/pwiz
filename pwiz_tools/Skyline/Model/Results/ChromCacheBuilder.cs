@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Original author: Brendan MacLean <brendanx .at. u.washington.edu>,
  *                  MacCoss Lab, Department of Genome Sciences, UW
  *
@@ -120,7 +120,7 @@ namespace pwiz.Skyline.Model.Results
 
         public void BuildCache()
         {
-            //LOG.InfoFormat("Start file import: {0}", MSDataFilePath.GetFileName());  // Not L10N
+            //LOG.InfoFormat(@"Start file import: {0}", MSDataFilePath.GetFileName());
 
             // Check for cancellation on every chromatogram, because there
             // have been some files that load VERY slowly, and appear to hang
@@ -258,7 +258,7 @@ namespace pwiz.Skyline.Model.Results
 
                     // Start multiple threads to perform peak scoring.
                     _chromDataSets = new QueueWorker<PeptideChromDataSets>(null, ScoreWriteChromDataSets);
-                    _chromDataSets.RunAsync(SCORING_THREADS, "Scoring/writing", MAX_CHROM_READ_AHEAD); // Not L10N
+                    _chromDataSets.RunAsync(SCORING_THREADS, @"Scoring/writing", MAX_CHROM_READ_AHEAD);
 
                     Read(provider);
 
@@ -307,7 +307,7 @@ namespace pwiz.Skyline.Model.Results
                 {
                     ExitRead(new MissingDataException(missingDataX.MessageFormat, MSDataFilePath, missingDataX));
                 }
-                else if (x.Message.Contains("PeakDetector::NoVendorPeakPickingException")) // Not L10N
+                else if (x.Message.Contains(@"PeakDetector::NoVendorPeakPickingException"))
                 {
                     ExitRead(new NoCentroidedDataException(MSDataFilePath, x));
                 }
@@ -422,7 +422,15 @@ namespace pwiz.Skyline.Model.Results
 
                 // All threads must complete scoring before we complete the first pass.
                 _chromDataSets.Wait();
-                doSecondPass = _retentionTimePredictor.CreateConversion();
+                if (!_retentionTimePredictor.CreateConversion())
+                {
+                    var transitionFullScan = _document.Settings.TransitionSettings.FullScan;
+                    if (transitionFullScan.IsEnabled && transitionFullScan.RetentionTimeFilterType ==
+                        RetentionTimeFilterType.scheduling_windows)
+                    {
+                        doSecondPass = false;
+                    }
+                }
                 if (!doSecondPass && listChromData.Any(data => null != data && !IsFirstPassPeptide(data)))
                 {
                     _status = _status.ChangeWarningMessage(
@@ -471,9 +479,9 @@ namespace pwiz.Skyline.Model.Results
             // Release all provider memory before waiting for write completion
             provider.ReleaseMemory();
 
-            //LOG.InfoFormat("Scans read: {0}", MSDataFilePath.GetFileName());  // Not L10N
+            //LOG.InfoFormat(@"Scans read: {0}", MSDataFilePath.GetFileName());
             _chromDataSets.DoneAdding(true);
-            //LOG.InfoFormat("Peak scoring/writing finished: {0}", MSDataFilePath.GetFileName());  // Not L10N
+            //LOG.InfoFormat(@"Peak scoring/writing finished: {0}", MSDataFilePath.GetFileName());
             if (_chromDataSets.Exception != null)
             {
                 throw new ChromCacheBuildException(MSDataFilePath, _chromDataSets.Exception);
@@ -499,6 +507,7 @@ namespace pwiz.Skyline.Model.Results
         private List<PeptideChromDataSets> CalcPeptideChromDataSets(ChromDataProvider provider,
             List<PeptidePrecursorMz> listMzPrecursors, HashSet<IsotopeLabelType> setInternalStandards)
         {
+            double tolerance = _document.Settings.TransitionSettings.Instrument.MzMatchTolerance;
             bool singleMatch = provider.IsSingleMzMatch;
 
             var dictPeptideChromData = new Dictionary<PeptideSequenceModKey, PeptideChromDataSets>();
@@ -508,7 +517,7 @@ namespace pwiz.Skyline.Model.Results
             {
                 if (chromDataSet == null)
                     continue;
-                foreach (var matchingGroup in GetMatchingGroups(chromDataSet, listMzPrecursors, singleMatch))
+                foreach (var matchingGroup in GetMatchingGroups(chromDataSet, listMzPrecursors, singleMatch, tolerance))
                 {
                     var peptidePercursor = matchingGroup.Key;
                     var chromDataSetMatch = matchingGroup.Value;
@@ -584,10 +593,10 @@ namespace pwiz.Skyline.Model.Results
 
         private IEnumerable<ChromDataSet> GetChromDataSets(ChromDataProvider provider)
         {
-            return GetChromDataSets(provider, IsTimeNormalArea);
+            return GetChromDataSets(_document.Settings.TransitionSettings.FullScan.AcquisitionMethod, provider, IsTimeNormalArea);
         }
 
-        public static IEnumerable<ChromDataSet> GetChromDataSets(ChromDataProvider provider, bool isTimeNormalArea)
+        public static IEnumerable<ChromDataSet> GetChromDataSets(FullScanAcquisitionMethod fullScanAcquisitionMethod, ChromDataProvider provider, bool isTimeNormalArea)
         {
             ChromKey lastKey = ChromKey.EMPTY;
             ChromDataSet chromDataSet = null;
@@ -605,7 +614,7 @@ namespace pwiz.Skyline.Model.Results
                     if (chromDataSet != null)
                         yield return chromDataSet;
 
-                    chromDataSet = new ChromDataSet(isTimeNormalArea, null, chromData);
+                    chromDataSet = new ChromDataSet(isTimeNormalArea, null, fullScanAcquisitionMethod, chromData);
                 }
                 lastKey = key;
             }
@@ -741,6 +750,10 @@ namespace pwiz.Skyline.Model.Results
                 return;
             }
             var fullScan = _document.Settings.TransitionSettings.FullScan;
+            if (!fullScan.IsEnabled)
+            {
+                return;
+            }
             if (fullScan.RetentionTimeFilterType != RetentionTimeFilterType.scheduling_windows)
             {
                 return;
@@ -869,7 +882,7 @@ namespace pwiz.Skyline.Model.Results
         }
 
         private static IEnumerable<KeyValuePair<PeptidePrecursorMz, ChromDataSet>> GetMatchingGroups(
-            ChromDataSet chromDataSet, List<PeptidePrecursorMz> listMzPrecursors, bool singleMatch)
+            ChromDataSet chromDataSet, List<PeptidePrecursorMz> listMzPrecursors, bool singleMatch, double tolerance)
         {
             SignedMz maxMzMatch;
             var i = FindMatchMin(chromDataSet, listMzPrecursors, singleMatch, out maxMzMatch);
@@ -891,9 +904,10 @@ namespace pwiz.Skyline.Model.Results
                     // If the current chromDataSet has already been used, make a copy.
                     chromDataSet = new ChromDataSet(chromDataSet.IsTimeNormalArea,
                         peptidePrecursorMz.NodePeptide.ModifiedTarget,
+                        chromDataSet.FullScanAcquisitionMethod, 
                         chromDataSet.Chromatograms.Select(c => c.CloneForWrite()).ToArray());
                 }
-                var groupData = GetMatchingData(nodeGroup, chromDataSet, explicitRetentionTimeInfo);
+                var groupData = GetMatchingData(nodeGroup, chromDataSet, explicitRetentionTimeInfo, tolerance);
                 if (groupData != null)
                 {
                     Assume.IsTrue(chromDataSet.PrecursorMz.IsNegative == peptidePrecursorMz.PrecursorMz.IsNegative);
@@ -953,7 +967,7 @@ namespace pwiz.Skyline.Model.Results
                             arrayChromData[j] = chromData.CloneForWrite();
                         setChromData.Add(chromData);
                     }
-                    var chromDataPart = new ChromDataSet(isTimeNormalArea, match.Item1.NodePeptide.ModifiedTarget, arrayChromData);
+                    var chromDataPart = new ChromDataSet(isTimeNormalArea, match.Item1.NodePeptide.ModifiedTarget, chromDataSet.FullScanAcquisitionMethod, arrayChromData);
                     yield return new KeyValuePair<PeptidePrecursorMz, ChromDataSet>(
                         match.Item1, chromDataPart);
                 }
@@ -1035,11 +1049,11 @@ namespace pwiz.Skyline.Model.Results
         }
 
 // ReSharper disable SuggestBaseTypeForParameter
-        private static IList<ChromData> GetMatchingData(TransitionGroupDocNode nodeGroup, ChromDataSet chromDataSet, ExplicitRetentionTimeInfo explicitRT)
+        private static IList<ChromData> GetMatchingData(TransitionGroupDocNode nodeGroup, ChromDataSet chromDataSet, ExplicitRetentionTimeInfo explicitRT, double tolerance)
 // ReSharper restore SuggestBaseTypeForParameter
         {
             // Look for potential product ion matches
-            var listMatchingData = GetBestMatching(chromDataSet.Chromatograms, nodeGroup.Transitions, explicitRT);
+            var listMatchingData = GetBestMatching(chromDataSet.Chromatograms, nodeGroup.Transitions, explicitRT, tolerance);
 
             // Only return a match, if at least two product ions match, or the precursor
             // has only a single product ion, and it matches
@@ -1059,10 +1073,9 @@ namespace pwiz.Skyline.Model.Results
         }
 
         private static IList<IndexChromDataTrans> GetBestMatching(
-            IEnumerable<ChromData> chromatograms, IEnumerable<TransitionDocNode> transitions, ExplicitRetentionTimeInfo explicitRT)
+            IEnumerable<ChromData> chromatograms, IEnumerable<TransitionDocNode> transitions, ExplicitRetentionTimeInfo explicitRT, double tolerance)
         {
             var listMatchingData = new List<IndexChromDataTrans>();
-            const float tolerance = (float)TransitionInstrument.MAX_MZ_MATCH_TOLERANCE;
             // Create lists of elements sorted by m/z
             var listMzIndexChromatograms =
                 chromatograms.Select((c, i) => new MzIndexChromData(c.Key.Product, i, c)).ToList();
@@ -1348,6 +1361,8 @@ namespace pwiz.Skyline.Model.Results
                     flags |= ChromGroupHeaderInfo.FlagValues.has_calculated_mzs;
                 if (chromDataSet.Extractor == ChromExtractor.base_peak)
                     flags |= ChromGroupHeaderInfo.FlagValues.extracted_base_peak;
+                else if(chromDataSet.Extractor == ChromExtractor.qc)
+                    flags |= ChromGroupHeaderInfo.FlagValues.extracted_qc_trace;
             if (scanIdsByChromSource != null && scanIdsByChromSource.ContainsKey(ChromSource.ms1))
                         flags |= ChromGroupHeaderInfo.FlagValues.has_ms1_scan_ids;
             if (scanIdsByChromSource != null && scanIdsByChromSource.ContainsKey(ChromSource.fragment))
@@ -1356,6 +1371,8 @@ namespace pwiz.Skyline.Model.Results
                         flags |= ChromGroupHeaderInfo.FlagValues.has_sim_scan_ids;
             if (groupOfTimeIntensities is RawTimeIntensities)
                 flags |= ChromGroupHeaderInfo.FlagValues.raw_chromatograms;
+            if (_document.Settings.TransitionSettings.FullScan.AcquisitionMethod == FullScanAcquisitionMethod.DDA)
+                flags |= ChromGroupHeaderInfo.FlagValues.dda_acquisition_method;
 
                 var header = new ChromGroupHeaderInfo(chromDataSet.PrecursorMz,
                     0,

@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Original author: Brendan MacLean <brendanx .at. u.washington.edu>,
  *                  MacCoss Lab, Department of Genome Sciences, UW
  *
@@ -46,7 +46,7 @@ namespace pwiz.Skyline.Controls.Graphs
 
     public enum AutoZoomChrom { none, peak, window, both }
 
-    public enum DisplayTypeChrom { single, precursors, products, all, total, base_peak, tic }
+    public enum DisplayTypeChrom { single, precursors, products, all, total, base_peak, tic, qc }
 
     public partial class GraphChromatogram : DockableFormEx, IGraphContainer
     {
@@ -73,7 +73,7 @@ namespace pwiz.Skyline.Controls.Graphs
             get
             {
                 var transformType = Settings.Default.TransformTypeChromatogram;
-                if (transformType == "none") // Not L10N
+                if (transformType == @"none")
                 {
                     return TransformChrom.interpolated;
                 }
@@ -118,7 +118,7 @@ namespace pwiz.Skyline.Controls.Graphs
         public static DisplayTypeChrom GetDisplayType(SrmDocument documentUI)
         {
             var displayType = DisplayType;
-            if (displayType == DisplayTypeChrom.base_peak || displayType == DisplayTypeChrom.tic)
+            if (displayType == DisplayTypeChrom.base_peak || displayType == DisplayTypeChrom.tic || displayType == DisplayTypeChrom.qc)
             {
                 if (!documentUI.Settings.HasResults || !documentUI.Settings.MeasuredResults.HasAllIonsChromatograms)
                     displayType = DisplayTypeChrom.all;
@@ -322,7 +322,7 @@ namespace pwiz.Skyline.Controls.Graphs
                 {
                     Name = fullScanInfo.ScanName,
                     Source = fullScanInfo.ChromInfo.Source,
-                    ScanIndexes = fullScanInfo.ChromInfo.ScanIndexes,
+                    TimeIntensities = fullScanInfo.ChromInfo.TimeIntensities,
                     Color = curve.Color,
                     PrecursorMz = fullScanInfo.ChromInfo.PrecursorMz,
                     ProductMz = fullScanInfo.ChromInfo.ProductMz,
@@ -726,8 +726,8 @@ namespace pwiz.Skyline.Controls.Graphs
             var retentionTimeTransformOp = _stateProvider.GetRetentionTimeTransformOperation();
             if (null != retentionTimeTransformOp && null != _arrayChromInfo)
             {
-                Assume.IsNotNull(chromatograms, "chromatograms"); // Not L10N
-                Assume.IsNotNull(ChromGroupInfos, "ChromGroupInfos"); // Not L10N
+                Assume.IsNotNull(chromatograms, @"chromatograms");
+                Assume.IsNotNull(ChromGroupInfos, @"ChromGroupInfos");
                 if (ChromGroupInfos != null && ChromGroupInfos.Length > 0 && null != ChromGroupInfos[0])
                 {
                     retentionTimeTransformOp.TryGetRegressionFunction(chromatograms.FindFile(ChromGroupInfos[0]), out timeRegressionFunction);
@@ -807,6 +807,13 @@ namespace pwiz.Skyline.Controls.Graphs
             // Check for appropriate chromatograms to load
             bool changedGroups = false;
 
+            var displayToExtractor = new Dictionary<DisplayTypeChrom, ChromExtractor>
+            {
+                {DisplayTypeChrom.tic, ChromExtractor.summed},
+                {DisplayTypeChrom.base_peak, ChromExtractor.base_peak},
+                {DisplayTypeChrom.qc, ChromExtractor.qc}
+            };
+
             try
             {
                 _showPeptideTotals = peptideAndTransitionGroups.ShowPeptideTotals;
@@ -816,11 +823,9 @@ namespace pwiz.Skyline.Controls.Graphs
                 float mzMatchTolerance = (float) settings.TransitionSettings.Instrument.MzMatchTolerance;
                 var displayType = GetDisplayType(DocumentUI);
                 bool changedGroupIds;
-                if (displayType == DisplayTypeChrom.base_peak || displayType == DisplayTypeChrom.tic)
+                if (displayToExtractor.ContainsKey(displayType))
                 {
-                    var extractor = displayType == DisplayTypeChrom.base_peak
-                                        ? ChromExtractor.base_peak
-                                        : ChromExtractor.summed;
+                    var extractor = displayToExtractor[displayType];
                     if (EnsureChromInfo(results,
                                         chromatograms,
                                         nodeGroups,
@@ -1054,8 +1059,11 @@ namespace pwiz.Skyline.Controls.Graphs
                         case DisplayTypeChrom.tic:
                             message = Resources.GraphChromatogram_UpdateUI_No_TIC_chromatogram_found;
                             break;
+                        case DisplayTypeChrom.qc:
+                            message = Resources.GraphChromatogram_UpdateUI_No_QC_chromatogram_found;
+                            break;
                     }
-                    SetGraphItem(new UnavailableChromGraphItem(message));
+                    SetGraphItem(new UnavailableChromGraphItem(Helpers.PeptideToMoleculeTextMapper.Translate(message, DocumentUI.DocumentType)));
                 }
             }
             else 
@@ -1299,7 +1307,7 @@ namespace pwiz.Skyline.Controls.Graphs
             for (int i = 0; i < numTrans; i++)
             {
                 var nodeTran = displayTrans[i];
-                if (!nodeTran.Quantitative)
+                if (!IsQuantitative(nodeTran))
                 {
                     continue;
                 }
@@ -1320,26 +1328,29 @@ namespace pwiz.Skyline.Controls.Graphs
             for (int i = 0; i < numTrans; i++)
             {
                 var nodeTran = displayTrans[i];
-                if (!nodeTran.Quantitative)
+                if (IsQuantitative(nodeTran))
                 {
-                    continue;
-                }
 
-                // Store library intensities for dot-product
-                if (expectedIntensities != null)
-                {
-                    if (isFullScanMs)
-                        expectedIntensities[i] = nodeTran.HasDistInfo ? nodeTran.IsotopeDistInfo.Proportion : 0;
-                    else
-                        expectedIntensities[i] = nodeTran.HasLibInfo ? nodeTran.LibInfo.Intensity : 0;
+                    // Store library intensities for dot-product
+                    if (expectedIntensities != null)
+                    {
+                        if (isFullScanMs)
+                            expectedIntensities[i] = nodeTran.HasDistInfo ? nodeTran.IsotopeDistInfo.Proportion : 0;
+                        else
+                            expectedIntensities[i] = nodeTran.HasLibInfo ? nodeTran.LibInfo.Intensity : 0;
+                    }
                 }
 
                 var info = arrayChromInfo[i];
-                if (info == null)
-                    continue;
+                    if (info == null)
+                        continue;
 
                 // Apply any active transform
                 info.Transform(transform);
+                if (!IsQuantitative(nodeTran))
+                {
+                    continue;
+                }
 
                 for (int j = 0; j < numPeaks; j++)
                 {
@@ -1429,7 +1440,7 @@ namespace pwiz.Skyline.Controls.Graphs
                     continue;
 
                 var nodeTran = displayTrans[i];
-                if (!nodeTran.Quantitative && Settings.Default.ShowQuantitativeOnly)
+                if (!IsQuantitative(nodeTran) && Settings.Default.ShowQuantitativeOnly)
                 {
                     continue;
                 }
@@ -1477,7 +1488,7 @@ namespace pwiz.Skyline.Controls.Graphs
                     };
                 }
 
-                DashStyle dashStyle = nodeTran.Quantitative ? DashStyle.Solid : DashStyle.Dot;
+                DashStyle dashStyle = IsQuantitative(nodeTran) ? DashStyle.Solid : DashStyle.Dot;
                 var graphItem = new ChromGraphItem(nodeGroup,
                     nodeTran,
                     info,
@@ -1916,10 +1927,10 @@ namespace pwiz.Skyline.Controls.Graphs
                 TransitionChromInfo tranPeakInfo = null;
                 float maxPeakHeight = float.MinValue;
                 var listChromInfo = new List<ChromatogramInfo>();
-                bool anyQuantitative = nodeGroup.Transitions.Any(transition => transition.Quantitative);
+                bool anyQuantitative = nodeGroup.Transitions.Any(IsQuantitative);
                 foreach (TransitionDocNode nodeTran in nodeGroup.Children)
                 {
-                    if (anyQuantitative && !nodeTran.Quantitative)
+                    if (anyQuantitative && !IsQuantitative(nodeTran))
                     {
                         continue;
                     }
@@ -1998,6 +2009,11 @@ namespace pwiz.Skyline.Controls.Graphs
                     _graphHelper.AddChromatogram(graphPaneKey, graphItem);
                 }
             }
+        }
+
+        private bool IsQuantitative(TransitionDocNode transitionDocNode)
+        {
+            return transitionDocNode.IsQuantitative(DocumentUI.Settings);
         }
 
         private class DisplayPeptide
@@ -2182,8 +2198,7 @@ namespace pwiz.Skyline.Controls.Graphs
                                                 Target lookupSequence,
                                                 ExplicitMods lookupMods)
         {
-            // FUTURE: Fix this when we can predict retention time for small molecules
-            if (lookupSequence == null || !lookupSequence.IsProteomic)
+            if (lookupSequence == null)
             {
                 return;
             }
@@ -2418,7 +2433,15 @@ namespace pwiz.Skyline.Controls.Graphs
                                      out bool changedGroups,
                                      out bool changedGroupIds)
         {
-            if (UpdateGroups(nodeGroups, groupPaths, out changedGroups, out changedGroupIds) && _extractor == extractor)
+            bool qcTraceNameMatches = extractor != ChromExtractor.qc ||
+                                      (_arrayChromInfo != null &&
+                                       _arrayChromInfo.Length > 0 &&
+                                       _arrayChromInfo[0].Length > 0 &&
+                                       _arrayChromInfo[0][0].TextId == Settings.Default.ShowQcTraceName);
+
+            if (UpdateGroups(nodeGroups, groupPaths, out changedGroups, out changedGroupIds) &&
+                _extractor == extractor &&
+                qcTraceNameMatches)
                 return true;
 
             _extractor = extractor;
@@ -2459,7 +2482,8 @@ namespace pwiz.Skyline.Controls.Graphs
                             continue;
                         foreach (var chromInfo in arrayChromInfo)
                         {
-                            if (arrayNew[j] == null && Equals(listFiles[i], chromInfo.FilePath))
+                            qcTraceNameMatches = extractor != ChromExtractor.qc || Settings.Default.ShowQcTraceName == chromInfo.TextId;
+                            if (arrayNew[j] == null && Equals(listFiles[i], chromInfo.FilePath) && qcTraceNameMatches)
                                 arrayNew[j] = chromInfo;
                         }
                     }
@@ -3102,7 +3126,7 @@ namespace pwiz.Skyline.Controls.Graphs
                         // Uncomment to get coordinates for tests
 //                        double xScaled, yScaled;
 //                        graphPane.ReverseTransform(pt, out xScaled, out yScaled);
-//                        Console.WriteLine(@"Clicked x={0}, y={1}", xScaled, yScaled); // not L10N
+//                        Console.WriteLine(@"Clicked x={0}, y={1}", xScaled, yScaled); 
 
                         FireClickedChromatogram(graphPane);
                     }
@@ -3729,7 +3753,7 @@ namespace pwiz.Skyline.Controls.Graphs
             {
                 return MeasuredTime.ToString(CultureInfo.InvariantCulture);
             }
-            return string.Format("{0} ({1})", MeasuredTime, DisplayTime); // Not L10N
+            return string.Format(@"{0} ({1})", MeasuredTime, DisplayTime);
         }
     }
 

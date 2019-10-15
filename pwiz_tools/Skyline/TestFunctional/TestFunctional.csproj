@@ -154,6 +154,7 @@
     <Compile Include="AssociateProteinsDlgTest.cs" />
     <Compile Include="AuditLogSavingTest.cs" />
     <Compile Include="AuditLogTest.cs" />
+    <Compile Include="AuditLogValidationTest.cs" />
     <Compile Include="AutoSelectTest.cs" />
     <Compile Include="BackgroundEventThreadsTest.cs" />
     <Compile Include="BatchCalibrationTest.cs" />
@@ -248,6 +249,7 @@
     <Compile Include="NeutralLossLibraryTest.cs" />
     <Compile Include="NeutralLossTest.cs" />
     <Compile Include="NonLinearRegressionTest.cs" />
+    <Compile Include="OrderByReplicateAnnotationTest.cs" />
     <Compile Include="PasteMoleculesTest.cs" />
     <Compile Include="PeakScoringModelTest.cs" />
     <Compile Include="PivotEditorTest.cs" />
@@ -368,6 +370,7 @@
     <None Include="AreaCVHistogramTest.zip" />
     <None Include="AssayLibraryImportTest.zip" />
     <None Include="AuditLogSavingTest.zip" />
+    <None Include="AuditLogValidationTest.zip" />
     <None Include="BackgroundProteomeTest.zip" />
     <None Include="BatchCalibrationTest.zip" />
     <None Include="CalibrationScenariosTest.zip" />

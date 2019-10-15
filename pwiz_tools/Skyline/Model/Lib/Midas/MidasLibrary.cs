@@ -216,9 +216,10 @@ namespace pwiz.Skyline.Model.Lib.Midas
                     yield break;
 
                 var spectrum = msd.GetSpectrum(i);
-                if (!spectrum.Precursors.Any())
+                var ms1Precursors = spectrum.GetPrecursorsByMsLevel(1);
+                if (!ms1Precursors.Any())
                     continue;
-                var precursor = spectrum.Precursors.First();
+                var precursor = ms1Precursors.First();
                 yield return new DbSpectrum(new DbResultsFile(msd.FilePath), precursor.PrecursorMz.GetValueOrDefault(),
                     null, null, null, spectrum.RetentionTime.GetValueOrDefault(), spectrum.Mzs, spectrum.Intensities);
             }
@@ -404,7 +405,7 @@ namespace pwiz.Skyline.Model.Lib.Midas
 
         public override bool TryGetLibInfo(LibKey key, out SpectrumHeaderInfo libInfo)
         {
-            libInfo = Contains(key) ? new BiblioSpecSpectrumHeaderInfo(Name, 1) : null;
+            libInfo = Contains(key) ? new BiblioSpecSpectrumHeaderInfo(Name, 1, null, null) : null;
             return libInfo != null;
         }
 

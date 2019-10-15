@@ -118,7 +118,7 @@ namespace pwiz.Skyline.Model
 
         protected override IList<DocNode> OrderedChildren(IList<DocNode> children)
         {
-            if (IsCustomIon && children.Any() && !SrmDocument.IsSpecialNonProteomicTestDocNode(this) && !SrmDocument.IsConvertedFromProteomicTestDocNode(this))
+            if (IsCustomIon && children.Any() && !SrmDocument.IsConvertedFromProteomicTestDocNode(this))
             {
                 // Enforce order that facilitates Isotope ratio calculation, especially in cases where all we have is mz
                 return children.OrderBy(t => (TransitionDocNode)t, new TransitionDocNode.CustomIonEquivalenceComparer()).ToArray();
@@ -1340,7 +1340,18 @@ namespace pwiz.Skyline.Model
                                     int step = i - numSteps;
                                     UserSet userSet = UserSet.FALSE;
                                     var chromInfo = FindChromInfo(results, fileId, step);
-                                    if (!keepUserSet || chromInfo == null || chromInfo.UserSet == UserSet.FALSE || missmatchedEmptyReintegrated)
+                                    bool notUserSet;
+                                    if (resultsHandler == null)
+                                    {
+                                        // If we don't have a model then we shouldn't change peaks that are "REINTEGRATED".
+                                        notUserSet = chromInfo == null || chromInfo.UserSet == UserSet.FALSE;
+                                    }
+                                    else
+                                    {
+                                        notUserSet = chromInfo == null || chromInfo.UserSet == UserSet.FALSE ||
+                                                     chromInfo.UserSet == UserSet.REINTEGRATED;
+                                    }
+                                    if (!keepUserSet || notUserSet || missmatchedEmptyReintegrated)
                                     {
                                         ChromPeak peak = ChromPeak.EMPTY;
                                         IonMobilityFilter ionMobility = IonMobilityFilter.EMPTY;
@@ -1361,7 +1372,7 @@ namespace pwiz.Skyline.Model
                                             {
                                                 peak = CalcMatchingPeak(settingsNew, info, chromGroupInfoMatch, reintegratePeak, qcutoff, ref userSet);
                                             }
-                                            // Otherwize use the best peak chosen at import time
+                                            // Otherwise use the best peak chosen at import time
                                             else
                                             {
                                                 int bestIndex = GetBestIndex(info, reintegratePeak, qcutoff, ref userSet);

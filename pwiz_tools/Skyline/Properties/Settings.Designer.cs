@@ -1791,18 +1791,6 @@ namespace pwiz.Skyline.Properties {
         
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("False")]
-        public bool TestSmallMolecules {
-            get {
-                return ((bool)(this["TestSmallMolecules"]));
-            }
-            set {
-                this["TestSmallMolecules"] = value;
-            }
-        }
-        
-        [global::System.Configuration.UserScopedSettingAttribute()]
-        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
         [global::System.Configuration.DefaultSettingValueAttribute("True")]
         public bool AllowMultiplePeptideSelection {
             get {
@@ -2767,6 +2755,30 @@ namespace pwiz.Skyline.Properties {
             }
             set {
                 this["ShowQcTraceName"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("False")]
+        public bool ExportSortByMz {
+            get {
+                return ((bool)(this["ExportSortByMz"]));
+            }
+            set {
+                this["ExportSortByMz"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("True")]
+        public bool ShowLibraryScores {
+            get {
+                return ((bool)(this["ShowLibraryScores"]));
+            }
+            set {
+                this["ShowLibraryScores"] = value;
             }
         }
     }

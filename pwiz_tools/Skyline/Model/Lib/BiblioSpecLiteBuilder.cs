@@ -32,7 +32,15 @@ using pwiz.Skyline.Util.Extensions;
 
 namespace pwiz.Skyline.Model.Lib
 {
-    public sealed class BiblioSpecLiteBuilder : ILibraryBuilder
+    public interface IiRTCapableLibraryBuilder : ILibraryBuilder
+    {
+        string AmbiguousMatchesMessage { get; }
+        IrtStandard IrtStandard { get; }
+        string BuildCommandArgs { get; }
+        string BuildOutput { get; }
+    }
+
+    public sealed class BiblioSpecLiteBuilder : IiRTCapableLibraryBuilder
     {
         // ReSharper disable LocalizableElement
         public const string EXT_PEP_XML = ".pep.xml";
@@ -82,6 +90,7 @@ namespace pwiz.Skyline.Model.Lib
         public bool IncludeAmbiguousMatches { get; set; }
         public IrtStandard IrtStandard { get; set; }
         public bool? PreferEmbeddedSpectra { get; set; }
+        public bool DebugMode { get; set; }
 
         public IList<string> InputFiles
         {
@@ -102,7 +111,13 @@ namespace pwiz.Skyline.Model.Lib
                     : string.Empty;
             }
         }
+
+        public string BuildCommandArgs { get { return _buildCommandArgs; } }
+        public string BuildOutput { get { return _buildOutput; } }
+
         private string[] _ambiguousMatches;
+        private string _buildCommandArgs;
+        private string _buildOutput;
 
         public bool BuildLibrary(IProgressMonitor progress)
         {
@@ -134,6 +149,7 @@ namespace pwiz.Skyline.Model.Lib
                 CutOffScore = CutOffScore,
                 Id = Id,
                 PreferEmbeddedSpectra = PreferEmbeddedSpectra,
+                DebugMode = DebugMode,
             };
 
             bool retry = true;
@@ -141,7 +157,8 @@ namespace pwiz.Skyline.Model.Lib
             {
                 try
                 {
-                    if (!blibBuilder.BuildLibrary(Action, progress, ref status, out _ambiguousMatches))
+                    if (!blibBuilder.BuildLibrary(Action, progress, ref status,
+                        out _buildCommandArgs, out _buildOutput, out _ambiguousMatches))
                     {
                         return false;
                     }

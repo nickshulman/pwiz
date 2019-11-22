@@ -17,14 +17,17 @@
  * limitations under the License.
  */
 
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Xml.Serialization;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using pwiz.Skyline;
 using pwiz.Skyline.Model;
 using pwiz.Skyline.Model.AuditLog;
+using pwiz.Skyline.Model.GroupComparison;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
 using pwiz.SkylineTestUtil;
@@ -51,14 +54,15 @@ namespace pwiz.SkylineTestData
         [TestMethod]
         public void ConsoleRefineDocumentTest()
         {
-            DocumentPath = InitRefineDocument(RefinementSettings.ConvertToSmallMoleculesMode.none);
+            TestFilesDir = new TestFilesDir(TestContext, @"TestData\CommandLineRefine.zip");
+            DocumentPath = InitRefineDocument("SRM_mini_single_replicate.sky");
             OutPath = Path.Combine(Path.GetDirectoryName(DocumentPath) ?? string.Empty, "test.sky");
 
             // First check a few refinements which should not change the document
             string minPeptides = 1.ToString();
             string output = Run(CommandArgs.ARG_REFINE_MIN_PEPTIDES.GetArgumentTextWithValue(minPeptides));
             AssertEx.Contains(output, Resources.CommandLine_RefineDocument_Refining_document___, Resources.CommandLine_LogNewEntries_Document_unchanged);
-            string minTrans = (TestSmallMolecules ? 1 : 2).ToString();
+            string minTrans = (2).ToString();
             output = Run(CommandArgs.ARG_REFINE_MIN_TRANSITIONS.GetArgumentTextWithValue(minTrans));
             AssertEx.Contains(output, Resources.CommandLine_RefineDocument_Refining_document___, Resources.CommandLine_LogNewEntries_Document_unchanged);
 
@@ -155,7 +159,8 @@ namespace pwiz.SkylineTestData
         {
             Settings.Default.RTCalculatorName = Settings.Default.RTScoreCalculatorList.GetDefaults().First().Name;
 
-            DocumentPath = InitRefineDocument(RefinementSettings.ConvertToSmallMoleculesMode.none);
+            TestFilesDir = new TestFilesDir(TestContext, @"TestData\CommandLineRefine.zip");
+            DocumentPath = InitRefineDocument("SRM_mini_single_replicate.sky");
             OutPath = Path.Combine(Path.GetDirectoryName(DocumentPath) ?? string.Empty, "test.sky");
 
             // First check a few refinements which should not change the document
@@ -209,7 +214,7 @@ namespace pwiz.SkylineTestData
             parts.Add(LogMessage.Quote(minPeakFoundRatio));
             AssertEx.Contains(output, parts.ToArray());
             IsResultsState(OutPath, 7, 7, 54, output);
-            // Pick only most intense transtions
+            // Pick only most intense transitions
             string maxPeakRank = 4.ToString();
             args.Add(CommandArgs.ARG_REFINE_MAX_PEAK_RANK.GetArgumentTextWithValue(maxPeakRank));
             output = Run(args.ToArray());
@@ -225,35 +230,147 @@ namespace pwiz.SkylineTestData
             parts.Add(LogMessage.Quote(maxPeptideRank));
             AssertEx.Contains(output, parts.ToArray());
             IsResultsState(OutPath, 5, 5, 20, output);
+            // Pick the precursors with the maximum peaks
+            DocumentPath = InitRefineDocument("iPRG 2015 Study-mini.sky", 1, 0, 4, 6, 18);
+            output = Run(CommandArgs.ARG_REFINE_MAX_PRECURSOR_PEAK_ONLY.ArgumentText);
+            AssertEx.Contains(output, PropertyNames.RefinementSettings_MaxPrecursorPeakOnly);
+            IsResultsState(OutPath, 4, 4, 12, output, true);
+            // Pick the precursors with the maximum peaks, not ignoring standard types
+            DocumentPath = InitRefineDocument("sprg_all_charges-mini.sky", 1, 0, 3, 6, 54);
+            output = Run(CommandArgs.ARG_REFINE_MAX_PRECURSOR_PEAK_ONLY.ArgumentText);
+            AssertEx.Contains(output, PropertyNames.RefinementSettings_MaxPrecursorPeakOnly);
+            IsResultsState(OutPath, 3, 3, 27, output, true);
         }
 
-//        [TestMethod]
-//        public void ConsoleRefineConvertToSmallMoleculesTest()
-//        {
-//            // Exercise the code that helps match heavy labeled ion formulas with unlabled
-//            Assert.AreEqual("C5H12NO2S", BioMassCalc.MONOISOTOPIC.StripLabelsFromFormula("C5H9H'3NO2S"));
-//            Assert.IsNull(BioMassCalc.MONOISOTOPIC.StripLabelsFromFormula(""));
-//            Assert.IsNull(BioMassCalc.MONOISOTOPIC.StripLabelsFromFormula(null));
-//
-//            InitRefineDocument(RefinementSettings.ConvertToSmallMoleculesMode.formulas);
-//        }
-//
-//        [TestMethod]
-//        public void ConsoleRefineConvertToSmallMoleculeMassesTest()
-//        {
-//            InitRefineDocument(RefinementSettings.ConvertToSmallMoleculesMode.masses_only);
-//        }
-//
-//        [TestMethod]
-//        public void ConsoleRefineConvertToSmallMoleculeMassesAndNamesTest()
-//        {
-//            InitRefineDocument(RefinementSettings.ConvertToSmallMoleculesMode.masses_and_names);
-//        }
+        [TestMethod]
+        public void ConsoleRefineConsistencyTest()
+        {
+            string cvCutoff = 20.ToString();
+            var args = new List<string>
+            {
+                CommandArgs.ARG_REFINE_CV_REMOVE_ABOVE_CUTOFF.GetArgumentTextWithValue(cvCutoff)
+            };
+            var parts = new List<string>
+            {
+                PropertyNames.RefinementSettings_CVCutoff
+            };
+            // Remove all elements above the cv cutoff
+            TestFilesDir = new TestFilesDir(TestContext, @"TestFunctional/AreaCVHistogramTest.zip");
+            DocumentPath = InitRefineDocument("Rat_plasma.sky", 48, 0, 125, 125, 721);
+            OutPath = Path.Combine(Path.GetDirectoryName(DocumentPath) ?? string.Empty, "test.sky");
+            var output = Run(args.ToArray());
+            AssertEx.Contains(output, parts.ToArray());
+            IsDocumentState(OutPath, 48, 0, 3, 0, 3, 18, output);
+
+            // Normalize to medians and remove all elements above the cv cutoff
+            args.Add(CommandArgs.ARG_REFINE_CV_GLOBAL_NORMALIZE.GetArgumentTextWithValue(NormalizationMethod.EQUALIZE_MEDIANS.Name));
+            output = Run(args.ToArray());
+            parts.Add(PropertyNames.RefinementSettings_NormalizationMethod);
+            AssertEx.Contains(output, parts.ToArray());
+            IsDocumentState(OutPath, 48, 0, 10, 0, 10, 58, output);
+
+            // Test best transitions
+            args[1] = CommandArgs.ARG_REFINE_CV_TRANSITIONS.GetArgumentTextWithValue("best");
+            output = Run(args.ToArray());
+            parts[1] = PropertyNames.RefinementSettings_Transitions;
+            AssertEx.Contains(output, parts.ToArray());
+            IsDocumentState(OutPath, 48, 0, 3, 0, 3, 18, output);
+
+            // Test count transitions
+            args[1] = CommandArgs.ARG_REFINE_CV_TRANSITIONS_COUNT.GetArgumentTextWithValue(4.ToString());
+            args.Add(CommandArgs.ARG_REFINE_CV_MS_LEVEL.GetArgumentTextWithValue("products"));
+            output = Run(args.ToArray());
+            parts[1] = PropertyNames.RefinementSettings_CountTransitions;
+            AssertEx.Contains(output, parts.ToArray());
+            IsDocumentState(OutPath, 48, 0, 3, 0, 3, 18, output);
+
+            // Make sure error is recorded when peptide have only 1 replicate
+            TestFilesDir = new TestFilesDir(TestContext, @"TestData\CommandLineRefine.zip");
+            DocumentPath = InitRefineDocument("SRM_mini_single_replicate.sky", 1, 4, 37, 40, 338);
+            output = Run(CommandArgs.ARG_REFINE_CV_REMOVE_ABOVE_CUTOFF.GetArgumentTextWithValue(cvCutoff));
+            AssertEx.Contains(output, "The document must contain at least 2 replicates to refine based on consistency.");
+        }
+
+        //        [TestMethod]
+        //        public void ConsoleRefineConvertToSmallMoleculesTest()
+        //        {
+        //            // Exercise the code that helps match heavy labeled ion formulas with unlabled
+        //            Assert.AreEqual("C5H12NO2S", BioMassCalc.MONOISOTOPIC.StripLabelsFromFormula("C5H9H'3NO2S"));
+        //            Assert.IsNull(BioMassCalc.MONOISOTOPIC.StripLabelsFromFormula(""));
+        //            Assert.IsNull(BioMassCalc.MONOISOTOPIC.StripLabelsFromFormula(null));
+        //
+        //            InitRefineDocument(RefinementSettings.ConvertToSmallMoleculesMode.formulas);
+        //        }
+        //
+        //        [TestMethod]
+        //        public void ConsoleRefineConvertToSmallMoleculeMassesTest()
+        //        {
+        //            InitRefineDocument(RefinementSettings.ConvertToSmallMoleculesMode.masses_only);
+        //        }
+        //
+        //        [TestMethod]
+        //        public void ConsoleRefineConvertToSmallMoleculeMassesAndNamesTest()
+        //        {
+        //            InitRefineDocument(RefinementSettings.ConvertToSmallMoleculesMode.masses_and_names);
+        //        }
+
+        [TestMethod]
+        public void ConsoleChangePredictTranSettingsTest()
+        {
+            TestFilesDir = new TestFilesDir(TestContext, @"TestData\CommandLineRefine.zip");
+            DocumentPath = InitRefineDocument("SRM_mini_single_replicate.sky");
+            OutPath = Path.Combine(Path.GetDirectoryName(DocumentPath) ?? string.Empty, "test.sky");
+
+            Run(CommandArgs.ARG_REMOVE_ALL.ArgumentText);   // Remove results
+
+            DocumentPath = OutPath;
+            OutPath = Path.Combine(Path.GetDirectoryName(DocumentPath) ?? string.Empty, "test2.sky");
+
+            // Valid changes
+            string output = Run(CommandArgs.ARG_TRAN_PREDICT_CE.GetArgumentTextWithValue("SCIEX"));
+            AssertEx.Contains(output, "test2", PropertyNames.TransitionPrediction_NonNullCollisionEnergy, "Thermo", "SCIEX");
+            IsDocumentUnchanged(output);
+            output = Run(CommandArgs.ARG_TRAN_PREDICT_CE.GetArgumentTextWithValue(CollisionEnergyList.ELEMENT_NONE));
+            AssertEx.Contains(output, "test2", PropertyNames.TransitionPrediction_NonNullCollisionEnergy, "Thermo", CollisionEnergyList.ELEMENT_NONE);
+            IsDocumentUnchanged(output);
+            output = Run(CommandArgs.ARG_TRAN_PREDICT_DP.GetArgumentTextWithValue("SCIEX"));
+            AssertEx.Contains(output, "test2", PropertyNames.TransitionPrediction_NonNullDeclusteringPotential, DeclusterPotentialList.ELEMENT_NONE, "SCIEX");
+            IsDocumentUnchanged(output);
+            output = Run(CommandArgs.ARG_TRAN_PREDICT_COV.GetArgumentTextWithValue("SCIEX"));
+            AssertEx.Contains(output, "test2", PropertyNames.TransitionPrediction_NonNullCompensationVoltage, CompensationVoltageList.ELEMENT_NONE, "SCIEX");
+            IsDocumentUnchanged(output);
+            // Only None is possible for optimization libraries without setting one up
+            output = Run(CommandArgs.ARG_TRAN_PREDICT_OPTDB.GetArgumentTextWithValue(OptimizationLibraryList.ELEMENT_NONE));
+            AssertEx.Contains(output, "test2", Resources.CommandLine_LogNewEntries_Document_unchanged);
+            IsDocumentUnchanged(output);
+
+            // Invalid changes
+            ValidateInvalidValue(CommandArgs.ARG_TRAN_PREDICT_CE, Settings.Default.CollisionEnergyList);
+            ValidateInvalidValue(CommandArgs.ARG_TRAN_PREDICT_DP, Settings.Default.DeclusterPotentialList);
+            ValidateInvalidValue(CommandArgs.ARG_TRAN_PREDICT_COV, Settings.Default.CompensationVoltageList);
+            ValidateInvalidValue(CommandArgs.ARG_TRAN_PREDICT_OPTDB, Settings.Default.OptimizationLibraryList);
+        }
+
+        private void ValidateInvalidValue<TItem>(CommandArgs.Argument arg, SettingsListBase<TItem> list) where TItem : IKeyContainer<string>, IXmlSerializable
+        {
+            const string NO_VALUE = "NO VALUE";
+            string expected = string.Format(
+                Resources.ValueInvalidException_ValueInvalidException_The_value___0___is_not_valid_for_the_argument__1___Use_one_of__2_,
+                NO_VALUE, arg.ArgumentText, CommandArgs.GetDisplayNames(list));
+            expected = expected.Substring(0, expected.IndexOf(@"None, ", StringComparison.Ordinal) + 6);
+            AssertEx.ThrowsException<CommandArgs.ValueInvalidException>(() => Run(arg.GetArgumentTextWithValue(NO_VALUE)), expected);
+        }
+
+        private void IsDocumentUnchanged(string output)
+        {
+            IsDocumentState(OutPath, _initProt, _initList, _initPep, _initMol, _initPrec, _initTran, output);
+        }
 
         [TestMethod]
         public void ConsoleChangeFilterSettingsTest()
         {
-            DocumentPath = InitRefineDocument(RefinementSettings.ConvertToSmallMoleculesMode.none);
+            TestFilesDir = new TestFilesDir(TestContext, @"TestData\CommandLineRefine.zip");
+            DocumentPath = InitRefineDocument("SRM_mini_single_replicate.sky");
             OutPath = Path.Combine(Path.GetDirectoryName(DocumentPath) ?? string.Empty, "test.sky");
 
             Run(CommandArgs.ARG_REMOVE_ALL.ArgumentText);   // Remove results
@@ -297,30 +414,35 @@ namespace pwiz.SkylineTestData
             AssertEx.Contains(output, new CommandArgs.ValueInvalidChargeListException(CommandArgs.ARG_TRAN_PRECURSOR_ION_CHARGES, chargesWithError).Message);
         }
 
-        private const int _initProt = 1;
-        private const int _initList = 4;
-        private const int _initPep = 37;
+        // Start with values for SRM_mini_single_replicate.sky
+        private int _initProt = 1;
+        private int _initList = 4;
+        private int _initPep = 37;
         private const int _initMol = 0;
-        private const int _initPrec = 40;
-        private const int _initTran = 338;
+        private int _initPrec = 40;
+        private int _initTran = 338;
 
-        private string InitRefineDocument(RefinementSettings.ConvertToSmallMoleculesMode mode)
+        private string InitRefineDocument(string docName)
         {
-            TestFilesDir testFilesDir = new TestFilesDir(TestContext, @"TestData\CommandLineRefine.zip", mode.ToString());
-            string docPath = testFilesDir.GetTestPath("SRM_mini_single_replicate.sky");            
-//            if (mode != RefinementSettings.ConvertToSmallMoleculesMode.none)
-//            {
-//                var dataPaths = new[] { testFilesDir.GetTestPath("worm1.mzML") };
-//                doc = ConvertToSmallMolecules(null, ref docPath, dataPaths, mode);
-//            }
+            return InitRefineDocument(docName, _initProt, _initList, _initPep, _initPrec, _initTran);
+        }
+
+        private string InitRefineDocument(string docName, int proteins, int lists, int peptides, int tranGroups, int transitions)
+        {
+            string docPath = TestFilesDir.GetTestPath(docName);
+            _initProt = proteins;
+            _initList = lists;
+            _initPep = peptides;
+            _initPrec = tranGroups;
+            _initTran = transitions;
             IsDocumentState(docPath, _initProt, _initList, _initPep, _initMol, _initPrec, _initTran);
             return docPath;
         }
 
         private void IsResultsState(string docPath, int peptides, int tranGroups, int transitions,
-            string output = null)
+            string output = null, bool hasProtein = false)
         {
-            IsDocumentState(docPath, 0, 1, peptides, 0, tranGroups, transitions, output);
+            IsDocumentState(docPath, hasProtein ? 1 : 0, hasProtein ? 0 : 1, peptides, 0, tranGroups, transitions, output);
         }
 
         private void IsDocumentState(string docPath, int proteins, int lists,

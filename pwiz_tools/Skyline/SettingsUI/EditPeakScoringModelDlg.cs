@@ -268,7 +268,7 @@ namespace pwiz.Skyline.SettingsUI
                 longWaitDlg.PerformWork(this, 800, progressMonitor => 
                 {
                     _peakScoringModel = peakScoringModel.Train(targetTransitionGroups, decoyTransitionGroups, _targetDecoyGenerator, initialParams,
-                        null, secondBestCheckBox.Checked, true, progressMonitor);
+                        null, null, secondBestCheckBox.Checked, true, progressMonitor);
                 });
                 if (longWaitDlg.IsCanceled)
                     return;
@@ -526,7 +526,7 @@ namespace pwiz.Skyline.SettingsUI
                                                     Resources.EditPeakScoringModelDlg_UpdateModelGraph_Trained_model_is_not_applicable_to_current_dataset_ :
                                                     GetModeUIHelper().Translate(Resources.EditPeakScoringModelDlg_UpdateModelGraph_P_values_of_target_peptides);
 
-            if (GetModeUIHelper().ModeUI == SrmDocument.DOCUMENT_TYPE.small_molecules)
+            if (ModeUI == SrmDocument.DOCUMENT_TYPE.small_molecules)
             {
                 decoyCheckBox.Checked = decoyCheckBox.Enabled = false; // No decoys for small molecules
                 secondBestCheckBox.Checked = true; // Must have at least one of these two checked

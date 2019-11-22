@@ -223,6 +223,7 @@ namespace pwiz.Skyline.Model.Serialization
             {
                 writer.WriteAttribute(ATTR.normalization_method, node.NormalizationMethod.Name);
             }
+            writer.WriteAttributeIfString(ATTR.attribute_group_id, node.AttributeGroupId);
 
             if (isCustomIon)
             {
@@ -588,7 +589,12 @@ namespace pwiz.Skyline.Model.Serialization
                 writer.WriteAttribute(ATTR.isotope_dist_rank, nodeTransition.IsotopeDistInfo.Rank);
                 writer.WriteAttribute(ATTR.isotope_dist_proportion, nodeTransition.IsotopeDistInfo.Proportion);
             }
-            if (!transition.IsPrecursor())
+
+            if (transition.IsPrecursor())
+            {
+                writer.WriteAttribute(ATTR.product_charge, transition.Charge, nodeGroup.PrecursorCharge);
+            }
+            else
             {
                 if (!transition.IsCustom())
                 {

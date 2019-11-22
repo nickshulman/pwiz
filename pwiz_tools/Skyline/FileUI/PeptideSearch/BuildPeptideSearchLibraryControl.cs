@@ -42,6 +42,8 @@ namespace pwiz.Skyline.FileUI.PeptideSearch
 {
     public partial class BuildPeptideSearchLibraryControl : UserControl
     {
+        private readonly SettingsListComboDriver<IrtStandard> _driverStandards;
+
         public BuildPeptideSearchLibraryControl(IModifyDocumentContainer documentContainer, ImportPeptideSearch importPeptideSearch, LibraryManager libraryManager)
         {
             DocumentContainer = documentContainer;
@@ -55,8 +57,8 @@ namespace pwiz.Skyline.FileUI.PeptideSearch
             if (DocumentContainer.Document.PeptideCount == 0)
                 cbFilterForDocumentPeptides.Hide();
 
-            foreach (var standard in IrtStandard.ALL)
-                comboStandards.Items.Add(standard);
+            _driverStandards = new SettingsListComboDriver<IrtStandard>(comboStandards, Settings.Default.IrtStandardList);
+            _driverStandards.LoadList(IrtStandard.EMPTY.GetKey());
         }
 
         public BuildPeptideSearchLibrarySettings BuildLibrarySettings
@@ -129,7 +131,7 @@ namespace pwiz.Skyline.FileUI.PeptideSearch
 
         private IModifyDocumentContainer DocumentContainer { get; set; }
         private LibraryManager LibraryManager { get; set; }
-        private ImportPeptideSearch ImportPeptideSearch { get; set; }
+        public ImportPeptideSearch ImportPeptideSearch { get; set; }
 
         private Form WizardForm
         {
@@ -138,25 +140,28 @@ namespace pwiz.Skyline.FileUI.PeptideSearch
 
         public IrtStandard IrtStandards
         {
-            get { return comboStandards.SelectedItem as IrtStandard ?? IrtStandard.EMPTY; }
+            get { return _driverStandards.SelectedItem; }
             set
             {
-                if (value == null)
-                    comboStandards.SelectedIndex = 0;
-
-                for (var i = 0; i < comboStandards.Items.Count; i++)
+                var index = 0;
+                if (value != null)
                 {
-                    if (comboStandards.Items[i] == value)
+                    for (var i = 0; i < comboStandards.Items.Count; i++)
                     {
-                        comboStandards.SelectedIndex = i;
-                        return;
+                        if (comboStandards.Items[i].ToString().Equals(value.GetKey()))
+                        {
+                            index = i;
+                            break;
+                        }
                     }
                 }
-                comboStandards.SelectedIndex = 0;
+                comboStandards.SelectedIndex = index;
+                _driverStandards.SelectedIndexChangedEvent(null, null);
             }
         }
 
         public bool? PreferEmbeddedSpectra { get; set; }
+        public bool DebugMode { get; set; }
 
         public ImportPeptideSearchDlg.Workflow WorkflowType
         {
@@ -281,6 +286,9 @@ namespace pwiz.Skyline.FileUI.PeptideSearch
             }
         }
 
+        public string LastBuildCommandArgs { get; private set; }
+        public string LastBuildOutput { get; private set; }
+
         private bool BuildPeptideSearchLibrary(CancelEventArgs e)
         {
             // Nothing to build, if now search files were specified
@@ -307,6 +315,7 @@ namespace pwiz.Skyline.FileUI.PeptideSearch
             {
                 builder = ImportPeptideSearch.GetLibBuilder(DocumentContainer.Document, DocumentContainer.DocumentFilePath, cbIncludeAmbiguousMatches.Checked);
                 builder.PreferEmbeddedSpectra = PreferEmbeddedSpectra;
+                builder.DebugMode = DebugMode;
             }
             catch (FileEx.DeleteException de)
             {
@@ -327,8 +336,11 @@ namespace pwiz.Skyline.FileUI.PeptideSearch
                     try
                     {
                         ImportPeptideSearch.ClosePeptideSearchLibraryStreams(DocumentContainer.Document);
+                        var buildState = new LibraryManager.BuildState(null, null);
                         var status = longWaitDlg.PerformWork(WizardForm, 800,
-                            monitor => LibraryManager.BuildLibraryBackground(DocumentContainer, builder, monitor, new LibraryManager.BuildState(null, null)));
+                            monitor => LibraryManager.BuildLibraryBackground(DocumentContainer, builder, monitor, buildState));
+                        LastBuildCommandArgs = buildState.BuildCommandArgs;
+                        LastBuildOutput = buildState.BuildOutput;
                         if (status.IsError)
                         {
                             // E.g. could not find external raw data for MaxQuant msms.txt; ask user if they want to retry with "prefer embedded spectra" option
@@ -366,9 +378,9 @@ namespace pwiz.Skyline.FileUI.PeptideSearch
             if (!LoadPeptideSearchLibrary(docLibSpec))
                 return false;
 
-            var selectedIrtStandard = comboStandards.SelectedItem as IrtStandard;
+            var selectedIrtStandard = _driverStandards.SelectedItem;
             var addedIrts = false;
-            if (selectedIrtStandard != null && selectedIrtStandard != IrtStandard.EMPTY)
+            if (selectedIrtStandard != null && !selectedIrtStandard.Name.Equals(IrtStandard.EMPTY.Name))
                 addedIrts = AddIrtLibraryTable(docLibSpec.FilePath, selectedIrtStandard);
 
             var docNew = ImportPeptideSearch.AddDocumentSpectralLibrary(DocumentContainer.Document, docLibSpec);
@@ -569,12 +581,6 @@ namespace pwiz.Skyline.FileUI.PeptideSearch
         {
             WorkflowType = workflowType;
             grpWorkflow.Hide();
-            var offset = grpWorkflow.Height + (lblStandardPeptides.Top - listSearchFiles.Bottom);
-            listSearchFiles.Height += offset;
-            lblStandardPeptides.Top += offset;
-            comboStandards.Top += offset;
-            cbIncludeAmbiguousMatches.Top += offset;
-            cbFilterForDocumentPeptides.Top += offset;
         }
 
         private void radioButtonLibrary_CheckedChanged(object sender, EventArgs e)
@@ -641,6 +647,11 @@ namespace pwiz.Skyline.FileUI.PeptideSearch
         private void tbxLibraryPath_TextChanged(object sender, EventArgs e)
         {
             FireInputFilesChanged();
+        }
+
+        private void comboStandards_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            _driverStandards.SelectedIndexChangedEvent(sender, e);
         }
     }
 }

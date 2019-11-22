@@ -346,6 +346,7 @@ namespace pwiz.Skyline.Model
     public abstract class ExportProperties
     {
         public virtual ExportStrategy ExportStrategy { get; set; }
+        public virtual bool SortByMz { get; set; }
         public virtual bool IgnoreProteins { get; set; }
         public virtual int? MaxTransitions { get; set; }
         public virtual ExportMethodType MethodType { get; set; }
@@ -384,6 +385,7 @@ namespace pwiz.Skyline.Model
             where TExp : AbstractMassListExporter
         {
             exporter.Strategy = ExportStrategy;
+            exporter.SortByMz = SortByMz;
             exporter.IgnoreProteins = IgnoreProteins;
             exporter.InclusionList = InclusionList;
             exporter.MaxTransitions = MaxTransitions;
@@ -1152,7 +1154,7 @@ namespace pwiz.Skyline.Model
                 {
                     int compoundStep = ++_compoundCounts[compound]/MAX_COMPOUND_NAME + 1;
                     if (compoundStep > 1)
-                        compound += '.' + compoundStep;
+                        compound += '.' + compoundStep.ToString(CultureInfo);
                 }
             }
             writer.WriteDsvField(compound, FieldSeparator);
@@ -2463,6 +2465,7 @@ namespace pwiz.Skyline.Model
         {
             try
             {
+                // ReSharper disable once PossibleNullReferenceException
                 return proc.MainModule.ModuleName;
             }
             catch

@@ -31,7 +31,7 @@ namespace CrossLinkerTool
         [STAThread]
         static void Main(string[] args)
         {
-            //System.Diagnostics.Debugger.Launch();
+            // System.Diagnostics.Debugger.Launch();
 
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);

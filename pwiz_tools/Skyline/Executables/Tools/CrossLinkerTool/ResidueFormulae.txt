@@ -1,0 +1,2 @@
+﻿# specify amino acide formulas one per line
+C	C3H5ONSH3C2NO

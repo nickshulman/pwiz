@@ -439,7 +439,7 @@ namespace pwiz.Skyline.Model
         {
             Program.MainWindow.Invoke(new Action(() =>
             {
-                _skylineWindow.ModifyDocument("Add Peptides", doc => AddPeptidesToDocument(doc, peptides));
+                _skylineWindow.ModifyDocument("Add Peptides", doc => AddPeptidesToDocument(doc, peptides), AuditLogEntry.SettingsLogFunction);
             }));
         }
 

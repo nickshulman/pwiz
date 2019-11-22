@@ -6,6 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Windows.Forms;
+using CrossLinkerTool.Properties;
 using pwiz.Common.Chemistry;
 using SkylineTool;
 
@@ -14,6 +15,7 @@ namespace CrossLinkerTool
     public partial class AddCrosslinksForm : Form
     {
         private SkylineToolClient _skylineToolClient;
+        private static ResidueFormulae _residueFormulae = ResidueFormulae.GetDefault();
 
         public AddCrosslinksForm()
         {
@@ -107,7 +109,7 @@ namespace CrossLinkerTool
 
         public static ToolModification GetModification(string peptide, string crosslinker)
         {
-            Molecule molecule = AminoAcidFormulas.Default.GetFormula(peptide);
+            Molecule molecule = _residueFormulae.GetPeptideFormula(peptide);
             string name = peptide;
             if (!crosslinker.StartsWith("+") && !crosslinker.StartsWith("-"))
             {

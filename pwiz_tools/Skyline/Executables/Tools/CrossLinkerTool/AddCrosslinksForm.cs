@@ -134,6 +134,14 @@ namespace CrossLinkerTool
                 {
                     result.Append("[" + modification.Name + "]");
                 }
+                else
+                {
+                    string staticModName = _residueFormulae.GetModificationName(peptideSequence[ich]);
+                    if (!string.IsNullOrEmpty(staticModName))
+                    {
+                        result.Append("[" + staticModName + "]");
+                    }
+                }
             }
             return result.ToString();
         }

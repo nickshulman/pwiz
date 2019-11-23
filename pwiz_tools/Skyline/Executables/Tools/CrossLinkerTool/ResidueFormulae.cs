@@ -31,6 +31,7 @@ namespace CrossLinkerTool
 
         private AminoAcidFormulas _aminoAcidFormulas;
         private Dictionary<char, string> _overrideFormulae = new Dictionary<char, string>();
+        private Dictionary<char, string> _modificationNames = new Dictionary<char, string>();
         public ResidueFormulae(AminoAcidFormulas aminoAcidFormulas)
         {
             _aminoAcidFormulas = aminoAcidFormulas;
@@ -51,9 +52,14 @@ namespace CrossLinkerTool
                     continue;
                 }
 
-                var aa = line[0];
-                var formula = line.Substring(1).Trim();
+                var values = line.Split('\t');
+                var aa = values[0][0];
+                var formula = values[1];
                 _overrideFormulae[aa] = formula;
+                if (values.Length > 2)
+                {
+                    _modificationNames[aa] = values[2];
+                }
             }
         }
 
@@ -71,6 +77,13 @@ namespace CrossLinkerTool
             }
 
             return string.Empty;
+        }
+
+        public string GetModificationName(char c)
+        {
+            string modificationName;
+            _modificationNames.TryGetValue(c, out modificationName);
+            return modificationName;
         }
 
         public Molecule GetPeptideFormula(string sequence)

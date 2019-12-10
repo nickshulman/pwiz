@@ -1,5 +1,4 @@
 ﻿/*
-/*
  * Original author: Brendan MacLean <brendanx .at. u.washington.edu>,
  *                  MacCoss Lab, Department of Genome Sciences, UW
  *
@@ -73,6 +72,8 @@ using pwiz.Skyline.Model.Databinding;
 using pwiz.Skyline.Model.Databinding.Entities;
 using pwiz.Skyline.Model.GroupComparison;
 using pwiz.Skyline.Model.Lists;
+using pwiz.Skyline.Model.Prosit.Communication;
+using pwiz.Skyline.Model.Prosit.Models;
 using pwiz.Skyline.SettingsUI;
 using pwiz.Skyline.SettingsUI.Irt;
 using pwiz.Skyline.ToolsUI;
@@ -98,7 +99,8 @@ namespace pwiz.Skyline
             IProgressMonitor,
             ILibraryBuildNotificationContainer,
             IToolMacroProvider,
-            IModifyDocumentContainer
+            IModifyDocumentContainer,
+            IRetentionScoreSource
     {
         private SequenceTreeForm _sequenceTreeForm;
         private ImmediateWindow _immediateWindow;
@@ -186,6 +188,9 @@ namespace pwiz.Skyline
             _importPeptideSearchManager.ProgressUpdateEvent += UpdateProgress;
             _importPeptideSearchManager.Register(this);
 
+            // RTScoreCalculatorList.DEFAULTS[2].ScoreProvider
+            //    .Attach(this);
+
             DocumentUIChangedEvent += ShowAutoTrainResults;
 
             checkForUpdatesMenuItem.Visible =
@@ -250,7 +255,6 @@ namespace pwiz.Skyline
 
             var defaultUIMode = Settings.Default.UIMode;
             NewDocument(); // Side effect: initializes Settings.Default.UIMode to proteomic if no previous value
-            chorusRequestToolStripMenuItem.Visible = Settings.Default.EnableChorus;
 
             // Set UI mode to user default (proteomic/molecule/mixed)
             SrmDocument.DOCUMENT_TYPE defaultModeUI;
@@ -270,7 +274,7 @@ namespace pwiz.Skyline
         {
             base.OnShown(e);
 
-            if (_fileToOpen != null)
+            if (HasFileToOpen())
             {
                 try
                 {
@@ -278,12 +282,31 @@ namespace pwiz.Skyline
                 }
                 catch (UriFormatException)
                 {
-                    MessageBox.Show(this, Resources.SkylineWindow_SkylineWindow_Invalid_file_specified, Program.Name);
+                    MessageDlg.Show(this, Resources.SkylineWindow_SkylineWindow_Invalid_file_specified);
                 }
-                _fileToOpen = null;
             }
+            _fileToOpen = null;
 
             EnsureUIModeSet();
+        }
+
+        private bool HasFileToOpen()
+        {
+            if (_fileToOpen == null)
+                return false;
+
+            string parentDir = Path.GetDirectoryName(_fileToOpen);
+            // If the parent directory ends with .zip and lives in AppData\Local\Temp
+            // then the user has double-clicked a file in Windows Explorer inside a ZIP file
+            if (parentDir != null && PathEx.HasExtension(parentDir, @".zip") &&
+                parentDir.ToLower().Contains(@"appdata\local\temp"))
+            {
+                MessageDlg.Show(this, TextUtil.LineSeparate(Resources.SkylineWindow_HasFileToOpen_Opening_a_document_inside_a_ZIP_file_is_not_supported_,
+                    string.Format(Resources.SkylineWindow_HasFileToOpen_Unzip_the_file__0__first_and_then_open_the_extracted_file__1__, Path.GetFileName(parentDir), Path.GetFileName(_fileToOpen))));
+                return false;
+            }
+
+            return true;
         }
 
         public void OpenPasteFileDlg(PasteFormat pf)
@@ -319,6 +342,10 @@ namespace pwiz.Skyline
             if (pathOpen.EndsWith(SrmDocumentSharing.EXT))
             {
                 return OpenSharedFile(pathOpen, parentWindow);
+            }
+            else if (pathOpen.EndsWith(SkypFile.EXT))
+            {
+                return OpenSkypFile(pathOpen, parentWindow);
             }
             else
             {
@@ -2707,11 +2734,11 @@ namespace pwiz.Skyline
             ShowGenerateDecoysDlg();
         }
 
-        public void ShowGenerateDecoysDlg()
+        public bool ShowGenerateDecoysDlg(IWin32Window owner = null)
         {
             using (var decoysDlg = new GenerateDecoysDlg(DocumentUI))
             {
-                if (decoysDlg.ShowDialog(this) == DialogResult.OK)
+                if (decoysDlg.ShowDialog(owner ?? this) == DialogResult.OK)
                 {
                     var refinementSettings = new RefinementSettings { NumberOfDecoys = decoysDlg.NumDecoys, DecoysMethod = decoysDlg.DecoysMethod };
                     ModifyDocument(Resources.SkylineWindow_ShowGenerateDecoysDlg_Generate_Decoys, refinementSettings.GenerateDecoys,
@@ -2726,8 +2753,10 @@ namespace pwiz.Skyline
 
                     var nodePepGroup = DocumentUI.PeptideGroups.First(nodePeptideGroup => nodePeptideGroup.IsDecoy);
                     SelectedPath = DocumentUI.GetPathTo((int)SrmDocument.Level.MoleculeGroups, DocumentUI.FindNodeIndex(nodePepGroup.Id));
+                    return true;
                 }
             }
+            return false;
         }
 
         #endregion // Edit menu
@@ -3360,6 +3389,20 @@ namespace pwiz.Skyline
             // Explorer's spectrum graph pane.
             UpdateGraphPanes();
         }
+        public static List<PrositIntensityModel.PeptidePrecursorNCE> ReadStandardPeptides(IrtStandard standard)
+        {
+            var peps = standard.GetDocument().Peptides.ToList();
+            var precs = peps.Select(p => p.TransitionGroups.First());
+            /*for (var i = 0; i < peps.Count; i++)
+            {
+                var modSeq = ModifiedSequence.GetModifiedSequence(docImport.Settings, peps[i], IsotopeLabelType.light);
+                peps[i] = peps[i].ChangeExplicitMods(new ExplicitMods(peps[i].Peptide,
+                    modSeq.ExplicitMods.Select(m => m.ExplicitMod).ToArray(),
+                    new TypedExplicitModifications[0]));
+            }*/
+            return Enumerable.Zip(peps, precs,
+                (pep, prec) => new PrositIntensityModel.PeptidePrecursorNCE(pep, prec)).ToList();
+        }
 
         private void HandleStandardsChanged(ICollection<Target> oldStandard)
         {
@@ -3377,64 +3420,77 @@ namespace pwiz.Skyline
             }
             
             // Determine which peptides are in the standard, but not in the document
-            var missingPeptides = newStandard.Except(Document.Peptides.Select(pep => pep.Peptide.Target)).ToHashSet();
+            var missingPeptides = new TargetMap<bool>(newStandard
+                .Except(Document.Peptides.Select(pep => pep.Peptide.Target))
+                .Select(target => new KeyValuePair<Target, bool>(target, true)));
             if (missingPeptides.Count == 0)
                 return;
 
+            SrmDocument newDoc = null;
+            IdentityPath firstAdded = null;
+            var numTransitions = 0;
+            Func<SrmDocumentPair, AuditLogEntry> dlgCreate = null;
             if (!string.IsNullOrEmpty(calc.DocumentXml))
             {
                 using (var reader = new StringReader(calc.DocumentXml))
+                using (var dlg = new AddIrtStandardsToDocumentDlg())
                 {
-                    AddStandardsToDocument(reader, missingPeptides);
+                    if (dlg.ShowDialog(this) == DialogResult.Yes)
+                    {
+                        newDoc = Document.ImportDocumentXml(reader,
+                            string.Empty,
+                            MeasuredResults.MergeAction.remove,
+                            false,
+                            FindSpectralLibrary,
+                            Settings.Default.StaticModList,
+                            Settings.Default.HeavyModList,
+                            Document.Children.Any() ? new IdentityPath(Document.Children.First().Id) : null,
+                            out firstAdded,
+                            out _,
+                            false);
+                        numTransitions = dlg.NumTransitions;
+                        dlgCreate = dlg.FormSettings.EntryCreator.Create;
+                    }
                 }
             }
             else
             {
-                using (var reader = IrtStandard.WhichStandard(newStandard).DocumentReader)
+                var matchingStandard = IrtStandard.WhichStandard(newStandard);
+                if (matchingStandard != null && matchingStandard.HasDocument)
                 {
-                    if (reader != null)
-                        AddStandardsToDocument(reader, missingPeptides);
+                    using (var dlg = new AddIrtStandardsToDocumentDlg())
+                    {
+                        if (dlg.ShowDialog(this) == DialogResult.Yes)
+                        {
+                            newDoc = matchingStandard.ImportTo(Document, FindSpectralLibrary, out firstAdded);
+                            numTransitions = dlg.NumTransitions;
+                            dlgCreate = dlg.FormSettings.EntryCreator.Create;
+                        }
+                    }
                 }
             }
-        }
-
-        private void AddStandardsToDocument(TextReader reader, ICollection<Target> missingPeptides)
-        {
-            using (var dlg = new AddIrtStandardsToDocumentDlg())
+            if (newDoc != null)
             {
-                if (dlg.ShowDialog(this) == DialogResult.Yes)
+                ModifyDocument(Resources.SkylineWindow_AddStandardsToDocument_Add_standard_peptides, _ =>
                 {
-                    ModifyDocument(Resources.SkylineWindow_AddStandardsToDocument_Add_standard_peptides, doc =>
+                    var standardPepGroup = newDoc.PeptideGroups.First(nodePepGroup => new IdentityPath(nodePepGroup.Id).Equals(firstAdded));
+                    var pepList = new List<DocNode>();
+                    foreach (var nodePep in standardPepGroup.Peptides.Where(pep => missingPeptides.ContainsKey(pep.ModifiedTarget)))
                     {
-                        doc = doc.ImportDocumentXml(reader,
-                                                    string.Empty,
-                                                    MeasuredResults.MergeAction.remove,
-                                                    false,
-                                                    FindSpectralLibrary,
-                                                    Settings.Default.StaticModList,
-                                                    Settings.Default.HeavyModList,
-                                                    doc.Children.Any() ? new IdentityPath(doc.Children.First().Id) : null,
-                                                    out var firstAdded,
-                                                    out _,
-                                                    false);
-
-                        var standardPepGroup = doc.PeptideGroups.First(nodePepGroup => new IdentityPath(nodePepGroup.Id).Equals(firstAdded));
-                        var pepList = new List<DocNode>();
-                        foreach (var nodePep in standardPepGroup.Peptides.Where(pep => missingPeptides.Contains(pep.ModifiedTarget)))
+                        var tranGroupList = new List<DocNode>();
+                        foreach (TransitionGroupDocNode nodeTranGroup in nodePep.Children)
                         {
-                            var tranGroupList = new List<DocNode>();
-                            foreach (TransitionGroupDocNode nodeTranGroup in nodePep.Children)
-                            {
-                                var transitions = nodeTranGroup.Transitions.Take(dlg.NumTransitions).ToArray();
-                                Array.Sort(transitions, TransitionGroup.CompareTransitions);
-                                tranGroupList.Add(nodeTranGroup.ChangeChildren(transitions.Cast<DocNode>().ToList()));
-                            }
-                            pepList.Add(nodePep.ChangeChildren(tranGroupList));
+                            var transitions = nodeTranGroup.Transitions.Take(numTransitions).ToArray();
+                            Array.Sort(transitions, TransitionGroup.CompareTransitions);
+                            tranGroupList.Add(nodeTranGroup.ChangeChildren(transitions.Cast<DocNode>().ToList()));
                         }
-                        var newStandardPepGroup = standardPepGroup.ChangeChildren(pepList);
-                        return (SrmDocument) doc.ReplaceChild(newStandardPepGroup);
-                    }, dlg.FormSettings.EntryCreator.Create);
-                }
+
+                        pepList.Add(nodePep.ChangeChildren(tranGroupList));
+                    }
+
+                    var newStandardPepGroup = standardPepGroup.ChangeChildren(pepList);
+                    return (SrmDocument) newDoc.ReplaceChild(newStandardPepGroup);
+                }, dlgCreate);
             }
         }
 
@@ -3754,10 +3810,24 @@ namespace pwiz.Skyline
 
         public void ShowToolOptionsUI()
         {
-            using (var dlg = new ToolOptionsUI())
+            using (var dlg = new ToolOptionsUI(_documentUI.Settings))
             {
                 dlg.ShowDialog(this);
             }
+        }
+
+        public void ShowToolOptionsUI(IWin32Window owner, ToolOptionsUI.TABS tab)
+        {
+            using (var dlg = new ToolOptionsUI(_documentUI.Settings))
+            {
+                dlg.NavigateToTab(tab);
+                dlg.ShowDialog(owner);
+            }
+        }
+
+        public void ShowToolOptionsUI(ToolOptionsUI.TABS tab)
+        {
+            ShowToolOptionsUI(this, tab);
         }
 
         private void updatesToolsMenuItem_Click(object sender, EventArgs e)
@@ -4825,11 +4895,12 @@ namespace pwiz.Skyline
                 SequenceTree.ResultsIndex = ComboResults.SelectedIndex;
 
                 // Make sure the graphs for the result set are visible.
-                if (GetGraphChrom(name) != null)
+                if (GetGraphChrom(name) != null || // Graph exists
+                    _listGraphChrom.Count >= MAX_GRAPH_CHROM) // Graph doesn't exist, presumably because there are more chromatograms than available graphs
                 {
                     bool focus = ComboResults.Focused;
 
-                    ShowGraphChrom(name, true);
+                    ShowGraphChrom(name, true); // Side effect - will close least recently used graph if more than MAX_GRAPH_CHROM open
 
                     if (focus)
                         // Keep focus on the combo box
@@ -5712,6 +5783,57 @@ namespace pwiz.Skyline
         private void mixedToolStripMenuItem_Click(object sender, EventArgs e)
         {
             SetUIMode(SrmDocument.DOCUMENT_TYPE.mixed);
+        }
+
+        private void prositLibMatchItem_Click(object sender, EventArgs e)
+        {
+            prositLibMatchItem.Checked = !prositLibMatchItem.Checked;
+
+            if (prositLibMatchItem.Checked)
+                PrositUIHelpers.CheckPrositSettings(this, this);
+
+            _graphSpectrumSettings.Prosit = prositLibMatchItem.Checked;
+        }
+
+        public bool ValidateSource()
+        {
+            return true;
+        }
+
+        public double? GetScore(Target target)
+        {
+            var node = Document.Peptides.FirstOrDefault(p => p.ModifiedTarget.Equals(target));
+            if (node == null)
+                return null;
+            return PrositRetentionTimeModel.Instance?.PredictSingle(PrositPredictionClient.Current, Document.Settings,
+                node, CancellationToken.None)[node];
+        }
+
+        private void mirrorMenuItem_Click(object sender, EventArgs e)
+        {
+            mirrorMenuItem.Checked = !mirrorMenuItem.Checked;
+            _graphSpectrumSettings.Mirror = mirrorMenuItem.Checked;
+        }
+
+        private void viewToolStripMenuItem_DropDownOpening(object sender, EventArgs e)
+        {
+            viewModificationsMenuItem.DropDownItems.Clear();
+            var currentOption = DisplayModificationOption.Current;
+            foreach (var opt in DisplayModificationOption.All)
+            {
+                var menuItem = new ToolStripMenuItem(opt.MenuItemText);
+                menuItem.Click += (s, a) => SetModifiedSequenceDisplayOption(opt);
+                menuItem.Checked = Equals(currentOption, opt);
+                viewModificationsMenuItem.DropDownItems.Add(menuItem);
+            }
+            ranksMenuItem.Checked = ranksContextMenuItem.Checked = Settings.Default.ShowRanks;
+        }
+
+        public void SetModifiedSequenceDisplayOption(DisplayModificationOption displayModificationOption)
+        {
+            DisplayModificationOption.Current = displayModificationOption;
+            ShowSequenceTreeForm(true, true);
+            UpdateGraphPanes();
         }
     }
 }

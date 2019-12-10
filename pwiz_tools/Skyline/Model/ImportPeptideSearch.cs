@@ -42,6 +42,7 @@ namespace pwiz.Skyline.Model
             SearchFilenames = new string[0];
             CutoffScore = Settings.Default.LibraryResultCutOff;
             SpectrumSourceFiles = new Dictionary<string, FoundResultsFilePossibilities>();
+            IrtStandard = null;
 
             _matcher = new LibKeyModificationMatcher();
             UserDefinedTypedMods = new HashSet<StaticMod>();
@@ -53,6 +54,7 @@ namespace pwiz.Skyline.Model
         public Dictionary<string, FoundResultsFilePossibilities> SpectrumSourceFiles { get; set; }
 
         public bool HasDocLib { get { return DocLib != null; } }
+        public IrtStandard IrtStandard { get; set; }
         private readonly LibKeyModificationMatcher _matcher;
         private IsotopeLabelType DefaultHeavyLabelType { get; set; }
         public HashSet<StaticMod> UserDefinedTypedMods { get; private set; }
@@ -539,7 +541,7 @@ namespace pwiz.Skyline.Model
             var initialParams = new LinearModelParams(initialWeights);
 
             // Train the model.
-            scoringModel = scoringModel.Train(targetTransitionGroups, decoyTransitionGroups, targetDecoyGenerator, initialParams, null, scoringModel.UsesSecondBest, true, loadMonitor);
+            scoringModel = scoringModel.Train(targetTransitionGroups, decoyTransitionGroups, targetDecoyGenerator, initialParams, null, null, scoringModel.UsesSecondBest, true, loadMonitor);
 
             SrmDocument docNew;
             do

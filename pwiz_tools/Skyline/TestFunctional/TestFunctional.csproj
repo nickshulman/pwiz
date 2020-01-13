@@ -158,6 +158,9 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="AccessServerTest.cs" />
+    <Compile Include="AssociateProteinVariantTest.cs" />
+    <Compile Include="RescoreRawChromatogramsTest.cs" />
+    <Compile Include="SkypTest.cs" />
     <Compile Include="AddLibraryTest.cs" />
     <Compile Include="AreaCVHistogramTest.cs" />
     <Compile Include="AssociateProteinsDlgTest.cs" />
@@ -175,6 +178,7 @@
     <Compile Include="ChromDataSetMatchingTest.cs" />
     <Compile Include="ChromGraphTransformTest.cs" />
     <Compile Include="ChromUITest.cs" />
+    <Compile Include="DecoyTargetMatchTest.cs" />
     <Compile Include="DisplayLanguageTest.cs" />
     <Compile Include="DocumentGridChromatogramDataTest.cs" />
     <Compile Include="DuplicateTransitionGroupTest.cs" />
@@ -184,6 +188,7 @@
     <Compile Include="ExpressionAnnotationsTest.cs" />
     <Compile Include="FormUtilTest.cs" />
     <Compile Include="FullScanFilterInteractionTest.cs" />
+    <Compile Include="HeavyNicknamesTest.cs" />
     <Compile Include="HighReplicateCountTest.cs" />
     <Compile Include="ImportAnnotationsTest.cs" />
     <Compile Include="ClearAllSettingsTest.cs" />
@@ -380,6 +385,7 @@
     <None Include="AnnotationTest.zip" />
     <None Include="AreaCVHistogramTest.zip" />
     <None Include="AssayLibraryImportTest.zip" />
+    <None Include="AssociateProteinVariantTest.zip" />
     <None Include="AuditLogSavingTest.zip" />
     <None Include="AuditLogValidationTest.zip" />
     <None Include="BackgroundProteomeTest.zip" />

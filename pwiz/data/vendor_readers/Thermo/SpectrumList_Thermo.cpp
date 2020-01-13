@@ -726,14 +726,14 @@ PWIZ_API_DECL SpectrumPtr SpectrumList_Thermo::spectrum(size_t index, DetailLeve
             {
                 result->swapMZIntensityArrays(massList->mzArray, massList->intensityArray, MS_number_of_detector_counts);
             }
-        }
 
-        if (msLevel < maxMsLevel_ && detailLevel >= DetailLevel_FullMetadata)
-        {
-            // insert into cache if there is a higher ms level
-            // NB: even FullMetadata level will have binary arrays (because they have to be retrieved to get defaultArrayLength)
-            boost::lock_guard<boost::mutex> lock(readMutex);
-            precursorCache_.insert(CacheEntry(index, make_pair(result->getMZArray()->data, result->getIntensityArray()->data)));
+            if (msLevel < maxMsLevel_)
+            {
+                // insert into cache if there is a higher ms level
+                // NB: even FullMetadata level will have binary arrays (because they have to be retrieved to get defaultArrayLength)
+                boost::lock_guard<boost::mutex> lock(readMutex);
+                precursorCache_.insert(CacheEntry(index, make_pair(result->getMZArray()->data, result->getIntensityArray()->data)));
+            }
         }
 
         return result;
@@ -758,6 +758,11 @@ PWIZ_API_DECL bool SpectrumList_Thermo::hasIonMobility() const
 }
 
 PWIZ_API_DECL bool SpectrumList_Thermo::canConvertIonMobilityAndCCS() const
+{
+    return false;
+}
+
+PWIZ_API_DECL bool SpectrumList_Thermo::hasCombinedIonMobility() const
 {
     return false;
 }
@@ -937,20 +942,21 @@ PWIZ_API_DECL double SpectrumList_Thermo::getPrecursorIntensity(int precursorSpe
 {
     const PrecursorBinaryData* precursorBinaryData = nullptr;
 
-    {
-        boost::lock_guard<boost::mutex> lock(readMutex);
-        auto findItr = precursorCache_.find(precursorSpectrumIndex);
-        if (findItr != precursorCache_.end())
-            precursorBinaryData = &findItr->binaryData;
-    }
+    boost::lock_guard<boost::mutex> lock(readMutex);
+    auto findItr = precursorCache_.find(precursorSpectrumIndex);
+    if (findItr != precursorCache_.end())
+        precursorBinaryData = &findItr->binaryData;
 
     // CONSIDER: is it worth it to keep separate caches for centroid and profile spectra?
     if (!precursorBinaryData)
     {
-        spectrum(precursorSpectrumIndex, true, msLevelsToCentroid);
+        const IndexEntry& precursorIndexEntry = index_[precursorSpectrumIndex];
+        auto raw = rawfile_->getRawByThread(std::hash<std::thread::id>()(std::this_thread::get_id()));
+        bool doCentroid = msLevelsToCentroid.contains((int)precursorIndexEntry.msOrder);
+        MassListPtr massList = raw->getMassList(precursorIndexEntry.scan, "", Cutoff_None, 0, 0, doCentroid);
+        precursorCache_.insert(CacheEntry(precursorSpectrumIndex, make_pair(massList->mzArray, massList->intensityArray)));
         precursorBinaryData = &precursorCache_.find(precursorSpectrumIndex)->binaryData;
     }
-
 
     const auto& mz = precursorBinaryData->first;
     const auto& intensity = precursorBinaryData->second;
@@ -1026,6 +1032,7 @@ const SpectrumIdentity& SpectrumList_Thermo::spectrumIdentity(size_t index) cons
 size_t SpectrumList_Thermo::find(const std::string& id) const {return 0;}
 bool SpectrumList_Thermo::hasIonMobility() const {return false;}
 bool SpectrumList_Thermo::canConvertIonMobilityAndCCS() const {return false;}
+bool SpectrumList_Thermo::hasCombinedIonMobility() const {return false;}
 double SpectrumList_Thermo::ionMobilityToCCS(double ionMobility, double mz, int charge) const {return 0;}
 double SpectrumList_Thermo::ccsToIonMobility(double ccs, double mz, int charge) const {return 0;}
 SpectrumPtr SpectrumList_Thermo::spectrum(size_t index, bool getBinaryData) const {return SpectrumPtr();}

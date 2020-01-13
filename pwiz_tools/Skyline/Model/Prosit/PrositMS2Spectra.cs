@@ -47,13 +47,13 @@ namespace pwiz.Skyline.Model.Prosit
     public class PrositMS2Spectrum : IEquatable<PrositMS2Spectrum>
     {
         public PrositMS2Spectrum(SrmSettings settings, PrositIntensityModel.PeptidePrecursorNCE peptidePrecursorNCE,
-            int precursorIndex, PrositIntensityModel.PrositIntensityOutput prositIntensityOutput, IsotopeLabelType labelTypeOverride = null)
+            int precursorIndex, PrositIntensityModel.PrositIntensityOutput prositIntensityOutput)
         {
             PeptidePrecursorNCE = peptidePrecursorNCE;
-            var precursor = peptidePrecursorNCE.NodeGroup;
+            Settings = settings;
             var peptide = peptidePrecursorNCE.NodePep;
 
-            var calc = settings.GetFragmentCalc(IsotopeLabelType.light, peptide.ExplicitMods);
+            var calc = settings.GetFragmentCalc(peptidePrecursorNCE.LabelType, peptide.ExplicitMods);
             var ionTable = calc.GetFragmentIonMasses(peptide.Target); // TODO: get mods and pass them as explicit mods above?
             var ions = ionTable.GetLength(1);
 
@@ -111,6 +111,8 @@ namespace pwiz.Skyline.Model.Prosit
         public PrositIntensityModel.PeptidePrecursorNCE PeptidePrecursorNCE { get; private set; }
         public SpectrumPeaksInfo SpectrumPeaks { get; private set; }
 
+        private SrmSettings Settings { get; }
+
         public SpectrumMzInfo SpecMzInfo
         {
             get
@@ -120,7 +122,9 @@ namespace pwiz.Skyline.Model.Prosit
                 SpectrumMzInfo info = new SpectrumMzInfo();
                 info.SpectrumPeaks = SpectrumPeaks;
                 info.IonMobility = IonMobilityAndCCS.EMPTY;
-                info.Key = new LibKey(peptide.ModifiedTarget, precursor.PrecursorCharge);
+                info.Key = new LibKey(
+                    Settings.GetModifiedSequence(peptide.Target, PeptidePrecursorNCE.LabelType, peptide.ExplicitMods, SequenceModFormatType.lib_precision),
+                    precursor.PrecursorCharge);
                 info.Label = precursor.LabelType;
                 info.PrecursorMz = precursor.PrecursorMz;
                 info.RetentionTime = null;

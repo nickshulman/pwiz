@@ -18,7 +18,6 @@
  */
 using System;
 using System.ComponentModel;
-using System.Globalization;
 using System.Linq;
 using pwiz.Common.DataBinding.Attributes;
 using pwiz.Skyline.Model.Hibernate;
@@ -45,7 +44,6 @@ namespace pwiz.Skyline.Model.Databinding.Entities
         public PrecursorChromatogramGroup ChromatogramGroup { get; private set; }
         [Browsable(false)]
         public Transition Transition { get; private set; }
-
 
         [Expensive]
         [ChildDisplayName("Raw{0}")]

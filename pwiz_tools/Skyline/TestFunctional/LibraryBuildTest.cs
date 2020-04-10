@@ -17,6 +17,7 @@
  * limitations under the License.
  */
 
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -57,7 +58,8 @@ namespace pwiz.SkylineTestFunctional
         public void TestLibraryBuild()
         {
             TestFilesZip = @"TestFunctional\LibraryBuildTest.zip";
-            RunFunctionalTest();
+using (new Assume.DebugOnFail(Environment.MachineName.Contains("BSPRATT-UW3"))) // If any AsertEx or Assume fails on BSPRATT-UW3, invoke debugger instead of failing  TODO(bspratt) remove this once debugged
+                RunFunctionalTest();
         }
 
         protected override void DoTest()
@@ -148,7 +150,7 @@ namespace pwiz.SkylineTestFunctional
             BuildLibraryValid("heavy_adduct.ssl", true, false, false, 1);
             // Make sure explorer handles this adduct type
             var viewLibUI = ShowDialog<ViewLibraryDlg>(SkylineWindow.ViewSpectralLibraries);
-            RunUI(() => Assume.IsTrue(viewLibUI.GraphItem.IonLabels.Any()));
+            RunUI(() => AssertEx.IsTrue(viewLibUI.GraphItem.IonLabels.Any()));
             RunUI(viewLibUI.CancelDialog);
 
             // Barbara added code to ProteoWizard to rebuild a missing or invalid mzXML index
@@ -542,18 +544,19 @@ namespace pwiz.SkylineTestFunctional
             if (expectedAmbiguous > 0)
             {
                 var ambiguousDlg = WaitForOpenForm<MessageDlg>();
-                RunUI(() =>
-                {
-                    Assert.AreEqual(expectedAmbiguous, ambiguousDlg.Message.Split('\n').Length - 1, ambiguousDlg.Message);
-                    ambiguousDlg.OkDialog();
-                });
+                RunUI(() => Assert.AreEqual(expectedAmbiguous, ambiguousDlg.Message.Split('\n').Length - 1, ambiguousDlg.Message));
+                OkDialog(ambiguousDlg, ambiguousDlg.OkDialog);
             }
 
-            Assert.IsTrue(WaitForConditionUI(() =>
-                PeptideSettingsUI.AvailableLibraries.Contains(_libraryName)));
+            string nonredundantBuildPath = TestFilesDir.GetTestPath(_libraryName + BiblioSpecLiteSpec.EXT);
+            WaitForConditionUI(() => PeptideSettingsUI.AvailableLibraries.Contains(_libraryName));
+            WaitForConditionUI(() => File.Exists(nonredundantBuildPath));
+
+            WaitForConditionUI(() => !PeptideSettingsUI.IsBuildingLibrary);
+            var messageDlg = FindOpenForm<MessageDlg>();
+            if (messageDlg != null)
+                Assert.Fail("Unexpected MessageDlg: " + messageDlg.DetailedMessage);
             RunUI(() => PeptideSettingsUI.PickedLibraries = new[] { _libraryName });
-            // Check this worked, because setting a non-existent name silently leaves nothing checked
-            RunUI(() => Assert.IsTrue(PeptideSettingsUI.PickedLibraries.Contains(_libraryName)));
             OkDialog(PeptideSettingsUI, PeptideSettingsUI.OkDialog);
 
             // Wait for the library to load
@@ -611,6 +614,12 @@ namespace pwiz.SkylineTestFunctional
         {
             PeptideSettingsUI = FindOpenForm<PeptideSettingsUI>() ??
                                 ShowDialog<PeptideSettingsUI>(SkylineWindow.ShowPeptideSettingsUI);
+            // Allow a person watching to see what is going on in the Library tab
+            RunUI(() =>
+            {
+                if (PeptideSettingsUI.SelectedTab != PeptideSettingsUI.TABS.Library)
+                    PeptideSettingsUI.SelectedTab = PeptideSettingsUI.TABS.Library;
+            });
         }
 
         private void BuildLibrary(string inputDir, IEnumerable<string> inputFiles, string libraryPath,

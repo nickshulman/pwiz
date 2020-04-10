@@ -26,6 +26,7 @@ using System.Linq;
 using System.Reflection;
 using System.Runtime;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Threading;
 using JetBrains.Annotations;
 using log4net;
@@ -84,6 +85,7 @@ namespace TestRunnerLib
         public long ManagedMemoryBytes { get; private set; }
         public bool AccessInternet { get; set; }
         public bool RunPerfTests { get; set; }
+        public bool RetryDataDownloads { get; set; }
         public bool RecordAuditLogs { get; set; }
         public bool RunsSmallMoleculeVersions { get; set; }
         public bool LiveReports { get; set; }
@@ -109,6 +111,7 @@ namespace TestRunnerLib
             bool runsmallmoleculeversions,
             bool recordauditlogs,
             bool teamcityTestDecoration,
+            bool retrydatadownloads,
             IEnumerable<string> pauseForms,
             int pauseSeconds = 0,
             bool useVendorReaders = true,
@@ -139,6 +142,7 @@ namespace TestRunnerLib
 
             AccessInternet = internet;
             RunPerfTests = perftests;
+            RetryDataDownloads = retrydatadownloads; // When true, try re-downloading data files on test failure, in case the failure is due to stale data
             RunsSmallMoleculeVersions = runsmallmoleculeversions;  // Run the small molecule version of various tests?
             RecordAuditLogs = recordauditlogs; // Replace or create audit logs for tutorial tests
             LiveReports = true;
@@ -179,7 +183,7 @@ namespace TestRunnerLib
             return Path.Combine(runnerExeDirectory, assembly);
         }
 
-        public bool Run(TestInfo test, int pass, int testNumber, string dmpDir)
+        public bool Run(TestInfo test, int pass, int testNumber, string dmpDir, bool heapOutput)
         {
             TeamCityStartTest(test);
 
@@ -244,6 +248,7 @@ namespace TestRunnerLib
                 // Set the TestContext.
                 TestContext.Properties["AccessInternet"] = AccessInternet.ToString();
                 TestContext.Properties["RunPerfTests"] = RunPerfTests.ToString();
+                TestContext.Properties["RetryDataDownloads"] = RetryDataDownloads.ToString();
                 TestContext.Properties["RunSmallMoleculeTestVersions"] = RunsSmallMoleculeVersions.ToString(); // Run the AsSmallMolecule version of tests when available?
                 TestContext.Properties["LiveReports"] = LiveReports.ToString();
                 TestContext.Properties["TestName"] = test.TestMethod.Name;
@@ -358,6 +363,27 @@ namespace TestRunnerLib
                 if (crtLeakedBytes > CheckCrtLeaks)
                     Log("!!! {0} CRT-LEAKED {1} bytes\r\n", test.TestMethod.Name, crtLeakedBytes);
 
+                if (heapOutput && ReportSystemHeaps)
+                {
+                    const int sizeOutputs = 50;
+                    const int stringOutputs = 50;
+                    var allSizes = new List<KeyValuePair<long, int>>();
+                    var allStrings = new List<KeyValuePair<string, int>>();
+                    foreach (var heapCount in heapCounts)
+                    {
+                        allSizes.AddRange(heapCount.CommittedSizes.Take(sizeOutputs));
+                        allStrings.AddRange(heapCount.StringCounts.Take(stringOutputs));
+                    }
+
+                    Log("# HEAP SIZES (top {0})", sizeOutputs);
+                    foreach (var size in allSizes.OrderByDescending(x => x.Value).Take(sizeOutputs))
+                        Log("# ({0}) {1}", size.Value, size.Key);
+
+                    Log("# HEAP STRINGS (top {0})", stringOutputs);
+                    foreach (var size in allStrings.OrderByDescending(x => x.Value).Take(stringOutputs))
+                        Log("# ({0}) \"{1}\"", size.Value, size.Key);
+                }
+
                 TeamCityFinishTest(test);
 
                 return true;
@@ -407,7 +433,7 @@ namespace TestRunnerLib
             public int LeakThresholdMB { get; private set; }
         }
 
-        static class MemoryManagement
+        public static class MemoryManagement
         {
             [DllImportAttribute("kernel32.dll", EntryPoint = "SetProcessWorkingSetSize", ExactSpelling = true, CharSet =
                 CharSet.Ansi, SetLastError = true)]
@@ -473,11 +499,16 @@ namespace TestRunnerLib
             [DllImport("kernel32.dll", SetLastError = true)]
             static extern bool HeapUnlock(IntPtr hHeap);
 
+            public static bool HeapDiagnostics { get; set; }
+
             public struct HeapAllocationSizes
             {
                 public long Committed { get; set; }
                 public long Reserved { get; set; }
                 public long Unknown { get; set; }
+
+                public List<KeyValuePair<long, int>> CommittedSizes { get; set; }
+                public List<KeyValuePair<string, int>> StringCounts { get; set; }
 
                 public override string ToString()
                 {
@@ -493,6 +524,8 @@ namespace TestRunnerLib
                 var buffer = new IntPtr[count];
                 GetProcessHeaps(count, buffer);
                 var sizes = new HeapAllocationSizes[count];
+                var committedSizes = HeapDiagnostics ? new Dictionary<long, int>() : null;
+                var stringCounts = HeapDiagnostics ? new Dictionary<string, int>() : null;
                 for (int i = 0; i < count; i++)
                 {
                     var h = buffer[i];
@@ -501,7 +534,50 @@ namespace TestRunnerLib
                     while (HeapWalk(h, ref e))
                     {
                         if ((e.wFlags & PROCESS_HEAP_ENTRY_WFLAGS.PROCESS_HEAP_ENTRY_BUSY) != 0)
+                        {
                             sizes[i].Committed += e.cbData + e.cbOverhead;
+
+                            if (committedSizes != null)
+                            {
+                                // Update count
+                                if (!committedSizes.ContainsKey(e.cbData))
+                                    committedSizes[e.cbData] = 1;
+                                else
+                                    committedSizes[e.cbData]++;
+                            }
+
+                            if (stringCounts != null)
+                            {
+                                // Find string(s)
+                                const int MIN_STRING_LENGTH = 8;
+                                var byteData = new byte[e.cbData];
+                                Marshal.Copy(e.lpData, byteData, 0, byteData.Length);
+                                var byteSb = new StringBuilder();
+                                var byteStrings = new List<string>();
+                                for (var j = 0; j < byteData.Length; j++)
+                                {
+                                    if (32 <= byteData[j] && byteData[j] <= 126)
+                                    {
+                                        byteSb.Append((char)byteData[j]);
+                                    }
+                                    else
+                                    {
+                                        if (byteSb.Length >= MIN_STRING_LENGTH)
+                                            byteStrings.Add(byteSb.ToString());
+                                        byteSb.Clear();
+                                    }
+                                }
+                                if (byteSb.Length >= MIN_STRING_LENGTH)
+                                    byteStrings.Add(byteSb.ToString()); // Add the last string
+                                foreach (var byteString in byteStrings)
+                                {
+                                    if (!stringCounts.ContainsKey(byteString))
+                                        stringCounts[byteString] = 1;
+                                    else
+                                        stringCounts[byteString]++;
+                                }
+                            }
+                        }
                         else if ((e.wFlags & PROCESS_HEAP_ENTRY_WFLAGS.PROCESS_HEAP_UNCOMMITTED_RANGE) != 0)
                             sizes[i].Reserved += e.cbData + e.cbOverhead;
                         else
@@ -509,6 +585,11 @@ namespace TestRunnerLib
 
                     }
                     HeapUnlock(h);
+
+                    if (committedSizes != null)
+                        sizes[i].CommittedSizes = committedSizes.OrderByDescending(p => p.Value).ToList();
+                    if (stringCounts != null)
+                        sizes[i].StringCounts = stringCounts.OrderByDescending(p => p.Value).ToList();
                 }
 
                 return sizes;
@@ -600,7 +681,7 @@ namespace TestRunnerLib
             if (errorMessage?.Length > 0)
             {
                 // ReSharper disable LocalizableElement
-                var tcMessage = new System.Text.StringBuilder(errorMessage);
+                var tcMessage = new StringBuilder(errorMessage);
                 tcMessage.Replace("|", "||");
                 tcMessage.Replace("'", "|'");
                 tcMessage.Replace("\n", "|n");

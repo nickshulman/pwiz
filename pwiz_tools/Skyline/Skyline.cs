@@ -269,6 +269,7 @@ namespace pwiz.Skyline
         }
 
         public AllChromatogramsGraph ImportingResultsWindow { get; private set; }
+        public MultiProgressStatus ImportingResultsError { get; private set; }
 
         protected override void OnShown(EventArgs e)
         {
@@ -473,6 +474,19 @@ namespace pwiz.Skyline
             get { return _immediateWindow; }
         }
 
+        public DockPanel DockPanel
+        {
+            get { return dockPanel; }
+        }
+
+        public ToolStripSplitButton UndoButton
+        {
+            get { return undoToolBarButton; }
+        }
+        public ToolStripSplitButton RedoButton
+        {
+            get { return redoToolBarButton; }
+        }
         public bool DiscardChanges { get; set; }
 
         /// <summary>
@@ -743,20 +757,28 @@ namespace pwiz.Skyline
             }
         }
 
+        public bool AssumeNonNullModificationAuditLogging { get; set; }
+
         public void ModifyDocumentOrThrow(string description, IUndoState undoState, Func<SrmDocument, SrmDocument> act,
             Action onModifying, Action onModified, Func<SrmDocumentPair, AuditLogEntry> logFunc)
         {
             using (var undo = BeginUndo(undoState))
             {
-                // Only create undo-redo record if an audit log entry was created
-                if (ModifyDocumentInner(act, onModifying, onModified, description, logFunc, out var entry) && entry != null)
-                    undo.Commit(entry.UndoRedo.ToString());
+                if (ModifyDocumentInner(act, onModifying, onModified, description, logFunc, out var entry))
+                {
+                    // If the document was modified, then we want to fail if there is no audit log entry.
+                    // We do not want to silently succeed without either an undo record or an audit log entry.
+                    if (AssumeNonNullModificationAuditLogging)  // For now this check is limited to functional testing
+                        Assume.IsNotNull(entry);
+                    if (entry != null && !entry.IsSkip)
+                        undo.Commit(entry.UndoRedo.ToString());
+                }
             }
         }
 
         public void ModifyDocumentNoUndo(Func<SrmDocument, SrmDocument> act)
         {
-            ModifyDocumentInner(act, null, null, null, null, out _);
+            ModifyDocumentInner(act, null, null, null, AuditLogEntry.SkipChange, out _);
         }
 
         private bool ModifyDocumentInner(Func<SrmDocument, SrmDocument> act, Action onModifying, Action onModified, string description, Func<SrmDocumentPair, AuditLogEntry> logFunc, out AuditLogEntry resultEntry)
@@ -784,6 +806,9 @@ namespace pwiz.Skyline
                 try
                 {
                     resultEntry = entry = logFunc?.Invoke(SrmDocumentPair.Create(docOriginal, docNew, ModeUI));
+                    // Compatibility: original implementation treated null as an acceptable reason to skip audit logging
+                    if (entry != null && entry.IsSkip)
+                        entry = null;
                 }
                 catch (Exception ex)
                 {
@@ -1839,6 +1864,9 @@ namespace pwiz.Skyline
                                                                                                resultText,
                                                                                                resultColorIndex,
                                                                                                resultAnnotations);
+                                                            if (Equals(newAnnotations, nodeInDoc.Annotations))
+                                                                continue;
+
                                                             doc = (SrmDocument) doc.ReplaceChild(nodePath.Parent,
                                                                                                  nodeInDoc.
                                                                                                      ChangeAnnotations(
@@ -2188,6 +2216,9 @@ namespace pwiz.Skyline
                                         dlg.ResultExplicitTransitionGroupValues, nodeTransGroup.Results,
                                         nodeTransGroup.Children.Cast<TransitionDocNode>().ToArray(),
                                         nodeTransGroup.AutoManageChildren);
+                                if (Equals(newNode, nodeTransGroup))
+                                    return doc;
+
                                 return (SrmDocument) doc.ReplaceChild(nodeTransitionGroupTree.Path.Parent, newNode);
                             }
                         }, docPair => AuditLogEntry.DiffDocNodes(MessageType.modified, docPair, AuditLogEntry.GetNodeName(docPair.OldDoc, nodeTransGroup)));
@@ -2222,6 +2253,10 @@ namespace pwiz.Skyline
                                     // But if custom molecule has changed then we can't "Replace", since newNode has a different identity and isn't in the document.  We have to 
                                     // insert and delete instead.  
                                     var newNode = nodePep.ChangeCustomIonValues(doc.Settings, dlg.ResultCustomMolecule, dlg.ExplicitRetentionTimeInfo);
+                                    // Nothing to do if the node is not changing
+                                    if (Equals(nodePep, newNode))
+                                        return doc;
+
                                     if (!nodePep.Peptide.Equals(newNode.Peptide)) // Did that change the Id object?
                                     {
                                         // We don't want the tree selection to change, so note this as a replacement.
@@ -2305,6 +2340,10 @@ namespace pwiz.Skyline
                                     nodeTran.QuantInfo,
                                     dlg.ResultExplicitTransitionValues,
                                     null);
+                                // Nothing to do, if the transition is not changing
+                                if (Equals(newDocNode, nodeTran))
+                                    return doc;
+
                                 if (noTransitionChange)
                                 {
                                     // If we are not changing anything in the transition ID, we can be more gentle in replacement
@@ -2558,12 +2597,27 @@ namespace pwiz.Skyline
 
         public void ShowRefineDlg()
         {
-            using (var refineDlg = new RefineDlg(DocumentUI))
+            using (var refineDlg = new RefineDlg(this))
             {
                 if (refineDlg.ShowDialog(this) == DialogResult.OK)
                 {
                     ModifyDocument(Resources.SkylineWindow_ShowRefineDlg_Refine,
-                        doc => refineDlg.RefinementSettings.Refine(doc), refineDlg.FormSettings.EntryCreator.Create);
+                        doc =>
+                        {
+                            using (var longWaitDlg = new LongWaitDlg(this))
+                            {
+                                longWaitDlg.Message = Resources.SkylineWindow_ShowRefineDlg_Refining_document;
+                                longWaitDlg.PerformWork(refineDlg, 1000, progressMonitor =>
+                                {
+                                    var srmSettingsChangeMonitor =
+                                        new SrmSettingsChangeMonitor(progressMonitor, Resources.SkylineWindow_ShowRefineDlg_Refining_document, this, doc);
+
+                                        doc = refineDlg.RefinementSettings.Refine(doc, srmSettingsChangeMonitor);
+                                    });
+                            }
+
+                            return doc;
+                        }, refineDlg.FormSettings.EntryCreator.Create);
                 }
             }
         }
@@ -3389,20 +3443,6 @@ namespace pwiz.Skyline
             // Explorer's spectrum graph pane.
             UpdateGraphPanes();
         }
-        public static List<PrositIntensityModel.PeptidePrecursorNCE> ReadStandardPeptides(IrtStandard standard)
-        {
-            var peps = standard.GetDocument().Peptides.ToList();
-            var precs = peps.Select(p => p.TransitionGroups.First());
-            /*for (var i = 0; i < peps.Count; i++)
-            {
-                var modSeq = ModifiedSequence.GetModifiedSequence(docImport.Settings, peps[i], IsotopeLabelType.light);
-                peps[i] = peps[i].ChangeExplicitMods(new ExplicitMods(peps[i].Peptide,
-                    modSeq.ExplicitMods.Select(m => m.ExplicitMod).ToArray(),
-                    new TypedExplicitModifications[0]));
-            }*/
-            return Enumerable.Zip(peps, precs,
-                (pep, prec) => new PrositIntensityModel.PeptidePrecursorNCE(pep, prec)).ToList();
-        }
 
         private void HandleStandardsChanged(ICollection<Target> oldStandard)
         {
@@ -3420,9 +3460,8 @@ namespace pwiz.Skyline
             }
             
             // Determine which peptides are in the standard, but not in the document
-            var missingPeptides = new TargetMap<bool>(newStandard
-                .Except(Document.Peptides.Select(pep => pep.Peptide.Target))
-                .Select(target => new KeyValuePair<Target, bool>(target, true)));
+            var documentPeps = new TargetMap<bool>(Document.Molecules.Select(pep => new KeyValuePair<Target, bool>(pep.ModifiedTarget, true)));
+            var missingPeptides = new TargetMap<bool>(newStandard.Where(pep => !documentPeps.ContainsKey(pep)).Select(target => new KeyValuePair<Target, bool>(target, true)));
             if (missingPeptides.Count == 0)
                 return;
 
@@ -3584,7 +3623,7 @@ namespace pwiz.Skyline
                                                     {
                                                         settingsNew = (SrmSettings) doc.Settings.ChangeName(ss.SaveName);
                                                         return doc.ChangeSettings(settingsNew);
-                                                    }, AuditLogEntry.SettingsLogFunction);
+                                                    }, AuditLogEntry.SkipChange);
 
                 if (settingsNew != null)
                     Settings.Default.SrmSettingsList.Add(settingsNew.MakeSavable(ss.SaveName));
@@ -5011,7 +5050,14 @@ namespace pwiz.Skyline
                 if (final)
                 {
                     if (i != -1)
+                    {
+                        // Avoid a race condition where simply removing the status can cause a update
+                        // caused by a timer tick to remove the ImportingResultsWindow
+                        if (status.IsError)
+                            ImportingResultsError = multiStatus;
+
                         _listProgress.RemoveAt(i);
+                    }
                 }
                 // Otherwise, if present update the status
                 else if (i != -1)
@@ -5027,6 +5073,9 @@ namespace pwiz.Skyline
                 first = i == 0;
             }
 
+            // A problematic place to put a Thread.Sleep which exposed some race conditions causing failures in nightly tests
+//            Thread.Sleep(100);
+
             // If the status is first in the queue and it is beginning, initialize
             // the progress UI.
             bool begin = status.IsBegin || (!final && !_timerProgress.Enabled);
@@ -5038,17 +5087,23 @@ namespace pwiz.Skyline
             // make sure user sees the change.
             else if (final)
             {
-                // Import progress needs to know about this status immediately.  It might be gone by
-                // the time the update progress interval comes around next time.
-                if (ImportingResultsWindow != null && status is MultiProgressStatus)
-                    RunUIAction(() => UpdateImportProgress(status as MultiProgressStatus));
-
-                // Only wait for an error, since it is expected that e
-                // may be modified by return of this function call
+                // Only wait for an error, since it is expected that e may be modified by return of this function call
+                // Also, it is important to do this with one update, or a timer tick can destroy the window and this
+                // will recreate it causing tests to fail because they have the wrong Form reference
                 if (status.IsError)
+                {
                     RunUIAction(CompleteProgressUI, e);
-                else if (first)
-                    RunUIActionAsync(CompleteProgressUI, e);
+                }
+                else
+                {
+                    // Import progress needs to know about this status immediately.  It might be gone by
+                    // the time the update progress interval comes around next time.
+                    if (ImportingResultsWindow != null && status is MultiProgressStatus)
+                        RunUIAction(() => UpdateImportProgress(status as MultiProgressStatus));
+
+                    if (first)
+                        RunUIActionAsync(CompleteProgressUI, e);
+                }
             }
         }
 
@@ -5092,9 +5147,14 @@ namespace pwiz.Skyline
                 // Add the error to the ImportingResultsWindow before calling "ShowAllChromatogramsGraph" 
                 // because "ShowAllChromatogramsGraph" may destroy the window if the job is done and there are
                 // no errors yet.
-                ImportingResultsWindow.UpdateStatus((MultiProgressStatus) e.Progress);
+                var multiProgress = (MultiProgressStatus) e.Progress;
+                ImportingResultsWindow.UpdateStatus(multiProgress);
                 ShowAllChromatogramsGraph();
-                return;
+                // Safe to resume updates based on timer ticks
+                ImportingResultsError = null;
+                // Make sure user is actually seeing an error
+                if (ImportingResultsWindow != null && ImportingResultsWindow.HasErrors)
+                    return;
             }
 
             // TODO: replace this with more generic logic fed from IProgressMonitor
@@ -5157,6 +5217,10 @@ namespace pwiz.Skyline
                 }
                 else if (ImportingResultsWindow != null)
                 {
+                    // If an importing results error is pending or the window handle is not yet created, then ignore this update
+                    if (ImportingResultsError != null || !ImportingResultsWindow.IsHandleCreated)
+                        return;
+
                     if (!ImportingResultsWindow.IsUserCanceled)
                         Settings.Default.AutoShowAllChromatogramsGraph = ImportingResultsWindow.Visible;
                     ImportingResultsWindow.Finish();
@@ -5739,11 +5803,13 @@ namespace pwiz.Skyline
                     return;
                 }
 
+                var count = pathsToProcess.Count;
+                var changedTargets = count == 1 ? SelectedNode.Text : string.Format(AuditLogStrings.SkylineWindow_ChangeQuantitative_0_transitions, count);
                 ModifyDocument(message, doc =>
                 {
-                    Assume.IsTrue(ReferenceEquals(originalDocument, doc));
+                    Assume.IsTrue(ReferenceEquals(originalDocument, doc));  // CONSIDER: Might not be true if background processing is happening
                     return newDocument;
-                }, AuditLogEntry.SettingsLogFunction);
+                }, docPair => AuditLogEntry.DiffDocNodes(MessageType.changed_quantitative, docPair, changedTargets));
             }
         }
 

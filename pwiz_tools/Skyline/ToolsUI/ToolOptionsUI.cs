@@ -18,6 +18,7 @@
  */
 
 using System;
+using System.ComponentModel;
 using System.Drawing;
 using System.Globalization;
 using System.Linq;
@@ -72,7 +73,7 @@ namespace pwiz.Skyline.ToolsUI
             var peptide = new PeptideDocNode(pingPep);
             var precursor = new TransitionGroupDocNode(new TransitionGroup(pingPep, Adduct.SINGLY_PROTONATED, IsotopeLabelType.light),
                 new TransitionDocNode[0]);
-            _pingInput = new PrositIntensityModel.PeptidePrecursorNCE(peptide, precursor, 32);
+            _pingInput = new PrositIntensityModel.PeptidePrecursorNCE(peptide, precursor, IsotopeLabelType.light, 32);
             _settingsNoMod = settings.ChangePeptideModifications(
                 pm => new PeptideModifications(new StaticMod[0], new TypedModifications[0]));
 
@@ -98,12 +99,14 @@ namespace pwiz.Skyline.ToolsUI
             comboCompactFormatOption.Items.AddRange(CompactFormatOption.ALL_VALUES.ToArray());
             comboCompactFormatOption.SelectedItem = CompactFormatOption.FromSettings();
 
-            var iModels = PrositIntensityModel.Models.ToArray();
-            var rtModels = PrositRetentionTimeModel.Models.ToArray();
+            var iModels = PrositIntensityModel.Models.ToList();
+            iModels.Insert(0, string.Empty);
+            var rtModels = PrositRetentionTimeModel.Models.ToList();
+            rtModels.Insert(0, string.Empty);
 
             tbxPrositServer.Text = PrositConfig.GetPrositConfig().Server;
-            intensityModelCombo.Items.AddRange(iModels);
-            iRTModelCombo.Items.AddRange(rtModels);
+            intensityModelCombo.Items.AddRange(iModels.ToArray());
+            iRTModelCombo.Items.AddRange(rtModels.ToArray());
             
             prositServerStatusLabel.Text = string.Empty;
             if (iModels.Contains(Settings.Default.PrositIntensityModel))
@@ -121,7 +124,7 @@ namespace pwiz.Skyline.ToolsUI
         {
             public PrositPingRequest(string ms2Model, string rtModel, SrmSettings settings,
                 PeptideDocNode peptide, TransitionGroupDocNode precursor, int nce, Action updateCallback) : base(null,
-                null, null, settings, peptide, precursor, nce, updateCallback)
+                null, null, settings, peptide, precursor, null, nce, updateCallback)
             {
                 Client = PrositPredictionClient.CreateClient(PrositConfig.GetPrositConfig());
                 IntensityModel = PrositIntensityModel.GetInstance(ms2Model);
@@ -137,14 +140,15 @@ namespace pwiz.Skyline.ToolsUI
                 {
                     try
                     {
+                        var labelType = Precursor.LabelType;
                         var ms = IntensityModel.PredictSingle(Client, Settings,
-                            new PrositIntensityModel.PeptidePrecursorNCE(Peptide, Precursor, NCE), _tokenSource.Token);
+                            new PrositIntensityModel.PeptidePrecursorNCE(Peptide, Precursor, labelType, NCE), _tokenSource.Token);
 
                         var iRTMap = RTModel.PredictSingle(Client,
                             Settings,
                             Peptide, _tokenSource.Token);
 
-                        var spectrumInfo = new SpectrumInfoProsit(ms, Precursor, NCE);
+                        var spectrumInfo = new SpectrumInfoProsit(ms, Precursor, labelType, NCE);
                         var irt = iRTMap[Peptide];
                         Spectrum = new SpectrumDisplayInfo(
                             spectrumInfo, Precursor, irt);
@@ -271,10 +275,16 @@ namespace pwiz.Skyline.ToolsUI
             _driverRemoteAccounts.EditList();
         }
 
+        protected override void OnClosing(CancelEventArgs e)
+        {
+            base.OnClosing(e);
+
+            if (!e.Cancel)
+                _pingRequest?.Cancel();
+        }
+
         protected override void OnClosed(EventArgs e)
         {
-            _pingRequest?.Cancel();
-
             if (DialogResult == DialogResult.OK)
             {
                 var displayLanguageItem = listBoxLanguages.SelectedItem as DisplayLanguageItem;
@@ -283,7 +293,7 @@ namespace pwiz.Skyline.ToolsUI
                     Settings.Default.ShowStartupForm = checkBoxShowWizard.Checked;
                     Settings.Default.DisplayLanguage = displayLanguageItem.Key;
                     Settings.Default.UsePowerOfTen = powerOfTenCheckBox.Checked;
-                    Program.MainWindow.UpdateGraphPanes();
+                    Program.MainWindow?.UpdateGraphPanes();
                 }
                 CompactFormatOption compactFormatOption = comboCompactFormatOption.SelectedItem as CompactFormatOption;
                 if (null != compactFormatOption)
@@ -292,9 +302,12 @@ namespace pwiz.Skyline.ToolsUI
                 }
                 Settings.Default.CurrentColorScheme = (string) comboColorScheme.SelectedItem;
 
+                bool prositSettingsValidBefore = PrositHelpers.PrositSettingsValid;
                 Settings.Default.PrositIntensityModel = (string) intensityModelCombo.SelectedItem;
-                Settings.Default.PrositRetentionTimeModel = (string)iRTModelCombo.SelectedItem;
+                Settings.Default.PrositRetentionTimeModel = (string) iRTModelCombo.SelectedItem;
                 Settings.Default.PrositNCE = (int) ceCombo.SelectedItem;
+                if (prositSettingsValidBefore != PrositHelpers.PrositSettingsValid)
+                    Program.MainWindow?.UpdateGraphSpectrumEnabled();
             }
             base.OnClosed(e);
         }
@@ -390,7 +403,7 @@ namespace pwiz.Skyline.ToolsUI
             if (newColorScheme != null)
             {
                 Settings.Default.CurrentColorScheme = newColorScheme.Name;
-                Program.MainWindow.ChangeColorScheme();
+                Program.MainWindow?.ChangeColorScheme();
             }
             _driverColorSchemes.SelectedIndexChangedEvent(sender, e);
         }
@@ -429,11 +442,33 @@ namespace pwiz.Skyline.ToolsUI
 
         private void intensityModelCombo_SelectedIndexChanged(object sender, EventArgs e)
         {
+            if (string.IsNullOrEmpty((string) intensityModelCombo.SelectedItem) &&
+                !string.IsNullOrEmpty((string) iRTModelCombo.SelectedItem))
+            {
+                iRTModelCombo.SelectedItem = string.Empty;
+            }
+            else if (!string.IsNullOrEmpty((string) intensityModelCombo.SelectedItem) &&
+                     string.IsNullOrEmpty((string) iRTModelCombo.SelectedItem))
+            {
+                iRTModelCombo.SelectedIndex = 1;    // First non-empty iRT model
+            }
+
             UpdateServerStatus();
         }
 
         private void iRTModelCombo_SelectedIndexChanged(object sender, EventArgs e)
         {
+            if (!string.IsNullOrEmpty((string)intensityModelCombo.SelectedItem) &&
+                string.IsNullOrEmpty((string)iRTModelCombo.SelectedItem))
+            {
+                intensityModelCombo.SelectedItem = string.Empty;
+            }
+            else if (string.IsNullOrEmpty((string)intensityModelCombo.SelectedItem) &&
+                     !string.IsNullOrEmpty((string)iRTModelCombo.SelectedItem))
+            {
+                intensityModelCombo.SelectedIndex = 1;    // First non-empty intensity model
+            }
+
             UpdateServerStatus();
         }
 

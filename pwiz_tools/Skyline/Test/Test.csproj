@@ -189,6 +189,7 @@
     <Compile Include="NormalizeProductIonTest.cs" />
     <Compile Include="PasteTest.cs" />
     <Compile Include="PeakBoundaryTest.cs" />
+    <Compile Include="PrecursorMassTest.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="PropertySettingsTest.cs" />
     <Compile Include="Proteome\ProteomeDbTest.cs" />

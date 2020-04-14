@@ -753,20 +753,20 @@ namespace pwiz.Skyline.Model
             }
         }
 
-        private double CalcPrecursorMZ(SrmSettings settings, ExplicitMods mods, out IsotopeDistInfo isotopeDist, out TypedMass mass)
+        public static double CalcPrecursorMZ(TransitionGroup transitionGroup, SrmSettings settings, ExplicitMods mods, out IsotopeDistInfo isotopeDist, out TypedMass mass)
         {
-            var seq = TransitionGroup.Peptide.Target;
-            var adduct = TransitionGroup.PrecursorAdduct;
-            IsotopeLabelType labelType = TransitionGroup.LabelType;
+            var seq = transitionGroup.Peptide.Target;
+            var adduct = transitionGroup.PrecursorAdduct;
+            IsotopeLabelType labelType = transitionGroup.LabelType;
             string isotopicFormula = null;
             double mz;
             IPrecursorMassCalc calc;
-            if (IsCustomIon)
+            if (transitionGroup.IsCustomIon)
             {
                 var labelTypeForCalc =  IsotopeLabelType.light; // Don't need to look up the isotope, if we have one it's embedded in the adduct description
                 calc = settings.GetPrecursorCalc(labelTypeForCalc, mods);
                 var typedMods = settings.PeptideSettings.Modifications.GetModificationsByName(labelType.Name);
-                mass = calc.GetPrecursorMass(CustomMolecule, typedMods, adduct, out isotopicFormula); // Mass including effect of isotopes (incl. any adduct isotopes M<isotopes>+<atoms>), but not the adduct atoms (M+<atoms>) themselves
+                mass = calc.GetPrecursorMass(transitionGroup.CustomMolecule, typedMods, adduct, out isotopicFormula); // Mass including effect of isotopes (incl. any adduct isotopes M<isotopes>+<atoms>), but not the adduct atoms (M+<atoms>) themselves
                 mz = adduct.MzFromNeutralMass(mass);
             }
             else
@@ -774,8 +774,8 @@ namespace pwiz.Skyline.Model
                 calc = settings.GetPrecursorCalc(labelType, mods);
                 mass = calc.GetPrecursorMass(seq);
                 mz = SequenceMassCalc.GetMZ(mass, adduct) + 
-                    SequenceMassCalc.GetPeptideInterval(TransitionGroup.DecoyMassShift);
-                if (TransitionGroup.DecoyMassShift.HasValue)
+                    SequenceMassCalc.GetPeptideInterval(transitionGroup.DecoyMassShift);
+                if (transitionGroup.DecoyMassShift.HasValue)
                     mass = new TypedMass(SequenceMassCalc.GetMH(mz, adduct.AdductCharge), calc.MassType);
             }
 
@@ -784,11 +784,11 @@ namespace pwiz.Skyline.Model
             if (fullScan.IsHighResPrecursor)
             {
                 MassDistribution massDist;
-                if (!TransitionGroup.IsCustomIon)
+                if (!transitionGroup.IsCustomIon)
                 {
                     massDist = calc.GetMzDistribution(seq, adduct, fullScan.IsotopeAbundances);
-                    if (TransitionGroup.DecoyMassShift.HasValue)
-                        massDist = ShiftMzDistribution(massDist, TransitionGroup.DecoyMassShift.Value);
+                    if (transitionGroup.DecoyMassShift.HasValue)
+                        massDist = ShiftMzDistribution(massDist, transitionGroup.DecoyMassShift.Value);
                 }
                 else if (isotopicFormula != null)
                 {

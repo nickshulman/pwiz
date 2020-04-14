@@ -147,6 +147,7 @@
     <Compile Include="CommandLineImportDocTest.cs" />
     <Compile Include="CommandLineMProphetTest.cs" />
     <Compile Include="CreateTextSequencesTest.cs" />
+    <Compile Include="Crosslinking\CrosslinkModTest.cs" />
     <Compile Include="CustomMoleculeTest.cs" />
     <Compile Include="DecoysTest.cs" />
     <Compile Include="DigestionTest.cs" />
@@ -327,6 +328,7 @@
     <EmbeddedResource Include="UniModHeavyList.xml" />
     <EmbeddedResource Include="UniModStaticList.xml" />
   </ItemGroup>
+  <ItemGroup />
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.

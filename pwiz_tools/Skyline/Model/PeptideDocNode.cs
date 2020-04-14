@@ -23,6 +23,7 @@ using System.Linq;
 using pwiz.Common.Collections;
 using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Controls.SeqNode;
+using pwiz.Skyline.Model.Crosslinking;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.GroupComparison;
 using pwiz.Skyline.Model.Irt;
@@ -181,6 +182,8 @@ namespace pwiz.Skyline.Model
         }
 
         public ExplicitMods ExplicitMods { get; private set; }
+
+        public ImmutableList<CrosslinkMod> CrossLinkMods { get; private set; }
 
         public ModifiedSequenceMods SourceKey { get; private set; }
 

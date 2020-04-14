@@ -1,4 +1,5 @@
 ﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
+using pwiz.Common.Chemistry;
 using pwiz.Skyline.Model;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Properties;
@@ -34,6 +35,22 @@ namespace pwiz.SkylineTest
             var averageGroupDocNode = MakeTransitionGroupDocNode(transitionGroup, GetSrmSettings(MassType.Average));
             Assert.AreEqual(MassType.AverageMassH, averageGroupDocNode.PrecursorMzMassType);
             Assert.AreEqual(800.834896, averageGroupDocNode.PrecursorMz, .000001);
+        }
+
+        [TestMethod]
+        public void TestGlycineMass()
+        {
+            const double glycineMolarMass = 75.067; // from Wikipedia
+            Molecule glycineMolarFormula = SequenceMassCalc.GetAminoAcidFormula('G');
+            glycineMolarFormula = glycineMolarFormula
+                .SetElementCount("H", glycineMolarFormula.GetElementCount("H") + 2)
+                .SetElementCount("O", glycineMolarFormula.GetElementCount("O") + 1);
+            var glycineMass = BioMassCalc.AVERAGE.CalculateMassFromFormula(glycineMolarFormula);
+            Assert.AreEqual(glycineMolarMass, glycineMass, .001);
+            var peptide = new Peptide("G");
+            var transitionGroup = new TransitionGroup(peptide, Adduct.FromChargeProtonated(1), IsotopeLabelType.light);
+            var monoGroupDocNode = MakeTransitionGroupDocNode(transitionGroup, GetSrmSettings(MassType.Average));
+            Assert.AreEqual(glycineMass + BioMassCalc.MassProton, monoGroupDocNode.PrecursorMz, .000001);
         }
 
         private static SrmSettings GetSrmSettings(MassType massType)

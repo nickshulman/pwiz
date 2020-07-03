@@ -564,14 +564,14 @@ void BuildParser::verifySequences()
     {
         PSM* psm = *iter;
         // make sure sequence is all uppercase
-        psm->unmodSeq = boost::to_upper_copy(psm->unmodSeq);
+        boost::to_upper(psm->unmodSeq);
         // create the modified sequence, if we don't have it already
         if( psm->modifiedSeq.empty() ){
             sortPsmMods(psm);
             psm->modifiedSeq = blibMaker_.generateModifiedSeq(psm->unmodSeq.c_str(),
                                                                 psm->mods);
         } else {
-            psm->modifiedSeq = boost::to_upper_copy(psm->modifiedSeq);
+            boost::to_upper(psm->modifiedSeq);
         }
     }
 }
@@ -918,6 +918,8 @@ string BuildParser::getFilenameFromID(const string& idStr){
             // if the file attribute is quoted, end at tht next quote
             if (idStr[start] == '"'){
                 end = idStr.find_first_of('"', ++start);
+            } else if (idStr[start] == '~'){
+                end = idStr.find_first_of('~', ++start);
             } else {
                 // otherwise, end at the next comma
                 end = idStr.find_first_of(',', start);

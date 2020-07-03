@@ -241,7 +241,7 @@ namespace pwiz.Skyline.Model
                             try
                             {
                                 var tranNode = GetMoleculeTransition(document, row, pep.Peptide,
-                                    tranGroup.TransitionGroup);
+                                    tranGroup.TransitionGroup, tranGroup.ExplicitValues);
                                 if (tranNode == null)
                                     return true;
                                 foreach (var tran in tranGroup.Transitions)
@@ -769,6 +769,7 @@ namespace pwiz.Skyline.Model
         private bool ValidateCharge(int? charge, bool getPrecursorColumns, out string errMessage)
         {
             var absCharge = Math.Abs(charge ?? 0);
+            // ReSharper disable once ConditionIsAlwaysTrueOrFalse (in case we ever set min charge > 1)
             if (getPrecursorColumns && absCharge != 0 && (absCharge < TransitionGroup.MIN_PRECURSOR_CHARGE ||
                                                           absCharge > TransitionGroup.MAX_PRECURSOR_CHARGE))
             {
@@ -778,6 +779,7 @@ namespace pwiz.Skyline.Model
                 return false;
             }
             else if (!getPrecursorColumns && absCharge != 0 &&
+                     // ReSharper disable once ConditionIsAlwaysTrueOrFalse (in case we ever set min charge > 1)
                      (absCharge < Transition.MIN_PRODUCT_CHARGE || absCharge > Transition.MAX_PRODUCT_CHARGE))
             {
                 errMessage = String.Format(
@@ -1313,7 +1315,7 @@ namespace pwiz.Skyline.Model
                     ionMobility = compensationVoltage;
                     ionMobilityUnits = eIonMobilityUnits.compensation_V;
                 }
-                var explicitTransitionGroupValues = ExplicitTransitionGroupValues.Create(ionMobility, ionMobilityUnits, ccsPrecursor);
+                var explicitTransitionGroupValues = ExplicitTransitionGroupValues.Create(collisionEnergy, ionMobility, ionMobilityUnits, ccsPrecursor);
                 var massOk = true;
                 var massTooLow = false;
                 string massErrMsg = null;
@@ -1781,7 +1783,7 @@ namespace pwiz.Skyline.Model
             string errmsg;
             try
             {
-                var tran = GetMoleculeTransition(document, row, pep, group);
+                var tran = GetMoleculeTransition(document, row, pep, group, moleculeInfo.ExplicitTransitionGroupValues);
                 if (tran == null)
                     return null;
                 return new TransitionGroupDocNode(group, document.Annotations, document.Settings, null,
@@ -1816,7 +1818,7 @@ namespace pwiz.Skyline.Model
                      !Equals(precursor.MonoMass, fragment.MonoMass));
         }
 
-        private TransitionDocNode GetMoleculeTransition(SrmDocument document, Row row, Peptide pep, TransitionGroup group)
+        private TransitionDocNode GetMoleculeTransition(SrmDocument document, Row row, Peptide pep, TransitionGroup group, ExplicitTransitionGroupValues explicitTransitionGroupValues)
         {
             var precursorIon = ReadPrecursorOrProductColumns(document, row, null, out var hasError); // Re-read the precursor columns
             if (hasError)
@@ -1855,7 +1857,14 @@ namespace pwiz.Skyline.Model
                 // ReSharper restore LocalizableElement
                 annotations = new Annotations(note, document.Annotations.ListAnnotations(), 0);
             }
-            return new TransitionDocNode(transition, annotations, null, mass, TransitionDocNode.TransitionQuantInfo.DEFAULT, ion.ExplicitTransitionValues, null);
+
+            var ionExplicitTransitionValues = ion.ExplicitTransitionValues;
+            if (explicitTransitionGroupValues?.CollisionEnergy == ion.ExplicitTransitionValues?.CollisionEnergy)
+            {
+                // No need for per-transition CE override if it matches precursor CE override
+                ionExplicitTransitionValues = ionExplicitTransitionValues.ChangeCollisionEnergy(null); 
+            }
+            return new TransitionDocNode(transition, annotations, null, mass, TransitionDocNode.TransitionQuantInfo.DEFAULT, ionExplicitTransitionValues, null);
         }
     }
 

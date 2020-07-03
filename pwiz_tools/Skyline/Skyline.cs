@@ -1703,6 +1703,7 @@ namespace pwiz.Skyline
                 copyToolBarButton.Enabled = copyMenuItem.Enabled = false;
                 pasteToolBarButton.Enabled = pasteMenuItem.Enabled = false;
                 deleteMenuItem.Enabled = false;
+                selectAllMenuItem.Enabled = false;
                 // If it is a grid, then disable next and previous replicate keys in favor of ctrl-Up and ctrl-Down
                 // working in the grid
                 if (_activeClipboardControl is DataboundGridControl)
@@ -1716,6 +1717,7 @@ namespace pwiz.Skyline
             copyToolBarButton.Enabled = copyMenuItem.Enabled = enabled;
             pasteToolBarButton.Enabled = pasteMenuItem.Enabled = true;
             deleteMenuItem.Enabled = enabled;
+            selectAllMenuItem.Enabled = true;
             // Always enable these, as they are harmless if enabled with no results and otherwise unmanaged.
             nextReplicateMenuItem.Enabled = previousReplicateMenuItem.Enabled = true;
         }
@@ -2274,7 +2276,7 @@ namespace pwiz.Skyline
                 }
                 else
                 {
-                    using (var dlg = new EditPepModsDlg(DocumentUI.Settings, nodePep))
+                    using (var dlg = new EditPepModsDlg(DocumentUI.Settings, nodePep, true))
                     {
                         dlg.Height = Math.Min(dlg.Height, Screen.FromControl(this).WorkingArea.Height);
                         if (dlg.ShowDialog(this) == DialogResult.OK)
@@ -5134,6 +5136,10 @@ namespace pwiz.Skyline
 
                 // Update the progress UI immediately
                 UpdateProgressUI();
+            }
+            if (!string.IsNullOrEmpty(e.Progress.WarningMessage))
+            {
+                MessageDlg.Show(this, e.Progress.WarningMessage);
             }
         }
 

@@ -31,9 +31,11 @@ using System.Xml.Serialization;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using pwiz.Skyline.Model;
 using pwiz.Skyline.Model.DocSettings;
+using pwiz.Skyline.Model.Serialization;
 using pwiz.Skyline.Util;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util.Extensions;
+using pwiz.SkylineTestUtil.Schemas;
 
 namespace pwiz.SkylineTestUtil
 {
@@ -337,6 +339,21 @@ namespace pwiz.SkylineTestUtil
         {
             Serializable(doc, DocumentCloned);
             VerifyModifiedSequences(doc);
+            // Skyline uses a format involving protocol buffers if the document is very large.
+            // Make sure to serialize the document the other way, and make sure it's still the same.
+            bool wasCompactFormat = CompactFormatOption.FromSettings().UseCompactFormat(doc);
+            string oldSetting = Settings.Default.CompactFormatOption;
+            try
+            {
+                Settings.Default.CompactFormatOption =
+                    (wasCompactFormat ? CompactFormatOption.NEVER : CompactFormatOption.ALWAYS).Name;
+                Assert.AreNotEqual(wasCompactFormat, CompactFormatOption.FromSettings().UseCompactFormat(doc));
+                Serializable(doc, DocumentCloned);
+            }
+            finally
+            {
+                Settings.Default.CompactFormatOption = oldSetting;
+            }
         }
 
         public static void Serializable<TObj>(TObj target, Action<TObj, TObj> validate, bool checkAgainstSkylineSchema = true, string expectedTypeInSkylineSchema = null)
@@ -378,6 +395,10 @@ namespace pwiz.SkylineTestUtil
         {
             foreach (var peptide in doc.Peptides)
             {
+                if (peptide.ExplicitMods != null && peptide.ExplicitMods.HasCrosslinks)
+                {
+                    continue;
+                }
                 var peptideModifiedSequence =
                     ModifiedSequence.GetModifiedSequence(doc.Settings, peptide, IsotopeLabelType.light);
                 IsNotNull(peptideModifiedSequence);
@@ -428,7 +449,7 @@ namespace pwiz.SkylineTestUtil
                             throw new OutOfMemoryException("Strangely large non-document object", x.InnerException);
                         }
                         var assembly = Assembly.GetAssembly(typeof(AssertEx));
-                        var xsdName = typeof(AssertEx).Namespace + String.Format(CultureInfo.InvariantCulture, ".Schemas.Skyline_{0}.xsd", SrmDocument.FORMAT_VERSION);
+                        var xsdName = SchemaDocuments.GetSkylineSchemaResourceName(SrmDocument.FORMAT_VERSION.ToString());
                         var schemaStream = assembly.GetManifestResourceStream(xsdName);
                         IsNotNull(schemaStream, string.Format("Schema {0} not found in TestUtil assembly", xsdName));
                         // ReSharper disable once AssignNullToNotNullAttribute
@@ -517,7 +538,7 @@ namespace pwiz.SkylineTestUtil
             string schemaVer = xmlText.Substring(verStart, xmlText.Substring(verStart).IndexOf("\"", StringComparison.Ordinal));
             // ReSharper restore LocalizableElement
 
-            ValidatesAgainstSchema(xmlText, "Skyline_" + schemaVer);
+            ValidatesAgainstSchema(xmlText, SchemaDocuments.GetSkylineSchemaResourceName(schemaVer));
         }
 
         [Localizable(false)]
@@ -542,16 +563,15 @@ namespace pwiz.SkylineTestUtil
                 version = "4.21";
             }
 
-            ValidatesAgainstSchema(xmlText, "AuditLog.Skyl_" + version);
+            ValidatesAgainstSchema(xmlText, SchemaDocuments.GetAuditLogSchemaResourceName(version));
         }
 
 
-        public static void ValidatesAgainstSchema(string xmlText, string xsdName)
+        public static void ValidatesAgainstSchema(string xmlText, string xsdResourceName)
         {
             var assembly = Assembly.GetAssembly(typeof(AssertEx));
-            var schemaFileName = typeof(AssertEx).Namespace + String.Format(CultureInfo.InvariantCulture, @".Schemas.{0}.xsd", xsdName);
-            var schemaFile = assembly.GetManifestResourceStream(schemaFileName);
-            IsNotNull(schemaFile, "could not locate a schema file called " + schemaFileName);
+            var schemaFile = assembly.GetManifestResourceStream(xsdResourceName);
+            IsNotNull(schemaFile, "could not locate a schema file called " + xsdResourceName);
             // ReSharper disable once AssignNullToNotNullAttribute
             using (var schemaReader = new XmlTextReader(schemaFile))
             {

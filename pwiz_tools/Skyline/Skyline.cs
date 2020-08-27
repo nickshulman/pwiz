@@ -70,6 +70,7 @@ using pwiz.Skyline.Model.ElementLocators;
 using pwiz.Skyline.Model.AuditLog;
 using pwiz.Skyline.Model.Databinding;
 using pwiz.Skyline.Model.Databinding.Entities;
+using pwiz.Skyline.Model.DocSettings.MetadataExtraction;
 using pwiz.Skyline.Model.GroupComparison;
 using pwiz.Skyline.Model.Lists;
 using pwiz.Skyline.Model.Prosit.Communication;
@@ -1091,7 +1092,6 @@ namespace pwiz.Skyline
             _importPeptideSearchManager.ProgressUpdateEvent -= UpdateProgress;
             
             DestroyAllChromatogramsGraph();
-
             base.OnClosing(e);
         }
 
@@ -1112,8 +1112,10 @@ namespace pwiz.Skyline
             if (!Program.FunctionalTest)
                 // ReSharper disable LocalizableElement
                 LogManager.GetLogger(typeof(SkylineWindow)).Info("Skyline closed.\r\n-----------------------");
-                // ReSharper restore LocalizableElement
-            
+            // ReSharper restore LocalizableElement
+
+            DetectionPlotData.ReleaseDataCache();
+
             base.OnClosed(e);
         }
 
@@ -3816,7 +3818,9 @@ namespace pwiz.Skyline
                             var dataSettingsNew = dlg.GetDataSettings(doc.Settings.DataSettings);
                             if (Equals(dataSettingsNew, doc.Settings.DataSettings))
                                 return doc;
-                            return doc.ChangeSettings(doc.Settings.ChangeDataSettings(dataSettingsNew));
+                            doc = doc.ChangeSettings(doc.Settings.ChangeDataSettings(dataSettingsNew));
+                            doc = MetadataExtractor.ApplyRules(doc, null, out _);
+                            return doc;
                         },
                         AuditLogEntry.SettingsLogFunction);
                     StoreNewSettings(DocumentUI.Settings);
@@ -4922,6 +4926,7 @@ namespace pwiz.Skyline
             SetResultIndexOnGraphs(_listGraphRetentionTime, true);
             SetResultIndexOnGraphs(_listGraphPeakArea, false);
             SetResultIndexOnGraphs(_listGraphMassError, false);
+            SetResultIndexOnGraphs(_listGraphDetections, false);
 
             var liveResultsGrid = (LiveResultsGrid)_resultsGridForm;
             if (null != liveResultsGrid)
@@ -5910,6 +5915,8 @@ namespace pwiz.Skyline
             ShowSequenceTreeForm(true, true);
             UpdateGraphPanes();
         }
+
+
     }
 }
 

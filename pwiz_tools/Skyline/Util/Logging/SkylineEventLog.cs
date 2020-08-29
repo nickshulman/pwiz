@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using pwiz.Common.Collections;
+using System.Management.Instrumentation;
 using Serilog;
 using Serilog.Core;
 using Serilog.Events;
@@ -10,9 +10,11 @@ namespace pwiz.Skyline.Util.Logging
 {
     public class SkylineEventLog : ILogEventSink
     {
+        public static readonly SkylineEventLog INSTANCE = new SkylineEventLog();
         public static void Initialize()
         {
-            var configuration = new Serilog.LoggerConfiguration().WriteTo.Console();
+            var configuration = new Serilog.LoggerConfiguration().WriteTo.Console()
+                .MinimumLevel.Verbose();
             configuration = configuration.WriteTo.Sink(new SkylineEventLog());
             Serilog.Log.Logger = configuration.CreateLogger();
         }

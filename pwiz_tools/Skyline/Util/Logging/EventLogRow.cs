@@ -24,6 +24,20 @@ namespace pwiz.Skyline.Util.Logging
             }
         }
 
+        public object SourceContext
+        {
+            get
+            {
+                LogEventPropertyValue sourceContext;
+                if (!_logEvent.Properties.TryGetValue("SourceContext", out sourceContext))
+                {
+                    return null;
+                }
+
+                return RenderValue(sourceContext);
+            }
+        }
+
         public LogEventLevel LogLevel
         {
             get
@@ -50,9 +64,7 @@ namespace pwiz.Skyline.Util.Logging
             var dict = new Dictionary<string, string>();
             foreach (var param in _logEvent.Properties)
             {
-                var stringWriter = new StringWriter();
-                param.Value.Render(stringWriter);
-                dict.Add(param.Key, stringWriter.ToString());
+                dict.Add(param.Key, RenderValue(param.Value));
             }
 
             return dict;
@@ -61,6 +73,17 @@ namespace pwiz.Skyline.Util.Logging
         public override string ToString()
         {
             return Message;
+        }
+
+        private static string RenderValue(LogEventPropertyValue propertyValue)
+        {
+            if (propertyValue == null)
+            {
+                return null;
+            }
+            var stringWriter = new StringWriter();
+            propertyValue.Render(stringWriter);
+            return stringWriter.ToString();
         }
     }
 }

@@ -681,6 +681,7 @@
     <Compile Include="Util\Logging\EventLogRow.cs" />
     <Compile Include="Util\Logging\EventLogRowSource.cs" />
     <Compile Include="Util\Logging\SkylineEventLog.cs" />
+    <Compile Include="Util\Logging\UiLog.cs" />
     <Compile Include="Util\UiModes.cs" />
     <Compile Include="ToolsUI\ColorGrid.cs">
       <SubType>UserControl</SubType>
@@ -2090,6 +2091,9 @@
     </EmbeddedResource>
     <EmbeddedResource Include="Controls\Databinding\ChooseFormatDlg.zh-CHS.resx">
       <DependentUpon>ChooseFormatDlg.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Controls\Databinding\EventLogForm.resx">
+      <DependentUpon>EventLogForm.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="Controls\DocumentChangeLogEntryDlg.ja.resx">
       <DependentUpon>DocumentChangeLogEntryDlg.cs</DependentUpon>

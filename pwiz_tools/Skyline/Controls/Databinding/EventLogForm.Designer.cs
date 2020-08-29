@@ -28,10 +28,23 @@
         /// </summary>
         private void InitializeComponent()
         {
-            this.components = new System.ComponentModel.Container();
+            ((System.ComponentModel.ISupportInitialize)(this.ModeUIExtender)).BeginInit();
+            this.SuspendLayout();
+            // 
+            // databoundGridControl
+            // 
+            this.databoundGridControl.Size = new System.Drawing.Size(800, 450);
+            // 
+            // EventLogForm
+            // 
+            this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(800, 450);
-            this.Text = "LogGrid";
+            this.Name = "EventLogForm";
+            this.Text = "Event Log";
+            ((System.ComponentModel.ISupportInitialize)(this.ModeUIExtender)).EndInit();
+            this.ResumeLayout(false);
+
         }
 
         #endregion

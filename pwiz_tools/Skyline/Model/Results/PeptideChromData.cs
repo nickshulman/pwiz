@@ -31,6 +31,7 @@ namespace pwiz.Skyline.Model.Results
 {
     internal sealed class PeptideChromDataSets
     {
+        private static readonly Serilog.ILogger LOGGER = Serilog.Log.ForContext<PeptideChromDataSets>();
         private const double TIME_DELTA_VARIATION_THRESHOLD = 0.001;
         public const double TIME_MIN_DELTA = 0.2 / 60;
 
@@ -375,7 +376,10 @@ namespace pwiz.Skyline.Model.Results
             // If time deltas are sufficiently evenly spaced, then no further processing
             // is necessary.
             if (!foundVariation && listDeltas.Count > 0)
+            {
+                LOGGER.Verbose("Times are sufficiently evenly spaced");
                 return;
+            }
 
             // Interpolate the existing points onto time intervals evently spaced
             // by the minimum interval observed in the measuered data.
@@ -396,6 +400,7 @@ namespace pwiz.Skyline.Model.Results
             }
 
             intervalDelta = EnsureMinDelta(intervalDelta);
+            LOGGER.Verbose("Using Interval Delta: {IntervalDelta}", intervalDelta);
 
             bool inferZeros = false;
             if (_isProcessedScans)  // only mzWiff mzXML has this set now
@@ -937,7 +942,7 @@ namespace pwiz.Skyline.Model.Results
                     var dataSet = DataSets[i];
                     if (explicitRT < dataSet.MinRawTime || dataSet.MaxRawTime < explicitRT)
                     {
-                        Serilog.Log.Information(
+                        LOGGER.Information(
                             @"Removing chromatograms {Precursor} from {Molecule} because {ExplicitRt} is not contained in {@RetentionTimeRange}",
                             NodePep, dataSet.FirstKey?.Precursor, explicitRT,
                             new {Start = dataSet.MinRawTime, End = dataSet.MaxRawTime});
@@ -951,7 +956,7 @@ namespace pwiz.Skyline.Model.Results
                             var timeRange = new {Start = chrom.Times[0], End = chrom.Times.Last()};
                             if (explicitRT < timeRange.Start || timeRange.End < explicitRT)
                             {
-                                Serilog.Log.Information(@"Removing chromatogram {ChromKey} from {Molecule} because {ExplicitRt} is not contained in {@RetentionTimeRange}",
+                                LOGGER.Information(@"Removing chromatogram {ChromKey} from {Molecule} because {ExplicitRt} is not contained in {@RetentionTimeRange}",
                                     chrom.Key, NodePep, explicitRT, timeRange);
                                 dataSet.Chromatograms.RemoveAt(j);
                             }

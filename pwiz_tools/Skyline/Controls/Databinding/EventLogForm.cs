@@ -9,6 +9,8 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using pwiz.Common.DataBinding;
 using pwiz.Skyline.Util;
+using pwiz.Skyline.Util.Logging;
+using Serilog.Events;
 
 namespace pwiz.Skyline.Controls.Databinding
 {
@@ -21,6 +23,5 @@ namespace pwiz.Skyline.Controls.Databinding
             var viewContext = new EventLogViewContext(dataSchema);
             BindingListSource.SetViewContext(viewContext);
         }
-
     }
 }

@@ -39,6 +39,7 @@ using pwiz.Skyline.Model.Tools;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
 using pwiz.Skyline.Util.Extensions;
+using pwiz.Skyline.Util.Logging;
 
 // Once-per-assembly initialization to perform logging with log4net.
 [assembly: log4net.Config.XmlConfigurator(ConfigFile = "SkylineLog4Net.config", Watch = true)]
@@ -100,6 +101,8 @@ namespace pwiz.Skyline
         [STAThread]
         public static int Main(string[] args = null)
         {
+            SkylineEventLog.Initialize();
+            Serilog.Log.Information("Skyline started at {StartTime}", DateTime.UtcNow);
             if (String.IsNullOrEmpty(Settings.Default.InstallationId)) // Each instance to have GUID
                 Settings.Default.InstallationId = Guid.NewGuid().ToString();
 

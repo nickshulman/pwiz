@@ -43,7 +43,7 @@ using pwiz.Skyline.Util;
 using pwiz.Skyline.Util.Extensions;
 namespace pwiz.Skyline.Model.Databinding
 {
-    public class SkylineViewContext : AbstractViewContext
+    public class SkylineViewContext : AbstractSkylineViewContext
     {
         private ViewChangeListener _viewChangeListener;
         public SkylineViewContext(SkylineDataSchema dataSchema, IEnumerable<RowSourceInfo> rowSources) : base(dataSchema, rowSources)
@@ -74,21 +74,6 @@ namespace pwiz.Skyline.Model.Databinding
         public override ViewGroup DefaultViewGroup
         {
             get { return PersistedViews.MainGroup; }
-        }
-
-        public override ViewSpecList GetViewSpecList(ViewGroupId viewGroup)
-        {
-            return base.GetViewSpecList(viewGroup)
-                ?? SortViewSpecList(Settings.Default.PersistedViews.GetViewSpecList(viewGroup)) 
-                ?? ViewSpecList.EMPTY;
-        }
-
-        private ViewSpecList SortViewSpecList(ViewSpecList viewSpecList)
-        {
-            var viewSpecs = viewSpecList.ViewSpecs.ToArray();
-            var stringComparer = StringComparer.Create(SkylineDataSchema.DataSchemaLocalizer.FormatProvider, true);
-            Array.Sort(viewSpecs, (v1,v2)=>stringComparer.Compare(v1.Name, v2.Name));
-            return new ViewSpecList(viewSpecs, viewSpecList.ViewLayouts);
         }
 
         public override void AddOrReplaceViews(ViewGroupId groupId, IEnumerable<ViewSpecLayout> viewSpecs)
@@ -124,55 +109,6 @@ namespace pwiz.Skyline.Model.Databinding
             return true;
         }
 
-        protected override void SaveViewSpecList(ViewGroupId viewGroup, ViewSpecList viewSpecList)
-        {
-            Settings.Default.PersistedViews.SetViewSpecList(viewGroup, viewSpecList);
-            if (Equals(viewGroup, PersistedViews.MainGroup.Id))
-            {
-                ChangeDocumentViewSpecList(docViewSpecList =>
-                {
-                    var newViews = new Dictionary<string, ViewSpec>();
-                    foreach (var viewSpec in viewSpecList.ViewSpecs)
-                    {
-                        newViews[viewSpec.Name] = viewSpec;
-                    }
-                    var newDocViews = new List<ViewSpec>();
-                    var newLayouts = new List<ViewLayoutList>();
-                    foreach (var oldDocView in docViewSpecList.ViewSpecs)
-                    {
-                        ViewSpec newDocView;
-                        if (newViews.TryGetValue(oldDocView.Name, out newDocView))
-                        {
-                            newDocViews.Add(newDocView);
-                            ViewLayoutList viewLayoutList = viewSpecList.GetViewLayouts(oldDocView.Name);
-                            if (!viewLayoutList.IsEmpty)
-                            {
-                                newLayouts.Add(viewLayoutList);
-                            }
-                        }
-                    }
-                    return new ViewSpecList(newDocViews, newLayouts);
-                });
-
-                var skylineWindow = SkylineDataSchema.SkylineWindow;
-                if (skylineWindow != null)
-                {
-                    skylineWindow.ModifyDocument(Resources.SkylineViewContext_SaveViewSpecList_Change_Document_Reports, doc =>
-                    {
-                        var oldViewNames = new HashSet<string>(
-                            doc.Settings.DataSettings.ViewSpecList.ViewSpecs.Select(spec => spec.Name));
-                        var newViewSpecList = viewSpecList.Filter(spec => oldViewNames.Contains(spec.Name));
-                        if (Equals(newViewSpecList, doc.Settings.DataSettings.ViewSpecList))
-                        {
-                            return doc;
-                        }
-                        return doc.ChangeSettings(doc.Settings.ChangeDataSettings(
-                            doc.Settings.DataSettings.ChangeViewSpecList(newViewSpecList)));
-                    }, AuditLogEntry.SettingsLogFunction);
-                }
-            }
-        }
-
         protected void ChangeDocumentViewSpecList(Func<ViewSpecList, ViewSpecList> changeViewSpecFunc)
         {
             var skylineWindow = SkylineDataSchema.SkylineWindow;
@@ -195,33 +131,9 @@ namespace pwiz.Skyline.Model.Databinding
 
         public SkylineDataSchema SkylineDataSchema { get { return (SkylineDataSchema) DataSchema; } }
 
-        public override string GetExportDirectory()
-        {
-            return Settings.Default.ExportDirectory;
-        }
-
         protected override string GetDefaultExportFilename(ViewInfo viewInfo)
         {
             return viewInfo.Name;
-        }
-
-        public override void SetExportDirectory(string value)
-        {
-            Settings.Default.ExportDirectory = value;
-        }
-
-        public override DialogResult ShowMessageBox(Control owner, string message, MessageBoxButtons messageBoxButtons)
-        {
-            return new AlertDlg(message, messageBoxButtons).ShowAndDispose(FormUtil.FindTopLevelOwner(owner));
-        }
-
-        public override bool RunLongJob(Control owner, Action<CancellationToken, IProgressMonitor> job)
-        {
-            using (var longWaitDlg = new LongWaitDlg())
-            {
-                var status = longWaitDlg.PerformWork(FormUtil.FindTopLevelOwner(owner), 1000, progressMonitor => job(longWaitDlg.CancellationToken, progressMonitor));
-                return status.IsComplete;
-            }
         }
 
         public override bool RunOnThisThread(Control owner, Action<CancellationToken, IProgressMonitor> job)
@@ -610,85 +522,6 @@ namespace pwiz.Skyline.Model.Databinding
         }
         // ReSharper restore LocalizableElement
 
-        public override void ExportViews(Control owner, ViewSpecList viewSpecList)
-        {
-            using (var saveFileDialog = new SaveFileDialog
-            {
-                InitialDirectory = Settings.Default.ActiveDirectory,
-                CheckPathExists = true,
-                Filter = TextUtil.FileDialogFilterAll(Resources.ExportReportDlg_ShowShare_Skyline_Reports, ReportSpecList.EXT_REPORTS)
-            })
-            {
-                saveFileDialog.ShowDialog(FormUtil.FindTopLevelOwner(owner));
-                if (!string.IsNullOrEmpty(saveFileDialog.FileName))
-                {
-                    ExportViewsToFile(owner, viewSpecList, saveFileDialog.FileName);
-                }
-            }
-        }
-
-        public override void ExportViewsToFile(Control owner, ViewSpecList viewSpecList, string fileName)
-        {
-            XmlSerializer xmlSerializer = new XmlSerializer(typeof(ViewSpecList));
-            SafeWriteToFile(owner, fileName, stream =>
-            {
-                xmlSerializer.Serialize(stream, viewSpecList);
-                return true;
-            });
-        }
-
-        public override void ImportViews(Control owner, ViewGroup group)
-        {
-            using (var importDialog = new OpenFileDialog
-            {
-                InitialDirectory = Settings.Default.ActiveDirectory,
-                CheckPathExists = true,
-                Filter = TextUtil.FileDialogFilterAll(Resources.ExportReportDlg_ShowShare_Skyline_Reports,
-                    ReportSpecList.EXT_REPORTS)
-            })
-            {
-                importDialog.ShowDialog(FormUtil.FindTopLevelOwner(owner));
-
-                if (string.IsNullOrEmpty(importDialog.FileName))
-                {
-                    return;
-                }
-                ImportViewsFromFile(owner, group, importDialog.FileName);
-            }
-        }
-
-        public override void ImportViewsFromFile(Control owner, ViewGroup group, string fileName)
-        {
-            ViewSpecList views;
-            try
-            {
-                views = LoadViews(fileName);
-            }
-            catch (Exception x)
-            {
-                new MessageBoxHelper(owner.FindForm()).ShowXmlParsingError(
-                    string.Format(Resources.SkylineViewContext_ImportViews_Failure_loading__0__, fileName),
-                    fileName, x.InnerException ?? x);
-                return;
-            }
-            if (!views.ViewSpecs.Any())
-            {
-                ShowMessageBox(owner, Resources.SkylineViewContext_ImportViews_No_views_were_found_in_that_file_,
-                    MessageBoxButtons.OK);
-                return;
-            }
-            CopyViewsToGroup(owner, group, views);
-        }
-
-        protected ViewSpecList LoadViews(string filename)
-        {
-            using (var stream = File.OpenRead(filename))
-            {
-                var reportOrViewSpecs = ReportSharing.DeserializeReportList(stream);
-                return new ViewSpecList(ReportSharing.ConvertAll(reportOrViewSpecs, ((SkylineDataSchema) DataSchema).Document));
-            }
-        }
-
         public void SetRowSources(IList<RowSourceInfo> rowSources)
         {
             RowSources = rowSources;
@@ -897,6 +730,56 @@ namespace pwiz.Skyline.Model.Databinding
 
                 return UiModes.AvailableModes(SkylineDataSchema.SkylineWindow.ModeUI);
             }
+        }
+
+        protected override void SaveViewSpecList(ViewGroupId viewGroup, ViewSpecList viewSpecList)
+        {
+            base.SaveViewSpecList(viewGroup, viewSpecList);
+            if (Equals(viewGroup, PersistedViews.MainGroup.Id))
+            {
+                ChangeDocumentViewSpecList(docViewSpecList =>
+                {
+                    var newViews = new Dictionary<string, ViewSpec>();
+                    foreach (var viewSpec in viewSpecList.ViewSpecs)
+                    {
+                        newViews[viewSpec.Name] = viewSpec;
+                    }
+                    var newDocViews = new List<ViewSpec>();
+                    var newLayouts = new List<ViewLayoutList>();
+                    foreach (var oldDocView in docViewSpecList.ViewSpecs)
+                    {
+                        ViewSpec newDocView;
+                        if (newViews.TryGetValue(oldDocView.Name, out newDocView))
+                        {
+                            newDocViews.Add(newDocView);
+                            ViewLayoutList viewLayoutList = viewSpecList.GetViewLayouts(oldDocView.Name);
+                            if (!viewLayoutList.IsEmpty)
+                            {
+                                newLayouts.Add(viewLayoutList);
+                            }
+                        }
+                    }
+                    return new ViewSpecList(newDocViews, newLayouts);
+                });
+
+                var skylineWindow = SkylineDataSchema.SkylineWindow;
+                if (skylineWindow != null)
+                {
+                    skylineWindow.ModifyDocument(Resources.SkylineViewContext_SaveViewSpecList_Change_Document_Reports, doc =>
+                    {
+                        var oldViewNames = new HashSet<string>(
+                            doc.Settings.DataSettings.ViewSpecList.ViewSpecs.Select(spec => spec.Name));
+                        var newViewSpecList = viewSpecList.Filter(spec => oldViewNames.Contains(spec.Name));
+                        if (Equals(newViewSpecList, doc.Settings.DataSettings.ViewSpecList))
+                        {
+                            return doc;
+                        }
+                        return doc.ChangeSettings(doc.Settings.ChangeDataSettings(
+                            doc.Settings.DataSettings.ChangeViewSpecList(newViewSpecList)));
+                    }, AuditLogEntry.SettingsLogFunction);
+                }
+            }
+
         }
     }
 }

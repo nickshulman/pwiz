@@ -937,6 +937,10 @@ namespace pwiz.Skyline.Model.Results
                     var dataSet = DataSets[i];
                     if (explicitRT < dataSet.MinRawTime || dataSet.MaxRawTime < explicitRT)
                     {
+                        Serilog.Log.Information(
+                            @"Removing chromatograms {Precursor} from {Molecule} because {ExplicitRt} is not contained in {@RetentionTimeRange}",
+                            NodePep, dataSet.FirstKey?.Precursor, explicitRT,
+                            new {Start = dataSet.MinRawTime, End = dataSet.MaxRawTime});
                         DataSets.RemoveAt(i);
                     }
                     else
@@ -944,8 +948,11 @@ namespace pwiz.Skyline.Model.Results
                         for (var j = dataSet.Chromatograms.Count - 1; j >= 0; j--)
                         {
                             var chrom = dataSet.Chromatograms[j];
-                            if (explicitRT < chrom.Times.First() || chrom.Times.Last() < explicitRT)
+                            var timeRange = new {Start = chrom.Times[0], End = chrom.Times.Last()};
+                            if (explicitRT < timeRange.Start || timeRange.End < explicitRT)
                             {
+                                Serilog.Log.Information(@"Removing chromatogram {ChromKey} from {Molecule} because {ExplicitRt} is not contained in {@RetentionTimeRange}",
+                                    chrom.Key, NodePep, explicitRT, timeRange);
                                 dataSet.Chromatograms.RemoveAt(j);
                             }
                         }

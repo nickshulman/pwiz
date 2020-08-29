@@ -74,6 +74,7 @@ namespace pwiz.Skyline
         private DocumentGridForm _documentGridForm;
         private CalibrationForm _calibrationForm;
         private AuditLogForm _auditLogForm;
+        private EventLogForm _eventLogForm;
         public static int MAX_GRAPH_CHROM = 100; // Never show more than this many chromatograms, lest we hit the Windows handle limit
         private readonly List<GraphChromatogram> _listGraphChrom = new List<GraphChromatogram>(); // List order is MRU, with oldest in position 0
         private bool _inGraphUpdate;
@@ -616,6 +617,7 @@ namespace pwiz.Skyline
             DestroyResultsGrid();
             DestroyDocumentGrid();
             DestroyAuditLogForm();
+            DestroyEventLogForm();
             DestroyCalibrationForm();
 
             DestroyImmediateWindow();
@@ -747,6 +749,11 @@ namespace pwiz.Skyline
             if (Equals(persistentString, typeof(AuditLogForm).ToString()))
             {
                 return _auditLogForm ?? CreateAuditLogForm();
+            }
+
+            if (Equals(persistentString, typeof(EventLogForm).ToString()))
+            {
+                return _eventLogForm ?? CreateEventLogForm();
             }
             if (Equals(persistentString, typeof(ImmediateWindow).ToString()))
             {
@@ -6282,6 +6289,59 @@ namespace pwiz.Skyline
         }
 
         #endregion
+
+        #region Event Log
+
+
+        public void ShowEventLog()
+        {
+            if (_eventLogForm != null && !Program.SkylineOffscreen)
+            {
+                _eventLogForm.Activate();
+            }
+            else
+            {
+                _eventLogForm = _eventLogForm ?? CreateEventLogForm();
+                if (_eventLogForm != null)
+                {
+                    _eventLogForm.Show(dockPanel, GetFloatingRectangleForNewWindow());
+                }
+            }
+        }
+
+        private EventLogForm CreateEventLogForm()
+        {
+            if (_eventLogForm == null)
+            {
+                _eventLogForm = new EventLogForm();
+                _eventLogForm.FormClosed += EventLogForm_OnFormClosed;
+            }
+
+            return _eventLogForm;
+        }
+
+        private void EventLogForm_OnFormClosed(object sender, FormClosedEventArgs e)
+        {
+            _eventLogForm = null;
+        }
+
+        private void DestroyEventLogForm()
+        {
+            if (_eventLogForm != null)
+            {
+                _eventLogForm.FormClosed -= EventLogForm_OnFormClosed;
+                _eventLogForm.Close();
+                _eventLogForm = null;
+            }
+        }
+
+        private void eventLogMenuItem_Click(object sender, EventArgs e)
+        {
+            ShowEventLog();
+        }
+
+
+        #endregion 
 
         #region Audit Log
 

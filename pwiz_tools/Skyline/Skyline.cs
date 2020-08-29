@@ -5870,8 +5870,6 @@ namespace pwiz.Skyline
             ShowSequenceTreeForm(true, true);
             UpdateGraphPanes();
         }
-
-
     }
 }
 

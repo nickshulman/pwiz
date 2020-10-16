@@ -259,6 +259,7 @@ namespace pwiz.Skyline
             this.areaCVMediansToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.toolStripSeparator54 = new System.Windows.Forms.ToolStripSeparator();
             this.areaCVNoneToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.areaCVTotalIonCurrentToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.areaCVLogScaleToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.removeAboveCVCutoffToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.toolStripSeparator57 = new System.Windows.Forms.ToolStripSeparator();
@@ -589,7 +590,6 @@ namespace pwiz.Skyline
             this.detectionsToolStripSeparator2 = new System.Windows.Forms.ToolStripSeparator();
             this.detectionsPropertiesToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.detectionsToolStripSeparator3 = new System.Windows.Forms.ToolStripSeparator();
-            this.areaCVTotalIonCurrentToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             ((System.ComponentModel.ISupportInitialize)(this.modeUIHandler)).BeginInit();
             this.contextMenuTreeNode.SuspendLayout();
             this.contextMenuSpectrum.SuspendLayout();
@@ -2191,6 +2191,12 @@ namespace pwiz.Skyline
             this.areaCVNoneToolStripMenuItem.Name = "areaCVNoneToolStripMenuItem";
             resources.ApplyResources(this.areaCVNoneToolStripMenuItem, "areaCVNoneToolStripMenuItem");
             this.areaCVNoneToolStripMenuItem.Click += new System.EventHandler(this.areaCVNoneToolStripMenuItem_Click);
+            // 
+            // areaCVTotalIonCurrentToolStripMenuItem
+            // 
+            this.areaCVTotalIonCurrentToolStripMenuItem.Name = "areaCVTotalIonCurrentToolStripMenuItem";
+            resources.ApplyResources(this.areaCVTotalIonCurrentToolStripMenuItem, "areaCVTotalIonCurrentToolStripMenuItem");
+            this.areaCVTotalIonCurrentToolStripMenuItem.Click += new System.EventHandler(this.areaCVTotalIonCurrentToolStripMenuItem_Click);
             // 
             // areaCVLogScaleToolStripMenuItem
             // 
@@ -4551,12 +4557,6 @@ namespace pwiz.Skyline
             // 
             this.detectionsToolStripSeparator3.Name = "detectionsToolStripSeparator3";
             resources.ApplyResources(this.detectionsToolStripSeparator3, "detectionsToolStripSeparator3");
-            // 
-            // areaCVTotalIonCurrentToolStripMenuItem
-            // 
-            this.areaCVTotalIonCurrentToolStripMenuItem.Name = "areaCVTotalIonCurrentToolStripMenuItem";
-            resources.ApplyResources(this.areaCVTotalIonCurrentToolStripMenuItem, "areaCVTotalIonCurrentToolStripMenuItem");
-            this.areaCVTotalIonCurrentToolStripMenuItem.Click += new System.EventHandler(this.areaCVTotalIonCurrentToolStripMenuItem_Click);
             // 
             // SkylineWindow
             // 

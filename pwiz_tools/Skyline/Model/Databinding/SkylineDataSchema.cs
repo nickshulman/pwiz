@@ -377,5 +377,32 @@ namespace pwiz.Skyline.Model.Databinding
 
             return uiMode;
         }
+
+        public AuditLogEntry LogEntryFromEditDescription(EditDescription editDescription, SrmDocumentPair docPair)
+        {
+            if (EqualExceptAuditLog(docPair.OldDoc, docPair.NewDoc))
+            {
+                return AuditLogEntry.SKIP;
+            }
+
+            return AuditLogEntry.CreateSimpleEntry(MessageType.set_to_in_document_grid, docPair.NewDocumentType,
+                editDescription.AuditLogParseString, editDescription.ElementRefName,
+                CellValueToString(editDescription.Value));
+        }
+
+        private static string CellValueToString(object value)
+        {
+            if (value == null)
+                return string.Empty;
+
+            // TODO: only allow reflection for all info? Okay to use null for decimal places?
+            bool unused;
+            return DiffNode.ObjectToString(true, value, null, out unused);
+        }
+
+        public static bool EqualExceptAuditLog(SrmDocument document1, SrmDocument document2)
+        {
+            return document1.ChangeAuditLog(AuditLogEntry.ROOT).Equals(document2.ChangeAuditLog(AuditLogEntry.ROOT));
+        }
     }
 }

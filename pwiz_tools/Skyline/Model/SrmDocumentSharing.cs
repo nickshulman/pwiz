@@ -86,11 +86,7 @@ namespace pwiz.Skyline.Model
             ProgressMonitor = progressMonitor;
             ProgressMonitor.UpdateProgress(_progressStatus = new ProgressStatus(DefaultMessage));
 
-            string extractDir = Path.GetFileName(SharedPath) ?? string.Empty;
-            if (PathEx.HasExtension(extractDir, EXT_SKY_ZIP))
-                extractDir = extractDir.Substring(0, extractDir.Length - EXT_SKY_ZIP.Length);
-            else if (PathEx.HasExtension(extractDir, EXT))
-                extractDir = extractDir.Substring(0, extractDir.Length - EXT.Length);
+            var extractDir = ExtractDir(SharedPath);
 
             using (ZipFile zip = ZipFile.Read(SharedPath))
             {
@@ -130,6 +126,16 @@ namespace pwiz.Skyline.Model
             {
                 DirectoryEx.SafeDelete(extractDir);
             }
+        }
+
+        public static string ExtractDir(string sharedPath)
+        {
+            string extractDir = Path.GetFileName(sharedPath) ?? string.Empty;
+            if (PathEx.HasExtension(extractDir, EXT_SKY_ZIP))
+                extractDir = extractDir.Substring(0, extractDir.Length - EXT_SKY_ZIP.Length);
+            else if (PathEx.HasExtension(extractDir, EXT))
+                extractDir = extractDir.Substring(0, extractDir.Length - EXT.Length);
+            return extractDir;
         }
 
         private static string GetNonExistentDir(string dirPath)
@@ -221,7 +227,7 @@ namespace pwiz.Skyline.Model
                 if (Document.Settings.HasOptimizationLibraryPersisted)
                     zip.AddFile(transitionSettings.Prediction.OptimizedLibrary.PersistencePath);
                 if (Document.Settings.HasIonMobilityLibraryPersisted)
-                    zip.AddFile(pepSettings.Prediction.IonMobilityPredictor.IonMobilityLibrary.PersistencePath);
+                    zip.AddFile(transitionSettings.IonMobilityFiltering.IonMobilityLibrary.FilePath);
                     
                 var libfiles = new HashSet<string>();
                 foreach (var librarySpec in pepSettings.Libraries.LibrarySpecs)
@@ -294,8 +300,8 @@ namespace pwiz.Skyline.Model
                     // Minimize any persistable ion mobility predictor
                     if (tempDir == null)
                         tempDir = new TemporaryDirectory();
-                    string tempDbPath = Document.Settings.PeptideSettings.Prediction.IonMobilityPredictor
-                        .IonMobilityLibrary.PersistMinimized(tempDir.DirPath, Document, null);
+                    string tempDbPath = Document.Settings.TransitionSettings.IonMobilityFiltering.IonMobilityLibrary
+                        .PersistMinimized(tempDir.DirPath, Document, null, out _);
                     if (tempDbPath != null)
                         zip.AddFile(tempDbPath);
                 }

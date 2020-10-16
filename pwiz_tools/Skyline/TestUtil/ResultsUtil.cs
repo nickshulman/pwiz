@@ -21,6 +21,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading;
+using System.Xml;
 using System.Xml.Serialization;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using pwiz.ProteowizardWrapper;
@@ -42,7 +43,11 @@ namespace pwiz.SkylineTestUtil
             {
                 using (var stream = new FileStream(path, FileMode.Open))
                 {
-                    return DeserializeDocument(stream);
+                    // Wrap stream in XmlReader so that BaseUri is known
+                    var xmlReader = XmlReader.Create(stream,
+                        new XmlReaderSettings() { IgnoreWhitespace = true },
+                        path);
+                    return DeserializeDocument(xmlReader);
                 }
             }
             catch (Exception x)
@@ -60,7 +65,12 @@ namespace pwiz.SkylineTestUtil
             {
                 using (var stream = classType.Assembly.GetManifestResourceStream(classType.Namespace + "." + fileName))
                 {
-                    return DeserializeDocument(stream);
+                    Assert.IsNotNull(stream);
+                    // Wrap stream in XmlReader so that BaseUri is known
+                    var xmlReader = XmlReader.Create(stream,
+                        new XmlReaderSettings() { IgnoreWhitespace = true },
+                        fileName);
+                    return DeserializeDocument(xmlReader);
                 }
             }
             catch (Exception x)
@@ -72,14 +82,14 @@ namespace pwiz.SkylineTestUtil
             }
         }
 
-        public static SrmDocument DeserializeDocument(Stream stream)
+        public static SrmDocument DeserializeDocument(XmlReader reader)
         {
-            Assert.IsNotNull(stream);
+            Assert.IsNotNull(reader);
 
             XmlSerializer xmlSerializer = new XmlSerializer(typeof(SrmDocument));
             try
             {
-                SrmDocument result = (SrmDocument)xmlSerializer.Deserialize(stream);
+                SrmDocument result = (SrmDocument)xmlSerializer.Deserialize(reader);
                 return result;
             }
             catch (Exception x)
@@ -457,13 +467,6 @@ namespace pwiz.SkylineTestUtil
             foreach (var pair in document.MoleculePrecursorPairs)
             {
                 ChromatogramGroupInfo[] chromGroupInfo1;
-                if (Settings.Default.TestSmallMolecules && pair.NodePep.Peptide.IsCustomMolecule &&
-                    pair.NodePep.CustomMolecule.ToString().Equals(SrmDocument.TestingNonProteomicMoleculeName))
-                {
-                    Assert.IsFalse(results.TryLoadChromatogram(iChrom1, pair.NodePep, pair.NodeGroup,
-                    tolerance, true, out chromGroupInfo1));
-                    continue;
-                }
                 Assert.IsTrue(results.TryLoadChromatogram(iChrom1, pair.NodePep, pair.NodeGroup,
                     tolerance, true, out chromGroupInfo1));
                 Assert.AreEqual(1, chromGroupInfo1.Length);

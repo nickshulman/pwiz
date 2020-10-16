@@ -46,7 +46,8 @@ namespace pwiz.Skyline.Model.DocSettings
                                   TransitionLibraries libraries,
                                   TransitionIntegration integration,
                                   TransitionInstrument instrument,
-                                  TransitionFullScan fullScan)
+                                  TransitionFullScan fullScan,
+                                  TransitionIonMobilityFiltering ionMobilityFiltering)
         {
             Prediction = prediction;
             Filter = filter;
@@ -54,6 +55,7 @@ namespace pwiz.Skyline.Model.DocSettings
             Integration = integration;
             Instrument = instrument;
             FullScan = fullScan;
+            IonMobilityFiltering = ionMobilityFiltering ?? TransitionIonMobilityFiltering.EMPTY;
 
             DoValidate();
         }
@@ -67,6 +69,7 @@ namespace pwiz.Skyline.Model.DocSettings
         [TrackChildren(true)]
         public TransitionLibraries Libraries { get; private set; }
 
+        [TrackChildren(true)]
         public TransitionIntegration Integration { get; private set; }
 
         [TrackChildren(true)]
@@ -75,6 +78,9 @@ namespace pwiz.Skyline.Model.DocSettings
         [TrackChildren(true)]
         public TransitionFullScan FullScan { get; private set; }
 
+        [TrackChildren(true)]
+        public TransitionIonMobilityFiltering IonMobilityFiltering { get; private set; }
+        
         public bool IsMeasurablePrecursor(double mz)
         {
             if (!Instrument.IsMeasurable(mz))
@@ -113,6 +119,11 @@ namespace pwiz.Skyline.Model.DocSettings
         public TransitionSettings ChangeIntegration(TransitionIntegration prop)
         {
             return ChangeProp(ImClone(this), im => im.Integration = prop);
+        }
+
+        public TransitionSettings ChangeIonMobilityFiltering(TransitionIonMobilityFiltering prop)
+        {
+            return ChangeProp(ImClone(this), im => im.IonMobilityFiltering = prop ?? TransitionIonMobilityFiltering.EMPTY);
         }
 
         public TransitionSettings ChangeInstrument(TransitionInstrument prop)
@@ -185,6 +196,9 @@ namespace pwiz.Skyline.Model.DocSettings
                 // Read child elements.
                 Prediction = reader.DeserializeElement<TransitionPrediction>();
                 Filter = reader.DeserializeElement<TransitionFilter>();
+                IonMobilityFiltering = reader.IsStartElement(TransitionIonMobilityFiltering.EL.ion_mobility_filtering) ?
+                    reader.DeserializeElement<TransitionIonMobilityFiltering>() :
+                    TransitionIonMobilityFiltering.EMPTY; // Looks like a pre-20.2 format
                 Libraries = reader.DeserializeElement<TransitionLibraries>();
                 Integration = reader.DeserializeElement<TransitionIntegration>();
                 Instrument = reader.DeserializeElement<TransitionInstrument>();
@@ -215,6 +229,8 @@ namespace pwiz.Skyline.Model.DocSettings
             // Write child elements
             writer.WriteElement(Prediction);
             writer.WriteElement(Filter);
+            if (!IonMobilityFiltering.IsEmpty)
+                writer.WriteElement(IonMobilityFiltering);
             writer.WriteElement(Libraries);
             writer.WriteElement(Integration);
             writer.WriteElement(Instrument);
@@ -232,12 +248,22 @@ namespace pwiz.Skyline.Model.DocSettings
         {
             if (ReferenceEquals(null, obj)) return false;
             if (ReferenceEquals(this, obj)) return true;
-            return Equals(obj.Prediction, Prediction) &&
-                   Equals(obj.Filter, Filter) &&
-                   Equals(obj.Libraries, Libraries) &&
-                   Equals(obj.Integration, Integration) &&
-                   Equals(obj.Instrument, Instrument) &&
-                   Equals(obj.FullScan, FullScan);
+            // N.B. This multi-statement implementation makes debugging easier
+            if (!Equals(obj.Prediction, Prediction))
+                return false;
+            if (!Equals(obj.Filter, Filter))
+                return false;
+            if (!Equals(obj.IonMobilityFiltering, IonMobilityFiltering))
+                return false;
+            if (!Equals(obj.Libraries, Libraries))
+                return false;
+            if (!Equals(obj.Integration, Integration))
+                return false;
+            if (!Equals(obj.Instrument, Instrument))
+                return false;
+            if (!Equals(obj.FullScan, FullScan))
+                return false;
+            return true;
         }
 
         public override bool Equals(object obj)
@@ -254,6 +280,7 @@ namespace pwiz.Skyline.Model.DocSettings
             {
                 int result = Prediction.GetHashCode();
                 result = (result * 397) ^ Filter.GetHashCode();
+                result = (result * 397) ^ IonMobilityFiltering.GetHashCode();
                 result = (result * 397) ^ Libraries.GetHashCode();
                 result = (result * 397) ^ Integration.GetHashCode();
                 result = (result * 397) ^ Instrument.GetHashCode();
@@ -1473,7 +1500,7 @@ namespace pwiz.Skyline.Model.DocSettings
             #endregion
         }
 
-        private abstract class EndFragmentFinder : LabeledValues<string>, IEndFragmentFinder
+        public abstract class EndFragmentFinder : LabeledValues<string>, IEndFragmentFinder
         {
             public static readonly EndFragmentFinder LAST_ION = new LastFragmentFinder(@"last ion", () => Resources.TransitionFilter_FragmentEndFinders_last_ion, 0);
             public static readonly EndFragmentFinder LAST_ION_MINUS_1 = new LastFragmentFinder(@"last ion - 1", () => Resources.TransitionFilter_FragmentEndFinders_last_ion_minus_1, 1);
@@ -1898,6 +1925,9 @@ namespace pwiz.Skyline.Model.DocSettings
 
         public double? ProductFilter { get; private set; }
 
+        [Track(defaultValues: typeof(DefaultValuesFalse))]
+        public bool TriggeredAcquisition { get; private set; }
+
         #region Property change methods
 
         public TransitionInstrument ChangeMinMz(int prop)
@@ -1953,6 +1983,10 @@ namespace pwiz.Skyline.Model.DocSettings
                                                  });
         }
 
+        public TransitionInstrument ChangeTriggeredAcquisition( bool triggeredAcquisition)
+        {
+            return ChangeProp(ImClone(this), im => im.TriggeredAcquisition = triggeredAcquisition);
+        }
         #endregion
 
         #region Implementation of IXmlSerializable
@@ -1974,6 +2008,7 @@ namespace pwiz.Skyline.Model.DocSettings
             mz_match_tolerance,
             max_transitions,
             max_inclusions,
+            triggered_acquisition,
 
             // Backward compatibility with 0.7.1
             precursor_filter_type,
@@ -2084,6 +2119,7 @@ namespace pwiz.Skyline.Model.DocSettings
             MaxTime = reader.GetNullableIntAttribute(ATTR.max_time);
             MaxTransitions = reader.GetNullableIntAttribute(ATTR.max_transitions);
             MaxInclusions = reader.GetNullableIntAttribute(ATTR.max_inclusions);
+            TriggeredAcquisition = reader.GetBoolAttribute(ATTR.triggered_acquisition, false);
 
             // Full-scan filter parameters (backward compatibility w/ 0.7.1)
             PrecursorAcquisitionMethod = FullScanAcquisitionMethod.FromLegacyName(reader.GetAttribute(ATTR.precursor_filter_type))
@@ -2117,6 +2153,7 @@ namespace pwiz.Skyline.Model.DocSettings
             writer.WriteAttributeNullable(ATTR.max_time, MaxTime);
             writer.WriteAttributeNullable(ATTR.max_transitions, MaxTransitions);
             writer.WriteAttributeNullable(ATTR.max_inclusions, MaxInclusions);
+            writer.WriteAttribute(ATTR.triggered_acquisition, TriggeredAcquisition, false);
         }
 
         #endregion
@@ -2138,7 +2175,8 @@ namespace pwiz.Skyline.Model.DocSettings
                 Equals(other.PrecursorAcquisitionMethod, PrecursorAcquisitionMethod) &&
                 other.PrecursorFilter.Equals(PrecursorFilter) &&
                 Equals(other.ProductFilterType, ProductFilterType) &&
-                other.ProductFilter.Equals(ProductFilter);
+                other.ProductFilter.Equals(ProductFilter) &&
+                other.TriggeredAcquisition.Equals(TriggeredAcquisition);
         }
 
         public override bool Equals(object obj)
@@ -2446,11 +2484,6 @@ namespace pwiz.Skyline.Model.DocSettings
         public bool IsCentroidedMsMs
         {
             get { return IsEnabledMsMs && ProductMassAnalyzer == FullScanMassAnalyzerType.centroided; }
-        }
-
-        public MsDataFileUri ApplySettings(MsDataFileUri path)
-        {
-            return path.ChangeCentroiding(IsCentroidedMs, IsCentroidedMsMs);
         }
 
         public bool IsHighResPrecursor { get { return IsHighResAnalyzer(PrecursorMassAnalyzer); } }
@@ -3019,6 +3052,7 @@ namespace pwiz.Skyline.Model.DocSettings
     [XmlRoot("transition_integration")]
     public sealed class TransitionIntegration : Immutable, IValidating, IXmlSerializable
     {
+        [Track]
         public bool IsIntegrateAll { get; private set; }
 
         #region Property change methods

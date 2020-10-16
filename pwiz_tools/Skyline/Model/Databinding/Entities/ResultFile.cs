@@ -51,6 +51,12 @@ namespace pwiz.Skyline.Model.Databinding.Entities
         public string FileName {
             get { return ChromFileInfo.FilePath.GetFileName(); }
         }
+
+        public string FilePath
+        {
+            get { return ChromFileInfo.FilePath.GetFilePath(); }
+        }
+
         public string SampleName
         {
             get { return ChromFileInfo.FilePath.GetSampleName(); }
@@ -160,6 +166,16 @@ namespace pwiz.Skyline.Model.Databinding.Entities
         public string Locator
         {
             get { return GetLocator(); }
+        }
+
+        public string SampleId
+        {
+            get { return ChromFileInfo.SampleId; }
+        }
+
+        public string InstrumentSerialNumber
+        {
+            get { return ChromFileInfo.InstrumentSerialNumber; }
         }
 
         public override ElementRef GetElementRef()

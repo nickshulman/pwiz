@@ -41,6 +41,7 @@ namespace pwiz.Skyline.Model.Databinding.Entities
         private readonly CachedValue<PeptideChromInfo> _chromInfo;
         private readonly CachedValue<QuantificationResult> _quantificationResult;
         private readonly CachedValue<CalibrationCurveFitter> _calibrationCurveFitter;
+
         public PeptideResult(Peptide peptide, ResultFile file) : base(peptide, file)
         {
             _chromInfo = CachedValue.Create(DataSchema, () => ResultFile.FindChromInfo(peptide.DocNode.Results));
@@ -153,7 +154,14 @@ namespace pwiz.Skyline.Model.Databinding.Entities
             return normalizedArea.Value / total;
         }
 
+        [HideWhen(AncestorOfType = typeof(Peptide))]
         public ResultFile ResultFile { get { return GetResultFile(); } }
+
+        [HideWhen(AncestorOfType = typeof(Peptide))]
+        public ProteinResult ProteinResult
+        {
+            get { return new ProteinResult(Peptide.Protein, ResultFile.Replicate); }
+        }
 
         [Obsolete]
         [InvariantDisplayName("PeptideResultDocumentLocation")]
@@ -200,7 +208,7 @@ namespace pwiz.Skyline.Model.Databinding.Entities
 
         private QuantificationResult GetQuantification()
         {
-            return _calibrationCurveFitter.Value.GetQuantificationResult(ResultFile.Replicate.ReplicateIndex);
+            return _calibrationCurveFitter.Value.GetPeptideQuantificationResult(ResultFile.Replicate.ReplicateIndex);
         }
 
         public CalibrationCurveFitter GetCalibrationCurveFitter()
@@ -258,6 +266,17 @@ namespace pwiz.Skyline.Model.Databinding.Entities
                 CalibrationCurveFitter calibrationCurveFitter = GetCalibrationCurveFitter();
                 var calibrationCurve = calibrationCurveFitter.GetCalibrationCurve();
                 return calibrationCurveFitter.GetFiguresOfMerit(calibrationCurve);
+            }
+        }
+
+        [InvariantDisplayName("ExplicitAnalyteConcentration")]
+        public double? AnalyteConcentration
+        {
+            get { return ChromInfo.AnalyteConcentration; }
+            set
+            {
+                ChangeChromInfo(EditColumnDescription(@"ExplicitAnalyteConcentration", value),
+                    chromInfo => chromInfo.ChangeAnalyteConcentration(value));
             }
         }
 

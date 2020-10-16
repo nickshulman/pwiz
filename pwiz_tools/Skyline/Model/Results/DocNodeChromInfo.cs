@@ -21,7 +21,6 @@ using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using pwiz.Common.Chemistry;
 using pwiz.Common.Collections;
 using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Model.DocSettings;
@@ -57,12 +56,30 @@ namespace pwiz.Skyline.Model.Results
             private set { _labelRatios = value as ImmutableList<PeptideLabelRatio> ?? MakeReadOnly(value); }
         }
 
+        [Track(defaultValues:typeof(DefaultValuesFalse))]
         public bool ExcludeFromCalibration { get; private set; }
 
         public PeptideChromInfo ChangeExcludeFromCalibration(bool exclude)
         {
+            if (exclude == ExcludeFromCalibration)
+            {
+                return this;
+            }
             return ChangeProp(ImClone(this), im => im.ExcludeFromCalibration = exclude);
         }
+
+        [Track(defaultValues: typeof(DefaultValuesNull))]
+        public double? AnalyteConcentration { get; private set; }
+
+        public PeptideChromInfo ChangeAnalyteConcentration(double? analyteConcentration)
+        {
+            if (Equals(analyteConcentration, AnalyteConcentration))
+            {
+                return this;
+            }
+            return ChangeProp(ImClone(this), im => im.AnalyteConcentration = analyteConcentration);
+        }
+
 
         #region object overrides
 
@@ -74,6 +91,7 @@ namespace pwiz.Skyline.Model.Results
                    other.PeakCountRatio == PeakCountRatio &&
                    other.RetentionTime.Equals(RetentionTime) &&
                    other.ExcludeFromCalibration.Equals(ExcludeFromCalibration) &&
+                   other.AnalyteConcentration.Equals(AnalyteConcentration) &&
                    ArrayUtil.EqualsDeep(other.LabelRatios, LabelRatios);
         }
 
@@ -92,6 +110,7 @@ namespace pwiz.Skyline.Model.Results
                 result = (result*397) ^ PeakCountRatio.GetHashCode();
                 result = (result*397) ^ (RetentionTime.HasValue ? RetentionTime.Value.GetHashCode() : 0);
                 result = (result * 397) ^ ExcludeFromCalibration.GetHashCode();
+                result = (result * 397) ^ AnalyteConcentration.GetHashCode();
                 result = (result * 397) ^ LabelRatios.GetHashCodeDeep();
                 return result;
             }
@@ -664,7 +683,7 @@ namespace pwiz.Skyline.Model.Results
         {
             if (ReferenceEquals(null, other)) return false;
             if (ReferenceEquals(this, other)) return true;
-            return base.Equals(other) &&
+            var result =  base.Equals(other) &&
                    Equals(other.MassError, MassError) &&
                    other.RetentionTime == RetentionTime &&
                    other.StartRetentionTime == StartRetentionTime &&
@@ -685,6 +704,7 @@ namespace pwiz.Skyline.Model.Results
                    Equals(other.IonMobility, IonMobility) &&
                    other.PointsAcrossPeak.Equals(PointsAcrossPeak) &&
                    Equals(IsForcedIntegration, other.IsForcedIntegration);
+            return result; // For ease of breakpoint setting
         }
 
         public override bool Equals(object obj)
@@ -739,7 +759,7 @@ namespace pwiz.Skyline.Model.Results
             for (int replicateIndex = 0; replicateIndex < measuredResults.Chromatograms.Count; replicateIndex++)
             {
                 var transitionChromInfos = peaksByReplicate[replicateIndex]
-                    .Select(transitionPeak => FromProtoTransitionPeak(annotationScrubber, settings, transitionPeak)).ToArray();
+                    .Select(transitionPeak => FromProtoTransitionPeak(annotationScrubber, settings, transitionPeak)).ToList();
                 lists.Add(new ChromInfoList<TransitionChromInfo>(transitionChromInfos));
             }
             return new Results<TransitionChromInfo>(lists);
@@ -758,7 +778,7 @@ namespace pwiz.Skyline.Model.Results
             {
                 var ionMobilityWidth = DataValues.FromOptional(transitionPeak.IonMobilityWindow);
                 var ionMobilityUnits = msDataFileInfo.IonMobilityUnits;
-                ionMobility = IonMobilityFilter.GetIonMobilityFilter(IonMobilityValue.GetIonMobilityValue(ionMobilityValue, ionMobilityUnits), ionMobilityWidth, null);
+                ionMobility = IonMobilityFilter.GetIonMobilityFilter(ionMobilityValue.Value, ionMobilityUnits, ionMobilityWidth, null);
             }
             else
             {
@@ -1040,26 +1060,25 @@ namespace pwiz.Skyline.Model.Results
     public struct ChromInfoList<TItem> : IList<TItem>
     {
         private readonly object _oneOrManyItems;
-        public ChromInfoList(params TItem[] elements) : this((IEnumerable<TItem>) elements)
+        public ChromInfoList(IList<TItem> elements)
         {
+            switch (elements?.Count)
+            {
+                case null:
+                case 0:
+                    _oneOrManyItems = null;
+                    break;
+                case 1:
+                    _oneOrManyItems = elements[0];
+                    break;
+                default:
+                    _oneOrManyItems = ImmutableList.ValueOf(elements);
+                    break;
+            }
         }
 
-        public ChromInfoList(IEnumerable<TItem> elements)
+        public ChromInfoList(IEnumerable<TItem> elements) : this(ImmutableList.ValueOf(elements))
         {
-            var list = ImmutableList.ValueOf(elements);
-            if (list == null || list.Count == 0)
-            {
-                _oneOrManyItems = null;
-            }
-            else if (list.Count == 1)
-            {
-                _oneOrManyItems = list[0];
-            }
-            else
-            {
-                _oneOrManyItems = list;
-            }
-
         }
 
         public float? GetAverageValue(Func<TItem, float?> getVal)
@@ -1087,9 +1106,7 @@ namespace pwiz.Skyline.Model.Results
 
         public ChromInfoList<TItem> ChangeAt(int i, TItem item)
         {
-            var list = AsList().ToArray();
-            list[i] = item;
-            return new ChromInfoList<TItem>(list);
+            return new ChromInfoList<TItem>(AsList().ReplaceAt(i, item));
         }
 
         public int Count 
@@ -1104,7 +1121,7 @@ namespace pwiz.Skyline.Model.Results
                 {
                     return 1;
                 }
-                return ((IList<TItem>) _oneOrManyItems).Count;
+                return ((ImmutableList<TItem>) _oneOrManyItems).Count;
             } 
         }
         IEnumerator IEnumerable.GetEnumerator()
@@ -1119,10 +1136,27 @@ namespace pwiz.Skyline.Model.Results
 
         public TItem this[int index]
         {
-            get { return AsList()[index]; }
+            get
+            {
+                if (_oneOrManyItems == null)
+                {
+                    throw new IndexOutOfRangeException();
+                }
+
+                if (_oneOrManyItems is TItem item)
+                {
+                    if (index != 0)
+                    {
+                        throw new IndexOutOfRangeException();
+                    }
+
+                    return item;
+                }
+                return ((ImmutableList<TItem>)_oneOrManyItems)[index];
+            }
         }
 
-        public IList<TItem> AsList()
+        public ImmutableList<TItem> AsList()
         {
             if (_oneOrManyItems == null)
             {
@@ -1132,7 +1166,7 @@ namespace pwiz.Skyline.Model.Results
             {
                 return ImmutableList.Singleton((TItem) _oneOrManyItems);
             }
-            return (IList<TItem>) _oneOrManyItems;
+            return (ImmutableList<TItem>) _oneOrManyItems;
         }
 
         public bool IsEmpty

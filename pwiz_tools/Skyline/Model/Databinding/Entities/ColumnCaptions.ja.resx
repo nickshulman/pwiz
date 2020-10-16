@@ -147,6 +147,12 @@
   <data name="AreaRatio">
     <value>面積比</value>
   </data>
+  <data name="AttributeAreaProportion">
+    <value>属性面積率</value>
+  </data>
+  <data name="AttributeGroupId">
+    <value>属性グループID</value>
+  </data>
   <data name="AuditLogRow">
     <value>監査ログ行</value>
   </data>
@@ -191,6 +197,9 @@
   </data>
   <data name="BatchName">
     <value>バッチ名</value>
+  </data>
+  <data name="BatchTargetQualitativeIonRatio">
+    <value>バッチターゲット定性イオン比</value>
   </data>
   <data name="BeginPos">
     <value>開始位置</value>
@@ -336,6 +345,9 @@
   <data name="ExcludeFromCalibration">
     <value>校正から除外</value>
   </data>
+  <data name="ExplicitAnalyteConcentration">
+    <value>明示的アナライト濃度</value>
+  </data>
   <data name="ExplicitCollisionEnergy">
     <value>明示的衝突エネルギー</value>
   </data>
@@ -386,6 +398,9 @@
   </data>
   <data name="FileName">
     <value>ファイル名</value>
+  </data>
+  <data name="FilePath">
+    <value>ファイルパス</value>
   </data>
   <data name="Files">
     <value>ファイル</value>
@@ -462,6 +477,9 @@
   <data name="InterpolatedTimes">
     <value>補間された時間</value>
   </data>
+  <data name="IonFormula">
+    <value>イオン式</value>
+  </data>
   <data name="IonMobilityFragment">
     <value>イオン移動度のフラグメント</value>
   </data>
@@ -476,9 +494,6 @@
   </data>
   <data name="IonName">
     <value>イオン名</value>
-  </data>
-  <data name="IonFormula">
-    <value>イオン式</value>
   </data>
   <data name="IsDecoy">
     <value>同位体デコイ</value>
@@ -498,6 +513,9 @@
   <data name="IsotopeLabelType">
     <value>同位体標識タイプ</value>
   </data>
+  <data name="KEGG">
+    <value>KEGG</value>
+  </data>
   <data name="Key">
     <value>キー</value>
   </data>
@@ -509,6 +527,9 @@
   </data>
   <data name="LibraryName">
     <value>ライブラリ名</value>
+  </data>
+  <data name="LibraryProbabilityScore">
+    <value>ライブラリ確率スコア</value>
   </data>
   <data name="LibraryRank">
     <value>ライブラリランク</value>
@@ -558,6 +579,9 @@
   <data name="MaxBestRetentionTime">
     <value>最大最良保持時間</value>
   </data>
+  <data name="MaxDetectionQValue" xml:space="preserve">
+    <value>最大検出Q値</value>
+  </data>
   <data name="MaxEndTime">
     <value>最大終了時間</value>
   </data>
@@ -572,6 +596,12 @@
   </data>
   <data name="MaxRetentionTime">
     <value>最大保持時間</value>
+  </data>
+  <data name="Median">
+    <value>メジアン</value>
+  </data>
+  <data name="MedianDetectionQValue" xml:space="preserve">
+    <value>メジアン検出Q値</value>
   </data>
   <data name="Mean">
     <value>平均</value>
@@ -615,6 +645,9 @@
   <data name="MinBestRetentionTime">
     <value>最小最良保持時間</value>
   </data>
+  <data name="MinDetectionQValue" xml:space="preserve">
+    <value>最小検出Q値</value>
+  </data>
   <data name="MinFoldChange">
     <value>最小倍率変化</value>
   </data>
@@ -654,8 +687,17 @@
   <data name="Molecule">
     <value>分子</value>
   </data>
+  <data name="MoleculeListAbundance">
+    <value>分子リスト存在量</value>
+  </data>
   <data name="MoleculeListLocator">
     <value>分子リストロケーター</value>
+  </data>
+  <data name="MoleculeListResult">
+    <value>分子リスト結果</value>
+  </data>
+  <data name="MoleculeListResults">
+    <value>分子リスト結果</value>
   </data>
   <data name="MoleculeName">
     <value>分子名</value>
@@ -801,14 +843,23 @@
   <data name="Precursor">
     <value>プリカーサー</value>
   </data>
+  <data name="PrecursorAccuracy">
+    <value>プリカーサー精度</value>
+  </data>
   <data name="PrecursorAdduct">
     <value>プリカーサー付加物</value>
+  </data>
+  <data name="PrecursorCalculatedConcentration">
+    <value>プリカーサー計算濃度</value>
   </data>
   <data name="PrecursorCharge">
     <value>プリカーサー電荷</value>
   </data>
   <data name="PrecursorConcentration">
     <value>プリカーサー濃度</value>
+  </data>
+  <data name="PrecursorExplicitCollisionEnergy">
+    <value>プリカーサー明示的衝突エネルギー</value>
   </data>
   <data name="PrecursorIonName">
     <value>プリカーサーイオン名</value>
@@ -828,11 +879,17 @@
   <data name="PrecursorNeutralMass">
     <value>プリカーサーニュートラル質量</value>
   </data>
+  <data name="PrecursorNormalizedArea">
+    <value>プリカーサー正規化面積</value>
+  </data>
   <data name="PrecursorNote">
     <value>プリカーサーメモ</value>
   </data>
   <data name="PrecursorPeakFoundRatio">
     <value>プリカーサーピーク検出率</value>
+  </data>
+  <data name="PrecursorQuantification">
+    <value>プリカーサー定量化</value>
   </data>
   <data name="PrecursorReplicateNote">
     <value>プリカーサー繰り返し測定メモ</value>
@@ -885,6 +942,9 @@
   <data name="Protein">
     <value>タンパク質</value>
   </data>
+  <data name="ProteinAbundance">
+    <value>タンパク質存在量</value>
+  </data>
   <data name="ProteinAccession">
     <value>タンパク質アクセッション</value>
   </data>
@@ -906,6 +966,12 @@
   <data name="ProteinPreferredName">
     <value>タンパク質推奨名</value>
   </data>
+  <data name="ProteinResult">
+    <value>タンパク質結果</value>
+  </data>
+  <data name="ProteinResults">
+    <value>タンパク質結果</value>
+  </data>
   <data name="Proteins">
     <value>タンパク質</value>
   </data>
@@ -920,6 +986,12 @@
   </data>
   <data name="QuadraticCoefficient">
     <value>二次係数</value>
+  </data>
+  <data name="QualitativeIonRatio">
+    <value>定性イオン比</value>
+  </data>
+  <data name="QualitativeIonRatioStatus">
+    <value>定性イオン比ステータス</value>
   </data>
   <data name="Quantification">
     <value>定量化</value>
@@ -1014,9 +1086,6 @@
   <data name="ResultFileLocator">
     <value>結果ファイルロケーター</value>
   </data>
-  <data name="Results">
-    <value>結果</value>
-  </data>
   <data name="RetentionTime">
     <value>保持時間</value>
   </data>
@@ -1094,6 +1163,9 @@
   </data>
   <data name="SummaryMessage">
     <value>概要に関するメッセージ</value>
+  </data>
+  <data name="TargetQualitativeIonRatio">
+    <value>ターゲット定性イオン比</value>
   </data>
   <data name="ThreeLetterCodes">
     <value>3文字コード</value>
@@ -1193,5 +1265,11 @@
   </data>
   <data name="UTCTime">
     <value>UTC時刻</value>
+  </data>
+  <data name="SampleId" xml:space="preserve">
+    <value>試料ID</value>
+  </data>
+  <data name="InstrumentSerialNumber" xml:space="preserve">
+    <value>装置のシリアル番号</value>
   </data>
 </root>

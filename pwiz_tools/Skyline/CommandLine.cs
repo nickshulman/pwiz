@@ -24,6 +24,7 @@ using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
+using System.Xml;
 using System.Xml.Serialization;
 using pwiz.Common.Collections;
 using pwiz.Common.DataBinding;
@@ -39,7 +40,6 @@ using pwiz.Skyline.Model.IonMobility;
 using pwiz.Skyline.Model.Irt;
 using pwiz.Skyline.Model.Lib;
 using pwiz.Skyline.Model.Lib.BlibData;
-using pwiz.Skyline.Model.Lib.Midas;
 using pwiz.Skyline.Model.Optimization;
 using pwiz.Skyline.Model.Proteome;
 using pwiz.Skyline.Model.Results;
@@ -175,9 +175,9 @@ namespace pwiz.Skyline
                     if (ProcessDocument(commandArgs))
                         PerformExportOperations(commandArgs);
 
-                    // CONSIDER: Need to use new argument
                     // Save any settings list changes made by opening the document
-                    // Settings.Default.Save();
+                    if (commandArgs.SaveSettings)
+                        SaveSettings();
                 }
             }
             finally
@@ -189,14 +189,25 @@ namespace pwiz.Skyline
 
         private bool ProcessDocument(CommandArgs commandArgs)
         {
+            if (commandArgs.PredictTranSettings)
+            {
+                if (!SetPredictTranSettings(commandArgs))
+                    return false;
+            }
             if (commandArgs.FilterSettings)
             {
                 if (!SetFilterSettings(commandArgs))
                     return false;
             }
-            if (commandArgs.FullScanSetting)
+            if (commandArgs.FullScanSettings)
             {
                 if (!SetFullScanSettings(commandArgs))
+                    return false;
+            }
+
+            if (commandArgs.ImsSettings)
+            {
+                if (!SetImsSettings(commandArgs))
                     return false;
             }
 
@@ -249,7 +260,7 @@ namespace pwiz.Skyline
                     return false;
             }
 
-            if (commandArgs.AddDecoys)
+            if (commandArgs.AddDecoys || commandArgs.DiscardDecoys)
             {
                 if (!AddDecoys(commandArgs))
                     return false;
@@ -332,7 +343,7 @@ namespace pwiz.Skyline
 
             if (commandArgs.ImportingReplicateFile)
             {
-                var listNamedPaths = new List<KeyValuePair<string, MsDataFileUri[]>>();
+                IList<KeyValuePair<string, MsDataFileUri[]>> listNamedPaths = new List<KeyValuePair<string, MsDataFileUri[]>>();
 
                 MsDataFileUri[] files;
                 try
@@ -344,7 +355,7 @@ namespace pwiz.Skyline
                     _out.WriteLine(Resources.CommandLine_GeneralException_Error___0_, e.Message);
                     return false;
                 }
-
+                
                 if (!string.IsNullOrEmpty(commandArgs.ReplicateName))
                 { 
                     listNamedPaths.Add(new KeyValuePair<string, MsDataFileUri[]>(commandArgs.ReplicateName, files));
@@ -357,6 +368,28 @@ namespace pwiz.Skyline
                             dataFile.GetSampleName() ?? dataFile.GetFileNameWithoutExtension(),
                             new[] {dataFile}));
                     }
+
+                }
+
+                if (!ApplyFileAndSampleNameRegex(commandArgs.ImportFileNamePattern, commandArgs.ImportSampleNamePattern, ref listNamedPaths))
+                {
+                    return false;
+                }
+
+                if (string.IsNullOrEmpty(commandArgs.ReplicateName) && !commandArgs.ImportAppend)
+                {
+                    // A named path will be removed if the document contains a replicate with this file path.
+                    RemoveImportedFiles(listNamedPaths, out var listNewPaths,
+                        true /*Remove files paths that have already been imported into any replicate.*/);
+                   
+                    if (listNewPaths.Count == 0)
+                    {
+                        _out.WriteLine(Resources.CommandLine_ImportResults_No_replicates_left_to_import_);
+                        return false;
+                    }
+
+                    listNamedPaths = listNewPaths;
+                    MakeReplicateNamesUnique(listNamedPaths);
                 }
 
                 // If expected results are not imported successfully, terminate
@@ -380,6 +413,8 @@ namespace pwiz.Skyline
                         commandArgs.LockMassParameters,
                         commandArgs.ImportBeforeDate,
                         commandArgs.ImportOnOrAfterDate,
+                        commandArgs.ImportFileNamePattern,
+                        commandArgs.ImportSampleNamePattern,
                         optimize,
                         commandArgs.ImportDisableJoining,
                         commandArgs.ImportWarnOnFailure))
@@ -413,21 +448,58 @@ namespace pwiz.Skyline
         {
             if (commandArgs.RefinementLabelTypeName != null)
             {
-                var mods = _doc.Settings.PeptideSettings.Modifications;
-                var typeMods = mods.GetModificationsByName(commandArgs.RefinementLabelTypeName);
-                if (typeMods == null)
-                {
-                    _out.WriteLine(Resources.CommandLine_RefineDocument_Error__The_label_type___0___was_not_found_in_the_document_);
-                    _out.WriteLine(Resources.CommandLine_RefineDocument_Choose_one_of__0_, string.Join(@", ", mods.GetModificationTypes().Select(t => t.Name)));
+                var labelType = GetLabelTypeHelper(commandArgs.RefinementLabelTypeName);
+                if (labelType != null)
+                    commandArgs.Refinement.RefineLabelType = labelType;
+                else
                     return false;
-                }
+            }
 
-                commandArgs.Refinement.RefineLabelType = typeMods.LabelType;
+            if (commandArgs.RefinementCvLabelTypeName != null)
+            {
+                var labelType = GetLabelTypeHelper(commandArgs.RefinementCvLabelTypeName);
+                if (labelType != null)
+                    commandArgs.Refinement.NormalizationLabelType = labelType;
+                else
+                    return false;
+            }
+
+            if (!commandArgs.Refinement.GroupComparisonNames.IsNullOrEmpty())
+            {
+                foreach (var name in commandArgs.Refinement.GroupComparisonNames)
+                {
+                    var gc = Document.Settings.DataSettings.GroupComparisonDefs.FirstOrDefault(g => g.Name.Equals(name));
+                    if (gc != null)
+                        commandArgs.Refinement.GroupComparisonDefs.Add(gc);
+                }
             }
 
             _out.WriteLine(Resources.CommandLine_RefineDocument_Refining_document___);
-            ModifyDocumentWithLogging(doc => commandArgs.Refinement.Refine(doc), commandArgs.Refinement.EntryCreator.Create);
-            return true;
+            try
+            {
+                ModifyDocumentWithLogging(doc => commandArgs.Refinement.Refine(doc),
+                    commandArgs.Refinement.EntryCreator.Create);
+                return true;
+            }
+            catch (Exception x)
+            {
+                _out.WriteLine(x.Message);
+                return false;
+            }
+        }
+
+        private IsotopeLabelType GetLabelTypeHelper(string label)
+        {
+            var mods = _doc.Settings.PeptideSettings.Modifications;
+            var typeMods = mods.GetModificationsByName(label);
+            if (typeMods == null)
+            {
+                _out.WriteLine(Resources.CommandLine_RefineDocument_Error__The_label_type___0___was_not_found_in_the_document_);
+                _out.WriteLine(Resources.CommandLine_RefineDocument_Choose_one_of__0_, string.Join(@", ", mods.GetModificationTypes().Select(t => t.Name)));
+                return null;
+            }
+
+            return typeMods.LabelType;
         }
 
         private HashSet<AuditLogEntry> GetSeenAuditLogEntries()
@@ -652,6 +724,32 @@ namespace pwiz.Skyline
                 _doc = AuditLogList.ToggleAuditLogging(_doc, false);
         }
 
+        private bool SetPredictTranSettings(CommandArgs commandArgs)
+        {
+            try
+            {
+                ModifyDocumentWithLogging(doc => doc.ChangeSettings(doc.Settings.ChangeTransitionPrediction(p =>
+                {
+                    if (commandArgs.PredictCEName != null)
+                        p = p.ChangeCollisionEnergy(Settings.Default.GetCollisionEnergyByName(commandArgs.PredictCEName));
+                    if (commandArgs.PredictDPName != null)
+                        p = p.ChangeDeclusteringPotential(Settings.Default.GetDeclusterPotentialByName(commandArgs.PredictDPName));
+                    if (commandArgs.PredictCoVName != null)
+                        p = p.ChangeCompensationVoltage(Settings.Default.GetCompensationVoltageByName(commandArgs.PredictCoVName));
+                    if (commandArgs.PredictOpimizationLibraryName != null)
+                        p = p.ChangeOptimizationLibrary(Settings.Default.GetOptimizationLibraryByName(commandArgs.PredictOpimizationLibraryName));
+                    return p;
+                })), AuditLogEntry.SettingsLogFunction);
+                return true;
+            }
+            catch (Exception x)
+            {
+                _out.WriteLine(Resources.CommandLine_SetPredictTranSettings_Error__Failed_attempting_to_change_the_transition_prediction_settings_);
+                _out.WriteLine(x.Message);
+                return false;
+            }
+        }
+
         private bool SetFilterSettings(CommandArgs commandArgs)
         {
             try
@@ -670,7 +768,7 @@ namespace pwiz.Skyline
             }
             catch (Exception x)
             {
-                _out.WriteLine(Resources.CommandLine_SetFullScanSettings_Error__Failed_attempting_to_change_the_transiton_full_scan_settings_);
+                _out.WriteLine(Resources.CommandLine_SetFilterSettings_Error__Failed_attempting_to_change_the_transition_filter_settings_);
                 _out.WriteLine(x.Message);
                 return false;
             }
@@ -708,6 +806,7 @@ namespace pwiz.Skyline
                         _out.WriteLine(Resources.CommandLine_SetFullScanSettings_Changing_full_scan_product_resolving_power_to__0__at__1__, res, resMz);
                     else
                         _out.WriteLine(Resources.CommandLine_SetFullScanSettings_Changing_full_scan_product_resolving_power_to__0__, res);
+
                     ModifyDocument(d => d.ChangeSettings(_doc.Settings.ChangeTransitionFullScan(f =>
                         f.ChangeProductResolution(f.ProductMassAnalyzer, res, resMz ?? f.ProductResMz))), AuditLogEntry.SettingsLogFunction);
                 }
@@ -718,6 +817,7 @@ namespace pwiz.Skyline
                         _out.WriteLine(Resources.CommandLine_SetFullScanSettings_Changing_full_scan_extraction_to______0__minutes_from_predicted_value_, rtLen);
                     else if (_doc.Settings.TransitionSettings.FullScan.RetentionTimeFilterType == RetentionTimeFilterType.ms2_ids)
                         _out.WriteLine(Resources.CommandLine_SetFullScanSettings_Changing_full_scan_extraction_to______0__minutes_from_MS_MS_IDs_, rtLen);
+
                     ModifyDocument(d => d.ChangeSettings(_doc.Settings.ChangeTransitionFullScan(f =>
                         f.ChangeRetentionTimeFilter(f.RetentionTimeFilterType, rtLen))), AuditLogEntry.SettingsLogFunction);
                 }
@@ -731,14 +831,52 @@ namespace pwiz.Skyline
             }
         }
 
+        private bool SetImsSettings(CommandArgs commandArgs)
+        {
+            try
+            {
+                if (commandArgs.IonMobilityLibraryRes.HasValue)
+                {
+                    if (!_doc.Settings.TransitionSettings.IonMobilityFiltering.UseSpectralLibraryIonMobilityValues)
+                        _out.WriteLine(Resources.CommandLine_SetImsSettings_Enabling_extraction_based_on_spectral_library_ion_mobility_values_);
+                    double rp = commandArgs.IonMobilityLibraryRes.Value;
+                    var imsWindowCalcNew = new IonMobilityWindowWidthCalculator(rp);
+                    var imsWindowCalc = _doc.Settings.TransitionSettings.IonMobilityFiltering.FilterWindowWidthCalculator;
+                    if (!Equals(imsWindowCalc, imsWindowCalcNew))
+                        _out.WriteLine(Resources.CommandLine_SetImsSettings_Changing_ion_mobility_spectral_library_resolving_power_to__0__, rp);
+                    ModifyDocument(d => d.ChangeSettings(d.Settings.ChangeTransitionIonMobilityFiltering(p =>
+                        {
+                            var result = p;
+                            if (!result.UseSpectralLibraryIonMobilityValues)
+                                result = result.ChangeUseSpectralLibraryIonMobilityValues(true);
+                            if (!Equals(result.FilterWindowWidthCalculator, imsWindowCalcNew))
+                                result = result.ChangeFilterWindowWidthCalculator(imsWindowCalcNew);
+                            return result;
+                        })),
+                        AuditLogEntry.SettingsLogFunction);
+                }
+                return true;
+            }
+            catch (Exception x)
+            {
+                _out.WriteLine(Resources.CommandLine_SetImsSettings_Error__Failed_attempting_to_change_the_ion_mobility_settings_);
+                _out.WriteLine(x.Message);
+                return false;
+            }
+        }
+
         public bool OpenSkyFile(string skylineFile)
         {
             try
             {
                 var progressMonitor = new CommandProgressMonitor(_out, new ProgressStatus(string.Empty));
                 string hash;
-                using (var reader = new HashingStreamReaderWithProgress(skylineFile, progressMonitor))
+                using (var hashingStreamReader = new HashingStreamReaderWithProgress(skylineFile, progressMonitor))
                 {
+                    // Wrap stream in XmlReader so that BaseUri is known
+                    var reader = XmlReader.Create(hashingStreamReader, 
+                        new XmlReaderSettings() { IgnoreWhitespace = true }, 
+                        skylineFile);  
                     XmlSerializer xmlSerializer = new XmlSerializer(typeof(SrmDocument));
                     _out.WriteLine(Resources.CommandLine_OpenSkyFile_Opening_file___);
 
@@ -747,7 +885,7 @@ namespace pwiz.Skyline
                         return false;
 
                     _out.WriteLine(Resources.CommandLine_OpenSkyFile_File__0__opened_, Path.GetFileName(skylineFile));
-                    hash = reader.Stream.Done();
+                    hash = hashingStreamReader.Stream.Done();
                 }
 
                 SetDocument(_doc.ReadAuditLog(skylineFile, hash, () => null));
@@ -926,7 +1064,7 @@ namespace pwiz.Skyline
 
         private SrmDocument ConnectIonMobilityDatabase(SrmDocument document, string documentPath)
         {
-            var settings = document.Settings.ConnectIonMobilityLibrary(imdb => FindIonMobilityDatabase(documentPath, imdb));
+            var settings = document.Settings.ConnectIonMobilityLibrary(imsdb => FindIonMobilityDatabase(documentPath, imsdb));
             if (settings == null)
                 return null;
             if (ReferenceEquals(settings, document.Settings))
@@ -934,25 +1072,22 @@ namespace pwiz.Skyline
             return document.ChangeSettings(settings);
         }
 
-        private IonMobilityLibrarySpec FindIonMobilityDatabase(string documentPath, IonMobilityLibrarySpec ionMobilityLibSpec)
+        private IonMobilityLibrary FindIonMobilityDatabase(string documentPath, IonMobilityLibrary ionMobilityLibSpec)
         {
 
-            IonMobilityLibrarySpec result;
-            if (Settings.Default.IonMobilityLibraryList.TryGetValue(ionMobilityLibSpec.Name, out result))
+            if (Settings.Default.IonMobilityLibraryList.TryGetValue(ionMobilityLibSpec.Name, out var result))
             {
-                if (result.IsNone || File.Exists(result.PersistencePath))
+                if (result.IsNone || File.Exists(result.FilePath))
                     return result;                
             }
 
             // First look for the file name in the document directory
-            string filePath = PathEx.FindExistingRelativeFile(documentPath, ionMobilityLibSpec.PersistencePath);
+            string filePath = PathEx.FindExistingRelativeFile(documentPath, ionMobilityLibSpec.FilePath);
             if (filePath != null)
             {
                 try
                 {
-                    var lib = ionMobilityLibSpec as IonMobilityLibrary;
-                    if (lib != null)
-                        return lib.ChangeDatabasePath(filePath);
+                    return ionMobilityLibSpec.ChangeDatabasePath(filePath);
                 }
 // ReSharper disable once EmptyGeneralCatchClause
                 catch
@@ -961,7 +1096,7 @@ namespace pwiz.Skyline
                 }
             }
 
-            _out.WriteLine(Resources.CommandLine_FindIonMobilityDatabase_Error__Could_not_find_the_ion_mobility_library__0__, Path.GetFileName(ionMobilityLibSpec.PersistencePath));
+            _out.WriteLine(Resources.CommandLine_FindIonMobilityDatabase_Error__Could_not_find_the_ion_mobility_library__0__, Path.GetFileName(ionMobilityLibSpec.FilePath));
             return null;
         }
 
@@ -1001,19 +1136,145 @@ namespace pwiz.Skyline
         public bool ImportResultsInDir(string sourceDir, bool recursive, Regex namingPattern, string replicateName,
             LockMassParameters lockMassParameters,
             DateTime? importBefore, DateTime? importOnOrAfter,
+            Regex fileNameRegex, Regex sampleNameRegex,
             OptimizableRegression optimize, bool disableJoining, bool warnOnFailure)
         {
             var listNamedPaths = GetDataSources(sourceDir, recursive, namingPattern, lockMassParameters);
-            if (listNamedPaths == null)
+            if (listNamedPaths == null || listNamedPaths.Count == 0)
             {
                 return false;
             }
+
+            if (!ApplyFileAndSampleNameRegex(fileNameRegex, sampleNameRegex, ref listNamedPaths))
+            {
+                return false;
+            }
+
             // If there is a single name for everything then it should override any naming from GetDataSources
             if (!string.IsNullOrEmpty(replicateName))
             {
+                // If the name exists, files should get imported into it
                 listNamedPaths = new[] { new KeyValuePair<string, MsDataFileUri[]>(replicateName, listNamedPaths.SelectMany(s => s.Value).ToArray()) };
             }
-            return ImportDataFiles(listNamedPaths, lockMassParameters, importBefore, importOnOrAfter, optimize, disableJoining, warnOnFailure);
+
+            // Remove replicates and/or files that have already been imported into the document
+            RemoveImportedFiles(listNamedPaths, out var listNewPaths,
+                string.IsNullOrEmpty(replicateName) /*If a replicate name is not given, remove file paths imported into any replicate.*/);
+            if (listNewPaths.Count == 0)
+            {
+                _out.WriteLine(Resources.CommandLine_ImportResults_No_replicates_left_to_import_);
+                return false;
+            }
+
+            listNamedPaths = listNewPaths;
+            if(string.IsNullOrEmpty(replicateName))
+            {  
+                // If a replicate name is not given new replicates will be created and should have new unique names.  
+                MakeReplicateNamesUnique(listNamedPaths);
+            }
+
+            return ImportDataFiles(listNamedPaths, lockMassParameters, importBefore, importOnOrAfter,
+                optimize, disableJoining, warnOnFailure);
+        }
+
+        private void MakeReplicateNamesUnique(IList<KeyValuePair<string, MsDataFileUri[]>> listNamedPaths)
+        {
+            var replicatesInDoc =
+                _doc.Settings.HasResults ? _doc.MeasuredResults.Chromatograms.Select(chrom => chrom.Name).ToHashSet() : new HashSet<string>();
+            var replicatesInNamedPaths = listNamedPaths.Select(path => path.Key).ToList();
+            var newNames = Helpers.EnsureUniqueNames(replicatesInNamedPaths, replicatesInDoc);
+            for (var i = 0; i < listNamedPaths.Count; i++)
+            {
+                var namedPath = listNamedPaths[i];
+                if (!Equals(newNames[i], namedPath.Key))
+                {
+                    _out.WriteLine(
+                        Resources.CommandLine_MakeReplicateNamesUnique_Replicate___0___already_exists_in_the_document__using___1___instead_,
+                        namedPath.Key, newNames[i]);
+                    listNamedPaths[i] = new KeyValuePair<string, MsDataFileUri[]>(newNames[i], namedPath.Value);
+                }
+            }
+        }
+
+        public bool ApplyFileAndSampleNameRegex(Regex fileNameRegex, Regex sampleNameRegex, ref IList<KeyValuePair<string, MsDataFileUri[]>> listNamedPaths)
+        {
+            listNamedPaths = ApplyNameRegex(listNamedPaths, ApplyFileNameRegex, fileNameRegex);
+            if (listNamedPaths.Count == 0)
+            {
+                _out.WriteLine(Resources.CommandLine_ApplyFileAndSampleNameRegex_No_files_match_the_file_name_pattern___0___, fileNameRegex);
+                return false;
+            }
+
+            listNamedPaths = ApplyNameRegex(listNamedPaths, ApplySampleNameRegex, sampleNameRegex);
+            if (listNamedPaths.Count == 0)
+            {
+                _out.WriteLine(Resources.CommandLine_ApplyFileAndSampleNameRegex_No_files_match_the_sample_name_pattern___0___, sampleNameRegex);
+                return false;
+            }
+
+            return true;
+        }
+
+        private IList<KeyValuePair<string, MsDataFileUri[]>> ApplyNameRegex(IList<KeyValuePair<string, MsDataFileUri[]>> listNamedPaths,
+                        Func<MsDataFileUri, Regex, bool> applyRegex,  Regex regex)
+        {
+            var newNamedPaths = new List<KeyValuePair<string, MsDataFileUri[]>>();
+            if (regex == null)
+            {
+                newNamedPaths.AddRange(listNamedPaths);
+                return newNamedPaths;
+            }
+
+            for (var i = 0; i < listNamedPaths.Count; i++)
+            {
+                var namedPath = listNamedPaths[i];
+                var files = namedPath.Value;
+
+                var newFiles = files.Where(file => applyRegex(file, regex)).ToArray();
+                if (newFiles.Length > 0)
+                {
+                    newNamedPaths.Add(new KeyValuePair<string, MsDataFileUri[]>(namedPath.Key, newFiles));
+                }
+            }
+            
+            return newNamedPaths;
+        }
+
+        private bool ApplyFileNameRegex(MsDataFileUri file, Regex regex)
+        {
+            if(!ApplyRegex(file.GetFileName(), regex))
+            {
+                _out.WriteLine(Resources.CommandLine_ApplyFileNameRegex_File_name___0___does_not_match_the_pattern___1____Ignoring__2_, file.GetFileName(), regex, file);
+                return false;
+            }
+            return true;
+        }
+        
+        private bool ApplySampleNameRegex(MsDataFileUri file, Regex regex)
+        {
+            if (string.IsNullOrEmpty(file.GetSampleName()))
+            {
+                _out.WriteLine(Resources.CommandLine_ApplySampleNameRegex_File___0___does_not_have_a_sample__Cannot_apply_sample_name_pattern__Ignoring_, file);
+                return false;
+            }
+
+            if (!ApplyRegex(file.GetSampleName(), regex))
+            {
+                _out.WriteLine(Resources.CommandLine_ApplySampleNameRegex_Sample_name___0___does_not_match_the_pattern___1____Ignoring__2_, file.GetSampleName(), regex, file);
+                return false;
+            }
+
+            return true;
+        }
+
+        private bool ApplyRegex(string name, Regex regex)
+        {
+            if (regex != null)
+            {
+                var match = regex.Match(name);
+                return match.Success;
+            }
+            return true;
         }
 
         private bool ImportDataFiles(IList<KeyValuePair<string, MsDataFileUri[]>> listNamedPaths, LockMassParameters lockMassParameters,
@@ -1029,12 +1290,21 @@ namespace pwiz.Skyline
 
             DocContainer.SetDocument(_doc, DocContainer.Document, true);
 
+            // If this has not already been designated a multi-process import, and no specific
+            // number of threads has been chosen, then choose dynamically based on the computer
+            // specs as many as make sense.
+            if (!Program.MultiProcImport && DocContainer.ChromatogramManager.LoadingThreads == 0)
+            {
+                DocContainer.ChromatogramManager.LoadingThreads = MultiFileLoader.GetOptimalThreadCount(null,
+                    namesAndFilePaths.Length, MultiFileLoader.ImportResultsSimultaneousFileOptions.many);
+            }
+
             // Add files to import list
             _out.WriteLine();
             for (int i = 0; i < namesAndFilePaths.Length; i++)
             {
                 var namePath = namesAndFilePaths[i];
-                if (!ImportResultsFile(namePath.FilePath.ChangeParameters(_doc, lockMassParameters), namePath.ReplicateName, importBefore, importOnOrAfter, optimize))
+                if (!ImportResultsFile(namePath.FilePath.ChangeLockMassParameters(lockMassParameters), namePath.ReplicateName, importBefore, importOnOrAfter, optimize))
                     return false;
                 _out.WriteLine(@"{0}. {1}", i + 1, namePath.FilePath);
             }
@@ -1164,7 +1434,7 @@ namespace pwiz.Skyline
         }
 
         private IList<KeyValuePair<string, MsDataFileUri[]>> GetDataSources(string sourceDir, bool recursive, Regex namingPattern, LockMassParameters lockMassParameters)
-        {   
+        {
             // get all the valid data sources (files and sub directories) in this directory.
             IList<KeyValuePair<string, MsDataFileUri[]>> listNamedPaths;
             try
@@ -1193,20 +1463,8 @@ namespace pwiz.Skyline
                 }
                 listNamedPaths = listRenamedPaths;
             }
-
-            // Make sure the existing replicate does not have any "unexpected" files.
-            if(!CheckReplicateFiles(listNamedPaths, lockMassParameters))
-            {
-                return null;
-            }
-
-            // remove replicates and/or files that have already been imported into the document
-            List<KeyValuePair<string, MsDataFileUri[]>> listNewPaths;
-            if(!RemoveImportedFiles(listNamedPaths, out listNewPaths))
-            {
-                return null;
-            }
-            return listNewPaths;
+            
+            return listNamedPaths;
         }
 
         private bool ApplyNamingPattern(IEnumerable<KeyValuePair<string, MsDataFileUri[]>> listNamedPaths, Regex namingPattern, 
@@ -1247,98 +1505,79 @@ namespace pwiz.Skyline
             return true;
         }
 
-        private bool CheckReplicateFiles(IEnumerable<KeyValuePair<string, MsDataFileUri[]>> listNamedPaths, LockMassParameters lockMassParameters)
-        {
-            if (!_doc.Settings.HasResults)
-            {
-                return true;
-            }
-
-            // Make sure the existing replicate does not have any "unexpected" files.
-            // All existing files must be present in the current 
-            // list of files that we are trying to import to this replicate.
-            
-            foreach (var namedPaths in listNamedPaths)
-            {
-                var replicateName = namedPaths.Key;
-
-                // check if the document already has a replicate with this name
-                int indexChrom;
-                ChromatogramSet chromatogram;
-                if (_doc.Settings.MeasuredResults.TryGetChromatogramSet(replicateName, out chromatogram, out indexChrom))
-                {
-                    // and whether the files it contains match what is expected
-                    // compare case-insensitive on Windows
-                    var filePaths = new HashSet<MsDataFileUri>(namedPaths.Value.Select(path =>
-                        path.ChangeParameters(_doc, lockMassParameters).ToLower()));
-                    foreach (var dataFilePath in chromatogram.MSDataFilePaths)
-                    {
-
-                        if (!filePaths.Contains(dataFilePath.ToLower()))
-                        {
-                            _out.WriteLine(
-                                Resources.CommandLine_CheckReplicateFiles_Error__Replicate__0__in_the_document_has_an_unexpected_file__1__,
-                                replicateName,
-                                dataFilePath);
-                            return false;
-                        }
-                    }
-                }
-            }
-            return true;
-        }
-        
-        private bool RemoveImportedFiles(IEnumerable<KeyValuePair<string, MsDataFileUri[]>> listNamedPaths,
-                                         out List<KeyValuePair<string, MsDataFileUri[]>> listNewNamedPaths)
+        private void RemoveImportedFiles(IEnumerable<KeyValuePair<string, MsDataFileUri[]>> listNamedPaths,
+            out List<KeyValuePair<string, MsDataFileUri[]>> listNewNamedPaths, bool checkAllReplicates)
         {
             listNewNamedPaths = new List<KeyValuePair<string, MsDataFileUri[]>>();
 
             if(!_doc.Settings.HasResults)
             {
                 listNewNamedPaths.AddRange(listNamedPaths);
-                return true;
+                return;
+            }
+
+            var chromatFilePaths = new HashSet<MsDataFileUri>();
+            if (checkAllReplicates)
+            {
+                // Get all the file paths imported in the document
+                chromatFilePaths =
+                    new HashSet<MsDataFileUri>(_doc.Settings.MeasuredResults.MSDataFilePaths.Select(path => path.ToLower()));
             }
 
             foreach (var namedPaths in listNamedPaths)
             {
                 var replicateName = namedPaths.Key;
 
-                // check if the document already has a replicate with this name
-                int indexChrom;
-                ChromatogramSet chromatogram;
-                if (!_doc.Settings.MeasuredResults.TryGetChromatogramSet(replicateName,
-                                                                         out chromatogram, out indexChrom))
+                if (!checkAllReplicates)
                 {
-                    listNewNamedPaths.Add(namedPaths);
+                    // check if the document already has a replicate with this name
+                    int indexChrom;
+                    ChromatogramSet chromatogram;
+                    if (!_doc.Settings.MeasuredResults.TryGetChromatogramSet(replicateName,
+                        out chromatogram, out indexChrom))
+                    {
+                        listNewNamedPaths.Add(namedPaths);
+                        continue;
+                    }
+                    else
+                    {
+                        // We are appending to an existing replicate in the document.
+                        // We will remove files that are already associated with the replicate
+                        // Get the files imported in this replicate
+                        chromatFilePaths =
+                            new HashSet<MsDataFileUri>(chromatogram.MSDataFilePaths.Select(path => path.ToLower()));
+                    }
                 }
-                else
-                {   
-                    // We are appending to an existing replicate in the document.
-                    // Remove files that are already associated with the replicate
-                    var chromatFilePaths = new HashSet<MsDataFileUri>(chromatogram.MSDataFilePaths.Select(path => path.ToLower()));
 
-                    var filePaths = namedPaths.Value;
-                    var filePathsNotInRepl = new List<MsDataFileUri>(filePaths.Length);
-                    foreach (var fpath in filePaths)
+                var filePaths = namedPaths.Value;
+                var filePathsNotInRepl = new List<MsDataFileUri>(filePaths.Length);
+                foreach (var fpath in filePaths)
+                {
+                    if (chromatFilePaths.Contains(fpath.ToLower()))
                     {
-                        if (chromatFilePaths.Contains(fpath.ToLower()))
+                        if (checkAllReplicates)
                         {
-                            _out.WriteLine(Resources.CommandLine_RemoveImportedFiles__0______1___Note__The_file_has_already_been_imported__Ignoring___, replicateName, fpath);
-                        }
-                        else
-                        {
-                            filePathsNotInRepl.Add(fpath);
-                        }
-                    }
+                            // We are looking at all file paths so get the name of the replicate to which this file belongs.
+                            var chromatogram = _doc.Settings.MeasuredResults.Chromatograms.First(c =>
+                                c.MSDataFilePaths.Any(path => path.ToLower().Equals(fpath.ToLower())));
 
-                    if (filePathsNotInRepl.Count > 0)
-                    {
-                        listNewNamedPaths.Add(new KeyValuePair<string, MsDataFileUri[]>(replicateName,
-                                                                                 filePathsNotInRepl.ToArray()));
+                            replicateName = chromatogram.Name;
+                        }
+
+                        _out.WriteLine(Resources.CommandLine_RemoveImportedFiles__0______1___Note__The_file_has_already_been_imported__Ignoring___, replicateName, fpath);
                     }
+                    else
+                    {
+                        filePathsNotInRepl.Add(fpath);
+                    }
+                }
+
+                if (filePathsNotInRepl.Count > 0)
+                {
+                    listNewNamedPaths.Add(new KeyValuePair<string, MsDataFileUri[]>(replicateName,
+                        filePathsNotInRepl.ToArray()));
                 }
             }
-            return true;
         }
 
         private bool ImportDataFilesWithAppend(IList<KeyValuePair<string, MsDataFileUri[]>> listNamedPaths, LockMassParameters lockMassParameters,
@@ -1370,7 +1609,7 @@ namespace pwiz.Skyline
                         _doc.Settings.MeasuredResults.TryGetChromatogramSet(replicateName, out chromatogram, out index);
 
                         string replicateFileString = replicateFile.ToString();
-                        if (chromatogram.MSDataFilePaths.Any(filePath => StringComparer.OrdinalIgnoreCase.Equals(filePath, replicateFileString)))
+                        if (chromatogram.MSDataFilePaths.Any(filePath => StringComparer.OrdinalIgnoreCase.Equals(filePath.ToString(), replicateFileString)))
                         {
                             _out.WriteLine(Resources.CommandLine_ImportResultsFile__0______1___Note__The_file_has_already_been_imported__Ignoring___, replicateName, replicateFile);
                         }
@@ -1492,10 +1731,21 @@ namespace pwiz.Skyline
         private bool ImportSearchInternal(CommandArgs commandArgs, ref SrmDocument doc)
         {
             var progressMonitor = new CommandProgressMonitor(_out, new ProgressStatus(String.Empty));
+            IrtStandard irtStandard = null;
+            if (!string.IsNullOrEmpty(commandArgs.IrtStandardName))
+            {
+                irtStandard = Settings.Default.IrtStandardList.FirstOrDefault(standard => Equals(standard.Name, commandArgs.IrtStandardName));
+                if (irtStandard == null)
+                {
+                    _out.WriteLine(Resources.CommandLine_ImportSearchInternal_The_iRT_standard_name___0___is_invalid_, commandArgs.IrtStandardName);
+                    return false;
+                }
+            }
             var import = new ImportPeptideSearch
             {
                 SearchFilenames = commandArgs.SearchResultsFiles.ToArray(),
-                CutoffScore = commandArgs.CutoffScore.GetValueOrDefault()
+                CutoffScore = commandArgs.CutoffScore.GetValueOrDefault(),
+                IrtStandard = irtStandard
             };
 
             // Build library
@@ -1521,6 +1771,64 @@ namespace pwiz.Skyline
             doc = import.AddDocumentSpectralLibrary(doc, docLibSpec);
             if (doc == null)
                 return false;
+
+            // Add iRTs
+            if (import.IrtStandard != null && !import.IrtStandard.Name.Equals(IrtStandard.EMPTY.Name))
+            {
+                ImportPeptideSearch.GetLibIrtProviders(import.DocLib, import.IrtStandard, progressMonitor,
+                    out var irtProviders, out var autoStandards, out var cirtPeptides);
+                int? numCirt = null;
+                if (cirtPeptides.Length >= RCalcIrt.MIN_PEPTIDES_COUNT)
+                {
+                    if (!commandArgs.NumCirts.HasValue)
+                    {
+                        _out.WriteLine(Resources.CommandLine_ImportSearchInternal__0__must_be_set_when_using_CiRT_peptides_, CommandArgs.ARG_IMPORT_PEPTIDE_SEARCH_NUM_CIRTS.Name);
+                        return false;
+                    }
+                    numCirt = commandArgs.NumCirts.Value;
+                }
+                else if (ReferenceEquals(import.IrtStandard, IrtStandard.AUTO))
+                {
+                    switch (autoStandards.Count)
+                    {
+                        case 0:
+                            import.IrtStandard = new IrtStandard(XmlNamedElement.NAME_INTERNAL, null, null, IrtPeptidePicker.Pick(irtProviders, 10));
+                            break;
+                        case 1:
+                            import.IrtStandard = autoStandards[0];
+                            break;
+                        default:
+                            _out.WriteLine(Resources.CommandLine_ImportSearchInternal_iRT_standard_set_to__0___but_multiple_iRT_standards_were_found__iRT_standard_must_be_set_explicitly_,
+                                IrtStandard.AUTO.Name);
+                            return false;
+                    }
+                }
+
+                var standardPeptides = import.IrtStandard.Peptides.ToArray();
+                ProcessedIrtAverages processed;
+                try
+                {
+                    processed = ImportPeptideSearch.ProcessRetentionTimes(numCirt, irtProviders, standardPeptides,
+                        cirtPeptides, IrtRegressionType.DEFAULT, progressMonitor, out var newStandardPeptides);
+                    if (newStandardPeptides != null)
+                        standardPeptides = newStandardPeptides;
+                }
+                catch (Exception x)
+                {
+                    _out.WriteLine(TextUtil.LineSeparate(
+                        Resources.BuildPeptideSearchLibraryControl_AddIrtLibraryTable_An_error_occurred_while_processing_retention_times_,
+                        x.Message));
+                    return false;
+                }
+
+                var processedDbIrtPeptides = processed.DbIrtPeptides.ToArray();
+                if (processedDbIrtPeptides.Any())
+                {
+                    ImportPeptideSearch.CreateIrtDb(docLibSpec.FilePath, processed, standardPeptides,
+                        processed.CanRecalibrateStandards(standardPeptides) && commandArgs.RecalibrateIrts, IrtRegressionType.DEFAULT, progressMonitor);
+                }
+                doc = ImportPeptideSearch.AddRetentionTimePredictor(doc, docLibSpec);
+            }
 
             if (!import.VerifyRetentionTimes(import.GetFoundResultsFiles().Select(f => f.Path)))
             {
@@ -1602,7 +1910,7 @@ namespace pwiz.Skyline
             // Add files to the end in the order they were given.
             foreach (var filePath in commandArgs.DocImportPaths)
             {
-                _out.WriteLine(Resources.SkylineWindow_ImportFiles_Importing__0__, Path.GetFileName(filePath));
+                _out.WriteLine(Resources.SkylineWindow_ImportFiles_Importing__0__, Path.GetFileName(PathEx.SafePath(filePath)));
 
                 using (var reader = new StreamReader(filePath))
                 {
@@ -1632,7 +1940,16 @@ namespace pwiz.Skyline
 
         private bool AddDecoys(CommandArgs commandArgs)
         {
-            if (_doc.PeptideGroups.Contains(g => g.IsDecoy))
+            if (!commandArgs.AddDecoys)
+            {
+                if (!commandArgs.DiscardDecoys || !_doc.MoleculeGroups.Contains(g => g.IsDecoy))
+                    return true;
+
+                ModifyDocument(RefinementSettings.RemoveDecoys);
+                _out.WriteLine(Resources.CommandLine_AddDecoys_Decoys_discarded);
+                return true;
+            }
+            if (!commandArgs.DiscardDecoys && _doc.PeptideGroups.Contains(g => g.IsDecoy))
             {
                 _out.WriteLine(Resources.CommandLine_AddDecoys_Error__Attempting_to_add_decoys_to_document_with_decoys_);
                 return false;
@@ -1648,6 +1965,7 @@ namespace pwiz.Skyline
             {
                 _out.WriteLine(Resources.CommandLine_AddDecoys_Error_The_number_of_peptides,
                     numDecoys, numComparableGroups, CommandArgs.ARG_DECOYS_ADD.ArgumentText, CommandArgs.ARG_VALUE_DECOYS_ADD_SHUFFLE);
+                return false;
             }
             var refineAddDecoys = new RefinementSettings
             {
@@ -1655,8 +1973,16 @@ namespace pwiz.Skyline
                 NumberOfDecoys = numDecoys
             };
             int peptidesBefore = _doc.PeptideCount;
+            int decoyPeptideCount = 0;
+            if (commandArgs.DiscardDecoys)
+                decoyPeptideCount = _doc.MoleculeGroups.Where(g => g.IsDecoy).Sum(g => g.MoleculeCount);
+
             ModifyDocument(d => refineAddDecoys.GenerateDecoys(d));
-            _out.WriteLine(Resources.CommandLine_AddDecoys_Added__0__decoy_peptides_using___1___method, _doc.PeptideCount - peptidesBefore, commandArgs.AddDecoysType);
+
+            if (decoyPeptideCount > 0)
+                _out.WriteLine(Resources.CommandLine_AddDecoys_Decoys_discarded);
+            _out.WriteLine(Resources.CommandLine_AddDecoys_Added__0__decoy_peptides_using___1___method,
+                _doc.PeptideCount - (peptidesBefore - decoyPeptideCount), commandArgs.AddDecoysType);
             return true;
         }
 
@@ -1687,11 +2013,13 @@ namespace pwiz.Skyline
                 ModelAndFeatures modelAndFeatures;
                 if (commandArgs.IsCreateScoringModel)
                 {
-                    modelAndFeatures = CreateScoringModel(commandArgs.ReintegratModelName,
+                    modelAndFeatures = CreateScoringModel(commandArgs.ReintegrateModelName,
+                        commandArgs.ReintegrateModelType,
                         commandArgs.ExcludeFeatures,
                         commandArgs.IsDecoyModel,
                         commandArgs.IsSecondBestModel,
                         commandArgs.IsLogTraining,
+                        commandArgs.ReintegrateModelCutoffs,
                         commandArgs.ReintegrateModelIterationCount);
 
                     if (modelAndFeatures == null)
@@ -1700,7 +2028,7 @@ namespace pwiz.Skyline
                 else
                 {
                     PeakScoringModelSpec scoringModel;
-                    if (!Settings.Default.PeakScoringModelList.TryGetValue(commandArgs.ReintegratModelName, out scoringModel))
+                    if (!Settings.Default.PeakScoringModelList.TryGetValue(commandArgs.ReintegrateModelName, out scoringModel))
                     {
                         _out.WriteLine(Resources.CommandLine_ReintegratePeaks_Error__Unknown_peak_scoring_model___0__);
                         return false;
@@ -1732,31 +2060,21 @@ namespace pwiz.Skyline
             }
         }
 
-        private ModelAndFeatures CreateScoringModel(string modelName, IList<IPeakFeatureCalculator> excludeFeatures,
-            bool decoys, bool secondBest, bool log, int? modelIterationCount)
+        private ModelAndFeatures CreateScoringModel(string modelName, CommandArgs.ScoringModelType modelType,
+            IList<IPeakFeatureCalculator> excludeFeatures, bool decoys, bool secondBest, bool log,
+            IList<double> modelCutoffs, int? modelIterationCount)
         {
             _out.WriteLine(Resources.CommandLine_CreateScoringModel_Creating_scoring_model__0_, modelName);
 
             try
             {
                 // Create new scoring model using the default calculators.
-                var calcs = MProphetPeakScoringModel.GetDefaultCalculators(_doc);
-                if (excludeFeatures.Count > 0)
-                {
-                    if (excludeFeatures.Count == 1)
-                        _out.WriteLine(Resources.CommandLine_CreateScoringModel_Excluding_feature_score___0__, excludeFeatures.First().Name);
-                    else
-                    {
-                        _out.WriteLine(Resources.CommandLine_CreateScoringModel_Excluding_feature_scores_);
-                        foreach (var featureCalculator in excludeFeatures)
-                            _out.WriteLine(@"    " + featureCalculator.Name);
-                    }
-                    // Excluding any requested by the caller
-                    calcs = calcs.Where(c => excludeFeatures.All(c2 => c.GetType() != c2.GetType())).ToArray();
-                }
-                var scoringModel = new MProphetPeakScoringModel(modelName, null as LinearModelParams, calcs, decoys, secondBest);
+                var scoringModel = CreateUntrainedScoringModel(modelName, modelType, excludeFeatures, decoys, secondBest);
+                if (scoringModel == null)
+                    return null;
                 var progressMonitor = new CommandProgressMonitor(_out, new ProgressStatus(String.Empty));
-                var targetDecoyGenerator = new TargetDecoyGenerator(scoringModel, _doc.GetPeakFeatures(calcs, progressMonitor));
+                var targetDecoyGenerator = new TargetDecoyGenerator(scoringModel,
+                    _doc.GetPeakFeatures(scoringModel.PeakFeatureCalculators, progressMonitor));
 
                 // Get scores for target and decoy groups.
                 List<IList<float[]>> targetTransitionGroups;
@@ -1784,8 +2102,8 @@ namespace pwiz.Skyline
 
                 // Train the model.
                 string documentPath = log ? DocContainer.DocumentFilePath : null;
-                scoringModel = (MProphetPeakScoringModel)scoringModel.Train(targetTransitionGroups,
-                    decoyTransitionGroups, targetDecoyGenerator, initialParams, modelIterationCount, secondBest, true, progressMonitor, documentPath);
+                scoringModel = (PeakScoringModelSpec) scoringModel.Train(targetTransitionGroups,
+                    decoyTransitionGroups, targetDecoyGenerator, initialParams, modelCutoffs, modelIterationCount, secondBest, true, progressMonitor, documentPath);
 
                 Settings.Default.PeakScoringModelList.SetValue(scoringModel);
 
@@ -1808,6 +2126,36 @@ namespace pwiz.Skyline
                 _out.WriteLine(x);
                 return null;
             }
+        }
+
+        private PeakScoringModelSpec CreateUntrainedScoringModel(string modelName, CommandArgs.ScoringModelType modelType,
+            IList<IPeakFeatureCalculator> excludeFeatures, bool decoys, bool secondBest)
+        {
+            if (modelType == CommandArgs.ScoringModelType.Skyline)
+            {
+                return new LegacyScoringModel(modelName, LegacyScoringModel.DEFAULT_PARAMS, decoys, secondBest);
+            }
+
+            var calcs = modelType == CommandArgs.ScoringModelType.SkylineML
+                ? LegacyScoringModel.AnalyteFeatureCalculators  // Assume unlabeled for now
+                : MProphetPeakScoringModel.GetDefaultCalculators(_doc);
+            if (excludeFeatures.Count > 0)
+            {
+                if (excludeFeatures.Count == 1)
+                    _out.WriteLine(Resources.CommandLine_CreateScoringModel_Excluding_feature_score___0__,
+                        excludeFeatures.First().Name);
+                else
+                {
+                    _out.WriteLine(Resources.CommandLine_CreateScoringModel_Excluding_feature_scores_);
+                    foreach (var featureCalculator in excludeFeatures)
+                        _out.WriteLine(@"    " + featureCalculator.Name);
+                }
+
+                // Excluding any requested by the caller
+                calcs = calcs.Where(c => excludeFeatures.All(c2 => c.GetType() != c2.GetType())).ToArray();
+            }
+
+            return new MProphetPeakScoringModel(modelName, (LinearModelParams) null, calcs, decoys, secondBest);
         }
 
         private bool Reintegrate(ModelAndFeatures modelAndFeatures, bool isOverwritePeaks, bool logTraining)
@@ -1849,7 +2197,7 @@ namespace pwiz.Skyline
         public void ImportFasta(string path, bool keepEmptyProteins)
         {
             _out.WriteLine(Resources.CommandLine_ImportFasta_Importing_FASTA_file__0____, Path.GetFileName(path));
-            using (var readerFasta = new StreamReader(path))
+            using (var readerFasta = new StreamReader(PathEx.SafePath(path)))
             {
                 var progressMonitor = new CommandProgressMonitor(_out, new ProgressStatus(string.Empty));
                 IdentityPath selectPath;
@@ -2132,24 +2480,9 @@ namespace pwiz.Skyline
             if (string.IsNullOrWhiteSpace(name))
                 name = Path.GetFileNameWithoutExtension(path);
 
-            LibrarySpec librarySpec;
+            var librarySpec = LibrarySpec.CreateFromPath(name, path);
 
-            string ext = Path.GetExtension(path);
-            if (Equals(ext, BiblioSpecLiteSpec.EXT))
-                librarySpec = new BiblioSpecLiteSpec(name, path);
-            else if (Equals(ext, BiblioSpecLibSpec.EXT))
-                librarySpec = new BiblioSpecLibSpec(name, path);
-            else if (Equals(ext, XHunterLibSpec.EXT))
-                librarySpec = new XHunterLibSpec(name, path);
-            else if (Equals(ext, NistLibSpec.EXT))
-                librarySpec = new NistLibSpec(name, path);
-            else if (Equals(ext, SpectrastSpec.EXT))
-                librarySpec = new SpectrastSpec(name, path);
-            else if (Equals(ext, MidasLibSpec.EXT))
-                librarySpec = new MidasLibSpec(name, path);
-            else if (Equals(ext, EncyclopeDiaSpec.EXT))
-                librarySpec = new EncyclopeDiaSpec(name, path);
-            else
+            if (librarySpec == null)
             {
                 _out.WriteLine(Resources.CommandLine_SetLibrary_Error__The_file__0__is_not_a_supported_spectral_library_file_format_, path);
                 return false;
@@ -3062,7 +3395,6 @@ namespace pwiz.Skyline
             do
             {
                 docOriginal= docContainer.Document;
-
                 var listChromatograms = new List<ChromatogramSet>();
 
                 if (docOriginal.Settings.HasResults)
@@ -3203,12 +3535,21 @@ namespace pwiz.Skyline
                     }
                     else
                     {
-                        _statusWriter.WriteLine(
-                            Resources.PanoramaPublishHelper_PublishDocToPanorama_An_error_occurred_on_the_Panorama_server___0___importing_the_file_, 
-                            panoramaEx.ServerUrl);
-                        _statusWriter.WriteLine(
-                            Resources.PanoramaPublishHelper_PublishDocToPanorama_Error_details_can_be_found_at__0_,
-                            panoramaEx.JobUrl);
+                        if (panoramaEx.JobCancelled)
+                        {
+                            _statusWriter.WriteLine(Resources.PanoramaPublishHelper_PublishDocToPanorama_Document_import_was_cancelled_on_the_Panorama_server__0__, panoramaEx.ServerUrl);
+                            _statusWriter.WriteLine(Resources.PanoramaPublishHelper_PublishDocToPanorama_Job_details_can_be_found_at__0__, panoramaEx.JobUrl);
+                        }
+                        else
+                        {
+                            _statusWriter.WriteLine(
+                                Resources
+                                    .PanoramaPublishHelper_PublishDocToPanorama_An_error_occurred_on_the_Panorama_server___0___importing_the_file_,
+                                panoramaEx.ServerUrl);
+                            _statusWriter.WriteLine(
+                                Resources.PanoramaPublishHelper_PublishDocToPanorama_Error_details_can_be_found_at__0_,
+                                panoramaEx.JobUrl);
+                        }
                     }
                 }
             }
@@ -3465,6 +3806,7 @@ namespace pwiz.Skyline
         private readonly DateTime _waitStart;
         private DateTime _lastOutput;
         private string _lastMessage;
+        private string _lastWarning;
 
         private readonly TextWriter _out;
         private Thread _waitingThread;
@@ -3561,6 +3903,12 @@ namespace pwiz.Skyline
             else if (writeMessage)
             {
                 _out.WriteLine(status.Message);
+            }
+
+            if (!string.IsNullOrEmpty(status.WarningMessage) && !Equals(_lastWarning, status.WarningMessage))
+            {
+                _out.WriteLine(status.WarningMessage);
+                _lastWarning = status.WarningMessage;
             }
 
             if (writeMessage)

@@ -281,7 +281,7 @@ namespace pwiz.SkylineTest.MSstats.Normalization
                     Assert.AreEqual(expectedResult.TValue, foldChange.TValue, 1E-5);
                     Assert.AreEqual(expectedResult.PValue, foldChange.PValue, 1E-5);
                 }
-                else if (!SrmDocument.IsSpecialNonProteomicTestDocNode(protein)) // Avoid the special small molecule test nodes
+                else
                 {
                     Assert.IsNull(groupComparisonResult);
                     var standardPeptides = protein.Molecules.Where(mol => null != mol.GlobalStandardType).ToArray();
@@ -299,7 +299,6 @@ namespace pwiz.SkylineTest.MSstats.Normalization
                     Console.Write(MSG_SKIPPING_SMALLMOLECULE_TEST_VERSION);
                     return null;
                 }
-                TestSmallMolecules = false;  // We test small molecules explicitly
             }
             using (var stream = OpenTestFile(asSmallMolecules ? "BrudererSubsetAsSmallMolecules.sky" : "BrudererSubset.sky"))
             {

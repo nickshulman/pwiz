@@ -86,13 +86,19 @@ namespace pwiz.Skyline.Controls.Graphs
             }
             UpdateAll();
         }
+        protected override void OnClosing(CancelEventArgs e)
+        {
+            _cancellationTokenSource.Cancel();
+
+            base.OnClosing(e);
+        }
+
         protected override void OnHandleDestroyed(EventArgs e)
         {
             if (SkylineWindow != null)
             {
                 SkylineWindow.DocumentUIChangedEvent -= SkylineWindowOnDocumentUIChangedEvent;
             }
-            _cancellationTokenSource.Cancel();
             _rowUpdateQueue.Dispose();
             base.OnHandleDestroyed(e);
         }
@@ -562,6 +568,7 @@ namespace pwiz.Skyline.Controls.Graphs
         public ComboBox ComboAlignAgainst { get { return comboAlignAgainst; } }
         public DataGridView DataGridView { get { return dataGridView1; } }
         public ZedGraphControl RegressionGraph { get { return zedGraphControl; } }
+        public SplitContainer Splitter { get { return splitContainer1; } }
 
         #endregion
     }

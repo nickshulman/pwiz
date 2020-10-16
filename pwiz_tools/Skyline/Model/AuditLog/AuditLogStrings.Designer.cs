@@ -268,6 +268,15 @@ namespace pwiz.Skyline.Model.AuditLog {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Error when loading document&apos;s audit log: {0}..
+        /// </summary>
+        public static string AuditLogException_Error_when_loading_document_audit_log__0 {
+            get {
+                return ResourceManager.GetString("AuditLogException_Error_when_loading_document_audit_log__0", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Clear audit log.
         /// </summary>
         public static string AuditLogForm__clearLogButton_Click_Clear_audit_log {
@@ -392,7 +401,7 @@ namespace pwiz.Skyline.Model.AuditLog {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Audit log is corrupted. Audit log entry time stamps and indices should be decreasing.
+        ///   Looks up a localized string similar to Audit log is corrupted. Audit log entry time stamps and indices should be in order. Entry number {0} timestamp {1:G} occurs before entry number {2} timestamp {3:G}..
         /// </summary>
         public static string AuditLogList_Validate_Audit_log_is_corrupted__Audit_log_entry_time_stamps_and_indices_should_be_decreasing {
             get {
@@ -492,6 +501,15 @@ namespace pwiz.Skyline.Model.AuditLog {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Changed quantitative on {0}.
+        /// </summary>
+        public static string changed_quantitative {
+            get {
+                return ResourceManager.GetString("changed_quantitative", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to {0} changed to {1}.
         /// </summary>
         public static string changed_to {
@@ -569,6 +587,15 @@ namespace pwiz.Skyline.Model.AuditLog {
         public static string drag_and_dropped_nodes {
             get {
                 return ResourceManager.GetString("drag_and_dropped_nodes", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Edited ion mobility library {0} ({1}).
+        /// </summary>
+        public static string edited_ion_mobility_library {
+            get {
+                return ResourceManager.GetString("edited_ion_mobility_library", resourceCulture);
             }
         }
         
@@ -1106,6 +1133,24 @@ namespace pwiz.Skyline.Model.AuditLog {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Added complete permutations of isotope modification &apos;{0}&apos;.
+        /// </summary>
+        public static string permuted_isotope_label_complete {
+            get {
+                return ResourceManager.GetString("permuted_isotope_label_complete", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Added simple permutations of isotope modification &apos;{0}&apos;.
+        /// </summary>
+        public static string permuted_isotope_label_simple {
+            get {
+                return ResourceManager.GetString("permuted_isotope_label_simple", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Picked child {0} for {1}.
         /// </summary>
         public static string picked_child {
@@ -1475,7 +1520,7 @@ namespace pwiz.Skyline.Model.AuditLog {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Excluding peptide {0} in calibration of replicate {1}.
+        ///   Looks up a localized string similar to Excluding peptide {0} replicate {1} from calibration curve.
         /// </summary>
         public static string set_excluded_standard {
             get {
@@ -1484,7 +1529,7 @@ namespace pwiz.Skyline.Model.AuditLog {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Including peptide {0} in calibration of replicate {1}.
+        ///   Looks up a localized string similar to Including peptide {0} replicate {1} in calibration curve.
         /// </summary>
         public static string set_included_standard {
             get {
@@ -1526,6 +1571,15 @@ namespace pwiz.Skyline.Model.AuditLog {
             get {
                 return ResourceManager.GetString("SkylineWindow_AskForLogEntry_The_audit_log_does_not_match_the_current_document__W" +
                         "ould_you_like_to_add_a_log_entry_describing_the_changes_made_to_the_document_", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0} transitions.
+        /// </summary>
+        public static string SkylineWindow_ChangeQuantitative_0_transitions {
+            get {
+                return ResourceManager.GetString("SkylineWindow_ChangeQuantitative_0_transitions", resourceCulture);
             }
         }
         

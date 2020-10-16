@@ -288,7 +288,7 @@ namespace pwiz.Skyline.Model.DocumentContainers
             if (value == null)
                 return string.Empty;
 
-            return DiffNode.ObjectToString(true, value, out _);
+            return DiffNode.ObjectToString(true, value, null, out _);
         }
 
         private void UpdateApplicationSettings(SettingsSnapshot newSettingsSnapshot)

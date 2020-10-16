@@ -29,6 +29,7 @@ using pwiz.Skyline.Controls;
 using pwiz.Skyline.FileUI.PeptideSearch;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.Irt;
+using pwiz.Skyline.Model.Lib;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
 
@@ -49,6 +50,11 @@ namespace pwiz.Skyline.SettingsUI
         {
             _documentContainer = documentContainer;
 
+            Initialize();
+        }
+
+        public void Initialize()
+        {
             InitializeComponent();
 
             InitializeMs1FilterUI();
@@ -71,7 +77,7 @@ namespace pwiz.Skyline.SettingsUI
         public TransitionSettings TransitionSettings { get { return _documentContainer.Document.Settings.TransitionSettings; } }
         public TransitionFullScan FullScan { get { return TransitionSettings.FullScan; } }
 
-        public IonMobility.UseSpectralLibraryIonMobilityValuesControl UseSpectralLibraryIonMobilityValuesControl { get { return useSpectralLibraryIonMobilityValuesControl; } }
+        public IonMobility.IonMobilityFilteringUserControl IonMobilityFiltering { get { return usercontrolIonMobilityFiltering; } }
 
         public FullScanPrecursorIsotopes PrecursorIsotopesCurrent
         {
@@ -614,6 +620,11 @@ namespace pwiz.Skyline.SettingsUI
             _driverIsolationScheme.AddItem();
         }
 
+        public void EditCurrentIsolationScheme()
+        {
+            _driverIsolationScheme.EditCurrent();
+        }
+
         public void EditIsolationScheme()
         {
             _driverIsolationScheme.EditList();
@@ -777,14 +788,13 @@ namespace pwiz.Skyline.SettingsUI
             set { radioKeepAllTime.Checked = value; }
         }
 
-        public bool UseTimeAroundMs2Ids
-        {
-            get { return radioTimeAroundMs2Ids.Checked; }
-        }
-
         public double TimeAroundMs2Ids
         {
             get { return double.Parse(tbxTimeAroundMs2Ids.Text); }
+        }
+        public double TimeAroundPrediction
+        {
+            get { return double.Parse(tbxTimeAroundPrediction.Text); }
         }
 
         public static void SetAnalyzerType(FullScanMassAnalyzerType analyzerTypeNew,
@@ -880,10 +890,10 @@ namespace pwiz.Skyline.SettingsUI
 
         private void InitializeUseSpectralLibraryIonMobilityUI()
         {
-            useSpectralLibraryIonMobilityValuesControl.InitializeSettings(_documentContainer);
+            usercontrolIonMobilityFiltering.InitializeSettings(_documentContainer);
         }
 
-        public void ModifyOptionsForImportPeptideSearchWizard(ImportPeptideSearchDlg.Workflow workflow)
+        public void ModifyOptionsForImportPeptideSearchWizard(ImportPeptideSearchDlg.Workflow workflow, Library lib)
         {
             var settings = _documentContainer.Document.Settings;
 
@@ -960,18 +970,18 @@ namespace pwiz.Skyline.SettingsUI
             }
 
             // Ask about ion mobility filtering if any IM values in library
-            if (settings.PeptideSettings.Libraries.HasAnyLibraryIonMobilities())
+            if (lib != null && PeptideLibraries.HasIonMobilities(lib, null))
             {
-                useSpectralLibraryIonMobilityValuesControl.Top = groupBoxRetentionTimeToKeep.Bottom + sepMS1FromMS2;
-                useSpectralLibraryIonMobilityValuesControl.InitializeSettings(_documentContainer, true);
-                useSpectralLibraryIonMobilityValuesControl.Width = groupBoxMS1.Width;
-                var adjustedHeight = useSpectralLibraryIonMobilityValuesControl.Bottom + label1.Height; // Add control height plus a margin
+                usercontrolIonMobilityFiltering.Top = groupBoxRetentionTimeToKeep.Bottom + sepMS1FromMS2;
+                usercontrolIonMobilityFiltering.InitializeSettings(_documentContainer, true);
+                usercontrolIonMobilityFiltering.ShowOnlyResolvingPowerControls(groupBoxMS1.Width);
+                var adjustedHeight = usercontrolIonMobilityFiltering.Bottom + label1.Height; // Add control height plus a margin
                 MinimumSize = new Size(MinimumSize.Width, adjustedHeight);
                 Height = adjustedHeight;
             }
             else
             {
-                useSpectralLibraryIonMobilityValuesControl.Visible = false;
+                usercontrolIonMobilityFiltering.Visible = false;
             }
         }
 

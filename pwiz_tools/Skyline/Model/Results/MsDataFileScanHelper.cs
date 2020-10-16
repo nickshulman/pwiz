@@ -31,9 +31,9 @@ namespace pwiz.Skyline.Model.Results
     public class MsDataFileScanHelper : IDisposable
     {
         private ChromSource _chromSource;
-        public MsDataFileScanHelper(Action<MsDataSpectrum[]> successAction, Action<Exception> failureAction)
+        public MsDataFileScanHelper(Action<MsDataSpectrum[]> successAction, Action<Exception> failureAction, bool ignoreZeroIntensityPoints)
         {
-            ScanProvider = new BackgroundScanProvider(successAction, failureAction);
+            ScanProvider = new BackgroundScanProvider(successAction, failureAction, ignoreZeroIntensityPoints);
             SourceNames = new string[Helpers.CountEnumValues<ChromSource>()];
             SourceNames[(int)ChromSource.ms1] = Resources.GraphFullScan_GraphFullScan_MS1;
             SourceNames[(int)ChromSource.fragment] = Resources.GraphFullScan_GraphFullScan_MS_MS;
@@ -67,7 +67,7 @@ namespace pwiz.Skyline.Model.Results
                 var newTimeIntensities = GetTimeIntensities(Source);
                 if (newTimeIntensities != null)
                 {
-                    if (oldTimeIntensities != null)
+                    if (oldTimeIntensities != null && ScanIndex >= 0 && ScanIndex < oldTimeIntensities.Times.Count)
                     {
                         var oldTime = oldTimeIntensities.Times[ScanIndex];
                         ScanIndex = newTimeIntensities.IndexOfNearestTime(oldTime);
@@ -90,12 +90,24 @@ namespace pwiz.Skyline.Model.Results
             return SourceNames[(int) source];
         }
 
-        public MsDataSpectrum[] GetFilteredScans()
+        public MsDataSpectrum[] GetFilteredScans(out double minIonMobilityVal, out double maxIonMobilityVal)
         {
             var fullScans = MsDataSpectra;
             double minIonMobility, maxIonMobility;
             if (Settings.Default.FilterIonMobilityFullScan && GetIonMobilityRange(out minIonMobility, out maxIonMobility, Source))
-                fullScans = fullScans.Where(s => minIonMobility <= s.IonMobility.Mobility && s.IonMobility.Mobility <= maxIonMobility).ToArray();
+            {
+                fullScans = fullScans.Where(s => minIonMobility <= s.IonMobility.Mobility && s.IonMobility.Mobility <= maxIonMobility // im-per-scan case
+                                                 || minIonMobility <= s.MaxIonMobility && maxIonMobility >= s.MinIonMobility // 3-array case
+                ).ToArray();
+            }
+            else
+            {
+                minIonMobility = double.MinValue;
+                maxIonMobility = double.MaxValue;
+            }
+
+            minIonMobilityVal = minIonMobility;
+            maxIonMobilityVal = maxIonMobility;
             return fullScans;
         }
 
@@ -236,11 +248,12 @@ namespace pwiz.Skyline.Model.Results
             private readonly List<IScanProvider> _cachedScanProviders;
             private readonly List<IScanProvider> _oldScanProviders;
             private readonly Thread _backgroundThread;
+            private bool _ignoreZeroIntensityPoints;
 
             private readonly Action<MsDataSpectrum[]> _successAction;
             private readonly Action<Exception> _failureAction;
 
-            public BackgroundScanProvider(Action<MsDataSpectrum[]> successAction, Action<Exception> failureAction)
+            public BackgroundScanProvider(Action<MsDataSpectrum[]> successAction, Action<Exception> failureAction, bool ignoreZeroIntensityPoints)
             {
                 _scanIndexNext = -1;
 
@@ -251,6 +264,7 @@ namespace pwiz.Skyline.Model.Results
 
                 _successAction = successAction;
                 _failureAction = failureAction;
+                _ignoreZeroIntensityPoints = ignoreZeroIntensityPoints;
             }
 
             public MsDataFileUri DataFilePath
@@ -333,7 +347,7 @@ namespace pwiz.Skyline.Model.Results
                         {
                             try
                             {
-                                var msDataSpectra = scanProvider.GetMsDataFileSpectraWithCommonRetentionTime(internalScanIndex); // Get a collection of scans with changing ion mobility but same retention time, or single scan if no ion mobility info
+                                var msDataSpectra = scanProvider.GetMsDataFileSpectraWithCommonRetentionTime(internalScanIndex, _ignoreZeroIntensityPoints); // Get a collection of scans with changing ion mobility but same retention time, or single scan if no ion mobility info
                                 _successAction(msDataSpectra);
                             }
                             catch (Exception ex)

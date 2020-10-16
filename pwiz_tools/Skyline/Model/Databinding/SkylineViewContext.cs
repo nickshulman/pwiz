@@ -560,6 +560,7 @@ namespace pwiz.Skyline.Model.Databinding
                     columnsToRemove.Add(PropertyPath.Root.Property("ExplicitCompensationVoltage"));
                     columnsToRemove.Add(PropertyPath.Root.Property("PrecursorConcentration"));
                     columnsToRemove.Add(PropertyPath.Root.Property(nameof(Precursor.AutoSelectTransitions)));
+                    columnsToRemove.Add(PropertyPath.Root.Property(nameof(Precursor.TargetQualitativeIonRatio)));
                     addRoot = true;
                 }
                 else if (columnDescriptor.PropertyType == typeof(Entities.Transition))
@@ -648,6 +649,11 @@ namespace pwiz.Skyline.Model.Databinding
                 return PropertyPath.Root.Property("Files").LookupAllItems();
             }
 
+            if (rowType == typeof(Protein))
+            {
+                return PropertyPath.Root.Property(nameof(Protein.Results)).LookupAllItems().Property("Value")
+                    .Property(nameof(Replicate.Files));
+            }
             return PropertyPath.Root.Property("Results").LookupAllItems();
         }
         // ReSharper restore LocalizableElement
@@ -803,17 +809,18 @@ namespace pwiz.Skyline.Model.Databinding
             return column;
         }
 
-        private static readonly IDictionary<string, Tuple<int, int>> _imageIndexes =
-            new Dictionary<string, Tuple<int, int>>
-            {
-                // ReSharper disable RedundantNameQualifier
-                {typeof(Entities.Protein).FullName, Tuple.Create(1, 6)},
-                {typeof(Entities.Peptide).FullName, Tuple.Create(2, 7)},
-                {typeof(Entities.Precursor).FullName, Tuple.Create(3, 3)},
-                {typeof(Entities.Transition).FullName, Tuple.Create(4, 4)},
-                {typeof(Entities.Replicate).FullName, Tuple.Create(5, 5)}
-                // ReSharper restore RedundantNameQualifier
-            };
+        private static readonly IDictionary<string, Tuple<int, int>> _imageIndexes = new Dictionary<string, Tuple<int, int>>
+        {
+            // ReSharper disable RedundantNameQualifier
+            // ReSharper disable AssignNullToNotNullAttribute
+            {typeof (Entities.Protein).FullName, Tuple.Create(1, 6)},
+            {typeof (Entities.Peptide).FullName, Tuple.Create(2, 7)},
+            {typeof (Entities.Precursor).FullName, Tuple.Create(3, 3)},
+            {typeof (Entities.Transition).FullName, Tuple.Create(4, 4)},
+            {typeof (Entities.Replicate).FullName, Tuple.Create(5, 5)}
+            // ReSharper restore AssignNullToNotNullAttribute
+            // ReSharper restore RedundantNameQualifier
+        };
 
         public override Image[] GetImageList()
         {

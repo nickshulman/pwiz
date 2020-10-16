@@ -107,13 +107,13 @@
     <value>複数のペプチドまたはタンパク質にわたるこのグループ比較内での複数の比較に対して調整されているP値。Benjamini-Hochberg法を用いて調整が行われています。</value>
   </data>
   <data name="Accuracy">
-    <value>算出される濃度に対するアナライトの濃度比（繰り返し測定で指定）</value>
+    <value>アナライトの濃度と算出される濃度の比率（繰り返し測定で指定）</value>
   </data>
   <data name="AcquiredTime">
     <value>質量分析計が前回この繰り返し測定データの取得を開始した日時です。1.1より古いバージョンでファイルがインポートされた場合には#N/Aとなります。</value>
   </data>
   <data name="AnalyteConcentration">
-    <value>外標準サンプルまたは、QCサンプルにスパイクしたアナライトの既知量です。</value>
+    <value>外部標準試料または、QC試料にスパイクしたアナライトの既知量です。</value>
   </data>
   <data name="Area">
     <value>トランジションピークの曲線下の面積（AUC）からバックグラウンドを引いたものです。</value>
@@ -123,6 +123,12 @@
   </data>
   <data name="AreaRatio">
     <value>最初の内標準標識のタイプでの該当するトランジションに対するこのトランジションの Area比です。バージョン0.7より前では、これは常にLight/Heavyであり、 Heavyトランジション上に表示されていました。</value>
+  </data>
+  <data name="AttributeAreaProportion">
+    <value>同じ属性面積率を持つドキュメント内における、正規化された面積と他のすべてのペプチドまたは分子の正規化面積の和に対する比率です。</value>
+  </data>
+  <data name="AttributeGroupId">
+    <value>属性面積率の算出においてペプチドまたは分子のグループ化に影響します。</value>
   </data>
   <data name="AutoSelectMolecules">
     <value>真の場合、Skylineは現在の設定に基づき分子リストから自動的に分子を追加または削除します。</value>
@@ -160,6 +166,9 @@
   <data name="BatchName">
     <value>この繰り返し測定が属するバッチの名前です。特定の繰り返し測定に対する検量線は、バッチ名が同じである外部標準のサブセットを用いて計算されます。</value>
   </data>
+  <data name="BatchTargetQualitativeIonRatio">
+    <value>この繰り返し測定と同じバッチ名を持つ外部標準繰り返し測定のサブセットを使用して計算されたターゲット定性イオン比です。</value>
+  </data>
   <data name="BeginPos">
     <value>ペプチドに含まれるタンパク質シークエンス内の最初の（N末端）アミノ酸の位置です。 タンパク質シークエンスがない場合には#N/Aとなります。  </value>
   </data>
@@ -171,7 +180,7 @@
   </data>
   <data name="CalculatedConcentration">
     <value>アナライト濃度は、以下のいずれかによって計算されます：  
-1. 校正曲線を使用する（[ペプチド設定] &gt; [定量] に[回帰式に合わせる]が指定されている場合）  
+1. 校正曲線を使用する（[ペプチド設定] &gt; [定量]に[回帰式に合わせる]が指定されている場合）  
 2. 内標準（またはサロゲート）に対する比率を使用し、内標準物質の濃度を乗じる</value>
   </data>
   <data name="CalibrationCurve">
@@ -286,8 +295,13 @@
   <data name="ExcludeFromCalibration">
     <value>繰り返し測定結果をペプチドの校正曲線計算から除外すべきか。</value>
   </data>
+  <data name="ExplicitAnalyteConcentration">
+    <value>この特定の繰り返し測定内のこの特定の分子またはペプチド濃度です。
+明示的アナライト濃度が指定されていない場合は、アナライトの濃度は繰り返し測定に
+ペプチドまたは分子の濃度乗数を乗じたものと推定されます。</value>
+  </data>
   <data name="ExplicitCollisionEnergy">
-    <value>ターゲットのSRMメソッドまたはトランジションリストで使用することが望まれる衝突エネルギーです。他のすべてのモデルと最適化されたライブラリの値を無効にします。</value>
+    <value>ターゲットのSRMメソッドまたはトランジションリストで使用することが望まれる正確な衝突エネルギーです。他のすべてのモデルや最適化されたライブラリ、プリカーサー当たりの明示的な値を無効にします。</value>
   </data>
   <data name="ExplicitCompensationVoltage">
     <value>ターゲットのSRMメソッドまたはトランジションリストで使用することが望まれる補償電圧（イオン移動度フィルタ）です。他のすべてのモデルと最適化されたライブラリの値を無効にします。</value>
@@ -333,6 +347,9 @@
   </data>
   <data name="FileName">
     <value>データをインポートしたファイルの名前</value>
+  </data>
+  <data name="FilePath">
+    <value>データのインポート元のファイルのフルパスとファイル名です。</value>
   </data>
   <data name="Files">
     <value>ファイル</value>
@@ -436,6 +453,9 @@
   <data name="LibraryName">
     <value>MS/MSスペクトルライブラリのスペクトルがプリカーサーイオンに関連付けられている場合には、MS/MSスペクトルライブラリの名前となります。</value>
   </data>
+  <data name="LibraryProbabilityScore">
+    <value>スペクトラルライブラリの構築に使用される入力ファイルの中で、この一致に割り当てられている確率スコアです。</value>
+  </data>
   <data name="LibraryRank">
     <value>トランジションフィルタ設定で許可されるすべてのトランジションでの、このトランジションのLibraryIntensityに基づく順位です。ユーザーインターフェイスでは[(rank #)]と表示されます。</value>
   </data>
@@ -484,6 +504,9 @@
   <data name="MaxBestRetentionTime">
     <value>プリカーサーBestRetentionTimeの最大値</value>
   </data>
+  <data name="MaxDetectionQValue" xml:space="preserve">
+    <value>mProphetモデルの適用後に、選択された各ターゲットのピークに割り当てられるfalse discovery rate（FDR）スコアの最大値です。</value>
+  </data>
   <data name="MaxEndTime">
     <value>プリカーサーの全トランジションEndTimeの最大値です。手動で編集されない限り、プリカーサーのすべてのトランジションでは同じ積分の境界を使用します。</value>
   </data>
@@ -498,6 +521,9 @@
   </data>
   <data name="MaxRetentionTime">
     <value>トランジションのRetentionTimeの最大値</value>
+  </data>
+  <data name="Median">
+    <value>メジアン</value>
   </data>
   <data name="Mean">
     <value>平均</value>
@@ -535,6 +561,9 @@
   <data name="MeanTotalAreaRatio">
     <value>  プリカーサーのTotalAreaRatioの平均値</value>
   </data>
+  <data name="MedianDetectionQValue" xml:space="preserve">
+    <value>mProphetモデルの適用後に、選択された各ターゲットのピークに割り当てられるfalse discovery rate（FDR）スコアのメジアンです。</value>
+  </data>
   <data name="Min">
     <value>最小値</value>
   </data>
@@ -547,6 +576,9 @@
   <data name="MinRetentionTime">
     <value>トランジションのRetentionTimeの最小値</value>
   </data>
+  <data name="MinDetectionQValue" xml:space="preserve">
+    <value>mProphetモデルの適用後に、選択された各ターゲットのピークに割り当てられるfalse discovery rate（FDR）スコアの最小値です。</value>
+  </data>
   <data name="MinStartTime">
     <value>プリカーサーの全トランジションStartTimeの最小値です。手動で編集されない限り、プリカーサーのすべてのトランジションでは同じ積分の境界を使用します。</value>
   </data>
@@ -554,7 +586,7 @@
     <value>ペプチドシークエンスにおけるmissed cleavage siteの数</value>
   </data>
   <data name="ModifiedAreaProportion">
-    <value>同じ無修飾シーケンスを持つこのタンパク質と繰り返し測定にある、すべてのペプチド結果の和を除算したこのペプチド結果を正規化した面積です。</value>
+    <value>このペプチドの結果の正規化された面積を、同じタンパク質および繰り返し測定された同じ非修飾シークエンスを持つすべてのペプチドの結果の合計で割ったものです。</value>
   </data>
   <data name="ModifiedSequence">
     <value>システインアルキル化など、アミノ酸のすべての修飾を含んだペプチドのシークエンス。 （例：AGLC[+57]QTFVYGGC[+57]R）</value>
@@ -583,6 +615,11 @@
   <data name="MoleculeFormula">
     <value>質量分析計で測定される荷電されていない非標識の分子の原子化学式。</value>
   </data>
+  <data name="MoleculeListAbundance">
+    <value>分子リストの存在量を表す数値です。この数値は、分子リストの下にある正規化面積を平均して得られます。
+面積は分子定量化設定で指定される正規化メソッドに従って正規化されます。
+この繰り返し測定中に値のないトランジションがある場合には、正規化メソッドが標識に対する比率でない限り、分子リスト存在量は空白となります。</value>
+  </data>
   <data name="MoleculeListLocator">
     <value>ドキュメント内の分子リストの一意の識別子です。これは「MoleculeGroup:」で始まります。</value>
     <comment>Do not translate "MoleculeGroup:".</comment>
@@ -595,6 +632,12 @@
   </data>
   <data name="MoleculeList">
     <value>Skylineドキュメントにある分子のグループ化です。</value>
+  </data>
+  <data name="MoleculeListResult">
+    <value>分子リスト結果</value>
+  </data>
+  <data name="MoleculeListResults">
+    <value>分子リスト結果</value>
   </data>
   <data name="MoleculeLists">
     <value>Skylineドキュメントにある分子すべてのグループ化の最上位セットです。</value>
@@ -732,15 +775,23 @@
   <data name="Precursor">
     <value>プリカーサー</value>
   </data>
+  <data name="PrecursorAccuracy">
+    <value>プリカーサーで指定されたプリカーサー濃度に対するプリカーサー計算濃度の比率です。</value>
+  </data>
   <data name="PrecursorAdduct">
     <value>プリカーサーを作成するよう分子に適用される付加物です。</value>
+  </data>
+  <data name="PrecursorCalculatedConcentration">
+    <value>アイソトポログ反応曲線を使用して計算されたプリカーサー結果の濃度です。</value>
   </data>
   <data name="PrecursorCharge">
     <value>  プリカーサーイオンと関連付けられた電荷。</value>
   </data>
   <data name="PrecursorConcentration">
-    <value>
-      このプリカーサーが試料にスパイクされた濃度です。</value>
+    <value>このプリカーサーが試料にスパイクされた濃度です。これを使用してアイソトポログ反応曲線を作成します。</value>
+  </data>
+  <data name="PrecursorExplicitCollisionEnergy" xml:space="preserve">
+    <value>ターゲットのSRMメソッドまたはトランジションリストで使用することが望まれる正確な衝突エネルギーです。すべてのモデルや最適化ライブラリ値を無効にします。トランジション当たりの明示的な衝突エネルギーによって無効になることもあります。</value>
   </data>
   <data name="PrecursorIonFormula">
     <value>プリカーサーイオン式です。</value>
@@ -755,6 +806,11 @@
   <data name="PrecursorNeutralFormula">
     <value>プリカーサーイオン式です。この用語は非推奨で、代わりに「PrecursorIonFomula」を使用してください。</value>
   </data>
+  <data name="PrecursorNormalizedArea">
+    <value>プリカーサー結果の正規化面積。
+これはペプチドの正規化メソッドに従い正規化されたプリカーサー結果の合計面積と同じです。
+ペプチド正規化メソッドが「なし」または標識に対する比率である場合、プリカーサー正規化面積はプリカーサー合計面積と同じです。</value>
+  </data>
   <data name="PrecursorMz">
     <value>プリカーサーイオンの質量電荷比（m/z）。</value>
   </data>
@@ -766,6 +822,9 @@
   </data>
   <data name="PrecursorPeakFoundRatio">
     <value>ペプチドのトランジション総数に対する、ピークが測定されたトランジションの比です。ペプチドツリー表示でのピークインジケーターは、 緑＝1.0（すべてのトランジションを積分）、オレンジ＞＝0.5、赤＜0.5に該当します。</value>
+  </data>
+  <data name="PrecursorQuantification">
+    <value>プリカーサー結果を定量化するためのアイソトポログ反応曲線の使用に関する値です。</value>
   </data>
   <data name="PrecursorReplicateNote">
     <value>結果グリッドを使用すると表示される、プリカーサーの結果セットに関連付けられているフリーテキストのメモ。</value>
@@ -819,6 +878,12 @@
   <data name="Protein">
     <value>タンパク質</value>
   </data>
+  <data name="ProteinAbundance">
+    <value>特定の繰り返し測定のタンパク質の存在量を表す数値です。
+タンパク質存在量は、タンパク質の下にあるすべてのトランジションの正規化面積の平均を使用して計算されます。
+トランジション面積はペプチド定量設定で指定される正規化メソッドに従って正規化されます。
+この繰り返し測定中にピーク面積のないトランジションがある場合には、正規化メソッドが標識に比例していない限り、タンパク質リスト存在量は空白となります。</value>
+  </data>
   <data name="ProteinAccession">
     <value>タンパク質アクセッション番号</value>
   </data>
@@ -841,6 +906,12 @@
   <data name="ProteinPreferredName">
     <value>タンパク質推奨名</value>
   </data>
+  <data name="ProteinResult">
+    <value>タンパク質結果</value>
+  </data>
+  <data name="ProteinResults">
+    <value>タンパク質結果</value>
+  </data>
   <data name="Proteins">
     <value>タンパク質</value>
   </data>
@@ -855,6 +926,14 @@
   </data>
   <data name="QuadraticCoefficient">
     <value>二次回帰におけるx2乗項の係数</value>
+  </data>
+  <data name="QualitativeIonRatio">
+    <value>この分子またはペプチドの下にある定量トランジションのピーク面積の合計に対する非定量トランジションのピーク面積の合計の比率です。</value>
+  </data>
+  <data name="QualitativeIonRatioStatus">
+    <value>定性イオン比をどのようにターゲットイオン比にどのように比較するかの説明です。
+定量設定で定性イオン比閾値が指定されている場合は、定性イオン比ステータスは「合格」または「不合格」となります。
+定性イオン比閾値が指定されていない場合は、定性イオン比ステータスはターゲット定性イオン比と比較して「等しい」、「低」、「高」のいずれかとなります。</value>
   </data>
   <data name="Quantification">
     <value>アナライトを定量するための校正曲線や正規化メソッドの使用に関連する値。</value>
@@ -899,7 +978,8 @@
     <value>繰り返し測定</value>
   </data>
   <data name="ReplicateCalibrationCurve">
-    <value>プリカーサー濃度と単一繰り返し測定を用いて作成した校正曲線です。</value>
+    <value>この繰り返し測定と同じバッチ名を持つ繰り返し測定を用いて作成した検量線です。
+プリカーサー濃度がこのペプチドのプリカーサーで指定されている場合、検量線はアイソトポログ反応曲線となります。</value>
   </data>
   <data name="ReplicateCount">
     <value>有効な強度を持ち、結果に寄与する繰り返し測定の回数</value>
@@ -949,9 +1029,6 @@
 通常、結果ファイル名で終わりますが、ファイル名が繰り返し測定内で一意でない場合にはフルパスなど追加属性が含まれる場合があります。</value>
     <comment>Do not translate "ResultFile:/".</comment>
   </data>
-  <data name="Results">
-    <value>結果</value>
-  </data>
   <data name="RetentionTime">
     <value>トランジションのピークの最大強度での保持時間。</value>
   </data>
@@ -966,7 +1043,7 @@
 外部標準の希釈倍率は一般的に1で、不明の試料は、装置の定量可能範囲に収まるようにするため1を上回る倍率で希釈された可能性があります。</value>
   </data>
   <data name="SampleName">
-    <value>サンプルが複数あるwiffファイルからデータがインポートされた場合のサンプル名です。もしくは、他のファイルタイプの場合には再度ファイル名を入力します。</value>
+    <value>試料が複数あるwiffファイルからデータがインポートされた場合の試料名です。もしくは、他のファイルタイプの場合には再度ファイル名を入力します。</value>
   </data>
   <data name="SampleType">
     <value>試料のタイプです。以下のいずれかとなります。
@@ -1027,6 +1104,9 @@ Double Blank（ダブルブランク）</value>
   </data>
   <data name="StdevTotalAreaRatio">
     <value>プリカーサーのTotalAreaNormalized値の標準偏差。</value>
+  </data>
+  <data name="TargetQualitativeIonRatio">
+    <value>校正から除外されていない外部標準繰り返し測定全体での定性イオン比の平均値です。</value>
   </data>
   <data name="ThreeLetterCodes">
     <value>「C[CAM]」のように修飾部分が3文字コードで言い表される、修飾シークエンスです。修飾部分に3文字コードがない場合、代わりにフルネームが使用されます。</value>
@@ -1153,6 +1233,9 @@ Double Blank（ダブルブランク）</value>
   <data name="InChiKey" xml:space="preserve">
     <value>標準分子ID</value>
   </data>
+  <data name="KEGG" xml:space="preserve">
+    <value>標準分子ID</value>
+  </data>
   <data name="SMILES" xml:space="preserve">
     <value>標準分子ID</value>
   </data>
@@ -1197,5 +1280,11 @@ Double Blank（ダブルブランク）</value>
   </data>
   <data name="AuditLogDetailRowId">
     <value>詳しいメッセージのID</value>
+  </data>
+  <data name="SampleId" xml:space="preserve">
+    <value>試料を参照するフリーテキスト識別子（複数のファイルで共有可能）。インポートされた結果ファイルの「試料ID」属性から読み込まれます。</value>
+  </data>
+  <data name="InstrumentSerialNumber" xml:space="preserve">
+    <value>インポートされた結果ファイルから読み込まれた装置のシリアル番号</value>
   </data>
 </root>

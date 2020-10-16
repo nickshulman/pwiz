@@ -32,6 +32,7 @@ using pwiz.Skyline.Model;
 using pwiz.Skyline.Model.AuditLog;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.DocSettings.Extensions;
+using pwiz.Skyline.Model.Irt;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.SettingsUI;
 using pwiz.Skyline.Util;
@@ -84,6 +85,7 @@ namespace pwiz.Skyline.FileUI.PeptideSearch
         private readonly int tbxFastaHeightDifference;
 
         public bool ContainsFastaContent { get { return !string.IsNullOrWhiteSpace(tbxFasta.Text); } }
+        public bool IsDDASearch { get; set; }
 
         public ImportFastaSettings ImportSettings
         {
@@ -93,7 +95,7 @@ namespace pwiz.Skyline.FileUI.PeptideSearch
         public class ImportFastaSettings
         {
             public ImportFastaSettings(ImportFastaControl control) : this(control.Enzyme, control.MaxMissedCleavages,
-                control.FastFile, control.FastaText, control.DecoyGenerationMethod, control.NumDecoys,
+                control.FastaFile, control.FastaText, control.DecoyGenerationMethod, control.NumDecoys,
                 control.AutoTrain)
             {
             }
@@ -191,7 +193,7 @@ namespace pwiz.Skyline.FileUI.PeptideSearch
             set { cbAutoTrain.Checked = value; }
         }
 
-        public string FastFile { get; private set; }
+        public string FastaFile { get; private set; }
         public string FastaText { get; private set; }
 
         private void browseFastaBtn_Click(object sender, EventArgs e)
@@ -227,7 +229,7 @@ namespace pwiz.Skyline.FileUI.PeptideSearch
             try
             {
                 var fileInfo = new FileInfo(fastaFilePath);
-                if (fileInfo.Length > MAX_FASTA_TEXTBOX_LENGTH)
+                if (IsDDASearch || fileInfo.Length > MAX_FASTA_TEXTBOX_LENGTH)
                 {
                     _fastaFile = true;
                     tbxFasta.Text = fastaFilePath;
@@ -238,7 +240,7 @@ namespace pwiz.Skyline.FileUI.PeptideSearch
                     tbxFasta.Text = GetFastaFileContent(fastaFilePath);
                 }
 
-                FastFile = fastaFilePath;
+                FastaFile = fastaFilePath;
             }
             catch (Exception x)
             {
@@ -284,7 +286,7 @@ namespace pwiz.Skyline.FileUI.PeptideSearch
             return doc.PeptideTransitions.Any(nodeTran => nodeTran.Transition.IonType == IonType.precursor);
         }
 
-        public bool ImportFasta()
+        public bool ImportFasta(IrtStandard irtStandard)
         {
             var settings = DocumentContainer.Document.Settings;
             var peptideSettings = settings.PeptideSettings;
@@ -319,10 +321,10 @@ namespace pwiz.Skyline.FileUI.PeptideSearch
                 var docCurrent = DocumentContainer.Document;
                 // If the document has precursor transitions already, then just trust the user
                 // knows what they are doing, and this document is already set up for MS1 filtering
-                if (HasPrecursorTransitions(docCurrent))
+                if (HasPrecursorTransitions(docCurrent)&& !IsDDASearch)
                     return true;
 
-                if (docCurrent.PeptideCount == 0)
+                if (docCurrent.PeptideCount == 0|| IsDDASearch)
                 {
                     MessageDlg.Show(WizardForm, TextUtil.LineSeparate(Resources.ImportFastaControl_ImportFasta_The_document_does_not_contain_any_peptides_,
                                                                       Resources.ImportFastaControl_ImportFasta_Please_import_FASTA_to_add_peptides_to_the_document_));
@@ -350,19 +352,23 @@ namespace pwiz.Skyline.FileUI.PeptideSearch
                 if (!_fastaFile)
                 {
                     FastaText = tbxFasta.Text;
+                    PasteError error = null;
                     // Import FASTA as content
                     using (var longWaitDlg = new LongWaitDlg(DocumentContainer) {Text = Resources.ImportFastaControl_ImportFasta_Insert_FASTA})
                     {
                         var docImportFasta = docNew;
                         longWaitDlg.PerformWork(WizardForm, 1000, longWaitBroker =>
                         {
-                            docImportFasta = ImportFastaHelper.AddFasta(docImportFasta, longWaitBroker, ref selectedPath, out newPeptideGroups);
+                            docImportFasta = ImportFastaHelper.AddFasta(docImportFasta, longWaitBroker, ref selectedPath, out newPeptideGroups, out error);
                         });
                         docNew = docImportFasta;
                     }
                     // Document will be null if there was an error
                     if (docNew == null)
+                    {
+                        ImportFastaHelper.ShowFastaError(error);
                         return false;
+                    }
                 }
                 else
                 {
@@ -405,6 +411,19 @@ namespace pwiz.Skyline.FileUI.PeptideSearch
                 // Document will be null if user was given option to keep or remove empty proteins and pressed cancel
                 if (docNew == null)
                     return false;
+
+                // Add iRT standards if not present
+                if (irtStandard != null && irtStandard.HasDocument)
+                {
+                    var standardMap = new TargetMap<bool>(irtStandard.Peptides.Select(pep => new KeyValuePair<Target, bool>(pep.ModifiedTarget, true)));
+                    var docStandards = new TargetMap<bool>(docNew.Peptides
+                        .Where(nodePep => standardMap.ContainsKey(nodePep.ModifiedTarget)).Select(nodePep =>
+                            new KeyValuePair<Target, bool>(nodePep.ModifiedTarget, true)));
+                    if (irtStandard.Peptides.Any(pep => !docStandards.ContainsKey(pep.ModifiedTarget)))
+                    {
+                        docNew = irtStandard.ImportTo(docNew);
+                    }
+                }
 
                 if (AutoTrain)
                 {

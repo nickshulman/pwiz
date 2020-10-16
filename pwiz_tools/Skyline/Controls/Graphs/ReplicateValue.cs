@@ -51,6 +51,16 @@ namespace pwiz.Skyline.Controls.Graphs
 
         protected abstract string DisambiguationPrefix { get; }
 
+        public static ReplicateValue FromPersistedString(SrmSettings settings, string persistedString)
+        {
+            if (string.IsNullOrEmpty(persistedString))
+            {
+                return null;
+            }
+            return GetAllReplicateValues(settings)
+                .FirstOrDefault(value => value.ToPersistedString() == persistedString);
+        }
+
         public class Annotation : ReplicateValue
         {
             public Annotation(AnnotationDef annotationDef)
@@ -78,6 +88,24 @@ namespace pwiz.Skyline.Controls.Graphs
             protected override string DisambiguationPrefix
             {
                 get { return Resources.Annotation_DisambiguationPrefix_Annotation__; }
+            }
+
+            protected bool Equals(Annotation other)
+            {
+                return AnnotationDef.Name.Equals(other.AnnotationDef.Name);
+            }
+
+            public override bool Equals(object obj)
+            {
+                if (ReferenceEquals(null, obj)) return false;
+                if (ReferenceEquals(this, obj)) return true;
+                if (obj.GetType() != GetType()) return false;
+                return Equals((Annotation) obj);
+            }
+
+            public override int GetHashCode()
+            {
+                return AnnotationDef.Name.GetHashCode();
             }
         }
 
@@ -111,6 +139,24 @@ namespace pwiz.Skyline.Controls.Graphs
             protected override string DisambiguationPrefix
             {
                 get { return Resources.Property_DisambiguationPrefix_Property__; }
+            }
+
+            protected bool Equals(Property other)
+            {
+                return PropertyName == other.PropertyName;
+            }
+
+            public override bool Equals(object obj)
+            {
+                if (ReferenceEquals(null, obj)) return false;
+                if (ReferenceEquals(this, obj)) return true;
+                if (obj.GetType() != GetType()) return false;
+                return Equals((Property) obj);
+            }
+
+            public override int GetHashCode()
+            {
+                return PropertyName.GetHashCode();
             }
         }
 

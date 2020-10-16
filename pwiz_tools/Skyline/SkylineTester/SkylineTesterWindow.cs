@@ -373,8 +373,8 @@ namespace SkylineTester
                     tutorialTests.AddRange(GetTestInfos(tutorialDll, "NoLocalizationAttribute", "Tutorial"));
                 foreach (var test in tutorialTests.ToArray())
                 {
-                    // Remove any tutorial tests we've hacked for small molecule testing - not of interest to localizers
-                    if (test.Contains("AsSmallMolecule"))
+                    // Remove any tutorial tests we've hacked for extra testing (extending test name not to end with Tutorial) - not of interest to localizers
+                    if (!test.EndsWith("Tutorial"))
                         tutorialTests.Remove(test);
                 }
                 var tutorialNodes = new TreeNode[tutorialTests.Count];
@@ -1002,6 +1002,7 @@ namespace SkylineTester
 
                 // Tutorials
                 pauseTutorialsScreenShots,
+                pauseTutorialsCoverShots,
                 pauseTutorialsDelay,
                 pauseTutorialsSeconds,
                 tutorialsDemoMode,
@@ -1014,7 +1015,6 @@ namespace SkylineTester
                 runLoops,
                 runLoopsCount,
                 runIndefinitely,
-                testsAddSmallMoleculeNodes,
                 repeat,
                 randomize,
                 recordAuditLogs,
@@ -1047,7 +1047,6 @@ namespace SkylineTester
                 qualityPassDefinite,
                 qualityPassCount,
                 qualityPassIndefinite,
-                qualityAddSmallMoleculeNodes,
                 pass0,
                 pass1,
                 qualityAllTests,
@@ -1061,7 +1060,6 @@ namespace SkylineTester
                 nightlyRunPerfTests,
                 nightlyRandomize,
                 nightlyRepeat,
-                nightlyTestSmallMolecules,
                 nightlyBranch,
                 nightlyBranchUrl,
                 nightlyRoot,
@@ -1427,7 +1425,6 @@ namespace SkylineTester
         public Label            NightlyRoot                 { get { return nightlyRoot; } }
         public ComboBox         NightlyRunDate              { get { return nightlyRunDate; } }
         public ComboBox         NightlyRepeat          { get { return nightlyRepeat; } }
-        public CheckBox         NightlyTestSmallMolecules { get { return nightlyTestSmallMolecules; } }
         public CheckBox         NightlyRunPerfTests         { get { return nightlyRunPerfTests; } }
         public DateTimePicker   NightlyStartTime            { get { return nightlyStartTime; } }
         public Label            NightlyTestName             { get { return nightlyTestName; } }
@@ -1440,6 +1437,7 @@ namespace SkylineTester
         public SplitContainer   OutputSplitContainer        { get { return outputSplitContainer; } }
         public CheckBox         Pass0                       { get { return pass0; } }
         public CheckBox         Pass1                       { get { return pass1; } }
+        public RadioButton      PauseTutorialsCoverShots   { get { return pauseTutorialsCoverShots; } }
         public RadioButton      PauseTutorialsScreenShots   { get { return pauseTutorialsScreenShots; } }
         public NumericUpDown    PauseTutorialsSeconds       { get { return pauseTutorialsSeconds; } }
         public RadioButton      QualityChooseTests          { get { return qualityChooseTests; } }
@@ -1447,7 +1445,6 @@ namespace SkylineTester
         public NumericUpDown    QualityPassCount            { get { return qualityPassCount; } }
         public RadioButton      QualityPassDefinite         { get { return qualityPassDefinite; } }
         public Label            QualityTestName             { get { return qualityTestName; } }
-        public CheckBox         QualityAddSmallMoleculeNodes { get { return qualityAddSmallMoleculeNodes; } }
         public CheckBox         QualityRunSmallMoleculeVersions { get { return qualityRunSmallMoleculeVersions; } }
         public WindowThumbnail  QualityThumbnail            { get { return qualityThumbnail; } }
         public bool             QualityMemoryGraphType      { get { return radioQualityMemory.Checked; } }
@@ -1468,7 +1465,6 @@ namespace SkylineTester
         public RadioButton      SkipCheckedTests            { get { return skipCheckedTests; } }
         public CheckBox         StartSln                    { get { return startSln; } }
         public TabControl       Tabs                        { get { return tabs; } }
-        public CheckBox         TestsAddSmallMoleculeNodes { get { return testsAddSmallMoleculeNodes; } }
         public CheckBox         TestsRunSmallMoleculeVersions { get {  return testsRunSmallMoleculeVersions;} }
         public CheckBox         TestsRandomize              { get { return randomize; } }
         public CheckBox         TestsRecordAuditLogs        { get { return recordAuditLogs; } }

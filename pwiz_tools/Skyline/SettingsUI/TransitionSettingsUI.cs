@@ -31,6 +31,7 @@ using pwiz.Skyline.Model;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.Optimization;
 using pwiz.Skyline.Properties;
+using pwiz.Skyline.SettingsUI.IonMobility;
 using pwiz.Skyline.Util;
 
 namespace pwiz.Skyline.SettingsUI
@@ -38,18 +39,19 @@ namespace pwiz.Skyline.SettingsUI
     public partial class TransitionSettingsUI : FormEx, IMultipleViewProvider
     {
 // ReSharper disable InconsistentNaming
-        public enum TABS { Prediction, Filter, Library, Instrument, FullScan }
+        public enum TABS { Prediction, Filter, Library, Instrument, FullScan, IonMobility }
 // ReSharper restore InconsistentNaming
 
         public class PredictionTab : IFormView {}
         public class FilterTab : IFormView {}
+        public class IonMobilityTab : IFormView { }
         public class LibraryTab : IFormView {}
         public class InstrumentTab : IFormView {}
         public class FullScanTab : IFormView {}
 
         private static readonly IFormView[] TAB_PAGES =
         {
-            new PredictionTab(), new FilterTab(), new LibraryTab(), new InstrumentTab(), new FullScanTab()
+            new PredictionTab(), new FilterTab(), new LibraryTab(), new InstrumentTab(), new FullScanTab(), new IonMobilityTab()
         };
 
         private readonly SkylineWindow _parent;
@@ -186,7 +188,11 @@ namespace pwiz.Skyline.SettingsUI
             else if (ModeUI == SrmDocument.DOCUMENT_TYPE.small_molecules)
                 tabControlPeptidesSmallMols.SelectedIndex = 1;
 
+            // Initialise ion mobility filtering settings
+            ionMobilityFilteringControl.InitializeSettings(_parent);
+
             DoIsolationSchemeChanged();
+            cbxTriggeredAcquisition.Checked = Instrument.TriggeredAcquisition;
         }
 
         /// <summary>
@@ -244,12 +250,14 @@ namespace pwiz.Skyline.SettingsUI
         }
 
         private FullScanSettingsControl FullScanSettingsControl { get; set; }
+        public IonMobilityFilteringUserControl IonMobilityControl { get { return ionMobilityFilteringControl; } }
 
         public TransitionPrediction Prediction { get { return _transitionSettings.Prediction; } }
         public TransitionFilter Filter { get { return _transitionSettings.Filter; } }
         public TransitionLibraries Libraries { get { return _transitionSettings.Libraries; } }
         public TransitionInstrument Instrument { get { return _transitionSettings.Instrument; } }
         public TransitionFullScan FullScan { get { return _transitionSettings.FullScan; } }
+        public TransitionIonMobilityFiltering IonMobility { get { return _transitionSettings.IonMobilityFiltering; } }
         public TABS? TabControlSel { get; set; }
 
         public FullScanAcquisitionMethod AcquisitionMethod
@@ -534,7 +542,8 @@ namespace pwiz.Skyline.SettingsUI
             }
 
             TransitionInstrument instrument = new TransitionInstrument(minMz,
-                maxMz, isDynamicMin, mzMatchTolerance, maxTrans, maxInclusions, minTime, maxTime);
+                    maxMz, isDynamicMin, mzMatchTolerance, maxTrans, maxInclusions, minTime, maxTime)
+                .ChangeTriggeredAcquisition(cbxTriggeredAcquisition.Checked);
             Helpers.AssignIfEquals(ref instrument, Instrument);
 
             // Validate and store full-scan settings
@@ -605,8 +614,13 @@ namespace pwiz.Skyline.SettingsUI
 
             Helpers.AssignIfEquals(ref fullScan, FullScan);
 
+            if (!IonMobilityControl.ValidateIonMobilitySettings(helper, out var ionMobilityFiltering))
+                return;
+
+            Helpers.AssignIfEquals(ref ionMobilityFiltering, IonMobility);
+
             TransitionSettings settings = new TransitionSettings(prediction,
-                filter, libraries, integration, instrument, fullScan);
+                filter, libraries, integration, instrument, fullScan, ionMobilityFiltering);
 
             // Only update, if anything changed
             if (!Equals(settings, _transitionSettings))
@@ -1035,6 +1049,11 @@ namespace pwiz.Skyline.SettingsUI
             FullScanSettingsControl.AddIsolationScheme();
         }
 
+        public void EditCurrentIsolationScheme()
+        {
+            FullScanSettingsControl.EditCurrentIsolationScheme();
+        }
+
         public void EditIsolationScheme()
         {
             FullScanSettingsControl.EditIsolationScheme();
@@ -1247,5 +1266,10 @@ namespace pwiz.Skyline.SettingsUI
                 textSmallMoleculeIonTypes.Text = TransitionFilter.ToStringSmallMoleculeIonTypes(smallMolIons, true);
         }
 
+        public bool TriggeredAcquisition
+        {
+            get { return cbxTriggeredAcquisition.Checked; }
+            set { cbxTriggeredAcquisition.Checked = value; }
+        }
     }
 }

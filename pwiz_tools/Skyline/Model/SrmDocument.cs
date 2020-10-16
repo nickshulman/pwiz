@@ -53,7 +53,6 @@ using System.Xml;
 using System.Xml.Schema;
 using System.Xml.Serialization;
 using pwiz.Common.SystemUtil;
-using pwiz.ProteomeDatabase.API;
 using pwiz.Skyline.Controls.SeqNode;
 using pwiz.Skyline.Model.AuditLog;
 using pwiz.Skyline.Model.DocSettings;
@@ -240,7 +239,7 @@ namespace pwiz.Skyline.Model
             get
             {
                 return TextUtil.FileDialogFilter(Resources.SrmDocument_FILTER_DOC_AND_SKY_ZIP_Skyline_Files, EXT,
-                                                 SrmDocumentSharing.EXT_SKY_ZIP);
+                                                 SrmDocumentSharing.EXT_SKY_ZIP, SkypFile.EXT);
             }    
         }
 
@@ -281,7 +280,7 @@ namespace pwiz.Skyline.Model
             FormatVersion = doc.FormatVersion;
             RevisionIndex = doc.RevisionIndex;
             UserRevisionIndex = doc.UserRevisionIndex;
-            Settings = settings;
+            Settings = doc.UpdateHasHeavyModifications(settings);
             AuditLog = doc.AuditLog;
             DocumentHash = doc.DocumentHash;
             DeferSettingsChanges = doc.DeferSettingsChanges;
@@ -509,6 +508,15 @@ namespace pwiz.Skyline.Model
             {
                 return Peptides.SelectMany(
                     node => node.TransitionGroups.Select(nodeGroup => new PeptidePrecursorPair(node, nodeGroup)));
+            }
+        }
+
+        public IEnumerable<LibKey> MoleculeLibKeys
+        {
+            get
+            {
+                return Molecules.SelectMany(
+                    node => node.TransitionGroups.Select(nodeGroup => nodeGroup.GetLibKey(Settings, node)));
             }
         }
 
@@ -934,7 +942,7 @@ namespace pwiz.Skyline.Model
         /// <returns>A new document revision</returns>
         public SrmDocument ChangeSettingsNoDiff(SrmSettings settingsNew)
         {
-            return new SrmDocument(this, UpdateHasHeavyModifications(settingsNew), doc =>
+            return new SrmDocument(this, settingsNew, doc =>
             {
                 doc.RevisionIndex++;
                 doc.IsProteinMetadataPending = doc.CalcIsProteinMetadataPending();
@@ -1185,6 +1193,7 @@ namespace pwiz.Skyline.Model
                     {
                         PeptideDocNode nodePepModified = nodePep.EnsureMods(
                             docImport.Settings.PeptideSettings.Modifications,
+                            // ReSharper disable once PossibleNullReferenceException
                             docNew.Settings.PeptideSettings.Modifications,
                             staticMods, heavyMods);
                         if (nodePepModified.GlobalStandardType != null)
@@ -1231,17 +1240,19 @@ namespace pwiz.Skyline.Model
                 try
                 {
                     // We have no idea what kind of file this might be, so even reading the first "line" might take a long time. Read a chunk instead.
-                    var probeFile = File.OpenRead(path);
-                    var CHUNKSIZE = 500; // Should be more than adequate to check for "?xml version="1.0" encoding="utf-8"?>< srm_settings format_version = "4.12" software_version = "Skyline (64-bit) " >"
-                    var probeBuf = new byte[CHUNKSIZE];
-                    probeFile.Read(probeBuf, 0, CHUNKSIZE);
-                    probeBuf[CHUNKSIZE - 1] = 0;
-                    var probeString = Encoding.UTF8.GetString(probeBuf);
-                    if (!probeString.Contains(@"<srm_settings"))
+                    using (var probeFile = File.OpenRead(path))
                     {
-                        explained = string.Format(
-                            Resources.SkylineWindow_OpenFile_The_file_you_are_trying_to_open____0____does_not_appear_to_be_a_Skyline_document__Skyline_documents_normally_have_a___1___or___2___filename_extension_and_are_in_XML_format_,
-                            path, EXT, SrmDocumentSharing.EXT_SKY_ZIP);
+                        var CHUNKSIZE = 500; // Should be more than adequate to check for "?xml version="1.0" encoding="utf-8"?>< srm_settings format_version = "4.12" software_version = "Skyline (64-bit) " >"
+                        var probeBuf = new byte[CHUNKSIZE];
+                        probeFile.Read(probeBuf, 0, CHUNKSIZE);
+                        probeBuf[CHUNKSIZE - 1] = 0;
+                        var probeString = Encoding.UTF8.GetString(probeBuf);
+                        if (!probeString.Contains(@"<srm_settings"))
+                        {
+                            explained = string.Format(
+                                Resources.SkylineWindow_OpenFile_The_file_you_are_trying_to_open____0____does_not_appear_to_be_a_Skyline_document__Skyline_documents_normally_have_a___1___or___2___filename_extension_and_are_in_XML_format_,
+                                path, EXT, SrmDocumentSharing.EXT_SKY_ZIP);
+                        }
                     }
                 }
                 catch (Exception e)
@@ -1479,167 +1490,19 @@ namespace pwiz.Skyline.Model
             return ChangeSettings(srmSettings);
         }
 
-        // Note these lead with zzz in hopes of placing them last in any sorting tests
-        public static string TestingNonProteomicBaseName = @"zzzTestingNonProteomic";
-        public static string TestingNonProteomicMoleculeGroupName = TestingNonProteomicBaseName + @"MoleculeGroup";
-        public static string TestingNonProteomicMoleculeName = TestingNonProteomicBaseName + @"Molecule";
-        public static string TestingNonProteomicPrecursorName = TestingNonProteomicBaseName + @"Precursor";
-        public static string TestingNonProteomicFragmentName = TestingNonProteomicBaseName + @"Fragment";
-        public static string TestingNonProteomicFragment2Name = TestingNonProteomicBaseName + @"Fragment2";
-
         public static bool IsConvertedFromProteomicTestDocNode(DocNode node)
         {
             // Is this a node that was created for test purposes by transforming an existing peptide doc?
             return (node != null && node.Annotations.Note != null &&
                     node.Annotations.Note.Contains(RefinementSettings.TestingConvertedFromProteomic));
         }
-
-        public static bool IsSpecialNonProteomicTestDocNode(DocNode node)
-        {
-            if (node != null && node.Annotations.Note != null && node.Annotations.Note.Contains(TestingNonProteomicBaseName))
-                return true;
-            var docNode = node as PeptideGroupDocNode;
-            if (docNode != null)
-            {
-                return Equals(docNode.Name, TestingNonProteomicMoleculeGroupName);
-            }
-            else
-            {
-                var peptideDocNode = node as PeptideDocNode;
-                if(peptideDocNode != null)
-                {
-                    var ion = peptideDocNode.Peptide.CustomMolecule;
-                    return ion != null && Equals(ion.Name, TestingNonProteomicMoleculeName);
-                }
-                else
-                {
-                    var groupDocNode = node as TransitionGroupDocNode;
-                    if (groupDocNode != null)
-                    {
-                        var ion = groupDocNode.TransitionGroup.CustomMolecule;
-                        return ion != null && Equals(ion.Name, TestingNonProteomicMoleculeName);
-                    }
-                    else
-                    {
-                        var transitionDocNode = node as TransitionDocNode;
-                        if (transitionDocNode != null)
-                        {
-                            var ion = transitionDocNode.Transition.CustomIon;
-                            return (ion != null) ? (Equals(ion.Name, TestingNonProteomicFragmentName) || Equals(ion.Name, TestingNonProteomicFragment2Name) ): Equals(transitionDocNode.FragmentIonName, TestingNonProteomicPrecursorName);
-                        }
-                        else
-                        {
-                            return false;
-                        }
-                    }
-                }
-            }
-        }
-
-        /// <summary>
-        /// For automated test of custom molecules in tests that aren't originally designed to test that at all
-        /// Creates a peptide group with a custom molecule, and three transitions - precursor and custom fragments by formula and by mass
-        /// Custom fragment mass needs to be large enough to avoid the default 50 mz lower cutoff in instrument settings
-        /// </summary>
-        public PeptideGroupDocNode CreateNonProteomicTestPeptideGroupDocNode(IEnumerable<PeptideGroupDocNode> existingPeptideGroups)
-        {
-            var pepGroup = new PeptideGroup();
-            var note = Annotations.Merge(new Annotations(TestingNonProteomicBaseName, null, 0));  // Tag it as not needing/wanting canonical small molecule sort - these need to be at the doc end, always
-            var pep = new Peptide(new CustomMolecule(@"C16O4H4", TestingNonProteomicMoleculeName));
-            var peptideGroupDocNodes = existingPeptideGroups as PeptideGroupDocNode[] ?? existingPeptideGroups.ToArray();
-            var autoManageChildren = (!peptideGroupDocNodes.Any()) || peptideGroupDocNodes.First().AutoManageChildren; // Try to look like any existing
-            var hasPrecursorTransitions = (!peptideGroupDocNodes.Any()) || peptideGroupDocNodes.Any(n => n.Molecules.Any(p => p.TransitionGroups.Any(t => t.Transitions.Any(r => r.Transition.IsPrecursor())))); // Try to look like any existing
-            var hasNegativePrecursors = (peptideGroupDocNodes.Any()) && peptideGroupDocNodes.Any(n => n.Molecules.Any(p => p.TransitionGroups.Any(t => t.Transitions.Any(r => r.Transition.IsNegative())))); // Try to look like any existing
-
-            // Make sure the small molecule ion selection settings mimic that of peptides
-            var smallMoleculeIonTypes = new List<IonType>(Settings.TransitionSettings.Filter.SmallMoleculeIonTypes);
-            if (Settings.TransitionSettings.Filter.PeptideIonTypes.Contains(IonType.precursor) !=
-                smallMoleculeIonTypes.Contains(IonType.precursor))
-            {
-                if (smallMoleculeIonTypes.Contains(IonType.precursor))
-                {
-                    smallMoleculeIonTypes.Remove(IonType.precursor);
-                }
-                else
-                {
-                    smallMoleculeIonTypes.Add(IonType.precursor);
-                }
-            }
-            if (Settings.TransitionSettings.Filter.PeptideIonTypes.Any(i => i != IonType.precursor) !=
-                smallMoleculeIonTypes.Any(i => i != IonType.precursor))
-            {
-                if (smallMoleculeIonTypes.Any(i => i != IonType.precursor))
-                {
-                    smallMoleculeIonTypes.Remove(IonType.custom);
-                }
-                else
-                {
-                    smallMoleculeIonTypes.Add(IonType.custom);
-                }
-            }
-            if (!Equals(smallMoleculeIonTypes, Settings.TransitionSettings.Filter.SmallMoleculeIonTypes))
-            {
-                var filter = Settings.TransitionSettings.Filter.ChangeSmallMoleculeIonTypes(smallMoleculeIonTypes);
-                var tranSettings = Settings.TransitionSettings.ChangeFilter(filter);
-                Settings = Settings.ChangeTransitionSettings(tranSettings);
-            }
-            var charge = Adduct.NonProteomicProtonatedFromCharge(hasNegativePrecursors  ? - 1 : 1); // Negative charge for maximum test value, but only if it's likely that results data has negative ion mode scans
-            var tranGroup = new TransitionGroup(pep, charge, IsotopeLabelType.light);
-            var tranPrecursor = new Transition(tranGroup, IonType.precursor, 0, 0, charge, null);
-            // Specify formula
-            var tranFragment = new Transition(tranGroup, charge, 0, new CustomMolecule(@"C2H2O2", TestingNonProteomicFragmentName));
-            // Specify mass
-            var tranFragment2 = new Transition(tranGroup, charge, 0, new CustomMolecule(tranFragment.CustomIon.MonoisotopicMass, tranFragment.CustomIon.AverageMass, TestingNonProteomicFragment2Name));
-
-            // Use any existing isotope distribution info
-            var transitionGroups =
-                peptideGroupDocNodes.SelectMany(node => node.Children.Cast<PeptideDocNode>())
-                    .SelectMany(node => node.Children.Cast<TransitionGroupDocNode>());
-            var transitionGroupDocNodes = transitionGroups.ToArray();
-            TransitionIsotopeDistInfo isotopeDistInfo =
-             ((transitionGroupDocNodes.Any() && transitionGroupDocNodes.First().HasIsotopeDist)) ?
-                TransitionDocNode.GetIsotopeDistInfo(tranFragment, null, transitionGroupDocNodes.First().IsotopeDist) : null;
-            if (isotopeDistInfo == null)
-            {
-                var nodeGroup = transitionGroupDocNodes.Any() ? new TransitionGroupDocNode(tranGroup, null, Settings, null, null, ExplicitTransitionGroupValues.EMPTY, null,
-                                                                  null,
-                                                                  autoManageChildren) :
-                                                                  null;
-                if (nodeGroup != null)
-                    isotopeDistInfo = TransitionDocNode.GetIsotopeDistInfo(tranPrecursor, null, nodeGroup.IsotopeDist);
-            }
-
-            var tranPrecursorNode = new TransitionDocNode(tranPrecursor, note, null,
-                pep.CustomMolecule.GetMass(Settings.TransitionSettings.Prediction.FragmentMassType), new TransitionDocNode.TransitionQuantInfo(isotopeDistInfo, null, true), ExplicitTransitionValues.EMPTY, null);
-            var tranFragmentNode = new TransitionDocNode(tranFragment, note, null,
-                tranFragment.CustomIon.GetMass(Settings.TransitionSettings.Prediction.FragmentMassType), TransitionDocNode.TransitionQuantInfo.DEFAULT, ExplicitTransitionValues.EMPTY, null);
-            var tranFragmentNode2 = new TransitionDocNode(tranFragment2, note, null,
-                tranFragment2.CustomIon.GetMass(Settings.TransitionSettings.Prediction.FragmentMassType), TransitionDocNode.TransitionQuantInfo.DEFAULT, ExplicitTransitionValues.EMPTY, null);
-            var tranGroupNode = new TransitionGroupDocNode(tranGroup, note, Settings, null, null, ExplicitTransitionGroupValues.EMPTY, null,
-                hasPrecursorTransitions ? new[] { tranPrecursorNode, tranFragmentNode, tranFragmentNode2 } : new[] { tranFragmentNode, tranFragmentNode2 }, 
-                autoManageChildren);
-            var pepNode = new PeptideDocNode(pep, Settings, null, null, null, new[] { tranGroupNode }, true);
-            var metadata = new ProteinMetadata(TestingNonProteomicMoleculeGroupName, String.Empty).SetWebSearchCompleted(); 
-            return new PeptideGroupDocNode(pepGroup, note, metadata, new[] { pepNode }, true);
-            
-        }
-
+        
         public SrmDocument AddPeptideGroups(IEnumerable<PeptideGroupDocNode> peptideGroupsNew,
             bool peptideList, IdentityPath to, out IdentityPath firstAdded, out IdentityPath nextAdd)
         {
             // For multiple add operations, make the next addtion at the same location by default
             nextAdd = to;
             var peptideGroupsAdd = peptideGroupsNew.ToList();
-
-            // Code for the purpose of testing custom molecules - normally used only in automated test
-            // Ensures that every non-empty document has a nonproteomic node in order to maximize testing of this new (as of Aug 2014) functionality
-            if (Properties.Settings.Default.TestSmallMolecules &&  // Special test mode?
-                (peptideGroupsAdd.Any() || Molecules.Any()) &&  // Will resulting document be non-empty?
-                Molecules.All(p => p.IsProteomic) && // Does current doc lack non-proteomic nodes?
-                !peptideGroupsAdd.Any(p => p.IsNonProteomic)) // Does list to be added lack non-proteomic nodes?
-            {
-                peptideGroupsAdd.Add(CreateNonProteomicTestPeptideGroupDocNode(peptideGroupsAdd));
-            }
 
             // If there are no new groups to add, as in the case where already added
             // FASTA sequences are pasted, just return this, and a null path.  Callers
@@ -1986,7 +1849,7 @@ namespace pwiz.Skyline.Model
             }
 
             var pepModsNew = pepMods.DeclareExplicitMods(docResult, listGlobalStaticMods, listGlobalHeavyMods);
-            if (ReferenceEquals(pepModsNew, pepMods))
+            if (Equals(pepModsNew, pepMods))
                 return docResult;
 
             // Make sure any newly included modifications are added to the settings
@@ -2105,11 +1968,6 @@ namespace pwiz.Skyline.Model
             else
             {
                 var children = documentReader.Children;
-                if (Properties.Settings.Default.TestSmallMolecules && children.Any() && !children.Any(p => p.IsNonProteomic)) // Make sure there's a custom ion node present in any non-empty document
-                {
-                    // Code for the purpose of testing custom molecules - normally used only in automated test
-                    children = children.Concat(new[] { CreateNonProteomicTestPeptideGroupDocNode(children) }).ToArray();
-                }
 
                 // Make sure peptide standards lists are up to date
                 Settings = Settings.CachePeptideStandards(new PeptideGroupDocNode[0], children);
@@ -2181,7 +2039,6 @@ namespace pwiz.Skyline.Model
             var fileName = Path.GetFileNameWithoutExtension(docPath) + AuditLogList.EXT;
             return Path.Combine(directory, fileName);
         }
-       
 
         public void SerializeToFile(string tempName, string displayName, SkylineVersion skylineVersion, IProgressMonitor progressMonitor)
         {
@@ -2191,14 +2048,7 @@ namespace pwiz.Skyline.Model
                 Formatting = Formatting.Indented
             })
             {
-                writer.WriteStartDocument();
-                writer.WriteStartElement(@"srm_settings");
-                SerializeToXmlWriter(writer, skylineVersion, progressMonitor, new ProgressStatus(Path.GetFileName(displayName)));
-                writer.WriteEndElement();
-                writer.WriteEndDocument();
-                writer.Flush();
-                var hashingStream = (HashingStream) writer.BaseStream;
-                hash = hashingStream.Done();
+                hash = Serialize(writer, displayName, skylineVersion, progressMonitor);
             }
 
             var auditLogPath = GetAuditLogPath(displayName);
@@ -2207,6 +2057,17 @@ namespace pwiz.Skyline.Model
                 AuditLog?.WriteToFile(auditLogPath, hash);
             else if (File.Exists(auditLogPath))
                 Helpers.TryTwice(() => File.Delete(auditLogPath));
+        }
+
+        public string Serialize(XmlTextWriter writer, string displayName, SkylineVersion skylineVersion, IProgressMonitor progressMonitor)
+        {
+            writer.WriteStartDocument();
+            writer.WriteStartElement(@"srm_settings");
+            SerializeToXmlWriter(writer, skylineVersion, progressMonitor, new ProgressStatus(Path.GetFileName(displayName)));
+            writer.WriteEndElement();
+            writer.WriteEndDocument();
+            writer.Flush();
+            return ((HashingStream) writer.BaseStream)?.Done();
         }
 
         public XmlSchema GetSchema()
@@ -2256,12 +2117,10 @@ namespace pwiz.Skyline.Model
         public static double GetCollisionEnergy(SrmSettings settings, PeptideDocNode nodePep,
             TransitionGroupDocNode nodeGroup, TransitionDocNode nodeTran, CollisionEnergyRegression regression, int step)
         {
-            var ce = nodeTran==null // If we're only given a precursor, use the explicit CE of its children if they all agree
-                ? (nodeGroup.Children.Any() && nodeGroup.Children.All( node => ((TransitionDocNode)node).ExplicitValues.CollisionEnergy == ((TransitionDocNode)nodeGroup.Children.First()).ExplicitValues.CollisionEnergy) 
-                    ? ((TransitionDocNode)nodeGroup.Children.First()).ExplicitValues.CollisionEnergy : null)
-                : nodeTran.ExplicitValues.CollisionEnergy;
+            var ce = GetExplicitCollisionEnergy(nodeGroup, nodeTran);
             if (regression != null)
             {
+                // If still no explicit CE value found the CE is calculated using the provided regression, if any.
                 if (!ce.HasValue)
                 {
                     var charge = nodeGroup.TransitionGroup.PrecursorAdduct;
@@ -2271,6 +2130,28 @@ namespace pwiz.Skyline.Model
                 return ce.Value + regression.StepSize * step;
             }
             return ce ?? 0.0;
+        }
+
+        private static double? GetExplicitCollisionEnergy(TransitionGroupDocNode nodeGroup, TransitionDocNode nodeTran)
+        {
+            double? ce = null;
+            if (nodeTran != null)
+            {
+                // Collision Energy explicitly declared at the transition level is taken to be the correct value.
+                ce = nodeTran.ExplicitValues.CollisionEnergy;
+            }
+            else
+            {
+                // If we're only given a precursor, use the explicit CE of its children if they all agree.
+                var ceValues = nodeGroup.Transitions.Select(node =>
+                    node.ExplicitValues.CollisionEnergy).Distinct().ToArray();
+                if (ceValues.Length == 1)
+                {
+                    ce = ceValues[0];
+                }
+            }
+            // If no transition-level declaration then explicitly declared value at the precursor level is used.
+            return ce ?? nodeGroup.ExplicitValues.CollisionEnergy;
         }
 
         public double? GetOptimizedCollisionEnergy(PeptideDocNode nodePep, TransitionGroupDocNode nodeGroup, TransitionDocNode nodeTransition)
@@ -2391,8 +2272,7 @@ namespace pwiz.Skyline.Model
                         continue;
 
                     var optType = chromatogram.OptimizationFunction.OptType;
-                    if (highestTuneLevel < CompensationVoltageParameters.Tuning.fine &&
-                        OptimizationType.compensation_voltage_fine.Equals(optType))
+                    if (OptimizationType.compensation_voltage_fine.Equals(optType))
                     {
                         return CompensationVoltageParameters.Tuning.fine;
                     }
@@ -2472,7 +2352,7 @@ namespace pwiz.Skyline.Model
 
             double? covRough = OptimizationStep<CompensationVoltageRegressionRough>.FindOptimizedValueFromResults(settings,
                 nodePep, nodeGroup, null, OptimizedMethodType.Precursor, GetCompensationVoltageRough);
-            return covRough.HasValue && covRough.Value > 0 ? covRough.Value + regression.StepSizeMedium*step : 0;
+            return covRough.HasValue ? covRough.Value + regression.StepSizeMedium*step : 0;
         }
 
         public static double GetCompensationVoltageFine(SrmSettings settings, PeptideDocNode nodePep,
@@ -2483,7 +2363,7 @@ namespace pwiz.Skyline.Model
 
             double? covMedium = OptimizationStep<CompensationVoltageRegressionMedium>.FindOptimizedValueFromResults(settings,
                 nodePep, nodeGroup, null, OptimizedMethodType.Precursor, GetCompensationVoltageMedium);
-            return covMedium.HasValue && covMedium.Value > 0 ? covMedium.Value + regression.StepSizeFine*step : 0;
+            return covMedium.HasValue ? covMedium.Value + regression.StepSizeFine*step : 0;
         }
 
         public double? GetOptimizedCompensationVoltage(PeptideDocNode nodePep, TransitionGroupDocNode nodeGroup, CompensationVoltageParameters.Tuning tuneLevel)
@@ -2526,6 +2406,65 @@ namespace pwiz.Skyline.Model
 
 
         #endregion
+
+        /// <summary>
+        /// Compares documents, returns null if equal, or a text diff if not
+        /// </summary>
+        public static string EqualsVerbose(SrmDocument expected, SrmDocument actual)
+        {
+            if (ReferenceEquals(null, expected))
+            {
+                return ReferenceEquals(null, actual) ? null : @"expected a null document";
+            }
+            if (ReferenceEquals(null, actual))
+            {
+                return @"expected a non-null document";
+            }
+            if (expected.Equals(actual))
+            {
+                return null;
+            }
+
+            string textExpected;
+            using (var stringWriterExpected = new StringWriter())
+            using (var xmlWriterExpected = new XmlTextWriter(stringWriterExpected){ Formatting = Formatting.Indented })
+            {
+                expected.Serialize(xmlWriterExpected, null, SkylineVersion.CURRENT, null);
+                textExpected = stringWriterExpected.ToString();
+            }
+            string textActual;
+            using (var stringWriterActual = new StringWriter())
+            using (var xmlWriterActual = new XmlTextWriter(stringWriterActual) { Formatting = Formatting.Indented })
+            {
+                actual.Serialize(xmlWriterActual, null, SkylineVersion.CURRENT, null);
+                textActual = stringWriterActual.ToString();
+            }
+
+            var linesExpected = textExpected.Split('\n');
+            var linesActual = textActual.Split('\n');
+            int lineNumber;
+            for (lineNumber = 0; lineNumber < linesExpected.Length && lineNumber < linesActual.Length; lineNumber++)
+            {
+                var lineExpected = linesExpected[lineNumber];
+                var lineActual = linesActual[lineNumber];
+                if (!Equals(lineExpected, lineActual))
+                {
+                    return $@"Expected XML representation of document does not match actual at line {lineNumber}\n" +
+                           $@"Expected line:\n{lineExpected}\n" +
+                           $@"Actual line:\n{lineActual}\n" +
+                           $@"Expected full document:\n{textExpected}\n" +
+                           $@"Actual full document:\n{textActual}\n";
+                }
+            }
+            if (lineNumber < linesExpected.Length || lineNumber < linesActual.Length)
+            {
+                return @"Expected XML representation of document is not the same length as actual\n"+
+                       $@"Expected full document:\n{textExpected}\n"+
+                       $@"Actual full document:\n{textActual}\n";
+            }
+
+            return @"Expected document does not match actual, but the difference does not appear in the XML representation. Difference may be in a library instead.";
+        }
 
         #region object overrides
 

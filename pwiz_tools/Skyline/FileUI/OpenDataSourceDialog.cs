@@ -83,7 +83,7 @@ namespace pwiz.Skyline.FileUI
                 (int) ImageIndex.MyNetworkPlaces);
             unifiNode.Tag = RemoteUrl.EMPTY;
             lookInComboBox.Items.Add(unifiNode);
-            chorusButton.Visible = true;
+            remoteAccountsButton.Visible = true;
             recentDocumentsButton.Visible = false;
 
             TreeNode desktopNode = tv.Nodes.Add(@"Desktop",
@@ -178,7 +178,7 @@ namespace pwiz.Skyline.FileUI
                 {
                     return;
                 }
-                ChorusContentsAvailable();
+                RemoteContentsAvailable();
             };
         }
 
@@ -480,7 +480,7 @@ namespace pwiz.Skyline.FileUI
             listView.Items.AddRange(items.ToArray());
         }
 
-        private void ChorusContentsAvailable()
+        private void RemoteContentsAvailable()
         {
             // ReSharper disable EmptyGeneralCatchClause
             try
@@ -505,13 +505,13 @@ namespace pwiz.Skyline.FileUI
             // ReSharper restore EmptyGeneralCatchClause
         }
 
-        private RemoteAccount GetRemoteAccount(RemoteUrl chorusUrl)
+        private RemoteAccount GetRemoteAccount(RemoteUrl remoteUrl)
         {
             return
                 _remoteAccounts.FirstOrDefault(
-                    chorusAccount =>
-                        Equals(chorusAccount.ServerUrl, chorusUrl.ServerUrl) &&
-                        Equals(chorusAccount.Username, chorusUrl.Username));
+                    remoteAccount =>
+                        Equals(remoteAccount.ServerUrl, remoteUrl.ServerUrl) &&
+                        Equals(remoteAccount.Username, remoteUrl.Username));
         }
 
         private static DateTime? GetSafeDateModified(FileSystemInfo dirInfo)
@@ -662,9 +662,14 @@ namespace pwiz.Skyline.FileUI
 
         private void OpenFolderItem(ListViewItem listViewItem)
         {
+            OpenFolder(((SourceInfo) listViewItem.Tag).MsDataFileUri);
+        }
+
+        private void OpenFolder(MsDataFileUri uri)
+        {
             if (_currentDirectory != null)
                 _previousDirectories.Push(_currentDirectory);
-            CurrentDirectory = ((SourceInfo) listViewItem.Tag).MsDataFileUri;
+            CurrentDirectory = uri;
             _abortPopulateList = true;
         }
 
@@ -741,11 +746,20 @@ namespace pwiz.Skyline.FileUI
                     fileOrDirName = Path.Combine(currentDirectoryPath.FilePath, fileOrDirName);
                     triedAddingDirectory = true;
                 }
-                if (exists && DataSourceUtil.IsDataSource(fileOrDirName))
+
+                if (exists)
                 {
-                    DataSources = new[] {MsDataFileUri.Parse(fileOrDirName)};
-                    DialogResult = DialogResult.OK;
-                    return;
+                    if (DataSourceUtil.IsDataSource(fileOrDirName))
+                    {
+                        DataSources = new[] {MsDataFileUri.Parse(fileOrDirName)};
+                        DialogResult = DialogResult.OK;
+                        return;
+                    }
+                    else if (Directory.Exists(fileOrDirName))
+                    {
+                        OpenFolder(new MsDataFilePath(fileOrDirName));
+                        return;
+                    }
                 }
             }
 // ReSharper disable once EmptyGeneralCatchClause
@@ -883,7 +897,7 @@ namespace pwiz.Skyline.FileUI
             }
         }
 
-        private void chorusButton_Click( object sender, EventArgs e )
+        private void remoteAccountsButton_Click( object sender, EventArgs e )
         {
             CurrentDirectory = RemoteUrl.EMPTY;
         }

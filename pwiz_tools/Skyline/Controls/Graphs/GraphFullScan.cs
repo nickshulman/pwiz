@@ -67,7 +67,7 @@ namespace pwiz.Skyline.Controls.Graphs
             _documentContainer = documentUIContainer;
             _documentContainer.ListenUI(OnDocumentUIChanged);
 
-            _msDataFileScanHelper = new MsDataFileScanHelper(SetSpectra, HandleLoadScanException);
+            _msDataFileScanHelper = new MsDataFileScanHelper(SetSpectra, HandleLoadScanException, false); // We need zero intensity points for proper display
 
             GraphPane.Title.IsVisible = true;
             GraphPane.Legend.IsVisible = false;
@@ -81,6 +81,11 @@ namespace pwiz.Skyline.Controls.Graphs
             spectrumBtn.Visible = false;
             filterBtn.Visible = false;
             lblScanId.Visible = false;  // you might want to show the scan index for debugging
+        }
+
+        public ZedGraphControl ZedGraphControl
+        {
+            get { return graphControl; }
         }
 
         private void SetSpectra(MsDataSpectrum[] spectra)
@@ -99,9 +104,7 @@ namespace pwiz.Skyline.Controls.Graphs
             _maxMz = 0;
             _maxIntensity = 0;
             GetMaxMzIntensity(out _maxMz, out _maxIntensity);
-            _maxIonMobility = 0;
-            foreach (var spectrum in spectra)
-                _maxIonMobility = Math.Max(_maxIonMobility, Math.Abs(spectrum.IonMobility.Mobility ?? 0));
+            GetMaxMobility(out _maxIonMobility);
 
             if (_zoomXAxis)
             {
@@ -236,7 +239,8 @@ namespace pwiz.Skyline.Controls.Graphs
             GraphPane.CurveList.Clear();
             GraphPane.GraphObjList.Clear();
 
-            bool hasIonMobilityDimension = _msDataFileScanHelper.MsDataSpectra.Length > 1;
+            bool hasIonMobilityDimension = _msDataFileScanHelper.MsDataSpectra.Length > 1 ||
+                                           _msDataFileScanHelper.MsDataSpectra.First().IonMobilities != null;
             bool useHeatMap = hasIonMobilityDimension && !Settings.Default.SumScansFullScan;
 
             filterBtn.Visible = spectrumBtn.Visible = hasIonMobilityDimension;
@@ -313,8 +317,20 @@ namespace pwiz.Skyline.Controls.Graphs
             GraphPane.Title.Text = string.Format(Resources.GraphFullScan_CreateGraph__0_____1_F2__min_, _msDataFileScanHelper.FileName, retentionTime);
             if (Settings.Default.ShowFullScanNumber && _msDataFileScanHelper.MsDataSpectra.Any())
             {
-                GraphPane.Title.Text = TextUtil.SpaceSeparate(GraphPane.Title.Text, 
-                    Resources.GraphFullScan_CreateGraph_Scan_Number_, _msDataFileScanHelper.MsDataSpectra[0].Id);
+                if (_msDataFileScanHelper.MsDataSpectra.Length > 1) // For 2-array ion mobility, show the overall range
+                {
+                    GraphPane.Title.Text = TextUtil.SpaceSeparate(GraphPane.Title.Text,
+                        Resources.GraphFullScan_CreateGraph_IM_Scan_Range_, _msDataFileScanHelper.MsDataSpectra[0].Id, @"-", _msDataFileScanHelper.MsDataSpectra.Last().Id); 
+                }
+                else
+                {
+                    var parts = _msDataFileScanHelper.MsDataSpectra[0].Id.Split('.'); // Check for merge.frame.start.stop from 3-array IMS data
+                    var id = parts.Length < 4
+                        ? _msDataFileScanHelper.MsDataSpectra[0].Id
+                        : string.Format(@"{0}.{1}-{0}.{2}", parts[1], parts[2], parts[3]);
+                    GraphPane.Title.Text = TextUtil.SpaceSeparate(GraphPane.Title.Text,
+                        Resources.GraphFullScan_CreateGraph_Scan_Number_, id);
+                }
             }
 
             FireSelectedScanChanged(retentionTime);
@@ -333,10 +349,16 @@ namespace pwiz.Skyline.Controls.Graphs
                 var points = new List<Point3D>(5000);
                 foreach (var scan in _msDataFileScanHelper.MsDataSpectra)
                 {
-                    if (!scan.IonMobility.HasValue)
+                    if (!scan.IonMobility.HasValue && scan.IonMobilities == null)
                         continue;
                     for (int j = 0; j < scan.Mzs.Length; j++)
-                        points.Add(new Point3D(scan.Mzs[j], scan.IonMobility.Mobility.Value, scan.Intensities[j]));
+                    {
+                        double mobilityValue = scan.IonMobilities != null
+                            ? scan.IonMobilities[j]
+                            : scan.IonMobility.Mobility.Value;
+
+                        points.Add(new Point3D(scan.Mzs[j], mobilityValue, scan.Intensities[j]));
+                    }
                 }
                 _heatMapData = new HeatMapData(points);
             }
@@ -408,11 +430,12 @@ namespace pwiz.Skyline.Controls.Graphs
             IList<double> mzs;
             IList<double> intensities;
             bool negativeScan;
-            if (_msDataFileScanHelper.MsDataSpectra.Length == 1)
+            var spectra = _msDataFileScanHelper.MsDataSpectra;
+            if (spectra.Length == 1 && spectra[0].IonMobilities == null)
             {
-                mzs = _msDataFileScanHelper.MsDataSpectra[0].Mzs;
-                intensities = _msDataFileScanHelper.MsDataSpectra[0].Intensities;
-                negativeScan = _msDataFileScanHelper.MsDataSpectra[0].NegativeCharge;
+                mzs = spectra[0].Mzs;
+                intensities = spectra[0].Intensities;
+                negativeScan = spectra[0].NegativeCharge;
             }
             else
             {
@@ -420,7 +443,7 @@ namespace pwiz.Skyline.Controls.Graphs
                 mzs = new List<double>();
                 intensities = new List<double>();
 
-                var fullScans = _msDataFileScanHelper.GetFilteredScans();
+                var fullScans = _msDataFileScanHelper.GetFilteredScans(out var ionMobilityFilterMin, out var ionMobilityFilterMax);
                 negativeScan = fullScans.Any() && fullScans.First().NegativeCharge;
 
                 double minMz;
@@ -428,7 +451,7 @@ namespace pwiz.Skyline.Controls.Graphs
                 while ((minMz = FindMinMz(fullScans, indices)) < double.MaxValue)
                 {
                     mzs.Add(minMz);
-                    intensities.Add(SumIntensities(fullScans, minMz, indices));
+                    intensities.Add(SumIntensities(fullScans, minMz, indices, ionMobilityFilterMin, ionMobilityFilterMax));
                 }
             }
 
@@ -459,14 +482,14 @@ namespace pwiz.Skyline.Controls.Graphs
                 var transition = _msDataFileScanHelper.ScanProvider.Transitions[i];
                 if (transition.Source != _msDataFileScanHelper.Source)
                     continue;
-                var item = new SpectrumItem(pointLists[i], transition.Color, 2);
+                var item = new SpectrumItem(pointLists[i], transition.Color, _msDataFileScanHelper.ScanProvider.Transitions[i].Name, 2);
                 var curveItem = _graphHelper.GraphControl.AddGraphItem(GraphPane, item, false);
                 curveItem.Label.IsVisible = false;
             }
 
             // Add points that aren't associated with a transition.
             {
-                var item = new SpectrumItem(defaultPointList, Color.Gray);
+                var item = new SpectrumItem(defaultPointList, Color.Gray, @"unmatched");
                 var curveItem = _graphHelper.GraphControl.AddGraphItem(GraphPane, item, false);
                 curveItem.Label.IsVisible = false;
             }
@@ -474,7 +497,7 @@ namespace pwiz.Skyline.Controls.Graphs
             // Create curve for all points to provide shading behind stick graph.
             if (_msDataFileScanHelper.MsDataSpectra.Length > 0 && !_msDataFileScanHelper.MsDataSpectra[0].Centroided)
             {
-                var item = new SpectrumShadeItem(allPointList, Color.FromArgb(100, 225, 225, 150));
+                var item = new SpectrumShadeItem(allPointList, Color.FromArgb(100, 225, 225, 150), @"all");
                 var curveItem = _graphHelper.GraphControl.AddGraphItem(GraphPane, item, false);
                 curveItem.Label.IsVisible = false;
             }
@@ -495,7 +518,7 @@ namespace pwiz.Skyline.Controls.Graphs
             return minMz;
         }
 
-        private static double SumIntensities(MsDataSpectrum[] spectra, double mz, int[] indices)
+        private static double SumIntensities(MsDataSpectrum[] spectra, double mz, int[] indices, double ionMobilityFilterMin, double ionMobilityFilterMax)
         {
             double intensity = 0;
             for (int i = 0; i < indices.Length; i++)
@@ -505,6 +528,13 @@ namespace pwiz.Skyline.Controls.Graphs
                 // Sometimes spectra have multiple intensities for a given m/z.  Sum all intensities for that m/z
                 for (indexMz = indices[i]; indexMz < scan.Mzs.Length && scan.Mzs[indexMz] == mz; indexMz++)
                 {
+                    if (scan.IonMobilities != null)
+                    {
+                        if (scan.IonMobilities[indexMz] < ionMobilityFilterMin || scan.IonMobilities[indexMz] > ionMobilityFilterMax)
+                        {
+                            continue;
+                        }
+                    }
                     intensity += scan.Intensities[indexMz];
                 }
                 indices[i] = indexMz;
@@ -514,7 +544,7 @@ namespace pwiz.Skyline.Controls.Graphs
 
         private void GetMaxMzIntensity(out double maxMz, out double maxIntensity)
         {
-            var fullScans = _msDataFileScanHelper.GetFilteredScans();
+            var fullScans = _msDataFileScanHelper.GetFilteredScans(out var minIonMobilityVal, out var maxIonMobilityVal);
             maxMz = 0;
             maxIntensity = 0;
 
@@ -523,8 +553,18 @@ namespace pwiz.Skyline.Controls.Graphs
             while ((minMz = FindMinMz(fullScans, indices)) < double.MaxValue)
             {
                 maxMz = Math.Max(maxMz, minMz);
-                double intensity = SumIntensities(fullScans, minMz, indices);
+                double intensity = SumIntensities(fullScans, minMz, indices, minIonMobilityVal, maxIonMobilityVal);
                 maxIntensity = Math.Max(maxIntensity, intensity);
+            }
+        }
+
+        private void GetMaxMobility(out double maxIonMobility)
+        {
+            maxIonMobility = 0;
+            foreach (var spectrum in _msDataFileScanHelper.MsDataSpectra)
+            {
+                var spectrumMaxMobility = Math.Abs(spectrum.MaxIonMobility ?? spectrum.IonMobility.Mobility ?? 0);
+                maxIonMobility = Math.Max(_maxIonMobility, spectrumMaxMobility);
             }
         }
 
@@ -614,7 +654,7 @@ namespace pwiz.Skyline.Controls.Graphs
             var yScale = GraphPane.YAxis.Scale;
             yScale.MinAuto = yScale.MaxAuto = false;
             bool isSpectrum = !spectrumBtn.Visible || spectrumBtn.Checked;
-            GraphPane.LockYAxisAtZero = isSpectrum;
+            GraphPane.LockYAxisMinAtZero = isSpectrum;
             
             // Auto scale graph for spectrum view.
             if (isSpectrum)
@@ -908,15 +948,17 @@ namespace pwiz.Skyline.Controls.Graphs
     {
         private readonly IPointList _points;
         private readonly Color _color;
+        private readonly string _title;
 
-        public SpectrumItem(IPointList points, Color color, float width = 1)
+        public SpectrumItem(IPointList points, Color color, string title, float width = 1)
         {
             _points = points;
             _color = color;
+            _title = title;
             LineWidth = Settings.Default.SpectrumLineWidth*width;
         }
 
-        public override string Title { get { return null; } }
+        public override string Title { get { return _title; } }
 
         public override Color Color
         {
@@ -943,8 +985,8 @@ namespace pwiz.Skyline.Controls.Graphs
 
     public class SpectrumShadeItem : SpectrumItem
     {
-        public SpectrumShadeItem(IPointList points, Color color)
-            : base(points, color)
+        public SpectrumShadeItem(IPointList points, Color color, string title)
+            : base(points, color, title)
         {
         }
 

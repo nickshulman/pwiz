@@ -24,6 +24,7 @@ using System.Threading;
 using System.Windows.Forms;
 using pwiz.Common.DataAnalysis;
 using pwiz.Common.SystemUtil;
+using pwiz.Skyline.Alerts;
 using pwiz.Skyline.Controls.SeqNode;
 using pwiz.Skyline.Model;
 using pwiz.Skyline.Model.DocSettings;
@@ -276,6 +277,8 @@ namespace pwiz.Skyline.Controls.Graphs
         {
             get { return IsDataRefined(Data); }
         }
+
+        public bool RegressionRefinedNull => Data.RegressionRefinedNull;
 
         private GraphData Refine(GraphData currentData, Func<bool> isCanceled)
         {
@@ -793,9 +796,9 @@ namespace pwiz.Skyline.Controls.Graphs
                 }
                 else
                 {
-                    RetentionScoreCalculatorSpec calc = !string.IsNullOrEmpty(_calculatorName)
-                            ? Settings.Default.GetCalculatorByName(Settings.Default.RTCalculatorName)
-                            : null;
+                    var calc = !string.IsNullOrEmpty(_calculatorName)
+                        ? Settings.Default.GetCalculatorByName(Settings.Default.RTCalculatorName)
+                        : null;
                     if (calc == null)
                     {
                         // Initialize all calculators
@@ -837,7 +840,10 @@ namespace pwiz.Skyline.Controls.Graphs
                             if (dataPrevious != null && !ReferenceEquals(calc, dataPrevious.Calculator) &&
                                 tryIrtCalc != null)
                             {
-                                throw new DatabaseNotConnectedException(tryIrtCalc);
+                                MessageDlg.Show(Program.MainWindow, string.Format(
+                                    Resources.GraphData_GraphData_The_database_for_the_calculator__0__could_not_be_opened__Check_that_the_file__1__was_not_moved_or_deleted_,
+                                    tryIrtCalc.Name, tryIrtCalc.DatabasePath));
+                                return;
                             }
                         }
                     }
@@ -934,6 +940,8 @@ namespace pwiz.Skyline.Controls.Graphs
             {
                 get { return _statisticsRefined ?? _statisticsAll; }
             }
+
+            public bool RegressionRefinedNull => _regressionRefined == null;
 
             public bool IsRefined()
             {
@@ -1392,13 +1400,14 @@ namespace pwiz.Skyline.Controls.Graphs
                 {
                     if (IsRunToRun)
                     {
-                        return string.Format(Resources.GraphData_CorrelationLabel_Measured_Time___0__,
-                            _document.MeasuredResults.Chromatograms[_originalIndex].Name);
+                        if (_document.MeasuredResults != null && 0 <= _originalIndex && _originalIndex < _document.MeasuredResults.Chromatograms.Count)
+                        {
+                            return string.Format(Resources.GraphData_CorrelationLabel_Measured_Time___0__,
+                                _document.MeasuredResults.Chromatograms[_originalIndex].Name);
+                        }
+                        return string.Empty;
                     }
-                    else
-                    {
-                        return Calculator.Name;
-                    }
+                    return Calculator.Name;
                 }
             }
 

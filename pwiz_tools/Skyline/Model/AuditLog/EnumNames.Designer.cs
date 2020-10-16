@@ -97,6 +97,96 @@ namespace pwiz.Skyline.Model.AuditLog {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Precursors.
+        /// </summary>
+        public static string AreaCVMsLevel_precursors {
+            get {
+                return ResourceManager.GetString("AreaCVMsLevel_precursors", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Products.
+        /// </summary>
+        public static string AreaCVMsLevel_products {
+            get {
+                return ResourceManager.GetString("AreaCVMsLevel_products", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Global Standards.
+        /// </summary>
+        public static string AreaCVNormalizationMethod_global_standards {
+            get {
+                return ResourceManager.GetString("AreaCVNormalizationMethod_global_standards", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Medians.
+        /// </summary>
+        public static string AreaCVNormalizationMethod_medians {
+            get {
+                return ResourceManager.GetString("AreaCVNormalizationMethod_medians", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to None.
+        /// </summary>
+        public static string AreaCVNormalizationMethod_none {
+            get {
+                return ResourceManager.GetString("AreaCVNormalizationMethod_none", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Ratio.
+        /// </summary>
+        public static string AreaCVNormalizationMethod_ratio {
+            get {
+                return ResourceManager.GetString("AreaCVNormalizationMethod_ratio", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Total Ion Current.
+        /// </summary>
+        public static string AreaCVNormalizationMethod_tic {
+            get {
+                return ResourceManager.GetString("AreaCVNormalizationMethod_tic", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to All.
+        /// </summary>
+        public static string AreaCVTransitions_all {
+            get {
+                return ResourceManager.GetString("AreaCVTransitions_all", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Best.
+        /// </summary>
+        public static string AreaCVTransitions_best {
+            get {
+                return ResourceManager.GetString("AreaCVTransitions_best", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Count.
+        /// </summary>
+        public static string AreaCVTransitions_count {
+            get {
+                return ResourceManager.GetString("AreaCVTransitions_count", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Bilinear.
         /// </summary>
         public static string BilinearFit_bilinear {
@@ -201,6 +291,15 @@ namespace pwiz.Skyline.Model.AuditLog {
         public static string eIonMobilityUnits_none {
             get {
                 return ResourceManager.GetString("eIonMobilityUnits_none", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Unknown.
+        /// </summary>
+        public static string eIonMobilityUnits_unknown {
+            get {
+                return ResourceManager.GetString("eIonMobilityUnits_unknown", resourceCulture);
             }
         }
         
@@ -394,11 +493,83 @@ namespace pwiz.Skyline.Model.AuditLog {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Fixed width.
+        /// </summary>
+        public static string IonMobilityWindowWidthType_fixed_width {
+            get {
+                return ResourceManager.GetString("IonMobilityWindowWidthType_fixed_width", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Linear range.
+        /// </summary>
+        public static string IonMobilityWindowWidthType_linear_range {
+            get {
+                return ResourceManager.GetString("IonMobilityWindowWidthType_linear_range", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to None.
+        /// </summary>
+        public static string IonMobilityWindowWidthType_none {
+            get {
+                return ResourceManager.GetString("IonMobilityWindowWidthType_none", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Resolving power.
+        /// </summary>
+        public static string IonMobilityWindowWidthType_resolving_power {
+            get {
+                return ResourceManager.GetString("IonMobilityWindowWidthType_resolving_power", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Linear.
+        /// </summary>
+        public static string IrtRegressionType_linear {
+            get {
+                return ResourceManager.GetString("IrtRegressionType_linear", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Logarithmic.
+        /// </summary>
+        public static string IrtRegressionType_logarithmic {
+            get {
+                return ResourceManager.GetString("IrtRegressionType_logarithmic", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Lowess.
+        /// </summary>
+        public static string IrtRegressionType_lowess {
+            get {
+                return ResourceManager.GetString("IrtRegressionType_lowess", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Fixed.
         /// </summary>
         public static string IsolationWidthType_fixed_width {
             get {
                 return ResourceManager.GetString("IsolationWidthType_fixed_width", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to None.
+        /// </summary>
+        public static string IsolationWidthType_none {
+            get {
+                return ResourceManager.GetString("IsolationWidthType_none", resourceCulture);
             }
         }
         
@@ -970,7 +1141,7 @@ namespace pwiz.Skyline.Model.AuditLog {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Use only scans withing time frame of MS/MS IDs.
+        ///   Looks up a localized string similar to Use only scans within time frame of MS/MS IDs.
         /// </summary>
         public static string RetentionTimeFilterType_ms2_ids {
             get {
@@ -988,7 +1159,7 @@ namespace pwiz.Skyline.Model.AuditLog {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Use only scans withing time frame of predicted RT.
+        ///   Looks up a localized string similar to Use only scans within time frame of predicted RT.
         /// </summary>
         public static string RetentionTimeFilterType_scheduling_windows {
             get {
@@ -1146,6 +1317,15 @@ namespace pwiz.Skyline.Model.AuditLog {
         public static string SingletonNormalizationMethod_quantile {
             get {
                 return ResourceManager.GetString("SingletonNormalizationMethod_quantile", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Total Ion Current.
+        /// </summary>
+        public static string SingletonNormalizationMethod_tic {
+            get {
+                return ResourceManager.GetString("SingletonNormalizationMethod_tic", resourceCulture);
             }
         }
         

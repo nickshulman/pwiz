@@ -24,11 +24,16 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using pwiz.Common.Chemistry;
+using pwiz.Skyline.Controls;
 using pwiz.Skyline.Controls.Graphs;
 using pwiz.Skyline.EditUI;
 using pwiz.Skyline.FileUI;
+using pwiz.Skyline.Model;
 using pwiz.Skyline.Model.DocSettings;
+using pwiz.Skyline.Model.IonMobility;
 using pwiz.Skyline.Model.Results;
+using pwiz.Skyline.Properties;
 using pwiz.Skyline.SettingsUI;
 using pwiz.Skyline.SettingsUI.IonMobility;
 using pwiz.SkylineTestUtil;
@@ -52,6 +57,8 @@ namespace TestPerf // This would be in tutorial tests if it didn't take about 10
         {
 //            IsPauseForScreenShots = true;
 //            RunPerfTests = true;
+//            IsPauseForCoverShot = true;
+            CoverShotName = "IMSFiltering";
 
             LinkPdf = "https://skyline.ms/_webdav/home/software/Skyline/%40files/tutorials/DriftTraining-3_1_1.pdf";
 //            LinkPdf = "file:///C:/Users/brend/Downloads/DriftTraining-3_1_1.pdf";
@@ -60,12 +67,13 @@ namespace TestPerf // This would be in tutorial tests if it didn't take about 10
             TestFilesZipPaths = new[]
             {
                 @"http://skyline.ms/tutorials/DriftTimePrediction.zip",
+                @"TestPerf\DriftTimePredictorExtra.zip",
                 @"TestPerf\DriftTimePredictorViews.zip",
                 dataRoot + BSA_Frag + EXT_ZIP,
                 dataRoot + Yeast_BSA + EXT_ZIP,
             };
 
-            TestFilesZipExtractHere = new[] {false, false, true, true};
+            TestFilesZipExtractHere = new[] {false, false, false, true, true};
 
             TestFilesPersistent = new[] { BSA_Frag, Yeast_BSA };
 
@@ -76,10 +84,22 @@ namespace TestPerf // This would be in tutorial tests if it didn't take about 10
 
         protected override void DoTest()
         {
+            // Check backward compatibility with 19.1.9.338 and 350 when combined IMS got written to MsDataFilePath
+            string legacyFile_19_1_9 = TestFilesDirs[1].GetTestPath(@"BSA-Training.sky");
+            RunUI(() => SkylineWindow.OpenFile(legacyFile_19_1_9));
+            VerifyCombinedIonMobility(WaitForDocumentLoaded());
+            RunUI(() =>
+            {
+                SkylineWindow.SaveDocument();
+                SkylineWindow.NewDocument();
+                SkylineWindow.OpenFile(legacyFile_19_1_9);
+            });
+            VerifyCombinedIonMobility(WaitForDocumentLoaded());
+            var oldDoc = SkylineWindow.Document;
             string skyFile = TestFilesDirs[0].GetTestPath(@"DriftTimePrediction\BSA-Training.sky");
             RunUI(() => SkylineWindow.OpenFile(skyFile));
 
-            var document = WaitForDocumentLoaded(240*1000); // 4 minutes
+            var document = WaitForDocumentChangeLoaded(oldDoc,240*1000); // 4 minutes
             RunUI(() => SkylineWindow.Size = new Size(880, 560));
             RestoreViewOnScreen(2);
             PauseForScreenShot("Document open - full window", 2);
@@ -141,10 +161,10 @@ namespace TestPerf // This would be in tutorial tests if it didn't take about 10
 
             RunUI(() => SkylineWindow.Size = new Size(1075, 799));
             RestoreViewOnScreen(7);
-            PauseForScreenShot("Zoomed split graph panes onely", 7);
+            PauseForScreenShot("Zoomed split graph panes only", 7);
 
             RunUI(() => SkylineWindow.AutoZoomNone());
-            PauseForScreenShot("Unzoomed split graph panes onely", 8);
+            PauseForScreenShot("Unzoomed split graph panes only", 8);
 
             RunUI(() =>
             {
@@ -194,6 +214,30 @@ namespace TestPerf // This would be in tutorial tests if it didn't take about 10
                 RunUI(() => fullScanGraph.SetZoom(false));
                 PauseForScreenShot("Full scan unzoomed 3D MS/MS graph", 14);
 
+                if (IsPauseForCoverShot)
+                {
+                    RunUI(() =>
+                    {
+                        Settings.Default.ChromatogramFontSize = 14;
+                        Settings.Default.AreaFontSize = 14;
+                        SkylineWindow.ChangeTextSize(TreeViewMS.LRG_TEXT_FACTOR);
+                    });
+
+                    RestoreCoverViewOnScreen();
+
+                    ClickChromatogram(clickTime2, 5.8E+4, PaneKey.PRODUCTS);
+
+                    var manageResultsDlg = ShowDialog<ManageResultsDlg>(SkylineWindow.ManageResults);
+                    RenameReplicate(manageResultsDlg, 0, "BSA");
+                    RenameReplicate(manageResultsDlg, 1, "Yeast_BSA");
+                    OkDialog(manageResultsDlg, manageResultsDlg.OkDialog);
+
+                    RunUI(SkylineWindow.FocusDocument);
+
+                    PauseForCoverShot();
+                    return;
+                }
+
                 const double clickTime3 = 41.48;
                 ClickChromatogram(yeastReplicateName, clickTime3, 3.14E+4, PaneKey.PRODUCTS);
                 PauseForScreenShot("Interference full scan unzoomed 3D MS/MS graph", 15);
@@ -211,44 +255,57 @@ namespace TestPerf // This would be in tutorial tests if it didn't take about 10
             RunUI(() => SkylineWindow.SaveDocument());
 
             {
-                var peptideSettingsUI = ShowDialog<PeptideSettingsUI>(SkylineWindow.ShowPeptideSettingsUI);
-                RunUI(() => peptideSettingsUI.SelectedTab = PeptideSettingsUI.TABS.Prediction);
-                var driftPredictor = ShowDialog<EditDriftTimePredictorDlg>(peptideSettingsUI.AddDriftTimePredictor);
-                const string predictorName = "BSA";
-                RunUI(() =>
-                {
-                    driftPredictor.SetPredictorName(predictorName);
-                    driftPredictor.SetResolvingPower(50);
-                    driftPredictor.SetOffsetHighEnergySpectraCheckbox(true);
-                    driftPredictor.GetDriftTimesFromResults();
-                });
-                PauseForScreenShot("Edit predictor form", 18);
-
-                OkDialog(driftPredictor, () => driftPredictor.OkDialog());
-
-                PauseForScreenShot("Peptide Settings - Prediction", 19);
-
-                RunUI(() =>
-                {
-                    Assert.IsTrue(peptideSettingsUI.IsUseMeasuredRT);
-                    Assert.AreEqual(6, peptideSettingsUI.TimeWindow);
-                    Assert.AreEqual(predictorName, peptideSettingsUI.SelectedDriftTimePredictor);
-                });
-
-                OkDialog(peptideSettingsUI, peptideSettingsUI.OkDialog);
-            }
-
-            {
                 var transitionSettingsUI = ShowDialog<TransitionSettingsUI>(SkylineWindow.ShowTransitionSettingsUI);
+                RunUI(() =>
+                {
+                    transitionSettingsUI.SelectedTab = TransitionSettingsUI.TABS.IonMobility;
+                    transitionSettingsUI.IonMobilityControl.WindowWidthType = IonMobilityWindowWidthCalculator
+                        .IonMobilityWindowWidthType.resolving_power;
+                    transitionSettingsUI.IonMobilityControl.IonMobilityFilterResolvingPower = 50;
+                });
+                PauseForScreenShot("Setting ion mobility filter width calculation values", 18);
+
+
+                var editIonMobilityLibraryDlg = ShowDialog<EditIonMobilityLibraryDlg>(transitionSettingsUI.IonMobilityControl.AddIonMobilityLibrary);
+                const string libraryName = "BSA";
+                var databasePath = TestFilesDirs[1].GetTestPath(libraryName + IonMobilityDb.EXT);
+
+                RunUI(() =>
+                {
+                    editIonMobilityLibraryDlg.LibraryName = libraryName;
+                    editIonMobilityLibraryDlg.CreateDatabaseFile(databasePath); // Simulate user click on Create button
+                    editIonMobilityLibraryDlg.SetOffsetHighEnergySpectraCheckbox(true);
+                    editIonMobilityLibraryDlg.GetIonMobilitiesFromResults();
+
+                });
+                PauseForScreenShot("Edit ion mobility library form", 18);
+
+                // Check that a new value was calculated for all precursors
+                RunUI(() => Assert.AreEqual(SkylineWindow.Document.MoleculeTransitionGroupCount, editIonMobilityLibraryDlg.LibraryMobilitiesFlatCount));
+
+                OkDialog(editIonMobilityLibraryDlg, () => editIonMobilityLibraryDlg.OkDialog());
+
+                PauseForScreenShot<TransitionSettingsUI.IonMobilityTab>("Transition Settings - Ion Mobility", 19);
+
                 RunUI(() =>
                 {
                     transitionSettingsUI.SelectedTab = TransitionSettingsUI.TABS.FullScan;
                     transitionSettingsUI.SetRetentionTimeFilter(RetentionTimeFilterType.scheduling_windows, 3);
                 });
 
-                PauseForScreenShot("Transition Settings - Full-Scan", 20);
+                PauseForScreenShot("Transition Settings - Full-Scan", 19);
 
                 OkDialog(transitionSettingsUI, transitionSettingsUI.OkDialog);
+                var peptideSettingsUI = ShowDialog<PeptideSettingsUI>(SkylineWindow.ShowPeptideSettingsUI);
+                RunUI(() => peptideSettingsUI.SelectedTab = PeptideSettingsUI.TABS.Prediction);
+                PauseForScreenShot("Peptide Settings - Prediction", 20);
+                RunUI(() =>
+                {
+                    Assert.IsTrue(peptideSettingsUI.IsUseMeasuredRT);
+                    Assert.AreEqual(6, peptideSettingsUI.TimeWindow);
+                });
+
+                OkDialog(peptideSettingsUI, peptideSettingsUI.OkDialog);
             }
 
             using (new WaitDocumentChange(1, true, 1000 * 60 * 60 * 5))
@@ -267,7 +324,9 @@ namespace TestPerf // This would be in tutorial tests if it didn't take about 10
             }
             WaitForGraphs();
 
-            // CONSIDER: Test the peak annotations to ensure the filtering happened
+            // Test to ensure the filtering happened
+            if (!IsPauseForScreenShots) // Don't bring up unexpected UI in a screenshot run
+                TestReports();
 
             PauseForScreenShot("Yeast chromatogram and RTs - prtsc-paste-edit", 22);
 
@@ -299,6 +358,24 @@ namespace TestPerf // This would be in tutorial tests if it didn't take about 10
             WaitForDocumentChangeLoaded(docFiltered, 1000 * 60 * 60 * 5); // 5 minutes
 
             // TODO: Check peak ranks before and after
+
+            AssertEx.IsFalse(IsRecordMode); // Make sure we turn this off before commit!
+        }
+
+        private void VerifyCombinedIonMobility(SrmDocument doc)
+        {
+            // Check ChromCachedFile
+            var cachedFile = doc.MeasuredResults.CachedFileInfos.First();
+            VerifyCombinedIonMobilityMoved(cachedFile.FilePath, cachedFile.HasCombinedIonMobility);
+            // Check ChromFileInfo.FilePath
+            var chromFileInfo = doc.MeasuredResults.Chromatograms[0].MSDataFileInfos[0];
+            VerifyCombinedIonMobilityMoved(chromFileInfo.FilePath, true);
+        }
+
+        private void VerifyCombinedIonMobilityMoved(MsDataFileUri fileUri, bool hasCombinedIonMobility)
+        {
+            Assert.IsFalse(((MsDataFilePath)fileUri).LegacyCombineIonMobilitySpectra);
+            Assert.IsTrue(hasCombinedIonMobility);
         }
 
         private static void ValidateClickTime(GraphFullScan fullScanGraph, double clickTime)
@@ -306,6 +383,79 @@ namespace TestPerf // This would be in tutorial tests if it didn't take about 10
             string clickTimeText = clickTime.ToString(CultureInfo.CurrentCulture);
             RunUI(() => Assert.IsTrue(fullScanGraph.TitleText.Contains(clickTimeText),
                 String.Format("Full-scan graph title '{0}' does not contain '{1}'", fullScanGraph.TitleText, clickTimeText)));
+        }
+
+        private bool IsRecordMode { get { return false; } }
+
+        private void TestReports(string msg = null)
+        {
+            // Verify reports working for CCS
+            var documentGrid = EnableDocumentGridIonMobilityResultsColumns();
+
+            var expectedIM = new[,]
+            {
+                // Values recorded from master branch - imMS1, imFragment, imWindow
+                {26.47, 26.63, 1.06},
+                {25.65, 25.65, 1.03},
+                {28.75, 28.92, 1.15},
+                {28.26, 28.26, 1.13},
+                {22.87, 22.87, 0.91},
+                {27.77, 27.77, 1.11},
+                {24.51, 24.67, 0.98},
+                {29.41, 29.57, 1.18},
+                {22.22, 22.38, 0.89},
+                {25.81, 26.14, 1.03},
+                {22.71, 22.87, 0.91},
+                {23.36, 23.36, 0.93},
+                {27.77, 27.77, 1.11},
+                {28.43, 28.59, 1.14},
+                {29.41, 27.94, 1.18},
+                {24.02, 24.18, 0.96},
+                {27.77, 27.94, 1.11},
+                {25, 24.83, 1},
+                {30.39, 30.55, 1.22}
+            };
+            double lastMz = -1;
+            var colMz = FindDocumentGridColumn(documentGrid, "Precursor.Mz");
+            var colFragment = FindDocumentGridColumn(documentGrid, "FragmentIon");
+            var precursorIndex = -1;
+            for (var row = 0; row < SkylineWindow.Document.MoleculeTransitions.Count(); row++)
+            {
+                if (IsRecordMode)
+                    Console.Write(@"{");
+                var isFragment = false;
+                RunUI(() =>
+                {
+                    var mz = (double)documentGrid.DataGridView.Rows[row].Cells[colMz.Index].Value;
+                    if (mz != lastMz)
+                    {
+                        lastMz = mz;
+                        precursorIndex++;
+                    }
+                    var fragmentName = documentGrid.DataGridView.Rows[row].Cells[colFragment.Index].Value.ToString();
+                    isFragment = fragmentName.StartsWith("y") || fragmentName.StartsWith("b");
+                });
+
+                var unfilteredReplicate = row % 2 == 0;
+                var expectedPrecursorIM = unfilteredReplicate ? null : (double?)expectedIM[precursorIndex, 0];
+                var expectedFragmentIM = unfilteredReplicate ? null : (double?)expectedIM[precursorIndex, isFragment ? 1 : 0];
+                var expectedWindow = unfilteredReplicate ? null : (double?)expectedIM[precursorIndex, 2];
+                var expectedUnits = IonMobilityFilter.IonMobilityUnitsL10NString(unfilteredReplicate ? eIonMobilityUnits.none : eIonMobilityUnits.drift_time_msec);
+                CheckDocumentResultsGridFieldByName(documentGrid, "PrecursorResult.IonMobilityMS1", row, expectedPrecursorIM, msg, IsRecordMode);
+                CheckDocumentResultsGridFieldByName(documentGrid, "TransitionResult.IonMobilityFragment", row, expectedFragmentIM, msg, IsRecordMode); 
+                CheckDocumentResultsGridFieldByName(documentGrid, "PrecursorResult.IonMobilityWindow", row, expectedWindow);
+                CheckDocumentResultsGridFieldByName(documentGrid, "Chromatogram.ChromatogramIonMobility", row, expectedFragmentIM);
+                CheckDocumentResultsGridFieldByName(documentGrid, "Chromatogram.ChromatogramIonMobilityExtractionWidth", row, expectedWindow);
+                CheckDocumentResultsGridFieldByName(documentGrid, "Chromatogram.ChromatogramIonMobilityUnits", row, expectedUnits);
+                if (IsRecordMode)
+                {
+                    CheckDocumentResultsGridValuesRecordedCount = 0; // We're managing our own newlines
+                    Console.WriteLine(@"},");
+                }
+            }
+
+            // And clean up after ourselves
+            RunUI(() => documentGrid.Close());
         }
     }
 }

@@ -71,6 +71,9 @@ enum PWIZ_API_DECL ControllerType
 };
 
 
+extern const char* ControllerTypeStrings[];
+
+
 struct PWIZ_API_DECL ControllerInfo
 {
     ControllerType type;
@@ -224,8 +227,12 @@ typedef shared_ptr<MassRange> MassRangePtr;
 
 struct PWIZ_API_DECL PrecursorInfo
 {
+    int msLevel;
     double monoisotopicMZ;
     double isolationMZ;
+    double isolationWidth;
+    double activationEnergy;
+    ActivationType activationType;
     int chargeState;
     int scanNumber;
 };
@@ -260,11 +267,13 @@ class PWIZ_API_DECL ScanInfo
     virtual AccurateMassType accurateMassType() const = 0;
 
 
-    virtual std::vector<PrecursorInfo> precursorInfo() const = 0;
+    virtual const std::vector<PrecursorInfo>& precursorInfo() const = 0;
     virtual long precursorCount() const = 0;
     virtual long precursorCharge() const = 0;
     virtual double precursorMZ(long index, bool preferMonoisotope = true) const = 0;
     virtual double precursorActivationEnergy(long index) const = 0;
+
+    virtual std::vector<double> getIsolationWidths() const = 0;
 
     virtual ActivationType supplementalActivationType() const = 0;
     virtual double supplementalActivationEnergy() const = 0;
@@ -395,6 +404,9 @@ class PWIZ_API_DECL RawFile
 
     static shared_ptr<RawFile> create(const std::string& filename);
 
+    // on 64-bit (RawFileReader), returns a thread-specific accessor to avoid the need for locking
+    virtual RawFile* getRawByThread(size_t currentThreadId) const = 0;
+
     virtual std::string getFilename() const = 0;
     virtual boost::local_time::local_date_time getCreationDate(bool adjustToHostTime = true) const = 0;
 
@@ -429,9 +441,9 @@ class PWIZ_API_DECL RawFile
     virtual ScanFilterMassAnalyzerType getMassAnalyzerType(long scanNumber) const = 0;
     virtual ActivationType getActivationType(long scanNumber) const = 0;
     // getDetectorType is obsolete?
-    virtual std::vector<double> getIsolationWidths(long scanNumber) const = 0;
     virtual double getIsolationWidth(int scanSegment, int scanEvent) const = 0;
     virtual double getDefaultIsolationWidth(int scanSegment, int msLevel)const = 0;
+    virtual double calculateIsolationMzWithOffset(long scanNumber, double isolationMzPossiblyWithOffset) const = 0;
 
     virtual ErrorLogItem getErrorLogItem(long itemNumber) const = 0;
     virtual std::vector<std::string> getInstrumentMethods() const = 0;
@@ -444,9 +456,9 @@ class PWIZ_API_DECL RawFile
     virtual const std::vector<DetectorType>& getDetectors() const = 0;
 
     virtual std::string getSampleID() const = 0;
-    virtual std::string getTrailerExtraValue(long scanNumber, const std::string& name) const = 0;
-    virtual double getTrailerExtraValueDouble(long scanNumber, const std::string& name) const = 0;
-    virtual long getTrailerExtraValueLong(long scanNumber, const std::string& name) const = 0;
+    virtual std::string getTrailerExtraValue(long scanNumber, const std::string& name, std::string valueIfMissing = "") const = 0;
+    virtual double getTrailerExtraValueDouble(long scanNumber, const std::string& name, double valueIfMissing = 0) const = 0;
+    virtual long getTrailerExtraValueLong(long scanNumber, const std::string& name, long valueIfMissing = 0) const = 0;
 
     virtual ChromatogramDataPtr
     getChromatogramData(ChromatogramType traceType,

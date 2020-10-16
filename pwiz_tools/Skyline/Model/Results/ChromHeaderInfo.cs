@@ -251,7 +251,7 @@ namespace pwiz.Skyline.Model.Results
             _startPeakIndex = startPeakIndex;
             _startScoreIndex = startScoreIndex;
             _maxPeakIndex = maxPeakIndex != -1 ? CheckByte(maxPeakIndex, byte.MaxValue - 1) : NO_MAX_PEAK;
-            _numPoints = CheckUShort(numPoints);
+            _numPoints = precursor == SignedMz.ZERO ? 0 : CheckUShort(numPoints);
             _compressedSize = compressedSize;
             _uncompressedSize = uncompressedSize;
             _locationPoints = location;
@@ -1084,6 +1084,158 @@ namespace pwiz.Skyline.Model.Results
             return (short) Math.Round(f*10);
         }
 
+        /// <summary>
+        /// Constructs a ChromPeak with the specified start and end times and no background subtraction.
+        /// </summary>
+        public ChromPeak(TimeIntensities timeIntensities, float startTime, float endTime, FlagValues flagValues)
+        {
+            int pointsAcrossThePeak = 0;
+            double totalArea = 0;
+            double totalMassError = 0;
+            double apexTime = 0;
+            double apexHeight = 0;
+
+            int startIndex = CollectionUtil.BinarySearch(timeIntensities.Times, startTime);
+            if (startIndex < 0)
+            {
+                startIndex = ~startIndex;
+            }
+
+            for (int index = startIndex; index < timeIntensities.NumPoints; index++)
+            {
+                double time = timeIntensities.Times[index];
+                double prevTime = startTime;
+                if (index > 0)
+                {
+                    prevTime = Math.Max(prevTime, (time + timeIntensities.Times[index - 1]) / 2);
+                }
+
+                double nextTime = endTime;
+                if (index < timeIntensities.NumPoints - 1)
+                {
+                    nextTime = Math.Min(nextTime, (time + timeIntensities.Times[index + 1]) / 2);
+                }
+
+                float intensity = timeIntensities.Intensities[index];
+                if (nextTime > prevTime)
+                {
+                    double width = nextTime - prevTime;
+                    double area = intensity * width;
+                    totalArea += area;
+                    if (timeIntensities.MassErrors != null)
+                    {
+                        totalMassError += area * timeIntensities.MassErrors[index];
+                    }
+                }
+
+                if (startTime <= time && endTime >= time)
+                {
+                    pointsAcrossThePeak++;
+                    if (intensity > apexHeight)
+                    {
+                        apexHeight = intensity;
+                        apexTime = time;
+                    }
+                }
+
+                if (time >= endTime)
+                {
+                    break;
+                }
+            }
+
+            // Determine the full width at half max
+            bool fwhmDegenerate = false;
+            double? halfMaxStart = null;
+            double? halfMaxEnd = null;
+            var halfHeight = apexHeight / 2;
+            for (int index = startIndex; index < timeIntensities.NumPoints; index++)
+            {
+                double time = timeIntensities.Times[index];
+                double intensity = timeIntensities.Intensities[index];
+                if (intensity >= halfHeight)
+                {
+                    if (!halfMaxStart.HasValue)
+                    {
+                        halfMaxStart = time;
+                        if (index > startIndex)
+                        {
+                            if (intensity > halfHeight)
+                            {
+                                double prevTime = timeIntensities.Times[index - 1];
+                                double prevIntensity = timeIntensities.Intensities[index - 1];
+                                if (prevIntensity < halfHeight)
+                                {
+                                    var fraction = (intensity - halfHeight) / (intensity - prevIntensity);
+                                    halfMaxStart = (1 - fraction) * time + fraction * prevTime;
+                                }
+                            }
+                        }
+                        else
+                        {
+                            fwhmDegenerate = true;
+                        }
+                    }
+
+                    halfMaxEnd = time;
+                    if (index < timeIntensities.NumPoints - 1)
+                    {
+                        double nextTime = timeIntensities.Times[index + 1];
+                        if (nextTime <= endTime)
+                        {
+                            double nextIntensity = timeIntensities.Intensities[index + 1];
+                            if (nextIntensity < halfHeight)
+                            {
+                                var fraction = (intensity - halfHeight) / (intensity - nextIntensity);
+                                halfMaxEnd = (1 - fraction) * time + fraction * nextTime;
+                            }
+                        }
+                        else
+                        {
+                            fwhmDegenerate = true;
+                        }
+                    }
+                    else
+                    {
+                        fwhmDegenerate = true;
+                    }
+                }
+                if (time >= endTime)
+                {
+                    break;
+                }
+            }
+
+            _area = (float) totalArea;
+            _startTime = startTime;
+            _endTime = endTime;
+            _height = (float) apexHeight;
+            _backgroundArea = 0;
+            _pointsAcross = (short)Math.Min(pointsAcrossThePeak, ushort.MaxValue);
+            _retentionTime = (float) apexTime;
+            _flagBits = 0;
+            if (halfMaxStart.HasValue)
+            {
+                _fwhm = (float) (halfMaxEnd - halfMaxStart);
+            }
+            else
+            {
+                _fwhm = 0;
+            }
+            if (null != timeIntensities.MassErrors && totalArea > 0)
+            {
+                flagValues |= FlagValues.mass_error_known;
+                FlagBits = ((uint)To10x(totalMassError / totalArea)) << 16;
+            }
+
+
+            FlagBits |= (uint) flagValues;
+            if (fwhmDegenerate)
+            {
+                FlagBits |= (uint) FlagValues.degenerate_fwhm;
+            }
+        }
+
         public ChromPeak(IPeakFinder finder,
                          IFoundPeak peak,
                          FlagValues flags,
@@ -1370,8 +1522,11 @@ namespace pwiz.Skyline.Model.Results
             single_match_mz_known = 0x01,
             single_match_mz = 0x02,
             has_midas_spectra = 0x04,
-            // One extra bit available
+            has_combined_ion_mobility = 0x08,
             ion_mobility_type_bitmask = 0x70, // 3 bits for ion mobility type drift, inverse_mobility, spares
+            // 0x80 available
+            used_ms1_centroids = 0x100,
+            used_ms2_centroids = 0x200,
         }
 
         public static DateTime GetLastWriteTime(MsDataFileUri filePath)
@@ -1391,18 +1546,34 @@ namespace pwiz.Skyline.Model.Results
             return (flags & FlagValues.has_midas_spectra) != 0;
         }
 
+        private static bool HasCombinedIonMobilityFlags(FlagValues flags)
+        {
+            return (flags & FlagValues.has_combined_ion_mobility) != 0;
+        }
+
         public static eIonMobilityUnits IonMobilityUnitsFromFlags(FlagValues flags)
         {
             return (eIonMobilityUnits)((int)(flags & FlagValues.ion_mobility_type_bitmask) >> 4);
         }
 
+        private static bool UsedMs1CentroidsFlags(FlagValues flags)
+        {
+            return (flags & FlagValues.used_ms1_centroids) != 0;
+        }
+
+        private static bool UsedMs2CentroidsFlags(FlagValues flags)
+        {
+            return (flags & FlagValues.used_ms2_centroids) != 0;
+        }
+
         public ChromCachedFile(MsDataFileUri filePath, FlagValues flags, DateTime fileWriteTime, DateTime? runStartTime,
-                               float maxRT, float maxIntensity, eIonMobilityUnits ionMobilityUnits, IEnumerable<MsInstrumentConfigInfo> instrumentInfoList)
-            : this(filePath, flags, fileWriteTime, runStartTime, maxRT, maxIntensity, 0, 0, default(float?), ionMobilityUnits, instrumentInfoList)
+                               float maxRT, float maxIntensity, eIonMobilityUnits ionMobilityUnits, string sampleId, string serialNumber,
+                               IEnumerable<MsInstrumentConfigInfo> instrumentInfoList)
+            : this(filePath, flags, fileWriteTime, runStartTime, maxRT, maxIntensity, 0, 0, default(float?), ionMobilityUnits, sampleId, serialNumber, instrumentInfoList)
         {
         }
 
-        public ChromCachedFile(MsDataFileUri filePath,
+        public ChromCachedFile(MsDataFileUri fileUri,
                                FlagValues flags,
                                DateTime fileWriteTime,
                                DateTime? runStartTime,
@@ -1412,9 +1583,20 @@ namespace pwiz.Skyline.Model.Results
                                long locationScanIds,
                                float? ticArea,
                                eIonMobilityUnits ionMobilityUnits,
+                               string sampleId,
+                               string instrumentSerialNumber,
                                IEnumerable<MsInstrumentConfigInfo> instrumentInfoList)
         {
-            FilePath = filePath;
+            // BACKWARD COMPATIBILITY: Deal with legacy parameters which got stored on the file_path URI
+            var filePath = fileUri as MsDataFilePath;
+            if (filePath != null && filePath.LegacyCombineIonMobilitySpectra) // Skyline-daily 19.1.9.338 or 350
+                flags |= FlagValues.has_combined_ion_mobility;
+            // Centroiding for a much longer time
+            if (fileUri.LegacyGetCentroidMs1())
+                flags |= FlagValues.used_ms1_centroids;
+            if (fileUri.LegacyGetCentroidMs2())
+                flags |= FlagValues.used_ms2_centroids;
+            FilePath = fileUri.RemoveLegacyParameters();
             Flags = (flags & ~FlagValues.ion_mobility_type_bitmask) | (FlagValues)((int)ionMobilityUnits << 4);
             FileWriteTime = fileWriteTime;
             RunStartTime = runStartTime;
@@ -1423,6 +1605,8 @@ namespace pwiz.Skyline.Model.Results
             SizeScanIds = sizeScanIds;
             LocationScanIds = locationScanIds;
             TicArea = ticArea;
+            SampleId = sampleId;
+            InstrumentSerialNumber = instrumentSerialNumber;
             InstrumentInfoList = ImmutableList.ValueOf(instrumentInfoList) ?? ImmutableList<MsInstrumentConfigInfo>.EMPTY;
         }
 
@@ -1437,6 +1621,8 @@ namespace pwiz.Skyline.Model.Results
         public ImmutableList<MsInstrumentConfigInfo> InstrumentInfoList { get; private set; }
         public float? TicArea { get; private set; }
         public eIonMobilityUnits IonMobilityUnits { get { return IonMobilityUnitsFromFlags(Flags); } }
+        public string SampleId { get; private set; }
+        public string InstrumentSerialNumber { get; private set; }
 
         public bool IsCurrent
         {
@@ -1453,6 +1639,21 @@ namespace pwiz.Skyline.Model.Results
             get { return HasMidasSpectraFlags(Flags); }
         }
 
+        public bool HasCombinedIonMobility
+        {
+            get { return HasCombinedIonMobilityFlags(Flags); }
+        }
+
+        public bool UsedMs1Centroids
+        {
+            get { return UsedMs1CentroidsFlags(Flags); }
+        }
+
+        public bool UsedMs2Centroids
+        {
+            get { return UsedMs2CentroidsFlags(Flags); }
+        }
+
         public ChromCachedFile RelocateScanIds(long locationScanIds)
         {
             return ChangeProp(ImClone(this), im => im.LocationScanIds = locationScanIds);
@@ -1466,6 +1667,16 @@ namespace pwiz.Skyline.Model.Results
         public ChromCachedFile ChangeFilePath(MsDataFileUri filePath)
         {
             return ChangeProp(ImClone(this), im => im.FilePath = filePath);
+        }
+
+        public ChromCachedFile ChangeSampleId(string sampleId)
+        {
+            return ChangeProp(ImClone(this), im => im.SampleId = sampleId);
+        }
+
+        public ChromCachedFile ChangeSerialNumber(string serialNumber)
+        {
+            return ChangeProp(ImClone(this), im => im.InstrumentSerialNumber = serialNumber);
         }
     }
 
@@ -1693,8 +1904,8 @@ namespace pwiz.Skyline.Model.Results
 
         public Target Target { get; private set; }  // Modified sequence or custom ion id
         public SignedMz Precursor { get; private set; }
-        public double? CollisionalCrossSectionSqA { get { return IonMobilityFilter == null ? null : IonMobilityFilter.CollisionalCrossSectionSqA; }  }
-        public eIonMobilityUnits IonMobilityUnits { get { return IonMobilityFilter == null ? eIonMobilityUnits.none : IonMobilityFilter.IonMobility.Units; } }
+        public double? CollisionalCrossSectionSqA { get { return IonMobilityFilter.CollisionalCrossSectionSqA; }  }
+        public eIonMobilityUnits IonMobilityUnits { get { return IonMobilityFilter.IonMobilityUnits; } }
         public IonMobilityFilter IonMobilityFilter { get; private set; }
         public SignedMz Product { get; private set; }
         public float CollisionEnergy { get; private set; }
@@ -1861,7 +2072,13 @@ namespace pwiz.Skyline.Model.Results
                 }
                 else if (id.StartsWith(MsDataFileImpl.PREFIX_PRECURSOR))
                 {
-                    precursor = double.Parse(id.Substring(MsDataFileImpl.PREFIX_TOTAL.Length), CultureInfo.InvariantCulture);
+                    var str = id.Substring(MsDataFileImpl.PREFIX_PRECURSOR.Length);
+                    if (str.StartsWith(@"Q1="))
+                    {
+                        // Agilent format e.g. "SIM SIC Q1=215.15 start=5.087066667 end=14.497416667"
+                        str = str.Substring(3).Split(' ')[0];
+                    }
+                    precursor = double.Parse(str, CultureInfo.InvariantCulture);
                     product = precursor;
                 }
                 else if (id.StartsWith(MsDataFileImpl.PREFIX_SINGLE))
@@ -2065,6 +2282,7 @@ namespace pwiz.Skyline.Model.Results
             }
         }
         public double? PrecursorCollisionalCrossSection { get { return _groupHeaderInfo.CollisionalCrossSection; } }
+        public ChromCachedFile CachedFile { get { return _allFiles[_groupHeaderInfo.FileIndex]; } }
         public MsDataFileUri FilePath { get { return _allFiles[_groupHeaderInfo.FileIndex].FilePath; } }
         public DateTime FileWriteTime { get { return _allFiles[_groupHeaderInfo.FileIndex].FileWriteTime; } }
         public DateTime? RunStartTime { get { return _allFiles[_groupHeaderInfo.FileIndex].RunStartTime; } }
@@ -2442,7 +2660,7 @@ namespace pwiz.Skyline.Model.Results
                 TimeIntensities = timeIntensitiesGroup.TransitionTimeIntensities[_transitionIndex];
                 if (Header.HasRawTimes())
                 {
-                    RawTimes = TimeIntensities.Times;
+                    RawTimeIntensities = TimeIntensities;
                 }
             }
         }
@@ -2502,7 +2720,10 @@ namespace pwiz.Skyline.Model.Results
 
         public IonMobilityFilter GetIonMobilityFilter()
         {
-            return IonMobilityFilter.GetIonMobilityFilter(IonMobilityValue.GetIonMobilityValue(IonMobility, Header.IonMobilityUnits), IonMobilityExtractionWidth, _groupInfo.PrecursorCollisionalCrossSection);
+            return IonMobilityFilter.GetIonMobilityFilter(
+                IonMobilityAndCCS.GetIonMobilityAndCCS(
+                    IonMobilityValue.GetIonMobilityValue(IonMobility, Header.IonMobilityUnits),
+                    _groupInfo.PrecursorCollisionalCrossSection, null), IonMobilityExtractionWidth);
         }
 
         private static double? FloatToNullableDouble(float value)
@@ -2518,7 +2739,11 @@ namespace pwiz.Skyline.Model.Results
             get { return _groupInfo.GetChromTransitionLocal(_transitionIndex); }
         }
 
-        public IList<float> RawTimes { get; set; }
+        private TimeIntensities RawTimeIntensities { get; set; }
+        public IList<float> RawTimes
+        {
+            get { return RawTimeIntensities?.Times; }
+        }
         public TimeIntensities TimeIntensities { get; set; }
         public IList<float> Times { get { return TimeIntensities == null ? null : TimeIntensities.Times; } }
         public IList<int> ScanIndexes { get { return TimeIntensities == null ? null : TimeIntensities.ScanIds; } }
@@ -2552,16 +2777,14 @@ namespace pwiz.Skyline.Model.Results
             return _groupInfo.GetTransitionPeak(_transitionIndex, peakIndex);
         }
 
-        public ChromPeak CalcPeak(int startIndex, int endIndex, ChromPeak.FlagValues flags)
+        public ChromPeak CalcPeak(float startTime, float endTime, ChromPeak.FlagValues flags)
         {
-            if (startIndex == endIndex)
-                return ChromPeak.EMPTY;
-
-            var finder = Crawdads.NewCrawdadPeakFinder();
-            finder.SetChromatogram(TimeIntensities.Times, TimeIntensities.Intensities);
-            var peak = finder.GetPeak(startIndex, endIndex);
-
-            return new ChromPeak(finder, peak, flags, TimeIntensities, RawTimes);
+            var peakIntegrator = new PeakIntegrator(TimeIntensities)
+            {
+                RawTimeIntensities = RawTimeIntensities,
+                TimeIntervals = TimeIntervals
+            };
+            return peakIntegrator.IntegratePeak(startTime, endTime, flags);
         }
 
         public int IndexOfPeak(double retentionTime)
@@ -2590,9 +2813,32 @@ namespace pwiz.Skyline.Model.Results
             }
             else
             {
-                times = TimeIntensities.Times.Select(time => (double) time).ToArray();
-                intensities = TimeIntensities.Intensities.Select(intensity => (double) intensity).ToArray();
+                if (TimeIntervals == null)
+                {
+                    times = TimeIntensities.Times.Select(time => (double)time).ToArray();
+                    intensities = TimeIntensities.Intensities.Select(intensity => (double)intensity).ToArray();
+                }
+                else
+                {
+                    var points = TimeIntervals.ReplaceExternalPointsWithNaN(Enumerable
+                            .Range(0, TimeIntensities.NumPoints).Select(i =>
+                                new KeyValuePair<float, float>(TimeIntensities.Times[i],
+                                    TimeIntensities.Intensities[i])))
+                        .ToList();
+                    times = points.Select(p => (double) p.Key).ToArray();
+                    intensities = points.Select(p => (double) p.Value).ToArray();
+                }
             }
+        }
+
+        /// <summary>
+        /// If this chromatogram came from a triggered acquisition then TimeIntervals represents the time
+        /// over which data actually was collected.
+        /// The TimeIntervals will be null if this chromatogram was not from a triggered acquisition.
+        /// </summary>
+        public TimeIntervals TimeIntervals
+        {
+            get { return (GroupInfo?.TimeIntensitiesGroup as RawTimeIntensities)?.TimeIntervals; }
         }
 
         public double MaxIntensity
@@ -2657,6 +2903,18 @@ namespace pwiz.Skyline.Model.Results
             if (rawTimeIntensities == null)
                 return;
             TimeIntensities = TimeIntensities.Interpolate(rawTimeIntensities.GetInterpolatedTimes(), rawTimeIntensities.InferZeroes);
+        }
+
+        public TimeIntensities GetInterpolatedTimeIntensities()
+        {
+            var rawTimeIntensities = _groupInfo?.TimeIntensitiesGroup as RawTimeIntensities;
+            if (rawTimeIntensities == null)
+            {
+                return TimeIntensities;
+            }
+
+            return rawTimeIntensities.TransitionTimeIntensities[TransitionIndex]
+                .Interpolate(rawTimeIntensities.GetInterpolatedTimes(), rawTimeIntensities.InferZeroes);
         }
 
         public void Crawdad1DTransform()

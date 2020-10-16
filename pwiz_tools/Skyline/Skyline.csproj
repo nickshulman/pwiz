@@ -14,7 +14,7 @@
     <FileAlignment>512</FileAlignment>
     <ApplicationIcon>Skyline.ico</ApplicationIcon>
     <IsWebBootstrapper>true</IsWebBootstrapper>
-    <ManifestCertificateThumbprint>828D97D15AA50E99C25127B6A71E0A6DFC12027E</ManifestCertificateThumbprint>
+    <ManifestCertificateThumbprint>19870CA6C934F1DFEADFC678B704FD5CEF4C7F0B</ManifestCertificateThumbprint>
     <ManifestKeyFile>
     </ManifestKeyFile>
     <GenerateManifests>true</GenerateManifests>
@@ -47,8 +47,8 @@
     <PublisherName>MacCoss Lab, UW</PublisherName>
     <CreateWebPageOnPublish>true</CreateWebPageOnPublish>
     <WebPage>index.html</WebPage>
-    <ApplicationRevision>18334</ApplicationRevision>
-    <ApplicationVersion>4.2.1.18334</ApplicationVersion>
+    <ApplicationRevision>286</ApplicationRevision>
+    <ApplicationVersion>20.2.1.286</ApplicationVersion>
     <UseApplicationTrust>false</UseApplicationTrust>
     <PublishWizardCompleted>true</PublishWizardCompleted>
     <BootstrapperEnabled>true</BootstrapperEnabled>
@@ -90,7 +90,7 @@
     <OutputPath>bin\x64\Release\</OutputPath>
     <DefineConstants>TRACE</DefineConstants>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <Optimize>false</Optimize>
+    <Optimize>true</Optimize>
     <DebugType>pdbonly</DebugType>
     <PlatformTarget>AnyCPU</PlatformTarget>
     <UseVSHostingProcess>false</UseVSHostingProcess>
@@ -105,12 +105,27 @@
     <Reference Include="EnvDTE, Version=8.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a">
       <EmbedInteropTypes>True</EmbedInteropTypes>
     </Reference>
+    <Reference Include="FHOOE_IMP.MSAmanda.Core">
+      <HintPath>..\Shared\Lib\MSAmanda\FHOOE_IMP.MSAmanda.Core.dll</HintPath>
+    </Reference>
+    <Reference Include="FHOOE_IMP.MSAmanda.InOutput">
+      <HintPath>..\Shared\Lib\MSAmanda\FHOOE_IMP.MSAmanda.InOutput.dll</HintPath>
+    </Reference>
+    <Reference Include="FHOOE_IMP.MSAmanda.Utils">
+      <HintPath>..\Shared\Lib\MSAmanda\FHOOE_IMP.MSAmanda.Utils.dll</HintPath>
+    </Reference>
     <Reference Include="Google.Protobuf">
       <HintPath>..\Shared\Lib\Google.Protobuf.dll</HintPath>
     </Reference>
     <Reference Include="DotNetZip">
       <SpecificVersion>False</SpecificVersion>
       <HintPath>..\Shared\Lib\DotNetZip\DotNetZip.dll</HintPath>
+    </Reference>
+    <Reference Include="Grpc.Core">
+      <HintPath>..\Shared\Lib\Grpc.Core.dll</HintPath>
+    </Reference>
+    <Reference Include="Grpc.Core.Api">
+      <HintPath>..\Shared\Lib\Grpc.Core.Api.dll</HintPath>
     </Reference>
     <Reference Include="IdentityModel, Version=3.6.1.0, Culture=neutral, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
@@ -135,6 +150,10 @@
     </Reference>
     <Reference Condition="'$(Platform)' == 'x64'" Include="MethodConverter">
       <HintPath>Method\Shimadzu\x64\MethodConverter.dll</HintPath>
+    </Reference>
+    <Reference Include="PrmPasefScheduler, Version=0.0.0.0, Culture=neutral, processorArchitecture=AnyCPU">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\Shared\ProteowizardWrapper\obj\$(Platform)\PrmPasefScheduler.dll</HintPath>
     </Reference>
     <Reference Include="Microsoft.ConcurrencyVisualizer.Markers, Version=12.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
@@ -161,8 +180,17 @@
     <Reference Include="System.Data.SQLite">
       <HintPath>..\..\libraries\SQLite\$(Platform)\System.Data.SQLite.dll</HintPath>
     </Reference>
+    <Reference Include="System.Interactive.Async">
+      <HintPath>..\Shared\Lib\System.Interactive.Async.dll</HintPath>
+    </Reference>
     <Reference Include="System.Management" />
+    <Reference Include="System.Memory">
+      <HintPath>..\Shared\Lib\System.Memory.dll</HintPath>
+    </Reference>
     <Reference Include="System.Net.Http" />
+    <Reference Include="System.Runtime.CompilerServices.Unsafe">
+      <HintPath>..\Shared\Lib\System.Runtime.CompilerServices.Unsafe.dll</HintPath>
+    </Reference>
     <Reference Include="System.Security" />
     <Reference Include="System.Web" />
     <Reference Include="System.Data.DataSetExtensions">
@@ -188,6 +216,7 @@
     <Compile Include="Alerts\AlertLinkDlg.Designer.cs">
       <DependentUpon>AlertLinkDlg.cs</DependentUpon>
     </Compile>
+    <Compile Include="Alerts\KeyValueGridDlg.cs" />
     <Compile Include="Alerts\NoModeUIDlg.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -322,12 +351,59 @@
     <Compile Include="Controls\Databinding\SettingsGridForm.cs">
       <SubType>Form</SubType>
     </Compile>
+    <Compile Include="Controls\Graphs\ExportMethodScheduleGraph.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Controls\Graphs\ExportMethodScheduleGraph.Designer.cs">
+      <DependentUpon>ExportMethodScheduleGraph.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Controls\Graphs\DetectionPlotData.cs" />
+    <Compile Include="Controls\Graphs\DetectionsGraphController.cs" />
+    <Compile Include="Controls\Graphs\DetectionsHistogramPane.cs" />
+    <Compile Include="Controls\Graphs\DetectionsByReplicatePane.cs" />
+    <Compile Include="Controls\Graphs\DetectionsPlotPane.cs" />
+    <Compile Include="Controls\Graphs\DetectionsToolbar.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="Controls\Graphs\DetectionsToolbar.Designer.cs">
+      <DependentUpon>DetectionsToolbar.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Controls\Graphs\DetectionToolbarProperties.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Controls\Graphs\DetectionToolbarProperties.Designer.cs">
+      <DependentUpon>DetectionToolbarProperties.cs</DependentUpon>
+    </Compile>
     <Compile Include="Controls\Graphs\ReplicateGroupOp.cs" />
     <Compile Include="Controls\Graphs\ReplicateValue.cs" />
     <Compile Include="Controls\ImageListBox.cs">
       <SubType>Component</SubType>
     </Compile>
+    <Compile Include="Controls\SeqNode\PeptideFormatter.cs" />
+    <Compile Include="Controls\PrositUIHelpers.cs" />
+    <Compile Include="Controls\Startup\TutorialImageResources.Designer.cs">
+      <AutoGen>True</AutoGen>
+      <DesignTime>True</DesignTime>
+      <DependentUpon>TutorialImageResources.resx</DependentUpon>
+    </Compile>
+    <Compile Include="Controls\Startup\TutorialTextResources.Designer.cs">
+      <AutoGen>True</AutoGen>
+      <DesignTime>True</DesignTime>
+      <DependentUpon>TutorialTextResources.resx</DependentUpon>
+    </Compile>
     <Compile Include="Controls\TargetColumn.cs" />
+    <Compile Include="EditUI\EditLinkedPeptideDlg.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="EditUI\EditLinkedPeptideDlg.Designer.cs">
+      <DependentUpon>EditLinkedPeptideDlg.cs</DependentUpon>
+    </Compile>
+    <Compile Include="EditUI\PermuteIsotopeModificationsDlg.designer.cs">
+      <DependentUpon>PermuteIsotopeModificationsDlg.cs</DependentUpon>
+    </Compile>
+    <Compile Include="EditUI\PermuteIsotopeModificationsDlg.cs">
+      <SubType>Form</SubType>
+    </Compile>
     <Compile Include="FileUI\ExportAnnotationsDlg.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -341,17 +417,20 @@
     <Compile Include="Controls\DocumentChangeLogEntryDlg.Designer.cs">
       <DependentUpon>DocumentChangeLogEntryDlg.cs</DependentUpon>
     </Compile>
+    <Compile Include="Controls\Graphs\AreaCVGraphData.cs" />
+    <Compile Include="Model\AbstractDdaSearchEngine.cs" />
+    <Compile Include="Model\AreaCVRefinementData.cs" />
     <Compile Include="Model\AuditLog\AuditLogObject.cs" />
-    <Compile Include="Model\AuditLog\AuditLogToStringHelper.cs" />
-    <Compile Include="Model\AuditLog\BlockHash.cs" />
-    <Compile Include="Model\AuditLog\Databinding\AuditLogColumn.cs" />
-    <Compile Include="Model\AuditLog\Databinding\AuditLogDetailRow.cs" />
-    <Compile Include="Model\AuditLog\Databinding\AuditLogRow.cs" />
     <Compile Include="Model\AuditLog\AuditLogStrings.Designer.cs">
       <AutoGen>True</AutoGen>
       <DesignTime>True</DesignTime>
       <DependentUpon>AuditLogStrings.resx</DependentUpon>
     </Compile>
+    <Compile Include="Model\AuditLog\AuditLogToStringHelper.cs" />
+    <Compile Include="Model\AuditLog\BlockHash.cs" />
+    <Compile Include="Model\AuditLog\Databinding\AuditLogColumn.cs" />
+    <Compile Include="Model\AuditLog\Databinding\AuditLogDetailRow.cs" />
+    <Compile Include="Model\AuditLog\Databinding\AuditLogRow.cs" />
     <Compile Include="Model\AuditLog\CustomPropertyLocalizer.cs" />
     <Compile Include="Model\AuditLog\Databinding\AuditLogRowTime.cs" />
     <Compile Include="Model\AuditLog\Databinding\TextImageColumn.cs" />
@@ -376,9 +455,16 @@
     <Compile Include="Model\AuditLog\ReflectorToString.cs" />
     <Compile Include="Model\Databinding\Collections\ModificationsRowSource.cs" />
     <Compile Include="Model\Databinding\Collections\ScalarSettingRowSource.cs" />
+    <Compile Include="Model\Crosslinking\ComplexFragmentIon.cs" />
+    <Compile Include="Model\Crosslinking\CrosslinkBuilder.cs" />
+    <Compile Include="Model\Crosslinking\ComplexFragmentIonName.cs" />
+    <Compile Include="Model\Crosslinking\CrosslinkerDef.cs" />
+    <Compile Include="Model\Crosslinking\CrosslinkSequenceParser.cs" />
+    <Compile Include="Model\Crosslinking\ModificationSite.cs" />
+    <Compile Include="Model\Crosslinking\LinkedPeptide.cs" />
     <Compile Include="Model\Databinding\Entities\ColumnCaptions.Designer.cs">
-      <DesignTime>True</DesignTime>
       <AutoGen>True</AutoGen>
+      <DesignTime>True</DesignTime>
       <DependentUpon>ColumnCaptions.resx</DependentUpon>
     </Compile>
     <Compile Include="Model\Databinding\Entities\ColumnToolTips.Designer.cs">
@@ -406,9 +492,17 @@
     <Compile Include="Model\DocumentContainers\SettingsSnapshot.cs" />
     <Compile Include="Model\Databinding\SettingsEntities\StructuralModification.cs" />
     <Compile Include="Model\DocumentContainers\DocumentSettingsContainer.cs" />
+    <Compile Include="Model\DocSettings\AbsoluteQuantification\ValueStatus.cs" />
     <Compile Include="Model\DocSettings\AnnotationCalculator.cs" />
     <Compile Include="Model\DocSettings\AnnotationExpression.cs" />
     <Compile Include="Model\DocSettings\DocumentAnnotationUpdater.cs" />
+    <Compile Include="Model\DocSettings\DriftTimePredictor.cs" />
+    <Compile Include="Model\DocSettings\MetadataExtraction\MetadataExtractor.cs" />
+    <Compile Include="Model\DocSettings\MetadataExtraction\MetadataRuleSet.cs" />
+    <Compile Include="Model\DocSettings\MetadataExtraction\ExtractedMetadataResult.cs" />
+    <Compile Include="Model\ElementLocators\ExportAnnotations\TextColumnWrapper.cs" />
+    <Compile Include="Model\ElementLocators\AuditLogRef.cs" />
+    <Compile Include="Model\DocSettings\TransitionIonMobilityFiltering.cs" />
     <Compile Include="Model\ElementLocators\ElementLocator.cs" />
     <Compile Include="Model\ElementLocators\ListRef.cs" />
     <Compile Include="Model\DocSettings\FullScanAcquisitionMethod.cs" />
@@ -435,28 +529,59 @@
     <Compile Include="Model\AuditLog\PropertyName.cs" />
     <Compile Include="Model\ElementLocators\SettingsListRef.cs" />
     <Compile Include="Model\ExplicitTransitionValues.cs" />
+    <Compile Include="Model\FragmentedMolecule.cs" />
+    <Compile Include="Model\GroupComparisonRefinementData.cs" />
+    <Compile Include="Model\IonMobility\DbPrecursorAndIonMobility.cs" />
+    <Compile Include="Model\IonMobility\ValidatingIonMobilityPrecursor.cs" />
+    <Compile Include="Model\Irt\IrtPeptidePicker.cs" />
+    <Compile Include="Model\Irt\Regression.cs" />
     <Compile Include="Model\Lib\BlibData\DbRefSpectraPeakAnnotations.cs" />
     <Compile Include="Model\Lib\ExplicitPeakBounds.cs" />
     <Compile Include="Model\Lib\LibKeyIndex.cs" />
     <Compile Include="Model\Lib\SpectralLibraryExporter.cs" />
+    <Compile Include="Model\Lib\SpectrumRanker.cs" />
     <Compile Include="Model\Lib\ViewLibraryPepInfoList.cs" />
     <Compile Include="Model\Lib\LibKeyMap.cs" />
     <Compile Include="Model\Lib\LibraryKey.cs" />
     <Compile Include="Model\Lists\ListExceptionDetail.cs" />
     <Compile Include="Model\MassModification.cs" />
+    <Compile Include="Model\DisplayModificationOption.cs" />
+    <Compile Include="Model\DdaSearch\MSAmandaSearchSettings.cs" />
+    <Compile Include="Model\DdaSearch\MSAmandaSearchWrapper.cs" />
+    <Compile Include="Model\DdaSearch\MSAmandaSpectrumParser.cs" />
+    <Compile Include="Model\DdaSearch\MsgfPlusSearchEngine.cs" />
+    <Compile Include="Model\IsotopeModificationPermuter.cs" />
     <Compile Include="Model\Optimization\OptimizationDictionary.cs" />
+    <Compile Include="Model\Prosit\Config\PrositConfig.cs" />
+    <Compile Include="Model\Prosit\Models\PrositIntensityModel.cs" />
+    <Compile Include="Model\Prosit\Models\PrositModel.cs" />
+    <Compile Include="Model\Prosit\PrositConstants.cs" />
+    <Compile Include="Model\Prosit\Communication\PrositPredictionClient.cs" />
+    <Compile Include="Model\Prosit\Models\PrositRetentionTimeModel.cs" />
+    <Compile Include="Model\Prosit\PrositExceptions.cs" />
+    <Compile Include="Model\Prosit\PrositLibraryBuilder.cs" />
+    <Compile Include="Model\Prosit\PrositMS2Spectra.cs" />
+    <Compile Include="Model\Prosit\PrositResources.Designer.cs">
+      <AutoGen>True</AutoGen>
+      <DesignTime>True</DesignTime>
+      <DependentUpon>PrositResources.resx</DependentUpon>
+    </Compile>
+    <Compile Include="Model\Prosit\PrositRetentionScoreCalculator.cs" />
+    <Compile Include="Model\Results\PeakIntegrator.cs" />
     <Compile Include="Model\Results\RemoteApi\RemoteAccountList.cs" />
-    <Compile Include="Model\Results\RemoteApi\Chorus\ChorusUrl.cs" />
     <Compile Include="Model\Results\RemoteApi\RemoteAccount.cs" />
     <Compile Include="Model\Results\RemoteApi\RemoteAccountType.cs" />
     <Compile Include="Model\Results\RemoteApi\RemoteItem.cs" />
     <Compile Include="Model\Results\RemoteApi\RemoteServerException.cs" />
     <Compile Include="Model\Results\RemoteApi\RemoteSession.cs" />
     <Compile Include="Model\Results\RemoteApi\RemoteUrl.cs" />
+    <Compile Include="Model\Results\TimeIntervals.cs" />
+    <Compile Include="Model\Results\TriggeredAcquisition.cs" />
     <Compile Include="Model\Serialization\AnnotationScrubber.cs" />
     <Compile Include="Model\Serialization\Pre372CustomIonTransitionGroupHandler.cs" />
     <Compile Include="Model\Serialization\XmlReadAhead.cs" />
     <Compile Include="Model\SettingsViewContext.cs" />
+    <Compile Include="Model\SkypFile.cs" />
     <Compile Include="Model\TargetMap.cs" />
     <Compile Include="Controls\Databinding\ChooseFormatDlg.cs">
       <SubType>Form</SubType>
@@ -509,18 +634,63 @@
     <Compile Include="Model\Results\RemoteApi\Unifi\UnifiSession.cs" />
     <Compile Include="Model\Results\RemoteApi\Unifi\UnifiUrl.cs" />
     <Compile Include="Model\TargetResolver.cs" />
+    <Compile Include="Model\TransitionGroupIonMobilityInfo.cs" />
     <Compile Include="Properties\Resources.Designer.cs">
       <AutoGen>True</AutoGen>
       <DesignTime>True</DesignTime>
       <DependentUpon>Resources.resx</DependentUpon>
     </Compile>
-    <Compile Include="Util\UiModes.cs" />
-    <Compile Include="SettingsUI\IonMobility\UseSpectralLibraryIonMobilityValuesControl.cs">
+    <Compile Include="ProtocolBuffers\GeneratedCode\Model.cs" />
+    <Compile Include="ProtocolBuffers\GeneratedCode\Predict.cs" />
+    <Compile Include="ProtocolBuffers\GeneratedCode\PredictionService.cs" />
+    <Compile Include="ProtocolBuffers\GeneratedCode\PredictionServiceGrpc.cs" />
+    <Compile Include="ProtocolBuffers\GeneratedCode\ResourceHandle.cs" />
+    <Compile Include="ProtocolBuffers\GeneratedCode\Tensor.cs" />
+    <Compile Include="ProtocolBuffers\GeneratedCode\TensorShape.cs" />
+    <Compile Include="ProtocolBuffers\GeneratedCode\Types.cs" />
+    <Compile Include="SettingsUI\MetadataRuleEditor.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="SettingsUI\MetadataRuleEditor.Designer.cs">
+      <DependentUpon>MetadataRuleEditor.cs</DependentUpon>
+    </Compile>
+    <Compile Include="SettingsUI\IonMobility\IonMobilityFilteringUserControl.cs">
       <SubType>UserControl</SubType>
     </Compile>
-    <Compile Include="SettingsUI\IonMobility\UseSpectralLibraryIonMobilityValuesControl.Designer.cs">
-      <DependentUpon>UseSpectralLibraryIonMobilityValuesControl.cs</DependentUpon>
+    <Compile Include="SettingsUI\IonMobility\IonMobilityFilteringUserControl.Designer.cs">
+      <DependentUpon>IonMobilityFilteringUserControl.cs</DependentUpon>
     </Compile>
+    <Compile Include="SettingsUI\Irt\SelectIrtStandardDlg.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="SettingsUI\Irt\SelectIrtStandardDlg.Designer.cs">
+      <DependentUpon>SelectIrtStandardDlg.cs</DependentUpon>
+    </Compile>
+    <Compile Include="SettingsUI\Irt\UseCurrentCalculatorDlg.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="SettingsUI\Irt\UseCurrentCalculatorDlg.Designer.cs">
+      <DependentUpon>UseCurrentCalculatorDlg.cs</DependentUpon>
+    </Compile>
+    <Compile Include="SettingsUI\MetadataRuleSetEditor.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="SettingsUI\MetadataRuleSetEditor.Designer.cs">
+      <DependentUpon>MetadataRuleSetEditor.cs</DependentUpon>
+    </Compile>
+    <Compile Include="FileUI\PeptideSearch\SearchSettingsControl.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="FileUI\PeptideSearch\SearchSettingsControl.Designer.cs">
+      <DependentUpon>SearchSettingsControl.cs</DependentUpon>
+    </Compile>
+    <Compile Include="FileUI\PeptideSearch\DDASearchControl.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="FileUI\PeptideSearch\DDASearchControl.Designer.cs">
+      <DependentUpon>DDASearchControl.cs</DependentUpon>
+    </Compile>
+    <Compile Include="Util\UiModes.cs" />
     <Compile Include="ToolsUI\ColorGrid.cs">
       <SubType>UserControl</SubType>
     </Compile>
@@ -595,7 +765,6 @@
     <Compile Include="Controls\FindResultsForm.Designer.cs">
       <DependentUpon>FindResultsForm.cs</DependentUpon>
     </Compile>
-    <Compile Include="Controls\Graphs\AreaCVGraphData.cs" />
     <Compile Include="Controls\Graphs\AreaCVHistogram2DGraphPane.cs" />
     <Compile Include="Controls\Graphs\AreaCVHistogramGraphPane.cs" />
     <Compile Include="Controls\Graphs\AreaCVToolbarProperties.cs">
@@ -737,12 +906,6 @@
     <Compile Include="Controls\Graphs\UniquePrefixGenerator.cs" />
     <Compile Include="Model\GroupComparison\GroupIdentifier.cs" />
     <Compile Include="Controls\GroupComparison\GroupComparisonViewContext.cs" />
-    <Compile Include="Controls\GroupComparison\MsStatsLogoForm.cs">
-      <SubType>UserControl</SubType>
-    </Compile>
-    <Compile Include="Controls\GroupComparison\MsStatsLogoForm.Designer.cs">
-      <DependentUpon>MsStatsLogoForm.cs</DependentUpon>
-    </Compile>
     <Compile Include="Controls\ImmediateWindow.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -939,12 +1102,6 @@
     </Compile>
     <Compile Include="FileUI\ChooseSchedulingReplicatesDlg.Designer.cs">
       <DependentUpon>ChooseSchedulingReplicatesDlg.cs</DependentUpon>
-    </Compile>
-    <Compile Include="FileUI\ExportChorusRequestDlg.cs">
-      <SubType>Form</SubType>
-    </Compile>
-    <Compile Include="FileUI\ExportChorusRequestDlg.Designer.cs">
-      <DependentUpon>ExportChorusRequestDlg.cs</DependentUpon>
     </Compile>
     <Compile Include="FileUI\ExportChromatogramDlg.cs">
       <SubType>Form</SubType>
@@ -1154,8 +1311,6 @@
     <Compile Include="Model\ImportAssayLibrary.cs" />
     <Compile Include="Model\ImportPeakBoundaries.cs" />
     <Compile Include="Model\ImportPeptideSearch.cs" />
-    <Compile Include="Model\IonMobility\DbIonMobilityPeptide.cs" />
-    <Compile Include="Model\IonMobility\DbVersionInfo.cs" />
     <Compile Include="Model\IonMobility\IonMobilityLibraryManager.cs" />
     <Compile Include="Model\IonMobility\IonMobilityDb.cs" />
     <Compile Include="Model\IonMobility\IonMobilityLibrary.cs" />
@@ -1372,7 +1527,6 @@
     <Compile Include="Model\Results\CachedChromatogramDataProvider.cs" />
     <Compile Include="Model\Results\CachedFileHeader.cs" />
     <Compile Include="Model\Results\CacheFormat.cs" />
-    <Compile Include="Model\Results\ChorusResponseChromDataProvider.cs" />
     <Compile Include="Model\Results\Chromatogram.cs" />
     <Compile Include="Model\Results\ChromatogramCache.cs" />
     <Compile Include="Controls\Graphs\AllChromatogramsGraph.cs">
@@ -1420,19 +1574,6 @@
     <Compile Include="Model\Results\PeptideFinder.cs" />
     <Compile Include="Model\Results\PrecursorTextId.cs" />
     <Compile Include="Model\Results\RatioValue.cs" />
-    <Compile Include="Model\Results\RemoteApi\Chorus\ChorusAccount.cs" />
-    <Compile Include="Model\Results\RemoteApi\Chorus\ChorusContents.cs" />
-    <Compile Include="Model\Results\RemoteApi\Chorus\ChorusErrorResponse.cs" />
-    <Compile Include="Model\Results\RemoteApi\Chorus\ChorusScanProvider.cs" />
-    <Compile Include="Model\Results\RemoteApi\Chorus\ChorusSession.cs" />
-    <Compile Include="Model\Results\RemoteApi\Chorus\ChromatogramGeneratorTask.cs" />
-    <Compile Include="Model\Results\RemoteApi\Chorus\ChromatogramRequestProvider.cs" />
-    <Compile Include="Model\Results\RemoteApi\Chorus\ChromTaskList.cs" />
-    <Compile Include="Model\Results\RemoteApi\GeneratedCode\ChromatogramRequest.cs">
-      <DependentUpon>ChromatogramRequest.xsd</DependentUpon>
-    </Compile>
-    <Compile Include="Model\Results\RemoteApi\GeneratedCode\ChromatogramRequestExtra.cs" />
-    <Compile Include="Model\Results\RemoteChromDataProvider.cs" />
     <Compile Include="Model\Results\ResultNameMap.cs" />
     <Compile Include="Model\Results\ScanProvider.cs" />
     <Compile Include="Model\RetentionTimes\Aligner.cs" />
@@ -1482,7 +1623,6 @@
     <Compile Include="Model\TransitionDocNode.cs" />
     <Compile Include="Model\TransitionGroup.cs" />
     <Compile Include="Model\TransitionGroupDocNode.cs" />
-    <Compile Include="Model\TransitionGroupIonMobilityInfo.cs" />
     <Compile Include="Model\Undo.cs" />
     <Compile Include="Controls\UndoRedoButtons.cs" />
     <Compile Include="Model\V01\Sequence.cs" />
@@ -1543,7 +1683,6 @@
     <Compile Include="SettingsUI\FormulaBox.Designer.cs">
       <DependentUpon>FormulaBox.cs</DependentUpon>
     </Compile>
-    <Compile Include="SettingsUI\IonMobility\ChargeRegressionTable.cs" />
     <Compile Include="SettingsUI\IonMobility\ImportIonMobilityFromSpectralLibraryDlg.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -1555,12 +1694,6 @@
     </Compile>
     <Compile Include="SettingsUI\IonMobility\EditIonMobilityLibraryDlg.designer.cs">
       <DependentUpon>EditIonMobilityLibraryDlg.cs</DependentUpon>
-    </Compile>
-    <Compile Include="SettingsUI\IonMobility\EditDriftTimePredictorDlg.cs">
-      <SubType>Form</SubType>
-    </Compile>
-    <Compile Include="SettingsUI\IonMobility\EditDriftTimePredictorDlg.designer.cs">
-      <DependentUpon>EditDriftTimePredictorDlg.cs</DependentUpon>
     </Compile>
     <Compile Include="SettingsUI\EditOptimizationLibraryDlg.cs">
       <SubType>Form</SubType>
@@ -1688,12 +1821,6 @@
     </Compile>
     <Compile Include="SettingsUI\Irt\ChangeIrtPeptidesDlg.Designer.cs">
       <DependentUpon>ChangeIrtPeptidesDlg.cs</DependentUpon>
-    </Compile>
-    <Compile Include="SettingsUI\Irt\RecalibrateIrtDlg.cs">
-      <SubType>Form</SubType>
-    </Compile>
-    <Compile Include="SettingsUI\Irt\RecalibrateIrtDlg.Designer.cs">
-      <DependentUpon>RecalibrateIrtDlg.cs</DependentUpon>
     </Compile>
     <Compile Include="SettingsUI\Irt\EditIrtCalcDlg.cs">
       <SubType>Form</SubType>
@@ -1854,9 +1981,11 @@
     </EmbeddedResource>
     <EmbeddedResource Include="Alerts\LocateFileDlg.ja.resx">
       <DependentUpon>LocateFileDlg.cs</DependentUpon>
+      <SubType>Designer</SubType>
     </EmbeddedResource>
     <EmbeddedResource Include="Alerts\LocateFileDlg.zh-CHS.resx">
       <DependentUpon>LocateFileDlg.cs</DependentUpon>
+      <SubType>Designer</SubType>
     </EmbeddedResource>
     <EmbeddedResource Include="Alerts\MissingFileDlg.ja.resx">
       <DependentUpon>MissingFileDlg.cs</DependentUpon>
@@ -1963,6 +2092,9 @@
     <EmbeddedResource Include="Controls\AuditLog\AuditLogExtraInfoForm.zh-CHS.resx">
       <DependentUpon>AuditLogExtraInfoForm.cs</DependentUpon>
     </EmbeddedResource>
+    <EmbeddedResource Include="Controls\AuditLog\AuditLogForm.resx">
+      <DependentUpon>AuditLogForm.cs</DependentUpon>
+    </EmbeddedResource>
     <EmbeddedResource Include="Controls\Databinding\ChooseFormatDlg.ja.resx">
       <DependentUpon>ChooseFormatDlg.cs</DependentUpon>
     </EmbeddedResource>
@@ -2039,6 +2171,24 @@
     <EmbeddedResource Include="Controls\Graphs\AsyncChromatogramsGraph2.zh-CHS.resx">
       <DependentUpon>AsyncChromatogramsGraph2.cs</DependentUpon>
     </EmbeddedResource>
+    <EmbeddedResource Include="Controls\Graphs\DetectionsToolbar.ja.resx">
+      <DependentUpon>DetectionsToolbar.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Controls\Graphs\DetectionsToolbar.zh-CHS.resx">
+      <DependentUpon>DetectionsToolbar.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Controls\Graphs\DetectionToolbarProperties.ja.resx">
+      <DependentUpon>DetectionToolbarProperties.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Controls\Graphs\DetectionToolbarProperties.zh-CHS.resx">
+      <DependentUpon>DetectionToolbarProperties.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Controls\Graphs\ExportMethodScheduleGraph.ja.resx">
+      <DependentUpon>ExportMethodScheduleGraph.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Controls\Graphs\ExportMethodScheduleGraph.resx">
+      <DependentUpon>ExportMethodScheduleGraph.cs</DependentUpon>
+    </EmbeddedResource>
     <EmbeddedResource Include="Controls\Graphs\Calibration\CalibrationForm.ja.resx">
       <DependentUpon>CalibrationForm.cs</DependentUpon>
     </EmbeddedResource>
@@ -2047,6 +2197,15 @@
     </EmbeddedResource>
     <EmbeddedResource Include="Controls\Graphs\Calibration\CalibrationForm.zh-CHS.resx">
       <DependentUpon>CalibrationForm.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Controls\Graphs\DetectionsToolbar.resx">
+      <DependentUpon>DetectionsToolbar.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Controls\Graphs\DetectionToolbarProperties.resx">
+      <DependentUpon>DetectionToolbarProperties.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Controls\Graphs\ExportMethodScheduleGraph.zh-CHS.resx">
+      <DependentUpon>ExportMethodScheduleGraph.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="Controls\Graphs\FileProgressControl.ja.resx">
       <DependentUpon>FileProgressControl.cs</DependentUpon>
@@ -2136,15 +2295,6 @@
     <EmbeddedResource Include="Controls\GroupComparison\FoldChangeVolcanoPlot.zh-CHS.resx">
       <DependentUpon>FoldChangeVolcanoPlot.cs</DependentUpon>
     </EmbeddedResource>
-    <EmbeddedResource Include="Controls\GroupComparison\MsStatsLogoForm.ja.resx">
-      <DependentUpon>MsStatsLogoForm.cs</DependentUpon>
-    </EmbeddedResource>
-    <EmbeddedResource Include="Controls\GroupComparison\MsStatsLogoForm.resx">
-      <DependentUpon>MsStatsLogoForm.cs</DependentUpon>
-    </EmbeddedResource>
-    <EmbeddedResource Include="Controls\GroupComparison\MsStatsLogoForm.zh-CHS.resx">
-      <DependentUpon>MsStatsLogoForm.cs</DependentUpon>
-    </EmbeddedResource>
     <EmbeddedResource Include="Controls\Lists\ListDesigner.ja.resx">
       <DependentUpon>ListDesigner.cs</DependentUpon>
     </EmbeddedResource>
@@ -2201,6 +2351,16 @@
       <DependentUpon>StartPage.cs</DependentUpon>
       <SubType>Designer</SubType>
     </EmbeddedResource>
+    <EmbeddedResource Include="Controls\Startup\TutorialImageResources.ja.resx">
+      <DependentUpon>TutorialImageResources.resx</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Controls\Startup\TutorialImageResources.resx">
+      <Generator>ResXFileCodeGenerator</Generator>
+      <LastGenOutput>TutorialImageResources.Designer.cs</LastGenOutput>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Controls\Startup\TutorialImageResources.zh-CHS.resx">
+      <DependentUpon>TutorialImageResources.resx</DependentUpon>
+    </EmbeddedResource>
     <EmbeddedResource Include="Controls\Startup\TutorialLinkResources.ja.resx">
       <DependentUpon>TutorialLinkResources.resx</DependentUpon>
       <SubType>Designer</SubType>
@@ -2212,6 +2372,19 @@
     </EmbeddedResource>
     <EmbeddedResource Include="Controls\Startup\TutorialLinkResources.zh-CHS.resx">
       <DependentUpon>TutorialLinkResources.resx</DependentUpon>
+      <SubType>Designer</SubType>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Controls\Startup\TutorialTextResources.ja.resx">
+      <DependentUpon>TutorialTextResources.resx</DependentUpon>
+      <SubType>Designer</SubType>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Controls\Startup\TutorialTextResources.resx">
+      <Generator>ResXFileCodeGenerator</Generator>
+      <LastGenOutput>TutorialTextResources.Designer.cs</LastGenOutput>
+      <SubType>Designer</SubType>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Controls\Startup\TutorialTextResources.zh-CHS.resx">
+      <DependentUpon>TutorialTextResources.resx</DependentUpon>
       <SubType>Designer</SubType>
     </EmbeddedResource>
     <EmbeddedResource Include="EditUI\AddPeakCompareDlg.ja.resx">
@@ -2238,6 +2411,15 @@
       <DependentUpon>ComparePeakPickingDlg.cs</DependentUpon>
       <SubType>Designer</SubType>
     </EmbeddedResource>
+    <EmbeddedResource Include="EditUI\EditLinkedPeptideDlg.ja.resx">
+      <DependentUpon>EditLinkedPeptideDlg.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="EditUI\EditLinkedPeptideDlg.resx">
+      <DependentUpon>EditLinkedPeptideDlg.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="EditUI\EditLinkedPeptideDlg.zh-CHS.resx">
+      <DependentUpon>EditLinkedPeptideDlg.cs</DependentUpon>
+    </EmbeddedResource>
     <EmbeddedResource Include="EditUI\MassErrorChartPropertyDlg.ja.resx">
       <DependentUpon>MassErrorChartPropertyDlg.cs</DependentUpon>
     </EmbeddedResource>
@@ -2246,6 +2428,9 @@
     </EmbeddedResource>
     <EmbeddedResource Include="EditUI\MassErrorChartPropertyDlg.zh-CHS.resx">
       <DependentUpon>MassErrorChartPropertyDlg.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="EditUI\PermuteIsotopeModificationsDlg.resx">
+      <DependentUpon>PermuteIsotopeModificationsDlg.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="EditUI\RefineProteinListDlg.ja.resx">
       <DependentUpon>RefineProteinListDlg.cs</DependentUpon>
@@ -2276,18 +2461,15 @@
     <EmbeddedResource Include="FileUI\ExportAnnotationsDlg.resx">
       <DependentUpon>ExportAnnotationsDlg.cs</DependentUpon>
     </EmbeddedResource>
-    <EmbeddedResource Include="FileUI\ExportChorusRequestDlg.ja.resx">
-      <DependentUpon>ExportChorusRequestDlg.cs</DependentUpon>
-    </EmbeddedResource>
-    <EmbeddedResource Include="FileUI\ExportChorusRequestDlg.zh-CHS.resx">
-      <DependentUpon>ExportChorusRequestDlg.cs</DependentUpon>
-      <SubType>Designer</SubType>
+    <EmbeddedResource Include="FileUI\ExportAnnotationsDlg.zh-CHS.resx">
+      <DependentUpon>ExportAnnotationsDlg.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="FileUI\ImportResultsLockMassDlg.ja.resx">
       <DependentUpon>ImportResultsLockMassDlg.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="FileUI\ImportResultsLockMassDlg.resx">
       <DependentUpon>ImportResultsLockMassDlg.cs</DependentUpon>
+      <SubType>Designer</SubType>
     </EmbeddedResource>
     <EmbeddedResource Include="FileUI\ImportResultsLockMassDlg.zh-CHS.resx">
       <DependentUpon>ImportResultsLockMassDlg.cs</DependentUpon>
@@ -2303,6 +2485,16 @@
       <DependentUpon>ImportTransitionListErrorDlg.cs</DependentUpon>
       <SubType>Designer</SubType>
     </EmbeddedResource>
+    <EmbeddedResource Include="FileUI\PeptideSearch\DDASearchControl.ja.resx">
+      <DependentUpon>DDASearchControl.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="FileUI\PeptideSearch\DDASearchControl.resx">
+      <DependentUpon>DDASearchControl.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="FileUI\PeptideSearch\DDASearchControl.zh-CHS.resx">
+      <DependentUpon>DDASearchControl.cs</DependentUpon>
+      <SubType>Designer</SubType>
+    </EmbeddedResource>
     <EmbeddedResource Include="FileUI\PeptideSearch\ImportResultsDIAControl.ja.resx">
       <DependentUpon>ImportResultsDIAControl.cs</DependentUpon>
     </EmbeddedResource>
@@ -2311,6 +2503,15 @@
     </EmbeddedResource>
     <EmbeddedResource Include="FileUI\PeptideSearch\ImportResultsDIAControl.zh-CHS.resx">
       <DependentUpon>ImportResultsDIAControl.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="FileUI\PeptideSearch\SearchSettingsControl.ja.resx">
+      <DependentUpon>SearchSettingsControl.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="FileUI\PeptideSearch\SearchSettingsControl.resx">
+      <DependentUpon>SearchSettingsControl.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="FileUI\PeptideSearch\SearchSettingsControl.zh-CHS.resx">
+      <DependentUpon>SearchSettingsControl.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="FileUI\PeptideSearch\TransitionSettingsControl.ja.resx">
       <DependentUpon>TransitionSettingsControl.cs</DependentUpon>
@@ -2330,8 +2531,8 @@
     </EmbeddedResource>
     <EmbeddedResource Include="Model\AuditLog\AuditLogStrings.resx">
       <Generator>PublicResXFileCodeGenerator</Generator>
-      <LastGenOutput>AuditLogStrings.Designer.cs</LastGenOutput>
       <SubType>Designer</SubType>
+      <LastGenOutput>AuditLogStrings.Designer.cs</LastGenOutput>
     </EmbeddedResource>
     <EmbeddedResource Include="Model\AuditLog\AuditLogStrings.zh-CHS.resx">
       <DependentUpon>AuditLogStrings.resx</DependentUpon>
@@ -2473,6 +2674,7 @@
     </EmbeddedResource>
     <EmbeddedResource Include="Controls\LongWaitDlg.zh-CHS.resx">
       <DependentUpon>LongWaitDlg.cs</DependentUpon>
+      <SubType>Designer</SubType>
     </EmbeddedResource>
     <EmbeddedResource Include="Controls\PopupPickList.ja.resx">
       <DependentUpon>PopupPickList.cs</DependentUpon>
@@ -2580,6 +2782,7 @@
     </EmbeddedResource>
     <EmbeddedResource Include="EditUI\RefineDlg.zh-CHS.resx">
       <DependentUpon>RefineDlg.cs</DependentUpon>
+      <SubType>Designer</SubType>
     </EmbeddedResource>
     <EmbeddedResource Include="EditUI\RefineListDlg.ja.resx">
       <DependentUpon>RefineListDlg.cs</DependentUpon>
@@ -2635,9 +2838,6 @@
     <EmbeddedResource Include="FileUI\ChooseSchedulingReplicatesDlg.ja.resx">
       <DependentUpon>ChooseSchedulingReplicatesDlg.cs</DependentUpon>
     </EmbeddedResource>
-    <EmbeddedResource Include="FileUI\ExportChorusRequestDlg.resx">
-      <DependentUpon>ExportChorusRequestDlg.cs</DependentUpon>
-    </EmbeddedResource>
     <EmbeddedResource Include="FileUI\ChooseSchedulingReplicatesDlg.zh-CHS.resx">
       <DependentUpon>ChooseSchedulingReplicatesDlg.cs</DependentUpon>
     </EmbeddedResource>
@@ -2657,6 +2857,7 @@
     </EmbeddedResource>
     <EmbeddedResource Include="FileUI\ExportMethodDlg.zh-CHS.resx">
       <DependentUpon>ExportMethodDlg.cs</DependentUpon>
+      <SubType>Designer</SubType>
     </EmbeddedResource>
     <EmbeddedResource Include="FileUI\ImportResultsDlg.ja.resx">
       <DependentUpon>ImportResultsDlg.cs</DependentUpon>
@@ -2799,11 +3000,25 @@
       <SubType>Designer</SubType>
     </EmbeddedResource>
     <EmbeddedResource Include="Model\GroupComparison\GroupComparisonStrings.zh-CHS.resx" />
+    <EmbeddedResource Include="Model\Prosit\PrositResources.ja.resx">
+      <DependentUpon>PrositResources.resx</DependentUpon>
+      <SubType>Designer</SubType>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Model\Prosit\PrositResources.resx">
+      <Generator>ResXFileCodeGenerator</Generator>
+      <LastGenOutput>PrositResources.Designer.cs</LastGenOutput>
+      <SubType>Designer</SubType>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Model\Prosit\PrositResources.zh-CHS.resx">
+      <DependentUpon>PrositResources.resx</DependentUpon>
+      <SubType>Designer</SubType>
+    </EmbeddedResource>
     <EmbeddedResource Include="Resources\PeptideLib.bmp" />
     <EmbeddedResource Include="Resources\PeptideIrtLib.bmp" />
     <EmbeddedResource Include="Resources\PeptideIrt.bmp" />
     <EmbeddedResource Include="Resources\PeptideQc.bmp" />
     <EmbeddedResource Include="Resources\PeptideQcLib.bmp" />
+    <EmbeddedResource Include="Resources\Skyline_Release.bmp" />
     <EmbeddedResource Include="Resources\ToolUpdateAvailable.bmp" />
     <EmbeddedResource Include="Resources\directoryicon.png" />
     <EmbeddedResource Include="Model\IonMobility\mapping.xml">
@@ -2871,12 +3086,34 @@
       <Link>unimod.xml</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <Content Include="..\Shared\Lib\grpc_csharp_ext.x64.dll">
+      <Link>grpc_csharp_ext.x64.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\Shared\Lib\grpc_csharp_ext.x86.dll">
+      <Link>grpc_csharp_ext.x86.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
     <Content Condition=" '$(Platform)' == 'x86' " Include="..\Shared\ProteowizardWrapper\obj\x86\timsdata.dll">
       <Link>timsdata.dll</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <Content Condition=" '$(Platform)' == 'x64' " Include="..\Shared\ProteowizardWrapper\obj\x64\timsdata.dll">
       <Link>timsdata.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Condition=" '$(Platform)' == 'x86' " Include="..\Shared\ProteowizardWrapper\obj\x86\prmscheduler.dll">
+      <Link>prmscheduler.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Condition=" '$(Platform)' == 'x64' " Include="..\Shared\ProteowizardWrapper\obj\x64\prmscheduler.dll">
+      <Link>prmscheduler.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="enzymes.xml">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Instruments.xml">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <Content Include="Method\Thermo\BuildThermoMethod.exe">
@@ -2892,19 +3129,7 @@
     <EmbeddedResource Include="Resources\HomeIcon.bmp" />
     <EmbeddedResource Include="Resources\magnifier_zoom_in.ico" />
     <EmbeddedResource Include="Model\Optimization\mapping.xml" />
-    <EmbeddedResource Include="Resources\StartPage\AbsoluteQuant_thumb.jpg" />
     <EmbeddedResource Include="Resources\StartPage\WizardTransitionIcon.png" />
-    <EmbeddedResource Include="Resources\StartPage\CustomReports_thumb.jpg" />
-    <EmbeddedResource Include="Resources\StartPage\ExistingQuant_thumb.jpg" />
-    <EmbeddedResource Include="Resources\StartPage\iRT_thumb.jpg" />
-    <EmbeddedResource Include="Resources\StartPage\LibraryExplorer_thumb.jpg" />
-    <EmbeddedResource Include="Resources\StartPage\MethodEdit_thumb.jpg" />
-    <EmbeddedResource Include="Resources\StartPage\MethodRefine_thumb.jpg" />
-    <EmbeddedResource Include="Resources\StartPage\MS1Filtering_thumb.jpg" />
-    <EmbeddedResource Include="Resources\StartPage\OptimizeCE_thumb.jpg" />
-    <EmbeddedResource Include="Resources\StartPage\PeakPicking_thumb.jpg" />
-    <EmbeddedResource Include="Resources\StartPage\QuaSAR_thumb.jpg" />
-    <EmbeddedResource Include="Resources\StartPage\TargetedMSMS_thumb.jpg" />
     <EmbeddedResource Include="Resources\StartPage\WizardBlankDocument.bmp" />
     <EmbeddedResource Include="Resources\StartPage\WizardFasta.png" />
     <EmbeddedResource Include="Resources\StartPage\WizardImportPeptide.png" />
@@ -2919,6 +3144,26 @@
     <EmbeddedResource Include="Resources\StartPage\WizardPeptideSearchPRM.png" />
     <EmbeddedResource Include="Resources\Ions_fragments.bmp" />
     <EmbeddedResource Include="Resources\Edit_Undo_Multiple.bmp" />
+    <Protobuf Include="ProtocolBuffers\model.proto" />
+    <Protobuf Include="ProtocolBuffers\predict.proto" />
+    <Protobuf Include="ProtocolBuffers\prediction_service.proto" />
+    <Protobuf Include="ProtocolBuffers\resource_handle.proto" />
+    <Protobuf Include="ProtocolBuffers\tensor.proto" />
+    <Protobuf Include="ProtocolBuffers\tensor_shape.proto" />
+    <Protobuf Include="ProtocolBuffers\types.proto" />
+    <EmbeddedResource Include="Model\Prosit\Config\PrositConfig.xml">
+      <SubType>Designer</SubType>
+    </EmbeddedResource>
+    <Content Include="..\..\pwiz\data\common\psi-ms.obo">
+      <Link>psi-ms.obo</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\..\pwiz\data\common\unimod.obo">
+      <Link>unimod.obo</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <None Include="Model\Prosit\Config\PrositConfig_development.xml" />
+    <None Include="Model\Prosit\Config\UpdatePrositConfiguration.bat" />
     <None Include="Resources\Locked.bmp" />
     <EmbeddedResource Include="Resources\MoleculeLib.bmp" />
     <None Include="Resources\MoleculeStandard.bmp" />
@@ -2945,13 +3190,7 @@
     <None Include="Method\Waters\BuildWatersMethod.exe.config" />
     <None Include="ProtocolBuffers\ChromatogramGroupData.proto" />
     <None Include="ProtocolBuffers\SkylineDocument.proto" />
-    <None Include="Resources\StartPage\GroupedStudies_thumb.jpg" />
-    <None Include="Resources\StartPage\DIA_thumb.jpg" />
-    <None Include="Resources\StartPage\SmallMolecule_thumb.jpg" />
     <EmbeddedResource Include="Resources\StartPage\WizardMoleculeIcon.png" />
-    <EmbeddedResource Include="Resources\StartPage\HiResMetabolomics_thumb.png" />
-    <EmbeddedResource Include="Resources\StartPage\SmallMoleculeMethodDevCEOpt_thumb.png" />
-    <EmbeddedResource Include="Resources\StartPage\SmallMoleculeQuantification_thumb.png" />
     <EmbeddedResource Include="Resources\UIModeMixed.bmp" />
     <EmbeddedResource Include="Resources\UIModeProteomic.bmp" />
     <EmbeddedResource Include="Resources\UIModeSmallMolecules.bmp" />
@@ -2960,6 +3199,83 @@
     <EmbeddedResource Include="Resources\MoleculeIrt.bmp" />
     <EmbeddedResource Include="Resources\MoleculeIrtLib.bmp" />
     <EmbeddedResource Include="Resources\MoleculeStandardLib.bmp" />
+    <EmbeddedResource Include="Resources\Skyline_Release.ico" />
+    <None Include="Resources\GenerateDecoys.bmp" />
+    <EmbeddedResource Include="Resources\StartPage\WizardBlankDocument-ja.bmp" />
+    <EmbeddedResource Include="Resources\StartPage\WizardBlankDocument-zh-CHS.bmp" />
+    <None Include="Resources\EditLink.bmp" />
+    <EmbeddedResource Include="Resources\StartPage\AbsoluteQuant_start-ja.png" />
+    <EmbeddedResource Include="Resources\StartPage\AbsoluteQuant_start-zh-CHS.png" />
+    <EmbeddedResource Include="Resources\StartPage\AbsoluteQuant_start.png" />
+    <EmbeddedResource Include="Resources\StartPage\AuditLog_start-ja.png" />
+    <EmbeddedResource Include="Resources\StartPage\AuditLog_start-zh-CHS.png" />
+    <EmbeddedResource Include="Resources\StartPage\AuditLog_start.png" />
+    <EmbeddedResource Include="Resources\StartPage\CustomReports_start-ja.png" />
+    <EmbeddedResource Include="Resources\StartPage\CustomReports_start-zh-CHS.png" />
+    <EmbeddedResource Include="Resources\StartPage\CustomReports_start.png" />
+    <EmbeddedResource Include="Resources\StartPage\DIA-SWATH_start-ja.png" />
+    <EmbeddedResource Include="Resources\StartPage\DIA-SWATH_start-zh-CHS.png" />
+    <EmbeddedResource Include="Resources\StartPage\DIA-SWATH_start.png" />
+    <EmbeddedResource Include="Resources\StartPage\DIA_start-ja.png" />
+    <EmbeddedResource Include="Resources\StartPage\DIA_start-zh-CHS.png" />
+    <EmbeddedResource Include="Resources\StartPage\DIA_start.png" />
+    <EmbeddedResource Include="Resources\StartPage\ExistingQuant_start-ja.png" />
+    <EmbeddedResource Include="Resources\StartPage\ExistingQuant_start-zh-CHS.png" />
+    <EmbeddedResource Include="Resources\StartPage\ExistingQuant_start.png" />
+    <EmbeddedResource Include="Resources\StartPage\GroupedStudies_start-ja.png" />
+    <EmbeddedResource Include="Resources\StartPage\GroupedStudies_start-zh-CHS.png" />
+    <EmbeddedResource Include="Resources\StartPage\GroupedStudies_start.png" />
+    <EmbeddedResource Include="Resources\StartPage\HiResMetabolomics_start-ja.png" />
+    <EmbeddedResource Include="Resources\StartPage\HiResMetabolomics_start-zh-CHS.png" />
+    <EmbeddedResource Include="Resources\StartPage\HiResMetabolomics_start.png" />
+    <EmbeddedResource Include="Resources\StartPage\IMSFiltering_start-ja.png" />
+    <EmbeddedResource Include="Resources\StartPage\IMSFiltering_start-zh-CHS.png" />
+    <EmbeddedResource Include="Resources\StartPage\IMSFiltering_start.png" />
+    <EmbeddedResource Include="Resources\StartPage\iRT_start-ja.png" />
+    <EmbeddedResource Include="Resources\StartPage\iRT_start-zh-CHS.png" />
+    <EmbeddedResource Include="Resources\StartPage\iRT_start.png" />
+    <EmbeddedResource Include="Resources\StartPage\LibraryExplorer_start-ja.png" />
+    <EmbeddedResource Include="Resources\StartPage\LibraryExplorer_start-zh-CHS.png" />
+    <EmbeddedResource Include="Resources\StartPage\LibraryExplorer_start.png" />
+    <EmbeddedResource Include="Resources\StartPage\MethodEdit_start-ja.png" />
+    <EmbeddedResource Include="Resources\StartPage\MethodEdit_start-zh-CHS.png" />
+    <EmbeddedResource Include="Resources\StartPage\MethodEdit_start.png" />
+    <EmbeddedResource Include="Resources\StartPage\MethodRefine_start-ja.png" />
+    <EmbeddedResource Include="Resources\StartPage\MethodRefine_start-zh-CHS.png" />
+    <EmbeddedResource Include="Resources\StartPage\MethodRefine_start.png" />
+    <EmbeddedResource Include="Resources\StartPage\MS1Filtering_start-ja.png" />
+    <EmbeddedResource Include="Resources\StartPage\MS1Filtering_start-zh-CHS.png" />
+    <EmbeddedResource Include="Resources\StartPage\MS1Filtering_start.png" />
+    <EmbeddedResource Include="Resources\StartPage\OptimizeCE_start-ja.png" />
+    <EmbeddedResource Include="Resources\StartPage\OptimizeCE_start-zh-CHS.png" />
+    <EmbeddedResource Include="Resources\StartPage\OptimizeCE_start.png" />
+    <EmbeddedResource Include="Resources\StartPage\PeakPicking_start-ja.png" />
+    <EmbeddedResource Include="Resources\StartPage\PeakPicking_start-zh-CHS.png" />
+    <EmbeddedResource Include="Resources\StartPage\PeakPicking_start.png" />
+    <EmbeddedResource Include="Resources\StartPage\SmallMoleculeMethodDevCEOpt_start-ja.png" />
+    <EmbeddedResource Include="Resources\StartPage\SmallMoleculeMethodDevCEOpt_start-zh-CHS.png" />
+    <EmbeddedResource Include="Resources\StartPage\SmallMoleculeMethodDevCEOpt_start.png" />
+    <EmbeddedResource Include="Resources\StartPage\SmallMoleculeQuantification_start-ja.png" />
+    <EmbeddedResource Include="Resources\StartPage\SmallMoleculeQuantification_start-zh-CHS.png" />
+    <EmbeddedResource Include="Resources\StartPage\SmallMoleculeQuantification_start.png" />
+    <EmbeddedResource Include="Resources\StartPage\SmallMolecule_start-ja.png" />
+    <EmbeddedResource Include="Resources\StartPage\SmallMolecule_start-zh-CHS.png" />
+    <EmbeddedResource Include="Resources\StartPage\SmallMolecule_start.png" />
+    <EmbeddedResource Include="Resources\StartPage\TargetedMSMS_start-ja.png" />
+    <EmbeddedResource Include="Resources\StartPage\TargetedMSMS_start-zh-CHS.png" />
+    <EmbeddedResource Include="Resources\StartPage\TargetedMSMS_start.png" />
+    <EmbeddedResource Include="Resources\LogoAmanda_32.bmp" />
+    <Content Include="percolator\percolator.exe">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="percolator\qvality.exe">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="percolator\xerces-c_3_1.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="SkylineDocPointer.ico" />
+    <EmbeddedResource Include="Resources\prosit_logo_dark_blue.png" />
     <Content Include="SkylineProcessRunner.exe">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
@@ -3034,6 +3350,32 @@
     </EmbeddedResource>
     <EmbeddedResource Include="SettingsUI\DefineAnnotationDlg.zh-CHS.resx">
       <DependentUpon>DefineAnnotationDlg.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="SettingsUI\IonMobility\IonMobilityFilteringUserControl.ja.resx">
+      <DependentUpon>IonMobilityFilteringUserControl.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="SettingsUI\IonMobility\IonMobilityFilteringUserControl.zh-CHS.resx">
+      <DependentUpon>IonMobilityFilteringUserControl.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="SettingsUI\Irt\SelectIrtStandardDlg.ja.resx">
+      <DependentUpon>SelectIrtStandardDlg.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="SettingsUI\Irt\SelectIrtStandardDlg.zh-CHS.resx">
+      <DependentUpon>SelectIrtStandardDlg.cs</DependentUpon>
+      <SubType>Designer</SubType>
+    </EmbeddedResource>
+    <EmbeddedResource Include="SettingsUI\Irt\UseCurrentCalculatorDlg.ja.resx">
+      <DependentUpon>UseCurrentCalculatorDlg.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="SettingsUI\Irt\UseCurrentCalculatorDlg.zh-CHS.resx">
+      <DependentUpon>UseCurrentCalculatorDlg.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="SettingsUI\MetadataRuleEditor.ja.resx">
+      <DependentUpon>MetadataRuleEditor.cs</DependentUpon>
+      <SubType>Designer</SubType>
+    </EmbeddedResource>
+    <EmbeddedResource Include="SettingsUI\MetadataRuleEditor.resx">
+      <DependentUpon>MetadataRuleEditor.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="SettingsUI\DiaIsolationWindowsGraphForm.ja.resx">
       <DependentUpon>DiaIsolationWindowsGraphForm.cs</DependentUpon>
@@ -3112,14 +3454,6 @@
     <EmbeddedResource Include="SettingsUI\FormulaBox.zh-CHS.resx">
       <DependentUpon>FormulaBox.cs</DependentUpon>
     </EmbeddedResource>
-    <EmbeddedResource Include="SettingsUI\IonMobility\EditDriftTimePredictorDlg.ja.resx">
-      <DependentUpon>EditDriftTimePredictorDlg.cs</DependentUpon>
-      <SubType>Designer</SubType>
-    </EmbeddedResource>
-    <EmbeddedResource Include="SettingsUI\IonMobility\EditDriftTimePredictorDlg.zh-CHS.resx">
-      <DependentUpon>EditDriftTimePredictorDlg.cs</DependentUpon>
-      <SubType>Designer</SubType>
-    </EmbeddedResource>
     <EmbeddedResource Include="SettingsUI\IonMobility\EditIonMobilityLibraryDlg.ja.resx">
       <DependentUpon>EditIonMobilityLibraryDlg.cs</DependentUpon>
     </EmbeddedResource>
@@ -3139,10 +3473,6 @@
     </EmbeddedResource>
     <EmbeddedResource Include="SettingsUI\IonMobility\EditIonMobilityLibraryDlg.resx">
       <DependentUpon>EditIonMobilityLibraryDlg.cs</DependentUpon>
-      <SubType>Designer</SubType>
-    </EmbeddedResource>
-    <EmbeddedResource Include="SettingsUI\IonMobility\EditDriftTimePredictorDlg.resx">
-      <DependentUpon>EditDriftTimePredictorDlg.cs</DependentUpon>
       <SubType>Designer</SubType>
     </EmbeddedResource>
     <EmbeddedResource Include="SettingsUI\EditEnzymeDlg.ja.resx">
@@ -3241,15 +3571,10 @@
       <DependentUpon>ImportIonMobilityFromSpectralLibraryDlg.cs</DependentUpon>
       <SubType>Designer</SubType>
     </EmbeddedResource>
-    <EmbeddedResource Include="SettingsUI\IonMobility\UseSpectralLibraryIonMobilityValuesControl.ja.resx">
-      <DependentUpon>UseSpectralLibraryIonMobilityValuesControl.cs</DependentUpon>
-    </EmbeddedResource>
-    <EmbeddedResource Include="SettingsUI\IonMobility\UseSpectralLibraryIonMobilityValuesControl.resx">
-      <DependentUpon>UseSpectralLibraryIonMobilityValuesControl.cs</DependentUpon>
+    <EmbeddedResource Include="SettingsUI\IonMobility\IonMobilityFilteringUserControl.resx">
+      <DependentUpon>IonMobilityFilteringUserControl.cs</DependentUpon>
+      <LastGenOutput>IonMobilityFilteringUserControl1.Designer.cs</LastGenOutput>
       <SubType>Designer</SubType>
-    </EmbeddedResource>
-    <EmbeddedResource Include="SettingsUI\IonMobility\UseSpectralLibraryIonMobilityValuesControl.zh-CHS.resx">
-      <DependentUpon>UseSpectralLibraryIonMobilityValuesControl.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="SettingsUI\Irt\AddIrtCalculatorDlg.ja.resx">
       <DependentUpon>AddIrtCalculatorDlg.cs</DependentUpon>
@@ -3291,6 +3616,7 @@
     </EmbeddedResource>
     <EmbeddedResource Include="SettingsUI\Irt\CalibrateIrtDlg.zh-CHS.resx">
       <DependentUpon>CalibrateIrtDlg.cs</DependentUpon>
+      <SubType>Designer</SubType>
     </EmbeddedResource>
     <EmbeddedResource Include="SettingsUI\Irt\ChangeIrtPeptidesDlg.ja.resx">
       <DependentUpon>ChangeIrtPeptidesDlg.cs</DependentUpon>
@@ -3304,11 +3630,25 @@
     <EmbeddedResource Include="SettingsUI\Irt\EditIrtCalcDlg.zh-CHS.resx">
       <DependentUpon>EditIrtCalcDlg.cs</DependentUpon>
     </EmbeddedResource>
-    <EmbeddedResource Include="SettingsUI\Irt\RecalibrateIrtDlg.ja.resx">
-      <DependentUpon>RecalibrateIrtDlg.cs</DependentUpon>
+    <EmbeddedResource Include="SettingsUI\Irt\SelectIrtStandardDlg.resx">
+      <DependentUpon>SelectIrtStandardDlg.cs</DependentUpon>
     </EmbeddedResource>
-    <EmbeddedResource Include="SettingsUI\Irt\RecalibrateIrtDlg.zh-CHS.resx">
-      <DependentUpon>RecalibrateIrtDlg.cs</DependentUpon>
+    <EmbeddedResource Include="SettingsUI\Irt\UseCurrentCalculatorDlg.resx">
+      <DependentUpon>UseCurrentCalculatorDlg.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="SettingsUI\MetadataRuleEditor.zh-CHS.resx">
+      <DependentUpon>MetadataRuleEditor.cs</DependentUpon>
+      <SubType>Designer</SubType>
+    </EmbeddedResource>
+    <EmbeddedResource Include="SettingsUI\MetadataRuleSetEditor.ja.resx">
+      <DependentUpon>MetadataRuleSetEditor.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="SettingsUI\MetadataRuleSetEditor.resx">
+      <DependentUpon>MetadataRuleSetEditor.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="SettingsUI\MetadataRuleSetEditor.zh-CHS.resx">
+      <DependentUpon>MetadataRuleSetEditor.cs</DependentUpon>
+      <SubType>Designer</SubType>
     </EmbeddedResource>
     <EmbeddedResource Include="SettingsUI\Optimization\AddOptimizationLibraryDlg.ja.resx">
       <DependentUpon>AddOptimizationLibraryDlg.cs</DependentUpon>
@@ -3375,6 +3715,7 @@
     </EmbeddedResource>
     <EmbeddedResource Include="SettingsUI\ViewLibraryDlg.zh-CHS.resx">
       <DependentUpon>ViewLibraryDlg.cs</DependentUpon>
+      <SubType>Designer</SubType>
     </EmbeddedResource>
     <EmbeddedResource Include="Skyline.ja.resx">
       <DependentUpon>Skyline.cs</DependentUpon>
@@ -3658,10 +3999,6 @@
       <SubType>Designer</SubType>
     </None>
     <None Include="Jamfile.jam" />
-    <None Include="Model\Results\RemoteApi\GeneratedCode\ChromatogramRequest.xsd">
-      <SubType>Designer</SubType>
-    </None>
-    <None Include="Model\Results\RemoteApi\GeneratedCode\gencodefromxsd.bat" />
     <None Include="Properties\Settings.settings">
       <Generator>PublicSettingsSingleFileGenerator</Generator>
       <LastGenOutput>Settings.Designer.cs</LastGenOutput>
@@ -3899,6 +4236,12 @@
       <Description>Skyline Chromatogram Data</Description>
       <Progid>Skyline.Data.0</Progid>
       <DefaultIcon>SkylineData.ico</DefaultIcon>
+    </FileAssociation>
+    <FileAssociation Include=".skyp">
+      <Visible>False</Visible>
+      <Description>Skyline Document Pointer</Description>
+      <Progid>Skyline.Pointer.0</Progid>
+      <DefaultIcon>SkylineDocPointer.ico</DefaultIcon>
     </FileAssociation>
   </ItemGroup>
   <ItemGroup>
@@ -4486,9 +4829,6 @@
     <Content Include="Method\Bruker\BDal.Submethod.Wrapper.dll">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
-    <Content Include="Method\Bruker\BDal.Submethod.Wrapper.xml">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
     <Content Include="Method\Bruker\BdalRetentionTimeMassList.dll">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
@@ -4767,10 +5107,6 @@
       <DependentUpon>ChangeIrtPeptidesDlg.cs</DependentUpon>
       <SubType>Designer</SubType>
     </EmbeddedResource>
-    <EmbeddedResource Include="SettingsUI\Irt\RecalibrateIrtDlg.resx">
-      <DependentUpon>RecalibrateIrtDlg.cs</DependentUpon>
-      <SubType>Designer</SubType>
-    </EmbeddedResource>
     <EmbeddedResource Include="SettingsUI\Irt\EditIrtCalcDlg.resx">
       <DependentUpon>EditIrtCalcDlg.cs</DependentUpon>
       <SubType>Designer</SubType>
@@ -4800,6 +5136,9 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <EmbeddedResource Include="Resources\add-pro32.bmp" />
+    <Content Include="SkylineCmd.exe.config">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
     <None Include="SkylineLog4Net.config">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
@@ -4872,6 +5211,26 @@
   </ItemGroup>
   <ItemGroup>
     <PublishFile Include="BiblioSpec.pdb">
+      <Visible>False</Visible>
+      <Group>
+      </Group>
+      <TargetPath>
+      </TargetPath>
+      <PublishState>Include</PublishState>
+      <IncludeHash>True</IncludeHash>
+      <FileType>File</FileType>
+    </PublishFile>
+    <PublishFile Include="enzymes.xml">
+      <Visible>False</Visible>
+      <Group>
+      </Group>
+      <TargetPath>
+      </TargetPath>
+      <PublishState>Include</PublishState>
+      <IncludeHash>True</IncludeHash>
+      <FileType>File</FileType>
+    </PublishFile>
+    <PublishFile Include="Instruments.xml">
       <Visible>False</Visible>
       <Group>
       </Group>
@@ -5012,16 +5371,16 @@
       <FileType>File</FileType>
     </PublishFile>
   </ItemGroup>
-  <ItemGroup>
-    <Folder Include="Model\Unifi\" />
-  </ItemGroup>
+  <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <Target Name="AfterPublish">
     <Exec Command="SignAfterPublish.bat &quot;$(ProjectDir)University of Washington (MacCoss Lab).pfx&quot; password &quot;$(ProjectDir)bin\$(Platform)\$(ConfigurationName)\app.publish&quot; $(TargetName)" />
   </Target>
   <PropertyGroup>
+    <PreBuildEvent>$(ProjectDir)ProtocolBuffers\generatecode.bat &amp;&amp; $(ProjectDir)Model\Prosit\Config\UpdatePrositConfiguration.bat</PreBuildEvent>
+  </PropertyGroup>
+  <PropertyGroup>
     <PostBuildEvent>
     </PostBuildEvent>
-    <PreBuildEvent>$(ProjectDir)ProtocolBuffers\generatecode.bat</PreBuildEvent>
   </PropertyGroup>
 </Project>

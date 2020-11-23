@@ -36,7 +36,7 @@ namespace pwiz.Skyline.Controls.Clustering
             var points = new PointPairList();
             for (int iRow = 0; iRow < dataSet.RowCount; iRow++)
             {
-                double xGroupStart = 0;
+                double xGroupStart = 1;
                 foreach (var dataFrameGroup in dataSet.DataFrameGroups)
                 {
                     var zScoreLists = dataFrameGroup.Select(frame => frame.GetZScores(iRow).ToList()).ToList();

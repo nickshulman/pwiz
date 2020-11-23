@@ -45,6 +45,7 @@ namespace pwiz.Common.DataBinding.Internal
             var clusterResults = clusterDataSet.PerformClustering(ClusteringSpec.ClusterRows, ClusteringSpec.ClusterColumns);
             var pivotedProperties = PivotedProperties.ReorderPivots(clusterResults.DataSet.DataFrameGroups
                 .Select(group => group[0].ColumnHeaders).Cast<IList<int>>().ToList());
+            pivotedProperties = pivotedProperties.ReorderItemProperties();
             return new ReportResults(clusterResults.DataSet.RowLabels, pivotedProperties, clusterResults.RowDendrogram, clusterResults.ColumnGroupDendrograms);
         }
 
@@ -58,12 +59,14 @@ namespace pwiz.Common.DataBinding.Internal
                 return null;
             }
 
+            pivotedPropertySet = pivotedPropertySet.ChangeSeriesGroups(seriesGroups);
+
             if (!clusteringSpec.ClusterColumns && !clusteringSpec.ClusterRows)
             {
                 return new ReportResults(reportResults.RowItems, pivotedPropertySet);
             }
 
-            pivotedPropertySet = pivotedPropertySet.ChangeSeriesGroups(seriesGroups).ReorderItemProperties();
+            pivotedPropertySet = pivotedPropertySet.ReorderItemProperties();
             var clusterer = new Clusterer(clusteringSpec, reportResults.RowItems, pivotedPropertySet);
             return clusterer.GetClusteredResults();
         }

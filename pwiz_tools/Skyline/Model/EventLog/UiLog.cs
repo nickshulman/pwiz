@@ -1,13 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.ComponentModel;
 using Serilog;
 using Serilog.Core;
 
-namespace pwiz.Skyline.Util.Logging
+namespace pwiz.Skyline.Model.EventLog
 {
     public static class UiLog
     {

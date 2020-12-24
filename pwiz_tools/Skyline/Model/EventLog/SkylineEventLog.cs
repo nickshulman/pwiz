@@ -1,12 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Management.Instrumentation;
 using Serilog;
 using Serilog.Core;
 using Serilog.Events;
 
-namespace pwiz.Skyline.Util.Logging
+namespace pwiz.Skyline.Model.EventLog
 {
     public class SkylineEventLog : ILogEventSink
     {

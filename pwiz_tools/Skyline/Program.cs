@@ -35,11 +35,11 @@ using pwiz.Skyline.Alerts;
 using pwiz.Skyline.Controls;
 using pwiz.Skyline.Controls.Startup;
 using pwiz.Skyline.Model;
+using pwiz.Skyline.Model.EventLog;
 using pwiz.Skyline.Model.Tools;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
 using pwiz.Skyline.Util.Extensions;
-using pwiz.Skyline.Util.Logging;
 
 // Once-per-assembly initialization to perform logging with log4net.
 [assembly: log4net.Config.XmlConfigurator(ConfigFile = "SkylineLog4Net.config", Watch = true)]

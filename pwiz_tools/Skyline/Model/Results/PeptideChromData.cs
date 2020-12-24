@@ -31,7 +31,7 @@ namespace pwiz.Skyline.Model.Results
 {
     internal sealed class PeptideChromDataSets
     {
-        private static readonly Serilog.ILogger LOGGER = Serilog.Log.ForContext<PeptideChromDataSets>();
+        private readonly Serilog.ILogger LOGGER = Serilog.Log.ForContext<PeptideChromDataSets>();
         private const double TIME_DELTA_VARIATION_THRESHOLD = 0.001;
         public const double TIME_MIN_DELTA = 0.2 / 60;
 
@@ -60,16 +60,6 @@ namespace pwiz.Skyline.Model.Results
             _document = document;
             _retentionTimes = new double[0];
             _isProcessedScans = isProcessedScans;
-        }
-
-        public PeptideChromDataSets(PeptideChromDataSets other)
-        {
-            NodePep = other.NodePep;
-            FileInfo = other.FileInfo;
-            DetailedPeakFeatureCalculators = other.DetailedPeakFeatureCalculators;
-            _document = other._document;
-            _retentionTimes = new double[0];
-            _isProcessedScans = other._isProcessedScans;
         }
 
         public PeptideDocNode NodePep { get; private set; }
@@ -942,11 +932,11 @@ namespace pwiz.Skyline.Model.Results
                     var dataSet = DataSets[i];
                     if (explicitRT < dataSet.MinRawTime || dataSet.MaxRawTime < explicitRT)
                     {
-                        LOGGER.Information(
-                            @"Removing chromatograms {Precursor} from {Molecule} because {ExplicitRt} is not contained in {@RetentionTimeRange}",
-                            NodePep, dataSet.FirstKey?.Precursor, explicitRT,
-                            new {Start = dataSet.MinRawTime, End = dataSet.MaxRawTime});
-                        DataSets.RemoveAt(i);
+LOGGER.Information(
+    @"Removing chromatograms {Precursor} from {Molecule} because {ExplicitRt} is not contained in {@RetentionTimeRange}",
+    dataSet.FirstKey?.Precursor, NodePep, explicitRT,
+    new {Start = dataSet.MinRawTime, End = dataSet.MaxRawTime});
+    DataSets.RemoveAt(i);
                     }
                     else
                     {

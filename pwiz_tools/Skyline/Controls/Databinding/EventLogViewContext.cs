@@ -2,7 +2,7 @@
 using pwiz.Common.DataBinding;
 using pwiz.Skyline.Model;
 using pwiz.Skyline.Model.Databinding;
-using pwiz.Skyline.Util.Logging;
+using pwiz.Skyline.Model.EventLog;
 
 namespace pwiz.Skyline.Controls.Databinding
 {

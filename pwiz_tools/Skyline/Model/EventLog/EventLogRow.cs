@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using Serilog.Events;
 
-namespace pwiz.Skyline.Util.Logging
+namespace pwiz.Skyline.Model.EventLog
 {
     public class EventLogRow
     {

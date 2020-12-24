@@ -41,6 +41,7 @@
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(800, 450);
             this.Name = "EventLogForm";
+            this.TabText = "Event Log";
             this.Text = "Event Log";
             ((System.ComponentModel.ISupportInitialize)(this.ModeUIExtender)).EndInit();
             this.ResumeLayout(false);

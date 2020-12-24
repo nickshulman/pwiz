@@ -2,7 +2,7 @@
 using System.Linq;
 using pwiz.Common.DataBinding;
 
-namespace pwiz.Skyline.Util.Logging
+namespace pwiz.Skyline.Model.EventLog
 {
     public class EventLogRowSource : AbstractRowSource
     {

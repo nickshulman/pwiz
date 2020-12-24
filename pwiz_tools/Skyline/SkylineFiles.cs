@@ -1241,16 +1241,13 @@ namespace pwiz.Skyline
         {
             try
             {
-                bool success = false;
-                Helpers.TryTwice(() =>
+                bool success;
+                using (var longWaitDlg = new LongWaitDlg { Text = Resources.SkylineWindow_ShareDocument_Compressing_Files, })
                 {
-                    using (var longWaitDlg = new LongWaitDlg { Text = Resources.SkylineWindow_ShareDocument_Compressing_Files, })
-                    {
-                        var sharing = new SrmDocumentSharing(DocumentUI, DocumentFilePath, fileDest, shareType);
-                        longWaitDlg.PerformWork(this, 1000, sharing.Share);
-                        success = !longWaitDlg.IsCanceled;
-                    }
-                });
+                    var sharing = new SrmDocumentSharing(DocumentUI, DocumentFilePath, fileDest, shareType);
+                    longWaitDlg.PerformWork(this, 1000, sharing.Share);
+                    success = !longWaitDlg.IsCanceled;
+                }
                 return success;
             }
             catch (Exception x)
@@ -1385,69 +1382,9 @@ namespace pwiz.Skyline
             }
         }
 
-        private void reintegrateToolStripMenuItem_Click(object sender, EventArgs e)
-        {
-            ShowReintegrateDialog();
-        }
-        
         public void ShowReintegrateDialog()
         {
-            var documentOrig = DocumentUI;
-            if (!documentOrig.Settings.HasResults)
-            {
-                MessageDlg.Show(this, Resources.SkylineWindow_ShowReintegrateDialog_The_document_must_have_imported_results_);
-                return;
-            }
-            if (documentOrig.MoleculeCount == 0)
-            {
-                MessageDlg.Show(this, Resources.SkylineWindow_ShowReintegrateDialog_The_document_must_have_targets_in_order_to_reintegrate_chromatograms_);
-                return;
-            }
-            if (!documentOrig.IsLoaded)
-            {
-                MessageDlg.Show(this, Resources.SkylineWindow_ShowReintegrateDialog_The_document_must_be_fully_loaded_before_it_can_be_re_integrated_);
-                return;                
-            }
-            using (var dlg = new ReintegrateDlg(documentOrig))
-            {
-                if (dlg.ShowDialog(this) == DialogResult.Cancel)
-                    return;
-                ModifyDocument(Resources.SkylineWindow_ShowReintegrateDialog_Reintegrate_peaks, doc =>
-                {
-                    if (!ReferenceEquals(documentOrig, doc))
-                        throw new InvalidDataException(
-                            Resources.SkylineWindow_ShowReintegrateDialog_Unexpected_document_change_during_operation_);
-
-                    return dlg.Document;
-                }, dlg.FormSettings.EntryCreator.Create);
-            }
-        }
-
-        private void compareModelsToolStripMenuItem_Click(object sender, EventArgs e)
-        {
-            ShowCompareModelsDlg();
-        }
-
-        public void ShowCompareModelsDlg()
-        {
-            var document = DocumentUI;
-            if (!document.Settings.HasResults)
-            {
-                MessageDlg.Show(this, Resources.SkylineWindow_ShowReintegrateDialog_The_document_must_have_imported_results_);
-                return;
-            }
-            if (document.MoleculeCount == 0)
-            {
-                MessageDlg.Show(this, Resources.SkylineWindow_ShowCompareModelsDlg_The_document_must_have_targets_in_order_to_compare_model_peak_picking_);
-                return;
-            }
-            if (!document.IsLoaded)
-            {
-                MessageDlg.Show(this, Resources.SkylineWindow_ShowCompareModelsDlg_The_document_must_be_fully_loaded_in_order_to_compare_model_peak_picking_);
-                return;
-            }
-            var dlg = new ComparePeakPickingDlg(document);
-            dlg.Show(this);
+            RefineMenu.ShowReintegrateDialog();
         }
 
         private void mProphetFeaturesMenuItem_Click(object sender, EventArgs e)
@@ -1907,7 +1844,7 @@ namespace pwiz.Skyline
             }
         }
 
-        private void ImportMassList(MassListInputs inputs, string description, bool assayLibrary)
+        public void ImportMassList(MassListInputs inputs, string description, bool assayLibrary)
         {
             SrmTreeNode nodePaste = SequenceTree.SelectedNode as SrmTreeNode;
             IdentityPath insertPath = nodePaste != null ? nodePaste.Path : null;
@@ -2440,7 +2377,7 @@ namespace pwiz.Skyline
             return docResult;
         }
 
-        private string FindSpectralLibrary(string libraryName, string fileName)
+        public string FindSpectralLibrary(string libraryName, string fileName)
         {
             string result = null;
             RunUIAction(() =>
@@ -2937,7 +2874,7 @@ namespace pwiz.Skyline
             }
         }
 
-        private void ReimportChromatograms(SrmDocument document, IEnumerable<ChromatogramSet> chromatogramSets)
+        public void ReimportChromatograms(SrmDocument document, IEnumerable<ChromatogramSet> chromatogramSets)
         {
             var setReimport = new HashSet<ChromatogramSet>(chromatogramSets);
             if (setReimport.Count == 0)

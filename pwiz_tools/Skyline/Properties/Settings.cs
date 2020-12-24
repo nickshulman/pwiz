@@ -51,6 +51,7 @@ using pwiz.Skyline.Model.DocSettings.AbsoluteQuantification;
 using pwiz.Skyline.Model.DocSettings.MetadataExtraction;
 using pwiz.Skyline.Model.GroupComparison;
 using pwiz.Skyline.Model.Lists;
+using pwiz.Skyline.Model.Results;
 using pwiz.Skyline.Model.Themes;
 using pwiz.Skyline.Util.Extensions;
 
@@ -1212,6 +1213,30 @@ namespace pwiz.Skyline.Properties
             }
         }
 
+        [UserScopedSetting]
+        public string NormalizeOptionValue
+        {
+            get
+            {
+                return (string) this[nameof(NormalizeOptionValue)];
+            }
+            set
+            {
+                this[nameof(NormalizeOptionValue)] = value;
+            }
+        }
+
+        public NormalizeOption AreaNormalizeOption
+        {
+            get
+            {
+                return NormalizeOption.FromPersistedName(NormalizeOptionValue);
+            }
+            set
+            {
+                NormalizeOptionValue = value.PersistedName;
+            }
+        }
     }
 
     /// <summary>
@@ -2208,6 +2233,12 @@ namespace pwiz.Skyline.Properties
         public override bool AcceptList(Control owner, IList<IonMobilityLibrary> listNew)
         {
             return true;
+        }
+
+        public override string GetDisplayName(IonMobilityLibrary item)
+        {
+            // Use the localized text in the UI
+            return Equals(item, IonMobilityLibrary.NONE) ? Resources.SettingsList_ELEMENT_NONE_None : base.GetDisplayName(item);
         }
 
         public override IonMobilityLibrary EditItem(Control owner, IonMobilityLibrary item,

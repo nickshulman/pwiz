@@ -139,14 +139,15 @@ namespace pwiz.SkylineTestFunctional
                 string databasePath = testFilesDir.GetTestPath(testlibName + IonMobilityDb.EXT);
                 RunUI(() =>
                 {
-                    ionMobilityLibDlg1.LibraryName = testlibName;
-                    ionMobilityLibDlg1.CreateDatabaseFile(databasePath); // Simulare user click on Create button
+                    // N.B no library name provided, so we'll automatically use filename as basis
+                    ionMobilityLibDlg1.CreateDatabaseFile(databasePath); // Simulate user click on Create button
                     ionMobilityLibDlg1.SetOffsetHighEnergySpectraCheckbox(true);
                     string libraryText = BuildPasteLibraryText(ionMobilityPeptides,
                         seq => seq.Substring(0, seq.Length - 1),
                         ionMobilityLibDlg1.GetOffsetHighEnergySpectraCheckbox());
                     SetClipboardText(libraryText);
                 });
+                AssertEx.AreEqual(testlibName, ionMobilityLibDlg1.LibraryName);
                 // Expect to be warned about multiple conformer
                 var warnDlg = ShowDialog<MessageDlg>(() => ionMobilityLibDlg1.DoPasteLibrary());
                 RunUI(() =>
@@ -770,8 +771,18 @@ namespace pwiz.SkylineTestFunctional
                 transitionSettingsDlg.OkDialog();
             });
             WaitForClosedForm(transitionSettingsDlg);
-            doc = WaitForDocumentChange(doc);
-            
+            WaitForDocumentChange(doc);
+
+            // Now close the document, then reopen to verify imsdb background loader operation
+            var docName = TestContext.GetTestPath("reloaded.sky");
+            RunUI(() =>
+            {
+                SkylineWindow.SaveDocument(docName);
+                SkylineWindow.NewDocument();
+                SkylineWindow.OpenFile(docName);
+            });
+            doc = WaitForDocumentLoaded();
+
             var result = doc.Settings.TransitionSettings.IonMobilityFiltering.IonMobilityLibrary;
             AssertEx.AreEqual(2, result.Count);
             var key3 = new LibKey("GLAGVENVTELKK", Adduct.TRIPLY_PROTONATED);

@@ -141,7 +141,7 @@ namespace pwiz.Skyline.FileUI.PeptideSearch
                     Resources.DdaSearch_SearchSettingsControl_MS2_Tolerance_incorrect);
                 return false;
             }
-            ImportPeptideSearch.SearchEngine.SetFragmentIonMassTolerance(new MzTolerance(ms2Tol, (MzTolerance.Units) cbMS1TolUnit.SelectedIndex));
+            ImportPeptideSearch.SearchEngine.SetFragmentIonMassTolerance(new MzTolerance(ms2Tol, (MzTolerance.Units) cbMS2TolUnit.SelectedIndex));
 
             string fragmentIons;
             if (!ValidateCombobox(cbFragmentIons, out fragmentIons))
@@ -171,7 +171,7 @@ namespace pwiz.Skyline.FileUI.PeptideSearch
         public void SetFragmentIons(string fragmentIons)
         {
             int i = cbFragmentIons.Items.IndexOf(fragmentIons);
-            Assume.IsTrue(i >= 0, Resources.DdaSearch_SearchSettingsControl_Fragmentions_not_found_in_combobox); 
+            Assume.IsTrue(i >= 0, $@"fragmentIons value ""{fragmentIons}"" not found in ComboBox items");
             cbFragmentIons.SelectedIndex = i;
             ImportPeptideSearch.SearchEngine.SetFragmentIons(fragmentIons);
         }

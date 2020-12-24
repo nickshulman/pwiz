@@ -480,6 +480,7 @@
     <Compile Include="Model\Databinding\RowActions\DeleteNodesAction.cs" />
     <Compile Include="Model\Databinding\RowActions\RemovePeaksAction.cs" />
     <Compile Include="Model\Databinding\RowActions\RowAction.cs" />
+    <Compile Include="Model\Databinding\SettingsEntities\AnnotationDefinition.cs" />
     <Compile Include="Model\Databinding\SettingsEntities\IsotopeModification.cs" />
     <Compile Include="Model\Databinding\SettingsEntities\Modification.cs" />
     <Compile Include="Model\Databinding\SettingsEntities\NeutralLoss.cs" />

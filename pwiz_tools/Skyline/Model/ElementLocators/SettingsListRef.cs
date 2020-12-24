@@ -33,6 +33,9 @@ namespace pwiz.Skyline.Model.ElementLocators
         public static readonly SettingsListRef IsotopeModification
             = (SettingsListRef) PROTOTYPE.ChangeName(@"IsotopeModification");
 
+        public static readonly SettingsListRef Annotation
+            = (SettingsListRef) PROTOTYPE.ChangeName(@"Annotation");
+
         public SettingsListRef() : base(DocumentRef.PROTOTYPE)
         {
         }

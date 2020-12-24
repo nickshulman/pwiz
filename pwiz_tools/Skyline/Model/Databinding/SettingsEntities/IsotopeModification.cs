@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using DigitalRune.Windows.Docking;
 using pwiz.Common.Collections;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.DocumentContainers;
@@ -47,7 +46,7 @@ namespace pwiz.Skyline.Model.Databinding.SettingsEntities
                     }
                 }
 
-                DataSchema.ModifyDocument(EditDescription.SetColumn(nameof(LabelTypes), value), doc =>
+                DataSchema.ModifyDocument(EditColumnDescription(nameof(LabelTypes), value), doc =>
                 {
 
                     var peptideModifications = SrmDocument.Settings.PeptideSettings.Modifications;

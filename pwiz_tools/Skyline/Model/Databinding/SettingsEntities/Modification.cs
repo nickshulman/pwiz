@@ -17,11 +17,17 @@ namespace pwiz.Skyline.Model.Databinding.SettingsEntities
             _modificationInfo = CachedValue.Create(DataSchema, () => GetModificationInfo(DataSchema.DocumentSettings));
         }
 
-        public string Name { get; private set; }
+        public string Name
+        {
+            get;
+            private set;
+        }
 
         protected abstract ModificationInfo GetModificationInfo(DocumentSettings documentSettings);
         protected abstract DocumentSettings ChangeDocumentSettingsModificationInfo(DocumentSettings documentSettings,
             ModificationInfo modificationInfoNew);
+
+
 
         protected void ChangeStaticMod(EditDescription editDescription, Func<StaticMod, StaticMod> changeFunc)
         {
@@ -91,32 +97,26 @@ namespace pwiz.Skyline.Model.Databinding.SettingsEntities
             }
         }
 
-        protected IEnumerable<StaticMod> ReplaceModInList(IEnumerable<StaticMod> modifications, StaticMod newMod)
+        protected IEnumerable<StaticMod> ReplaceModInList(IEnumerable<StaticMod> items, StaticMod newItem)
         {
             bool found = false;
-            foreach (var mod in modifications)
+            foreach (var item in items)
             {
-                if (mod.Name == Name)
+                if (item.Name == Name)
                 {
-                    if (newMod != null)
+                    if (newItem != null)
                     {
-                        yield return newMod;
+                        yield return newItem;
                     }
-
                     found = true;
-                }
-                else
-                {
-                    yield return mod;
                 }
             }
 
-            if (!found && null != newMod)
+            if (!found && newItem != null)
             {
-                yield return newMod;
+                yield return newItem;
             }
         }
 
-        public string Locator { get { return GetLocator(); } }
     }
 }

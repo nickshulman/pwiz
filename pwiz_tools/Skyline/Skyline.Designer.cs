@@ -511,6 +511,7 @@ namespace pwiz.Skyline
             this.detectionsToolStripSeparator2 = new System.Windows.Forms.ToolStripSeparator();
             this.detectionsPropertiesToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.detectionsToolStripSeparator3 = new System.Windows.Forms.ToolStripSeparator();
+            this.settingsGridToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             ((System.ComponentModel.ISupportInitialize)(this.modeUIHandler)).BeginInit();
             this.contextMenuTreeNode.SuspendLayout();
             this.contextMenuSpectrum.SuspendLayout();
@@ -3263,7 +3264,8 @@ namespace pwiz.Skyline
             this.resultsGridMenuItem,
             this.groupComparisonsMenuItem,
             this.listsMenuItem,
-            this.auditLogMenuItem});
+            this.auditLogMenuItem,
+            this.settingsGridToolStripMenuItem});
             this.otherGridsMenuItem.Name = "otherGridsMenuItem";
             resources.ApplyResources(this.otherGridsMenuItem, "otherGridsMenuItem");
             // 
@@ -3917,6 +3919,12 @@ namespace pwiz.Skyline
             this.detectionsToolStripSeparator3.Name = "detectionsToolStripSeparator3";
             resources.ApplyResources(this.detectionsToolStripSeparator3, "detectionsToolStripSeparator3");
             // 
+            // settingsGridToolStripMenuItem
+            // 
+            this.settingsGridToolStripMenuItem.Name = "settingsGridToolStripMenuItem";
+            resources.ApplyResources(this.settingsGridToolStripMenuItem, "settingsGridToolStripMenuItem");
+            this.settingsGridToolStripMenuItem.Click += new System.EventHandler(this.settingsGridMenuItem_Click);
+            // 
             // SkylineWindow
             // 
             resources.ApplyResources(this, "$this");
@@ -4429,6 +4437,7 @@ namespace pwiz.Skyline
         private System.Windows.Forms.ToolStripMenuItem detectionsPropertiesToolStripMenuItem;
         private System.Windows.Forms.ToolStripSeparator detectionsToolStripSeparator3;
         private System.Windows.Forms.ToolStripMenuItem detectionsYScalePercentToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem settingsGridToolStripMenuItem;
     }
 }
 

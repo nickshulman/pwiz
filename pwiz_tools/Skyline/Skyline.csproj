@@ -471,6 +471,7 @@
     </Compile>
     <Compile Include="Model\AuditLog\ReflectorEnumerator.cs" />
     <Compile Include="Model\AuditLog\ReflectorToString.cs" />
+    <Compile Include="Model\Databinding\Collections\AnnotationsRowSource.cs" />
     <Compile Include="Model\Databinding\Collections\ModificationsRowSource.cs" />
     <Compile Include="Model\Databinding\Collections\ScalarSettingRowSource.cs" />
     <Compile Include="Model\Crosslinking\ComplexFragmentIon.cs" />
@@ -506,6 +507,7 @@
     <Compile Include="Model\Databinding\SettingsEntities\ScalarSetting.cs" />
     <Compile Include="Model\Databinding\SettingsEntities\SettingsObject.cs" />
     <Compile Include="Model\Databinding\SettingsEntities\ScalarSettings.cs" />
+    <Compile Include="Model\Databinding\SettingsEntities\NamedSettingsObject.cs" />
     <Compile Include="Model\DocumentContainers\DocumentSettings.cs" />
     <Compile Include="Model\DocumentContainers\DocumentSettingsChangeListener.cs" />
     <Compile Include="Model\DocumentContainers\SettingsSnapshot.cs" />

@@ -29,6 +29,8 @@ namespace pwiz.Skyline.Model
             yield return new RowSourceInfo(typeof(IsotopeModification), new IsotopeModificationsRowSource(dataSchema),
                 new[] {GetViewInfo(dataSchema, typeof(IsotopeModification), "Isotope Modifications")}
             );
+            yield return new RowSourceInfo(typeof(AnnotationDefinition), new AnnotationsRowSource(dataSchema), 
+                new []{GetViewInfo(dataSchema, typeof(AnnotationDefinition), "Annotations")});
 
         }
 

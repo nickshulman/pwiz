@@ -52,18 +52,18 @@ namespace TestPerf // This would be in TestTutorials if it didn't involve a 2GB 
         {
             // Set true to look at tutorial screenshots.
 //            IsPauseForScreenShots = true;
-//            IsPauseForCoverShot = true;
+//            IsCoverShotMode = true;
             CoverShotName = "HiResMetabolomics";
 
-            LinkPdf = "https://skyline.gs.washington.edu/labkey/_webdav/home/software/Skyline/%40files/tutorials/HiResMetabolomics-20_1.pdf";
+            LinkPdf = "https://skyline.ms/_webdav/home/software/Skyline/%40files/tutorials/HiResMetabolomics-20_1.pdf";
             ForceMzml = true; // Prefer mzML as being the more efficient download
 
             TestFilesPersistent = new[] { ExtWatersRaw };
             TestFilesZipPaths = new[]
             {
                 (UseRawFiles
-                   ? @"https://skyline.gs.washington.edu/tutorials/HiResMetabolomics.zip"
-                   : @"https://skyline.gs.washington.edu/tutorials/HiResMetabolomics_mzML.zip"),
+                   ? @"https://skyline.ms/tutorials/HiResMetabolomics.zip"
+                   : @"https://skyline.ms/tutorials/HiResMetabolomics_mzML.zip"),
                 @"TestPerf\HiResMetabolomicsViews.zip"
             };
             RunFunctionalTest();
@@ -262,7 +262,7 @@ namespace TestPerf // This would be in TestTutorials if it didn't involve a 2GB 
                     RunUI(() => SkylineWindow.ShowDocumentGrid(true));
                     documentGrid = FindOpenForm<DocumentGridForm>();
                 }
-                if (!IsPauseForCoverShot)
+                if (!IsCoverShotMode)
                     RunUI(() => documentGrid.ChooseView(Resources.Resources_ReportSpecList_GetDefaults_Peptide_Quantification));
                 else
                 {
@@ -271,7 +271,7 @@ namespace TestPerf // This would be in TestTutorials if it didn't involve a 2GB 
                 }
                 PauseForScreenShot<SkylineWindow>("Skyline window multi-replicate layout", 13);
 
-                if (IsPauseForCoverShot)
+                if (IsCoverShotMode)
                 {
                     RunUI(() =>
                     {
@@ -296,7 +296,7 @@ namespace TestPerf // This would be in TestTutorials if it didn't involve a 2GB 
                     RunUI(() => SkylineWindow.SequenceTree.SelectedNode = SkylineWindow.SelectedNode.NextNode);
                     WaitForGraphs();
 
-                    PauseForCoverShot();
+                    TakeCoverShot();
                     return;
                 }
 

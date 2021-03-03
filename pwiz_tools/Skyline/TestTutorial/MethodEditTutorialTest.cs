@@ -58,14 +58,14 @@ namespace pwiz.SkylineTestTutorial
             // Set true to look at tutorial screenshots.
 //            IsPauseForScreenShots = true;
 //            IsPauseForAuditLog = true;
-//            IsPauseForCoverShot = true;
+//            IsCoverShotMode = true;
             CoverShotName = "MethodEdit";
 
-            LinkPdf = "https://skyline.gs.washington.edu/labkey/_webdav/home/software/Skyline/%40files/tutorials/MethodEdit-3_7.pdf";
+            LinkPdf = "https://skyline.ms/_webdav/home/software/Skyline/%40files/tutorials/MethodEdit-20_1.pdf";
             
             TestFilesZipPaths = new[]
             {
-                @"https://skyline.gs.washington.edu/tutorials/MethodEdit.zip",
+                @"https://skyline.ms/tutorials/MethodEdit.zip",
                 @"TestTutorial\MethodEditCSVs.zip",
                 @"TestTutorial\MethodEditViews.zip"
             };
@@ -207,7 +207,7 @@ namespace pwiz.SkylineTestTutorial
             }
             PauseForScreenShot("Targets tree clipped from main window", 11); // Not L10N
 
-            if (IsPauseForCoverShot)
+            if (IsCoverShotMode)
             {
                 RunUI(() =>
                 {
@@ -219,7 +219,7 @@ namespace pwiz.SkylineTestTutorial
                 RunUI(() => SkylineWindow.SequenceTree.SelectedNode = SkylineWindow.SelectedNode.PrevNode);
                 WaitForGraphs();
                 RunUI(() => SkylineWindow.SequenceTree.SelectedNode = SkylineWindow.SelectedNode.NextNode);
-                PauseForCoverShot();
+                TakeCoverShot();
                 return;
             }
 

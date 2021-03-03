@@ -59,17 +59,17 @@ namespace pwiz.SkylineTestTutorial
         {
             // Set true to look at tutorial screenshots.
 //            IsPauseForScreenShots = true;
-//            IsPauseForCoverShot = true;
+//            IsCoverShotMode = true;
 //            PauseStartPage = 30;
             CoverShotName = "MS1Filtering";
 
-            LinkPdf = "https://skyline.gs.washington.edu/labkey/_webdav/home/software/Skyline/%40files/tutorials/MS1Filtering-2_5.pdf";
+            LinkPdf = "https://skyline.ms/_webdav/home/software/Skyline/%40files/tutorials/MS1Filtering-20_1.pdf";
 
             TestFilesZipPaths = new[]
                 {
                     PreferWiff
-                        ? @"https://skyline.gs.washington.edu/tutorials/MS1Filtering_2.zip" // Not L10N
-                        : @"https://skyline.gs.washington.edu/tutorials/MS1FilteringMzml_2.zip", // Not L10N
+                        ? @"https://skyline.ms/tutorials/MS1Filtering_2.zip" // Not L10N
+                        : @"https://skyline.ms/tutorials/MS1FilteringMzml_2.zip", // Not L10N
                     @"TestTutorial\Ms1FullScanFilteringViews.zip"
                 };
             RunFunctionalTest();
@@ -403,7 +403,7 @@ namespace pwiz.SkylineTestTutorial
             {
                 SkylineWindow.ShowGraphPeakArea(true);
                 SkylineWindow.ShowPeakAreaReplicateComparison();
-                SkylineWindow.NormalizeAreaGraphTo(AreaNormalizeToView.none);
+                SkylineWindow.NormalizeAreaGraphTo(NormalizeOption.NONE);
                 Settings.Default.ShowDotProductPeakArea = true;
                 Settings.Default.ShowLibraryPeakArea = true;
             });
@@ -456,7 +456,7 @@ namespace pwiz.SkylineTestTutorial
             PauseForScreenShot("Status bar clipped from main window - 4/51 pep 4/52 prec 10/156 tran", 23);
 
             const string TIP_NAME = "5b_MCF7_TiTip3";
-            if (IsPauseForCoverShot)
+            if (IsCoverShotMode)
             {
                 RestoreCoverViewOnScreen();
                 ClickChromatogram(TIP_NAME, 34.5, 366);
@@ -465,7 +465,7 @@ namespace pwiz.SkylineTestTutorial
                 RunUI(() => SkylineWindow.SequenceTree.SelectedNode = SkylineWindow.SequenceTree.Nodes[0]);
                 WaitForGraphs();
                 RunUI(() => SkylineWindow.SequenceTree.SelectedNode = selectedNode);
-                PauseForCoverShot();
+                TakeCoverShot();
                 return;
             }
 

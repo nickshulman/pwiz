@@ -165,7 +165,7 @@ namespace TestPerf
                 PolishedProteins = 2465,
             };
 
-            if (!IsPauseForCoverShot)
+            if (!IsCoverShotMode)
                 TestTtofData();
         }
 
@@ -221,7 +221,7 @@ namespace TestPerf
                 UnpolishedProteins = 7,
             };
 
-            if (!IsPauseForCoverShot)
+            if (!IsCoverShotMode)
                 TestQeData();
         }
 
@@ -255,7 +255,7 @@ namespace TestPerf
                 PolishedProteins = 2034,
             };
 
-            if (!IsPauseForCoverShot)
+            if (!IsCoverShotMode)
                 TestQeData();
         }
        
@@ -290,8 +290,9 @@ namespace TestPerf
             _instrumentValues = instrumentValues;
 
             RootName = "DIA-" + InstrumentTypeName;
-            // LinkPdf = "https://skyline.ms/_webdav/home/software/Skyline/%40files/tutorials/{0}-20_1.pdf";
-            LinkPdf = string.Format("file:///C:/proj/branches/work/pwiz_tools/Skyline/Documentation/Tutorials/{0}-20_1.pdf", RootName);
+            const string pdfFormat = "https://skyline.ms/_webdav/home/software/Skyline/%40files/tutorials/{0}-20_1.pdf";
+            // const string pdfFormat = "file:///C:/proj/branches/work/pwiz_tools/Skyline/Documentation/Tutorials/{0}-20_1.pdf";
+            LinkPdf = string.Format(pdfFormat, RootName);
 
             TestFilesZipPaths = new[]
             {
@@ -306,7 +307,7 @@ namespace TestPerf
         {
 //            IsPauseForScreenShots = true;
 //            RunPerfTests = true;
-//            IsPauseForCoverShot = true;
+//            IsCoverShotMode = true;
             CoverShotName = "DIA-SWATH";
 
             RunFunctionalTest();
@@ -918,7 +919,7 @@ namespace TestPerf
                         }
                     }
                 }
-                if (IsPauseForCoverShot)
+                if (IsCoverShotMode)
                 {
                     RunUI(() =>
                     {
@@ -941,7 +942,7 @@ namespace TestPerf
                         fcFloatingWindow.Left = SkylineWindow.Left + 8;
                         fcFloatingWindow.Top = SkylineWindow.Bottom - fcFloatingWindow.Height - 8;
                     });
-                    PauseForCoverShot();
+                    TakeCoverShot();
                 }
             }
         }

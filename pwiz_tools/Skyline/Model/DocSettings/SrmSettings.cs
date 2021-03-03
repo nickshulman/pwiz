@@ -1745,7 +1745,7 @@ namespace pwiz.Skyline.Model.DocSettings
                 // cancel
                 return null;
             }
-            if (ionMobilityLibSpec.FilePath == ionMobilityLibrary.FilePath && ionMobilityLibSpec.IsUsable)
+            if (ionMobilityLibSpec.FilePath == ionMobilityLibrary.FilePath && ionMobilityLibrary.IsUsable)
             {
                 return this;
             }
@@ -2662,6 +2662,12 @@ namespace pwiz.Skyline.Model.DocSettings
             // If internal standard type or all types changed, update all results to recalculate ratios.
             if (!ArrayUtil.EqualsDeep(newMods.InternalStandardTypes, oldMods.InternalStandardTypes) ||
                 !ArrayUtil.EqualsDeep(newMods.GetModificationTypes().ToArray(), oldMods.GetModificationTypes().ToArray()))
+            {
+                DiffResults = true;
+            }
+
+            if (settingsNew.PeptideSettings.Quantification.SimpleRatios !=
+                settingsOld.PeptideSettings.Quantification.SimpleRatios)
             {
                 DiffResults = true;
             }

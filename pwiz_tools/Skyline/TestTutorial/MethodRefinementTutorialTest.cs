@@ -52,25 +52,25 @@ namespace pwiz.SkylineTestTutorial
         {
             // Set true to look at tutorial screenshots.
 //            IsPauseForScreenShots = true;
-//            IsPauseForCoverShot = true;
+//            IsCoverShotMode = true;
             CoverShotName = "MethodRefine";
 
             // Multi-file import has problems with mzML on this test
             ForceMzml = true; // (Settings.Default.ImportResultsSimultaneousFiles == 0);   // 2-3x faster than raw files for this test.
 
-            LinkPdf = "https://skyline.gs.washington.edu/labkey/_webdav/home/software/Skyline/%40files/tutorials/MethodRefine-3_7.pdf";
+            LinkPdf = "https://skyline.ms/_webdav/home/software/Skyline/%40files/tutorials/MethodRefine-20_1.pdf";
 
             // Set to use MzML for speed, especially during debugging.
             //Skyline.Program.NoVendorReaders = true;
 
             string supplementZip = (UseRawFiles ?
-                @"https://skyline.gs.washington.edu/tutorials/MethodRefineSupplement.zip" : // Not L10N
-                @"https://skyline.gs.washington.edu/tutorials/MethodRefineSupplementMzml.zip"); // Not L10N
+                @"https://skyline.ms/tutorials/MethodRefineSupplement.zip" : // Not L10N
+                @"https://skyline.ms/tutorials/MethodRefineSupplementMzml.zip"); // Not L10N
 
             TestFilesZipPaths = new[] { supplementZip,
                 UseRawFiles ?
-                    @"https://skyline.gs.washington.edu/tutorials/MethodRefine.zip" : // Not L10N
-                    @"https://skyline.gs.washington.edu/tutorials/MethodRefineMzml.zip", // Not L10N
+                    @"https://skyline.ms/tutorials/MethodRefine.zip" : // Not L10N
+                    @"https://skyline.ms/tutorials/MethodRefineMzml.zip", // Not L10N
                 @"TestTutorial\MethodRefinementViews.zip",                     
             };
          
@@ -83,7 +83,7 @@ namespace pwiz.SkylineTestTutorial
 
             var folderMethodRefine = UseRawFiles ? "MethodRefine" : "MethodRefineMzml"; // Not L10N
 
-            // Results Data, p. 2
+            // Results Data, p. 3
             var doc = SkylineWindow.Document;
             RunUI(() => SkylineWindow.OpenFile(TestFilesDirs[1].GetTestPath(folderMethodRefine + @"\WormUnrefined.sky"))); // Not L10N
             WaitForDocumentChangeLoaded(doc);
@@ -101,9 +101,9 @@ namespace pwiz.SkylineTestTutorial
 
                 Assert.AreEqual(SkylineWindow.SequenceTree.SelectedNode.Text, "YLGAYLLATLGGNASPSAQDVLK"); // Not L10N
             });
-            PauseForScreenShot("Main window", 2);
+            PauseForScreenShot("Main window", 3);
 
-            // Unrefined Methods, p. 3
+            // Unrefined Methods, p. 4
             {
                 var exportDlg = ShowDialog<ExportMethodDlg>(() => SkylineWindow.ShowExportMethodDialog(ExportFileType.List));
                 RunUI(() =>
@@ -113,7 +113,7 @@ namespace pwiz.SkylineTestTutorial
                     exportDlg.OptimizeType = ExportOptimize.NONE;
                     exportDlg.MaxTransitions = 59;
                 });
-                PauseForScreenShot("Export Transition List form", 3); // Not L10N
+                PauseForScreenShot("Export Transition List form", 5); // Not L10N
                 OkDialog(exportDlg, () => exportDlg.OkDialog(TestFilesDirs[1].GetTestPath(folderMethodRefine + @"\worm"))); // Not L10N
             }
 
@@ -171,7 +171,7 @@ namespace pwiz.SkylineTestTutorial
             RestoreViewOnScreen(8);
             PauseForScreenShot("Chromatogram graph metafile", 8);
 
-            if (IsPauseForCoverShot)
+            if (IsCoverShotMode)
             {
                 RestoreCoverViewOnScreen();
                 RunUI(SkylineWindow.AutoZoomBestPeak);
@@ -179,7 +179,7 @@ namespace pwiz.SkylineTestTutorial
                 RunUI(() => SkylineWindow.SequenceTree.SelectedNode = SkylineWindow.SelectedNode.PrevNode);
                 WaitForGraphs();
                 RunUI(() => SkylineWindow.SequenceTree.SelectedNode = SkylineWindow.SelectedNode.NextNode);
-                PauseForCoverShot();
+                TakeCoverShot();
                 return;
             }
 

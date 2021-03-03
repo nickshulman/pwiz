@@ -16,7 +16,10 @@
  * limitations under the License.
  */
 
+using System;
 using System.Collections.Generic;
+using System.Drawing;
+using System.IO;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using pwiz.Common.Chemistry;
@@ -40,12 +43,14 @@ namespace TestPerf
         {
             // Set true to look at tutorial screenshots.
             //IsPauseForScreenShots = true;
-            //IsPauseForCoverShot = true;
+            //IsCoverShotMode = true;
             //RunPerfTests = true;
+
+            LinkPdf = "https://skyline.ms/_webdav/home/software/Skyline/%40files/tutorials/DDASearch-20_2.pdf";
 
             TestFilesZipPaths = new[]
             {
-                @"https://skyline.gs.washington.edu/tutorials/DdaTutorialTest.zip",
+                @"https://skyline.ms/tutorials/DdaSearchMs1Filtering.zip",
                 @"TestPerf/DdaTutorialViews.zip"
             };
 
@@ -68,12 +73,20 @@ namespace TestPerf
 
         private IEnumerable<string> SearchFiles
         {
-            get { return TestFilesPersistent.Select(GetTestPath).Take(IsPauseForScreenShots ? 3 : 1); }
+            get { return TestFilesPersistent.Select(f => GetTestPath(Path.Combine("DdaSearchMs1Filtering", f))).Take(IsFullData ? 3 : 1); }
         }
 
         protected override void DoTest()
         {
             TestAmandaSearch();
+        }
+
+        private Image _searchLogImage;
+
+        protected override void ProcessCoverShot(Bitmap bmp)
+        {
+            var graph = Graphics.FromImage(bmp);
+            graph.DrawImageUnscaled(_searchLogImage, bmp.Width - _searchLogImage.Width - 10, bmp.Height - _searchLogImage.Height - 30);
         }
 
         /// <summary>
@@ -83,7 +96,7 @@ namespace TestPerf
         {
             PrepareDocument("TestDdaTutorial.sky");
 
-            int tutorialPage = 2;
+            int tutorialPage = 3;
 
             // Set standard type to None
             var peptideSettingsUI = ShowDialog<PeptideSettingsUI>(SkylineWindow.ShowPeptideSettingsUI);
@@ -111,7 +124,7 @@ namespace TestPerf
             });
             PauseForScreenShot<ImportPeptideSearchDlg.SpectraPage>("Import Peptide Search - After Selecting DDA Files page", tutorialPage++);
 
-            if (IsPauseForScreenShots)
+            if (IsFullData)
             {
                 // Remove prefix/suffix dialog pops up; accept default behavior
                 var removeSuffix = ShowDialog<ImportResultsNameDlg>(() => importPeptideSearchDlg.ClickNextButton());
@@ -128,16 +141,15 @@ namespace TestPerf
 
             var editHeavyModListUI =
                 ShowDialog<EditListDlg<SettingsListBase<StaticMod>, StaticMod>>(importPeptideSearchDlg.MatchModificationsControl.ClickAddHeavyModification);
-            RunDlg<EditStaticModDlg>(editHeavyModListUI.AddItem, editModDlg =>
-            {
-                editModDlg.SetModification(HEAVY_K, true); // Not L10N
-                editModDlg.OkDialog();
-            });
-            RunDlg<EditStaticModDlg>(editHeavyModListUI.AddItem, editModDlg =>
-            {
-                editModDlg.SetModification(HEAVY_R, true); // Not L10N
-                editModDlg.OkDialog();
-            });
+            var heavyKDlg = ShowDialog<EditStaticModDlg>(editHeavyModListUI.AddItem);
+            RunUI(() => heavyKDlg.SetModification(HEAVY_K, true));
+            PauseForScreenShot<EditStaticModDlg.IsotopeModView>("Edit Isotope Modification form - K", tutorialPage++);
+            OkDialog(heavyKDlg, heavyKDlg.OkDialog);
+
+            var heavyRDlg = ShowDialog<EditStaticModDlg>(editHeavyModListUI.AddItem);
+            RunUI(() => heavyRDlg.SetModification(HEAVY_R, true));
+            PauseForScreenShot<EditStaticModDlg.IsotopeModView>("Edit Isotope Modification form - R", tutorialPage++);
+            OkDialog(heavyRDlg, heavyRDlg.OkDialog);
             OkDialog(editHeavyModListUI, editHeavyModListUI.OkDialog);
 
             /*var peptideSettingsUI = ShowDialog<PeptideSettingsUI>(SkylineWindow.ShowPeptideSettingsUI);
@@ -171,7 +183,7 @@ namespace TestPerf
             {
                 Assert.IsTrue(importPeptideSearchDlg.CurrentPage == ImportPeptideSearchDlg.Pages.import_fasta_page);
                 Assert.IsFalse(importPeptideSearchDlg.ImportFastaControl.DecoyGenerationEnabled);
-                importPeptideSearchDlg.ImportFastaControl.SetFastaContent(GetTestPath("2014_01_HUMAN_UPS.fasta"));
+                importPeptideSearchDlg.ImportFastaControl.SetFastaContent(GetTestPath("DdaSearchMs1Filtering\\2014_01_HUMAN_UPS.fasta"));
             });
             PauseForScreenShot<ImportPeptideSearchDlg.FastaPage>("Import Peptide Search - Import FASTA page", tutorialPage++);
             RunUI(() => Assert.IsTrue(importPeptideSearchDlg.ClickNextButton()));
@@ -198,6 +210,11 @@ namespace TestPerf
             // Wait for search to finish
             WaitForConditionUI(60000 * 60, () => searchSucceeded.HasValue);
             Assert.IsTrue(searchSucceeded.Value);
+            if (IsCoverShotMode)
+            {
+                _searchLogImage = ScreenshotManager.TakeNextShot(importPeptideSearchDlg);
+                Assert.IsNotNull(_searchLogImage);
+            }
 
             // clicking 'Finish' (Next) will run ImportFasta
             var ambiguousDlg = ShowDialog<MessageDlg>(() => Assert.IsTrue(importPeptideSearchDlg.ClickNextButton()));
@@ -211,51 +228,107 @@ namespace TestPerf
                 emptyProteinsDlg.RemoveRepeatedPeptides = true;
                 int proteinCount, peptideCount, precursorCount, transitionCount;
                 emptyProteinsDlg.NewTargetsAll(out proteinCount, out peptideCount, out precursorCount, out transitionCount);
-                if (!IsPauseForScreenShots)
+                if (!IsFullData)
                 {
-                    Assert.AreEqual(12343, proteinCount);
-                    Assert.AreEqual(27859, peptideCount);
-                    Assert.AreEqual(55327, precursorCount);
-                    Assert.AreEqual(165981, transitionCount);
+                    if (RecordAuditLogs)
+                    {
+                        Console.WriteLine();
+                        Console.WriteLine($@"Assert.AreEqual({proteinCount}, proteinCount);");
+                        Console.WriteLine($@"Assert.AreEqual({peptideCount}, peptideCount);");
+                        Console.WriteLine($@"Assert.AreEqual({precursorCount}, precursorCount);");
+                        Console.WriteLine($@"Assert.AreEqual({transitionCount}, transitionCount);");
+                    }
+                    else
+                    {
+                        Assert.AreEqual(12590, proteinCount);
+                        Assert.AreEqual(28251, peptideCount);
+                        Assert.AreEqual(56111, precursorCount);
+                        Assert.AreEqual(168333, transitionCount);
+                    }
                 }
 
                 emptyProteinsDlg.NewTargetsFinalSync(out proteinCount, out peptideCount, out precursorCount, out transitionCount);
-                if (!IsPauseForScreenShots)
+                if (!IsFullData)
                 {
-                    Assert.AreEqual(3685, proteinCount);
-                    Assert.AreEqual(7053, peptideCount);
-                    Assert.AreEqual(13963, precursorCount);
-                    Assert.AreEqual(41889, transitionCount);
+                    if (RecordAuditLogs)
+                    {
+                        Console.WriteLine();
+                        Console.WriteLine($@"Assert.AreEqual({proteinCount}, proteinCount);");
+                        Console.WriteLine($@"Assert.AreEqual({peptideCount}, peptideCount);");
+                        Console.WriteLine($@"Assert.AreEqual({precursorCount}, precursorCount);");
+                        Console.WriteLine($@"Assert.AreEqual({transitionCount}, transitionCount);");
+                    }
+                    else
+                    {
+                        Assert.AreEqual(3772, proteinCount);
+                        Assert.AreEqual(7173, peptideCount);
+                        Assert.AreEqual(14203, precursorCount);
+                        Assert.AreEqual(42609, transitionCount);
+                    }
                 }
             });
             PauseForScreenShot("Import Peptide Search - Empty Proteins dialog", tutorialPage++);
 
+            using (new WaitDocumentChange(null, true))
+            {
             OkDialog(emptyProteinsDlg, emptyProteinsDlg.OkDialog);
-            WaitForDocumentLoaded();
+            }
 
+            FindNode(string.Format("{0:F04}++", IsFullData ? 835.914 : 699.3566));
+            RunUI(() =>
+            {
+                SkylineWindow.GraphSpectrumSettings.ShowBIons = true;
+                SkylineWindow.ShowAlignedPeptideIDTimes(true);
+            });
+            WaitForGraphs();
+            RestoreViewOnScreen(17);
+            RunUI(() =>
+            {
+                SkylineWindow.Size = new Size(1137, 714);
+                // Set horizontal scroll position
+            });
+            WaitForGraphs();
             PauseForScreenShot("Main window with peptide search results", tutorialPage++);
 
-            if (IsPauseForCoverShot)
+            RunUI(() => SkylineWindow.ShowPeakAreaReplicateComparison());
+            RefreshGraphs();
+            PauseForScreenShot("Peak Areas - Replicate Comparison", tutorialPage++);
+
+            RunUI(() =>
+            {
+                SkylineWindow.ShowChromatogramLegends(false);
+                SkylineWindow.AutoZoomBestPeak();
+            });
+            RestoreViewOnScreen(19);
+            RefreshGraphs();
+            RefreshGraphs();    // For some reason the first time doesn't get the idotp values in the are graph right
+            PauseForScreenShot("Main window arranged", tutorialPage);
+
+            if (IsCoverShotMode)
             {
                 RunUI(() =>
                 {
                     Settings.Default.ChromatogramFontSize = 14;
                     Settings.Default.AreaFontSize = 14;
-                    SkylineWindow.AutoZoomBestPeak();
-                    SkylineWindow.ShowPeakAreaLegend(false);
-                    SkylineWindow.ShowChromatogramLegends(false);
                 });
-                RestoreCoverViewOnScreen();
+                RestoreCoverViewOnScreen(false);
                 
-                RunUI(() => SkylineWindow.SequenceTree.SelectPath(SkylineWindow.Document.MoleculeGroups.Skip(2).First().GetPathTo(2)));
-                WaitForGraphs();
-                RunUI(() => SkylineWindow.SequenceTree.SelectedNode = SkylineWindow.SelectedNode.Nodes[0]);
                 RunUI(SkylineWindow.FocusDocument);
-                PauseForCoverShot();
+                RefreshGraphs();
+                TakeCoverShot();
                 return;
             }
 
             RunUI(() => SkylineWindow.SaveDocument());
+        }
+
+        private void RefreshGraphs()
+        {
+            WaitForGraphs();
+            RunUI(() => SkylineWindow.SequenceTree.SelectedNode = SkylineWindow.SelectedNode.Parent);
+            WaitForGraphs();
+            RunUI(() => SkylineWindow.SequenceTree.SelectedNode = SkylineWindow.SelectedNode.Nodes[0]);
+            WaitForGraphs();
         }
 
         private void PrepareDocument(string documentFile)

@@ -74,18 +74,18 @@ namespace pwiz.SkylineTestTutorial
             // Set true to look at tutorial screenshots.
 //            IsPauseForScreenShots = true;
 //            PauseStartPage = 16;
-//            IsPauseForCoverShot = true;
+//            IsCoverShotMode = true;
             CoverShotName = "AuditLog";
 
             ForceMzml = true;   // Mzml is ~8x faster for this test.
                                                     
-            LinkPdf = "https://skyline.ms/_webdav/home/software/Skyline/%40files/tutorials/AuditLog-20_1.pdf";
+            LinkPdf = "https://skyline.ms/_webdav/home/software/Skyline/%40files/tutorials/AuditLog-20_1_1.pdf";
 
             TestFilesZipPaths = new[]
             {
                 UseRawFiles
-                    ? @"https://skyline.gs.washington.edu/tutorials/AuditLog.zip"
-                    : @"https://skyline.gs.washington.edu/tutorials/AuditLogMzml.zip",
+                    ? @"https://skyline.ms/tutorials/AuditLog.zip"
+                    : @"https://skyline.ms/tutorials/AuditLogMzml.zip",
                 @"TestTutorial\AuditLogViews.zip"
             };
 
@@ -404,7 +404,7 @@ namespace pwiz.SkylineTestTutorial
                 floatingWindow.Width -= 15;
             });
             PauseForScreenShot<AuditLogForm>("Audit Log with UndoRedo view.", 17);
-            if (IsPauseForCoverShot)
+            if (IsCoverShotMode)
             {
                 RunUI(() =>
                 {
@@ -427,7 +427,7 @@ namespace pwiz.SkylineTestTutorial
                     SkylineWindow.AuditLogForm.DataGridView.AutoResizeColumn(reasonIndex);
                     SkylineWindow.AuditLogForm.DataGridView.AutoResizeColumn(reasonIndex - 1);
                 });
-                PauseForCoverShot();
+                TakeCoverShot();
             }
 
             var customizeDialog = ShowDialog<ViewEditor>(SkylineWindow.AuditLogForm.NavBar.CustomizeView);

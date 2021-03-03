@@ -146,17 +146,20 @@ namespace pwiz.Skyline
                 if (!anyAction && !withoutUsage)
                     commandArgs.Usage();
 
-                // Exit quietly because Run(args[]) ran sucessfully. No work with a skyline document was called for.
+                // Exit quietly because Run(args[]) ran successfully. No work with a skyline document was called for.
                 return Program.EXIT_CODE_SUCCESS;
             }
 
-            _skylineFile = commandArgs.SkylineFile;
-            if ((_skylineFile != null && !OpenSkyFile(_skylineFile)) ||
-                (_skylineFile == null && _doc == null))
+            var skylineFile = commandArgs.SkylineFile;
+            if ((skylineFile != null && !OpenSkyFile(skylineFile)) ||
+                (skylineFile == null && _doc == null))
             {
                 _out.WriteLine(Resources.CommandLine_Run_Exiting___);
                 return Program.EXIT_CODE_RAN_WITH_ERRORS;
             }
+
+            if (skylineFile != null)
+                _skylineFile = skylineFile;
 
             try
             {
@@ -2226,7 +2229,7 @@ namespace pwiz.Skyline
 
             var progressMonitor = new CommandProgressMonitor(_out, new ProgressStatus(string.Empty));
             var inputs = new MassListInputs(commandArgs.TransitionListPath);
-            var docNew = _doc.ImportMassList(inputs, progressMonitor, null,
+            var docNew = _doc.ImportMassList(inputs, null, progressMonitor, null,
                 out selectPath, out irtPeptides, out librarySpectra, out errorList, out peptideGroups);
 
             // If nothing was imported (e.g. operation was canceled or zero error-free transitions) and also no errors, just return

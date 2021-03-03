@@ -13,7 +13,7 @@
     <FileAlignment>512</FileAlignment>
     <IsWebBootstrapper>true</IsWebBootstrapper>
     <TargetFrameworkProfile />
-    <PublishUrl>Z:\labkey\static\software\SkylineBatch\</PublishUrl>
+    <PublishUrl>Z:\labkey\static\software\SkylineBatch-test\</PublishUrl>
     <Install>true</Install>
     <InstallFrom>Web</InstallFrom>
     <UpdateEnabled>true</UpdateEnabled>
@@ -23,13 +23,13 @@
     <UpdatePeriodically>false</UpdatePeriodically>
     <UpdateRequired>false</UpdateRequired>
     <MapFileExtensions>false</MapFileExtensions>
-    <InstallUrl>http://skyline.gs.washington.edu/software/SkylineBatch/</InstallUrl>
+    <InstallUrl>http://skyline.gs.washington.edu/software/SkylineBatch-test/</InstallUrl>
     <ProductName>Skyline Batch</ProductName>
     <PublisherName>University of Washington</PublisherName>
     <CreateWebPageOnPublish>true</CreateWebPageOnPublish>
     <WebPage>index.html</WebPage>
-    <ApplicationRevision>353</ApplicationRevision>
-    <ApplicationVersion>20.2.0.353</ApplicationVersion>
+    <ApplicationRevision>417</ApplicationRevision>
+    <ApplicationVersion>20.2.0.417</ApplicationVersion>
     <UseApplicationTrust>false</UseApplicationTrust>
     <PublishWizardCompleted>true</PublishWizardCompleted>
     <BootstrapperEnabled>true</BootstrapperEnabled>
@@ -84,16 +84,23 @@
     <AssemblyOriginatorKeyFile>
     </AssemblyOriginatorKeyFile>
   </PropertyGroup>
+  <PropertyGroup />
+  <PropertyGroup />
   <ItemGroup>
-    <Content Include="SkylineBatch_release.ico" />
-    <Content Include="SkylineDailyRunner.exe" />
-    <Content Include="SkylineRunner.exe" />
-    <EmbeddedResource Include="AlertDlg.resx">
-      <DependentUpon>AlertDlg.cs</DependentUpon>
-      <SubType>Designer</SubType>
-    </EmbeddedResource>
-    <EmbeddedResource Include="FindSkyline.resx">
-      <DependentUpon>FindSkyline.cs</DependentUpon>
+    <Content Include="SkylineDailyRunner.exe">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="SkylineRunner.exe">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <None Include="Resources\OpenFolder.bmp" />
+    <None Include="Resources\SkylineData.ico" />
+    <None Include="Resources\SkylineDoc.ico" />
+    <Content Include="SkylineBatch_release.ico">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <EmbeddedResource Include="InvalidConfigSetupForm.resx">
+      <DependentUpon>InvalidConfigSetupForm.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="LogForm.resx">
       <DependentUpon>LogForm.cs</DependentUpon>
@@ -117,20 +124,21 @@
     </None>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="AlertDlg.cs">
+    <Compile Include="CommandWriter.cs" />
+    <Compile Include="SkylineBatchConfigManager.cs" />
+    <Compile Include="FileSettings.cs" />
+    <Compile Include="InvalidConfigSetupForm.cs">
       <SubType>Form</SubType>
     </Compile>
-    <Compile Include="AlertDlg.Designer.cs">
-      <DependentUpon>AlertDlg.cs</DependentUpon>
+    <Compile Include="InvalidConfigSetupForm.Designer.cs">
+      <DependentUpon>InvalidConfigSetupForm.cs</DependentUpon>
     </Compile>
-    <Compile Include="ConfigManager.cs" />
-    <Compile Include="FindSkyline.cs">
-      <SubType>Form</SubType>
+    <Compile Include="RVersionControl.cs">
+      <SubType>UserControl</SubType>
     </Compile>
-    <Compile Include="FindSkyline.Designer.cs">
-      <DependentUpon>FindSkyline.cs</DependentUpon>
+    <Compile Include="RVersionControl.Designer.cs">
+      <DependentUpon>RVersionControl.cs</DependentUpon>
     </Compile>
-    <Compile Include="SkylineSettings.cs" />
     <Compile Include="Properties\Resources.Designer.cs">
       <AutoGen>True</AutoGen>
       <DesignTime>True</DesignTime>
@@ -142,12 +150,6 @@
     </Compile>
     <Compile Include="ReportsAddForm.Designer.cs">
       <DependentUpon>ReportsAddForm.cs</DependentUpon>
-    </Compile>
-    <Compile Include="ShareConfigsForm.cs">
-      <SubType>Form</SubType>
-    </Compile>
-    <Compile Include="ShareConfigsForm.Designer.cs">
-      <DependentUpon>ShareConfigsForm.cs</DependentUpon>
     </Compile>
     <Compile Include="SkylineBatchConfig.cs" />
     <Compile Include="MainForm.cs">
@@ -172,16 +174,13 @@
       <DependentUpon>Settings.settings</DependentUpon>
     </Compile>
     <Compile Include="Program.cs" />
-    <Compile Include="SkylineBatchLogger.cs" />
-    <Compile Include="Installations.cs" />
+    <Compile Include="RInstallations.cs" />
     <Compile Include="LogForm.cs">
       <SubType>Form</SubType>
     </Compile>
     <Compile Include="LogForm.Designer.cs">
       <DependentUpon>LogForm.cs</DependentUpon>
     </Compile>
-    <Compile Include="TextUtil.cs" />
-    <Compile Include="XMLUtil.cs" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="log4net">
@@ -191,6 +190,10 @@
       <SpecificVersion>False</SpecificVersion>
       <HintPath>..\..\..\..\Shared\Lib\Newtonsoft.Json.dll</HintPath>
       <EmbedInteropTypes>False</EmbedInteropTypes>
+    </Reference>
+    <Reference Include="SharedBatch, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\SharedBatch\SharedBatch\bin\Debug\SharedBatch.dll</HintPath>
     </Reference>
     <Reference Include="System" />
     <Reference Include="System.Collections.Immutable, Version=5.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
@@ -213,9 +216,8 @@
       <DependentUpon>MainForm.cs</DependentUpon>
       <SubType>Designer</SubType>
     </EmbeddedResource>
-    <EmbeddedResource Include="ShareConfigsForm.resx">
-      <DependentUpon>ShareConfigsForm.cs</DependentUpon>
-      <SubType>Designer</SubType>
+    <EmbeddedResource Include="RVersionControl.resx">
+      <DependentUpon>RVersionControl.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="SkylineBatchConfigForm.resx">
       <DependentUpon>SkylineBatchConfigForm.cs</DependentUpon>
@@ -247,7 +249,6 @@
       <Install>false</Install>
     </BootstrapperPackage>
   </ItemGroup>
-  <ItemGroup />
   <ItemGroup>
     <COMReference Include="IWshRuntimeLibrary">
       <Guid>{F935DC20-1CF0-11D0-ADB9-00C04FD58A0B}</Guid>

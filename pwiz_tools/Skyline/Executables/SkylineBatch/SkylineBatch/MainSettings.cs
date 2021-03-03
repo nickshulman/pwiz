@@ -17,10 +17,12 @@
  */
 
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using System.Xml;
 using System.Xml.Serialization;
+using SharedBatch;
 using SkylineBatch.Properties;
 
 namespace SkylineBatch
@@ -39,7 +41,7 @@ namespace SkylineBatch
             TemplateFilePath = templateFilePath;
             AnalysisFolderPath = analysisFolderPath;
             DataFolderPath = dataFolderPath;
-            ReplicateNamingPattern = replicateNamingPattern ?? "";
+            ReplicateNamingPattern = replicateNamingPattern ?? string.Empty;
         }
 
         public readonly string TemplateFilePath;
@@ -50,9 +52,14 @@ namespace SkylineBatch
 
         public readonly string ReplicateNamingPattern;
 
-        public string GetNewTemplatePath()
+        public string GetResultsFilePath()
         {
-            return AnalysisFolderPath + "\\" + Path.GetFileName(TemplateFilePath);
+            return Path.Combine(AnalysisFolderPath, Path.GetFileName(TemplateFilePath));
+        }
+
+        public void CreateAnalysisFolderIfNonexistent()
+        {
+            if(!Directory.Exists(AnalysisFolderPath)) Directory.CreateDirectory(AnalysisFolderPath);
         }
 
         public override string ToString()
@@ -67,41 +74,126 @@ namespace SkylineBatch
 
         public void Validate()
         {
-            CheckIfEmptyPath(TemplateFilePath, "Skyline file");
-            if (!File.Exists(TemplateFilePath))
+            ValidateSkylineFile(TemplateFilePath);
+            ValidateDataFolder(DataFolderPath);
+            ValidateAnalysisFolder(AnalysisFolderPath);
+        }
+
+        public static void ValidateSkylineFile(string skylineFile)
+        {
+            CheckIfEmptyPath(skylineFile, Resources.MainSettings_ValidateSkylineFile_Skyline_file);
+            if (!File.Exists(skylineFile))
             {
-                throw new ArgumentException(string.Format(Resources.MainSettings_Template_file_does_not_exist, TemplateFilePath));
-            }
-            CheckIfEmptyPath(AnalysisFolderPath, "analysis folder");
-            var analysisFolderDirectory = Path.GetDirectoryName(AnalysisFolderPath);
-            if (!Directory.Exists(analysisFolderDirectory))
-            {
-                throw new ArgumentException(string.Format(Resources.MainSettings_Analysis_folder_directory__0__does_not_exist, analysisFolderDirectory));
-            }
-            CheckIfEmptyPath(DataFolderPath, "data folder");
-            if (!Directory.Exists(DataFolderPath))
-            {
-                throw new ArgumentException(string.Format(Resources.MainSettings_Data_folder_does_not_exist, DataFolderPath));
-            }
-            // create analysis folder if doesn't exist
-            if (!Directory.Exists(AnalysisFolderPath))
-            {
-                Directory.CreateDirectory(AnalysisFolderPath);
+                throw new ArgumentException(string.Format(Resources.MainSettings_ValidateSkylineFile_The_Skyline_template_file__0__does_not_exist_, skylineFile) + Environment.NewLine +
+                                            Resources.MainSettings_ValidateSkylineFile_Please_provide_a_valid_file_);
             }
         }
 
-        public void CheckIfEmptyPath(string input, string name)
+        public static void ValidateAnalysisFolder(string analysisFolder)
+        {
+            CheckIfEmptyPath(analysisFolder, Resources.MainSettings_ValidateAnalysisFolder_analysis_folder);
+            var analysisFolderDirectory = Path.GetDirectoryName(analysisFolder);
+            if (!Directory.Exists(analysisFolderDirectory))
+            {
+                throw new ArgumentException(string.Format(Resources.MainSettings_ValidateAnalysisFolder_The_analysis_folder__0__does_not_exist_, analysisFolderDirectory) + Environment.NewLine +
+                                            Resources.MainSettings_ValidateAnalysisFolder_Please_provide_a_valid_folder_);
+            }
+        }
+
+        public static void ValidateDataFolder(string dataFolder)
+        {
+            CheckIfEmptyPath(dataFolder, Resources.MainSettings_ValidateDataFolder_data_folder);
+            if (!Directory.Exists(dataFolder))
+            {
+                throw new ArgumentException(string.Format(Resources.MainSettings_ValidateDataFolder_The_data_folder__0__does_not_exist_, dataFolder) + Environment.NewLine +
+                                            Resources.MainSettings_ValidateAnalysisFolder_Please_provide_a_valid_folder_);
+            }
+        }
+
+        public static void CheckIfEmptyPath(string input, string name)
         {
             if (string.IsNullOrWhiteSpace(input))
             {
-                throw new ArgumentException(string.Format(Resources.MainSettings_Specify_path_to, name));
+                throw new ArgumentException(string.Format(Resources.MainSettings_CheckIfEmptyPath_Please_specify_a_path_to__0_, name));
             }
         }
 
-        
+        public bool TryPathReplace(string oldRoot, string newRoot, out MainSettings pathReplacedMainSettings)
+        {
+            var templateReplaced =
+                TextUtil.TryReplaceStart(oldRoot, newRoot, TemplateFilePath, out string replacedTemplatePath);
+            var analysisReplaced =
+                TextUtil.TryReplaceStart(oldRoot, newRoot, AnalysisFolderPath, out string replacedAnalysisPath);
+            var dataReplaced =
+                TextUtil.TryReplaceStart(oldRoot, newRoot, DataFolderPath, out string replacedDataPath);
+            pathReplacedMainSettings = new MainSettings(replacedTemplatePath, replacedAnalysisPath, replacedDataPath, ReplicateNamingPattern);
+            return templateReplaced || analysisReplaced || dataReplaced;
+        }
 
-        
+        public bool RunWillOverwrite(int startStep, string configHeader, out StringBuilder message)
+        {
+            var tab = "      ";
+            message = new StringBuilder(configHeader);
+            var analysisFolderName = Path.GetFileName(AnalysisFolderPath);
+            switch (startStep)
+            {
+                case 1:
+                    var resultsFile = GetResultsFilePath();
+                    var resultsFileIdentifyer = Path.Combine(analysisFolderName, Path.GetFileName(resultsFile));
+                    if (File.Exists(resultsFile) && new FileInfo(TemplateFilePath).Length != new FileInfo(resultsFile).Length)
+                    {
+                        message.Append(tab + tab)
+                            .Append(resultsFileIdentifyer)
+                            .AppendLine();
+                        return true;
+                    }
+                    break;
+                case 2:
+                    var templateSkyds = GetFilesInFolder(Path.GetDirectoryName(TemplateFilePath), TextUtil.EXT_SKYD);
+                    var resultsSkyds = GetFilesInFolder(AnalysisFolderPath, TextUtil.EXT_SKYD);
+                    var templateSkydSize = templateSkyds.Count == 0 ? 0 : new FileInfo(templateSkyds[0]).Length;
+                    var resultsSkydSize = resultsSkyds.Count == 0 ? 0 : new FileInfo(resultsSkyds[0]).Length;
+                    if (templateSkydSize < resultsSkydSize)
+                    {
+                        message.Append(tab + tab)
+                            .Append(string.Format(Path.Combine(analysisFolderName, Path.GetFileName(resultsSkyds[0]))))
+                            .AppendLine();
+                        return true;
+                    }
+                    break;
+                case 3:
+                    var reportFiles = GetFilesInFolder(AnalysisFolderPath, TextUtil.EXT_CSV);
+                    if (reportFiles.Count > 0)
+                    {
+                        foreach (var reportCsv in reportFiles)
+                        {
+                            message.Append(tab + tab).Append(Path.GetFileName(reportCsv)).AppendLine();
+                        }
+                        return true;
+                    }
+                    break;
+                case 4:
+                    // pass
+                    break;
+                default:
+                    throw new Exception(startStep + " is not a valid start step.");
+            }
+            return false;
+        }
 
+
+        private List<string> GetFilesInFolder(string folder, string fileType)
+        {
+            var filesWithType = new List<string>();
+            var allFiles = new DirectoryInfo(folder).GetFiles();
+            foreach (var file in allFiles)
+            {
+                if (file.Name.EndsWith(fileType))
+                    filesWithType.Add(file.FullName);
+            }
+
+            return filesWithType;
+        }
 
         #region Read/Write XML
 

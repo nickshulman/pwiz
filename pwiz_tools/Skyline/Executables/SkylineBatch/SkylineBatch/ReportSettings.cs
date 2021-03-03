@@ -22,6 +22,7 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Xml;
 using System.IO;
+using SharedBatch;
 using SkylineBatch.Properties;
 
 
@@ -29,26 +30,37 @@ namespace SkylineBatch
 {
     public class ReportSettings
     {
-    // IMMUTABLE
-    //
-    // ReportSettings contains a list of reportInfos, each of which represents an individual report with R scripts to run on it.
-    // An empty reportSettings is a valid instance of this class, as configurations don't require reports to run the batch commands.
+        // IMMUTABLE
+        // ReportSettings contains a list of reportInfos, each of which represents an individual report with R scripts to run on it.
+        // An empty reportSettings is a valid instance of this class, as configurations don't require reports to run the batch commands.
+        
+        public ReportSettings(List<ReportInfo> reports)
+        {
+            Reports = ImmutableList.CreateRange(reports);
+        }
 
-    
+        public readonly ImmutableList<ReportInfo> Reports;
 
-    public ReportSettings(List<ReportInfo> reports)
-    {
-        Reports = ImmutableList.CreateRange(reports);
-    }
-
-    public readonly ImmutableList<ReportInfo> Reports;
-
-    public void Validate()
+        public void Validate()
         {
             foreach (var reportInfo in Reports)
             {
                 reportInfo.Validate();
             }
+        }
+
+        public bool TryPathReplace(string oldRoot, string newRoot, out ReportSettings pathReplacedReportSettings)
+        {
+            var anyReplaced = false;
+            var newReports = new List<ReportInfo>();
+            foreach (var report in Reports)
+            {
+                anyReplaced = report.TryPathReplace(oldRoot, newRoot, out ReportInfo pathReplacedReportInfo) ||
+                              anyReplaced;
+                newReports.Add(pathReplacedReportInfo);
+            }
+            pathReplacedReportSettings = new ReportSettings(newReports);
+            return anyReplaced;
         }
 
         public static ReportSettings ReadXml(XmlReader reader)
@@ -68,7 +80,6 @@ namespace SkylineBatch
 
                 reader.Read();
             }
-
             return new ReportSettings(reports);
         }
 
@@ -79,7 +90,6 @@ namespace SkylineBatch
             {
                 report.WriteXml(writer);
             }
-
             writer.WriteEndElement();
         }
 
@@ -95,7 +105,6 @@ namespace SkylineBatch
                 if (!Reports[i].Equals(other.Reports[i]))
                     return false;
             }
-
             return true;
         }
 
@@ -125,7 +134,6 @@ namespace SkylineBatch
         // IMMUTABLE
         // Represents a report and associated r scripts to run using that report.
         
-
         public ReportInfo(string name, string path, List<Tuple<string, string>> rScripts)
         {
             Name = name;
@@ -134,7 +142,7 @@ namespace SkylineBatch
 
             if (string.IsNullOrWhiteSpace(Name))
             {
-                throw new ArgumentException("Report must have name.");
+                throw new ArgumentException(Resources.ReportInfo_Validate_Report_must_have_name_);
             }
         }
 
@@ -144,14 +152,13 @@ namespace SkylineBatch
 
         public readonly ImmutableList<Tuple<string,string>> RScripts;
 
-        public object[] AsArray()
+        public object[] AsObjectArray()
         {
-            var scriptsString = "";
+            var scriptsString = string.Empty;
             foreach (var script in RScripts)
             {
-                scriptsString += Path.GetFileName(script.Item1) + "\n";
+                scriptsString += Path.GetFileName(script.Item1) + Environment.NewLine;
             }
-
             return new object[] {Name, ReportPath, scriptsString};
         }
 
@@ -159,29 +166,54 @@ namespace SkylineBatch
         {
             if (string.IsNullOrWhiteSpace(Name))
             {
-                throw new ArgumentException(Resources.ReportSettings_Report_must_have_name_);
+                throw new ArgumentException(Resources.ReportInfo_Validate_Report_must_have_name_ + Environment.NewLine +
+                                            Resources.ReportInfo_Validate_Please_enter_a_name_for_this_report_);
             }
-
-            if (!File.Exists(ReportPath))
-            {
-                throw new ArgumentException(
-                    string.Format(Resources.ReportSettings_Report__0__Report_path__1__is_not_a_valid_path_, Name, ReportPath));
-            }
-
+            
+            ValidateReportPath(ReportPath);
             foreach (var pathAndVersion in RScripts)
             {
-                if (!File.Exists(pathAndVersion.Item1))
-                {
-                    throw new ArgumentException(string.Format(Resources.ReportSettings_Report__0__R_script_path__1__is_not_a_valid_path, Name, pathAndVersion.Item1));
-                }
-                
-                if (!Settings.Default.RVersions.ContainsKey(pathAndVersion.Item2))
-                {
-                    throw new ArgumentException(string.Format(Resources.ReportSettings_Report__0__R_version__1__is_not_installed_on_this_computer_, Name, pathAndVersion.Item2));
-                }
+                ValidateRScriptPath(pathAndVersion.Item1);
+                ValidateRVersion(pathAndVersion.Item2);
             }
         }
 
+        public static void ValidateReportPath(string reportPath)
+        {
+            if (!File.Exists(reportPath))
+                throw new ArgumentException(string.Format(Resources.ReportInfo_ValidateReportPath_Report_path__0__is_not_a_valid_path_, reportPath) + Environment.NewLine +
+                                            Resources.ReportInfo_Validate_Please_enter_a_path_to_an_existing_file_);
+        }
+
+        public static void ValidateRScriptPath(string rScriptPath)
+        {
+            if (!File.Exists(rScriptPath))
+                throw new ArgumentException(string.Format(Resources.ReportInfo_ValidateRScriptPath_R_script_path__0__is_not_a_valid_path_,
+                                                rScriptPath) + Environment.NewLine +
+                                            Resources.ReportInfo_Validate_Please_enter_a_path_to_an_existing_file_);
+        }
+
+        public static void ValidateRVersion(string rVersion)
+        {
+            if (!Settings.Default.RVersions.ContainsKey(rVersion))
+                throw new ArgumentException(string.Format(Resources.ReportInfo_ValidateRVersion_R_version__0__is_not_installed_on_this_computer_, rVersion) + Environment.NewLine +
+                                            Resources.ReportInfo_ValidateRVersion_Please_choose_a_different_version_of_R_);
+        }
+
+        public bool TryPathReplace(string oldRoot, string newRoot, out ReportInfo pathReplacedReportInfo)
+        {
+            var reportReplaced = TextUtil.TryReplaceStart(oldRoot, newRoot, ReportPath, out string replacedReportPath);
+            var replacedRScripts = new List<Tuple<string, string>>();
+            var anyScriptReplaced = false;
+            foreach (var rScriptAndVersion in RScripts)
+            {
+                anyScriptReplaced = TextUtil.TryReplaceStart(oldRoot, newRoot, rScriptAndVersion.Item1, out string replacedRScript) || anyScriptReplaced;
+                replacedRScripts.Add(new Tuple<string, string>(replacedRScript, rScriptAndVersion.Item2));
+            }
+            pathReplacedReportInfo = new ReportInfo(Name, replacedReportPath, replacedRScripts);
+            return reportReplaced || anyScriptReplaced;
+        }
+        
         private enum Attr
         {
             Name,
@@ -208,8 +240,7 @@ namespace SkylineBatch
 
             return new ReportInfo(name, reportPath, rScripts);
         }
-
-
+        
         public void WriteXml(XmlWriter writer)
         {
             writer.WriteStartElement("report_info");
@@ -249,6 +280,4 @@ namespace SkylineBatch
             return Name.GetHashCode() + ReportPath.GetHashCode();
         }
     }
-
-
 }

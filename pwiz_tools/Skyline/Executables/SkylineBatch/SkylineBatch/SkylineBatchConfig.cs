@@ -18,15 +18,17 @@
 
 using System;
 using System.Text;
+using System.Windows.Forms;
 using System.Xml;
 using System.Xml.Schema;
 using System.Xml.Serialization;
 using SkylineBatch.Properties;
+using SharedBatch;
 
 namespace SkylineBatch
 {
     [XmlRoot("skylinebatch_config")]
-    public class SkylineBatchConfig
+    public class SkylineBatchConfig : IConfig
     {
         // IMMUTABLE - all fields are readonly, all variables are immutable
         // A configuration is a set of information about a skyline file, data, reports and scripts.
@@ -34,31 +36,36 @@ namespace SkylineBatch
         // script that will copy the skyline file, import data, export reports, and run r scripts.
 
         
-        public SkylineBatchConfig(string name, DateTime created, DateTime modified, MainSettings mainSettings, ReportSettings reportSettings, SkylineSettings skylineSettings)
+        public SkylineBatchConfig(string name, bool enabled, DateTime modified, MainSettings mainSettings, 
+            FileSettings fileSettings, ReportSettings reportSettings, SkylineSettings skylineSettings)
         {
             if (string.IsNullOrEmpty(name))
             {
-                throw new ArgumentException(Resources.SkylineBatchConfig_Please_enter_a_name_for_the_configuration_);
+                throw new ArgumentException(string.Format(Resources.SkylineBatchConfig_SkylineBatchConfig___0___is_not_a_valid_name_for_the_configuration_, name) + Environment.NewLine +
+                                            Resources.SkylineBatchConfig_SkylineBatchConfig_Please_enter_a_name_);
             }
             Name = name;
-            Created = created;
+            Enabled = enabled;
             Modified = modified;
             MainSettings = mainSettings;
+            FileSettings = fileSettings;
             ReportSettings = reportSettings;
             SkylineSettings = skylineSettings;
         }
 
         public readonly string Name;
 
-        public readonly DateTime Created;
-
         public readonly DateTime Modified;
 
         public readonly MainSettings MainSettings;
 
+        public readonly FileSettings FileSettings;
+
         public readonly ReportSettings ReportSettings;
 
         public readonly SkylineSettings SkylineSettings;
+
+        public bool Enabled;
 
         public bool UsesSkyline => SkylineSettings.Type == SkylineType.Skyline;
 
@@ -66,14 +73,31 @@ namespace SkylineBatch
 
         public bool UsesCustomSkylinePath => SkylineSettings.Type == SkylineType.Custom;
 
+        public string GetName() { return Name; }
+
+        public DateTime GetModified()  { return Modified; }
+
+        public ListViewItem AsListViewItem(IConfigRunner runner)
+        {
+            var lvi = new ListViewItem(Name);
+            lvi.Checked = Enabled;
+            lvi.SubItems.Add(Modified.ToShortDateString());
+            lvi.SubItems.Add(((ConfigRunner)runner).GetDisplayStatus());//_configRunners[config.Name].GetDisplayStatus());
+            return lvi;
+        }
+
+        public IConfigRunner CreateRunner(Logger logger, IMainUiControl uiControl)
+        {
+            return new ConfigRunner(this, logger, uiControl);
+        }
+
         private enum Attr
         {
             Name,
-            Created,
+            Enabled,
             Modified
         }
-
-
+        
         #region XML
 
         public XmlSchema GetSchema()
@@ -84,9 +108,8 @@ namespace SkylineBatch
         public static SkylineBatchConfig ReadXml(XmlReader reader)
         {
             var name = reader.GetAttribute(Attr.Name);
-            DateTime created;
+            var enabled = reader.GetBoolAttribute(Attr.Enabled);
             DateTime modified;
-            DateTime.TryParse(reader.GetAttribute(Attr.Created), out created);
             DateTime.TryParse(reader.GetAttribute(Attr.Modified), out modified);
 
             do
@@ -95,6 +118,7 @@ namespace SkylineBatch
             } while (reader.NodeType != XmlNodeType.Element);
 
             MainSettings mainSettings = null;
+            FileSettings fileSettings = null;
             ReportSettings reportSettings = null;
             SkylineSettings skylineSettings = null;
             string exceptionMessage = null;
@@ -105,6 +129,13 @@ namespace SkylineBatch
                 {
                     reader.Read();
                 } while (reader.NodeType != XmlNodeType.Element);
+
+                fileSettings = FileSettings.ReadXml(reader);
+                do
+                {
+                    reader.Read();
+                } while (reader.NodeType != XmlNodeType.Element);
+
                 reportSettings = ReportSettings.ReadXml(reader);
                 do
                 {
@@ -125,53 +156,48 @@ namespace SkylineBatch
             if (exceptionMessage != null)
                 throw new ArgumentException(exceptionMessage);
 
-            return new SkylineBatchConfig(name, created, modified, mainSettings, reportSettings, skylineSettings);
+            return new SkylineBatchConfig(name, enabled, modified, mainSettings, fileSettings, reportSettings, skylineSettings);
         }
 
         public void WriteXml(XmlWriter writer)
         {
-            //Validate();
             writer.WriteStartElement("skylinebatch_config");
             writer.WriteAttribute(Attr.Name, Name);
-            writer.WriteAttributeIfString(Attr.Created, Created.ToShortDateString() + " " + Created.ToShortTimeString());
+            writer.WriteAttribute(Attr.Enabled, Enabled);
             writer.WriteAttributeIfString(Attr.Modified, Modified.ToShortDateString() + " " + Modified.ToShortTimeString());
             MainSettings.WriteXml(writer);
+            FileSettings.WriteXml(writer);
             ReportSettings.WriteXml(writer);
             SkylineSettings.WriteXml(writer);
             writer.WriteEndElement();
         }
-
-
-
-        #endregion
-
         
-
-
+        #endregion
+        
         public void Validate()
         {
-            if (MainSettings == null || ReportSettings == null || SkylineSettings == null)
-            {
-                throw new Exception("Configuration settings not initialized.");
-            }
-
-            if (string.IsNullOrEmpty(Name))
-            {
-                throw new ArgumentException("Please enter a name for the configuration.");
-            }
-
             MainSettings.Validate();
+            FileSettings.Validate();
             ReportSettings.Validate();
             SkylineSettings.Validate();
+        }
+
+        public bool TryPathReplace(string oldRoot, string newRoot, out IConfig replacedPathConfig)
+        {
+            var mainSettingsReplaced = MainSettings.TryPathReplace(oldRoot, newRoot, out MainSettings pathReplacedMainSettings);
+            var reportSettingsReplaced =
+                ReportSettings.TryPathReplace(oldRoot, newRoot, out ReportSettings pathReplacedReportSettings);
+            replacedPathConfig = new SkylineBatchConfig(Name, Enabled, DateTime.Now, pathReplacedMainSettings, FileSettings, pathReplacedReportSettings, SkylineSettings);
+            return mainSettingsReplaced || reportSettingsReplaced;
         }
 
         public override string ToString()
         {
             var sb = new StringBuilder();
             sb.Append("Name: ").AppendLine(Name);
-            sb.Append("Created: ").Append(Created.ToShortDateString()).AppendLine(Created.ToShortTimeString());
+            sb.Append("Enabled: ").Append(Enabled);
             sb.Append("Modified: ").Append(Modified.ToShortDateString()).AppendLine(Modified.ToShortTimeString());
-            sb.AppendLine("").AppendLine("Main Settings");
+            sb.AppendLine(string.Empty).AppendLine("Main Settings");
             sb.Append(MainSettings);
             return sb.ToString();
         }
@@ -195,7 +221,7 @@ namespace SkylineBatch
 
         public override int GetHashCode()
         {
-            return Name.GetHashCode() + Created.GetHashCode() + Modified.GetHashCode() +
+            return Name.GetHashCode() + Modified.GetHashCode() +
                    MainSettings.GetHashCode() + ReportSettings.GetHashCode();
         }
 

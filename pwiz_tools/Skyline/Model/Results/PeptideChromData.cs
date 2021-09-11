@@ -23,6 +23,7 @@ using System.Drawing;
 using System.Linq;
 using pwiz.Common.PeakFinding;
 using pwiz.Skyline.Model.DocSettings;
+using pwiz.Skyline.Model.EventLog;
 using pwiz.Skyline.Model.Results.Scoring;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
@@ -31,7 +32,7 @@ namespace pwiz.Skyline.Model.Results
 {
     internal sealed class PeptideChromDataSets
     {
-        private readonly Serilog.ILogger LOGGER = Serilog.Log.ForContext<PeptideChromDataSets>();
+        private readonly Serilog.ILogger LOGGER;
         private const double TIME_DELTA_VARIATION_THRESHOLD = 0.001;
         public const double TIME_MIN_DELTA = 0.2 / 60;
 
@@ -54,6 +55,7 @@ namespace pwiz.Skyline.Model.Results
                                     IList<DetailedPeakFeatureCalculator> detailedPeakFeatureCalculators,
                                     bool isProcessedScans)
         {
+            LOGGER = AnalysisContext.EMPTY.ChangeMolecule(nodePep).QualifyLogger(Serilog.Log.ForContext<PeptideChromDataSets>());
             NodePep = nodePep;
             FileInfo = fileInfo;
             DetailedPeakFeatureCalculators = detailedPeakFeatureCalculators;

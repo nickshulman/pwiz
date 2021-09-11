@@ -54,22 +54,21 @@ namespace pwiz.SkylineTestTutorial
     public class Ms1FullScanFilteringTutorial : AbstractFunctionalTestEx
     {
         [TestMethod, MinidumpLeakThreshold(15)]
-        [Timeout(60*60*1000)]  // These can take a long time in code coverage mode (1 hour)
         public void TestMs1Tutorial()
         {
             // Set true to look at tutorial screenshots.
 //            IsPauseForScreenShots = true;
 //            IsCoverShotMode = true;
-//            PauseStartPage = 30;
+//            PauseStartingPage = 30;
             CoverShotName = "MS1Filtering";
 
-            LinkPdf = "https://skyline.gs.washington.edu/labkey/_webdav/home/software/Skyline/%40files/tutorials/MS1Filtering-2_5.pdf";
+            LinkPdf = "https://skyline.ms/_webdav/home/software/Skyline/%40files/tutorials/MS1Filtering-20_1.pdf";
 
             TestFilesZipPaths = new[]
                 {
                     PreferWiff
-                        ? @"https://skyline.gs.washington.edu/tutorials/MS1Filtering_2.zip" // Not L10N
-                        : @"https://skyline.gs.washington.edu/tutorials/MS1FilteringMzml_2.zip", // Not L10N
+                        ? @"https://skyline.ms/tutorials/MS1Filtering_2.zip" // Not L10N
+                        : @"https://skyline.ms/tutorials/MS1FilteringMzml_2.zip", // Not L10N
                     @"TestTutorial\Ms1FullScanFilteringViews.zip"
                 };
             RunFunctionalTest();

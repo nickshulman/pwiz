@@ -52,6 +52,7 @@ using System.Threading;
 using System.Xml;
 using System.Xml.Schema;
 using System.Xml.Serialization;
+using pwiz.Common.Chemistry;
 using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Controls.SeqNode;
 using pwiz.Skyline.Model.AuditLog;
@@ -756,8 +757,11 @@ namespace pwiz.Skyline.Model
             SrmDocument docClone = (SrmDocument)clone;
             docClone.RevisionIndex = RevisionIndex + 1;
 
-            // Make sure peptide standards lists are up to date
-            docClone.Settings = docClone.Settings.CachePeptideStandards(Children, docClone.Children);
+            if (!DeferSettingsChanges)
+            {
+                // Make sure peptide standards lists are up to date
+                docClone.Settings = docClone.Settings.CachePeptideStandards(Children, docClone.Children);
+            }
 
             // Note protein metadata readiness
             docClone.IsProteinMetadataPending = docClone.CalcIsProteinMetadataPending();
@@ -1389,14 +1393,17 @@ namespace pwiz.Skyline.Model
         }
 
         public SrmDocument ImportMassList(MassListInputs inputs,
-                                          IdentityPath to,
-                                          out IdentityPath firstAdded)
+            MassListImporter importer, 
+            IdentityPath to, 
+            out IdentityPath firstAdded,
+            List<string> columnPositions = null,
+            bool hasHeaders = true)
         {
             List<MeasuredRetentionTime> irtPeptides;
             List<SpectrumMzInfo> librarySpectra;
             List<TransitionImportErrorInfo> errorList;
             List<PeptideGroupDocNode> peptideGroups;
-            return ImportMassList(inputs, null, to, out firstAdded, out irtPeptides, out librarySpectra, out errorList, out peptideGroups);
+            return ImportMassList(inputs, importer, null, to, out firstAdded, out irtPeptides, out librarySpectra, out errorList, out peptideGroups, columnPositions, DOCUMENT_TYPE.none, hasHeaders);
         }
 
         public SrmDocument ImportMassList(MassListInputs inputs,
@@ -1404,54 +1411,95 @@ namespace pwiz.Skyline.Model
                                           out IdentityPath firstAdded,
                                           out List<MeasuredRetentionTime> irtPeptides,
                                           out List<SpectrumMzInfo> librarySpectra,
-                                          out List<TransitionImportErrorInfo> errorList)
+                                          out List<TransitionImportErrorInfo> errorList,
+                                          List<string> columnPositions = null)
         {
             List<PeptideGroupDocNode> peptideGroups;
-            return ImportMassList(inputs, null, to, out firstAdded, out irtPeptides, out librarySpectra, out errorList, out peptideGroups);
+            return ImportMassList(inputs, null, null, to, out firstAdded, out irtPeptides, out librarySpectra, out errorList, out peptideGroups, columnPositions);
         }
 
         public SrmDocument ImportMassList(MassListInputs inputs, 
+                                          MassListImporter importer,
                                           IProgressMonitor progressMonitor,
                                           IdentityPath to,
                                           out IdentityPath firstAdded,
                                           out List<MeasuredRetentionTime> irtPeptides,
                                           out List<SpectrumMzInfo> librarySpectra,
                                           out List<TransitionImportErrorInfo> errorList,
-                                          out List<PeptideGroupDocNode> peptideGroups)
+                                          out List<PeptideGroupDocNode> peptideGroups,
+                                          List<string> columnPositions = null,
+                                          DOCUMENT_TYPE radioType = DOCUMENT_TYPE.none,
+                                          bool hasHeaders = true)
         {
-            MassListImporter importer = new MassListImporter(this, inputs);
+            irtPeptides = new List<MeasuredRetentionTime>();
+            librarySpectra = new List<SpectrumMzInfo>();
+            peptideGroups = new List<PeptideGroupDocNode>();
+            errorList = new List<TransitionImportErrorInfo>();
+
+            var docNew = this;
+            firstAdded = null;
 
             // Is this a small molecule transition list, or trying to be?
-            if (SmallMoleculeTransitionListCSVReader.IsPlausibleSmallMoleculeTransitionList(importer.Inputs.ReadLines()))
+            if (((importer != null && importer.InputType == DOCUMENT_TYPE.small_molecules) && radioType == DOCUMENT_TYPE.none) || radioType == DOCUMENT_TYPE.small_molecules)
             {
-                var docNewSmallMolecules = this;
-                irtPeptides = new List<MeasuredRetentionTime>();
-                librarySpectra = new List<SpectrumMzInfo>();
-                peptideGroups = new List<PeptideGroupDocNode>();
-                errorList = new List<TransitionImportErrorInfo>();
-                firstAdded = null;
                 try
                 {
-                    var reader = new SmallMoleculeTransitionListCSVReader(importer.Inputs.ReadLines());
-                    docNewSmallMolecules = reader.CreateTargets(this, to, out firstAdded);
+                    var lines = inputs.ReadLines(progressMonitor);
+                    var reader = new SmallMoleculeTransitionListCSVReader(lines, columnPositions, hasHeaders);
+                    docNew = reader.CreateTargets(this, to, out firstAdded);
                 }
                 catch (LineColNumberedIoException x)
                 {
+                    // TODO(brianp): Better to return a complete list of all rows with errors and allow skipping
                     errorList.Add(new TransitionImportErrorInfo(x.PlainMessage, x.ColumnIndex, x.LineNumber, null));  // CONSIDER: worth the effort to pull row and column info from error message?
                 }
-                return docNewSmallMolecules;
             }
-
-            IdentityPath nextAdd;
-            peptideGroups = importer.Import(progressMonitor, inputs.InputFilename, out irtPeptides, out librarySpectra, out errorList).ToList();
-            var docNew = AddPeptideGroups(peptideGroups, false, to, out firstAdded, out nextAdd);
-            var pepModsNew = importer.GetModifications(docNew);
-            if (!ReferenceEquals(pepModsNew, Settings.PeptideSettings.Modifications))
+            else
             {
-                docNew = docNew.ChangeSettings(docNew.Settings.ChangePeptideModifications(mods => pepModsNew));
-                docNew.Settings.UpdateDefaultModifications(false);
+                try
+                {
+                    if (importer == null)
+                        importer = PreImportMassList(inputs, progressMonitor, false);
+                    if (importer != null)
+                    {
+                        IdentityPath nextAdd;
+                        //peptideGroups = importer.Import(progressMonitor, out irtPeptides, out librarySpectra, out errorList).ToList();
+                        var dictNameSeqAll = new Dictionary<string, FastaSequence>();
+                        var imported = importer.DoImport(progressMonitor, dictNameSeqAll, irtPeptides, librarySpectra, errorList);
+                        if (progressMonitor != null && progressMonitor.IsCanceled)
+                        {
+                            return this;
+                        }
+                        peptideGroups = (List<PeptideGroupDocNode>) imported;
+                        docNew = AddPeptideGroups(peptideGroups, false, to, out firstAdded, out nextAdd);
+                        var pepModsNew = importer.GetModifications(docNew);
+                        if (!ReferenceEquals(pepModsNew, Settings.PeptideSettings.Modifications))
+                        {
+                            docNew = docNew.ChangeSettings(docNew.Settings.ChangePeptideModifications(mods => pepModsNew));
+                            docNew.Settings.UpdateDefaultModifications(false);
+                        }
+                    }
+                }
+                catch (LineColNumberedIoException x)
+                {
+                    throw new InvalidDataException(x.Message, x);
+                }
             }
             return docNew;
+        }
+
+        /// <summary>
+        /// Return a mass list import if the progress monitor is not cancelled and we are able to read the document
+        /// </summary>
+        public MassListImporter PreImportMassList(MassListInputs inputs, IProgressMonitor progressMonitor, bool tolerateErrors, 
+            DOCUMENT_TYPE inputType = DOCUMENT_TYPE.none, bool rowReadRequired = false) // "None" means "don't know if it's peptides or small molecules, go figure it out".
+        {
+            var importer = new MassListImporter(this, inputs,  inputType);
+            if (importer.PreImport(progressMonitor, null, tolerateErrors, rowReadRequired))
+            {
+                return importer;
+            }
+            return null;
         }
 
         public SrmDocument AddIrtPeptides(List<DbIrtPeptide> irtPeptides, bool overwriteExisting, IProgressMonitor progressMonitor)
@@ -1988,11 +2036,11 @@ namespace pwiz.Skyline.Model
             var auditLogPath = GetAuditLogPath(documentPath);
             if (File.Exists(auditLogPath))
             {
-                if (AuditLogList.ReadFromFile(auditLogPath, out var loggedSkylineDocumentHash, out var auditLogList))
+                if (AuditLogList.ReadFromFile(auditLogPath, out var auditLogList))
                 {
                     auditLog = auditLogList;
 
-                    if (expectedSkylineDocumentHash != loggedSkylineDocumentHash)
+                    if (expectedSkylineDocumentHash != auditLogList.DocumentHash.HashString)
                     {
                         var entry = getDefaultEntry() ?? AuditLogEntry.CreateUndocumentedChangeEntry();
                         auditLog = new AuditLogList(entry.ChangeParent(auditLog.AuditLogEntries));
@@ -2053,8 +2101,11 @@ namespace pwiz.Skyline.Model
 
             var auditLogPath = GetAuditLogPath(displayName);
 
-            if (Settings.DataSettings.AuditLogging)
-                AuditLog?.WriteToFile(auditLogPath, hash);
+            if (Settings.DataSettings.AuditLogging && AuditLog != null)
+            {
+                var auditLog = AuditLog.RecalculateHashValues(skylineVersion.SrmDocumentVersion, hash);
+                auditLog.WriteToFile(auditLogPath, hash, skylineVersion.SrmDocumentVersion);
+            }
             else if (File.Exists(auditLogPath))
                 Helpers.TryTwice(() => File.Delete(auditLogPath));
         }
@@ -2245,6 +2296,19 @@ namespace pwiz.Skyline.Model
                                 Settings, nodePep, nodeTranGroup, null, OptimizedMethodType.Precursor, GetCompensationVoltageRough);
                             break;
                     }
+
+                    if (!cov.HasValue)
+                    {
+                        // Check for CoV as an ion mobility parameter
+                        var libKey = nodeTranGroup.GetLibKey(Settings, nodePep);
+                        var imInfo = Settings.GetIonMobilities(new[] { libKey }, null);
+                        var im = imInfo.GetLibraryMeasuredIonMobilityAndCCS(libKey, nodeTranGroup.PrecursorMz, null);
+                        if (im.IonMobility.Units == eIonMobilityUnits.compensation_V)
+                        {
+                            cov = im.IonMobility.Mobility;
+                        }
+                    }
+
                     if (!cov.HasValue || cov.Value.Equals(0))
                     {
                         yield return nodeTranGroup.ToString();

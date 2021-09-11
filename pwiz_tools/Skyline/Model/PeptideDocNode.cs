@@ -20,7 +20,6 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
-using System.Text;
 using pwiz.Common.Collections;
 using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Controls.SeqNode;
@@ -36,7 +35,7 @@ using pwiz.Skyline.Util;
 
 namespace pwiz.Skyline.Model
 {
-    public class PeptideDocNode : DocNodeParent, ISequenceContainer
+    public class PeptideDocNode : DocNodeParent
     {
         public static readonly StandardType STANDARD_TYPE_IRT = StandardType.IRT;
         public static readonly StandardType STANDARD_TYPE_QC = StandardType.QC;
@@ -93,6 +92,8 @@ namespace pwiz.Skyline.Model
                 ModifiedTarget = Peptide.Target;
                 ModifiedSequenceDisplay = Peptide.Target.DisplayName;
             }
+
+            ExplicitMods?.VerifyNoLegacyData();
         }
 
         public override string AuditLogText
@@ -184,28 +185,14 @@ namespace pwiz.Skyline.Model
 
         public ExplicitMods ExplicitMods { get; private set; }
 
+        public CrosslinkStructure CrosslinkStructure
+        {
+            get { return ExplicitMods?.CrosslinkStructure ?? CrosslinkStructure.EMPTY; }
+        }
+
         public string GetCrosslinkedSequence()
         {
-            if (ExplicitMods == null || !ExplicitMods.HasCrosslinks)
-            {
-                return Peptide.Sequence;
-            }
-
-            var stack = new List<LinkedPeptide>(ExplicitMods.Crosslinks.Values.Reverse());
-            StringBuilder stringBuilder = new StringBuilder(Peptide.Sequence);
-            while (stack.Count > 0)
-            {
-                var linkedPeptide = stack[stack.Count - 1];
-                stack.RemoveAt(stack.Count - 1);
-                stringBuilder.Append(@"-");
-                stringBuilder.Append(linkedPeptide.PeptideSequence);
-                if (linkedPeptide.ExplicitMods != null)
-                {
-                    stack.AddRange(linkedPeptide.ExplicitMods.Crosslinks.Values.Reverse());
-                }
-            }
-
-            return stringBuilder.ToString();
+            return string.Join(@"-", CrosslinkStructure.LinkedPeptides.Prepend(Peptide).Select(pep => pep.Sequence));
         }
         public ModifiedSequenceMods SourceKey { get; private set; }
 
@@ -599,7 +586,7 @@ namespace pwiz.Skyline.Model
             }
             else
             {
-                modifiedTarget = srmSettings.GetCrosslinkModifiedSequence(Peptide.Target, IsotopeLabelType.light, ExplicitMods, false);
+                modifiedTarget = srmSettings.GetCrosslinkModifiedSequence(Peptide.Target, IsotopeLabelType.light, ExplicitMods);
                 modifiedSequenceDisplay = modifiedTarget.ToString();
             }
         }
@@ -881,17 +868,26 @@ namespace pwiz.Skyline.Model
                 bool isPickedIntensityRank = useHighestRank &&
                                              ReferenceEquals(rankId, LibrarySpec.PEP_RANK_PICKED_INTENSITY);
 
-                ILookup<Identity, TransitionGroupDocNode> mapIdToChild =
-                    TransitionGroups.ToLookup(nodeGroup => nodeGroup.Id);
-                foreach (TransitionGroup tranGroup in GetTransitionGroups(settingsNew, explicitMods, true))
+                IEqualityComparer<TransitionGroup> transitionGroupEqualityComparer = null;
+                if (!IsProteomic)
                 {
-                    IList<TransitionGroupDocNode> nodeGroups = null;
+                    transitionGroupEqualityComparer = new IdentityEqualityComparer<TransitionGroup>();
+                }
+
+                ILookup<TransitionGroup, TransitionGroupDocNode> mapIdToChild =
+                    TransitionGroups.ToLookup(nodeGroup => nodeGroup.TransitionGroup, transitionGroupEqualityComparer);
+                foreach (TransitionGroup tranGroup in GetTransitionGroups(settingsNew, explicitMods, true)
+                    .Distinct(transitionGroupEqualityComparer))
+                {
+                    IList<TransitionGroupDocNode> nodeGroups;
                     SrmSettingsDiff diffNode = diff;
 
                     // Add values that existed before the change, unless using picked intensity ranking,
                     // since this could bias the ranking, otherwise.
                     if (!isPickedIntensityRank && mapIdToChild.Contains(tranGroup))
+                    {
                         nodeGroups = mapIdToChild[tranGroup].ToArray();
+                    }
                     // Add new node
                     else
                     {
@@ -1131,8 +1127,8 @@ namespace pwiz.Skyline.Model
                 }
             }
 
-            if (newExplicitStaticMods != null || newExplicitHeavyMods.Count > 0)
-                return ChangeExplicitMods(new ExplicitMods(Peptide, newExplicitStaticMods, newExplicitHeavyMods, preserveVariable));
+            if (newExplicitStaticMods != null || newExplicitHeavyMods.Count > 0 || !CrosslinkStructure.IsEmpty)
+                return ChangeExplicitMods(new ExplicitMods(Peptide, newExplicitStaticMods, newExplicitHeavyMods, preserveVariable).ChangeCrosslinkStructure(CrosslinkStructure));
             return ChangeExplicitMods(null);
         }
 

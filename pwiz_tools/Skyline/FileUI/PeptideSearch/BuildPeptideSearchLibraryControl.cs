@@ -32,11 +32,14 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Data.SQLite;
 using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Windows.Forms;
+using pwiz.Common.Database;
 using pwiz.Skyline.Model.Results;
+using BiblioSpecLiteLibrary = pwiz.Skyline.Model.Lib.BiblioSpecLiteLibrary;
 
 namespace pwiz.Skyline.FileUI.PeptideSearch
 {
@@ -58,8 +61,17 @@ namespace pwiz.Skyline.FileUI.PeptideSearch
             if (DocumentContainer.Document.PeptideCount == 0)
                 cbFilterForDocumentPeptides.Hide();
 
+            comboInputFileType.Items.AddRange(new[]
+            {
+                EnumNames.InputFile_search_result,
+                EnumNames.InputFile_dda_raw,
+                EnumNames.InputFile_dia_raw
+            });
+
             _driverStandards = new SettingsListComboDriver<IrtStandard>(comboStandards, Settings.Default.IrtStandardList);
             _driverStandards.LoadList(IrtStandard.EMPTY.GetKey());
+
+            comboInputFileType.SelectedIndex = 0;
         }
 
         public BuildPeptideSearchLibrarySettings BuildLibrarySettings
@@ -72,7 +84,7 @@ namespace pwiz.Skyline.FileUI.PeptideSearch
             private SrmDocument.DOCUMENT_TYPE _docType;
 
             public static BuildPeptideSearchLibrarySettings DEFAULT = new BuildPeptideSearchLibrarySettings(0.0, new List<string>(), null, false,
-                false, ImportPeptideSearchDlg.Workflow.dda, SrmDocument.DOCUMENT_TYPE.proteomic);
+                false, ImportPeptideSearchDlg.Workflow.dda, ImportPeptideSearchDlg.InputFile.search_result, SrmDocument.DOCUMENT_TYPE.proteomic);
 
             public override MessageInfo MessageInfo
             {
@@ -86,12 +98,12 @@ namespace pwiz.Skyline.FileUI.PeptideSearch
 
             public BuildPeptideSearchLibrarySettings(BuildPeptideSearchLibraryControl control) : this(control.CutOffScore,
                 control.SearchFilenames, control.IrtStandards, control.IncludeAmbiguousMatches,
-                control.FilterForDocumentPeptides, control.WorkflowType, control.ModeUI)
+                control.FilterForDocumentPeptides, control.WorkflowType, control.InputFileType, control.ModeUI)
             {
             }
 
-            public BuildPeptideSearchLibrarySettings(double cutoffScore, IList<string> searchFileNames, IrtStandard standard, bool includeAmbiguousMatches, bool filterForDocumentPeptides, ImportPeptideSearchDlg.Workflow workFlow,
-                SrmDocument.DOCUMENT_TYPE docType)
+            public BuildPeptideSearchLibrarySettings(double cutoffScore, IList<string> searchFileNames, IrtStandard standard, bool includeAmbiguousMatches, bool filterForDocumentPeptides,
+                ImportPeptideSearchDlg.Workflow workFlow, ImportPeptideSearchDlg.InputFile inputFileType, SrmDocument.DOCUMENT_TYPE docType)
             {
                 CutoffScore = cutoffScore;
                 SearchFileNames = searchFileNames == null
@@ -101,6 +113,7 @@ namespace pwiz.Skyline.FileUI.PeptideSearch
                 IncludeAmbiguousMatches = includeAmbiguousMatches;
                 FilterForDocumentPeptides = filterForDocumentPeptides;
                 WorkFlow = workFlow;
+                InputFileType = inputFileType;
                 _docType = docType;
             }
 
@@ -116,6 +129,8 @@ namespace pwiz.Skyline.FileUI.PeptideSearch
             public bool FilterForDocumentPeptides { get; private set; }
             [Track(ignoreDefaultParent: true)]
             public ImportPeptideSearchDlg.Workflow WorkFlow { get; private set; }
+            [Track(ignoreDefaultParent: true)]
+            public ImportPeptideSearchDlg.InputFile InputFileType { get; private set; }
 
             public object GetDefaultObject(ObjectInfo<object> info)
             {
@@ -191,6 +206,12 @@ namespace pwiz.Skyline.FileUI.PeptideSearch
                         break;
                 }
             }
+        }
+
+        public ImportPeptideSearchDlg.InputFile InputFileType
+        {
+            get { return (ImportPeptideSearchDlg.InputFile) comboInputFileType.SelectedIndex; }
+            set { comboInputFileType.SelectedIndex = (int) value; }
         }
 
         public bool FilterForDocumentPeptides
@@ -349,26 +370,10 @@ namespace pwiz.Skyline.FileUI.PeptideSearch
             {
                 return AddExistingLibrary(e);
             }
-            else if (PerformDDASearch)
-            {
-                return PresetNecessarySettingsWithoutLibrary(e);
-            }
             else 
             {
                 return BuildPeptideSearchLibrary(e);
             }
-        }
-
-        private bool PresetNecessarySettingsWithoutLibrary(CancelEventArgs cancelEventArgs)
-        {
-            foreach (string rawFile in ImportPeptideSearch.SearchFilenames)
-            {
-                // TODO: MCC fix this to allow search file to differ from result file when OpenDataSourceDialog can open MS2-only files (mgf, ms2, filtered mzML)
-                ImportPeptideSearch.SpectrumSourceFiles.Add(rawFile, new ImportPeptideSearch.FoundResultsFilePossibilities(rawFile){ExactMatch = rawFile});
-            }
-
-            return true;
-
         }
 
         public string LastBuildCommandArgs { get; private set; }
@@ -463,7 +468,8 @@ namespace pwiz.Skyline.FileUI.PeptideSearch
             if (!LoadPeptideSearchLibrary(docLibSpec))
                 return false;
 
-            var addedIrts = LibraryBuildNotificationHandler.AddIrts(IrtRegressionType.DEFAULT, ImportPeptideSearch.DocLib, docLibSpec, _driverStandards.SelectedItem, WizardForm, false);
+            var addedIrts = LibraryBuildNotificationHandler.AddIrts(IrtRegressionType.DEFAULT,
+                ImportPeptideSearch.DocLib, docLibSpec, _driverStandards.SelectedItem, WizardForm, false, out var outStandard);
 
             var docNew = ImportPeptideSearch.AddDocumentSpectralLibrary(DocumentContainer.Document, docLibSpec);
             if (docNew == null)
@@ -478,7 +484,7 @@ namespace pwiz.Skyline.FileUI.PeptideSearch
             {
                 MessageDlg.Show(WizardForm, builder.AmbiguousMatchesMessage);
             }
-            ImportPeptideSearch.IrtStandard = _driverStandards.SelectedItem;
+            ImportPeptideSearch.IrtStandard = outStandard;
             return true;
         }
 
@@ -517,7 +523,26 @@ namespace pwiz.Skyline.FileUI.PeptideSearch
             {
                 return false;
             }
-            DocumentContainer.ModifyDocumentNoUndo(doc => ImportPeptideSearch.AddDocumentSpectralLibrary(doc, docLibSpec));
+
+            var docNew = ImportPeptideSearch.AddDocumentSpectralLibrary(DocumentContainer.Document, docLibSpec);
+            if (docNew == null)
+                return false;
+
+            var blib = ImportPeptideSearch.DocLib as BiblioSpecLiteLibrary;
+            if (blib?.ReadStream is ConnectionId<SQLiteConnection> connection && SqliteOperations.TableExists(connection.Connection, @"IrtLibrary"))
+            {
+                using (var dlg = new MultiButtonMsgDlg(
+                    Resources.BuildPeptideSearchLibraryControl_AddExistingLibrary_This_library_contains_iRT_values__Do_you_want_to_create_a_retention_time_predictor_with_these_values_,
+                    MultiButtonMsgDlg.BUTTON_YES, MultiButtonMsgDlg.BUTTON_NO, false))
+                {
+                    if (dlg.ShowDialog(WizardForm) == DialogResult.Yes)
+                    {
+                        docNew = ImportPeptideSearch.AddRetentionTimePredictor(docNew, docLibSpec);
+                    }
+                }
+            }
+
+            DocumentContainer.ModifyDocumentNoUndo(doc => docNew);
             return true;
         }
 
@@ -529,14 +554,21 @@ namespace pwiz.Skyline.FileUI.PeptideSearch
         public static UpdateProgressResponse ShowLibraryMissingExternalSpectraError(Control parentWindow, Exception errorException)
         {
             // E.g. could not find external raw data for MaxQuant msms.txt; ask user if they want to retry with "prefer embedded spectra" option
-            if (!BiblioSpecLiteBuilder.IsLibraryMissingExternalSpectraError(errorException, out string spectrumFilename, out string resultsFilepath))
+            if (!BiblioSpecLiteBuilder.IsLibraryMissingExternalSpectraError(errorException, out IList<string> spectrumFilenames, out IList<string> directoriesSearched, out string resultsFilepath))
                 throw new InvalidOperationException(@"IsLibraryMissingExternalSpectraError returned false");
+
+            string extraHelp = Resources.VendorIssueHelper_ShowLibraryMissingExternalSpectraError_ButtonDescriptions;
+
+            string messageFormat = spectrumFilenames.Count > 1
+                ? Resources.VendorIssueHelper_ShowLibraryMissingExternalSpectrumFilesError
+                : Resources.VendorIssueHelper_ShowLibraryMissingExternalSpectrumFileError;
 
             // TODO: parse supported file extensions from BiblioSpec or ProteoWizard
             var dialogResult = MultiButtonMsgDlg.Show(parentWindow,
-                string.Format(Resources.VendorIssueHelper_ShowLibraryMissingExternalSpectraError_Could_not_find_an_external_spectrum_file_matching__0__in_the_same_directory_as_the_MaxQuant_input_file__1__,
-                    spectrumFilename, resultsFilepath) +
-                string.Format(Resources.VendorIssueHelper_ShowLibraryMissingExternalSpectraError_ButtonDescriptionsSupportsExtensions__0__, BiblioSpecLiteBuilder.BiblioSpecSupportedFileExtensions),
+                string.Format(messageFormat,
+                    resultsFilepath, string.Join(Environment.NewLine, spectrumFilenames),
+                    string.Join(Environment.NewLine, directoriesSearched),
+                    BiblioSpecLiteBuilder.BiblioSpecSupportedFileExtensions) + extraHelp,
                 Resources.BiblioSpecLiteBuilder_Embedded,
                 Resources.AlertDlg_GetDefaultButtonText__Retry, true);
 
@@ -601,7 +633,6 @@ namespace pwiz.Skyline.FileUI.PeptideSearch
             {
                 radioExistingLibrary.Checked = value;
                 radioButtonNewLibrary.Checked = !value;
-                radioDDASearch.Checked = !value;
             }
         }
 
@@ -649,18 +680,13 @@ namespace pwiz.Skyline.FileUI.PeptideSearch
             FireInputFilesChanged();
         }
 
-        private void radioDDASearch_CheckedChanged(object sender, EventArgs e)
-        {
-            UpdatePerformDDASearch();
-        }
-
         public void UpdatePerformDDASearch()
         {
-            panelChooseFile.Visible = !PerformDDASearch;
+            //panelChooseFile.Visible = !PerformDDASearch;
             lblFileCaption.Text = PerformDDASearch
                 ? Resources.BuildPeptideSearchLibraryControl_Files_to_search_
                 : Resources.BuildPeptideSearchLibraryControl_Result_files_;
-            peptideSearchSplitContainer.Visible = PerformDDASearch;
+            //peptideSearchSplitContainer.Visible = PerformDDASearch;
 
             if (PerformDDASearch)
                 DdaSearchDataSources = DdaSearchDataSources;
@@ -670,19 +696,21 @@ namespace pwiz.Skyline.FileUI.PeptideSearch
 
         public bool PerformDDASearch
         {
-            get { return radioDDASearch.Checked; }
-            set
-            {
-                radioExistingLibrary.Checked = !value;
-                radioButtonNewLibrary.Checked = !value;
-                radioDDASearch.Checked = value;
-            }
+            get { return InputFileType != ImportPeptideSearchDlg.InputFile.search_result; }
+            set { InputFileType = value ? ImportPeptideSearchDlg.InputFile.dda_raw : ImportPeptideSearchDlg.InputFile.search_result; }
         }
-    
+
+        public bool DIAConversionNeeded => InputFileType == ImportPeptideSearchDlg.InputFile.dia_raw;
+
 
         private void comboStandards_SelectedIndexChanged(object sender, EventArgs e)
         {
             _driverStandards.SelectedIndexChangedEvent(sender, e);
+        }
+
+        private void comboInputFileType_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            UpdatePerformDDASearch();
         }
     }
 }

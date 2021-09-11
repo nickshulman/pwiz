@@ -21,7 +21,7 @@ ArrangeGraphsGroupedDlg,TestManageResults
 AssociateProteinsDlg,TestAssociateProteins
 AuditLogForm,*
 AuditLogExtraInfoForm,TestAuditLogSaving
-LongOperationRunner.BackgroundThreadLongWaitDlg,TODO (NickSh)
+LongOperationRunner.BackgroundThreadLongWaitDlg,*
 BuildBackgroundProteomeDlg,TestBackgroundProteome
 BuildLibraryDlg,TestFullScanId
 BuildLibraryNotification,*
@@ -34,11 +34,13 @@ ChooseIrtStandardPeptidesDlg,TestAssayLibraryImport
 ChooseSchedulingReplicatesDlg,TestRetentionTimeFilter
 ChromatogramRTThresholdDlg,TestEditDialogs
 ChromChartPropertyDlg,TestPeakPickingTutorial
+ClusteringEditor,TestListClustering
 ColumnChooser,TestStandardTypeWithOldReports
 ComparePeakPickingDlg,TestPeakBoundaryCompare
 ConfigureToolsDlg,TestQuasarTutorial
 CreateIrtCalculatorDlg,TestAssayLibraryImport
 CreateMatchExpressionDlg,TestVolcanoPlotFormatting
+DataboundGraph,*
 DefineAnnotationDlg,TestAnnotations
 DiaIsolationWindowsGraphForm,TestIsolationScheme
 DocumentationViewer,TestStandardType
@@ -60,7 +62,7 @@ EditIsolationSchemeDlg,TestCalculateIsolationWindows
 EditIsotopeEnrichmentDlg,TestEditDialogs
 EditLabelTypeListDlg,TestExplicitMultiType
 EditLibraryDlg,TestRetentionTimeAlignment
-EditLinkedPeptideDlg,TestCrosslinking
+EditLinkedPeptidesDlg,TestCrosslinking
 EditListDlg`2,TestEditStaticMod
 EditMeasuredIonDlg,TestEditDialogs
 EditNoteDlg,TestEditNote
@@ -82,7 +84,7 @@ ExportLiveReportDlg,TestReportSummary
 ExportMethodDlg.IsolationListView,TestExportDiaList
 ExportMethodDlg.MethodView,TestExportDiaList
 ExportMethodDlg.TransitionListView,TestExportMethodDlg
-ExportMethodScheduleGraph,TODO (KaipoT)
+ExportMethodScheduleGraph,TestExportMethodDlg
 FilterMatchedPeptidesDlg,TestInsert
 FilterMidasLibraryDlg,TestMidas
 FindColumnDlg,TestFindColumn
@@ -98,7 +100,8 @@ GraphRegression,TestOptimization
 GraphSpectrum,TestMs1Tutorial
 GraphSummary.AreaGraphView,*
 GraphSummary.RTGraphView,*
-GraphSummary.DetectionsGraphView,TODO (RitaCh)
+GraphSummary.DetectionsGraphView,*
+HeatMapGraph,TestClusteredHeatMap
 ImmediateWindow,ImmediateWindowTestMethod
 ImportDocResultsDlg,TestImportDoc
 ImportIonMobilityFromSpectralLibraryDlg,TestIonMobility
@@ -110,8 +113,9 @@ ImportPeptideSearchDlg.Ms1FullScanPage,TestMs1Tutorial
 ImportPeptideSearchDlg.Ms2FullScanPage,TestTargetedMSMSTutorial
 ImportPeptideSearchDlg.TransitionSettingsPage,TestTargetedMSMSTutorial
 ImportPeptideSearchDlg.FastaPage,TestMs1Tutorial
-ImportPeptideSearchDlg.DDASearchSettingsPage,TestDdaTutorial
-ImportPeptideSearchDlg.DDASearchPage,TestDdaTutorial
+ImportPeptideSearchDlg.ConverterSettingsPage,TestDiaSearchVariableWindows
+ImportPeptideSearchDlg.DDASearchSettingsPage,TestDdaSearch
+ImportPeptideSearchDlg.DDASearchPage,TestDdaSearch
 ImportResultsDlg,TestRetentionTimeAlignment
 ImportResultsNameDlg,TestOptimization
 ImportResultsLockMassDlg,WatersLockmassPerfTest
@@ -144,6 +148,7 @@ PasteDlg.TransitionListTab,TestExistingExperimentsTutorial
 PasteFilteredPeptidesDlg,TestLibraryBuild
 PasteTypeDlg,TestExplicitMultiType
 PathChooserDlg,TestStartPageShowPathChooser
+PcaPlot,TestClusteredHeatMap
 PeptideSettingsUI.DigestionTab,TestMethodEditTutorial
 PeptideSettingsUI.FilterTab,TestEditDialogs
 PeptideSettingsUI.LibraryTab,TestMethodEditTutorial
@@ -178,7 +183,7 @@ RTDetails,IrtFunctionalTest
 SaveSettingsDlg,TestShareSettings
 SchedulingGraphPropertyDlg,TestIrtTutorial
 SchedulingOptionsDlg,TestExportIsolationList
-SelectIrtStandardDlg,TODO (KaipoT)
+SelectIrtStandardDlg,TestLibraryBuild
 SequenceTreeForm,*
 ShareListDlg`2,TestShareSettings
 ShareTypeDlg,TestDocumentSharing
@@ -209,10 +214,11 @@ UndoRedoList,*
 UniquePeptidesDlg,TestMethodEditTutorial
 UpgradeDlg,UpgradeBasicFunctionalTest
 UpgradeLicenseDlg,TestMiscForms
-UseCurrentCalculatorDlg,TODO (KaipoT)
+UseCurrentCalculatorDlg,IrtFunctionalTest
 ViewEditor.ChooseColumnsView,TestLiveReportsFilter
 ViewEditor.FilterView,TestLiveReportsFilter
 ViewLibraryDlg,TestFullScanId
 VolcanoPlotPropertiesDlg,TestGroupComparisonVolcanoPlot
 VolcanoPlotFormattingDlg,TestVolcanoPlotFormatting
 DetectionToolbarProperties, TestDetectionsPlot
+ImportTransitionListColumnSelectDlg,TestExistingExperimentsTutorial

@@ -358,6 +358,7 @@ namespace pwiz.Skyline.Model.Databinding
                 {
                     columnsToRemove.Add(PropertyPath.Root.Property("Name"));
                     columnsToRemove.Add(PropertyPath.Root.Property(nameof(Protein.AutoSelectPeptides)));
+                    columnsToRemove.Add(PropertyPath.Root.Property(nameof(Protein.ProteinSequenceCoverage)));
                     if (docHasOnlyCustomIons)
                     {
                         // Peptide-oriented fields that make no sense in a small molecule context
@@ -391,8 +392,8 @@ namespace pwiz.Skyline.Model.Databinding
                     {
                         // Peptide-oriented fields that make no sense in a small molecule context
                         columnsToRemove.Add(PropertyPath.Root.Property("ModifiedSequence"));
-                        columnsToRemove.Add(PropertyPath.Root.Property("BeginPos"));
-                        columnsToRemove.Add(PropertyPath.Root.Property("EndPos"));
+                        columnsToRemove.Add(PropertyPath.Root.Property(nameof(Entities.Peptide.FirstPosition)));
+                        columnsToRemove.Add(PropertyPath.Root.Property(nameof(Entities.Peptide.LastPosition)));
                         columnsToRemove.Add(PropertyPath.Root.Property("MissedCleavages"));
                     }
                     if (!docHasCustomIons)
@@ -436,6 +437,7 @@ namespace pwiz.Skyline.Model.Databinding
                     columnsToRemove.Add(PropertyPath.Root.Property("PrecursorConcentration"));
                     columnsToRemove.Add(PropertyPath.Root.Property(nameof(Precursor.AutoSelectTransitions)));
                     columnsToRemove.Add(PropertyPath.Root.Property(nameof(Precursor.TargetQualitativeIonRatio)));
+                    columnsToRemove.Add(PropertyPath.Root.Property(nameof(Precursor.LibraryIonMobility)));
                     addRoot = true;
                 }
                 else if (columnDescriptor.PropertyType == typeof(Entities.Transition))

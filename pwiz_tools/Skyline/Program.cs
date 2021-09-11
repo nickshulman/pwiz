@@ -80,6 +80,7 @@ namespace pwiz.Skyline
         public static bool ShowMatchingPages { get; set; }          // Set true to show tutorial pages automatically when pausing for moust click
         public static int UnitTestTimeoutMultiplier { get; set; }   // Set to positive multiplier for multi-process stress runs.
         public static int PauseSeconds { get; set; }                // Positive to pause when displaying dialogs for unit test, <0 to pause for mouse click
+        public static int PauseStartingPage { get; set; }           // First page to pause at during pause for screenshots
         public static IList<string> PauseForms { get; set; }        // List of forms to pause after displaying.
         public static string ExtraRawFileSearchFolder { get; set; } // Perf test support for avoiding extra copying of large raw files
         public static List<Exception> TestExceptions { get; set; }  // To avoid showing unexpected exception UI during tests and instead log them as failures
@@ -109,7 +110,7 @@ namespace pwiz.Skyline
             // don't allow 64-bit Skyline to run in a 32-bit process
             if (Install.Is64Bit && !Environment.Is64BitProcess)
             {
-                string installUrl = Install.Url;
+                string installUrl = Install.Url32;
                 string installLabel = (installUrl == string.Empty) ? string.Empty : string.Format(Resources.Program_Main_Install_32_bit__0__, Name);
                 AlertLinkDlg.Show(null,
                     string.Format(Resources.Program_Main_You_are_attempting_to_run_a_64_bit_version_of__0__on_a_32_bit_OS_Please_install_the_32_bit_version, Name),
@@ -672,11 +673,11 @@ namespace pwiz.Skyline
             return arg.Length > COMMAND_PREFIX.Length ? arg.Substring(COMMAND_PREFIX.Length) : string.Empty;
         }
 
-        public static int RunCommand(string[] inputArgs, CommandStatusWriter consoleOut)
+        public static int RunCommand(string[] inputArgs, CommandStatusWriter consoleOut, bool test = false)
         {
             using (CommandLine cmd = new CommandLine(consoleOut))
             {
-                return cmd.Run(inputArgs);
+                return cmd.Run(inputArgs,false, /* withoutUsage */ test); // test set to true when we are running a test
             }
         }
 

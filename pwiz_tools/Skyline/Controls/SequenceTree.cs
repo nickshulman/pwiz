@@ -29,7 +29,6 @@ using pwiz.Skyline.Model;
 using pwiz.Skyline.Model.Find;
 using pwiz.Skyline.Model.Proteome;
 using pwiz.Skyline.Model.Results;
-using pwiz.Skyline.Model.Themes;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
 
@@ -1069,6 +1068,10 @@ namespace pwiz.Skyline.Controls
                 string keyChar = e.KeyChar.ToString(LocalizationHelper.CurrentCulture);
                 if (IsKeyLocked(Keys.CapsLock))
                     keyChar = keyChar.ToLower();
+                if (@"+^%~(){}[]".IndexOf(keyChar, StringComparison.Ordinal) >= 0)
+                {
+                    keyChar = @"{" + keyChar + @"}";
+                }
                 SendKeys.Send(keyChar);
                 e.Handled = true;
             }

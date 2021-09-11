@@ -149,6 +149,7 @@
     <Compile Include="ExampleText.cs" />
     <Compile Include="ExtensionTestContext.cs" />
     <Compile Include="FormSeen.cs" />
+    <Compile Include="GridTester.cs" />
     <Compile Include="MemoryStreamManager.cs" />
     <Compile Include="MovedDirectory.cs" />
     <Compile Include="PauseAndContinueForm.cs">
@@ -417,9 +418,27 @@
     </EmbeddedResource>
   </ItemGroup>
   <ItemGroup>
+    <EmbeddedResource Include="Schemas\Skyline_1.2.xsd">
+      <SubType>Designer</SubType>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Schemas\Skyline_1.4.xsd">
+      <SubType>Designer</SubType>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Schemas\Skyline_1.5.xsd">
+      <SubType>Designer</SubType>
+    </EmbeddedResource>
     <None Include="Schemas\Skyline_20.14.xsd">
       <SubType>Designer</SubType>
     </None>
+    <EmbeddedResource Include="Schemas\Skyline_20.2.xsd">
+      <SubType>Designer</SubType>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Schemas\Skyline_20.21.xsd">
+      <SubType>Designer</SubType>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Schemas\Skyline_21_1.xsd">
+      <SubType>Designer</SubType>
+    </EmbeddedResource>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

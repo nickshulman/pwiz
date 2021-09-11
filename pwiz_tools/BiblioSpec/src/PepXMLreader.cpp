@@ -63,6 +63,13 @@ PepXMLreader::PepXMLreader(BlibBuilder& maker,
     extensions.push_back(".mz5"); // look for spec in mz5 files
     extensions.push_back(".mzML"); // look for spec in mzML files
     extensions.push_back(".mzXML"); // look for spec in mzXML files
+#ifdef VENDOR_READERS
+    extensions.push_back(".raw"); // Waters/Thermo
+    extensions.push_back(".wiff"); // Sciex
+    extensions.push_back(".wiff2"); // Sciex
+    extensions.push_back(".d"); // Bruker/Agilent
+    extensions.push_back(".lcd"); // Shimadzu
+#endif
     extensions.push_back(".ms2");
     extensions.push_back(".cms2");
     extensions.push_back(".bms2");
@@ -229,8 +236,8 @@ void PepXMLreader::startElement(const XML_Char* name, const XML_Char** attr)
        // handle msfragger source extensions for both native msfragger pepXMLs or PeptideProphet-analyzed pep.xmls
        if (search_engine_version.find("msfragger") == 0)
        {
-           extensions.push_back("_calibrated.mgf");
            extensions.push_back("_uncalibrated.mgf");
+           extensions.push_back("_calibrated.mgf");
 
            if (analysisType_ != MSFRAGGER_ANALYSIS)
                parentAnalysisType_ = MSFRAGGER_ANALYSIS;

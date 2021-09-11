@@ -123,6 +123,9 @@
   <data name="AbsLog2FoldChange">
     <value>Absolute Log 2 Fold Change</value>
   </data>
+  <data name="Abundance">
+    <value>Abundance</value>
+  </data>
   <data name="Accuracy">
     <value>Accuracy</value>
   </data>
@@ -248,6 +251,9 @@
   </data>
   <data name="Coeluting">
     <value>Coeluting</value>
+  </data>
+  <data name="CollisionCrossSection">
+    <value>Collision Cross Section</value>
   </data>
   <data name="CollisionalCrossSection">
     <value>Collisional Cross Section</value>
@@ -405,6 +411,9 @@
   <data name="Files">
     <value>Files</value>
   </data>
+  <data name="FirstPosition">
+    <value>First Position</value>
+  </data>
   <data name="FoldChange">
     <value>Fold Change</value>
   </data>
@@ -481,8 +490,14 @@
   <data name="IonMobilityFragment">
     <value>Ion Mobility Fragment</value>
   </data>
+  <data name="IonMobilityHighEnergyOffset">
+    <value>Ion Mobility High Energy Offset</value>
+  </data>
   <data name="IonMobilityMS1">
     <value>Ion Mobility MS1</value>
+  </data>
+  <data name="IonMobilityValue">
+    <value>Ion Mobility Value</value>
   </data>
   <data name="IonMobilityWindow">
     <value>Ion Mobility Window</value>
@@ -517,11 +532,29 @@
   <data name="Key">
     <value>Key</value>
   </data>
+  <data name="LastPosition">
+    <value>Last Position</value>
+  </data>
+  <data name="LibraryCollisionCrossSection">
+    <value>Library Collision Cross Section</value>
+  </data>
   <data name="LibraryDotProduct">
     <value>Library Dot Product</value>
   </data>
+  <data name="LibraryIonMobilityHighEnergyOffset">
+    <value>Library Ion Mobility High Energy Offset</value>
+  </data>
   <data name="LibraryIntensity">
     <value>Library Intensity</value>
+  </data>
+  <data name="LibraryIonMobility">
+    <value>Library Ion Mobility</value>
+  </data>
+  <data name="LibraryIonMobilityUnits">
+    <value>Library Ion Mobility Units</value>
+  </data>
+  <data name="LibraryIonMobilityValue">
+    <value>Library Ion Mobility Value</value>
   </data>
   <data name="LibraryName">
     <value>Library Name</value>
@@ -816,6 +849,9 @@
   <data name="PointsAcrossPeak">
     <value>Points Across Peak</value>
   </data>
+  <data name="CycleTimeAcrossPeak">
+    <value>Cycle Time Across Peak</value>
+  </data>
   <data name="Precursor">
     <value>Precursor</value>
   </data>
@@ -954,6 +990,9 @@
   <data name="ProteinSequence">
     <value>Protein Sequence</value>
   </data>
+  <data name="ProteinSequenceCoverage">
+    <value>Protein Sequence Coverage</value>
+  </data>
   <data name="ProteinSpecies">
     <value>Protein Species</value>
   </data>
@@ -1014,11 +1053,20 @@
   <data name="Replicate">
     <value>Replicate</value>
   </data>
+  <data name="ReplicateAbundance">
+    <value>Replicate Abundance</value>
+  </data>
+  <data name="ReplicateAbundances">
+    <value>Replicate Abundances</value>
+  </data>
   <data name="ReplicateCalibrationCurve">
     <value>Replicate Calibration Curve</value>
   </data>
   <data name="ReplicateCount">
     <value>Replicate Count</value>
+  </data>
+  <data name="ReplicateGroup">
+    <value>Replicate Group</value>
   </data>
   <data name="ReplicateErrorMessage">
     <value>Replicate Error Message</value>
@@ -1046,6 +1094,9 @@
   </data>
   <data name="ReplicateRSquared">
     <value>Replicate R Squared</value>
+  </data>
+  <data name="ReplicateSampleIdentity">
+    <value>Replicate Sample Identity</value>
   </data>
   <data name="ReplicateSlope">
     <value>Replicate Slope</value>
@@ -1200,6 +1251,12 @@
   </data>
   <data name="TransitionResult">
     <value>Transition Result</value>
+  </data>
+  <data name="TransitionResultIsMs1">
+    <value>Transition Result Is MS1</value>
+  </data>
+  <data name="TransitionResultIsQuantitative">
+    <value>Transition Result Is Quantitative</value>
   </data>
   <data name="TransitionResultLocator">
     <value>Transition Result Locator</value>

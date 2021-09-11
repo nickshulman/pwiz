@@ -18,6 +18,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using pwiz.Common.Chemistry;
@@ -65,6 +66,18 @@ namespace pwiz.SkylineTestFunctional
             }
         }
 
+        private string[] SearchFilesSameName
+        {
+            get
+            {
+                return new[]
+                {
+                    GetTestPath("Rpal_Std_2d_FullMS_Orbi30k_MSMS_Orbi7k_Centroid_Run1_102006_02.mzML"),
+                    GetTestPath(Path.Combine("subdir", "Rpal_Std_2d_FullMS_Orbi30k_MSMS_Orbi7k_Centroid_Run1_102006_02.mzML"))
+                };
+            }
+        }
+
         protected override void DoTest()
         {
             TestAmandaSearch();
@@ -89,7 +102,7 @@ namespace pwiz.SkylineTestFunctional
                 Assert.IsTrue(importPeptideSearchDlg.CurrentPage == ImportPeptideSearchDlg.Pages.spectra_page);
                 importPeptideSearchDlg.BuildPepSearchLibControl.PerformDDASearch = true;
                 importPeptideSearchDlg.BuildPepSearchLibControl.DdaSearchDataSources = SearchFiles.Select(o => (MsDataFileUri) new MsDataFilePath(o)).Take(1).ToArray();
-                Assert.AreEqual(ImportPeptideSearchDlg.Workflow.dda, importPeptideSearchDlg.BuildPepSearchLibControl.WorkflowType);
+                importPeptideSearchDlg.BuildPepSearchLibControl.WorkflowType = ImportPeptideSearchDlg.Workflow.dia; // will go back and switch to DDA
                 Assert.IsTrue(importPeptideSearchDlg.ClickNextButton());
             });
 
@@ -98,6 +111,11 @@ namespace pwiz.SkylineTestFunctional
             // We're on the "Match Modifications" page. Add M+16 mod.
             RunUI(() =>
             {
+                Assert.IsTrue(importPeptideSearchDlg.CurrentPage == ImportPeptideSearchDlg.Pages.match_modifications_page);
+                // Test going back and switching workflow to DDA. This used to cause an exception.
+                Assert.IsTrue(importPeptideSearchDlg.ClickBackButton());
+                importPeptideSearchDlg.BuildPepSearchLibControl.WorkflowType = ImportPeptideSearchDlg.Workflow.dda;
+                Assert.IsTrue(importPeptideSearchDlg.ClickNextButton());
                 Assert.IsTrue(importPeptideSearchDlg.CurrentPage == ImportPeptideSearchDlg.Pages.match_modifications_page);
             });
 
@@ -155,16 +173,20 @@ namespace pwiz.SkylineTestFunctional
 
             // We're on the "Adjust Search Settings" page
             bool? searchSucceeded = null;
+            TryWaitForOpenForm(typeof(ImportPeptideSearchDlg.DDASearchSettingsPage));   // Stop to show this form during form testing
             RunUI(() =>
             {
                 Assert.IsTrue(importPeptideSearchDlg.CurrentPage == ImportPeptideSearchDlg.Pages.dda_search_settings_page);
-                importPeptideSearchDlg.SearchSettingsControl.SetPrecursorTolerance(new MzTolerance(15, MzTolerance.Units.ppm));
-                importPeptideSearchDlg.SearchSettingsControl.SetFragmentTolerance(new MzTolerance(25, MzTolerance.Units.ppm));
-                importPeptideSearchDlg.SearchSettingsControl.SetFragmentIons("b, y");
+                importPeptideSearchDlg.SearchSettingsControl.PrecursorTolerance = new MzTolerance(15, MzTolerance.Units.ppm);
+                importPeptideSearchDlg.SearchSettingsControl.FragmentTolerance = new MzTolerance(25, MzTolerance.Units.ppm);
+                importPeptideSearchDlg.SearchSettingsControl.FragmentIons = "b, y";
 
                 // Run the search
                 Assert.IsTrue(importPeptideSearchDlg.ClickNextButton());
-
+            });
+            TryWaitForOpenForm(typeof(ImportPeptideSearchDlg.DDASearchPage));   // Stop to show this form during form testing
+            RunUI(() =>
+            {
                 importPeptideSearchDlg.SearchControl.OnSearchFinished += (success) => searchSucceeded = success;
                 importPeptideSearchDlg.BuildPepSearchLibControl.IncludeAmbiguousMatches = true;
 
@@ -176,7 +198,7 @@ namespace pwiz.SkylineTestFunctional
             Assert.IsFalse(searchSucceeded.Value);
             searchSucceeded = null;
 
-            // Go back and add another file
+            // Go back and test 2 input files with the same name
             RunUI(() =>
             {
                 Assert.IsTrue(importPeptideSearchDlg.ClickBackButton());
@@ -185,13 +207,22 @@ namespace pwiz.SkylineTestFunctional
                 Assert.IsTrue(importPeptideSearchDlg.ClickBackButton());
                 Assert.IsTrue(importPeptideSearchDlg.ClickBackButton());
 
-                importPeptideSearchDlg.BuildPepSearchLibControl.DdaSearchDataSources = SearchFiles.Select(o => (MsDataFileUri) new MsDataFilePath(o)).ToArray();
+                importPeptideSearchDlg.BuildPepSearchLibControl.DdaSearchDataSources = SearchFilesSameName.Select(o => (MsDataFileUri) new MsDataFilePath(o)).ToArray();
             });
 
+            var removeSuffix = ShowDialog<ImportResultsNameDlg>(() => importPeptideSearchDlg.ClickNextButton());
+            OkDialog(removeSuffix, removeSuffix.CancelDialog);
+
+            // Test with 2 files (different name)
+            RunUI(() =>
+            {
+                Assert.IsTrue(importPeptideSearchDlg.ClickBackButton());
+                importPeptideSearchDlg.BuildPepSearchLibControl.DdaSearchDataSources = SearchFiles.Select(o => (MsDataFileUri)new MsDataFilePath(o)).ToArray();
+            });
 
             // With 2 sources, we get the remove prefix/suffix dialog; accept default behavior
-            var removeSuffix = ShowDialog<ImportResultsNameDlg>(() => importPeptideSearchDlg.ClickNextButton());
-            OkDialog(removeSuffix, () => removeSuffix.YesDialog());
+            var removeSuffix2 = ShowDialog<ImportResultsNameDlg>(() => importPeptideSearchDlg.ClickNextButton());
+            OkDialog(removeSuffix, () => removeSuffix2.YesDialog());
             WaitForDocumentLoaded();
 
             RunUI(() =>
@@ -208,7 +239,7 @@ namespace pwiz.SkylineTestFunctional
             });
 
             WaitForConditionUI(60000, () => searchSucceeded.HasValue);
-            Assert.IsTrue(searchSucceeded.Value);
+            RunUI(() => Assert.IsTrue(searchSucceeded.Value, importPeptideSearchDlg.SearchControl.LogText));
 
             var emptyProteinsDlg = ShowDialog<PeptidesPerProteinDlg>(importPeptideSearchDlg.ClickNextButtonNoCheck);
             RunUI(()=>

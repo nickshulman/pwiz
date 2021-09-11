@@ -232,11 +232,11 @@ namespace pwiz.Skyline.Model.Databinding.Entities
         
         [ChildDisplayName("ModifiedSequence{0}")]
         [Hidden(InUiMode = UiModes.SMALL_MOLECULES)]
-        public ModifiedSequence ModifiedSequence
+        public ProteomicSequence ModifiedSequence
         {
             get
             {
-                return ModifiedSequence.GetModifiedSequence(SrmDocument.Settings, Peptide.DocNode, IsotopeLabelType);
+                return ProteomicSequence.GetProteomicSequence(SrmDocument.Settings, Peptide.DocNode, IsotopeLabelType);
             }
         }
 
@@ -409,6 +409,22 @@ namespace pwiz.Skyline.Model.Databinding.Entities
             {
                 ChangeDocNode(EditColumnDescription(nameof(PrecursorConcentration), value),
                     docNode=>docNode.ChangePrecursorConcentration(value));
+            }
+        }
+
+        [ChildDisplayName("Library{0}")]
+        public IonMobilityObject LibraryIonMobility
+        {
+            get
+            {
+                var libKey = DocNode.GetLibKey(SrmDocument.Settings, Peptide.DocNode);
+                var imInfo = SrmDocument.Settings.GetIonMobilities(new[] { libKey }, null);
+                var im = imInfo.GetLibraryMeasuredIonMobilityAndCCS(libKey, DocNode.PrecursorMz, null);
+                if (im == null || im.IsEmpty)
+                {
+                    return null;
+                }
+                return IonMobilityObject.FromIonMobilityAndCCS(im);
             }
         }
 

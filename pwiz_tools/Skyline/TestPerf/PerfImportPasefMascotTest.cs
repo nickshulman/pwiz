@@ -45,12 +45,11 @@ namespace TestPerf // Note: tests in the "TestPerf" namespace only run when the 
     public class PerfImportBrukerPasefMascotTest : AbstractFunctionalTestEx
     {
         [TestMethod]
-        [Timeout(6000000)]  // Initial download can take a long time
         public void BrukerPasefMascotImportTest()
         {
             // RunPerfTests = true; // Uncomment this to force test to run in IDE
             Log.AddMemoryAppender();
-            TestFilesZip = "https://skyline.gs.washington.edu/perftests/PerfImportBrukerPasefMascot.zip";
+            TestFilesZip = GetPerfTestDataURL(@"PerfImportBrukerPasefMascot.zip");
             TestFilesPersistent = new[] { ".d", ".dat" }; // List of file basenames that we'd like to unzip alongside parent zipFile, and (re)use in place
 
             MsDataFileImpl.PerfUtilFactory.IssueDummyPerfUtils = false; // Turn on performance measurement
@@ -160,7 +159,16 @@ namespace TestPerf // Note: tests in the "TestPerf" namespace only run when the 
             {
                 RunUI(() => importPeptideSearchDlg.ClickNextButtonNoCheck());
             }
-            // Modifications are already set up, so that page should get skipped.
+
+            // Skip Match Modifications page.
+            RunUI(() =>
+            {
+                AssertEx.AreEqual(ImportPeptideSearchDlg.Pages.match_modifications_page, importPeptideSearchDlg.CurrentPage);
+                AssertEx.IsTrue(importPeptideSearchDlg.ClickNextButton());
+            });
+
+            RunUI(() => AssertEx.IsTrue(importPeptideSearchDlg.CurrentPage == ImportPeptideSearchDlg.Pages.full_scan_settings_page));
+
             RunUI(() => importPeptideSearchDlg.FullScanSettingsControl.PrecursorCharges = new []{2,3,4,5});
             RunUI(() => importPeptideSearchDlg.FullScanSettingsControl.PrecursorMassAnalyzer = FullScanMassAnalyzerType.tof);
             RunUI(() => importPeptideSearchDlg.FullScanSettingsControl.IonMobilityFiltering.SetUseSpectralLibraryIonMobilities(true));

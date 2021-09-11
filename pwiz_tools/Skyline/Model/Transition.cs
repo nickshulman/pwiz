@@ -18,10 +18,10 @@
  */
 using System;
 using System.Collections.Generic;
+using System.Drawing;
 using System.Globalization;
 using System.IO;
 using System.Linq;
-using pwiz.Common.Collections;
 using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Model.Crosslinking;
 using pwiz.Skyline.Model.DocSettings;
@@ -39,6 +39,16 @@ namespace pwiz.Skyline.Model
     public static class IonTypeExtension
     {
         private static readonly string[] VALUES = {string.Empty, string.Empty, @"a", @"b", @"c", @"x", @"y", @"z"};
+
+        private static readonly Color COLOR_A = Color.YellowGreen;
+        private static readonly Color COLOR_X = Color.Green;
+        private static readonly Color COLOR_B = Color.BlueViolet;
+        private static readonly Color COLOR_Y = Color.Blue;
+        private static readonly Color COLOR_C = Color.Orange;
+        private static readonly Color COLOR_Z = Color.OrangeRed;
+        private static readonly Color COLOR_OTHER_IONS = Color.DodgerBlue; // Other ion types, as in small molecule
+        private static readonly Color COLOR_PRECURSOR = Color.DarkCyan;
+        private static readonly Color COLOR_NONE = COLOR_A;
 
         private static string[] LOCALIZED_VALUES
         {
@@ -62,6 +72,27 @@ namespace pwiz.Skyline.Model
         public static IonType GetEnum(string enumValue, IonType defaultValue)
         {
             return Helpers.EnumFromLocalizedString(enumValue, LOCALIZED_VALUES, defaultValue);
+        }
+
+        public static Color GetTypeColor(IonType? type, int rank = 0)
+        {
+            Color color;
+            if(!type.HasValue)
+                return COLOR_NONE;
+
+            switch (type)
+            {
+                default: color = COLOR_NONE; break;
+                case IonType.a: color = COLOR_A; break;
+                case IonType.x: color = COLOR_X; break;
+                case IonType.b: color = COLOR_B; break;
+                case IonType.y: color = COLOR_Y; break;
+                case IonType.c: color = COLOR_C; break;
+                case IonType.z: color = COLOR_Z; break;
+                case IonType.custom: color = (rank > 0) ? COLOR_OTHER_IONS : COLOR_NONE; break; // Small molecule fragments - only color if ranked
+                case IonType.precursor: color = COLOR_PRECURSOR; break;
+            }
+            return color;
         }
     }
 
@@ -721,35 +752,25 @@ namespace pwiz.Skyline.Model
                 return result;
             }
         }
-
-        public bool HasAnyCrosslinks(ImmutableSortedList<ModificationSite, LinkedPeptide> crosslinks)
+        public bool IncludesAaIndex(int aaIndex)
         {
-            return HasAnyCrosslinks(IonType, CleavageOffset, crosslinks);
-        }
-
-        public static bool HasAnyCrosslinks(IonType ionType, int cleavageOffset,
-            ImmutableSortedList<ModificationSite, LinkedPeptide> crosslinks)
-        {
-            if (crosslinks == null || crosslinks.Count == 0)
-            {
-                return false;
-            }
-            switch (ionType)
+            switch (IonType)
             {
                 case IonType.precursor:
                     return true;
                 case IonType.a:
                 case IonType.b:
                 case IonType.c:
-                    return cleavageOffset >= crosslinks.Keys[0].IndexAa;
+                    return CleavageOffset >= aaIndex;
                 case IonType.x:
                 case IonType.y:
                 case IonType.z:
-                    return cleavageOffset < crosslinks.Keys[crosslinks.Count - 1].IndexAa;
+                    return CleavageOffset < aaIndex;
                 default:
-                    return false;
+                    return true;
             }
         }
+
 
         #region object overrides
 
@@ -826,13 +847,12 @@ namespace pwiz.Skyline.Model
 
     public sealed class TransitionLossKey
     {
-
         public TransitionLossKey(TransitionGroupDocNode parent, TransitionDocNode transition, TransitionLosses losses)
         {
             Transition = transition.Transition;
             Losses = losses;
             ComplexFragmentIonName = transition.ComplexFragmentIon.GetName();
-            if (Transition.IsCustom())
+            if (Transition.IsCustom() && !transition.ComplexFragmentIon.IsCrosslinked)
             {
                 if (!string.IsNullOrEmpty(transition.PrimaryCustomIonEquivalenceKey))
                     CustomIonEquivalenceTestValue = transition.PrimaryCustomIonEquivalenceKey;
@@ -845,21 +865,21 @@ namespace pwiz.Skyline.Model
             }
             else
             {
-               CustomIonEquivalenceTestValue = null;
+                CustomIonEquivalenceTestValue = null;
             }
         }
 
         public Transition Transition { get; private set; }
         public TransitionLosses Losses { get; private set; }
         public string CustomIonEquivalenceTestValue { get; private set;  }
-        public ComplexFragmentIonName ComplexFragmentIonName { get; private set; }
+        public IonChain ComplexFragmentIonName { get; private set; }
 
         public bool Equivalent(TransitionLossKey other)
         {
             return Equals(CustomIonEquivalenceTestValue, other.CustomIonEquivalenceTestValue) &&
-                other.Transition.Equivalent(Transition) &&
-                Equals(other.Losses, Losses) &&
-                Equals(other.ComplexFragmentIonName, ComplexFragmentIonName);
+                   other.Transition.Equivalent(Transition) &&
+                   Equals(other.Losses, Losses) &&
+                   Equals(other.ComplexFragmentIonName, ComplexFragmentIonName);
         }
 
         #region object overrides
@@ -884,7 +904,10 @@ namespace pwiz.Skyline.Model
         {
             unchecked
             {
-                return (Transition.GetHashCode()*397) ^ (Losses != null ? Losses.GetHashCode() : 0);
+                int result = Transition.GetHashCode();
+                result = (result * 397) ^ (Losses != null ? Losses.GetHashCode() : 0);
+                result = (result * 397) ^ (ComplexFragmentIonName != null ? ComplexFragmentIonName.GetHashCode() : 0);
+                return result;
             }
         }
 

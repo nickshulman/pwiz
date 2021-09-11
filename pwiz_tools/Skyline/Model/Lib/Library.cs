@@ -1372,7 +1372,7 @@ namespace pwiz.Skyline.Model.Lib
 
         public LibraryIonMobilityInfo(string path, bool supportMultipleConformers, LibKeyMap<IonMobilityAndCCS[]> dictLibKeyIonMobility)
         {
-            Name = path;
+            Name = path ?? string.Empty;
             SupportsMultipleConformers = supportMultipleConformers;
             _dictLibKeyIonMobility = dictLibKeyIonMobility;
         }
@@ -1435,6 +1435,15 @@ namespace pwiz.Skyline.Model.Lib
                     if (ionMobilityFunctionsProvider != null && ionMobilityFunctionsProvider.ProvidesCollisionalCrossSectionConverter)
                     {
                         ccs = ionMobilityFunctionsProvider.CCSFromIonMobility(ionMobility, mz, chargedPeptide.Charge);
+                    }
+                    else // No mobility -> conversion provided, just return median CCS
+                    {
+                        var ccsValues = ionMobilityInfos.Where(im => im.HasCollisionalCrossSection)
+                            .Select(im => im.CollisionalCrossSectionSqA.Value).ToArray();
+                        if (ccsValues.Any())
+                        {
+                            ccs = new Statistics(ccsValues).Median(); // Median is more tolerant of errors than Average
+                        }
                     }
                 }
             }
@@ -1698,8 +1707,7 @@ namespace pwiz.Skyline.Model.Lib
         }
 
         public abstract IEnumerable<KeyValuePair<PeptideRankId, string>> RankValues { get; }
-        public abstract string Protein { get; } // Some .blib files provide a protein accession (or Molecule List Name for small molecules)
-
+        public string Protein { get; protected set; } // Some .blib and .clib files provide a protein accession (or Molecule List Name for small molecules)
 
         #region Implementation of IXmlSerializable
 
@@ -1712,7 +1720,8 @@ namespace pwiz.Skyline.Model.Lib
 
         private enum ATTR
         {
-            library_name
+            library_name,
+            protein
         }
 
         public XmlSchema GetSchema()
@@ -1724,12 +1733,14 @@ namespace pwiz.Skyline.Model.Lib
         {
             // Read tag attributes
             LibraryName = reader.GetAttribute(ATTR.library_name);
+            Protein = reader.GetAttribute(ATTR.protein);
         }
 
         public virtual void WriteXml(XmlWriter writer)
         {
             // Write tag attributes
             writer.WriteAttributeString(ATTR.library_name, LibraryName);
+            writer.WriteAttributeIfString(ATTR.protein, Protein);
         }
 
         #endregion
@@ -1740,7 +1751,8 @@ namespace pwiz.Skyline.Model.Lib
         {
             if (ReferenceEquals(null, obj)) return false;
             if (ReferenceEquals(this, obj)) return true;
-            return Equals(obj.LibraryName, LibraryName);
+            return Equals(obj.LibraryName, LibraryName) &&
+                   Equals(obj.Protein, Protein);
         }
 
         public override bool Equals(object obj)
@@ -2155,7 +2167,7 @@ namespace pwiz.Skyline.Model.Lib
                 }
                 if (!string.IsNullOrEmpty(OtherKeys))
                 {
-                    smallMolLines.Add(new KeyValuePair<string, string> (Resources.SmallMoleculeLibraryAttributes_KeyValuePairs_OtherIDs, OtherKeys));
+                    smallMolLines.Add(new KeyValuePair<string, string> (Resources.SmallMoleculeLibraryAttributes_KeyValuePairs_OtherIDs, OtherKeys.Replace('\t','\n')));
                 }
                 return smallMolLines;
             }
@@ -2367,6 +2379,10 @@ namespace pwiz.Skyline.Model.Lib
     public class SpectrumInfoLibrary : SpectrumInfo
     {
         private Library _library;
+        // Cache peaks and chromatograms to avoid loading every time
+        // CONSIDER: Synchronization required?
+        private SpectrumPeaksInfo _peaksInfo;
+        private LibraryChromGroup _chromGroup;
 
         public SpectrumInfoLibrary(Library library, IsotopeLabelType labelType, object spectrumKey):
             this(library, labelType, null, null, null, null, true, spectrumKey)
@@ -2396,12 +2412,12 @@ namespace pwiz.Skyline.Model.Lib
 
         public override SpectrumPeaksInfo SpectrumPeaksInfo
         {
-            get { return _library.LoadSpectrum(SpectrumKey); }
+            get { return _peaksInfo = _peaksInfo ?? _library.LoadSpectrum(SpectrumKey); }
         }
 
         public override LibraryChromGroup ChromatogramData
         {
-            get { return _library.LoadChromatogramData(SpectrumKey); }
+            get { return _chromGroup = _chromGroup ?? _library.LoadChromatogramData(SpectrumKey); }
         }
 
         public SpectrumHeaderInfo SpectrumHeaderInfo { get; set; }
@@ -2465,6 +2481,7 @@ namespace pwiz.Skyline.Model.Lib
         public double StartTime { get; set; }
         public double EndTime { get; set; }
         public double RetentionTime { get; set; }
+        public double? CCS { get; set; }
         public float[] Times { get; set; }
         public IList<ChromData> ChromDatas { get { return _chromDatas; } set { _chromDatas = ImmutableList.ValueOf(value); } }
 
@@ -2472,6 +2489,7 @@ namespace pwiz.Skyline.Model.Lib
         {
             return ArrayUtil.EqualsDeep(_chromDatas, other._chromDatas) && StartTime.Equals(other.StartTime) &&
                    EndTime.Equals(other.EndTime) && RetentionTime.Equals(other.RetentionTime) &&
+                   Equals(CCS, other.CCS) &&
                    ArrayUtil.EqualsDeep(Times, other.Times);
         }
 
@@ -2491,6 +2509,7 @@ namespace pwiz.Skyline.Model.Lib
                 hashCode = (hashCode * 397) ^ StartTime.GetHashCode();
                 hashCode = (hashCode * 397) ^ EndTime.GetHashCode();
                 hashCode = (hashCode * 397) ^ RetentionTime.GetHashCode();
+                hashCode = (hashCode * 397) ^ (CCS??0).GetHashCode();
                 hashCode = (hashCode * 397) ^ (Times != null ? Times.GetHashCode() : 0);
                 return hashCode;
             }
@@ -2501,17 +2520,19 @@ namespace pwiz.Skyline.Model.Lib
             public double Mz { get; set; }
             public double Height { get; set; }
             public float[] Intensities { get; set; }
-            public int Charge { get; set; }
+            public Adduct Charge { get; set; }
             public IonType IonType { get; set; }
             public int Ordinal { get; set; }
             public int MassIndex { get; set; }
-            //public IonMobilityFilterSet IonMobility { get; set; } // Zero or more CCS and/or IM values  TODO(bspratt) IMS in chromatogram libs?
+            public string FragmentName { get; set; } // Small molecule use
+            public IonMobilityValue IonMobility { get; set; } 
 
             protected bool Equals(ChromData other)
             {
                 return Mz.Equals(other.Mz) && Height.Equals(other.Height) && Equals(Intensities, other.Intensities) &&
                        Charge == other.Charge && IonType == other.IonType && Ordinal == other.Ordinal &&
-                       // IonMobility.Equals(other.IonMobility &&
+                       Equals(IonMobility, other.IonMobility) &&
+                       Equals(FragmentName, other.FragmentName) &&
                        MassIndex == other.MassIndex;
             }
 
@@ -2530,11 +2551,12 @@ namespace pwiz.Skyline.Model.Lib
                     var hashCode = Mz.GetHashCode();
                     hashCode = (hashCode * 397) ^ Height.GetHashCode();
                     hashCode = (hashCode * 397) ^ (Intensities != null ? Intensities.GetHashCode() : 0);
-                    hashCode = (hashCode * 397) ^ Charge;
+                    hashCode = (hashCode * 397) ^ Charge.GetHashCode();
+                    hashCode = (hashCode * 397) ^ (string.IsNullOrEmpty(FragmentName) ? 0 : FragmentName.GetHashCode());
                     hashCode = (hashCode * 397) ^ (int) IonType;
                     hashCode = (hashCode * 397) ^ Ordinal;
                     hashCode = (hashCode * 397) ^ MassIndex;
-                    //hashCode = (hashCode * 397) ^ (IonMobility != null ? IonMobility.GetHashCode() : 0);
+                    hashCode = (hashCode * 397) ^ (IonMobility != null ? IonMobility.GetHashCode() : 0);
                     return hashCode;
                 }
             }

@@ -121,11 +121,11 @@ namespace pwiz.Skyline.Model.Databinding.Entities
         [InvariantDisplayName("PeptideModifiedSequence")]
         [ChildDisplayName("PeptideModifiedSequence{0}")]
         [Hidden(InUiMode = UiModes.SMALL_MOLECULES)]
-        public ModifiedSequence ModifiedSequence
+        public ProteomicSequence ModifiedSequence
         {
             get
             {
-                return ModifiedSequence.GetModifiedSequence(SrmDocument.Settings, DocNode, IsotopeLabelType.light);
+                return ProteomicSequence.GetProteomicSequence(SrmDocument.Settings, DocNode, IsotopeLabelType.light);
             }
         }
 
@@ -218,6 +218,27 @@ namespace pwiz.Skyline.Model.Databinding.Entities
 
         [Format(NullValue = TextUtil.EXCEL_NA)]
         [Hidden(InUiMode = UiModes.SMALL_MOLECULES)]
+        public int? FirstPosition
+        {
+            get
+            {
+                return DocNode.Peptide.Begin + 1;
+            }
+        }
+
+        [Format(NullValue = TextUtil.EXCEL_NA)]
+        [Hidden(InUiMode = UiModes.SMALL_MOLECULES)]
+        public int? LastPosition
+        {
+            get
+            {
+                return DocNode.Peptide.End;
+            }
+        }
+
+        [Format(NullValue = TextUtil.EXCEL_NA)]
+        [Hidden(InUiMode = UiModes.SMALL_MOLECULES)]
+        [Obsolete]
         public int? BeginPos
         {
             get { return DocNode.Peptide.Begin; }
@@ -225,6 +246,7 @@ namespace pwiz.Skyline.Model.Databinding.Entities
 
         [Format(NullValue = TextUtil.EXCEL_NA)]
         [Hidden(InUiMode = UiModes.SMALL_MOLECULES)]
+        [Obsolete]
         public int? EndPos
         {
             get { return DocNode.Peptide.End - 1; }

@@ -43,12 +43,11 @@ namespace pwiz.SkylineTestTutorial
         }
 
         [TestMethod]
-        [Timeout(60*60*1000)]  // These can take a long time in code coverage mode (1 hour)
         public void TestGroupedStudiesTutorialDraft()
         {
             // Set true to look at tutorial screenshots.
             //IsPauseForScreenShots = true;
-ForceMzml = true;   // TODO(bspratt) remove this once we're convinced that WIFF isn't the source of leaks and hangs
+ForceMzml = (DateTime.Now.DayOfYear % 2) == 0;   // TODO(bspratt) remove this once we're convinced that WIFF isn't the source of leaks and hangs
 
 
             TestFilesZipPaths = new[]
@@ -100,9 +99,9 @@ ForceMzml = true;   // TODO(bspratt) remove this once we're convinced that WIFF 
 
             SetTransitionClipboardText(new[] {0, 1, 7, 8});
 
+            PasteTransitionListSkipColumnSelect();
             RunUI(() =>
             {
-                SkylineWindow.Paste();
                 SkylineWindow.CollapsePeptides();
             });
             PauseForScreenShot();

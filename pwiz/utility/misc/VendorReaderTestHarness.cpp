@@ -42,6 +42,7 @@
 #include "pwiz/utility/misc/SHA1Calculator.hpp"
 #include "boost/thread/thread.hpp"
 #include "boost/thread/barrier.hpp"
+#include "boost/locale/encoding_utf.hpp"
 
 
 using namespace pwiz::util;
@@ -401,6 +402,7 @@ void testRead(const Reader& reader, const string& rawpath, const bfs::path& pare
             bal::contains(fileType, "MassHunter") ||
             fileType == "Bruker FID" ||
             fileType == "Bruker TDF" ||
+            fileType == "Mobilion MBI" ||
             fileType == "UIMF" ||
             bal::contains(fileType, "T2D"))
             diffConfig_non_mzML.ignoreIdentity = true;
@@ -735,6 +737,7 @@ string ReaderTestConfig::resultFilename(const string& baseFilename) const
     if (preferOnlyMsLevel) bal::replace_all(result, ".mzML", "-ms" + lexical_cast<string>(preferOnlyMsLevel) + ".mzML");
     if (!allowMsMsWithoutPrecursor) bal::replace_all(result, ".mzML", "-noMsMsWithoutPrecursor.mzML");
     if (peakPicking) bal::replace_all(result, ".mzML", "-centroid.mzML");
+    if (peakPickingCWT) bal::replace_all(result, ".mzML", "-centroid-cwt.mzML");
     if (!isolationMzAndMobilityFilter.empty()) bal::replace_all(result, ".mzML", "-mzMobilityFilter.mzML");
     if (globalChromatogramsAreMs1Only) bal::replace_all(result, ".mzML", "-globalChromatogramsAreMs1Only.mzML");
     //if (thresholdCount > 0) bal::replace_all(result, ".mzML", "-top" + lexical_cast<string>(thresholdCount) + ".mzML");
@@ -786,7 +789,7 @@ TestResult testReader(const Reader& reader, const vector<string>& args, bool tes
             {
                 ifstream urls(filepath.string().c_str());
                 string url;
-                while (getline(urls, url))
+                while (getlinePortable(urls, url))
                 {
                     if (isPathTestable(url))
                     {

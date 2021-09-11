@@ -28,7 +28,6 @@
         /// </summary>
         private void InitializeComponent()
         {
-            ((System.ComponentModel.ISupportInitialize)(this.ModeUIExtender)).BeginInit();
             this.SuspendLayout();
             // 
             // databoundGridControl
@@ -43,9 +42,7 @@
             this.Name = "EventLogForm";
             this.TabText = "Event Log";
             this.Text = "Event Log";
-            ((System.ComponentModel.ISupportInitialize)(this.ModeUIExtender)).EndInit();
             this.ResumeLayout(false);
-
         }
 
         #endregion

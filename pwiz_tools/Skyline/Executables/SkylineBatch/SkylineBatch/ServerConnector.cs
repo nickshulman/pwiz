@@ -1,9 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Net;
 using System.Text.RegularExpressions;
+using System.Threading;
 using FluentFTP;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using SharedBatch;
 using SkylineBatch.Properties;
 
@@ -11,41 +15,38 @@ namespace SkylineBatch
 {
     public class ServerConnector
     {
-        private Dictionary<ServerInfo, List<FtpListItem>> _serverMap;
-        private Dictionary<ServerInfo, Exception> _serverExceptions;
-        private object _lock = new object();
+        private Dictionary<Server, List<ConnectedFileInfo>> _serverMap;
+        private Dictionary<Server, Exception> _serverExceptions;
 
-        public ServerConnector(params ServerInfo[] serverInfos)
+        public ServerConnector(params Server[] serverInfos)
         {
-            lock (_lock)
+            _serverMap = new Dictionary<Server, List<ConnectedFileInfo>>();
+            _serverExceptions = new Dictionary<Server, Exception>();
+            foreach (var serverInfo in serverInfos)
             {
-                _serverMap = new Dictionary<ServerInfo, List<FtpListItem>>();
-                _serverExceptions = new Dictionary<ServerInfo, Exception>();
-                foreach (var serverInfo in serverInfos)
+                if (!_serverMap.ContainsKey(serverInfo))
                 {
-                    if (!_serverMap.ContainsKey(serverInfo))
-                    {
-                        _serverMap.Add(serverInfo, null);
-                        _serverExceptions.Add(serverInfo, null);
-                    }
+                    _serverMap.Add(serverInfo, null);
+                    _serverExceptions.Add(serverInfo, null);
                 }
             }
         }
 
-        public List<FtpListItem> GetFiles(DataServerInfo serverInfo, out Exception connectionException)
+        public List<ConnectedFileInfo> GetFiles(DataServerInfo serverInfo, out Exception connectionException)
         {
             if (!_serverMap.ContainsKey(serverInfo) )
                 throw new Exception("ServerConnector was not initialized with this server. No information for the server.");
+
             if (_serverMap[serverInfo] == null && _serverExceptions[serverInfo] == null)
                 throw new Exception("ServerConnector was never started. No information for the server.");
             connectionException = _serverExceptions[serverInfo];
-            var matchingFiles = new List<FtpListItem>();
+            var matchingFiles = new List<ConnectedFileInfo>();
             if (connectionException == null)
             {
                 var namingRegex = new Regex(serverInfo.DataNamingPattern);
                 foreach (var ftpFile in _serverMap[serverInfo])
                 {
-                    if (namingRegex.IsMatch(ftpFile.Name))
+                    if (namingRegex.IsMatch(ftpFile.FileName))
                         matchingFiles.Add(ftpFile);
                 }
                 if (matchingFiles.Count == 0)
@@ -64,75 +65,172 @@ namespace SkylineBatch
             return matchingFiles;
         }
 
-        public void Connect(OnPercentProgress doOnProgress, List<ServerInfo> servers = null)
+        public void Add(Server server)
         {
-            if (servers == null)
-                servers = _serverMap.Keys.ToList();
-
-            var serverCount = servers.Count;
-            var downloadFinished = 0;
-            doOnProgress(0,
-                (int)(1.0 / serverCount * 100));
-            foreach (var serverInfo in servers)
+            if (!_serverMap.ContainsKey(server))
             {
-                if (_serverMap[serverInfo] != null || _serverExceptions[serverInfo] != null)
-                    continue;
-                var serverFiles = new List<FtpListItem>();
-                var client = GetFtpClient(serverInfo);
-                try
-                {
-                    client.Connect();
-                    foreach (FtpListItem item in client.GetListing(serverInfo.Server.AbsolutePath))
-                    {
-                        if (item.Type == FtpFileSystemObjectType.File)
-                        {
-                            serverFiles.Add(item);
-                        }
-                    }
-                }
-                catch (Exception e)
-                {
-                    client.Disconnect();
-                    lock (_lock)
-                        _serverExceptions[serverInfo] = e;
-                }
-                if (_serverExceptions[serverInfo] == null && serverFiles.Count == 0)
-                {
-                    _serverExceptions[serverInfo] = new ArgumentException(string.Format(
-                        Resources
-                            .DataServerInfo_Validate_There_were_no_files_found_at__0___Make_sure_the_URL__username__and_password_are_correct_and_try_again_,
-                        serverInfo.Server.AbsoluteUri));
-                }
-                else
-                {
-                    lock (_lock)
-                        _serverMap[serverInfo] = serverFiles;
-                }
-                client.Disconnect();
-                downloadFinished++;
-                doOnProgress((int)((double)downloadFinished / serverCount * 100),
-                    (int)((double)(downloadFinished + 1) / serverCount * 100));
+                _serverMap.Add(server, null);
+                _serverExceptions.Add(server, null);
             }
         }
 
-        public void Reconnect(List<ServerInfo> servers, OnPercentProgress doOnProgress)
+        public void Connect(OnPercentProgress doOnProgress, CancellationToken cancelToken, List<Server> servers = null)
+        {
+            if (servers == null)
+                servers = _serverMap.Keys.ToList();
+            if (servers.Count == 0) return;
+
+            var serverCount = servers.Count;
+            var downloadFinished = 0;
+            var percentScale = 1.0 / serverCount * 100;
+            foreach (var server in servers)
+            {
+                var percentDone = (int)(downloadFinished * percentScale);
+                if (cancelToken.IsCancellationRequested)
+                    break;
+                if (_serverMap[server] != null || _serverExceptions[server] != null)
+                    continue;
+                var folder = ((DataServerInfo) server).Folder;
+                if (server.URI.Host.Equals("panoramaweb.org"))
+                {
+                    Uri webdavUri;
+                    var panoramaFolder = (Path.GetDirectoryName(server.URI.LocalPath) ?? string.Empty).Replace(@"\", "/");
+                    JToken files;
+                    Exception error;
+                    if (panoramaFolder.StartsWith("/_webdav/"))
+                    {
+                        webdavUri = new Uri("https://panoramaweb.org" + panoramaFolder + "?method=json");
+                        files = TryUri(webdavUri, server.Username, server.Password, cancelToken, out error);
+                    }
+                    else
+                    {
+                        panoramaFolder = "/_webdav" + panoramaFolder;
+                        webdavUri = new Uri("https://panoramaweb.org" + panoramaFolder + "/%40files/RawFiles?method=json");
+                        files = TryUri(webdavUri, server.Username, server.Password, cancelToken, out error);
+                        if (files == null)
+                        {
+                            webdavUri = new Uri("https://panoramaweb.org" + panoramaFolder + "/%40files?method=json");
+                            files = TryUri(webdavUri, server.Username, server.Password, cancelToken, out error);
+                        }
+                    }
+
+                    var fileInfos = new List<ConnectedFileInfo>();
+                    try
+                    {
+                        if (error != null) throw error;
+                        var count = (double) (files.AsEnumerable().Count());
+                        int i = 0;
+                        foreach (var file in files)
+                        {
+                            doOnProgress((int) (i / count * percentScale) + percentDone,
+                                (int) ((i + 1) / count * percentScale) + percentDone);
+                            var pathOnServer = (string) file["id"];
+                            var downloadUri = new Uri("https://panoramaweb.org" + pathOnServer);
+                            var size = WebDownloadClient.GetSize(downloadUri, server.Username, server.Password,
+                                cancelToken);
+                            fileInfos.Add(new ConnectedFileInfo(Path.GetFileName(pathOnServer),
+                                new Server(downloadUri, server.Username, server.Password, server.Encrypt), size,
+                                folder));
+                            i++;
+                        }
+                    }
+                    catch (Exception e)
+                    {
+                        _serverExceptions[server] = e;
+                    }
+
+                    if (_serverExceptions[server] == null)
+                        _serverMap[server] = fileInfos;
+                }
+                else
+                {
+                    doOnProgress(percentDone,
+                        percentDone + (int)percentScale);
+                    var serverFiles = new List<ConnectedFileInfo>();
+                    var client = GetFtpClient(server);
+                    var connectThread = new Thread(() =>
+                    {
+                        try
+                        {
+                            client.Connect();
+                            foreach (FtpListItem item in client.GetListing(server.URI.LocalPath))
+                            {
+                                if (item.Type == FtpFileSystemObjectType.File)
+                                {
+                                    serverFiles.Add(new ConnectedFileInfo(item.Name, server, item.Size, folder));
+                                }
+                            }
+                        }
+                        catch (Exception e)
+                        {
+                            _serverExceptions[server] = e;
+                        }
+
+                    });
+                    connectThread.Start();
+                    while (connectThread.IsAlive)
+                    {
+                        if (cancelToken.IsCancellationRequested)
+                            connectThread.Abort();
+                    }
+                    client.Disconnect();
+
+                    if (_serverExceptions[server] == null && serverFiles.Count == 0)
+                    {
+                        _serverExceptions[server] = new ArgumentException(string.Format(
+                            Resources
+                                .DataServerInfo_Validate_There_were_no_files_found_at__0___Make_sure_the_URL__username__and_password_are_correct_and_try_again_,
+                            server));
+                    }
+                    else
+                    {
+                        _serverMap[server] = serverFiles;
+                    }
+                }
+                downloadFinished++;
+            }
+            doOnProgress(100, 100);
+        }
+
+        private JToken TryUri(Uri uri, string username, string password, CancellationToken cancelToken, out Exception error)
+        {
+            error = null;
+            if (cancelToken.IsCancellationRequested) return null;
+            JToken files = null;
+            try
+            {
+                var webClient = new WebPanoramaClient(new Uri("https://panoramaweb.org/"));
+                var jsonAsString =
+                    webClient.DownloadStringAsync(uri, username, password, cancelToken);
+                if (cancelToken.IsCancellationRequested) return null;
+                var panoramaJsonObject = JsonConvert.DeserializeObject<JObject>(jsonAsString);
+                files = panoramaJsonObject["files"];
+            }
+            catch (Exception e)
+            {
+                error = e;
+            }
+            return files;
+        }
+
+        public void Reconnect(List<Server> servers, OnPercentProgress doOnProgress, CancellationToken cancelToken)
         {
             foreach (var serverInfo in servers)
             {
                 _serverMap[serverInfo] = null;
                 _serverExceptions[serverInfo] = null;
             }
-            Connect(doOnProgress, servers);
+            Connect(doOnProgress, cancelToken, servers);
         }
 
-        public FtpClient GetFtpClient(ServerInfo serverInfo)
+        public FtpClient GetFtpClient(Server serverInfo)
         {
-            var client = new FtpClient(serverInfo.Server.Host);
+            var client = new FtpClient(serverInfo.URI.Host);
 
             if (!string.IsNullOrEmpty(serverInfo.Password))
             {
-                if (!string.IsNullOrEmpty(serverInfo.UserName))
-                    client.Credentials = new NetworkCredential(serverInfo.UserName, serverInfo.Password);
+                if (!string.IsNullOrEmpty(serverInfo.Username))
+                    client.Credentials = new NetworkCredential(serverInfo.Username, serverInfo.Password);
                 else
                     client.Credentials = new NetworkCredential("anonymous", serverInfo.Password);
             }
@@ -152,6 +250,11 @@ namespace SkylineBatch
                 _serverMap[server] = other._serverMap[server];
                 _serverExceptions[server] = other._serverExceptions[server];
             }
+        }
+
+        public bool Contains(Server server)
+        {
+            return _serverMap.ContainsKey(server);
         }
     }
 }

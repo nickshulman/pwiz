@@ -21,9 +21,11 @@ using System;
 using System.Collections.Generic;
 using System.Configuration;
 using System.Deployment.Application;
+using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Net;
+using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -36,8 +38,6 @@ namespace SkylineBatch
 {
     public class Program
     {
-        public const string ADMIN_VERSION = "21.1.0.146";
-
         private static string _version;
 
         #region For tests
@@ -45,6 +45,7 @@ namespace SkylineBatch
         // Parameters for running tests
         public static bool FunctionalTest { get; set; }             // Set to true by AbstractFunctionalTest
         public static string TestDirectory { get; set; }       
+        public static readonly string TEST_VERSION = "1000.0.0.0";
 
         public static List<Exception> TestExceptions { get; set; }  // To avoid showing unexpected exception UI during tests and instead log them as failures
         // public static IList<string> PauseForms { get; set; }        // List of forms to pause after displaying.
@@ -85,9 +86,9 @@ namespace SkylineBatch
                         Application.Exit();
                     }
                 });
-                SendAnalyticsHit();
             }
 
+            var restart = false;
             using (var mutex = new Mutex(false, $"University of Washington {AppName()}"))
             {
                 if (!mutex.WaitOne(TimeSpan.Zero))
@@ -101,58 +102,101 @@ namespace SkylineBatch
                 // Initialize log4net -- global application logging
                 XmlConfigurator.Configure();
 
-                string configFile = null;
+                string xmlFile = null;
                 try
                 {
-                    var config = ConfigurationManager.OpenExeConfiguration(ConfigurationUserLevel.PerUserRoamingAndLocal);
-                    configFile = config.FilePath;
-                    ProgramLog.Info(string.Format(Resources.Program_Main_Saved_configurations_were_found_in___0_, config.FilePath));
-                    if (!InitSkylineSettings()) return;
-                    RInstallations.FindRDirectory();
-                }
-                catch (ConfigurationException e)
-                {
-                    ProgramLog.Error(e.Message, e);
-                    var folderToCopy = Path.GetDirectoryName(ProgramLog.GetProgramLogFilePath()) ?? string.Empty;
-                    var newFileName = Path.Combine(folderToCopy, "error-user.config");
-                    var message = string.Format(
-                        Resources.Program_Main_There_was_an_error_reading_the_saved_configurations_from_an_earlier_version_of__0___,
-                        AppName());
-                    if (configFile != null)
+                    xmlFile = ConfigurationManager.OpenExeConfiguration(ConfigurationUserLevel.PerUserRoamingAndLocal)
+                        .FilePath;
+                    if (!File.Exists(xmlFile))
                     {
-                        File.Copy(configFile, newFileName, true);
-                        File.Delete(configFile);
+                        Settings.Default.Upgrade();
+                        _ = SharedBatch.Properties.Settings.Default.InstallationId;
+                    }
+                    ProgramLog.Info(string.Format(Resources.Program_Main_Saved_configurations_were_found_in___0_, xmlFile));
+                }
+                catch (Exception e)
+                {
+                    restart = true;
+                    if (xmlFile == null && (e is ConfigurationErrorsException))
+                        xmlFile = ((ConfigurationErrorsException)e).Filename;
+                    ProgramLog.Error(e.Message, e);
+                    var folderToCopy = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+                    var newFileName = Path.Combine(folderToCopy, "error-user.config");
+                    var message = string.Format("Opening the {0} saved settings file caused the following error: {1}", AppName(), e.Message);
+                    if (!string.IsNullOrEmpty(xmlFile))
+                    {
+                        File.Copy(xmlFile, newFileName, true);
+                        File.Delete(xmlFile);
+                        //Directory.Delete(Path.GetDirectoryName(xmlFile));
                         message += Environment.NewLine + Environment.NewLine +
                                    string.Format(
-                                       Resources.Program_Main_To_help_improve__0__in_future_versions__please_post_the_configuration_file_to_the_Skyline_Support_board_,
+                                       SharedBatch.Properties.Resources
+                                           .Program_Main_To_help_improve__0__in_future_versions__please_post_the_configuration_file_to_the_Skyline_Support_board_,
                                        AppName()) +
                                    Environment.NewLine +
                                    newFileName;
                     }
-                    
                     MessageBox.Show(message);
-                    Application.Restart();
-                    return;
                 }
-                
 
+                if (!restart)
+                {
+                    if (!FunctionalTest) SendAnalyticsHit();
+                    if (!InitSkylineSettings()) return;
+                    Settings.Default.UpdateIfNecessary();
+                    RInstallations.FindRDirectory();
 
-                AddFileTypesToRegistry();
-                var openFile = GetFirstArg(args);
+                    AddFileTypesToRegistry();
+                    var openFile = GetFirstArg(args);
 
-                MainWindow = new MainForm(openFile);
-                MainWindow.Text = Version();
-                Application.Run(MainWindow);
+                    MainWindow = new MainForm(openFile);
+                    MainWindow.Text = Version();
+                    Application.Run(MainWindow);
+                }
 
                 mutex.ReleaseMutex();
             }
+            if (restart) Application.Restart();
         }
 
         private static void InitializeVersion()
         {
-            _version = ApplicationDeployment.IsNetworkDeployed
-                ? ApplicationDeployment.CurrentDeployment.CurrentVersion.ToString()
-                : string.Empty;
+            if (ApplicationDeployment.IsNetworkDeployed)
+                _version = ApplicationDeployment.CurrentDeployment.CurrentVersion.ToString();
+            else
+            {
+                // copied from Skyline Install.cs GetVersion()
+                try
+                {
+                    string productVersion = null;
+
+                    Assembly entryAssembly = Assembly.GetEntryAssembly();
+                    if (entryAssembly != null)
+                    {
+                        // custom attribute
+                        object[] attrs = entryAssembly.GetCustomAttributes(typeof(AssemblyFileVersionAttribute), false);
+                        // Play it safe with a null check no matter what ReSharper thinks
+                        // ReSharper disable once ConditionIsAlwaysTrueOrFalse
+                        if (attrs != null && attrs.Length > 0)
+                        {
+                            productVersion = ((AssemblyFileVersionAttribute)attrs[0]).Version;
+                        }
+                        else
+                        {
+                            // win32 version info
+                            productVersion = FileVersionInfo.GetVersionInfo(entryAssembly.Location).FileVersion?.Trim();
+                        }
+                    }
+
+                    _version = productVersion ?? string.Empty;
+                }
+                catch (Exception)
+                {
+                    _version = string.Empty;
+                }
+            }
+            if (FunctionalTest)
+                _version = TEST_VERSION;
         }
 
         private static string GetFirstArg(string[] args)
@@ -160,7 +204,6 @@ namespace SkylineBatch
             string arg;
             if (ApplicationDeployment.IsNetworkDeployed)
             {
-                _version = ApplicationDeployment.CurrentDeployment.CurrentVersion.ToString();
                 var activationData = AppDomain.CurrentDomain.SetupInformation.ActivationArguments.ActivationData;
                 arg = activationData != null && activationData.Length > 0
                     ? activationData[0]
@@ -168,7 +211,6 @@ namespace SkylineBatch
             }
             else
             {
-                _version = string.Empty;
                 arg = args.Length > 0 ? args[0] : string.Empty;
             }
 
@@ -213,6 +255,7 @@ namespace SkylineBatch
             }
         }
 
+        // ReSharper disable once UnusedMember.Local
         private static void SendAnalyticsHit()
         {
             // ReSharper disable LocalizableElement
@@ -221,7 +264,7 @@ namespace SkylineBatch
             postData += "&tid=UA-9194399-1"; // Tracking Id 
             postData += "&cid=" + SharedBatch.Properties.Settings.Default.InstallationId; // Anonymous Client Id
             postData += "&ec=InstanceBatch"; // Event Category
-            postData += "&ea=" + Uri.EscapeDataString((_version.Length > 0 ? _version : ADMIN_VERSION) + "batch");
+            postData += "&ea=" + Uri.EscapeDataString((_version.Length > 0 ? _version : "Version unspecified") + "batch"); // version should never be unspecified
             var dailyRegex = new Regex(@"[0-9]+\.[0-9]+\.[19]\.[0-9]+");
             postData += "&el=" + (dailyRegex.IsMatch(_version) ? "batch-daily" : "batch-release");
             postData += "&p=" + "Instance"; // Page

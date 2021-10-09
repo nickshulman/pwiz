@@ -29,8 +29,8 @@
     <PublisherName>MacCoss Lab, UW</PublisherName>
     <CreateWebPageOnPublish>true</CreateWebPageOnPublish>
     <WebPage>index.html</WebPage>
-    <ApplicationRevision>154</ApplicationRevision>
-    <ApplicationVersion>21.0.9.154</ApplicationVersion>
+    <ApplicationRevision>200</ApplicationRevision>
+    <ApplicationVersion>21.1.1.200</ApplicationVersion>
     <UseApplicationTrust>false</UseApplicationTrust>
     <PublishWizardCompleted>true</PublishWizardCompleted>
     <BootstrapperEnabled>true</BootstrapperEnabled>
@@ -96,6 +96,8 @@
       <Link>LaunchBatch.exe</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <None Include="Resources\Edit_Redo.bmp" />
+    <None Include="Resources\Edit_Undo.bmp" />
     <Content Include="SkylineBatch.ico" />
     <Content Include="SkylineDailyRunner.exe">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
@@ -109,8 +111,16 @@
     <Content Include="SkylineBatch_configs.ico">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
+    <EmbeddedResource Include="DownloadingFileControl.resx">
+      <DependentUpon>DownloadingFileControl.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="PanoramaFileForm.resx">
+      <DependentUpon>PanoramaFileForm.cs</DependentUpon>
+      <SubType>Designer</SubType>
+    </EmbeddedResource>
     <EmbeddedResource Include="AddServerForm.resx">
       <DependentUpon>AddServerForm.cs</DependentUpon>
+      <SubType>Designer</SubType>
     </EmbeddedResource>
     <EmbeddedResource Include="CommandArgNames.resx">
       <Generator>ResXFileCodeGenerator</Generator>
@@ -155,12 +165,24 @@
     </EmbeddedResource>
     <None Include="App.config" />
     <None Include="Properties\Settings.settings">
-      <Generator>SettingsSingleFileGenerator</Generator>
+      <Generator>PublicSettingsSingleFileGenerator</Generator>
       <LastGenOutput>Settings.Designer.cs</LastGenOutput>
       <SubType>Designer</SubType>
     </None>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="DownloadingFileControl.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="DownloadingFileControl.Designer.cs">
+      <DependentUpon>DownloadingFileControl.cs</DependentUpon>
+    </Compile>
+    <Compile Include="PanoramaFileForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="PanoramaFileForm.Designer.cs">
+      <DependentUpon>PanoramaFileForm.cs</DependentUpon>
+    </Compile>
     <Compile Include="AddServerForm.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -173,6 +195,7 @@
     <Compile Include="ConnectionErrorForm.Designer.cs">
       <DependentUpon>ConnectionErrorForm.cs</DependentUpon>
     </Compile>
+    <Compile Include="DataServerInfo.cs" />
     <Compile Include="Properties\Resources.Designer.cs">
       <AutoGen>True</AutoGen>
       <DesignTime>True</DesignTime>
@@ -194,7 +217,15 @@
     <Compile Include="RefineInputLocalization.cs" />
     <Compile Include="RefineInputObject.cs" />
     <Compile Include="RefineSettings.cs" />
+    <Compile Include="PanoramaServerConnector.cs" />
+    <Compile Include="RScriptForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="RScriptForm.Designer.cs">
+      <DependentUpon>RScriptForm.cs</DependentUpon>
+    </Compile>
     <Compile Include="ServerConnector.cs" />
+    <Compile Include="ServerFilesManager.cs" />
     <Compile Include="SkylineBatchConfigManager.cs" />
     <Compile Include="FileSettings.cs" />
     <Compile Include="InvalidConfigSetupForm.cs">
@@ -246,6 +277,9 @@
     <Compile Include="LogForm.Designer.cs">
       <DependentUpon>LogForm.cs</DependentUpon>
     </Compile>
+    <Compile Include="SkylineTemplate.cs" />
+    <Compile Include="Server.cs" />
+    <Compile Include="XMLTags.cs" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="FluentFTP">
@@ -281,6 +315,9 @@
       <DependentUpon>MainForm.cs</DependentUpon>
       <SubType>Designer</SubType>
     </EmbeddedResource>
+    <EmbeddedResource Include="RScriptForm.resx">
+      <DependentUpon>RScriptForm.cs</DependentUpon>
+    </EmbeddedResource>
     <EmbeddedResource Include="RVersionControl.resx">
       <DependentUpon>RVersionControl.cs</DependentUpon>
     </EmbeddedResource>
@@ -293,7 +330,7 @@
       <SubType>Designer</SubType>
     </EmbeddedResource>
     <EmbeddedResource Include="Properties\Resources.resx">
-      <Generator>ResXFileCodeGenerator</Generator>
+      <Generator>PublicResXFileCodeGenerator</Generator>
       <SubType>Designer</SubType>
       <LastGenOutput>Resources.Designer.cs</LastGenOutput>
     </EmbeddedResource>

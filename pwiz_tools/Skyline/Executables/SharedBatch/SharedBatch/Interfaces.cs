@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Drawing;
+using System.Threading;
 using System.Windows.Forms;
 using System.Xml;
 
@@ -27,6 +28,8 @@ namespace SharedBatch
         //                      otherwise replaced is the same as the current configuration (this)
         bool TryPathReplace(string oldRoot, string newRoot, out IConfig replaced);
 
+        IConfig ForcePathReplace(string oldRoot, string newRoot);
+
         // Returns a copy of the configuration with the new Skyline settings
         IConfig ReplaceSkylineVersion(SkylineSettings skylineSettings);
 
@@ -50,7 +53,8 @@ namespace SharedBatch
         Stopped,
         Completed,
         Disconnected,
-        Error
+        Error,
+        Loading
     }
 
     public interface IConfigRunner
@@ -124,8 +128,10 @@ namespace SharedBatch
 
     public delegate void OnPercentProgress(int percent, int maxPercent);
 
-    public delegate  void LongOperation(OnPercentProgress progress);
+    public delegate  void LongOperation(OnPercentProgress progress, CancellationToken cancelToken);
 
     public delegate void Callback(bool completed);
+
+    public delegate void Update(int percentComplete, Exception e);
 
 }

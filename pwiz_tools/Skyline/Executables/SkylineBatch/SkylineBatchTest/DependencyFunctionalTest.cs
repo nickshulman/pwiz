@@ -63,7 +63,7 @@ namespace SkylineBatchTest
             RunUI(() =>
             {
                 FunctionalTestUtil.PopulateConfigForm(addConfigForm, "DependentConfig", CONFIG_FOLDER, this);
-                addConfigForm.comboTemplateFile.Text = Path.Combine(CONFIG_FOLDER, "RefinedOutput.sky");
+                addConfigForm.templateControl.SetPath(Path.Combine(CONFIG_FOLDER, "RefinedOutput.sky"));
                 addConfigForm.btnSaveConfig.PerformClick();
             });
             WaitForClosedForm(addConfigForm);
@@ -117,7 +117,7 @@ namespace SkylineBatchTest
                     dlg.ClickYes();
                 });
             RunUI(() => { FunctionalTestUtil.CheckConfigs(1, 1, mainForm); });
-
+            
             RunUI(() =>
             {
                 FunctionalTestUtil.ClearConfigs(mainForm);
@@ -135,6 +135,7 @@ namespace SkylineBatchTest
                         dlg.Message);
                     dlg.ClickOk();
                 });
+            //Thread.SpinWait(100000);
             RunUI(() =>
             {
                 FunctionalTestUtil.CheckConfigs(3, 1, mainForm);
@@ -246,7 +247,7 @@ namespace SkylineBatchTest
                 Assert.AreEqual(comboVisible, editConfigForm.comboTemplateFile.Visible);
                 if (templatePath)
                 {
-                    editConfigForm.templateFileControl.Text = newPath;
+                    editConfigForm.templateControl.SetPath(newPath);
                 }
                 else
                 {

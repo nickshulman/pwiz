@@ -390,12 +390,12 @@ namespace pwiz.SkylineTestUtil
             }
         }
 
-        protected static void SetCsvFileClipboardText(string filePath, bool hasHeader = false)
+        protected static void SetCsvFileClipboardText(string filePath)
         {
-            SetClipboardText(GetCsvFileText(filePath, hasHeader));
+            SetClipboardText(GetCsvFileText(filePath));
         }
 
-        protected static string GetCsvFileText(string filePath, bool hasHeader = false)
+        protected static string GetCsvFileText(string filePath)
         {
             string resultStr;
             if (TextUtil.CsvSeparator == TextUtil.SEPARATOR_CSV)
@@ -419,10 +419,6 @@ namespace pwiz.SkylineTestUtil
                     sb.AppendLine(fields.ToCsvLine());
                 }
                 resultStr = sb.ToString();
-            }
-            if (hasHeader)
-            {
-                resultStr = resultStr.Substring(resultStr.IndexOf('\n') + 1);
             }
             return resultStr;
         }
@@ -1764,7 +1760,6 @@ namespace pwiz.SkylineTestUtil
             if (null != SkylineWindow)
             {
                 AssertEx.ValidatesAgainstSchema(SkylineWindow.Document);
-                NormalizedValueCalculatorVerifier.VerifyRatioCalculations(SkylineWindow.Document);
             }
 
             if (doClipboardCheck)
@@ -2237,7 +2232,16 @@ namespace pwiz.SkylineTestUtil
             LockMassParameters lockMassParameters = null)
         {
             var docBefore = SkylineWindow.Document;
-            var importResultsDlg = ShowDialog<ImportResultsDlg>(SkylineWindow.ImportResults);
+            ImportResultsDlg importResultsDlg;
+            if (!SkylineWindow.ShouldPromptForDecoys(docBefore))
+            {
+                importResultsDlg = ShowDialog<ImportResultsDlg>(SkylineWindow.ImportResults);
+            }
+            else
+            {
+                var askDecoysDlg = ShowDialog<MultiButtonMsgDlg>(SkylineWindow.ImportResults);
+                importResultsDlg = ShowDialog<ImportResultsDlg>(askDecoysDlg.ClickNo);
+            }
             RunDlg<OpenDataSourceDialog>(() => importResultsDlg.NamedPathSets = importResultsDlg.GetDataSourcePathsFile(null),
                openDataSourceDialog =>
                {
@@ -2298,7 +2302,16 @@ namespace pwiz.SkylineTestUtil
 
         public void ImportResultsFiles(IEnumerable<MsDataFileUri> fileNames, int waitForLoadSeconds = 420)
         {
-            var importResultsDlg = ShowDialog<ImportResultsDlg>(SkylineWindow.ImportResults);
+            ImportResultsDlg importResultsDlg;
+            if (!SkylineWindow.ShouldPromptForDecoys(SkylineWindow.Document))
+            {
+                importResultsDlg = ShowDialog<ImportResultsDlg>(SkylineWindow.ImportResults);
+            }
+            else
+            {
+                var askDecoysDlg = ShowDialog<MultiButtonMsgDlg>(SkylineWindow.ImportResults);
+                importResultsDlg = ShowDialog<ImportResultsDlg>(askDecoysDlg.ClickNo);
+            }
             RunUI(() => importResultsDlg.NamedPathSets = importResultsDlg.GetDataSourcePathsFileReplicates(fileNames));
 
             string prefix = fileNames.Select(f => f.GetFileName()).GetCommonPrefix();

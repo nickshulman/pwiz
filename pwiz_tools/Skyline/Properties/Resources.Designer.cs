@@ -61,6 +61,16 @@ namespace pwiz.Skyline.Properties {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to These filters cannot be applied as they would result in an empty transition list..
+        /// </summary>
+        public static string ImportTransitionListColumnSelectDlg_AssociateProteins_These_filters_cannot_be_applied_as_they_would_result_in_an_empty_transition_list_ {
+            get {
+                return ResourceManager.GetString("ImportTransitionListColumnSelectDlg_AssociateProteins_These_filters_cannot_be_ap" +
+                        "plied_as_they_would_result_in_an_empty_transition_list.", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Failed to find a valid Analyst installation.
         /// </summary>
         public static string AbiMethodExporter_EnsureAnalyst_Failed_to_find_a_valid_Analyst_installation {
@@ -1226,6 +1236,33 @@ namespace pwiz.Skyline.Properties {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to None.
+        /// </summary>
+        public static string AlignItem_ToString_None {
+            get {
+                return ResourceManager.GetString("AlignItem_ToString_None", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Retention time calculator....
+        /// </summary>
+        public static string AlignItem_ToString_Retention_time_calculator___ {
+            get {
+                return ResourceManager.GetString("AlignItem_ToString_Retention_time_calculator___", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Retention time calculator ({0}).
+        /// </summary>
+        public static string AlignItem_ToString_Retention_time_calculator___0__ {
+            get {
+                return ResourceManager.GetString("AlignItem_ToString_Retention_time_calculator___0__", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Aligned Time.
         /// </summary>
         public static string AlignmentForm_UpdateGraph_Aligned_Time {
@@ -1912,6 +1949,26 @@ namespace pwiz.Skyline.Properties {
         public static string AsyncChromatogramsGraph2_AsyncChromatogramsGraph2_Canceled {
             get {
                 return ResourceManager.GetString("AsyncChromatogramsGraph2_AsyncChromatogramsGraph2_Canceled", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to None of the decoys in the document have any chromatograms..
+        /// </summary>
+        public static string AutoTrainManager_LoadBackground_None_of_the_decoys_in_the_document_have_any_chromatograms_ {
+            get {
+                return ResourceManager.GetString("AutoTrainManager_LoadBackground_None_of_the_decoys_in_the_document_have_any_chrom" +
+                        "atograms_", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to None of the targets in the document have any chromatograms..
+        /// </summary>
+        public static string AutoTrainManager_LoadBackground_None_of_the_targets_in_the_document_have_any_chromatograms_ {
+            get {
+                return ResourceManager.GetString("AutoTrainManager_LoadBackground_None_of_the_targets_in_the_document_have_any_chro" +
+                        "matograms_", resourceCulture);
             }
         }
         
@@ -8354,6 +8411,15 @@ namespace pwiz.Skyline.Properties {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to MS2 analyzer must be selected..
+        /// </summary>
+        public static string DdaSearch_SearchSettingsControl_MS2_analyzer_must_be_selected {
+            get {
+                return ResourceManager.GetString("DdaSearch_SearchSettingsControl_MS2_analyzer_must_be_selected", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to MS2 Tolerance incorrect.
         /// </summary>
         public static string DdaSearch_SearchSettingsControl_MS2_Tolerance_incorrect {
@@ -9266,6 +9332,33 @@ namespace pwiz.Skyline.Properties {
             get {
                 return ResourceManager.GetString("DocumentWriter_WritePeptideXml_Unable_to_convert_crosslinks_in__0__to_document_fo" +
                         "rmat__1__", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Labels.
+        /// </summary>
+        public static string DotpDisplayOption_label {
+            get {
+                return ResourceManager.GetString("DotpDisplayOption_label", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Line.
+        /// </summary>
+        public static string DotpDisplayOption_line {
+            get {
+                return ResourceManager.GetString("DotpDisplayOption_line", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to None.
+        /// </summary>
+        public static string DotpDisplayOption_None {
+            get {
+                return ResourceManager.GetString("DotpDisplayOption_None", resourceCulture);
             }
         }
         
@@ -11957,6 +12050,110 @@ namespace pwiz.Skyline.Properties {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Detecting decoy prefix in {0}..
+        /// </summary>
+        public static string EnsureFastaHasDecoys_Detecting_decoy_prefix_in__0__ {
+            get {
+                return ResourceManager.GetString("EnsureFastaHasDecoys_Detecting_decoy_prefix_in__0__", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to No common prefixes were found..
+        /// </summary>
+        public static string EnsureFastaHasDecoys_No_common_prefixes_were_found_ {
+            get {
+                return ResourceManager.GetString("EnsureFastaHasDecoys_No_common_prefixes_were_found_", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to No common suffixes were found..
+        /// </summary>
+        public static string EnsureFastaHasDecoys_No_common_suffixes_were_found_ {
+            get {
+                return ResourceManager.GetString("EnsureFastaHasDecoys_No_common_suffixes_were_found_", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to No decoy prefix detected. A new FASTA will be generated using reverse sequences as decoys (with prefix &apos;{0}&apos;)..
+        /// </summary>
+        public static string EnsureFastaHasDecoys_No_decoy_prefix_detected__A_new_FASTA_will_be_generated_using_reverse_sequences_as_decoys__with_prefix___0____ {
+            get {
+                return ResourceManager.GetString("EnsureFastaHasDecoys_No_decoy_prefix_detected__A_new_FASTA_will_be_generated_usin" +
+                        "g_reverse_sequences_as_decoys__with_prefix___0____", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to No decoy prefix detected, but an existing decoy database seems to exist at {0}. Retrying the decoy prefix calculation on that..
+        /// </summary>
+        public static string EnsureFastaHasDecoys_No_decoy_prefix_detected__but_an_existing_decoy_database_seems_to_exist_at__0__ {
+            get {
+                return ResourceManager.GetString("EnsureFastaHasDecoys_No_decoy_prefix_detected__but_an_existing_decoy_database_see" +
+                        "ms_to_exist_at__0__", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to No prefixes were frequent enough to be a decoy prefix (present in at least 40% of entries)..
+        /// </summary>
+        public static string EnsureFastaHasDecoys_No_prefixes_were_frequent_enough_to_be_a_decoy_prefix__present_in_at_least_40__of_entries__ {
+            get {
+                return ResourceManager.GetString("EnsureFastaHasDecoys_No_prefixes_were_frequent_enough_to_be_a_decoy_prefix__prese" +
+                        "nt_in_at_least_40__of_entries__", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Some common prefixes were found:.
+        /// </summary>
+        public static string EnsureFastaHasDecoys_Some_common_prefixes_were_found_ {
+            get {
+                return ResourceManager.GetString("EnsureFastaHasDecoys_Some_common_prefixes_were_found_", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Some common suffixes were found but these are not supported:.
+        /// </summary>
+        public static string EnsureFastaHasDecoys_Some_common_suffixes_were_found_but_these_are_not_supported_ {
+            get {
+                return ResourceManager.GetString("EnsureFastaHasDecoys_Some_common_suffixes_were_found_but_these_are_not_supported_" +
+                        "", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The suffix {0} was likely intended as a decoy suffix, but Skyline&apos;s DDA search tools do not support decoy suffixes. We suggest rerunning with the original FASTA without decoys..
+        /// </summary>
+        public static string EnsureFastaHasDecoys_The_suffix__0__was_likely_intended_as_a_decoy_suffix__but_Skyline_s_DDA_search_tools_do_not_support_decoy_suffixes {
+            get {
+                return ResourceManager.GetString("EnsureFastaHasDecoys_The_suffix__0__was_likely_intended_as_a_decoy_suffix__but_Sk" +
+                        "yline_s_DDA_search_tools_do_not_support_decoy_suffixes", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Using {0} as the most likely decoy prefix..
+        /// </summary>
+        public static string EnsureFastaHasDecoys_Using__0__as_the_most_likely_decoy_prefix_ {
+            get {
+                return ResourceManager.GetString("EnsureFastaHasDecoys_Using__0__as_the_most_likely_decoy_prefix_", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Using decoy database at {0}.{1}.
+        /// </summary>
+        public static string EnsureFastaHasDecoys_Using_decoy_database_at__0___1_ {
+            get {
+                return ResourceManager.GetString("EnsureFastaHasDecoys_Using_decoy_database_at__0___1_", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Enzyme must have C-terminal cleavage to have C-terminal restrictions..
         /// </summary>
         public static string Enzyme_Validate_Enzyme_must_have_C_terminal_cleavage_to_have_C_terminal_restrictions_ {
@@ -12809,6 +13006,26 @@ namespace pwiz.Skyline.Properties {
         public static string ExportMethodDlg_TRANS_PER_SAMPLE_INJ_TXT {
             get {
                 return ResourceManager.GetString("ExportMethodDlg_TRANS_PER_SAMPLE_INJ_TXT", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Absolute relative intensity threshold value..
+        /// </summary>
+        public static string ExportMethodDlg_UpdateThermoSureQuantControls_Absolute_relative_intensity_threshold_value_ {
+            get {
+                return ResourceManager.GetString("ExportMethodDlg_UpdateThermoSureQuantControls_Absolute_relative_intensity_thresho" +
+                        "ld_value_", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Percentage of peak max height to use as intensity threshold..
+        /// </summary>
+        public static string ExportMethodDlg_UpdateThermoSureQuantControls_Percentage_of_peak_max_height_to_use_as_intensity_threshold_ {
+            get {
+                return ResourceManager.GetString("ExportMethodDlg_UpdateThermoSureQuantControls_Percentage_of_peak_max_height_to_us" +
+                        "e_as_intensity_threshold_", resourceCulture);
             }
         }
         
@@ -14297,12 +14514,57 @@ namespace pwiz.Skyline.Properties {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Data dependent acquisition: MS2 chromatograms are extracted but not used for quantification.
+        /// </summary>
+        public static string FullScanAcquisitionMethod_DDA_TOOLTIP {
+            get {
+                return ResourceManager.GetString("FullScanAcquisitionMethod_DDA_TOOLTIP", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Data independent acquisition: MS2 spectra contribute to the chromatograms of all precursors whose m/z values are within the isolation window.
+        /// </summary>
+        public static string FullScanAcquisitionMethod_DIA_TOOLTIP {
+            get {
+                return ResourceManager.GetString("FullScanAcquisitionMethod_DIA_TOOLTIP", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to {0} is not a valid Full Scan Acquisition Method.
         /// </summary>
         public static string FullScanAcquisitionMethod_FromName__0__is_not_a_valid_Full_Scan_Acquisition_Method {
             get {
                 return ResourceManager.GetString("FullScanAcquisitionMethod_FromName__0__is_not_a_valid_Full_Scan_Acquisition_Metho" +
                         "d", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Parallel reaction monitoring: MS2 spectra contribute to those precursors whose m/z is within the &quot;method match tolerance&quot; value of the selected ion.
+        /// </summary>
+        public static string FullScanAcquisitionMethod_PRM_TOOLTIP {
+            get {
+                return ResourceManager.GetString("FullScanAcquisitionMethod_PRM_TOOLTIP", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Similar to &quot;PRM&quot;, but using &quot;triggered acquisition&quot; and &quot;method match tolerance&quot; settings appropriate for Thermo SureQuant methods.
+        /// </summary>
+        public static string FullScanAcquisitionMethod_SureQuant_TOOLTIP {
+            get {
+                return ResourceManager.GetString("FullScanAcquisitionMethod_SureQuant_TOOLTIP", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to MS2 spectra contribute to the chromatogram of the one precursor whose m/z is closest to the selection ion.
+        /// </summary>
+        public static string FullScanAcquisitionMethod_Targeted_TOOLTIP {
+            get {
+                return ResourceManager.GetString("FullScanAcquisitionMethod_Targeted_TOOLTIP", resourceCulture);
             }
         }
         
@@ -15614,22 +15876,22 @@ namespace pwiz.Skyline.Properties {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to An error occurred while training the mProphet model: {0}.
+        ///   Looks up a localized string similar to An error occurred while training the peak scoring model: {0}.
         /// </summary>
-        public static string ImportPeptideSearchManager_LoadBackground_An_error_occurred_while_training_the_mProphet_model___0_ {
+        public static string ImportPeptideSearchManager_LoadBackground_An_error_occurred_while_training_the_peak_scoring_model___0_ {
             get {
-                return ResourceManager.GetString("ImportPeptideSearchManager_LoadBackground_An_error_occurred_while_training_the_mP" +
-                        "rophet_model___0_", resourceCulture);
+                return ResourceManager.GetString("ImportPeptideSearchManager_LoadBackground_An_error_occurred_while_training_the_pe" +
+                        "ak_scoring_model___0_", resourceCulture);
             }
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to If you re-add decoys to the document you can add and train an mProphet model manually..
+        ///   Looks up a localized string similar to If you re-add decoys to the document you can add and train a peak scoring model manually..
         /// </summary>
-        public static string ImportPeptideSearchManager_LoadBackground_If_you_re_add_decoys_to_the_document_you_can_add_and_train_an_mProphet_model_manually_ {
+        public static string ImportPeptideSearchManager_LoadBackground_If_you_re_add_decoys_to_the_document_you_can_add_and_train_a_peak_scoring_model_manually_ {
             get {
                 return ResourceManager.GetString("ImportPeptideSearchManager_LoadBackground_If_you_re_add_decoys_to_the_document_yo" +
-                        "u_can_add_and_train_an_mProphet_model_manually_", resourceCulture);
+                        "u_can_add_and_train_a_peak_scoring_model_manually_", resourceCulture);
             }
         }
         
@@ -15644,12 +15906,12 @@ namespace pwiz.Skyline.Properties {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to The decoys have been removed from the document, so the mProphet model will not be automatically trained..
+        ///   Looks up a localized string similar to The decoys have been removed from the document, so the peak scoring model will not be automatically trained..
         /// </summary>
-        public static string ImportPeptideSearchManager_LoadBackground_The_decoys_have_been_removed_from_the_document__so_the_mProphet_model_will_not_be_automatically_trained_ {
+        public static string ImportPeptideSearchManager_LoadBackground_The_decoys_have_been_removed_from_the_document__so_the_peak_scoring_model_will_not_be_automatically_trained_ {
             get {
                 return ResourceManager.GetString("ImportPeptideSearchManager_LoadBackground_The_decoys_have_been_removed_from_the_d" +
-                        "ocument__so_the_mProphet_model_will_not_be_automatically_trained_", resourceCulture);
+                        "ocument__so_the_peak_scoring_model_will_not_be_automatically_trained_", resourceCulture);
             }
         }
         
@@ -15987,11 +16249,11 @@ namespace pwiz.Skyline.Properties {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Explicit Delustering Potential.
+        ///   Looks up a localized string similar to Explicit Declustering Potential.
         /// </summary>
-        public static string ImportTransitionListColumnSelectDlg_ComboChanged_Explicit_Delustering_Potential {
+        public static string ImportTransitionListColumnSelectDlg_ComboChanged_Explicit_Declustering_Potential {
             get {
-                return ResourceManager.GetString("ImportTransitionListColumnSelectDlg_ComboChanged_Explicit_Delustering_Potential", resourceCulture);
+                return ResourceManager.GetString("ImportTransitionListColumnSelectDlg_ComboChanged_Explicit_Declustering_Potential", resourceCulture);
             }
         }
         
@@ -16010,6 +16272,17 @@ namespace pwiz.Skyline.Properties {
         public static string ImportTransitionListColumnSelectDlg_ComboChanged_Molecule_Name {
             get {
                 return ResourceManager.GetString("ImportTransitionListColumnSelectDlg_ComboChanged_Molecule_Name", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Reassigning the Protein Name column will prevent the peptides from being associated with proteins from the background proteome..
+        /// </summary>
+        public static string ImportTransitionListColumnSelectDlg_ComboChanged_Reassigning_the_Protein_Name_column_will_prevent_the_peptides_from_being_associated_with_proteins_from_the_background_proteome_ {
+            get {
+                return ResourceManager.GetString("ImportTransitionListColumnSelectDlg_ComboChanged_Reassigning_the_Protein_Name_col" +
+                        "umn_will_prevent_the_peptides_from_being_associated_with_proteins_from_the_backg" +
+                        "round_proteome.", resourceCulture);
             }
         }
         
@@ -16214,6 +16487,16 @@ namespace pwiz.Skyline.Properties {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to The calculator {0} requires all of its standard peptides in order to determine a regression..
+        /// </summary>
+        public static string IncompleteStandardException_IncompleteStandardException_The_calculator__0__requires_all_of_its_standard_peptides_in_order_to_determine_a_regression {
+            get {
+                return ResourceManager.GetString("IncompleteStandardException_IncompleteStandardException_The_calculator__0__requir" +
+                        "es_all_of_its_standard_peptides_in_order_to_determine_a_regression", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to The calculator {0} requires all {1} of its standard peptides to be in the targets list in order to determine a regression. The following {2} peptides are missing:
         ///
         ///{3}.
@@ -16227,7 +16510,7 @@ namespace pwiz.Skyline.Properties {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Error on line {0}, column{1}: {2}.
+        ///   Looks up a localized string similar to Error on line {0}, column {1}: {2}.
         /// </summary>
         public static string InsertSmallMoleculeTransitionList_InsertSmallMoleculeTransitionList_Error_on_line__0___column_1____2_ {
             get {
@@ -19847,6 +20130,33 @@ namespace pwiz.Skyline.Properties {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Re-using existing converted {0} file for {1}..
+        /// </summary>
+        public static string MsconvertDdaConverter_Run_Re_using_existing_converted__0__file_for__1__ {
+            get {
+                return ResourceManager.GetString("MsconvertDdaConverter_Run_Re_using_existing_converted__0__file_for__1__", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Starting msconvert conversion..
+        /// </summary>
+        public static string MsconvertDdaConverter_Run_Starting_msconvert_conversion_ {
+            get {
+                return ResourceManager.GetString("MsconvertDdaConverter_Run_Starting_msconvert_conversion_", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Downloading MSFragger {0}.
+        /// </summary>
+        public static string MsFraggerDownloadDlg_Download_Downloading_MSFragger__0_ {
+            get {
+                return ResourceManager.GetString("MsFraggerDownloadDlg_Download_Downloading_MSFragger__0_", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to MS/MS scan index {0} not found.
         /// </summary>
         public static string MsxDemultiplexer_FindStartStop_MsxDemultiplexer_MS_MS_index__0__not_found {
@@ -21316,15 +21626,6 @@ namespace pwiz.Skyline.Properties {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Collision Cross Section (sq A).
-        /// </summary>
-        public static string PasteDlg_UpdateMoleculeType_Collision_Cross_Section__sq_A_ {
-            get {
-                return ResourceManager.GetString("PasteDlg_UpdateMoleculeType_Collision_Cross_Section__sq_A_", resourceCulture);
-            }
-        }
-        
-        /// <summary>
         ///   Looks up a localized string similar to Collisional Cross Section (sq A).
         /// </summary>
         public static string PasteDlg_UpdateMoleculeType_Collisional_Cross_Section__sq_A_ {
@@ -21348,6 +21649,15 @@ namespace pwiz.Skyline.Properties {
         public static string PasteDlg_UpdateMoleculeType_Decoy {
             get {
                 return ResourceManager.GetString("PasteDlg_UpdateMoleculeType_Decoy", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Explicit Collision Cross Section (sq A).
+        /// </summary>
+        public static string PasteDlg_UpdateMoleculeType_Explicit_Collision_Cross_Section__sq_A_ {
+            get {
+                return ResourceManager.GetString("PasteDlg_UpdateMoleculeType_Explicit_Collision_Cross_Section__sq_A_", resourceCulture);
             }
         }
         
@@ -26283,6 +26593,15 @@ namespace pwiz.Skyline.Properties {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Download {0}.
+        /// </summary>
+        public static string SearchSettingsControl_EnsureRequiredFilesDownloaded_Download__0_ {
+            get {
+                return ResourceManager.GetString("SearchSettingsControl_EnsureRequiredFilesDownloaded_Download__0_", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Do you want to save your current settings before switching?.
         /// </summary>
         public static string SelectSettingsHandler_ToolStripMenuItemClick_Do_you_want_to_save_your_current_settings_before_switching {
@@ -26574,6 +26893,35 @@ namespace pwiz.Skyline.Properties {
             get {
                 return ResourceManager.GetString("ShimadzuMethodExporter_ExportMethod_Unexpected_response__0__from_Shimadzu_method_" +
                         "writer_", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Downloading required files....
+        /// </summary>
+        public static string SimpleFileDownloaderDlg_Show_Downloading_required_files___ {
+            get {
+                return ResourceManager.GetString("SimpleFileDownloaderDlg_Show_Downloading_required_files___", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The following file is required. Do you want to download it?.
+        /// </summary>
+        public static string SimpleFileDownloaderDlg_Show_The_following_file_is_required__Do_you_want_to_download_it_ {
+            get {
+                return ResourceManager.GetString("SimpleFileDownloaderDlg_Show_The_following_file_is_required__Do_you_want_to_downl" +
+                        "oad_it_", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The following files are required. Do you want to download them?.
+        /// </summary>
+        public static string SimpleFileDownloaderDlg_Show_The_following_files_are_required__Do_you_want_to_download_them_ {
+            get {
+                return ResourceManager.GetString("SimpleFileDownloaderDlg_Show_The_following_files_are_required__Do_you_want_to_dow" +
+                        "nload_them_", resourceCulture);
             }
         }
         
@@ -27925,6 +28273,15 @@ namespace pwiz.Skyline.Properties {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to {0} transitions added.
+        /// </summary>
+        public static string SkylineWindow_ImportMassList__0__transitions_added {
+            get {
+                return ResourceManager.GetString("SkylineWindow_ImportMassList__0__transitions_added", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to {0} transitions contained errors..
         /// </summary>
         public static string SkylineWindow_ImportMassList__0__transitions_contained_errors_ {
@@ -28003,6 +28360,24 @@ namespace pwiz.Skyline.Properties {
         public static string SkylineWindow_ImportMassList_Analyzing_input__0_ {
             get {
                 return ResourceManager.GetString("SkylineWindow_ImportMassList_Analyzing_input__0_", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Associate Proteins enabled.
+        /// </summary>
+        public static string SkylineWindow_ImportMassList_Associate_Proteins_enabled {
+            get {
+                return ResourceManager.GetString("SkylineWindow_ImportMassList_Associate_Proteins_enabled", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Columns identified as {0}.
+        /// </summary>
+        public static string SkylineWindow_ImportMassList_Columns_identified_as__0_ {
+            get {
+                return ResourceManager.GetString("SkylineWindow_ImportMassList_Columns_identified_as__0_", resourceCulture);
             }
         }
         
@@ -28459,6 +28834,15 @@ namespace pwiz.Skyline.Properties {
             get {
                 return ResourceManager.GetString("SkylineWindow_ImportResults_The_following_iRT_standard_peptides_are_missing_from_" +
                         "the_document_", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to This document does not contain decoy peptides. Would you like to add decoy peptides before extracting chromatograms? After chromatogram extraction is finished, Skyline will use the decoy and target chromatograms to train a peak scoring model in order to choose better peaks..
+        /// </summary>
+        public static string SkylineWindow_ImportResults_This_document_does_not_contain_decoy_peptides__Would_you_like_to_add_decoy_peptides_before_extracting_chromatograms__After_chromatogram_extraction_is_finished__Skyline_will_use_the_decoy_and_target_chromatograms_to_train_a_peak_scoring_model_in_order_to_choose_better_peaks_ {
+            get {
+                return ResourceManager.GetString(@"SkylineWindow_ImportResults_This_document_does_not_contain_decoy_peptides__Would_you_like_to_add_decoy_peptides_before_extracting_chromatograms__After_chromatogram_extraction_is_finished__Skyline_will_use_the_decoy_and_target_chromatograms_to_train_a_peak_scoring_model_in_order_to_choose_better_peaks_", resourceCulture);
             }
         }
         
@@ -31054,6 +31438,17 @@ namespace pwiz.Skyline.Properties {
         public static string SummaryReplicateGraphPane_SummaryReplicateGraphPane_Replicate {
             get {
                 return ResourceManager.GetString("SummaryReplicateGraphPane_SummaryReplicateGraphPane_Replicate", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to To align to retention time prediction, you must first set up a retention time predictor in Peptide Settings / Prediction..
+        /// </summary>
+        public static string SynchronizedIntegrationDlg_comboAlign_SelectedIndexChanged_To_align_to_retention_time_prediction__you_must_first_set_up_a_retention_time_predictor_in_Peptide_Settings___Prediction_ {
+            get {
+                return ResourceManager.GetString("SynchronizedIntegrationDlg_comboAlign_SelectedIndexChanged_To_align_to_retention_" +
+                        "time_prediction__you_must_first_set_up_a_retention_time_predictor_in_Peptide_Set" +
+                        "tings___Prediction_", resourceCulture);
             }
         }
         

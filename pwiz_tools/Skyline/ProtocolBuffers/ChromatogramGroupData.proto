@@ -31,3 +31,104 @@ message ChromatogramGroupData {
 	TimeIntervals timeIntervals = 10;
 }
 
+message DataLocation {
+	int64 offset = 1;
+	int64 size = 2;
+}
+
+message CompressedDataLocation {
+	int64 offset = 1;
+	int64 compressedSize = 2;
+	int64 uncompressedSize = 3;
+}
+
+message ChromatogramFileData {
+	string filePath = 1;
+	int64 fileModifiedTime = 2;
+	int64 runStart = 3;
+	repeated InstrumentInfo instrumentInfo = 4;
+	double maxRetentionTime = 5;
+	double maxIntensity = 6;
+	double ticArea = 7;
+	string sampleId = 8;
+	string serialNumber = 9;
+	int64 importTime = 10;
+	message ScanInfo {
+		double retentionTime = 1;
+		repeated int32 idParts = 2;
+		string idString = 3;
+		int32 scanDescriptionIndex = 4;
+		bool negativeCharge = 5;
+		repeated Precursor precursors = 6;
+
+		message Precursor {
+			double precursorMz = 1;
+			double isolationWindowTargetMz = 2;
+			double isolationWindowUpper = 3;
+			double isolationWindowLower = 4;
+			int32 chargeState = 5;
+		}
+	}
+	message ChromatogramGroup {
+		int32 textIdIndex = 1;
+		double precursorMz = 2;
+		int64 candidatePeakOffset = 3;
+		int32 candidatePeakSize = 4;
+		CompressedDataLocation chromatogramDataLocation = 5;
+		DataLocation peakDataLocation = 7;
+		DataLocation scoreLocation = 8;
+		double collisionalCrossSection = 9;
+		double startTime = 10;
+		double endTime = 11;
+
+		message Transition {
+			double productMz = 1;
+			float extractionWidth = 2;
+			float ionMobilityValue = 3;
+			float ionMobilityExtractionWidth = 4;
+		}
+
+		repeated Transition transitions = 12;
+	}
+	message InstrumentInfo {
+		string model = 1;
+		string ionization = 2;
+		string analyzer = 3;
+		string detector = 4;
+	}
+	repeated ScanInfo scanInfos = 11;
+	repeated string textIds = 12;
+	repeated string scanDescriptions = 13;
+	repeated string scoreTypes = 14;
+	repeated ChromatogramGroup chromatogramGroups = 15;
+}
+
+message PeakData {
+	message CandidatePeakGroup {
+		double startTime = 1;
+		double endTime = 2;
+		repeated CandidatePeak peaks = 3;
+		message CandidatePeak {
+			double apexTime = 1;
+			double startTime = 2;
+			double endTime = 3;
+			double area = 4;
+			double backgroundArea = 5;
+			double height = 6;
+			double fwhm = 7;
+			int32 pointsAcross = 8;
+		}
+	}
+}
+
+message ScoreData {
+	message PeakGroupScores {
+		repeated float scores = 1;
+	}
+}
+
+message CacheFileHeader {
+	int32 formatVersion = 1;
+	int32 versionRequired = 2;
+	repeated .DataLocation fileLocations = 3; 
+}

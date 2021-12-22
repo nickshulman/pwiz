@@ -1506,6 +1506,26 @@ namespace pwiz.Skyline.Model.Results
             return result;
         }
 
+        public string GetTextIdString(int textIdOffset, int textIdLength)
+        {
+            if (textIdOffset == -1)
+            {
+                return null;
+            }
+
+            if (textIdLength == 0)
+            {
+                return string.Empty;
+            }
+
+            if (_rawData.TextIdBytes[textIdOffset] == '#')
+            {
+                return Encoding.UTF8.GetString(_rawData.TextIdBytes, textIdOffset, textIdLength);
+            }
+
+            return Encoding.ASCII.GetString(_rawData.TextIdBytes, textIdOffset, textIdLength);
+        }
+
         public byte[] ReadTimeIntensitiesBytes(ChromGroupHeaderInfo chromGroupHeaderInfo)
         {
             return CallWithStream(stream =>

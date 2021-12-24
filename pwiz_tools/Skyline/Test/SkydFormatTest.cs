@@ -25,17 +25,17 @@ namespace pwiz.SkylineTest
         {
             using (var testFilesDir = new TestFilesDir(TestContext, @"Test\SkydFormatTest.zip"))
             {
-                var chromatogramCache = ChromatogramCache.Load(
-                    testFilesDir.GetTestPath("Human_plasma.skyd"),
-                    new ProgressStatus(),
-                    new DefaultFileLoadMonitor(new SilentProgressMonitor()), false);
                 DateTime start = DateTime.UtcNow;
                 var outputFile = SkydbFile.CreateNewSkydbFile(testFilesDir.GetTestPath("test.skydb"));
+                using (var chromatogramCache = ChromatogramCache.Load(
+                    testFilesDir.GetTestPath("Human_plasma.skyd"),
+                    new ProgressStatus(),
+                    new DefaultFileLoadMonitor(new SilentProgressMonitor()), false))
                 using (var skydbConnection = outputFile.OpenConnection())
                 {
                     skydbConnection.SetUnsafeJournalMode();
                     skydbConnection.BeginTransaction();
-                    skydbConnection.EnsureScores(chromatogramCache.ScoreTypes.Select(type=>type.FullName));
+                    skydbConnection.EnsureScores(chromatogramCache.ScoreTypes.Select(type => type.FullName));
                     foreach (var grouping in chromatogramCache.ChromGroupHeaderInfos.GroupBy(header => header.FileIndex))
                     {
                         WriteFileData(skydbConnection, chromatogramCache, grouping.Key,
@@ -43,9 +43,9 @@ namespace pwiz.SkylineTest
                     }
                     skydbConnection.CommitTransaction();
                 }
+                PreparedStatement.DumpStatements();
                 Console.Out.WriteLine("Elapsed time {0}", DateTime.UtcNow.Subtract(start).TotalMilliseconds);
                 Console.Out.WriteLine("File Size: {0}", new FileInfo(outputFile.FilePath).Length);
-                chromatogramCache.Dispose();
             }
         }
 
@@ -287,10 +287,7 @@ namespace pwiz.SkylineTest
         {
             using (var sha1 = new SHA1CryptoServiceProvider())
             {
-                var blockHash = new BlockHash(sha1);
-                blockHash.ProcessBytes(bytes);
-                blockHash.FinalizeHashBytes();
-                return blockHash.HashBytes;
+                return sha1.ComputeHash(bytes);
             }
         }
 

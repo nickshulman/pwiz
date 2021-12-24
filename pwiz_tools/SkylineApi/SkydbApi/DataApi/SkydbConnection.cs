@@ -50,7 +50,7 @@ namespace SkydbApi.DataApi
 
         public void Dispose()
         {
-            Connection.Close();
+            Connection.Dispose();
             foreach (var disposable in _statements)
             {
                 disposable.Dispose();

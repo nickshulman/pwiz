@@ -5,7 +5,7 @@ using SkydbApi.Orm;
 
 namespace SkydbApi.DataApi
 {
-    public class InsertSpectrumInfoStatement : IDisposable
+    public class InsertSpectrumInfoStatement : PreparedStatement
     {
         private static string COMMAND_TEXT = "INSERT INTO SpectrumInfo(MsDataFile, SpectrumIndex, SpectrumIdentifier, RetentionTime) "
                                              + "VALUES(?,?,?,?); select last_insert_rowid();";
@@ -17,19 +17,14 @@ namespace SkydbApi.DataApi
 
         private IDbCommand Command { get; }
 
-        public InsertSpectrumInfoStatement(IDbConnection connection)
+        public InsertSpectrumInfoStatement(IDbConnection connection) : base(connection)
         {
-            Command = connection.CreateCommand();
+            Command = CreateCommand();
             Command.CommandText = COMMAND_TEXT;
             Command.Parameters.Add(msDataFile = new SQLiteParameter());
             Command.Parameters.Add(spectrumIndex = new SQLiteParameter());
             Command.Parameters.Add(spectrumIdentifier = new SQLiteParameter());
             Command.Parameters.Add(retentionTime = new SQLiteParameter());
-        }
-
-        public void Dispose()
-        {
-            Command.Dispose();
         }
 
         public void Insert(SpectrumInfo spectrumInfo)

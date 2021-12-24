@@ -6,7 +6,7 @@ using SkydbApi.Orm;
 
 namespace SkydbApi.DataApi
 {
-    public class InsertCandidatePeakStatement : IDisposable
+    public class InsertCandidatePeakStatement : PreparedStatement
     {
         private SQLiteParameter candidatePeakGroup;
         private SQLiteParameter startTime;
@@ -27,9 +27,9 @@ namespace SkydbApi.DataApi
                                              + "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?);"; //"select last_insert_rowid();";
 
         private IDbCommand Command { get; }
-        public InsertCandidatePeakStatement(IDbConnection connection)
+        public InsertCandidatePeakStatement(IDbConnection connection) : base(connection)
         {
-            Command = connection.CreateCommand();
+            Command = CreateCommand();
             Command.CommandText = COMMAND_TEXT;
             Command.Parameters.Add(candidatePeakGroup = new SQLiteParameter());
             Command.Parameters.Add(startTime = new SQLiteParameter());
@@ -62,11 +62,6 @@ namespace SkydbApi.DataApi
             truncated.Value = row.Truncated;
             massError.Value = row.MassError;
             Command.ExecuteNonQuery();
-        }
-
-        public void Dispose()
-        {
-            Command.Dispose();
         }
     }
 }

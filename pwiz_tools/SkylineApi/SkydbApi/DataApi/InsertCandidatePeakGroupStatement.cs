@@ -5,18 +5,19 @@ using SkydbApi.Orm;
 
 namespace SkydbApi.DataApi
 {
-    public class InsertCandidatePeakGroupStatement : IDisposable
+    public class InsertCandidatePeakGroupStatement : PreparedStatement
     {
         private static string COMMAND_TEXT = "INSERT INTO CandidatePeakGroup(StartTime, EndTime, Identified) "
                                              + "VALUES(?,?,?); select last_insert_rowid();";
+
         private SQLiteParameter startTime;
         private SQLiteParameter endTime;
         private SQLiteParameter identified;
 
 
-        public InsertCandidatePeakGroupStatement(IDbConnection connection)
+        public InsertCandidatePeakGroupStatement(IDbConnection connection) : base(connection)
         {
-            Command = connection.CreateCommand();
+            Command = CreateCommand();
             Command.CommandText = COMMAND_TEXT;
             Command.Parameters.Add(startTime = new SQLiteParameter());
             Command.Parameters.Add(endTime = new SQLiteParameter());
@@ -24,11 +25,6 @@ namespace SkydbApi.DataApi
         }
 
         private IDbCommand Command { get; }
-
-        public void Dispose()
-        {
-            Command.Dispose();
-        }
 
         public void Insert(CandidatePeakGroup candidatePeakGroup)
         {

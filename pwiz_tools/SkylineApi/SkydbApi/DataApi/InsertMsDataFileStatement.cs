@@ -10,7 +10,7 @@ using SkydbApi.Orm;
 
 namespace SkydbApi.DataApi
 {
-    public class InsertMsDataFileStatement : IDisposable
+    public class InsertMsDataFileStatement : PreparedStatement
     {
         private static string COMMAND_TEXT = "INSERT INTO MsDataFile(FilePath) "
                                              + "VALUES(?); select last_insert_rowid();";
@@ -19,16 +19,11 @@ namespace SkydbApi.DataApi
 
         private IDbCommand Command { get; }
 
-        public InsertMsDataFileStatement(IDbConnection connection)
+        public InsertMsDataFileStatement(IDbConnection connection) : base(connection)
         {
-            Command = connection.CreateCommand();
+            Command = CreateCommand();
             Command.CommandText = COMMAND_TEXT;
             Command.Parameters.Add(filePath = new SQLiteParameter());
-        }
-
-        public void Dispose()
-        {
-            Command.Dispose();
         }
 
         public void Insert(MsDataFile msDataFile)

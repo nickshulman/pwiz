@@ -7,9 +7,11 @@ namespace SkydbApi.DataApi
     public class PreparedStatement : IDisposable
     {
         private List<IDbCommand> _commands = new List<IDbCommand>();
+        private static HashSet<PreparedStatement> _statements = new HashSet<PreparedStatement>();
         public PreparedStatement(IDbConnection connection)
         {
             Connection = connection;
+            _statements.Add(this);
         }
 
         protected IDbConnection Connection { get; }
@@ -26,6 +28,16 @@ namespace SkydbApi.DataApi
             foreach (var command in _commands)
             {
                 command.Dispose();
+            }
+
+            _statements.Remove(this);
+        }
+
+        public static void DumpStatements()
+        {
+            foreach (var statement in _statements)
+            {
+                Console.Out.WriteLine(statement);
             }
         }
     }

@@ -1,5 +1,5 @@
 ﻿using System.Data;
-using Microsoft.Data.Sqlite;
+using System.Data.SQLite;
 using SkydbApi.Orm;
 
 namespace SkydbApi.DataApi
@@ -19,23 +19,20 @@ namespace SkydbApi.DataApi
 
         public string FilePath { get; }
 
-        public IDbConnection OpenConnection(SqliteOpenMode mode)
+        public IDbConnection OpenConnection()
         {
-            var connectionStringBuilder = new SqliteConnectionStringBuilder() {DataSource = FilePath};
-            connectionStringBuilder.Mode = mode;
-            var connection = new SqliteConnection(connectionStringBuilder.ToString());
-            connection.Open();
-            return connection;
-        }
+            var connectionStringBuilder = SqliteOperations.MakeConnectionStringBuilder(FilePath);
+            return new SQLiteConnection(connectionStringBuilder.ToString()).OpenAndReturn();
+}
 
         public SkydbWriter OpenWriter()
         {
-            return new SkydbWriter(OpenConnection(SqliteOpenMode.ReadWrite));
+            return new SkydbWriter(OpenConnection());
         }
 
         public SkydbReader OpenReader()
         {
-            return new SkydbReader(OpenConnection(SqliteOpenMode.ReadOnly));
+            return new SkydbReader(OpenConnection());
         }
     }
 }

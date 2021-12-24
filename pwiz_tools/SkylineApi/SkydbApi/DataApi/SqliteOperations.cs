@@ -21,9 +21,8 @@ using System.Collections.Generic;
 using System.Data;
 using System.Data.SQLite;
 using System.Linq;
-using pwiz.Common.Collections;
 
-namespace pwiz.Common.Database
+namespace SkydbApi.DataApi
 {
     public static class SqliteOperations
     {
@@ -39,6 +38,27 @@ namespace pwiz.Common.Database
                 }
             }
         }
+
+        /// <summary>
+        /// Returns a ConnectionStringBuilder with the datasource set to the specified path.  This method takes
+        /// care of the special settings needed to work with UNC paths.
+        /// </summary>
+        public static SQLiteConnectionStringBuilder MakeConnectionStringBuilder(string path)
+        {
+            // when SQLite parses the connection string, it treats backslash as an escape character
+            // This is not normally an issue, because backslashes followed by a non-reserved character
+            // are not treated specially.
+
+            // Also, in order to prevent a drive letter being prepended to UNC paths, we specify ToFullPath=false
+            return new SQLiteConnectionStringBuilder
+            {
+                // ReSharper disable LocalizableElement
+                DataSource = path.Replace("\\", "\\\\"),
+                // ReSharper restore LocalizableElement
+                ToFullPath = false,
+            };
+        }
+
 
         public static bool ColumnExists(IDbConnection connection, string tableName, string columnName)
         {

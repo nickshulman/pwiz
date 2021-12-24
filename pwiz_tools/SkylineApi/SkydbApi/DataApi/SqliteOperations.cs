@@ -19,7 +19,7 @@
 
 using System.Collections.Generic;
 using System.Data;
-using Microsoft.Data.Sqlite;
+using System.Data.SQLite;
 using System.Linq;
 using pwiz.Common.Collections;
 
@@ -32,7 +32,7 @@ namespace pwiz.Common.Database
             using (var cmd = connection.CreateCommand())
             {
                 cmd.CommandText = @"SELECT 1 FROM sqlite_master WHERE type='table' AND name=?";
-                cmd.Parameters.Add(new SqliteParameter { Value = tableName });
+                cmd.Parameters.Add(new SQLiteParameter { Value = tableName });
                 using (var reader = cmd.ExecuteReader())
                 {
                     return reader.Read();

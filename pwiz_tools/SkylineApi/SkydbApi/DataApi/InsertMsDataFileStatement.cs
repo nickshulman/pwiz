@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Data;
 using System.Data.SqlClient;
-using Microsoft.Data.Sqlite;
+using System.Data.SQLite;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -15,7 +15,7 @@ namespace SkydbApi.DataApi
         private static string COMMAND_TEXT = "INSERT INTO MsDataFile(FilePath) "
                                              + "VALUES(?); select last_insert_rowid();";
 
-        private SqliteParameter filePath;
+        private SQLiteParameter filePath;
 
         private IDbCommand Command { get; }
 
@@ -23,7 +23,7 @@ namespace SkydbApi.DataApi
         {
             Command = CreateCommand();
             Command.CommandText = COMMAND_TEXT;
-            Command.Parameters.Add(filePath = new SqliteParameter());
+            Command.Parameters.Add(filePath = new SQLiteParameter());
         }
 
         public void Insert(MsDataFile msDataFile)

@@ -1,26 +1,26 @@
 ﻿using System;
 using System.Data;
 using System.Data.Common;
-using Microsoft.Data.Sqlite;
+using System.Data.SQLite;
 using SkydbApi.Orm;
 
 namespace SkydbApi.DataApi
 {
     public class InsertCandidatePeakStatement : PreparedStatement
     {
-        private SqliteParameter candidatePeakGroup;
-        private SqliteParameter startTime;
-        private SqliteParameter endTime;
-        private SqliteParameter area;
-        private SqliteParameter backgroundArea;
-        private SqliteParameter height;
-        private SqliteParameter fullWidthAtHalfMax;
-        private SqliteParameter pointsAcross;
-        private SqliteParameter degenerateFwhm;
-        private SqliteParameter forcedIntegration;
-        private SqliteParameter timeNormalized;
-        private SqliteParameter truncated;
-        private SqliteParameter massError;
+        private SQLiteParameter candidatePeakGroup;
+        private SQLiteParameter startTime;
+        private SQLiteParameter endTime;
+        private SQLiteParameter area;
+        private SQLiteParameter backgroundArea;
+        private SQLiteParameter height;
+        private SQLiteParameter fullWidthAtHalfMax;
+        private SQLiteParameter pointsAcross;
+        private SQLiteParameter degenerateFwhm;
+        private SQLiteParameter forcedIntegration;
+        private SQLiteParameter timeNormalized;
+        private SQLiteParameter truncated;
+        private SQLiteParameter massError;
 
         private static string COMMAND_TEXT = "INSERT INTO CandidatePeak(CandidatePeakGroup, StartTime, EndTime, Area, BackgroundArea, "
                                              + "Height, FullWidthAtHalfMax, PointsAcross, DegenerateFwhm, ForcedIntegration, TimeNormalized, Truncated, MassError) "
@@ -31,19 +31,19 @@ namespace SkydbApi.DataApi
         {
             Command = CreateCommand();
             Command.CommandText = COMMAND_TEXT;
-            Command.Parameters.Add(candidatePeakGroup = new SqliteParameter());
-            Command.Parameters.Add(startTime = new SqliteParameter());
-            Command.Parameters.Add(endTime = new SqliteParameter());
-            Command.Parameters.Add(area = new SqliteParameter());
-            Command.Parameters.Add(backgroundArea = new SqliteParameter());
-            Command.Parameters.Add(height = new SqliteParameter());
-            Command.Parameters.Add(fullWidthAtHalfMax = new SqliteParameter());
-            Command.Parameters.Add(pointsAcross = new SqliteParameter());
-            Command.Parameters.Add(degenerateFwhm = new SqliteParameter());
-            Command.Parameters.Add(forcedIntegration = new SqliteParameter());
-            Command.Parameters.Add(timeNormalized = new SqliteParameter());
-            Command.Parameters.Add(truncated = new SqliteParameter());
-            Command.Parameters.Add(massError = new SqliteParameter());
+            Command.Parameters.Add(candidatePeakGroup = new SQLiteParameter());
+            Command.Parameters.Add(startTime = new SQLiteParameter());
+            Command.Parameters.Add(endTime = new SQLiteParameter());
+            Command.Parameters.Add(area = new SQLiteParameter());
+            Command.Parameters.Add(backgroundArea = new SQLiteParameter());
+            Command.Parameters.Add(height = new SQLiteParameter());
+            Command.Parameters.Add(fullWidthAtHalfMax = new SQLiteParameter());
+            Command.Parameters.Add(pointsAcross = new SQLiteParameter());
+            Command.Parameters.Add(degenerateFwhm = new SQLiteParameter());
+            Command.Parameters.Add(forcedIntegration = new SQLiteParameter());
+            Command.Parameters.Add(timeNormalized = new SQLiteParameter());
+            Command.Parameters.Add(truncated = new SQLiteParameter());
+            Command.Parameters.Add(massError = new SQLiteParameter());
         }
 
         public void Insert(CandidatePeak row)

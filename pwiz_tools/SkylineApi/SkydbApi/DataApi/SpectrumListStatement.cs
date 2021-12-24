@@ -1,6 +1,6 @@
 ﻿using System;
 using System.Data;
-using Microsoft.Data.Sqlite;
+using System.Data.SQLite;
 using SkydbApi.Orm;
 
 namespace SkydbApi.DataApi
@@ -8,14 +8,14 @@ namespace SkydbApi.DataApi
     public class SpectrumListStatement : PreparedStatement
     {
         private IDbCommand _insertCommand;
-        private SqliteParameter spectrumCount;
-        private SqliteParameter spectrumIndexData;
+        private SQLiteParameter spectrumCount;
+        private SQLiteParameter spectrumIndexData;
         public SpectrumListStatement(IDbConnection connection) : base(connection)
         {
             _insertCommand = CreateCommand();
             _insertCommand.CommandText = "INSERT INTO SpectrumList(SpectrumCount, SpectrumIndexData) values (?, ?)";
-            _insertCommand.Parameters.Add(spectrumCount = new SqliteParameter());
-            _insertCommand.Parameters.Add(spectrumIndexData = new SqliteParameter());
+            _insertCommand.Parameters.Add(spectrumCount = new SQLiteParameter());
+            _insertCommand.Parameters.Add(spectrumIndexData = new SQLiteParameter());
         }
 
         public void Insert(SpectrumList spectrumList)

@@ -18,7 +18,7 @@
  */
 
 using System;
-using Microsoft.Data.Sqlite;
+using System.Data.SQLite;
 using System.Reflection;
 using NHibernate;
 using NHibernate.Cfg;
@@ -58,14 +58,20 @@ namespace SkydbApi.DataApi
         /// Returns a ConnectionStringBuilder with the datasource set to the specified path.  This method takes
         /// care of the special settings needed to work with UNC paths.
         /// </summary>
-        public static SqliteConnectionStringBuilder SQLiteConnectionStringBuilderFromFilePath(string path)
+        public static SQLiteConnectionStringBuilder SQLiteConnectionStringBuilderFromFilePath(string path)
         {
             // when SQLite parses the connection string, it treats backslash as an escape character
             // This is not normally an issue, because backslashes followed by a non-reserved character
             // are not treated specially.
 
             // Also, in order to prevent a drive letter being prepended to UNC paths, we specify ToFullPath=false
-            return new SqliteConnectionStringBuilder() {DataSource = path};
+            return new SQLiteConnectionStringBuilder
+            {
+                // ReSharper disable LocalizableElement
+                DataSource = path.Replace("\\", "\\\\"),
+                // ReSharper restore LocalizableElement
+                ToFullPath = false,
+            };
         }
 
         public static Configuration ConfigureMappings(Configuration configuration, Type typeDb, string schemaFilename = DEFAULT_SCHEMA_FILENAME)

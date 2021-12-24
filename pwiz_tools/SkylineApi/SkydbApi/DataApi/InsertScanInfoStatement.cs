@@ -1,6 +1,6 @@
 ﻿using System;
 using System.Data;
-using System.Data.SQLite;
+using Microsoft.Data.Sqlite;
 using SkydbApi.Orm;
 
 namespace SkydbApi.DataApi
@@ -10,10 +10,10 @@ namespace SkydbApi.DataApi
         private static string COMMAND_TEXT = "INSERT INTO SpectrumInfo(MsDataFile, SpectrumIndex, SpectrumIdentifier, RetentionTime) "
                                              + "VALUES(?,?,?,?); select last_insert_rowid();";
 
-        private SQLiteParameter msDataFile;
-        private SQLiteParameter spectrumIndex;
-        private SQLiteParameter spectrumIdentifier;
-        private SQLiteParameter retentionTime;
+        private SqliteParameter msDataFile;
+        private SqliteParameter spectrumIndex;
+        private SqliteParameter spectrumIdentifier;
+        private SqliteParameter retentionTime;
 
         private IDbCommand Command { get; }
 
@@ -21,10 +21,10 @@ namespace SkydbApi.DataApi
         {
             Command = CreateCommand();
             Command.CommandText = COMMAND_TEXT;
-            Command.Parameters.Add(msDataFile = new SQLiteParameter());
-            Command.Parameters.Add(spectrumIndex = new SQLiteParameter());
-            Command.Parameters.Add(spectrumIdentifier = new SQLiteParameter());
-            Command.Parameters.Add(retentionTime = new SQLiteParameter());
+            Command.Parameters.Add(msDataFile = new SqliteParameter());
+            Command.Parameters.Add(spectrumIndex = new SqliteParameter());
+            Command.Parameters.Add(spectrumIdentifier = new SqliteParameter());
+            Command.Parameters.Add(retentionTime = new SqliteParameter());
         }
 
         public void Insert(SpectrumInfo spectrumInfo)

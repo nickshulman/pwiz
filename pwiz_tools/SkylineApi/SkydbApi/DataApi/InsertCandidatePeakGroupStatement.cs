@@ -1,6 +1,6 @@
 ﻿using System;
 using System.Data;
-using System.Data.SQLite;
+using Microsoft.Data.Sqlite;
 using SkydbApi.Orm;
 
 namespace SkydbApi.DataApi
@@ -10,18 +10,18 @@ namespace SkydbApi.DataApi
         private static string COMMAND_TEXT = "INSERT INTO CandidatePeakGroup(StartTime, EndTime, Identified) "
                                              + "VALUES(?,?,?); select last_insert_rowid();";
 
-        private SQLiteParameter startTime;
-        private SQLiteParameter endTime;
-        private SQLiteParameter identified;
+        private SqliteParameter startTime;
+        private SqliteParameter endTime;
+        private SqliteParameter identified;
 
 
         public InsertCandidatePeakGroupStatement(IDbConnection connection) : base(connection)
         {
             Command = CreateCommand();
             Command.CommandText = COMMAND_TEXT;
-            Command.Parameters.Add(startTime = new SQLiteParameter());
-            Command.Parameters.Add(endTime = new SQLiteParameter());
-            Command.Parameters.Add(identified = new SQLiteParameter());
+            Command.Parameters.Add(startTime = new SqliteParameter());
+            Command.Parameters.Add(endTime = new SqliteParameter());
+            Command.Parameters.Add(identified = new SqliteParameter());
         }
 
         private IDbCommand Command { get; }

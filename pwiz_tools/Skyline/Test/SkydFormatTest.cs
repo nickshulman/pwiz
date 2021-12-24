@@ -31,7 +31,7 @@ namespace pwiz.SkylineTest
                     testFilesDir.GetTestPath("Human_plasma.skyd"),
                     new ProgressStatus(),
                     new DefaultFileLoadMonitor(new SilentProgressMonitor()), false))
-                using (var skydbConnection = outputFile.OpenConnection())
+                using (var skydbConnection = outputFile.OpenWriter())
                 {
                     skydbConnection.SetUnsafeJournalMode();
                     skydbConnection.BeginTransaction();
@@ -43,13 +43,21 @@ namespace pwiz.SkylineTest
                     }
                     skydbConnection.CommitTransaction();
                 }
+
+                // using (var reader = outputFile.OpenReader())
+                // {
+                //     foreach (var entry in reader.GetTableSizes().OrderBy(kvp => kvp.Key))
+                //     {
+                //         Console.Out.WriteLine("{0}:{1:N0}", entry.Key, entry.Value);
+                //     }
+                // }
                 PreparedStatement.DumpStatements();
                 Console.Out.WriteLine("Elapsed time {0}", DateTime.UtcNow.Subtract(start).TotalMilliseconds);
                 Console.Out.WriteLine("File Size: {0}", new FileInfo(outputFile.FilePath).Length);
             }
         }
 
-        public void WriteFileData(SkydbConnection connection, ChromatogramCache cache, int fileIndex,
+        public void WriteFileData(SkydbWriter writer, ChromatogramCache cache, int fileIndex,
             IList<ChromGroupHeaderInfo> chromGroupHeaderInfos)
         {
             var chromCachedFile = cache.CachedFiles[fileIndex];
@@ -57,17 +65,17 @@ namespace pwiz.SkylineTest
             {
                 FilePath = chromCachedFile.FilePath.ToString()
             };
-            connection.GetInsertMsDataFileStatement().Insert(msDataFile);
+            writer.GetInsertMsDataFileStatement().Insert(msDataFile);
             var msDataFileScanIds = cache.LoadMSDataFileScanIds(fileIndex);
-            var scanInfos = WriteScanInfos(connection, cache, fileIndex, chromGroupHeaderInfos, msDataFile);
+            var scanInfos = WriteScanInfos(writer, cache, fileIndex, chromGroupHeaderInfos, msDataFile);
             var retentionTimeHashes = new Dictionary<Hash, long>();
             foreach (var groupHeader in chromGroupHeaderInfos)
             {
-                WriteChromatogramGroup(connection, cache, msDataFileScanIds, groupHeader, scanInfos, retentionTimeHashes);
+                WriteChromatogramGroup(writer, cache, msDataFileScanIds, groupHeader, scanInfos, retentionTimeHashes);
             }
         }
 
-        public Dictionary<Tuple<float, string>, int> WriteScanInfos(SkydbConnection connection, ChromatogramCache cache, int fileIndex, IEnumerable<ChromGroupHeaderInfo> chromGroupHeaderInfos, MsDataFile msDataFile)
+        public Dictionary<Tuple<float, string>, int> WriteScanInfos(SkydbWriter writer, ChromatogramCache cache, int fileIndex, IEnumerable<ChromGroupHeaderInfo> chromGroupHeaderInfos, MsDataFile msDataFile)
         {
             var msDataFileScanIds = cache.LoadMSDataFileScanIds(fileIndex);
             var scans = new HashSet<KeyValuePair<float, string>>();
@@ -106,7 +114,7 @@ namespace pwiz.SkylineTest
                     SpectrumIndex = scanNumber,
                 };
                 scanNumber++;
-                connection.GetInsertScanInfoStatement().Insert(scanInfo);
+                writer.GetInsertScanInfoStatement().Insert(scanInfo);
                 var key = Tuple.Create(scan.Key, scan.Value);
                 if (result.ContainsKey(key))
                 {
@@ -146,7 +154,7 @@ namespace pwiz.SkylineTest
             return indexes.Any();
         }
 
-        public void WriteChromatogramGroup(SkydbConnection connection,
+        public void WriteChromatogramGroup(SkydbWriter writer,
             ChromatogramCache cache, MsDataFileScanIds scanIds, ChromGroupHeaderInfo chromGroupHeaderInfo, Dictionary<Tuple<float, string>, int> scanInfos, IDictionary<Hash, long> retentionTimeHashes)
         {
             var peaks = cache.ReadPeaks(chromGroupHeaderInfo);
@@ -183,7 +191,7 @@ namespace pwiz.SkylineTest
                 {
                     peakGroup.Identified = (int) PeakIdentification.ALIGNED;
                 }
-                connection.GetInsertCandidatePeakGroupStatement().Insert(peakGroup);
+                writer.GetInsertCandidatePeakGroupStatement().Insert(peakGroup);
                 foreach (var peak in peakGroupPeaks)
                 {
                     var candidatePeak = new CandidatePeak
@@ -209,7 +217,7 @@ namespace pwiz.SkylineTest
                     {
                         candidatePeak.EndTime = peak.EndTime;
                     }
-                    connection.GetInsertCandidatePeakStatement().Insert(candidatePeak);
+                    writer.GetInsertCandidatePeakStatement().Insert(candidatePeak);
                 }
             }
             var timeIntensitiesGroup = cache.ReadTimeIntensities(chromGroupHeaderInfo);
@@ -240,14 +248,14 @@ namespace pwiz.SkylineTest
                             SpectrumCount = timeIntensities.NumPoints,
                             SpectrumIndexData = Compress(spectrumIndexBytes)
                         };
-                        connection.Insert(spectrumList);
+                        writer.Insert(spectrumList);
                     }
                     if (timeIntensities.MassErrors != null)
                     {
                         chromatogramData.MassErrorsData =
                             Compress(PrimitiveArrays.ToBytes(timeIntensities.MassErrors.ToArray()));
                     }
-                    connection.GetInsertChromatogramDataStatement().Insert(chromatogramData);
+                    writer.GetInsertChromatogramDataStatement().Insert(chromatogramData);
                     if (chromatogramData.RetentionTimesData != null)
                     {
                         retentionTimeHashes.Add(retentionTimeHash, chromatogramData.Id.Value);

@@ -31,14 +31,18 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
+    <Reference Include="Microsoft.Data.Sqlite, Version=6.0.0.0, Culture=neutral, PublicKeyToken=adb9793829ddae60, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\Shared\Lib\sqlite\Microsoft.Data.Sqlite.dll</HintPath>
+    </Reference>
     <Reference Include="NHibernate">
       <HintPath>..\..\..\..\sky_newskydformat\pwiz_tools\Shared\Lib\NHibernate\NHibernate.dll</HintPath>
     </Reference>
+    <Reference Include="SQLitePCLRaw.core">
+      <HintPath>..\..\Shared\Lib\sqlite\SQLitePCLRaw.core.dll</HintPath>
+    </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
-    <Reference Include="System.Data.SQLite">
-      <HintPath>..\..\..\..\sky_newskydformat\libraries\SQLite\x64\System.Data.SQLite.dll</HintPath>
-    </Reference>
     <Reference Include="System.Xml.Linq" />
     <Reference Include="System.Data.DataSetExtensions" />
     <Reference Include="Microsoft.CSharp" />
@@ -55,6 +59,8 @@
     <Compile Include="DataApi\PreparedStatement.cs" />
     <Compile Include="DataApi\SessionFactoryFactory.cs" />
     <Compile Include="DataApi\SkydbConnection.cs" />
+    <Compile Include="DataApi\SkydbReader.cs" />
+    <Compile Include="DataApi\SkydbWriter.cs" />
     <Compile Include="DataApi\SkydbFile.cs" />
     <Compile Include="DataApi\SpectrumListStatement.cs" />
     <Compile Include="DataApi\SqliteOperations.cs" />

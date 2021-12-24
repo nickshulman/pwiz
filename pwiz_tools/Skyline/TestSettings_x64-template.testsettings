@@ -43,6 +43,7 @@
     <DeploymentItem filename="..\Shared\Lib\Microsoft.VC140.CRT\x64\vcomp140.dll" outputDirectory="percolator" />
     <DeploymentItem filename="..\Shared\Lib\Microsoft.VC140.CRT\x64\msvcp140.dll" outputDirectory="percolator" />
     <DeploymentItem filename="..\Shared\Lib\Microsoft.VC140.CRT\x64\vcruntime140.dll" outputDirectory="percolator" />
+    <DeploymentItem filename="..\Shared\Lib\sqlite\SQLitePCLRaw.core.dll" />
     <DeploymentItem filename="percolator\xerces-c_3_1.dll" outputDirectory="percolator" />
     <DeploymentItem filename="modifications.xml" />
     <DeploymentItem filename="unimod.xml" />

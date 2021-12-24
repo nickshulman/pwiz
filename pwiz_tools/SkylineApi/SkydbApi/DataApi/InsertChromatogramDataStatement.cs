@@ -1,6 +1,6 @@
 ﻿using System;
 using System.Data;
-using System.Data.SQLite;
+using Microsoft.Data.Sqlite;
 using SkydbApi.Orm;
 
 namespace SkydbApi.DataApi
@@ -10,11 +10,11 @@ namespace SkydbApi.DataApi
         private static string COMMAND_TEXT = "INSERT INTO ChromatogramData(SpectrumList, PointCount, RetentionTimesData, IntensitiesData, MassErrorsData) "
                                              + "VALUES(?,?,?,?,?); select last_insert_rowid();";
 
-        private SQLiteParameter spectrumList;
-        private SQLiteParameter pointCount;
-        private SQLiteParameter retentionTimesData;
-        private SQLiteParameter intensitiesData;
-        private SQLiteParameter massErrorsData;
+        private SqliteParameter spectrumList;
+        private SqliteParameter pointCount;
+        private SqliteParameter retentionTimesData;
+        private SqliteParameter intensitiesData;
+        private SqliteParameter massErrorsData;
 
         private IDbCommand Command { get; }
 
@@ -22,11 +22,11 @@ namespace SkydbApi.DataApi
         {
             Command = CreateCommand();
             Command.CommandText = COMMAND_TEXT;
-            Command.Parameters.Add(spectrumList = new SQLiteParameter());
-            Command.Parameters.Add(pointCount = new SQLiteParameter());
-            Command.Parameters.Add(retentionTimesData = new SQLiteParameter());
-            Command.Parameters.Add(intensitiesData = new SQLiteParameter());
-            Command.Parameters.Add(massErrorsData = new SQLiteParameter());
+            Command.Parameters.Add(spectrumList = new SqliteParameter());
+            Command.Parameters.Add(pointCount = new SqliteParameter());
+            Command.Parameters.Add(retentionTimesData = new SqliteParameter());
+            Command.Parameters.Add(intensitiesData = new SqliteParameter());
+            Command.Parameters.Add(massErrorsData = new SqliteParameter());
         }
 
         public void Insert(ChromatogramData chromatogramData)

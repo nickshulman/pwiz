@@ -52,6 +52,7 @@
     <Compile Include="DataApi\InsertChromatogramDataStatement.cs" />
     <Compile Include="DataApi\InsertMsDataFileStatement.cs" />
     <Compile Include="DataApi\InsertScanInfoStatement.cs" />
+    <Compile Include="DataApi\InsertStatement.cs" />
     <Compile Include="DataApi\PreparedStatement.cs" />
     <Compile Include="DataApi\SessionFactoryFactory.cs" />
     <Compile Include="DataApi\SkydbConnection.cs" />
@@ -60,6 +61,7 @@
     <Compile Include="DataApi\SkydbFile.cs" />
     <Compile Include="DataApi\SpectrumListStatement.cs" />
     <Compile Include="DataApi\SqliteOperations.cs" />
+    <Compile Include="Orm\Attributes\ColumnAttribute.cs" />
     <Compile Include="Orm\CandidatePeakGroup.cs" />
     <Compile Include="Orm\ChromatogramData.cs" />
     <Compile Include="Orm\ChromatogramGroup.cs" />
@@ -80,5 +82,6 @@
   <ItemGroup>
     <EmbeddedResource Include="Orm\mapping.xml" />
   </ItemGroup>
+  <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

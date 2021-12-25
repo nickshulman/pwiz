@@ -9,12 +9,7 @@ namespace SkydbApi.DataApi
     public class SkydbWriter : SkydbConnection
     {
         private IDbTransaction _transaction;
-        private InsertCandidatePeakStatement _insertCandidatePeakStatement;
-        private InsertCandidatePeakGroupStatement _insertCandidatePeakGroupStatement;
-        private InsertChromatogramDataStatement _insertChromatogramDataStatement;
-        private InsertMsDataFileStatement _insertMsDataFileStatement;
-        private InsertSpectrumInfoStatement _insertSpectrumInfoStatement;
-        private SpectrumListStatement _spectrumListStatement;
+        private Dictionary<Type, PreparedStatement> _insertStatements = new Dictionary<Type, PreparedStatement>();
         public SkydbWriter(IDbConnection connection) : base(connection)
         {
         }
@@ -45,32 +40,29 @@ namespace SkydbApi.DataApi
         }
 
 
-        public InsertCandidatePeakStatement GetInsertCandidatePeakStatement()
+        public InsertStatement<CandidatePeak> GetInsertCandidatePeakStatement()
         {
-            return _insertCandidatePeakStatement =
-                _insertCandidatePeakStatement ?? RememberDisposable(new InsertCandidatePeakStatement(Connection));
+            return GetInsertStatement<CandidatePeak>();
         }
 
-        public InsertCandidatePeakGroupStatement GetInsertCandidatePeakGroupStatement()
+        public InsertStatement<CandidatePeakGroup> GetInsertCandidatePeakGroupStatement()
         {
-            return _insertCandidatePeakGroupStatement =
-                _insertCandidatePeakGroupStatement ?? RememberDisposable(new InsertCandidatePeakGroupStatement(Connection));
+            return GetInsertStatement<CandidatePeakGroup>();
         }
 
-        public InsertChromatogramDataStatement GetInsertChromatogramDataStatement()
+        public InsertStatement<ChromatogramData> GetInsertChromatogramDataStatement()
         {
-            return _insertChromatogramDataStatement =
-                _insertChromatogramDataStatement ?? RememberDisposable(new InsertChromatogramDataStatement(Connection));
+            return GetInsertStatement<ChromatogramData>();
         }
 
-        public InsertMsDataFileStatement GetInsertMsDataFileStatement()
+        public InsertStatement<MsDataFile> GetInsertMsDataFileStatement()
         {
-            return _insertMsDataFileStatement = _insertMsDataFileStatement ?? RememberDisposable(new InsertMsDataFileStatement(Connection));
+            return GetInsertStatement<MsDataFile>();
         }
 
-        public InsertSpectrumInfoStatement GetInsertScanInfoStatement()
+        public InsertStatement<SpectrumInfo> GetInsertScanInfoStatement()
         {
-            return _insertSpectrumInfoStatement = _insertSpectrumInfoStatement ?? RememberDisposable(new InsertSpectrumInfoStatement(Connection));
+            return GetInsertStatement<SpectrumInfo>();
         }
 
 
@@ -90,11 +82,22 @@ namespace SkydbApi.DataApi
             }
         }
 
-        public void Insert(SpectrumList spectrumList)
+        public void Insert<T>(T entity) where T : Entity
         {
-            _spectrumListStatement =
-                _spectrumListStatement ?? RememberDisposable(new SpectrumListStatement(Connection));
-            _spectrumListStatement.Insert(spectrumList);
+            GetInsertStatement<T>().Insert(entity);
+        }
+
+        private InsertStatement<T> GetInsertStatement<T>() where T : Entity
+        {
+            if (_insertStatements.TryGetValue(typeof(T), out PreparedStatement statement))
+            {
+                return (InsertStatement<T>) statement;
+            }
+
+            var insertStatement = new InsertStatement<T>(Connection);
+            RememberDisposable(insertStatement);
+            _insertStatements.Add(typeof(T), insertStatement);
+            return insertStatement;
         }
     }
 }

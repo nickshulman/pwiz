@@ -2010,9 +2010,6 @@
     </Compile>
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Content Include="SQLitePCLRaw.core.dll">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
     <EmbeddedResource Include="Alerts\AboutDlg.ja.resx">
       <DependentUpon>AboutDlg.cs</DependentUpon>
       <SubType>Designer</SubType>

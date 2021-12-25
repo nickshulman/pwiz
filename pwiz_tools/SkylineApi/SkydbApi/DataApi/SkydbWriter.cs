@@ -6,13 +6,16 @@ using SkydbApi.Orm;
 
 namespace SkydbApi.DataApi
 {
-    public class SkydbWriter : SkydbConnection
+    public class SkydbWriter : IDisposable
     {
         private IDbTransaction _transaction;
-        private Dictionary<Type, PreparedStatement> _insertStatements = new Dictionary<Type, PreparedStatement>();
-        public SkydbWriter(IDbConnection connection) : base(connection)
+        private Dictionary<Type, IDisposable> _insertStatements = new Dictionary<Type, IDisposable>();
+        public SkydbWriter(IDbConnection connection)
         {
+            Connection = connection;
         }
+
+        public IDbConnection Connection { get; }
 
         public void SetUnsafeJournalMode()
         {
@@ -63,15 +66,24 @@ namespace SkydbApi.DataApi
 
         private InsertStatement<T> GetInsertStatement<T>() where T : Entity
         {
-            if (_insertStatements.TryGetValue(typeof(T), out PreparedStatement statement))
+            if (_insertStatements.TryGetValue(typeof(T), out IDisposable statement))
             {
                 return (InsertStatement<T>) statement;
             }
 
             var insertStatement = new InsertStatement<T>(Connection);
-            RememberDisposable(insertStatement);
             _insertStatements.Add(typeof(T), insertStatement);
             return insertStatement;
+        }
+
+        public void Dispose()
+        {
+            foreach (var disposable in _insertStatements.Values)
+            {
+                disposable.Dispose();
+            }
+            _insertStatements.Clear();
+            Connection.Close();
         }
     }
 }

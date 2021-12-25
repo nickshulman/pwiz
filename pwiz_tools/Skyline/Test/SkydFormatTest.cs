@@ -27,8 +27,9 @@ namespace pwiz.SkylineTest
             {
                 DateTime start = DateTime.UtcNow;
                 var outputFile = SkydbFile.CreateNewSkydbFile(testFilesDir.GetTestPath("test.skydb"));
+                var inputFilePath = testFilesDir.GetTestPath("Human_plasma.skyd");
                 using (var chromatogramCache = ChromatogramCache.Load(
-                    testFilesDir.GetTestPath("Human_plasma.skyd"),
+                    inputFilePath,
                     new ProgressStatus(),
                     new DefaultFileLoadMonitor(new SilentProgressMonitor()), false))
                 using (var skydbConnection = outputFile.OpenWriter())
@@ -51,9 +52,9 @@ namespace pwiz.SkylineTest
                 //         Console.Out.WriteLine("{0}:{1:N0}", entry.Key, entry.Value);
                 //     }
                 // }
-                PreparedStatement.DumpStatements();
                 Console.Out.WriteLine("Elapsed time {0}", DateTime.UtcNow.Subtract(start).TotalMilliseconds);
-                Console.Out.WriteLine("File Size: {0}", new FileInfo(outputFile.FilePath).Length);
+                Console.Out.WriteLine("Input File Size: {0:N0}", new FileInfo(inputFilePath).Length);
+                Console.Out.WriteLine("Output File Size: {0:N0}", new FileInfo(outputFile.FilePath).Length);
             }
         }
 

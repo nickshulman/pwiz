@@ -48,7 +48,6 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="DataApi\InsertStatement.cs" />
-    <Compile Include="DataApi\PreparedStatement.cs" />
     <Compile Include="DataApi\SessionFactoryFactory.cs" />
     <Compile Include="DataApi\SkydbConnection.cs" />
     <Compile Include="DataApi\SkydbReader.cs" />

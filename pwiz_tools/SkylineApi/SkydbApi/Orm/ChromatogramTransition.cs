@@ -1,9 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using NHibernate.Mapping.Attributes;
+﻿using NHibernate.Mapping.Attributes;
 
 namespace SkydbApi.Orm
 {
@@ -21,7 +16,6 @@ namespace SkydbApi.Orm
         [Property]
         public virtual double? IonMobilityExtractionWidth { get; set; }
         [Property]
-
         public virtual int Source { get; set; }
     }
 }

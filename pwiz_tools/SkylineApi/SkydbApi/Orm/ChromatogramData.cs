@@ -11,8 +11,6 @@ namespace SkydbApi.Orm
         [Property]
         public virtual int PointCount { get; set; }
         [Property]
-        public virtual byte[] RetentionTimesData { get; set; }
-        [Property]
         public virtual byte[] IntensitiesData { get; set; }
         [Property]
         public virtual byte[] MassErrorsData { get; set; }

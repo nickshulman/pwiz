@@ -18,7 +18,6 @@
  */
 
 using System;
-using System.Data.SQLite;
 using System.Reflection;
 using NHibernate;
 using NHibernate.Cfg;

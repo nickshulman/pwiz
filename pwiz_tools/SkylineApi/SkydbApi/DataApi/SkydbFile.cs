@@ -1,5 +1,12 @@
-﻿using System.Data;
+﻿using System;
+using System.Data;
 using System.Data.SQLite;
+using System.Linq;
+using System.Text;
+using NHibernate;
+using NHibernate.Cfg;
+using NHibernate.Cfg.MappingSchema;
+using NHibernate.Mapping.Attributes;
 using SkydbApi.Orm;
 
 namespace SkydbApi.DataApi
@@ -12,7 +19,10 @@ namespace SkydbApi.DataApi
         }
         public static SkydbFile CreateNewSkydbFile(string path)
         {
-            var sessionFactory = SessionFactoryFactory.CreateSessionFactory(path, typeof(Entity), true);
+            var skydbFile = new SkydbFile(path);
+            var configuration = skydbFile.CreateConfiguration();
+            configuration.SetProperty(@"hbm2ddl.auto", @"create");
+            var sessionFactory = configuration.BuildSessionFactory();
             sessionFactory.Dispose();
             return new SkydbFile(path);
         }
@@ -33,6 +43,29 @@ namespace SkydbApi.DataApi
         public SkydbReader OpenReader()
         {
             return new SkydbReader(OpenConnection());
+        }
+
+        public Configuration CreateConfiguration()
+        {
+            Configuration configuration = new Configuration()
+                //.SetProperty("show_sql", "true")
+                //.SetProperty("generate_statistics", "true")
+                .SetProperty(@"dialect", typeof(NHibernate.Dialect.SQLiteDialect).AssemblyQualifiedName)
+                .SetProperty(@"connection.connection_string", SqliteOperations.MakeConnectionStringBuilder(FilePath).ToString())
+                .SetProperty(@"connection.driver_class",
+                    typeof(NHibernate.Driver.SQLite20Driver).AssemblyQualifiedName);
+            configuration.SetProperty(@"connection.provider",
+                typeof(NHibernate.Connection.DriverConnectionProvider).AssemblyQualifiedName);
+            var assembly = typeof(Entity).Assembly;
+            configuration.SetDefaultAssembly(assembly.FullName);
+            configuration.SetDefaultNamespace(typeof(Entity).Namespace);
+            var serializer = new HbmSerializer() {Validate = true, HbmNamespace = typeof(Entity).Namespace, HbmAssembly = assembly.FullName, };
+            using (var stream = serializer.Serialize(assembly))
+            {
+                configuration.AddInputStream(stream);
+            }
+            
+            return configuration;
         }
     }
 }

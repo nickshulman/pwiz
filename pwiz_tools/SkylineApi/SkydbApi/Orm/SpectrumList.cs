@@ -3,15 +3,16 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using SkydbApi.Orm.Attributes;
+using NHibernate.Mapping.Attributes;
 
 namespace SkydbApi.Orm
 {
-    public class SpectrumList : Entity
+    [Class]
+    public class SpectrumList : Entity<SpectrumList>
     {
-        [Column]
+        [Property]
         public virtual int SpectrumCount { get; set; }
-        [Column]
+        [Property]
         public virtual byte[] SpectrumIndexData { get; set; }
     }
 }

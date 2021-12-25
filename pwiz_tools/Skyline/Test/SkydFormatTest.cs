@@ -10,6 +10,7 @@ using pwiz.Skyline.Model;
 using pwiz.Skyline.Model.AuditLog;
 using pwiz.Skyline.Model.Results;
 using pwiz.Skyline.Model.Results.Scoring;
+using pwiz.Skyline.Model.Skydb;
 using pwiz.Skyline.Util.Extensions;
 using pwiz.SkylineTestUtil;
 using SkydbApi.DataApi;
@@ -26,23 +27,15 @@ namespace pwiz.SkylineTest
             using (var testFilesDir = new TestFilesDir(TestContext, @"Test\SkydFormatTest.zip"))
             {
                 DateTime start = DateTime.UtcNow;
-                var outputFile = SkydbFile.CreateNewSkydbFile(testFilesDir.GetTestPath("test.skydb"));
+                var outputFile = testFilesDir.GetTestPath("test.skydb");
                 var inputFilePath = testFilesDir.GetTestPath("Human_plasma.skyd");
                 using (var chromatogramCache = ChromatogramCache.Load(
                     inputFilePath,
                     new ProgressStatus(),
                     new DefaultFileLoadMonitor(new SilentProgressMonitor()), false))
-                using (var skydbConnection = outputFile.OpenWriter())
+                using (var converter = new SkydbConverter(chromatogramCache, outputFile))
                 {
-                    skydbConnection.SetUnsafeJournalMode();
-                    skydbConnection.BeginTransaction();
-                    skydbConnection.EnsureScores(chromatogramCache.ScoreTypes.Select(type => type.FullName));
-                    foreach (var grouping in chromatogramCache.ChromGroupHeaderInfos.GroupBy(header => header.FileIndex))
-                    {
-                        WriteFileData(skydbConnection, chromatogramCache, grouping.Key,
-                            grouping.ToList());
-                    }
-                    skydbConnection.CommitTransaction();
+                    converter.Convert();
                 }
 
                 // using (var reader = outputFile.OpenReader())
@@ -54,231 +47,7 @@ namespace pwiz.SkylineTest
                 // }
                 Console.Out.WriteLine("Elapsed time {0}", DateTime.UtcNow.Subtract(start).TotalMilliseconds);
                 Console.Out.WriteLine("Input File Size: {0:N0}", new FileInfo(inputFilePath).Length);
-                Console.Out.WriteLine("Output File Size: {0:N0}", new FileInfo(outputFile.FilePath).Length);
-            }
-        }
-
-        public void WriteFileData(SkydbWriter writer, ChromatogramCache cache, int fileIndex,
-            IList<ChromGroupHeaderInfo> chromGroupHeaderInfos)
-        {
-            var chromCachedFile = cache.CachedFiles[fileIndex];
-            var msDataFile = new MsDataFile
-            {
-                FilePath = chromCachedFile.FilePath.ToString()
-            };
-            writer.Insert(msDataFile);
-            var msDataFileScanIds = cache.LoadMSDataFileScanIds(fileIndex);
-            var scanInfos = WriteScanInfos(writer, cache, fileIndex, chromGroupHeaderInfos, msDataFile);
-            var retentionTimeHashes = new Dictionary<Hash, long>();
-            foreach (var groupHeader in chromGroupHeaderInfos)
-            {
-                WriteChromatogramGroup(writer, cache, msDataFileScanIds, groupHeader, scanInfos, retentionTimeHashes);
-            }
-        }
-
-        public Dictionary<Tuple<float, string>, int> WriteScanInfos(SkydbWriter writer, ChromatogramCache cache, int fileIndex, IEnumerable<ChromGroupHeaderInfo> chromGroupHeaderInfos, MsDataFile msDataFile)
-        {
-            var msDataFileScanIds = cache.LoadMSDataFileScanIds(fileIndex);
-            var scans = new HashSet<KeyValuePair<float, string>>();
-            foreach (var chromGroupHeaderInfo in chromGroupHeaderInfos)
-            {
-                var timeIntensitiesGroup = cache.ReadTimeIntensities(chromGroupHeaderInfo);
-                if (timeIntensitiesGroup == null)
-                {
-                    continue;
-                }
-
-                foreach (var timeIntensities in timeIntensitiesGroup.TransitionTimeIntensities)
-                {
-                    for (int i = 0; i < timeIntensities.NumPoints; i++)
-                    {
-                        string spectrumIdentifier = null;
-                        if (timeIntensities.ScanIds != null)
-                        {
-                            spectrumIdentifier = msDataFileScanIds?.GetMsDataFileSpectrumId(timeIntensities.ScanIds[i]);
-                        }
-                        scans.Add(new KeyValuePair<float, string>(timeIntensities.Times[i], spectrumIdentifier));
-                    }
-                }
-            }
-
-            var result = new Dictionary<Tuple<float, string>, int>();
-            int scanNumber = 0;
-            var orderedScans = scans.OrderBy(scan => Tuple.Create(scan.Key, scan.Value)).ToList();
-            foreach (var scan in orderedScans)
-            {
-                var scanInfo = new SpectrumInfo
-                {
-                    MsDataFile = msDataFile,
-                    RetentionTime = scan.Key,
-                    SpectrumIdentifier = scan.Value,
-                    SpectrumIndex = scanNumber,
-                };
-                scanNumber++;
-                writer.Insert(scanInfo);
-                var key = Tuple.Create(scan.Key, scan.Value);
-                if (result.ContainsKey(key))
-                {
-                    Assert.Fail("{0} is already present", key);
-                }
-                result.Add(key, scanInfo.SpectrumIndex);
-            }
-
-            return result;
-        }
-
-        public IEnumerable<string> GetScanIdentifiers(MsDataFileScanIds scanIds)
-        {
-            for (int i = 0;; i++)
-            {
-                string str;
-                try
-                {
-                    str = scanIds.GetMsDataFileSpectrumId(i);
-                }
-                catch (IndexOutOfRangeException)
-                {
-                    yield break;
-                }
-
-                yield return str;
-            }
-        }
-
-        public bool HasDuplicates(MsDataFileScanIds scanIds)
-        {
-            var identifiers = GetScanIdentifiers(scanIds).ToList();
-            var duplicateCounts = identifiers.GroupBy(str => str).Where(grouping => grouping.Count() > 1)
-                .ToDictionary(grouping => grouping.Key, grouping => grouping.Count());
-            var indexes = duplicateCounts.ToDictionary(kvp => kvp.Key,
-                kvp => Enumerable.Range(0, identifiers.Count).Where(i => kvp.Key == identifiers[i]).ToList());
-            return indexes.Any();
-        }
-
-        public void WriteChromatogramGroup(SkydbWriter writer,
-            ChromatogramCache cache, MsDataFileScanIds scanIds, ChromGroupHeaderInfo chromGroupHeaderInfo, Dictionary<Tuple<float, string>, int> scanInfos, IDictionary<Hash, long> retentionTimeHashes)
-        {
-            var peaks = cache.ReadPeaks(chromGroupHeaderInfo);
-            for (int iPeakGroup = 0; iPeakGroup < chromGroupHeaderInfo.NumPeaks; iPeakGroup++)
-            {
-                var peakGroupPeaks = Enumerable.Range(0, chromGroupHeaderInfo.NumTransitions)
-                    .Select(iTransition => peaks[iTransition & chromGroupHeaderInfo.NumPeaks + iPeakGroup]).ToList();
-                var peakGroup = new CandidatePeakGroup
-                {
-                };
-                foreach (var peak in peakGroupPeaks)
-                {
-                    if (peak.IsEmpty)
-                    {
-                        continue;
-                    }
-
-                    if (peakGroup.StartTime == null || peakGroup.StartTime > peak.StartTime)
-                    {
-                        peakGroup.StartTime = peak.StartTime;
-                    }
-
-                    if (peakGroup.EndTime == null || peakGroup.EndTime < peak.EndTime)
-                    {
-                        peakGroup.EndTime = peak.EndTime;
-                    }
-                }
-
-                if (peakGroupPeaks.Any(peak => peak.Identified == PeakIdentification.TRUE))
-                {
-                    peakGroup.Identified = (int) PeakIdentification.TRUE;
-                }
-                else if (peakGroupPeaks.Any(peak => peak.Identified == PeakIdentification.ALIGNED))
-                {
-                    peakGroup.Identified = (int) PeakIdentification.ALIGNED;
-                }
-                writer.Insert(peakGroup);
-                foreach (var peak in peakGroupPeaks)
-                {
-                    var candidatePeak = new CandidatePeak
-                    {
-                        CandidatePeakGroup = peakGroup,
-                        Area = peak.Area,
-                        BackgroundArea = peak.BackgroundArea,
-                        DegenerateFwhm = peak.IsFwhmDegenerate,
-                        ForcedIntegration = peak.IsForcedIntegration,
-                        FullWidthAtHalfMax = peak.Fwhm,
-                        Height = peak.Height,
-                        MassError = peak.MassError,
-                        PointsAcross = peak.PointsAcross,
-                        TimeNormalized = 0 != (peak.Flags & ChromPeak.FlagValues.time_normalized),
-                        Truncated = peak.IsTruncated
-                    };
-                    if (peak.StartTime != peakGroup.StartTime)
-                    {
-                        candidatePeak.StartTime = peak.StartTime;
-                    }
-
-                    if (peak.EndTime != peakGroup.EndTime)
-                    {
-                        candidatePeak.EndTime = peak.EndTime;
-                    }
-                    writer.Insert(candidatePeak);
-                }
-            }
-            var timeIntensitiesGroup = cache.ReadTimeIntensities(chromGroupHeaderInfo);
-            if (timeIntensitiesGroup != null)
-            {
-                for (int iTransition = 0; iTransition < chromGroupHeaderInfo.NumTransitions; iTransition++)
-                {
-                    var timeIntensities = timeIntensitiesGroup.TransitionTimeIntensities[iTransition];
-                    var spectrumIndexList = GetSpectrumIndexes(scanIds, scanInfos, timeIntensities).ToArray();
-                    var spectrumIndexBytes = PrimitiveArrays.ToBytes(spectrumIndexList);
-                    var retentionTimeHash = GetHashCode(spectrumIndexBytes);
-                    var chromatogramData = new ChromatogramData
-                    {
-                        PointCount = timeIntensities.NumPoints,
-                        IntensitiesData = Compress(PrimitiveArrays.ToBytes(timeIntensities.Intensities.ToArray())),
-                    };
-                    if (retentionTimeHashes.TryGetValue(retentionTimeHash, out long spectrumListId))
-                    {
-                        chromatogramData.SpectrumList = new SpectrumList
-                        {
-                            Id = spectrumListId
-                        };
-                    }
-                    else
-                    {
-                        var spectrumList = new SpectrumList
-                        {
-                            SpectrumCount = timeIntensities.NumPoints,
-                            SpectrumIndexData = Compress(spectrumIndexBytes)
-                        };
-                        writer.Insert(spectrumList);
-                    }
-                    if (timeIntensities.MassErrors != null)
-                    {
-                        chromatogramData.MassErrorsData =
-                            Compress(PrimitiveArrays.ToBytes(timeIntensities.MassErrors.ToArray()));
-                    }
-                    writer.Insert(chromatogramData);
-                    if (chromatogramData.RetentionTimesData != null)
-                    {
-                        retentionTimeHashes.Add(retentionTimeHash, chromatogramData.Id.Value);
-                    }
-                }
-            }
-        }
-
-        private IEnumerable<int> GetSpectrumIndexes(MsDataFileScanIds msDataFileScanIds,
-            Dictionary<Tuple<float, string>, int> scanInfos, TimeIntensities timeIntensities)
-        {
-            for (int i = 0; i < timeIntensities.NumPoints; i++)
-            {
-                string scanIdentifier = null;
-                if (timeIntensities.ScanIds != null)
-                {
-                    scanIdentifier = msDataFileScanIds?.GetMsDataFileSpectrumId(timeIntensities.ScanIds[i]);
-                }
-
-                var key = Tuple.Create(timeIntensities.Times[i], scanIdentifier);
-                Assert.IsTrue(scanInfos.TryGetValue(key, out int spectrumIndex), "Could not find spectrum {0}", key);
-                yield return spectrumIndex;
+                Console.Out.WriteLine("Output File Size: {0:N0}", new FileInfo(outputFile).Length);
             }
         }
 
@@ -290,20 +59,6 @@ namespace pwiz.SkylineTest
             {
                 Console.Out.WriteLine("{0}:{1}", version, CacheHeaderStruct.GetStructSize(version));
             }
-        }
-
-        private byte[] GetHashCode(byte[] bytes)
-        {
-            using (var sha1 = new SHA1CryptoServiceProvider())
-            {
-                return sha1.ComputeHash(bytes);
-            }
-        }
-
-        private byte[] Compress(byte[] bytes)
-        {
-            //return bytes;
-            return UtilDB.Compress(bytes);
         }
     }
 }

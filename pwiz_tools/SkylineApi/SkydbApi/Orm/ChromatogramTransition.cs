@@ -3,23 +3,24 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using SkydbApi.Orm.Attributes;
+using NHibernate.Mapping.Attributes;
 
 namespace SkydbApi.Orm
 {
-    public class TransitionChromatogram : Entity
+    [Class]
+    public class TransitionChromatogram : Entity<CandidatePeakGroup>
     {
-        [Column]
+        [ManyToOne(NotFound = NotFoundMode.Ignore)]
         public virtual ChromatogramGroup ChromatogramGroup { get; set; }
-        [Column]
+        [Property]
         public virtual double ProductMz { get; set; }
-        [Column]
+        [Property]
         public virtual double ExtractionWidth { get; set; }
-        [Column]
+        [Property]
         public virtual double? IonMobilityValue { get; set; }
-        [Column]
+        [Property]
         public virtual double? IonMobilityExtractionWidth { get; set; }
-        [Column]
+        [Property]
 
         public virtual int Source { get; set; }
     }

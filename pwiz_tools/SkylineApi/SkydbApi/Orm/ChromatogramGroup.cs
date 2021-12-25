@@ -3,15 +3,16 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using SkydbApi.Orm.Attributes;
+using NHibernate.Mapping.Attributes;
 
 namespace SkydbApi.Orm
 {
-    public class ChromatogramGroup : Entity
+    [Class]
+    public class ChromatogramGroup : Entity<CandidatePeakGroup>
     {
-        [Column]
+        [Property]
         public virtual string TextId { get; set; }
-        [Column]
+        [Property]
         public virtual double PrecursorMz { get; set; }
     }
 }

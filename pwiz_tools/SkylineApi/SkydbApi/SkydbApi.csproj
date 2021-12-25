@@ -34,6 +34,9 @@
     <Reference Include="NHibernate">
       <HintPath>..\..\..\..\sky_newskydformat\pwiz_tools\Shared\Lib\NHibernate\NHibernate.dll</HintPath>
     </Reference>
+    <Reference Include="NHibernate.Mapping.Attributes">
+      <HintPath>..\..\Shared\Lib\NHibernate\NHibernate.Mapping.Attributes.dll</HintPath>
+    </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
     <Reference Include="System.Data.SQLite">
@@ -47,6 +50,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="DataApi\InsertScoreStatement.cs" />
     <Compile Include="DataApi\InsertStatement.cs" />
     <Compile Include="DataApi\SessionFactoryFactory.cs" />
     <Compile Include="DataApi\SkydbConnection.cs" />
@@ -54,7 +58,6 @@
     <Compile Include="DataApi\SkydbWriter.cs" />
     <Compile Include="DataApi\SkydbFile.cs" />
     <Compile Include="DataApi\SqliteOperations.cs" />
-    <Compile Include="Orm\Attributes\ColumnAttribute.cs" />
     <Compile Include="Orm\CandidatePeakGroup.cs" />
     <Compile Include="Orm\ChromatogramData.cs" />
     <Compile Include="Orm\ChromatogramGroup.cs" />
@@ -71,9 +74,6 @@
       <Project>{13bf2ffb-50a1-4ab1-83a4-5733e36905ce}</Project>
       <Name>CommonUtil</Name>
     </ProjectReference>
-  </ItemGroup>
-  <ItemGroup>
-    <EmbeddedResource Include="Orm\mapping.xml" />
   </ItemGroup>
   <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

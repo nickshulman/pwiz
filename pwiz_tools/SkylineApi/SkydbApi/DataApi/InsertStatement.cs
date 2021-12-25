@@ -5,8 +5,8 @@ using System.Data.SQLite;
 using System.Linq;
 using System.Reflection;
 using System.Text;
+using NHibernate.Mapping.Attributes;
 using SkydbApi.Orm;
-using SkydbApi.Orm.Attributes;
 
 namespace SkydbApi.DataApi
 {
@@ -20,7 +20,7 @@ namespace SkydbApi.DataApi
             _command = connection.CreateCommand();
             var properties = ListColumnProperties().ToList();
             StringBuilder commandText = new StringBuilder("INSERT INTO " + typeof(T).Name + " (");
-            commandText.Append(string.Join(",", properties.Select(prop => prop.Name)));
+            commandText.Append(string.Join(",", properties.Select(prop => SqliteOperations.QuoteIdentifier(prop.Name))));
             commandText.Append(") VALUES (");
             commandText.Append(string.Join(",", properties.Select(prop => "?")));
             commandText.Append("); select last_insert_rowid();");
@@ -34,7 +34,7 @@ namespace SkydbApi.DataApi
             }
         }
 
-        public void Insert(T entity)
+        public virtual void Insert(T entity)
         {
             for (int iProperty = 0; iProperty < _parameters.Count; iProperty++)
             {
@@ -53,7 +53,9 @@ namespace SkydbApi.DataApi
 
         public static IEnumerable<PropertyInfo> ListColumnProperties()
         {
-            return typeof(T).GetProperties().Where(prop => null != prop.GetCustomAttribute<ColumnAttribute>());
+            return typeof(T).GetProperties().Where(prop =>
+                null != prop.GetCustomAttribute<PropertyAttribute>() ||
+                null != prop.GetCustomAttribute<ManyToOneAttribute>());
         }
 
         public void Dispose()

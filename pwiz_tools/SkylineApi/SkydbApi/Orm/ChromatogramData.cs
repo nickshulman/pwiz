@@ -1,19 +1,20 @@
 ﻿using System.Collections.Generic;
-using SkydbApi.Orm.Attributes;
+using NHibernate.Mapping.Attributes;
 
 namespace SkydbApi.Orm
 {
-    public class ChromatogramData : Entity
+    [Class]
+    public class ChromatogramData : Entity<CandidatePeakGroup>
     {
-        [Column]
+        [ManyToOne(NotFound = NotFoundMode.Ignore)]
         public virtual SpectrumList SpectrumList { get; set; }
-        [Column]
+        [Property]
         public virtual int PointCount { get; set; }
-        [Column]
+        [Property]
         public virtual byte[] RetentionTimesData { get; set; }
-        [Column]
+        [Property]
         public virtual byte[] IntensitiesData { get; set; }
-        [Column]
+        [Property]
         public virtual byte[] MassErrorsData { get; set; }
     }
 }

@@ -1,49 +1,53 @@
 ﻿
-using SkydbApi.Orm.Attributes;
+using NHibernate.Mapping.Attributes;
 
 namespace SkydbApi.Orm
 {
-    public class CandidatePeakGroup : Entity
+    [Class()]
+    public class CandidatePeakGroup : Entity<CandidatePeakGroup>
     {
-        [Column]
+        [ManyToOne(NotFound = NotFoundMode.Ignore)]
+        public virtual Scores Scores { get; set; }
+        [Property]
         public virtual double? StartTime { get; set; }
-        [Column]
+        [Property]
         public virtual double? EndTime { get; set; }
-        [Column]
+        [Property]
         public virtual int Identified { get; set; }
     }
 
-    public class CandidatePeak : Entity
+    [Class]
+    public class CandidatePeak : Entity<CandidatePeakGroup>
     {
-        [Column]
+        [ManyToOne(NotFound = NotFoundMode.Ignore)]
         public virtual CandidatePeakGroup CandidatePeakGroup { get; set; }
-        //[Column]
+        [ManyToOne(NotFound = NotFoundMode.Ignore)]
         public virtual TransitionChromatogram TransitionChromatogram { get; set; }
-        //[Column]
+        [ManyToOne(NotFound = NotFoundMode.Ignore)]
         public virtual Scores Scores { get; set; }
-        [Column]
+        [Property]
         public virtual double? StartTime { get; set; }
-        [Column]
+        [Property]
         public virtual double? EndTime { get; set; }
-        [Column]
+        [Property]
         public virtual double? Area { get; set; }
-        [Column]
+        [Property]
         public virtual double? BackgroundArea { get; set; }
-        [Column]
+        [Property]
         public virtual double? Height { get; set; }
-        [Column]
+        [Property]
         public virtual double? FullWidthAtHalfMax { get; set; }
-        [Column]
+        [Property]
         public virtual int? PointsAcross { get; set; }
-        [Column]
+        [Property]
         public virtual bool DegenerateFwhm { get; set; }
-        [Column]
+        [Property]
         public virtual bool ForcedIntegration { get; set; }
-        [Column]
+        [Property]
         public virtual bool TimeNormalized { get; set; }
-        [Column]
+        [Property]
         public virtual bool? Truncated { get; set; }
-        [Column]
+        [Property]
         public virtual double? MassError { get; set; }
     }
 }

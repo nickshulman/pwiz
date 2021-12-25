@@ -1,10 +1,11 @@
-﻿using SkydbApi.Orm.Attributes;
+﻿using NHibernate.Mapping.Attributes;
 
 namespace SkydbApi.Orm
 {
-    public class MsDataFile : Entity
+    [Class]
+    public class MsDataFile : Entity<MsDataFile>
     {
-        [Column]
+        [Property]
         public virtual string FilePath { get; set; }
     }
 }

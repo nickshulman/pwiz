@@ -2,20 +2,20 @@
 
 namespace SkydbApi.Orm
 {
-    [Class]
-    public class TransitionChromatogram : Entity<CandidatePeakGroup>
+    [Class(Lazy = false)]
+    public class TransitionChromatogram : Entity<TransitionChromatogram>
     {
         [ManyToOne(NotFound = NotFoundMode.Ignore)]
-        public virtual ChromatogramGroup ChromatogramGroup { get; set; }
+        public ChromatogramGroup ChromatogramGroup { get; set; }
         [Property]
-        public virtual double ProductMz { get; set; }
+        public double ProductMz { get; set; }
         [Property]
-        public virtual double ExtractionWidth { get; set; }
+        public double ExtractionWidth { get; set; }
         [Property]
-        public virtual double? IonMobilityValue { get; set; }
+        public double? IonMobilityValue { get; set; }
         [Property]
-        public virtual double? IonMobilityExtractionWidth { get; set; }
+        public double? IonMobilityExtractionWidth { get; set; }
         [Property]
-        public virtual int Source { get; set; }
+        public int Source { get; set; }
     }
 }

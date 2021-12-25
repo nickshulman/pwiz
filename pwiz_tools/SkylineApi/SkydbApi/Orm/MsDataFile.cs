@@ -2,7 +2,7 @@
 
 namespace SkydbApi.Orm
 {
-    [Class]
+    [Class(Lazy = false)]
     public class MsDataFile : Entity<MsDataFile>
     {
         [Property]

@@ -40,6 +40,7 @@ namespace SkydbApi.DataApi
         public void CommitTransaction()
         {
             _transaction.Commit();
+            _transaction = null;
         }
 
 

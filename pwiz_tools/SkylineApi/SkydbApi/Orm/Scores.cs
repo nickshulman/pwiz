@@ -7,12 +7,12 @@ using NHibernate.Mapping.Attributes;
 
 namespace SkydbApi.Orm
 {
-    [Class]
+    [Class(Lazy = false)]
     public class Scores : Entity<Scores>
     {
         private IDictionary<string, double> _scores;
 
-        public virtual double? GetScore(string name)
+        public double? GetScore(string name)
         {
             if (_scores != null && _scores.TryGetValue(name, out double score))
             {
@@ -22,7 +22,7 @@ namespace SkydbApi.Orm
             return null;
         }
 
-        public virtual void SetScore(string name, double score)
+        public void SetScore(string name, double score)
         {
             _scores = _scores ?? new Dictionary<string, double>();
             _scores[name] = score;

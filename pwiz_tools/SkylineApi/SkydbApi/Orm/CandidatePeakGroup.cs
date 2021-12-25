@@ -3,7 +3,7 @@ using NHibernate.Mapping.Attributes;
 
 namespace SkydbApi.Orm
 {
-    [Class()]
+    [Class(Lazy = false)]
     public class CandidatePeakGroup : Entity<CandidatePeakGroup>
     {
         [ManyToOne(NotFound = NotFoundMode.Ignore)]
@@ -20,15 +20,13 @@ namespace SkydbApi.Orm
         public virtual bool IsBestPeak { get; set; }
     }
 
-    [Class]
+    [Class(Lazy = false)]
     public class CandidatePeak : Entity<CandidatePeakGroup>
     {
         [ManyToOne(NotFound = NotFoundMode.Ignore)]
         public virtual CandidatePeakGroup CandidatePeakGroup { get; set; }
         [ManyToOne(NotFound = NotFoundMode.Ignore)]
         public virtual TransitionChromatogram TransitionChromatogram { get; set; }
-        [ManyToOne(NotFound = NotFoundMode.Ignore)]
-        public virtual Scores Scores { get; set; }
         [Property]
         public virtual double? StartTime { get; set; }
         [Property]

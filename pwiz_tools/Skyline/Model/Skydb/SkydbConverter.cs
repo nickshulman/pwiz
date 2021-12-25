@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Security.Cryptography;
-using NHibernate.Criterion;
 using pwiz.Common.Collections;
 using pwiz.Skyline.Model.AuditLog;
 using pwiz.Skyline.Model.Results;
@@ -29,7 +28,7 @@ namespace pwiz.Skyline.Model.Skydb
         public ChromatogramCache Source { get; }
         public string TargetFile { get; }
 
-        public void Convert()
+        public void Convert(int? fileIndex)
         {
             var skydbFile = SkydbFile.CreateNewSkydbFile(TargetFile);
             _skydbWriter = skydbFile.OpenWriter();
@@ -38,9 +37,16 @@ namespace pwiz.Skyline.Model.Skydb
             _scoreNames = Source.ScoreTypes.Select(type => type.FullName).ToList();
             _skydbWriter.EnsureScores(_scoreNames);
             _insertScoreStatement = new InsertScoresStatement(_skydbWriter.Connection, _scoreNames);
-            foreach (var grouping in Source.ChromGroupHeaderInfos.GroupBy(header => header.FileIndex))
+            if (fileIndex.HasValue)
             {
-                WriteFileData(grouping.Key, grouping.ToList());
+                WriteFileData(fileIndex.Value, Source.ChromGroupHeaderInfos.Where(group=>group.FileIndex == fileIndex.Value).ToList());
+            }
+            else
+            {
+                foreach (var grouping in Source.ChromGroupHeaderInfos.GroupBy(header => header.FileIndex))
+                {
+                    WriteFileData(grouping.Key, grouping.ToList());
+                }
             }
             _skydbWriter.CommitTransaction();
         }
@@ -65,7 +71,7 @@ namespace pwiz.Skyline.Model.Skydb
             var scores = new Dictionary<Tuple<int, int>, long>();
             foreach (var groupHeader in chromGroupHeaderInfos)
             {
-                WriteChromatogramGroup(msDataFileScanIds, groupHeader, scanInfos, retentionTimeHashes, scores);
+                WriteChromatogramGroup(msDataFileScanIds, groupHeader, msDataFile, scanInfos, retentionTimeHashes, scores);
             }
         }
 
@@ -126,6 +132,7 @@ namespace pwiz.Skyline.Model.Skydb
                     MsDataFile = msDataFile,
                     RetentionTime = scan.Item1,
                     SpectrumIndex = scanNumber,
+                    
                 };
                 scanInfo.SetSpectrumIdentifier(scan.Item2);
                 scanNumber++;
@@ -140,10 +147,11 @@ namespace pwiz.Skyline.Model.Skydb
             return result;
         }
 
-        public void WriteChromatogramGroup(MsDataFileScanIds scanIds, ChromGroupHeaderInfo chromGroupHeaderInfo, Dictionary<Tuple<float, string>, int> scanInfos, IDictionary<Hash, long> retentionTimeHashes, IDictionary<Tuple<int, int>, long> scoreDictionary)
+        public void WriteChromatogramGroup(MsDataFileScanIds scanIds, ChromGroupHeaderInfo chromGroupHeaderInfo, MsDataFile msDataFile, Dictionary<Tuple<float, string>, int> scanInfos, IDictionary<Hash, long> retentionTimeHashes, IDictionary<Tuple<int, int>, long> scoreDictionary)
         {
             var chromatogramGroup = new ChromatogramGroup()
             {
+                MaDataFile = msDataFile,
                 StartTime = chromGroupHeaderInfo.StartTime,
                 EndTime = chromGroupHeaderInfo.EndTime,
                 PrecursorMz = chromGroupHeaderInfo.Precursor,

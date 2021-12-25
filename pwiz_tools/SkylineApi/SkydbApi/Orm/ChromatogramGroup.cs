@@ -7,16 +7,18 @@ using NHibernate.Mapping.Attributes;
 
 namespace SkydbApi.Orm
 {
-    [Class]
+    [Class(Lazy = false)]
     public class ChromatogramGroup : Entity<ChromatogramGroup>
     {
+        [ManyToOne(NotFound = NotFoundMode.Ignore)]
+        public MsDataFile MaDataFile { get; set; }
         [Property]
-        public virtual string TextId { get; set; }
+        public string TextId { get; set; }
         [Property]
-        public virtual double PrecursorMz { get; set; }
+        public double PrecursorMz { get; set; }
         [Property]
-        public virtual double? StartTime { get; set; }
+        public double? StartTime { get; set; }
         [Property]
-        public virtual double? EndTime { get; set; }
+        public double? EndTime { get; set; }
     }
 }

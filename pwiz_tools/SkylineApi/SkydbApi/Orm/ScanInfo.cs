@@ -8,25 +8,25 @@ using NHibernate.Mapping.Attributes;
 
 namespace SkydbApi.Orm
 {
-    [Class]
+    [Class(Lazy = false)]
     public class SpectrumInfo : Entity<SpectrumInfo>
     {
         [ManyToOne(NotFound = NotFoundMode.Ignore)]
-        public virtual MsDataFile MsDataFile { get; set; }
+        public MsDataFile MsDataFile { get; set; }
         [Property]
-        public virtual int SpectrumIndex { get; set; }
+        public int SpectrumIndex { get; set; }
         [Property]
-        public virtual int? SpectrumId1 { get; set; }
+        public int? SpectrumId1 { get; set; }
         [Property]
-        public virtual int? SpectrumId2 { get; set; }
+        public int? SpectrumId2 { get; set; }
         [Property]
-        public virtual int? SpectrumId3 { get; set; }
+        public int? SpectrumId3 { get; set; }
         [Property]
-        public virtual int? SpectrumId4 { get; set; }
+        public int? SpectrumId4 { get; set; }
         [Property]
-        public virtual string SpectrumIdentifierText { get; set; }
+        public string SpectrumIdentifierText { get; set; }
         [Property]
-        public virtual double RetentionTime { get; set; }
+        public double RetentionTime { get; set; }
 
         public virtual string GetSpectrumIdentifier()
         {
@@ -40,7 +40,7 @@ namespace SkydbApi.Orm
                     .Select(part => part.Value.ToString(CultureInfo.InvariantCulture)));
         }
 
-        public virtual void SetSpectrumIdentifier(string spectrumIdentifier)
+        public void SetSpectrumIdentifier(string spectrumIdentifier)
         {
             SpectrumId1 = SpectrumId2 = SpectrumId3 = SpectrumId4 = null;
             SpectrumIdentifierText = null;

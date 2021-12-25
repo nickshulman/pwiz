@@ -1,12 +1,15 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using NHibernate.UserTypes;
 using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Model;
 using pwiz.Skyline.Model.Results;
 using pwiz.Skyline.Model.Skydb;
 using pwiz.SkylineTestUtil;
+using SkydbApi.DataApi;
 
 namespace pwiz.SkylineTest
 {
@@ -31,7 +34,7 @@ namespace pwiz.SkylineTest
                 using (var converter = new SkydbConverter(chromatogramCache, outputFile))
                 {
                     DumpStatistics(chromatogramCache);
-                    converter.Convert();
+                    converter.Convert(null);
                 }
 
                 // using (var reader = outputFile.OpenReader())
@@ -47,6 +50,66 @@ namespace pwiz.SkylineTest
                 Console.Out.WriteLine("File size difference: {0:N0}", new FileInfo(outputFile).Length - new FileInfo(inputFilePath).Length);
             }
         }
+
+        [TestMethod]
+        public void TestSkydbJoiner()
+        {
+            using (var testFilesDir = new TestFilesDir(TestContext, @"Test\SkydFormatTest.zip"))
+            {
+                DateTime start = DateTime.UtcNow;
+                var inputFilePath = testFilesDir.GetTestPath("Bruder3Proteins.skyd");
+                //var inputFilePath = testFilesDir.GetTestPath("Human_plasma.skyd");
+                //var inputFilePath = @"D:\skydata\20150501_Bruderer\delayloadingpeaks\delay.skyd";
+                //var inputFilePath = @"D:\skydata\20140318_Hasmik_QE_DIA\Study9_2_Curve_DIA_QE_5trans_withSpLib_Jan2014\Study9_2_Curve_DIA_QE_5trans_withSpLib_Jan2014.skyd";
+                // var inputFilePath = @"D:\skydata\20150501_Bruderer\3Proteins_delayloadingpeaks\Bruder3Proteins.skyd";
+                List<string> partFiles = new List<string>();
+                using (var chromatogramCache = ChromatogramCache.Load(
+                    inputFilePath,
+                    new ProgressStatus(),
+                    new DefaultFileLoadMonitor(new SilentProgressMonitor()), false))
+                {
+                    partFiles.AddRange(Enumerable.Range(0, chromatogramCache.CachedFiles.Count)
+                        .Select(iPart => testFilesDir.GetTestPath("part" + iPart + ".skydb")));
+                    ParallelEx.For(0, chromatogramCache.CachedFiles.Count(), iPart =>
+                    {
+                        using (var converter = new SkydbConverter(chromatogramCache, partFiles[iPart]))
+                        {
+                            converter.Convert(iPart);
+                        }
+                    });
+                }
+
+                var outputFile = testFilesDir.GetTestPath("joined.skydb");
+                using (var writer = SkydbFile.CreateNewSkydbFile(outputFile).OpenWriter())
+                {
+                    writer.SetUnsafeJournalMode();
+                    foreach (string partFile in partFiles)
+                    {
+                        writer.BeginTransaction();
+                        var inputFile = new SkydbFile(partFile);
+                        using (var inputConnection = inputFile.OpenConnection())
+                        {
+                            //statelessSession.SetBatchSize(1000);
+                            var joiner = new SkydbJoiner(writer, inputConnection);
+                            joiner.JoinFiles();
+                        }
+                        writer.CommitTransaction();
+                    }
+                }
+                // using (var reader = outputFile.OpenReader())
+                // {
+                //     foreach (var entry in reader.GetTableSizes().OrderBy(kvp => kvp.Key))
+                //     {
+                //         Console.Out.WriteLine("{0}:{1:N0}", entry.Key, entry.Value);
+                //     }
+                // }
+                Console.Out.WriteLine("Elapsed time {0}", DateTime.UtcNow.Subtract(start).TotalMilliseconds);
+                Console.Out.WriteLine("Input File Size: {0:N0}", new FileInfo(inputFilePath).Length);
+                Console.Out.WriteLine("Output File Size: {0:N0}", new FileInfo(outputFile).Length);
+                Console.Out.WriteLine("File size difference: {0:N0}", new FileInfo(outputFile).Length - new FileInfo(inputFilePath).Length);
+            }
+        }
+
 
         [TestMethod]
         public void TestSkydHeaderSizes()

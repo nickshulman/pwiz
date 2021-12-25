@@ -3,8 +3,8 @@ using NHibernate.Mapping.Attributes;
 
 namespace SkydbApi.Orm
 {
-    [Class]
-    public class ChromatogramData : Entity<CandidatePeakGroup>
+    [Class(Lazy = false)]
+    public class ChromatogramData : Entity<ChromatogramData>
     {
         [ManyToOne(NotFound = NotFoundMode.Ignore)]
         public virtual SpectrumList SpectrumList { get; set; }

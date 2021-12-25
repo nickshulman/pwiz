@@ -1,11 +1,8 @@
 ﻿using System;
 using System.Data;
 using System.Data.SQLite;
-using System.Linq;
-using System.Text;
 using NHibernate;
 using NHibernate.Cfg;
-using NHibernate.Cfg.MappingSchema;
 using NHibernate.Mapping.Attributes;
 using SkydbApi.Orm;
 
@@ -20,11 +17,9 @@ namespace SkydbApi.DataApi
         public static SkydbFile CreateNewSkydbFile(string path)
         {
             var skydbFile = new SkydbFile(path);
-            var configuration = skydbFile.CreateConfiguration();
-            configuration.SetProperty(@"hbm2ddl.auto", @"create");
-            var sessionFactory = configuration.BuildSessionFactory();
+            var sessionFactory = skydbFile.CreateSessionFactory(true);
             sessionFactory.Dispose();
-            return new SkydbFile(path);
+            return skydbFile;
         }
 
         public string FilePath { get; }
@@ -33,19 +28,24 @@ namespace SkydbApi.DataApi
         {
             var connectionStringBuilder = SqliteOperations.MakeConnectionStringBuilder(FilePath);
             return new SQLiteConnection(connectionStringBuilder.ToString()).OpenAndReturn();
-}
+        }
 
         public SkydbWriter OpenWriter()
         {
             return new SkydbWriter(OpenConnection());
         }
 
-        public SkydbReader OpenReader()
+        public ISessionFactory CreateSessionFactory(bool createDatabase)
         {
-            return new SkydbReader(OpenConnection());
+            var configuration = CreateConfiguration();
+            if (createDatabase)
+            {
+                configuration.SetProperty(@"hbm2ddl.auto", @"create");
+            }
+            return configuration.BuildSessionFactory();
         }
 
-        public Configuration CreateConfiguration()
+        private Configuration CreateConfiguration()
         {
             Configuration configuration = new Configuration()
                 //.SetProperty("show_sql", "true")

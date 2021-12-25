@@ -1,15 +1,18 @@
-﻿using NHibernate.Mapping.Attributes;
+﻿using System.Reflection;
+using NHibernate.Mapping.Attributes;
 
 namespace SkydbApi.Orm
 {
-    [Class]
+    [Class(Lazy = false)]
     public class SpectrumList : Entity<SpectrumList>
     {
+        [ManyToOne(NotFound = NotFoundMode.Ignore)]
+        public MsDataFile MsDataFile { get; set; }
         [Property]
-        public virtual int SpectrumCount { get; set; }
+        public int SpectrumCount { get; set; }
         [Property]
-        public virtual byte[] SpectrumIndexData { get; set; }
+        public byte[] SpectrumIndexData { get; set; }
         [Property]
-        public virtual byte[] RetentionTimeData { get; set; }
+        public byte[] RetentionTimeData { get; set; }
     }
 }

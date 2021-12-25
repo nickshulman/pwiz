@@ -15,7 +15,7 @@ namespace SkydbApi.DataApi
     public class InsertStatement<T> : PreparedStatement where T:Entity
     {
         protected IDbCommand _command;
-        protected List<Tuple<PropertyInfo, SQLiteParameter>> _parameters;
+        protected List<PropertyInfo> _parameters;
 
         public InsertStatement(IDbConnection connection) : base(connection)
         {
@@ -27,25 +27,27 @@ namespace SkydbApi.DataApi
             commandText.Append(string.Join(",", properties.Select(prop => "?")));
             commandText.Append("); select last_insert_rowid();");
             _command.CommandText = commandText.ToString();
-            _parameters = new List<Tuple<PropertyInfo, SQLiteParameter>>();
+            _parameters = new List<PropertyInfo>();
             foreach (var property in properties)
             {
                 var sqliteParameter = new SQLiteParameter();
-                _parameters.Add(Tuple.Create(property, sqliteParameter));
+                _parameters.Add(property);
                 _command.Parameters.Add(sqliteParameter);
             }
         }
 
         public void Insert(T entity)
         {
-            foreach (var tuple in _parameters)
+            for (int iProperty = 0; iProperty < _parameters.Count; iProperty++)
             {
-                object value = tuple.Item1.GetValue(entity);
+                var propertyInfo = _parameters[iProperty];
+                object value = propertyInfo.GetValue(entity);
                 if (value is Entity foreignKey)
                 {
                     value = foreignKey.Id;
                 }
-                tuple.Item2.Value = value;
+
+                ((SQLiteParameter) _command.Parameters[iProperty]).Value = value;
             }
 
             entity.Id = Convert.ToInt64(_command.ExecuteScalar());

@@ -65,7 +65,7 @@ namespace pwiz.SkylineTest
             {
                 FilePath = chromCachedFile.FilePath.ToString()
             };
-            writer.GetInsertMsDataFileStatement().Insert(msDataFile);
+            writer.Insert(msDataFile);
             var msDataFileScanIds = cache.LoadMSDataFileScanIds(fileIndex);
             var scanInfos = WriteScanInfos(writer, cache, fileIndex, chromGroupHeaderInfos, msDataFile);
             var retentionTimeHashes = new Dictionary<Hash, long>();
@@ -114,7 +114,7 @@ namespace pwiz.SkylineTest
                     SpectrumIndex = scanNumber,
                 };
                 scanNumber++;
-                writer.GetInsertScanInfoStatement().Insert(scanInfo);
+                writer.Insert(scanInfo);
                 var key = Tuple.Create(scan.Key, scan.Value);
                 if (result.ContainsKey(key))
                 {
@@ -191,7 +191,7 @@ namespace pwiz.SkylineTest
                 {
                     peakGroup.Identified = (int) PeakIdentification.ALIGNED;
                 }
-                writer.GetInsertCandidatePeakGroupStatement().Insert(peakGroup);
+                writer.Insert(peakGroup);
                 foreach (var peak in peakGroupPeaks)
                 {
                     var candidatePeak = new CandidatePeak
@@ -217,7 +217,7 @@ namespace pwiz.SkylineTest
                     {
                         candidatePeak.EndTime = peak.EndTime;
                     }
-                    writer.GetInsertCandidatePeakStatement().Insert(candidatePeak);
+                    writer.Insert(candidatePeak);
                 }
             }
             var timeIntensitiesGroup = cache.ReadTimeIntensities(chromGroupHeaderInfo);
@@ -255,7 +255,7 @@ namespace pwiz.SkylineTest
                         chromatogramData.MassErrorsData =
                             Compress(PrimitiveArrays.ToBytes(timeIntensities.MassErrors.ToArray()));
                     }
-                    writer.GetInsertChromatogramDataStatement().Insert(chromatogramData);
+                    writer.Insert(chromatogramData);
                     if (chromatogramData.RetentionTimesData != null)
                     {
                         retentionTimeHashes.Add(retentionTimeHash, chromatogramData.Id.Value);

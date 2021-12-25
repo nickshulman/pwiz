@@ -40,32 +40,6 @@ namespace SkydbApi.DataApi
         }
 
 
-        public InsertStatement<CandidatePeak> GetInsertCandidatePeakStatement()
-        {
-            return GetInsertStatement<CandidatePeak>();
-        }
-
-        public InsertStatement<CandidatePeakGroup> GetInsertCandidatePeakGroupStatement()
-        {
-            return GetInsertStatement<CandidatePeakGroup>();
-        }
-
-        public InsertStatement<ChromatogramData> GetInsertChromatogramDataStatement()
-        {
-            return GetInsertStatement<ChromatogramData>();
-        }
-
-        public InsertStatement<MsDataFile> GetInsertMsDataFileStatement()
-        {
-            return GetInsertStatement<MsDataFile>();
-        }
-
-        public InsertStatement<SpectrumInfo> GetInsertScanInfoStatement()
-        {
-            return GetInsertStatement<SpectrumInfo>();
-        }
-
-
         public void EnsureScores(IEnumerable<string> scoreNames)
         {
             var namesToAdd = scoreNames.Except(SqliteOperations.ListColumnNames(Connection, "Scores")).ToList();

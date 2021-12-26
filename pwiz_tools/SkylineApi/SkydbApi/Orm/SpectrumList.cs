@@ -11,8 +11,8 @@ namespace SkydbApi.Orm
         [Property]
         public int SpectrumCount { get; set; }
         [Property]
-        public byte[] SpectrumIndexData { get; set; }
+        public byte[] SpectrumIndexBlob { get; set; }
         [Property]
-        public byte[] RetentionTimeData { get; set; }
+        public byte[] RetentionTimeBlob { get; set; }
     }
 }

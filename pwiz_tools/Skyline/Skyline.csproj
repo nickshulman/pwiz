@@ -615,6 +615,7 @@
       <DependentUpon>FeatureTooltips.resx</DependentUpon>
     </Compile>
     <Compile Include="Model\Results\Scoring\AutoTrainManager.cs" />
+    <Compile Include="Model\Skydb\LegacyChromatogramCache.cs" />
     <Compile Include="Model\Skydb\SkydbConverter.cs" />
     <Compile Include="Properties\Resources.Designer.cs">
       <AutoGen>True</AutoGen>

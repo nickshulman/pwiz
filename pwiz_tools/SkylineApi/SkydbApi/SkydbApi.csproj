@@ -31,6 +31,9 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
+    <Reference Include="DotNetZip">
+      <HintPath>..\..\Shared\Lib\DotNetZip\DotNetZip.dll</HintPath>
+    </Reference>
     <Reference Include="NHibernate">
       <HintPath>..\..\..\..\sky_newskydformat\pwiz_tools\Shared\Lib\NHibernate\NHibernate.dll</HintPath>
     </Reference>
@@ -50,11 +53,14 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="ChromatogramData\DataUtil.cs" />
+    <Compile Include="ChromatogramData\HashCode.cs" />
+    <Compile Include="ChromatogramData\IChromatogramData.cs" />
     <Compile Include="DataApi\EntityIdMap.cs" />
     <Compile Include="DataApi\InsertScoreStatement.cs" />
     <Compile Include="DataApi\InsertStatement.cs" />
-    <Compile Include="DataApi\SessionFactoryFactory.cs" />
     <Compile Include="DataApi\SkydbConnection.cs" />
+    <Compile Include="DataApi\MsDataSourceFileWriter.cs" />
     <Compile Include="DataApi\SkydbJoiner.cs" />
     <Compile Include="DataApi\SkydbWriter.cs" />
     <Compile Include="DataApi\SkydbFile.cs" />

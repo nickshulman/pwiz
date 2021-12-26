@@ -7,6 +7,8 @@ namespace SkydbApi.Orm
     {
         [ManyToOne(NotFound = NotFoundMode.Ignore)]
         public ChromatogramGroup ChromatogramGroup { get; set; }
+        [ManyToOne(NotFound = NotFoundMode.Ignore)]
+        public ChromatogramData ChromatogramData { get; set; }
         [Property]
         public double ProductMz { get; set; }
         [Property]

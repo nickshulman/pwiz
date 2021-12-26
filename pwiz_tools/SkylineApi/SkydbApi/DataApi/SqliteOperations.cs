@@ -20,7 +20,6 @@
 using System.Collections.Generic;
 using System.Data;
 using System.Data.SQLite;
-using System.Linq;
 
 namespace SkydbApi.DataApi
 {
@@ -40,7 +39,7 @@ namespace SkydbApi.DataApi
         }
 
         /// <summary>
-        /// Returns a ConnectionStringBuilder with the datasource set to the specified path.  This method takes
+        /// Returns a ConnectionStringBuilder with the DataSource set to the specified path.  This method takes
         /// care of the special settings needed to work with UNC paths.
         /// </summary>
         public static SQLiteConnectionStringBuilder MakeConnectionStringBuilder(string path)
@@ -55,14 +54,8 @@ namespace SkydbApi.DataApi
                 // ReSharper disable LocalizableElement
                 DataSource = path.Replace("\\", "\\\\"),
                 // ReSharper restore LocalizableElement
-                ToFullPath = false,
+                ToFullPath = false
             };
-        }
-
-
-        public static bool ColumnExists(IDbConnection connection, string tableName, string columnName)
-        {
-            return ListColumnNames(connection, tableName).Contains(columnName);
         }
 
         public static IEnumerable<string> ListColumnNames(IDbConnection connection, string tableName)

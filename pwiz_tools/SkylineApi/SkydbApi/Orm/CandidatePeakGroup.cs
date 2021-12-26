@@ -46,8 +46,6 @@ namespace SkydbApi.Orm
         [Property]
         public virtual bool ForcedIntegration { get; set; }
         [Property]
-        public virtual bool TimeNormalized { get; set; }
-        [Property]
         public virtual bool? Truncated { get; set; }
         [Property]
         public virtual double? MassError { get; set; }

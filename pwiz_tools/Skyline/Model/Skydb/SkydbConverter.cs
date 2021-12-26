@@ -8,6 +8,7 @@ using pwiz.Skyline.Model.Results;
 using pwiz.Skyline.Model.Results.Scoring;
 using pwiz.Skyline.Util;
 using pwiz.Skyline.Util.Extensions;
+using SkydbApi.ChromatogramData;
 using SkydbApi.DataApi;
 using SkydbApi.Orm;
 
@@ -31,22 +32,27 @@ namespace pwiz.Skyline.Model.Skydb
         public void Convert(int? fileIndex)
         {
             var skydbFile = SkydbFile.CreateNewSkydbFile(TargetFile);
+            var legacyChromatogramCache = new LegacyChromatogramCache(Source);
             _skydbWriter = skydbFile.OpenWriter();
             _skydbWriter.SetUnsafeJournalMode();
             _skydbWriter.BeginTransaction();
             _scoreNames = Source.ScoreTypes.Select(type => type.FullName).ToList();
             _skydbWriter.EnsureScores(_scoreNames);
-            _insertScoreStatement = new InsertScoresStatement(_skydbWriter.Connection, _scoreNames);
+
+            IEnumerable<IMsDataSourceFile> sourceFiles;
+
             if (fileIndex.HasValue)
             {
-                WriteFileData(fileIndex.Value, Source.ChromGroupHeaderInfos.Where(group=>group.FileIndex == fileIndex.Value).ToList());
+                sourceFiles = legacyChromatogramCache.MsDataSourceFiles.Skip(fileIndex.Value).Take(1);
             }
             else
             {
-                foreach (var grouping in Source.ChromGroupHeaderInfos.GroupBy(header => header.FileIndex))
-                {
-                    WriteFileData(grouping.Key, grouping.ToList());
-                }
+                sourceFiles = legacyChromatogramCache.MsDataSourceFiles;
+            }
+
+            foreach (var file in sourceFiles)
+            {
+                WriteFileData(file);
             }
             _skydbWriter.CommitTransaction();
         }
@@ -57,21 +63,11 @@ namespace pwiz.Skyline.Model.Skydb
             _insertScoreStatement?.Dispose();
         }
 
-        public void WriteFileData(int fileIndex, IList<ChromGroupHeaderInfo> chromGroupHeaderInfos)
+        public void WriteFileData(IMsDataSourceFile msDataSourceFile)
         {
-            var chromCachedFile = Source.CachedFiles[fileIndex];
-            var msDataFile = new MsDataFile
+            using (var fileWriter = new MsDataSourceFileWriter(_skydbWriter, msDataSourceFile))
             {
-                FilePath = chromCachedFile.FilePath.ToString()
-            };
-            _skydbWriter.Insert(msDataFile);
-            var msDataFileScanIds = Source.LoadMSDataFileScanIds(fileIndex);
-            var scanInfos = WriteScanInfos(fileIndex, chromGroupHeaderInfos, msDataFile);
-            var retentionTimeHashes = new Dictionary<Hash, long>();
-            var scores = new Dictionary<Tuple<int, int>, long>();
-            foreach (var groupHeader in chromGroupHeaderInfos)
-            {
-                WriteChromatogramGroup(msDataFileScanIds, groupHeader, msDataFile, scanInfos, retentionTimeHashes, scores);
+                fileWriter.Write();
             }
         }
 
@@ -196,7 +192,7 @@ namespace pwiz.Skyline.Model.Skydb
                     var chromatogramData = new ChromatogramData
                     {
                         PointCount = timeIntensities.NumPoints,
-                        IntensitiesData = Compress(PrimitiveArrays.ToBytes(timeIntensities.Intensities.ToArray())),
+                        IntensitiesBlob = Compress(PrimitiveArrays.ToBytes(timeIntensities.Intensities.ToArray())),
                     };
                     SpectrumList spectrumList;
                     if (scanIds != null && timeIntensities.ScanIds != null)
@@ -213,7 +209,7 @@ namespace pwiz.Skyline.Model.Skydb
                             spectrumList = new SpectrumList
                             {
                                 SpectrumCount = timeIntensities.NumPoints,
-                                SpectrumIndexData = Compress(spectrumIndexBytes)
+                                SpectrumIndexBlob = Compress(spectrumIndexBytes)
                             };
                             _skydbWriter.Insert(spectrumList);
                             retentionTimeHashes.Add(retentionTimeHash, spectrumList.Id.Value);
@@ -232,7 +228,7 @@ namespace pwiz.Skyline.Model.Skydb
                             spectrumList = new SpectrumList
                             {
                                 SpectrumCount = timeIntensities.NumPoints,
-                                RetentionTimeData = Compress(retentionTimeBytes)
+                                RetentionTimeBlob = Compress(retentionTimeBytes)
                             };
                             _skydbWriter.Insert(spectrumList);
                             retentionTimeHashes.Add(retentionTimeHash, spectrumList.Id.Value);
@@ -242,7 +238,7 @@ namespace pwiz.Skyline.Model.Skydb
                     chromatogramData.SpectrumList = spectrumList;
                     if (timeIntensities.MassErrors != null)
                     {
-                        chromatogramData.MassErrorsData =
+                        chromatogramData.MassErrorsBlob =
                             Compress(PrimitiveArrays.ToBytes(timeIntensities.MassErrors.ToArray()));
                     }
                     _skydbWriter.Insert(chromatogramData);
@@ -335,7 +331,6 @@ namespace pwiz.Skyline.Model.Skydb
                         Height = peak.Height,
                         MassError = peak.MassError,
                         PointsAcross = peak.PointsAcross,
-                        TimeNormalized = 0 != (peak.Flags & ChromPeak.FlagValues.time_normalized),
                         Truncated = peak.IsTruncated
                     };
                     if (peak.StartTime != peakGroup.StartTime)

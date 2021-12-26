@@ -1,13 +1,7 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Data;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using NHibernate;
-using SkydbApi.Orm;
+﻿using System.Data;
+using SkydbStorage.Internal.Orm;
 
-namespace SkydbApi.DataApi
+namespace SkydbStorage.DataApi
 {
     public class SkydbJoiner
     {
@@ -23,7 +17,7 @@ namespace SkydbApi.DataApi
 
         public void JoinFiles()
         {
-            CopyEntities<MsDataFile>();
+            CopyEntities<ExtractedChromatograms>();
             using (var insertScoreStatement = new InsertScoresStatement(Output.Connection))
             {
                 insertScoreStatement.CopyAll(Output.Connection, _entityIdMap);
@@ -31,9 +25,9 @@ namespace SkydbApi.DataApi
 
             CopyEntities<SpectrumInfo>();
             CopyEntities<SpectrumList>();
-            CopyEntities<Orm.ChromatogramData>();
+            CopyEntities<ChromatogramData>();
             CopyEntities<ChromatogramGroup>();
-            CopyEntities<TransitionChromatogram>();
+            CopyEntities<Chromatogram>();
             CopyEntities<CandidatePeakGroup>();
             CopyEntities<CandidatePeak>();
         }

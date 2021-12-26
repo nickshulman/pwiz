@@ -3,21 +3,23 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using SkydbApi.ChromatogramData;
-using SkydbApi.Orm;
+using SkydbStorage.DataApi;
+using SkydbStorage.Internal.Orm;
+using SkylineApi;
 
-namespace SkydbApi.DataApi
+namespace SkydbStorage.Internal
 {
     public class MsDataSourceFileWriter : IDisposable
     {
         private IList<string> _scoreNames;
         private InsertScoresStatement _insertScoresStatement;
-        private MsDataFile _msDataFile;
+        private ExtractedChromatograms _msDataFile;
         private Dictionary<Tuple<float, string>, int> _spectrumIds = new Dictionary<Tuple<float, string>, int>();
         private Dictionary<HashValue, long> _spectrumIndexLists = new Dictionary<HashValue, long>();
         private Dictionary<HashValue, long> _retentionTimeLists = new Dictionary<HashValue, long>();
         private Dictionary<HashValue, long> _scoreDictionary = new Dictionary<HashValue, long>();
 
-        public MsDataSourceFileWriter(SkydbWriter writer, IMsDataSourceFile msDataSourceFile)
+        public MsDataSourceFileWriter(SkydbWriter writer, IExtractedChromatograms msDataSourceFile)
         {
             Writer = writer;
             MsDataSourceFile = msDataSourceFile;
@@ -30,25 +32,25 @@ namespace SkydbApi.DataApi
             _insertScoresStatement.Dispose();
         }
 
-        public IMsDataSourceFile MsDataSourceFile { get; }
+        public IExtractedChromatograms MsDataSourceFile { get; }
 
         public SkydbWriter Writer { get; }
 
         public void Write()
         {
-            _msDataFile = new MsDataFile()
+            _msDataFile = new ExtractedChromatograms()
             {
-                FilePath = MsDataSourceFile.FilePath
+                FilePath = MsDataSourceFile.SourceFilePath
             };
             Writer.Insert(_msDataFile);
             WriteSpectrumInfos();
-            foreach (var group in MsDataSourceFile.ChromGroups)
+            foreach (var group in MsDataSourceFile.ChromatogramGroups)
             {
                 WriteGroup(group);
             }
         }
 
-        private void WriteGroup(IExtractedChromatogramGroup group)
+        private void WriteGroup(IChromatogramGroup group)
         {
             var chromGroup = new ChromatogramGroup()
             {
@@ -58,8 +60,17 @@ namespace SkydbApi.DataApi
                 PrecursorMz = group.PrecursorMz,
                 TextId = group.TextId
             };
+            var interpolationParams = group.InterpolationParameters;
+            if (interpolationParams != null)
+            {
+                chromGroup.InterpolationStartTime = interpolationParams.StartTime;
+                chromGroup.InterpolationEndTime = interpolationParams.EndTime;
+                chromGroup.InterpolationNumberOfPoints = interpolationParams.NumberOfPoints;
+                chromGroup.InterpolationIntervalDelta = interpolationParams.IntervalDelta;
+                chromGroup.InterpolationInferZeroes = interpolationParams.InferZeroes;
+            }
             Writer.Insert(chromGroup);
-            var transitionChromatograms = new List<TransitionChromatogram>();
+            var transitionChromatograms = new List<Chromatogram>();
             foreach (var chromatogram in group.ExtractedChromatograms)
             {
                 transitionChromatograms.Add(WriteChromatogram(chromGroup, chromatogram));
@@ -67,10 +78,10 @@ namespace SkydbApi.DataApi
             WritePeaks(chromGroup, transitionChromatograms, group);
         }
 
-        private TransitionChromatogram WriteChromatogram(ChromatogramGroup group, IExtractedChromatogram chromatogram)
+        private Chromatogram WriteChromatogram(ChromatogramGroup group, IChromatogram chromatogram)
         {
             var chromatogamData = WriteChromatogramData(chromatogram);
-            var chromTransition = new TransitionChromatogram()
+            var chromTransition = new Chromatogram()
             {
                 ChromatogramGroup = group,
                 ChromatogramData = chromatogamData,
@@ -84,17 +95,23 @@ namespace SkydbApi.DataApi
             return chromTransition;
         }
 
-        private Orm.ChromatogramData WriteChromatogramData(IExtractedChromatogram data)
+        private ChromatogramData WriteChromatogramData(IChromatogram data)
         {
             if (data == null)
             {
                 return null;
             }
 
-            var chromatogramData = new Orm.ChromatogramData()
+            var chromatogramData = new ChromatogramData()
             {
                 IntensitiesBlob = DataUtil.Compress(DataUtil.PrimitivesToByteArray(data.Intensities.ToArray())),
             };
+            var massErrors = data.MassErrors;
+            if (massErrors != null)
+            {
+                chromatogramData.MassErrorsBlob =
+                    DataUtil.Compress(DataUtil.PrimitivesToByteArray(massErrors.ToArray()));
+            }
             var spectrumIndexes = GetSpectrumIndexes(data.RetentionTimes, data.SpectrumIdentifiers);
             if (spectrumIndexes != null)
             {
@@ -168,7 +185,7 @@ namespace SkydbApi.DataApi
         public void WriteSpectrumInfos()
         {
             var scanTimes = new HashSet<Tuple<float, string>>();
-            foreach (var group in MsDataSourceFile.ChromGroups)
+            foreach (var group in MsDataSourceFile.ChromatogramGroups)
             {
                 foreach (var transition in group.ExtractedChromatograms)
                 {
@@ -199,7 +216,7 @@ namespace SkydbApi.DataApi
             }
         }
 
-        private void WritePeaks(ChromatogramGroup chromatogramGroup, IList<TransitionChromatogram> transitionChromatograms, IExtractedChromatogramGroup group)
+        private void WritePeaks(ChromatogramGroup chromatogramGroup, IList<Chromatogram> transitionChromatograms, IChromatogramGroup group)
         {
             foreach (var candidatePeakGroup in group.CandidatePeakGroups)
             {
@@ -262,7 +279,7 @@ namespace SkydbApi.DataApi
                     var peak = peakGroupPeaks[iTransition];
                     var candidatePeak = new CandidatePeak
                     {
-                        TransitionChromatogram = transitionChromatograms[iTransition],
+                        Chromatogram = transitionChromatograms[iTransition],
                         CandidatePeakGroup = peakGroup,
                         Area = peak.Area,
                         BackgroundArea = peak.BackgroundArea,

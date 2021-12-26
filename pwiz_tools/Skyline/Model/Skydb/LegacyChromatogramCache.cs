@@ -8,12 +8,11 @@ using System.Windows.Forms.VisualStyles;
 using EnvDTE;
 using pwiz.Skyline.Model.Results;
 using pwiz.Skyline.Model.Results.Scoring;
-using SkydbApi.ChromatogramData;
-using SkydbApi.Orm;
+using SkylineApi;
 
 namespace pwiz.Skyline.Model.Skydb
 {
-    public class LegacyChromatogramCache : IExtractedChromatogramData
+    public class LegacyChromatogramCache
     {
         private ChromatogramCache _chromatogramCache;
         public LegacyChromatogramCache(ChromatogramCache chromatogramCache)
@@ -33,7 +32,7 @@ namespace pwiz.Skyline.Model.Skydb
             get;
         }
 
-        public IEnumerable<IMsDataSourceFile> MsDataSourceFiles
+        public IEnumerable<IExtractedChromatograms> MsDataFileChromatogramDatas
         {
             get
             {
@@ -42,7 +41,7 @@ namespace pwiz.Skyline.Model.Skydb
             }
         }
 
-        class MsDataSourceFile : IMsDataSourceFile
+        class MsDataSourceFile : IExtractedChromatograms
         {
             
             public MsDataSourceFile(LegacyChromatogramCache cache, int fileIndex)
@@ -56,12 +55,12 @@ namespace pwiz.Skyline.Model.Skydb
             public int FileIndex { get; }
             public MsDataFileScanIds MsDataFileScanIds { get; }
 
-            public string FilePath
+            public string SourceFilePath
             {
                 get { return Cache._chromatogramCache.CachePath; }
             }
 
-            public IEnumerable<IExtractedChromatogramGroup> ChromGroups
+            public IEnumerable<IChromatogramGroup> ChromatogramGroups
             {
                 get
                 {
@@ -69,9 +68,11 @@ namespace pwiz.Skyline.Model.Skydb
                         .Select(group => new ExtractedChromatogramGroup(this, group));
                 }
             }
+
+            public IEnumerable<string> ScoreNames => Cache.ScoreNames;
         }
 
-        class ExtractedChromatogramGroup : IExtractedChromatogramGroup
+        class ExtractedChromatogramGroup : IChromatogramGroup
         {
             private TimeIntensitiesGroup _timeIntensitiesGroup;
             private IList<ChromPeak> _chromPeaks;
@@ -94,7 +95,7 @@ namespace pwiz.Skyline.Model.Skydb
 
             public double? EndTime => ChromGroupHeaderInfo.EndTime;
 
-            public IEnumerable<IExtractedChromatogram> ExtractedChromatograms => 
+            public IEnumerable<IChromatogram> ExtractedChromatograms => 
                 Enumerable.Range(0, ChromGroupHeaderInfo.NumTransitions).Select(i => new ExtractedChromatogram(this, i));
 
             public TimeIntensitiesGroup GetTimeIntensitiesGroup()
@@ -166,7 +167,7 @@ namespace pwiz.Skyline.Model.Skydb
             }
         }
 
-        class ExtractedChromatogram : IExtractedChromatogram
+        class ExtractedChromatogram : IChromatogram
         {
             public ExtractedChromatogram(ExtractedChromatogramGroup group, int transitionIndex)
             {

@@ -21,7 +21,7 @@ using System.Collections.Generic;
 using System.Data;
 using System.Data.SQLite;
 
-namespace SkydbApi.DataApi
+namespace SkydbStorage.DataApi
 {
     public static class SqliteOperations
     {

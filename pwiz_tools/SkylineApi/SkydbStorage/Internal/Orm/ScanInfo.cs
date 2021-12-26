@@ -1,18 +1,14 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Globalization;
+﻿using System.Globalization;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using NHibernate.Mapping.Attributes;
 
-namespace SkydbApi.Orm
+namespace SkydbStorage.Internal.Orm
 {
     [Class(Lazy = false)]
     public class SpectrumInfo : Entity<SpectrumInfo>
     {
-        [ManyToOne(NotFound = NotFoundMode.Ignore)]
-        public MsDataFile MsDataFile { get; set; }
+        [ManyToOne]
+        public ExtractedChromatograms MsDataFile { get; set; }
         [Property]
         public int SpectrumIndex { get; set; }
         [Property]

@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Data;
 
-namespace SkydbApi.DataApi
+namespace SkydbStorage.DataApi
 {
     public class SkydbConnection : IDisposable
     {

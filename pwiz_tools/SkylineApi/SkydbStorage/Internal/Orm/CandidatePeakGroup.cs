@@ -1,12 +1,12 @@
 ﻿
 using NHibernate.Mapping.Attributes;
 
-namespace SkydbApi.Orm
+namespace SkydbStorage.Internal.Orm
 {
     [Class(Lazy = false)]
     public class CandidatePeakGroup : Entity<CandidatePeakGroup>
     {
-        [ManyToOne(NotFound = NotFoundMode.Ignore)]
+        [ManyToOne]
         public virtual Scores Scores { get; set; }
         [ManyToOne]
         public virtual ChromatogramGroup ChromatogramGroup { get; set; }
@@ -23,10 +23,10 @@ namespace SkydbApi.Orm
     [Class(Lazy = false)]
     public class CandidatePeak : Entity<CandidatePeakGroup>
     {
-        [ManyToOne(NotFound = NotFoundMode.Ignore)]
+        [ManyToOne]
         public virtual CandidatePeakGroup CandidatePeakGroup { get; set; }
         [ManyToOne(NotFound = NotFoundMode.Ignore)]
-        public virtual TransitionChromatogram TransitionChromatogram { get; set; }
+        public virtual Chromatogram Chromatogram { get; set; }
         [Property]
         public virtual double? StartTime { get; set; }
         [Property]

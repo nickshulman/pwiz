@@ -4,9 +4,9 @@ using System.Data;
 using System.Data.SQLite;
 using System.Linq;
 using System.Text;
-using SkydbApi.Orm;
+using SkydbStorage.Internal.Orm;
 
-namespace SkydbApi.DataApi
+namespace SkydbStorage.DataApi
 {
     public class InsertScoresStatement : IDisposable
     {

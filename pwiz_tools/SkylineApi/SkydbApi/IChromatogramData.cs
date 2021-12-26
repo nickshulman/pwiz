@@ -1,30 +1,25 @@
 ﻿using System.Collections.Generic;
 
-namespace SkydbApi.ChromatogramData
+namespace SkylineApi
 {
-    public interface IExtractedChromatogramData
+    public interface IExtractedChromatograms
     {
-        IEnumerable<IMsDataSourceFile> MsDataSourceFiles { get; }
+        string SourceFilePath { get; }
+        IEnumerable<IChromatogramGroup> ChromatogramGroups { get; }
         IEnumerable<string> ScoreNames { get; }
     }
-    public interface IMsDataSourceFile
-    {
-        string FilePath { get; }
-        //string GetSpectrumIdentifier(int scanId);
-        IEnumerable<IExtractedChromatogramGroup> ChromGroups { get; }
-    }
-    public interface IExtractedChromatogramGroup
+    public interface IChromatogramGroup
     {
         double PrecursorMz { get; }
         string TextId { get; }
         double? StartTime { get; }
         double? EndTime { get; }
-        IEnumerable<IExtractedChromatogram> ExtractedChromatograms { get; }
+        IEnumerable<IChromatogram> ExtractedChromatograms { get; }
         InterpolationParameters InterpolationParameters { get; }
         IEnumerable<ICandidatePeakGroup> CandidatePeakGroups { get; }
     }
 
-    public interface IExtractedChromatogram
+    public interface IChromatogram
     {
         double ProductMz { get; }
         double ExtractionWidth { get; }

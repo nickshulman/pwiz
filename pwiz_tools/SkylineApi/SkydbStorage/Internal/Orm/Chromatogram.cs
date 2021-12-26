@@ -1,13 +1,13 @@
 ﻿using NHibernate.Mapping.Attributes;
 
-namespace SkydbApi.Orm
+namespace SkydbStorage.Internal.Orm
 {
     [Class(Lazy = false)]
-    public class TransitionChromatogram : Entity<TransitionChromatogram>
+    public class Chromatogram : Entity<Chromatogram>
     {
-        [ManyToOne(NotFound = NotFoundMode.Ignore)]
+        [ManyToOne]
         public ChromatogramGroup ChromatogramGroup { get; set; }
-        [ManyToOne(NotFound = NotFoundMode.Ignore)]
+        [ManyToOne]
         public ChromatogramData ChromatogramData { get; set; }
         [Property]
         public double ProductMz { get; set; }

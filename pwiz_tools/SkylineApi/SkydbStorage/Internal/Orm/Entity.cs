@@ -2,7 +2,7 @@
 using System.Runtime.CompilerServices;
 using NHibernate.Mapping.Attributes;
 
-namespace SkydbApi.Orm
+namespace SkydbStorage.Internal.Orm
 {
     public abstract class Entity
     {

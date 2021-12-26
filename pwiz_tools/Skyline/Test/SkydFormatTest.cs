@@ -9,7 +9,7 @@ using pwiz.Skyline.Model;
 using pwiz.Skyline.Model.Results;
 using pwiz.Skyline.Model.Skydb;
 using pwiz.SkylineTestUtil;
-using SkydbApi.DataApi;
+using SkydbStorage.Api;
 
 namespace pwiz.SkylineTest
 {
@@ -31,10 +31,17 @@ namespace pwiz.SkylineTest
                     inputFilePath,
                     new ProgressStatus(),
                     new DefaultFileLoadMonitor(new SilentProgressMonitor()), false))
-                using (var converter = new SkydbConverter(chromatogramCache, outputFile))
                 {
-                    DumpStatistics(chromatogramCache);
-                    converter.Convert(null);
+                    var skydbFile = new SkydbFile(outputFile)
+                    {
+                        UseUnsafeJournalMode = true
+                    };
+                    skydbFile.CreateDatabase();
+                    var source = new LegacyChromatogramCache(chromatogramCache);
+                    foreach (var file in source.MsDataFileChromatogramDatas)
+                    {
+                        skydbFile.AddChromatogramData(file);
+                    }
                 }
 
                 // using (var reader = outputFile.OpenReader())
@@ -68,33 +75,31 @@ namespace pwiz.SkylineTest
                     new ProgressStatus(),
                     new DefaultFileLoadMonitor(new SilentProgressMonitor()), false))
                 {
+                    var legacyChromatogramCache = new LegacyChromatogramCache(chromatogramCache);
+                    var msDataFiles = legacyChromatogramCache.MsDataFileChromatogramDatas.ToList();
                     partFiles.AddRange(Enumerable.Range(0, chromatogramCache.CachedFiles.Count)
                         .Select(iPart => testFilesDir.GetTestPath("part" + iPart + ".skydb")));
                     ParallelEx.For(0, chromatogramCache.CachedFiles.Count(), iPart =>
                     {
-                        using (var converter = new SkydbConverter(chromatogramCache, partFiles[iPart]))
+                        var skydbFile = new SkydbFile(partFiles[iPart])
                         {
-                            converter.Convert(iPart);
-                        }
+                            UseUnsafeJournalMode = true
+                        };
+                        skydbFile.CreateDatabase();
+                        skydbFile.AddChromatogramData(msDataFiles[iPart]);
                     });
                 }
 
                 var outputFile = testFilesDir.GetTestPath("joined.skydb");
-                using (var writer = SkydbFile.CreateNewSkydbFile(outputFile).OpenWriter())
+                var outputSkydbFile = new SkydbFile(outputFile)
                 {
-                    writer.SetUnsafeJournalMode();
-                    foreach (string partFile in partFiles)
-                    {
-                        writer.BeginTransaction();
-                        var inputFile = new SkydbFile(partFile);
-                        using (var inputConnection = inputFile.OpenConnection())
-                        {
-                            //statelessSession.SetBatchSize(1000);
-                            var joiner = new SkydbJoiner(writer, inputConnection);
-                            joiner.JoinFiles();
-                        }
-                        writer.CommitTransaction();
-                    }
+                    UseUnsafeJournalMode = true
+                };
+                outputSkydbFile.CreateDatabase();
+                foreach (string partFile in partFiles)
+                {
+                    var inputFile = new SkydbFile(partFile);
+                    outputSkydbFile.AddSkydbFile(inputFile);
                 }
                 // using (var reader = outputFile.OpenReader())
                 // {
@@ -107,6 +112,7 @@ namespace pwiz.SkylineTest
                 Console.Out.WriteLine("Input File Size: {0:N0}", new FileInfo(inputFilePath).Length);
                 Console.Out.WriteLine("Output File Size: {0:N0}", new FileInfo(outputFile).Length);
                 Console.Out.WriteLine("File size difference: {0:N0}", new FileInfo(outputFile).Length - new FileInfo(inputFilePath).Length);
+                File.Copy(outputFile, Path.Combine(Path.GetDirectoryName(Path.GetDirectoryName(Path.GetDirectoryName(outputFile))), Path.GetFileName(outputFile)));
             }
         }
 

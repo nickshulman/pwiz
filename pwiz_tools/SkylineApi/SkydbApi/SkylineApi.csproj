@@ -7,8 +7,8 @@
     <ProjectGuid>{CD5B4C56-FA46-42A8-AA97-E08573F979E9}</ProjectGuid>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>SkydbApi</RootNamespace>
-    <AssemblyName>SkydbApi</AssemblyName>
+    <RootNamespace>SkylineApi</RootNamespace>
+    <AssemblyName>SkylineApi</AssemblyName>
     <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <Deterministic>true</Deterministic>
@@ -53,27 +53,8 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="ChromatogramData\DataUtil.cs" />
-    <Compile Include="ChromatogramData\HashCode.cs" />
-    <Compile Include="ChromatogramData\IChromatogramData.cs" />
-    <Compile Include="DataApi\EntityIdMap.cs" />
-    <Compile Include="DataApi\InsertScoreStatement.cs" />
-    <Compile Include="DataApi\InsertStatement.cs" />
-    <Compile Include="DataApi\SkydbConnection.cs" />
-    <Compile Include="DataApi\MsDataSourceFileWriter.cs" />
-    <Compile Include="DataApi\SkydbJoiner.cs" />
-    <Compile Include="DataApi\SkydbWriter.cs" />
-    <Compile Include="DataApi\SkydbFile.cs" />
-    <Compile Include="DataApi\SqliteOperations.cs" />
-    <Compile Include="Orm\CandidatePeakGroup.cs" />
-    <Compile Include="Orm\ChromatogramData.cs" />
-    <Compile Include="Orm\ChromatogramGroup.cs" />
-    <Compile Include="Orm\ChromatogramTransition.cs" />
-    <Compile Include="Orm\Entity.cs" />
-    <Compile Include="Orm\MsDataFile.cs" />
-    <Compile Include="Orm\ScanInfo.cs" />
-    <Compile Include="Orm\Scores.cs" />
-    <Compile Include="Orm\SpectrumList.cs" />
+    <Compile Include="IChromatogramData.cs" />
+    <Compile Include="ISkylineDocument.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>

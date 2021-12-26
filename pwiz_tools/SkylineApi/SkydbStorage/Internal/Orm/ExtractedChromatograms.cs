@@ -1,9 +1,9 @@
 ﻿using NHibernate.Mapping.Attributes;
 
-namespace SkydbApi.Orm
+namespace SkydbStorage.Internal.Orm
 {
     [Class(Lazy = false)]
-    public class MsDataFile : Entity<MsDataFile>
+    public class ExtractedChromatograms : Entity<ExtractedChromatograms>
     {
         [Property]
         public virtual string FilePath { get; set; }

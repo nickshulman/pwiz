@@ -2,9 +2,9 @@
 using System.Collections.Generic;
 using System.Data;
 using System.Linq;
-using SkydbApi.Orm;
+using SkydbStorage.Internal.Orm;
 
-namespace SkydbApi.DataApi
+namespace SkydbStorage.DataApi
 {
     public class SkydbWriter : IDisposable
     {

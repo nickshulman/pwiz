@@ -4,12 +4,11 @@ using System.Data;
 using System.Data.SQLite;
 using System.Linq;
 using System.Reflection;
-using System.Runtime.InteropServices;
 using System.Text;
 using NHibernate.Mapping.Attributes;
-using SkydbApi.Orm;
+using SkydbStorage.Internal.Orm;
 
-namespace SkydbApi.DataApi
+namespace SkydbStorage.DataApi
 {
     public class InsertStatement<T> : IDisposable where T:Entity
     {

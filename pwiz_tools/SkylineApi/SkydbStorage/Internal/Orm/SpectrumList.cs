@@ -1,13 +1,12 @@
-﻿using System.Reflection;
-using NHibernate.Mapping.Attributes;
+﻿using NHibernate.Mapping.Attributes;
 
-namespace SkydbApi.Orm
+namespace SkydbStorage.Internal.Orm
 {
     [Class(Lazy = false)]
     public class SpectrumList : Entity<SpectrumList>
     {
-        [ManyToOne(NotFound = NotFoundMode.Ignore)]
-        public MsDataFile MsDataFile { get; set; }
+        [ManyToOne]
+        public ExtractedChromatograms MsDataFile { get; set; }
         [Property]
         public int SpectrumCount { get; set; }
         [Property]

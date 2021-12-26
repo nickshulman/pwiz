@@ -3,8 +3,6 @@ using System.Data.SQLite;
 using NHibernate;
 using NHibernate.Cfg;
 using NHibernate.Mapping.Attributes;
-using SkydbApi;
-using SkydbApi.ChromatogramData;
 using SkydbStorage.DataApi;
 using SkydbStorage.Internal;
 using SkydbStorage.Internal.Orm;
@@ -32,7 +30,7 @@ namespace SkydbStorage.Api
             }
         }
 
-        public void AddChromatogramData(IExtractedChromatograms data)
+        public void AddChromatogramData(IExtractedDataFile data)
         {
             using (var writer = new SkydbWriter(OpenConnection()))
             {

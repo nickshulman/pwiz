@@ -101,18 +101,14 @@ namespace pwiz.SkylineTest
                     var inputFile = new SkydbFile(partFile);
                     outputSkydbFile.AddSkydbFile(inputFile);
                 }
-                // using (var reader = outputFile.OpenReader())
-                // {
-                //     foreach (var entry in reader.GetTableSizes().OrderBy(kvp => kvp.Key))
-                //     {
-                //         Console.Out.WriteLine("{0}:{1:N0}", entry.Key, entry.Value);
-                //     }
-                // }
                 Console.Out.WriteLine("Elapsed time {0}", DateTime.UtcNow.Subtract(start).TotalMilliseconds);
                 Console.Out.WriteLine("Input File Size: {0:N0}", new FileInfo(inputFilePath).Length);
                 Console.Out.WriteLine("Output File Size: {0:N0}", new FileInfo(outputFile).Length);
                 Console.Out.WriteLine("File size difference: {0:N0}", new FileInfo(outputFile).Length - new FileInfo(inputFilePath).Length);
-                File.Copy(outputFile, Path.Combine(Path.GetDirectoryName(Path.GetDirectoryName(Path.GetDirectoryName(outputFile))), Path.GetFileName(outputFile)));
+                var targetFile =
+                    Path.Combine(Path.GetDirectoryName(Path.GetDirectoryName(Path.GetDirectoryName(outputFile))),
+                        Path.GetFileName(outputFile));
+                File.Copy(outputFile, targetFile, true);
             }
         }
 

@@ -13,13 +13,13 @@ namespace SkydbStorage.Internal
     {
         private IList<string> _scoreNames;
         private InsertScoresStatement _insertScoresStatement;
-        private ExtractedChromatograms _msDataFile;
+        private ExtractedFile _msDataFile;
         private Dictionary<Tuple<float, string>, int> _spectrumIds = new Dictionary<Tuple<float, string>, int>();
         private Dictionary<HashValue, long> _spectrumIndexLists = new Dictionary<HashValue, long>();
         private Dictionary<HashValue, long> _retentionTimeLists = new Dictionary<HashValue, long>();
         private Dictionary<HashValue, long> _scoreDictionary = new Dictionary<HashValue, long>();
 
-        public MsDataSourceFileWriter(SkydbWriter writer, IExtractedChromatograms msDataSourceFile)
+        public MsDataSourceFileWriter(SkydbWriter writer, IExtractedDataFile msDataSourceFile)
         {
             Writer = writer;
             MsDataSourceFile = msDataSourceFile;
@@ -32,13 +32,13 @@ namespace SkydbStorage.Internal
             _insertScoresStatement.Dispose();
         }
 
-        public IExtractedChromatograms MsDataSourceFile { get; }
+        public IExtractedDataFile MsDataSourceFile { get; }
 
         public SkydbWriter Writer { get; }
 
         public void Write()
         {
-            _msDataFile = new ExtractedChromatograms()
+            _msDataFile = new ExtractedFile()
             {
                 FilePath = MsDataSourceFile.SourceFilePath
             };
@@ -54,7 +54,7 @@ namespace SkydbStorage.Internal
         {
             var chromGroup = new ChromatogramGroup()
             {
-                MaDataFile = _msDataFile,
+                File = _msDataFile,
                 StartTime = group.StartTime,
                 EndTime = group.EndTime,
                 PrecursorMz = group.PrecursorMz,
@@ -71,7 +71,7 @@ namespace SkydbStorage.Internal
             }
             Writer.Insert(chromGroup);
             var transitionChromatograms = new List<Chromatogram>();
-            foreach (var chromatogram in group.ExtractedChromatograms)
+            foreach (var chromatogram in group.Chromatograms)
             {
                 transitionChromatograms.Add(WriteChromatogram(chromGroup, chromatogram));
             }
@@ -125,7 +125,7 @@ namespace SkydbStorage.Internal
                 {
                     var spectrumList = new SpectrumList
                     {
-                        MsDataFile = _msDataFile,
+                        File = _msDataFile,
                         SpectrumCount = spectrumIndexes.Length,
                         SpectrumIndexBlob = DataUtil.Compress(spectrumIndexBytes)
                     };
@@ -147,7 +147,7 @@ namespace SkydbStorage.Internal
                 {
                     var spectrumList = new SpectrumList()
                     {
-                        MsDataFile = _msDataFile,
+                        File = _msDataFile,
                         SpectrumCount = data.NumPoints,
                         RetentionTimeBlob = DataUtil.Compress(retentionTimeBytes)
                     };
@@ -187,7 +187,7 @@ namespace SkydbStorage.Internal
             var scanTimes = new HashSet<Tuple<float, string>>();
             foreach (var group in MsDataSourceFile.ChromatogramGroups)
             {
-                foreach (var transition in group.ExtractedChromatograms)
+                foreach (var transition in group.Chromatograms)
                 {
                     var spectrumIdentifiers = transition.SpectrumIdentifiers;
                     if (spectrumIdentifiers == null)
@@ -206,7 +206,7 @@ namespace SkydbStorage.Internal
                 var scan = orderedScans[scanNumber];
                 var scanInfo = new SpectrumInfo
                 {
-                    MsDataFile = _msDataFile,
+                    File = _msDataFile,
                     RetentionTime = scan.Item1,
                     SpectrumIndex = scanNumber,
                 };
@@ -273,7 +273,7 @@ namespace SkydbStorage.Internal
 
                 peakGroup.Identified = (int) candidatePeakGroup.Identified;
                 Writer.Insert(peakGroup);
-                var transitions = group.ExtractedChromatograms.ToList();
+                var transitions = group.Chromatograms.ToList();
                 for (int iTransition = 0; iTransition < transitions.Count; iTransition++)
                 {
                     var peak = peakGroupPeaks[iTransition];

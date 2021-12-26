@@ -2,7 +2,7 @@
 
 namespace SkylineApi
 {
-    public interface IExtractedChromatograms
+    public interface IExtractedDataFile
     {
         string SourceFilePath { get; }
         IEnumerable<IChromatogramGroup> ChromatogramGroups { get; }
@@ -14,7 +14,7 @@ namespace SkylineApi
         string TextId { get; }
         double? StartTime { get; }
         double? EndTime { get; }
-        IEnumerable<IChromatogram> ExtractedChromatograms { get; }
+        IEnumerable<IChromatogram> Chromatograms { get; }
         InterpolationParameters InterpolationParameters { get; }
         IEnumerable<ICandidatePeakGroup> CandidatePeakGroups { get; }
     }

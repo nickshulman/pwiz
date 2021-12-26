@@ -17,7 +17,7 @@ namespace SkydbStorage.DataApi
 
         public void JoinFiles()
         {
-            CopyEntities<ExtractedChromatograms>();
+            CopyEntities<ExtractedFile>();
             using (var insertScoreStatement = new InsertScoresStatement(Output.Connection))
             {
                 insertScoreStatement.CopyAll(Output.Connection, _entityIdMap);

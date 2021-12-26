@@ -8,7 +8,7 @@ namespace SkydbStorage.Internal.Orm
     public class SpectrumInfo : Entity<SpectrumInfo>
     {
         [ManyToOne]
-        public ExtractedChromatograms MsDataFile { get; set; }
+        public ExtractedFile File { get; set; }
         [Property]
         public int SpectrumIndex { get; set; }
         [Property]

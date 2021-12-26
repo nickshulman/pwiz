@@ -32,7 +32,7 @@ namespace pwiz.Skyline.Model.Skydb
             get;
         }
 
-        public IEnumerable<IExtractedChromatograms> MsDataFileChromatogramDatas
+        public IEnumerable<IExtractedDataFile> MsDataFileChromatogramDatas
         {
             get
             {
@@ -41,7 +41,7 @@ namespace pwiz.Skyline.Model.Skydb
             }
         }
 
-        class MsDataSourceFile : IExtractedChromatograms
+        class MsDataSourceFile : IExtractedDataFile
         {
             
             public MsDataSourceFile(LegacyChromatogramCache cache, int fileIndex)
@@ -95,7 +95,7 @@ namespace pwiz.Skyline.Model.Skydb
 
             public double? EndTime => ChromGroupHeaderInfo.EndTime;
 
-            public IEnumerable<IChromatogram> ExtractedChromatograms => 
+            public IEnumerable<IChromatogram> Chromatograms => 
                 Enumerable.Range(0, ChromGroupHeaderInfo.NumTransitions).Select(i => new ExtractedChromatogram(this, i));
 
             public TimeIntensitiesGroup GetTimeIntensitiesGroup()

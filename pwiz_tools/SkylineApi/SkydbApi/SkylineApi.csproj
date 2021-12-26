@@ -53,7 +53,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="IChromatogramData.cs" />
+    <Compile Include="IExtractedDataFile.cs" />
     <Compile Include="ISkylineDocument.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>

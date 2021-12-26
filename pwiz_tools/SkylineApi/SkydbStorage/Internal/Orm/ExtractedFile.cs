@@ -3,7 +3,7 @@
 namespace SkydbStorage.Internal.Orm
 {
     [Class(Lazy = false)]
-    public class ExtractedChromatograms : Entity<ExtractedChromatograms>
+    public class ExtractedFile : Entity<ExtractedFile>
     {
         [Property]
         public virtual string FilePath { get; set; }

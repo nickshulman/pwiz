@@ -6,7 +6,7 @@ namespace SkydbStorage.Internal.Orm
     public class ChromatogramGroup : Entity<ChromatogramGroup>
     {
         [ManyToOne]
-        public ExtractedChromatograms MaDataFile { get; set; }
+        public ExtractedFile File { get; set; }
         [Property]
         public string TextId { get; set; }
         [Property]

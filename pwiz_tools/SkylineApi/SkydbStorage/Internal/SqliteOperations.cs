@@ -60,6 +60,11 @@ namespace SkydbStorage.DataApi
 
         public static IEnumerable<string> ListColumnNames(IDbConnection connection, string tableName)
         {
+            return ListColumnNames(connection, null, tableName);
+        }
+
+        public static IEnumerable<string> ListColumnNames(IDbConnection connection, string schemaName, string tableName)
+        {
             using (var cmd = connection.CreateCommand())
             {
                 cmd.CommandText = @"PRAGMA table_info(" + QuoteIdentifier(tableName) + ")";
@@ -76,6 +81,16 @@ namespace SkydbStorage.DataApi
         public static string QuoteIdentifier(string identifier)
         {
             return "\"" + identifier.Replace("\"", "\"\"") + "\"";
+        }
+
+        public static string QuoteIdentifier(string schemaName, string identifier)
+        {
+            if (string.IsNullOrEmpty(schemaName))
+            {
+                return QuoteIdentifier(identifier);
+            }
+
+            return QuoteIdentifier(schemaName) + "." + QuoteIdentifier(identifier);
         }
     }
 }

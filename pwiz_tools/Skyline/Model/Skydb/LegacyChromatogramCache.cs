@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices.WindowsRuntime;
 using System.Text;
@@ -12,12 +13,14 @@ using SkylineApi;
 
 namespace pwiz.Skyline.Model.Skydb
 {
-    public class LegacyChromatogramCache
+    public class LegacyChromatogramCache : IDisposable
     {
         private ChromatogramCache _chromatogramCache;
+        private Stream _stream;
         public LegacyChromatogramCache(ChromatogramCache chromatogramCache)
         {
             _chromatogramCache = chromatogramCache;
+            _stream = _chromatogramCache.OpenReadStream();
             var scoreNameToIndex = new Dictionary<string, int>();
             foreach (var scoreType in _chromatogramCache.ScoreTypes)
             {
@@ -25,6 +28,11 @@ namespace pwiz.Skyline.Model.Skydb
             }
 
             ScoreNameToIndex = scoreNameToIndex;
+        }
+
+        public void Dispose()
+        {
+            _stream.Dispose();
         }
 
         public IDictionary<string, int> ScoreNameToIndex
@@ -43,15 +51,16 @@ namespace pwiz.Skyline.Model.Skydb
 
         class MsDataSourceFile : IExtractedDataFile
         {
-            
             public MsDataSourceFile(LegacyChromatogramCache cache, int fileIndex)
             {
                 Cache = cache;
                 FileIndex = fileIndex;
                 MsDataFileScanIds = Cache._chromatogramCache.LoadMSDataFileScanIds(fileIndex);
+                ChromCachedFile = Cache._chromatogramCache.CachedFiles[fileIndex];
             }
 
             public LegacyChromatogramCache Cache { get; }
+            public ChromCachedFile ChromCachedFile { get; }
             public int FileIndex { get; }
             public MsDataFileScanIds MsDataFileScanIds { get; }
 
@@ -69,7 +78,36 @@ namespace pwiz.Skyline.Model.Skydb
                 }
             }
 
-            public IEnumerable<string> ScoreNames => Cache.ScoreNames;
+            public IEnumerable<string> ScoreNames => Cache._chromatogramCache.ScoreTypes.Select(type=>type.Name);
+
+            public DateTime? LastWriteTime => ChromCachedFile.FileWriteTime;
+
+            public bool HasCombinedIonMobility => ChromCachedFile.HasCombinedIonMobility;
+
+            public bool Ms1Centroid => ChromCachedFile.UsedMs1Centroids;
+
+            public bool Ms2Centroid => ChromCachedFile.UsedMs2Centroids;
+
+            public DateTime? RunStartTime => ChromCachedFile.RunStartTime;
+
+            public double? MaxRetentionTime => ChromCachedFile.MaxRetentionTime;
+
+            public double? MaxIntensity => ChromCachedFile.MaxIntensity;
+
+            public double? TotalIonCurrentArea => ChromCachedFile.TicArea;
+
+            public string SampleId => ChromCachedFile.SampleId;
+
+            public string InstrumentSerialNumber => ChromCachedFile.InstrumentSerialNumber;
+
+            public IEnumerable<InstrumentInfo> InstrumentInfos
+            {
+                get
+                {
+                    return ChromCachedFile.InstrumentInfoList.Select(i =>
+                        new InstrumentInfo(i.Model, i.Ionization, i.Analyzer, i.Detector));
+                }
+            }
         }
 
         class ExtractedChromatogramGroup : IChromatogramGroup
@@ -102,7 +140,7 @@ namespace pwiz.Skyline.Model.Skydb
             {
                 if (_timeIntensitiesGroup == null)
                 {
-                    _timeIntensitiesGroup = Cache._chromatogramCache.ReadTimeIntensities(ChromGroupHeaderInfo);
+                    _timeIntensitiesGroup = Cache._chromatogramCache.ReadTimeIntensities(Cache._stream, ChromGroupHeaderInfo);
                 }
                 return _timeIntensitiesGroup;
             }
@@ -111,7 +149,7 @@ namespace pwiz.Skyline.Model.Skydb
             {
                 if (_chromPeaks == null)
                 {
-                    _chromPeaks = Cache._chromatogramCache.ReadPeaks(ChromGroupHeaderInfo);
+                    _chromPeaks = Cache._chromatogramCache.ReadPeaks(Cache._stream, ChromGroupHeaderInfo);
                 }
 
                 if (_chromPeaks == null)
@@ -143,13 +181,13 @@ namespace pwiz.Skyline.Model.Skydb
             {
                 get
                 {
-                    var peaks = Cache._chromatogramCache.ReadPeaks(ChromGroupHeaderInfo);
+                    var peaks = Cache._chromatogramCache.ReadPeaks(Cache._stream, ChromGroupHeaderInfo);
                     if (peaks == null)
                     {
                         yield break;
                     }
 
-                    var scores = Cache._chromatogramCache.ReadScores(ChromGroupHeaderInfo);
+                    var scores = Cache._chromatogramCache.ReadScores(Cache._stream, ChromGroupHeaderInfo);
                     int scoreCount = Cache._chromatogramCache.ScoreTypesCount;
                     for (int iPeakGroup = 0; iPeakGroup < ChromGroupHeaderInfo.NumPeaks; iPeakGroup++)
                     {

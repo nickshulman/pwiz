@@ -12,13 +12,13 @@ namespace SkydbStorage.Internal.Orm
         [Property]
         public int SpectrumIndex { get; set; }
         [Property]
-        public int? SpectrumId1 { get; set; }
+        public int? IdPart1 { get; set; }
         [Property]
-        public int? SpectrumId2 { get; set; }
+        public int? IdPart2 { get; set; }
         [Property]
-        public int? SpectrumId3 { get; set; }
+        public int? IdPart3 { get; set; }
         [Property]
-        public int? SpectrumId4 { get; set; }
+        public int? IdPart4 { get; set; }
         [Property]
         public string SpectrumIdentifierText { get; set; }
         [Property]
@@ -32,13 +32,13 @@ namespace SkydbStorage.Internal.Orm
             }
 
             return string.Join(".",
-                new[] {SpectrumId1, SpectrumId2, SpectrumId3, SpectrumId4}.Where(part => part.HasValue)
+                new[] {IdPart1, IdPart2, IdPart3, IdPart4}.Where(part => part.HasValue)
                     .Select(part => part.Value.ToString(CultureInfo.InvariantCulture)));
         }
 
         public void SetSpectrumIdentifier(string spectrumIdentifier)
         {
-            SpectrumId1 = SpectrumId2 = SpectrumId3 = SpectrumId4 = null;
+            IdPart1 = IdPart2 = IdPart3 = IdPart4 = null;
             SpectrumIdentifierText = null;
             if (spectrumIdentifier != null)
             {
@@ -73,10 +73,10 @@ namespace SkydbStorage.Internal.Orm
 
                 partInts[iPart] = partInt;
             }
-            SpectrumId1 = partInts[0];
-            SpectrumId2 = partInts[1];
-            SpectrumId3 = partInts[2];
-            SpectrumId4 = partInts[3];
+            IdPart1 = partInts[0];
+            IdPart2 = partInts[1];
+            IdPart3 = partInts[2];
+            IdPart4 = partInts[3];
             return true;
         }
     }

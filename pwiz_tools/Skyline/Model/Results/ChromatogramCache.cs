@@ -1524,19 +1524,20 @@ namespace pwiz.Skyline.Model.Results
 
         public byte[] ReadTimeIntensitiesBytes(ChromGroupHeaderInfo chromGroupHeaderInfo)
         {
-            return CallWithStream(stream =>
-            {
-                byte[] pointsCompressed = new byte[chromGroupHeaderInfo.CompressedSize];
-                // Seek to stored location
-                stream.Seek(chromGroupHeaderInfo.LocationPoints, SeekOrigin.Begin);
+            return CallWithStream(stream => ReadTimeIntensitiesBytes(stream, chromGroupHeaderInfo));
+        }
 
-                // Single read to get all the points
-                if (stream.Read(pointsCompressed, 0, pointsCompressed.Length) < pointsCompressed.Length)
-                    throw new IOException(Resources
-                        .ChromatogramGroupInfo_ReadChromatogram_Failure_trying_to_read_points);
-                return pointsCompressed;
+        private byte[] ReadTimeIntensitiesBytes(Stream stream, ChromGroupHeaderInfo chromGroupHeaderInfo)
+        {
+            byte[] pointsCompressed = new byte[chromGroupHeaderInfo.CompressedSize];
+            // Seek to stored location
+            stream.Seek(chromGroupHeaderInfo.LocationPoints, SeekOrigin.Begin);
 
-            });
+            // Single read to get all the points
+            if (stream.Read(pointsCompressed, 0, pointsCompressed.Length) < pointsCompressed.Length)
+                throw new IOException(Resources
+                    .ChromatogramGroupInfo_ReadChromatogram_Failure_trying_to_read_points);
+            return pointsCompressed;
         }
 
         private T CallWithStream<T>(Func<Stream, T> func)
@@ -1560,7 +1561,12 @@ namespace pwiz.Skyline.Model.Results
 
         public TimeIntensitiesGroup ReadTimeIntensities(ChromGroupHeaderInfo chromGroupHeaderInfo)
         {
-            var compressedBytes = ReadTimeIntensitiesBytes(chromGroupHeaderInfo);
+            return CallWithStream(stream => ReadTimeIntensities(stream, chromGroupHeaderInfo));
+        }
+
+        public TimeIntensitiesGroup ReadTimeIntensities(Stream stream, ChromGroupHeaderInfo chromGroupHeaderInfo)
+        {
+            var compressedBytes = ReadTimeIntensitiesBytes(stream, chromGroupHeaderInfo);
             int uncompressedSize = chromGroupHeaderInfo.UncompressedSize;
             if (uncompressedSize < 0) // Before version 11
             {
@@ -1599,7 +1605,7 @@ namespace pwiz.Skyline.Model.Results
             return CallWithStream(stream => ReadPeaksStartingAt(stream, startPeakIndex, count));
         }
 
-        private IList<ChromPeak> ReadPeaks(Stream stream, ChromGroupHeaderInfo chromGroupHeaderInfo)
+        public IList<ChromPeak> ReadPeaks(Stream stream, ChromGroupHeaderInfo chromGroupHeaderInfo)
         {
             return ReadPeaksStartingAt(stream, chromGroupHeaderInfo.StartPeakIndex,
                 chromGroupHeaderInfo.NumPeaks * chromGroupHeaderInfo.NumTransitions);
@@ -1621,6 +1627,17 @@ namespace pwiz.Skyline.Model.Results
                 return Array.Empty<float>();
             }
             return CallWithStream(stream => ReadScoresStartingAt(stream, chromGroupHeaderInfo.StartScoreIndex, scoreValueCount));
+        }
+
+        public IList<float> ReadScores(Stream stream, ChromGroupHeaderInfo chromGroupHeaderInfo)
+        {
+            var scoreValueCount = chromGroupHeaderInfo.NumPeaks * _scoreTypeIndices.Count;
+            if (scoreValueCount == 0)
+            {
+                return Array.Empty<float>();
+            }
+
+            return ReadScoresStartingAt(stream, chromGroupHeaderInfo.StartScoreIndex, scoreValueCount);
         }
 
         private IList<float> ReadScoresStartingAt(Stream stream, long startScoreIndex, int scoreValueCount)
@@ -1648,7 +1665,7 @@ namespace pwiz.Skyline.Model.Results
             {
                 Assume.AreEqual(chromGroupHeaderInfos.Count, scores.Length);
             }
-            using (var stream = new FileStream(CachePath, FileMode.Open, FileAccess.Read, FileShare.Read))
+            using (var stream = OpenReadStream())
             {
                 if (peaks != null)
                 {
@@ -1680,6 +1697,11 @@ namespace pwiz.Skyline.Model.Results
                     }
                 }
             }
+        }
+
+        public Stream OpenReadStream()
+        {
+            return new FileStream(CachePath, FileMode.Open, FileAccess.Read, FileShare.Read);
         }
     }
 

@@ -61,8 +61,11 @@
     <Compile Include="Internal\HashCode.cs" />
     <Compile Include="Internal\InsertScoreStatement.cs" />
     <Compile Include="Internal\InsertStatement.cs" />
-    <Compile Include="Internal\MsDataSourceFileWriter.cs" />
+    <Compile Include="Internal\ExtractedDataFileWriter.cs" />
     <Compile Include="Internal\Orm\CandidatePeak.cs" />
+    <Compile Include="Internal\Orm\InstrumentInfo.cs" />
+    <Compile Include="Internal\SelectChromatogramStatement.cs" />
+    <Compile Include="Internal\SelectStatement.cs" />
     <Compile Include="Internal\SkydbConnection.cs" />
     <Compile Include="Internal\SkydbJoiner.cs" />
     <Compile Include="Internal\SkydbWriter.cs" />

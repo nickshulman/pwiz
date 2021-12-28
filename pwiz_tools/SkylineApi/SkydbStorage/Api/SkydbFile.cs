@@ -1,4 +1,6 @@
-﻿using System.Data;
+﻿using System;
+using System.Collections.Generic;
+using System.Data;
 using System.Data.SQLite;
 using NHibernate;
 using NHibernate.Cfg;
@@ -7,6 +9,7 @@ using SkydbStorage.DataApi;
 using SkydbStorage.Internal;
 using SkydbStorage.Internal.Orm;
 using SkylineApi;
+using InstrumentInfo = SkydbStorage.Internal.Orm.InstrumentInfo;
 
 namespace SkydbStorage.Api
 {
@@ -36,27 +39,63 @@ namespace SkydbStorage.Api
             {
                 writer.SetUnsafeJournalMode();
                 writer.BeginTransaction();
-                using (var adder = new MsDataSourceFileWriter(writer, data))
+                var adder = new ExtractedDataFileWriter(writer, data);
+                adder.Write();
+                writer.CommitTransaction();
+            }
+        }
+
+        public void AddSkydbFiles(IEnumerable<SkydbFile> filesToAdd)
+        {
+            using (var writer = OpenWriter())
+            {
+                writer.BeginTransaction();
+                foreach (var fileToAdd in filesToAdd)
                 {
-                    adder.Write();
+                    using (var reader = fileToAdd.OpenConnection())
+                    {
+                        var joiner = new SkydbJoiner(writer, reader);
+                        joiner.JoinFiles();
+                    }
                 }
                 writer.CommitTransaction();
             }
         }
 
-        public void AddSkydbFile(SkydbFile fileToAdd)
+        public void JoinUsingAttachDatabase(IEnumerable<SkydbFile> filesToAdd)
         {
             using (var writer = OpenWriter())
             {
-                using (var reader = fileToAdd.OpenConnection())
+                foreach (var fileToAdd in filesToAdd)
                 {
-                    var joiner = new SkydbJoiner(writer, reader);
-                    joiner.JoinFiles();
+                    using (var cmd = writer.Connection.CreateCommand())
+                    {
+                        cmd.CommandText = "ATTACH ? AS toMerge";
+                        cmd.Parameters.Add(new SQLiteParameter() {Value = fileToAdd.FilePath});
+                        cmd.ExecuteNonQuery();
+                    }
+                    writer.BeginTransaction();
+                    foreach (var tableClass in GetTableClasses())
+                    {
+                        using (var cmd = writer.Connection.CreateCommand())
+                        {
+                            cmd.CommandText = "INSERT INTO " + SqliteOperations.QuoteIdentifier(tableClass.Name) +
+                                              " SELECT * FROM toMerge." +
+                                              SqliteOperations.QuoteIdentifier(tableClass.Name);
+                            cmd.ExecuteNonQuery();
+                        }
+                    }
+                    writer.CommitTransaction();
+                    using (var cmd = writer.Connection.CreateCommand())
+                    {
+                        cmd.CommandText = "DETACH toMerge";
+                        cmd.ExecuteNonQuery();
+                    }
                 }
             }
         }
 
-        internal IDbConnection OpenConnection()
+        public IDbConnection OpenConnection()
         {
             var connectionStringBuilder = SqliteOperations.MakeConnectionStringBuilder(FilePath);
             return new SQLiteConnection(connectionStringBuilder.ToString()).OpenAndReturn();
@@ -73,7 +112,7 @@ namespace SkydbStorage.Api
             return writer;
         }
 
-        internal ISessionFactory CreateSessionFactory()
+        public ISessionFactory CreateSessionFactory()
         {
             var configuration = CreateConfiguration(false);
             return configuration.BuildSessionFactory();
@@ -108,5 +147,48 @@ namespace SkydbStorage.Api
             }
             return configuration;
         }
+
+        public static IEnumerable<Type> GetTableClasses()
+        {
+            return new[]
+            {
+                typeof(ExtractedFile),
+                typeof(Scores),
+                typeof(SpectrumInfo),
+                typeof(SpectrumList),
+                typeof(ChromatogramData),
+                typeof(ChromatogramGroup),
+                typeof(Chromatogram),
+                typeof(CandidatePeak),
+                typeof(CandidatePeakGroup),
+                typeof(InstrumentInfo),
+            };
+        }
+
+        public void SetStartingSequenceNumber(long sequenceNumber)
+        {
+            using (var connection = OpenConnection())
+            {
+                using (var cmd = connection.CreateCommand())
+                {
+                    cmd.CommandText = @"DELETE FROM SQLITE_SEQUENCE";
+                    cmd.ExecuteNonQuery();
+                }
+
+                using (var cmd = connection.CreateCommand())
+                {
+                    cmd.CommandText = "INSERT INTO SQLITE_SEQUENCE (NAME, SEQ) VALUES (?, ?)";
+                    cmd.Parameters.Add(new SQLiteParameter());
+                    cmd.Parameters.Add(new SQLiteParameter());
+                    foreach (var tableClass in GetTableClasses())
+                    {
+                        ((SQLiteParameter) cmd.Parameters[0]).Value = tableClass.Name;
+                        ((SQLiteParameter) cmd.Parameters[1]).Value = sequenceNumber;
+                        cmd.ExecuteNonQuery();
+                    }
+                }
+            }
+        }
+
     }
 }

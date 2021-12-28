@@ -9,7 +9,7 @@ using SkylineApi;
 
 namespace SkydbStorage.Internal
 {
-    public class MsDataSourceFileWriter : IDisposable
+    public class ExtractedDataFileWriter
     {
         private IList<string> _scoreNames;
         private InsertScoresStatement _insertScoresStatement;
@@ -19,17 +19,11 @@ namespace SkydbStorage.Internal
         private Dictionary<HashValue, long> _retentionTimeLists = new Dictionary<HashValue, long>();
         private Dictionary<HashValue, long> _scoreDictionary = new Dictionary<HashValue, long>();
 
-        public MsDataSourceFileWriter(SkydbWriter writer, IExtractedDataFile msDataSourceFile)
+        public ExtractedDataFileWriter(SkydbWriter writer, IExtractedDataFile msDataSourceFile)
         {
             Writer = writer;
             MsDataSourceFile = msDataSourceFile;
-            _scoreNames = InsertScoresStatement.GetScoreNames(writer.Connection).ToList();
-            _insertScoresStatement = new InsertScoresStatement(writer.Connection, _scoreNames);
-        }
-
-        public void Dispose()
-        {
-            _insertScoresStatement.Dispose();
+            _scoreNames = msDataSourceFile.ScoreNames.ToList();
         }
 
         public IExtractedDataFile MsDataSourceFile { get; }
@@ -38,15 +32,40 @@ namespace SkydbStorage.Internal
 
         public void Write()
         {
-            _msDataFile = new ExtractedFile()
+            Writer.EnsureScores(MsDataSourceFile.ScoreNames);
+            using (_insertScoresStatement = new InsertScoresStatement(Writer.Connection, MsDataSourceFile.ScoreNames))
             {
-                FilePath = MsDataSourceFile.SourceFilePath
-            };
-            Writer.Insert(_msDataFile);
-            WriteSpectrumInfos();
-            foreach (var group in MsDataSourceFile.ChromatogramGroups)
-            {
-                WriteGroup(group);
+                _msDataFile = new ExtractedFile()
+                {
+                    FilePath = MsDataSourceFile.SourceFilePath,
+                    HasCombinedIonMobility = MsDataSourceFile.HasCombinedIonMobility,
+                    InstrumentSerialNumber = MsDataSourceFile.InstrumentSerialNumber,
+                    LastWriteTime = MsDataSourceFile.LastWriteTime,
+                    MaxIntensity = MsDataSourceFile.MaxIntensity,
+                    MaxRetentionTime = MsDataSourceFile.MaxRetentionTime,
+                    Ms1Centroid = MsDataSourceFile.Ms1Centroid,
+                    Ms2Centroid = MsDataSourceFile.Ms2Centroid,
+                    RunStartTime = MsDataSourceFile.RunStartTime,
+                    SampleId = MsDataSourceFile.SampleId,
+                    TotalIonCurrentArea = MsDataSourceFile.TotalIonCurrentArea
+                };
+                Writer.Insert(_msDataFile);
+                foreach (var instrumentInfo in MsDataSourceFile.InstrumentInfos)
+                {
+                    Writer.Insert(new Orm.InstrumentInfo
+                    {
+                        ExtractedFile = _msDataFile,
+                        Analyzer = instrumentInfo.Analyzer,
+                        Detector = instrumentInfo.Detector,
+                        Ionization = instrumentInfo.Ionization,
+                        Model = instrumentInfo.Model
+                    });
+                }
+                WriteSpectrumInfos();
+                foreach (var group in MsDataSourceFile.ChromatogramGroups)
+                {
+                    WriteGroup(group);
+                }
             }
         }
 

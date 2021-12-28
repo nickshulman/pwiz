@@ -1,4 +1,6 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
+using System.Data.Common;
 
 namespace SkylineApi
 {
@@ -7,6 +9,17 @@ namespace SkylineApi
         string SourceFilePath { get; }
         IEnumerable<IChromatogramGroup> ChromatogramGroups { get; }
         IEnumerable<string> ScoreNames { get; }
+        DateTime? LastWriteTime { get; }
+        bool HasCombinedIonMobility { get; }
+        bool Ms1Centroid { get; }
+        bool Ms2Centroid { get; }
+        DateTime? RunStartTime { get; }
+        double? MaxRetentionTime { get; }
+        double? MaxIntensity { get; }
+        double? TotalIonCurrentArea { get; }
+        string SampleId { get; }
+        string InstrumentSerialNumber { get; }
+        IEnumerable<InstrumentInfo> InstrumentInfos { get; }
     }
     public interface IChromatogramGroup
     {
@@ -84,5 +97,20 @@ namespace SkylineApi
         False,
         Aligned,
         True,
+    }
+
+    public class InstrumentInfo
+    {
+        public InstrumentInfo(string model, string ionization, string analyzer, string detector)
+        {
+            Model = model;
+            Ionization = ionization;
+            Analyzer = analyzer;
+            Detector = detector;
+        }
+        public string Model { get; }
+        public string Ionization { get; }
+        public string Analyzer { get; }
+        public string Detector { get; }
     }
 }

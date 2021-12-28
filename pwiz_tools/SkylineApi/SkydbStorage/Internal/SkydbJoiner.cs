@@ -17,6 +17,7 @@ namespace SkydbStorage.DataApi
 
         public void JoinFiles()
         {
+            Output.EnsureScores(InsertScoresStatement.GetScoreNames(_input));
             CopyEntities<ExtractedFile>();
             using (var insertScoreStatement = new InsertScoresStatement(Output.Connection))
             {
@@ -30,6 +31,7 @@ namespace SkydbStorage.DataApi
             CopyEntities<Chromatogram>();
             CopyEntities<CandidatePeakGroup>();
             CopyEntities<CandidatePeak>();
+            CopyEntities<InstrumentInfo>();
         }
 
         private void CopyEntities<T>() where T : Entity

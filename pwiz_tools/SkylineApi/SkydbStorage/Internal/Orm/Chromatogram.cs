@@ -5,10 +5,10 @@ namespace SkydbStorage.Internal.Orm
     [Class(Lazy = false)]
     public class Chromatogram : Entity<Chromatogram>
     {
-        [ManyToOne]
-        public ChromatogramGroup ChromatogramGroup { get; set; }
-        [ManyToOne]
-        public ChromatogramData ChromatogramData { get; set; }
+        [ManyToOne(ClassType = typeof(ChromatogramGroup))]
+        public long ChromatogramGroup { get; set; }
+        [ManyToOne(ClassType = typeof(ChromatogramData))]
+        public long ChromatogramData { get; set; }
         [Property]
         public double ProductMz { get; set; }
         [Property]

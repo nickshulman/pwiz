@@ -5,8 +5,8 @@ namespace SkydbStorage.Internal.Orm
     [Class(Lazy = false)]
     public class ChromatogramGroup : Entity<ChromatogramGroup>
     {
-        [ManyToOne]
-        public ExtractedFile File { get; set; }
+        [ManyToOne(ClassType = typeof(ExtractedFile))]
+        public long File { get; set; }
         [Property]
         public string TextId { get; set; }
         [Property]
@@ -26,6 +26,5 @@ namespace SkydbStorage.Internal.Orm
         public double? InterpolationIntervalDelta { get; set; }
         [Property]
         public bool? InterpolationInferZeroes { get; set; }
-
     }
 }

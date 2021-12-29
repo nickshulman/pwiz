@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Data;
 using System.Data.SQLite;
+using System.Text;
 using NHibernate;
 using NHibernate.Cfg;
 using NHibernate.Mapping.Attributes;
@@ -58,6 +59,7 @@ namespace SkydbStorage.Api
                         joiner.JoinFiles();
                     }
                 }
+
                 writer.CommitTransaction();
             }
         }
@@ -74,17 +76,25 @@ namespace SkydbStorage.Api
                         cmd.Parameters.Add(new SQLiteParameter() {Value = fileToAdd.FilePath});
                         cmd.ExecuteNonQuery();
                     }
+
+                    var idOffsets = GetIdOffsets(writer.Connection, "toMerge", null);
                     writer.BeginTransaction();
                     foreach (var tableClass in GetTableClasses())
                     {
-                        using (var cmd = writer.Connection.CreateCommand())
+                        using (var insertSelect =
+                            new InsertSelectStatement(writer.Connection, "toMerge", null, tableClass))
                         {
-                            cmd.CommandText = "INSERT INTO " + SqliteOperations.QuoteIdentifier(tableClass.Name) +
-                                              " SELECT * FROM toMerge." +
-                                              SqliteOperations.QuoteIdentifier(tableClass.Name);
-                            cmd.ExecuteNonQuery();
+                            insertSelect.CopyData(idOffsets);
                         }
+                        // using (var cmd = writer.Connection.CreateCommand())
+                        // {
+                        //     cmd.CommandText = "INSERT INTO " + SqliteOperations.QuoteIdentifier(tableClass.Name) +
+                        //                       " SELECT * FROM toMerge." +
+                        //                       SqliteOperations.QuoteIdentifier(tableClass.Name);
+                        //     cmd.ExecuteNonQuery();
+                        // }
                     }
+
                     writer.CommitTransaction();
                     using (var cmd = writer.Connection.CreateCommand())
                     {
@@ -124,7 +134,8 @@ namespace SkydbStorage.Api
                 //.SetProperty("show_sql", "true")
                 //.SetProperty("generate_statistics", "true")
                 .SetProperty(@"dialect", typeof(NHibernate.Dialect.SQLiteDialect).AssemblyQualifiedName)
-                .SetProperty(@"connection.connection_string", SqliteOperations.MakeConnectionStringBuilder(FilePath).ToString())
+                .SetProperty(@"connection.connection_string",
+                    SqliteOperations.MakeConnectionStringBuilder(FilePath).ToString())
                 .SetProperty(@"connection.driver_class",
                     typeof(NHibernate.Driver.SQLite20Driver).AssemblyQualifiedName);
             configuration.SetProperty(@"connection.provider",
@@ -145,6 +156,7 @@ namespace SkydbStorage.Api
             {
                 configuration.AddInputStream(stream);
             }
+
             return configuration;
         }
 
@@ -190,5 +202,47 @@ namespace SkydbStorage.Api
             }
         }
 
+        public static IDictionary<Type, long> GetIdOffsets(IDbConnection connection, string sourceSchema,
+            string targetSchema)
+        {
+            var result = new Dictionary<Type, long>();
+            foreach (var tableType in GetTableClasses())
+            {
+                long minSourceId;
+                using (var cmd = connection.CreateCommand())
+                {
+                    cmd.CommandText = "SELECT Min(Id) FROM " +
+                                      SqliteOperations.QuoteIdentifier(sourceSchema, tableType.Name);
+                    var value = cmd.ExecuteScalar();
+                    if (value == null || value is DBNull)
+                    {
+                        minSourceId = 0;
+                    }
+                    else
+                    {
+                        minSourceId = Convert.ToInt64(value);
+                    }
+                }
+
+                long maxTargetId;
+                using (var cmd = connection.CreateCommand())
+                {
+                    cmd.CommandText = "SELECT Max(Id) FROM " +
+                                      SqliteOperations.QuoteIdentifier(targetSchema, tableType.Name);
+                    var value = cmd.ExecuteScalar();
+                    if (value == null || value is DBNull)
+                    {
+                        maxTargetId = 0;
+                    }
+                    else
+                    {
+                        maxTargetId = Convert.ToInt64(value);
+                    }
+                }
+                result.Add(tableType, 1 + maxTargetId - minSourceId);
+            }
+
+            return result;
+        }
     }
 }

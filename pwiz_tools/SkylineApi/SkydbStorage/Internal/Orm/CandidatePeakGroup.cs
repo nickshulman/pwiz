@@ -6,17 +6,17 @@ namespace SkydbStorage.Internal.Orm
     [Class(Lazy = false)]
     public class CandidatePeakGroup : Entity<CandidatePeakGroup>
     {
-        [ManyToOne]
-        public virtual Scores Scores { get; set; }
-        [ManyToOne]
-        public virtual ChromatogramGroup ChromatogramGroup { get; set; }
+        [ManyToOne(ClassType = typeof(Scores))]
+        public long? Scores { get; set; }
+        [ManyToOne(ClassType = typeof(ChromatogramGroup))]
+        public long ChromatogramGroup { get; set; }
         [Property]
-        public virtual double? StartTime { get; set; }
+        public double? StartTime { get; set; }
         [Property]
-        public virtual double? EndTime { get; set; }
+        public double? EndTime { get; set; }
         [Property]
-        public virtual int Identified { get; set; }
+        public int Identified { get; set; }
         [Property]
-        public virtual bool IsBestPeak { get; set; }
+        public bool IsBestPeak { get; set; }
     }
 }

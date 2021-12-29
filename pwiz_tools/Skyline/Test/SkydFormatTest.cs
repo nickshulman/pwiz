@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using NHibernate.UserTypes;
 using pwiz.Common.Chemistry;
 using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Model;
@@ -26,10 +25,10 @@ namespace pwiz.SkylineTest
             {
                 DateTime start = DateTime.UtcNow;
                 var outputFile = testFilesDir.GetTestPath("test.skydb");
-                //var inputFilePath = testFilesDir.GetTestPath("Human_plasma.skyd");
+                var inputFilePath = testFilesDir.GetTestPath("Human_plasma.skyd");
                 //var inputFilePath = @"D:\skydata\20150501_Bruderer\delayloadingpeaks\delay.skyd";
                 //var inputFilePath = @"D:\skydata\20140318_Hasmik_QE_DIA\Study9_2_Curve_DIA_QE_5trans_withSpLib_Jan2014\Study9_2_Curve_DIA_QE_5trans_withSpLib_Jan2014.skyd";
-                var inputFilePath = @"D:\skydata\20150501_Bruderer\delayloadingpeaks\BruderDIA2015_withdecoys.skyd";
+                //var inputFilePath = @"D:\skydata\20150501_Bruderer\delayloadingpeaks\BruderDIA2015_withdecoys.skyd";
                 using (var chromatogramCache = ChromatogramCache.Load(
                     inputFilePath,
                     new ProgressStatus(),
@@ -122,9 +121,9 @@ namespace pwiz.SkylineTest
             using (var testFilesDir = new TestFilesDir(TestContext, @"Test\SkydFormatTest.zip"))
             {
                 DateTime start = DateTime.UtcNow;
-                var inputFilePath = @"D:\skydata\20150501_Bruderer\delayloadingpeaks\BruderDIA2015_withdecoys.skyd";
+               // var inputFilePath = @"D:\skydata\20150501_Bruderer\delayloadingpeaks\BruderDIA2015_withdecoys.skyd";
                 //var inputFilePath = testFilesDir.GetTestPath("Bruder3Proteins.skyd");
-                //var inputFilePath = testFilesDir.GetTestPath("Human_plasma.skyd");
+                var inputFilePath = testFilesDir.GetTestPath("Human_plasma.skyd");
                 //var inputFilePath = @"D:\skydata\20150501_Bruderer\delayloadingpeaks\delay.skyd";
                 //var inputFilePath = @"D:\skydata\20140318_Hasmik_QE_DIA\Study9_2_Curve_DIA_QE_5trans_withSpLib_Jan2014\Study9_2_Curve_DIA_QE_5trans_withSpLib_Jan2014.skyd";
                 // var inputFilePath = @"D:\skydata\20150501_Bruderer\3Proteins_delayloadingpeaks\Bruder3Proteins.skyd";
@@ -148,7 +147,7 @@ namespace pwiz.SkylineTest
                                 UseUnsafeJournalMode = true
                             };
                             skydbFile.CreateDatabase();
-                            skydbFile.SetStartingSequenceNumber((long)iPart * 2 << 31);
+                            //skydbFile.SetStartingSequenceNumber((long)iPart * 2 << 31);
                             skydbFile.AddChromatogramData(msDataFiles[iPart]);
                         }
                     });
@@ -207,7 +206,10 @@ namespace pwiz.SkylineTest
         [TestMethod]
         public void TestReadChromatogramGroupTable()
         {
-            var skydbPath = @"d:\skydb\joinedbyattachdb.skydb";
+            var originalFile = @"c:\skydb\joinedbyattachdb.skydb";
+            var skydbPath = Path.Combine(TestContext.TestDir, "speedtest.skydb");
+            File.Copy(originalFile, skydbPath, true);
+            // var skydbPath = @"c:\skydb\joinedbyattachdb.skydb";
             var skydbFile = new SkydbFile(skydbPath);
             var chromGroupHeaderInfos = new List<ChromGroupHeaderInfo>();
             var chromTransitions = new List<ChromTransition>();
@@ -215,35 +217,58 @@ namespace pwiz.SkylineTest
             var startTime = DateTime.UtcNow;
             using (var connection = skydbFile.OpenConnection())
             {
-                using (var selectStatement = new SelectStatement<ChromatogramGroup>(connection))
+                TimeAction(()=>
                 {
-                    foreach (var chromatogramGroup in selectStatement.SelectAll())
+                    using (var selectStatement = new SelectStatement<ChromatogramGroup>(connection))
                     {
-                        chromGroupHeaderInfos.Add(new ChromGroupHeaderInfo(new SignedMz(chromatogramGroup.PrecursorMz),
-                            0, chromatogramGroup.TextId?.Length ?? 0, ((int?) chromatogramGroup.File?.Id).GetValueOrDefault(), 0, 0, 0, 0, 0, 0, 0, 0,
-                            0, 0, 0, (float?) chromatogramGroup.StartTime, (float?) chromatogramGroup.EndTime, 0,
-                            eIonMobilityUnits.none));
+                        foreach (var chromatogramGroup in selectStatement.SelectAll())
+                        {
+                            chromGroupHeaderInfos.Add(new ChromGroupHeaderInfo(new SignedMz(chromatogramGroup.PrecursorMz),
+                                0, chromatogramGroup.TextId?.Length ?? 0, (int)chromatogramGroup.File, 0, 0, 0, 0, 0, 0, 0, 0,
+                                0, 0, 0, (float?)chromatogramGroup.StartTime, (float?)chromatogramGroup.EndTime, 0,
+                                eIonMobilityUnits.none));
+                        }
                     }
-                }
 
-                using (var selectStatement = new SelectChromatogramStatement(connection))
+                    return string.Format("Read {0} Chromatogram Groups", chromGroupHeaderInfos.Count);
+                });
+
+                TimeAction(() =>
                 {
-                    foreach (var chromatogram in selectStatement.SelectAll())
+                    using (var selectStatement = new SelectChromatogramStatement(connection))
                     {
-                        chromTransitions.Add(new ChromTransition(chromatogram.ProductMz, (float?) chromatogram.ExtractionWidth??0, (float?)chromatogram.IonMobilityValue ?? 0, (float?) chromatogram.IonMobilityExtractionWidth??0, (ChromSource) chromatogram.Source));
+                        foreach (var chromatogram in selectStatement.SelectAll())
+                        {
+                            chromTransitions.Add(new ChromTransition(chromatogram.ProductMz, (float?)chromatogram.ExtractionWidth ?? 0, (float?)chromatogram.IonMobilityValue ?? 0, (float?)chromatogram.IonMobilityExtractionWidth ?? 0, (ChromSource)chromatogram.Source));
+                        }
                     }
-                }
 
-                using (var selectStatement = new SelectStatement<SpectrumInfo>(connection))
+                    return string.Format("Read {0} Chromatogram Transitions", chromTransitions.Count);
+                });
+
+                TimeAction(() =>
                 {
-                    spectrumInfos.AddRange(selectStatement.SelectAll());
-                }
+                    using (var selectStatement = new SelectStatement<SpectrumInfo>(connection))
+                    {
+                        spectrumInfos.AddRange(selectStatement.SelectAll());
+                    }
+
+                    return string.Format("Read {0} Spectrum Infos", spectrumInfos.Count);
+                });
             }
 
             Console.Out.WriteLine("Read {0} chromGroupHeaderInfos {1} chromTransitions, {2} spectrumInfos in {3} milliseconds", 
                 chromGroupHeaderInfos.Count,
                 chromTransitions.Count, spectrumInfos.Count,
                 DateTime.UtcNow.Subtract(startTime).TotalMilliseconds);
+        }
+
+        private void TimeAction(Func<string> action)
+        {
+            DateTime start = DateTime.UtcNow;
+            string description = action();
+            var duration = DateTime.UtcNow.Subtract(start);
+            Console.Out.WriteLine("Time to {0}:{1}", description, duration.TotalMilliseconds);
         }
 
         [TestMethod]

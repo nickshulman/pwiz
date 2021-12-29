@@ -10,8 +10,8 @@ namespace SkydbStorage.Internal.Orm
     [Class(Lazy = false)]
     public class InstrumentInfo : Entity<InstrumentInfo>
     {
-        [ManyToOne]
-        public ExtractedFile ExtractedFile { get; set; }
+        [ManyToOne(ClassType = typeof(ExtractedFile))]
+        public long ExtractedFile { get; set; }
         [Property]
         public string Model { get; set; }
         [Property]

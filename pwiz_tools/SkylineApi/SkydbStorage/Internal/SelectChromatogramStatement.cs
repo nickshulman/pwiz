@@ -34,8 +34,8 @@ namespace SkydbStorage.Internal
                     var chromatogram = new Chromatogram()
                     {
                         Id = reader.GetInt64(0),
-                        ChromatogramGroup = MakeEntity(GetOptionalLong(reader, 1), () => new ChromatogramGroup()),
-                        ChromatogramData = MakeEntity(GetOptionalLong(reader, 2), () => new ChromatogramData()),
+                        ChromatogramGroup = reader.GetInt64(1),
+                        ChromatogramData = reader.GetInt64(2),
                         ProductMz = reader.GetDouble(3),
                         ExtractionWidth = reader.GetDouble(4),
                         IonMobilityValue = GetOptionalDouble(reader,5),

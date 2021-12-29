@@ -5,8 +5,8 @@ namespace SkydbStorage.Internal.Orm
     [Class(Lazy = false)]
     public class SpectrumList : Entity<SpectrumList>
     {
-        [ManyToOne]
-        public ExtractedFile File { get; set; }
+        [ManyToOne(ClassType = typeof(ExtractedFile))]
+        public long File { get; set; }
         [Property]
         public int SpectrumCount { get; set; }
         [Property]

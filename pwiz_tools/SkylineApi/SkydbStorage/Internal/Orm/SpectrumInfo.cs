@@ -7,8 +7,8 @@ namespace SkydbStorage.Internal.Orm
     [Class(Lazy = false)]
     public class SpectrumInfo : Entity<SpectrumInfo>
     {
-        [ManyToOne]
-        public ExtractedFile File { get; set; }
+        [ManyToOne(ClassType = typeof(ExtractedFile))]
+        public long File { get; set; }
         [Property]
         public int SpectrumIndex { get; set; }
         [Property]
@@ -24,7 +24,7 @@ namespace SkydbStorage.Internal.Orm
         [Property]
         public double RetentionTime { get; set; }
 
-        public virtual string GetSpectrumIdentifier()
+        public string GetSpectrumIdentifier()
         {
             if (null != SpectrumIdentifierText)
             {

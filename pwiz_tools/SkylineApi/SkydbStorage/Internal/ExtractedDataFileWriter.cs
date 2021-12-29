@@ -54,7 +54,7 @@ namespace SkydbStorage.Internal
                 {
                     Writer.Insert(new Orm.InstrumentInfo
                     {
-                        ExtractedFile = _msDataFile,
+                        ExtractedFile = _msDataFile.Id.Value,
                         Analyzer = instrumentInfo.Analyzer,
                         Detector = instrumentInfo.Detector,
                         Ionization = instrumentInfo.Ionization,
@@ -73,7 +73,7 @@ namespace SkydbStorage.Internal
         {
             var chromGroup = new ChromatogramGroup()
             {
-                File = _msDataFile,
+                File = _msDataFile.Id.Value,
                 StartTime = group.StartTime,
                 EndTime = group.EndTime,
                 PrecursorMz = group.PrecursorMz,
@@ -99,11 +99,11 @@ namespace SkydbStorage.Internal
 
         private Chromatogram WriteChromatogram(ChromatogramGroup group, IChromatogram chromatogram)
         {
-            var chromatogamData = WriteChromatogramData(chromatogram);
+            var chromatogramData = WriteChromatogramData(chromatogram);
             var chromTransition = new Chromatogram()
             {
-                ChromatogramGroup = group,
-                ChromatogramData = chromatogamData,
+                ChromatogramGroup = group.Id.Value,
+                ChromatogramData = chromatogramData.Id.Value,
                 ExtractionWidth = chromatogram.ExtractionWidth,
                 IonMobilityExtractionWidth = chromatogram.IonMobilityExtractionWidth,
                 IonMobilityValue = chromatogram.IonMobilityValue,
@@ -138,41 +138,41 @@ namespace SkydbStorage.Internal
                 var hashCode = HashValue.HashBytes(spectrumIndexBytes);
                 if (_spectrumIndexLists.TryGetValue(hashCode, out long id))
                 {
-                    chromatogramData.SpectrumList = new SpectrumList {Id = id};
+                    chromatogramData.SpectrumList = id;
                 }
                 else
                 {
                     var spectrumList = new SpectrumList
                     {
-                        File = _msDataFile,
+                        File = _msDataFile.Id.Value,
                         SpectrumCount = spectrumIndexes.Length,
                         SpectrumIndexBlob = DataUtil.Compress(spectrumIndexBytes)
                     };
                     Writer.Insert(spectrumList);
                     _spectrumIndexLists.Add(hashCode, spectrumList.Id.Value);
-                    chromatogramData.SpectrumList = spectrumList;
+                    chromatogramData.SpectrumList = spectrumList.Id.Value;
                 }
             }
 
-            if (chromatogramData.SpectrumList == null)
+            if (chromatogramData.SpectrumList == 0)
             {
                 var retentionTimeBytes = DataUtil.PrimitivesToByteArray(data.RetentionTimes.ToArray());
                 var hashCode = HashValue.HashBytes(retentionTimeBytes);
                 if (_retentionTimeLists.TryGetValue(hashCode, out long id))
                 {
-                    chromatogramData.SpectrumList = new SpectrumList {Id = id};
+                    chromatogramData.SpectrumList = id;
                 }
                 else
                 {
-                    var spectrumList = new SpectrumList()
+                    var spectrumList = new SpectrumList
                     {
-                        File = _msDataFile,
+                        File = _msDataFile.Id.Value,
                         SpectrumCount = data.NumPoints,
                         RetentionTimeBlob = DataUtil.Compress(retentionTimeBytes)
                     };
                     Writer.Insert(spectrumList);
                     _retentionTimeLists.Add(hashCode, spectrumList.Id.Value);
-                    chromatogramData.SpectrumList = spectrumList;
+                    chromatogramData.SpectrumList = spectrumList.Id.Value;
                 }
             }
             Writer.Insert(chromatogramData);
@@ -225,7 +225,7 @@ namespace SkydbStorage.Internal
                 var scan = orderedScans[scanNumber];
                 var scanInfo = new SpectrumInfo
                 {
-                    File = _msDataFile,
+                    File = _msDataFile.Id.Value,
                     RetentionTime = scan.Item1,
                     SpectrumIndex = scanNumber,
                 };
@@ -268,8 +268,8 @@ namespace SkydbStorage.Internal
                 var peakGroupPeaks = candidatePeakGroup.CandidatePeaks.ToList();
                 var peakGroup = new CandidatePeakGroup
                 {
-                    ChromatogramGroup = chromatogramGroup,
-                    Scores = scoresEntity,
+                    ChromatogramGroup = chromatogramGroup.Id.Value,
+                    Scores = scoresEntity?.Id,
                     IsBestPeak = candidatePeakGroup.IsBestPeak
                 };
                 foreach (var peak in peakGroupPeaks)
@@ -298,8 +298,8 @@ namespace SkydbStorage.Internal
                     var peak = peakGroupPeaks[iTransition];
                     var candidatePeak = new CandidatePeak
                     {
-                        Chromatogram = transitionChromatograms[iTransition],
-                        CandidatePeakGroup = peakGroup,
+                        Chromatogram = transitionChromatograms[iTransition].Id.Value,
+                        CandidatePeakGroup = peakGroup.Id.Value,
                         Area = peak.Area,
                         BackgroundArea = peak.BackgroundArea,
                         DegenerateFwhm = peak.DegenerateFwhm,

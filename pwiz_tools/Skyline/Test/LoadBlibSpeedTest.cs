@@ -33,33 +33,23 @@ namespace pwiz.SkylineTest
         [TestMethod]
         public void TestLoadBlibSpeed()
         {
-            var inputFile =
-                @"D:\skydata\20150901_Selevsek_yeast_shock\SWATH_data\OS\DIA-Umpire\Selevsek_Yeast_umpire_09.blib";
-
-            var outputFile = Path.Combine(TestContext.TestDir, "MyBlibFile.blib");
-            File.Copy(inputFile, outputFile, true);
-            // long fileSize = new FileInfo(inputFile).Length;
-            // using (var inputStream = new FileStream(inputFile, FileMode.Open))
-            // {
-            //     // var handle = CreateFile(outputFile, (int)FileAccess.Write, FileShare.None, IntPtr.Zero, FileMode.Create,
-            //     //     FILE_FLAG_NO_BUFFERING, IntPtr.Zero);
-            //     using (var outputStream = new FileStream(outputFile, FileMode.Create))
-            //     {
-            //         StreamEx.TransferBytes(inputStream, outputStream, fileSize);
-            //     }
-            // }
-
-            var start = DateTime.UtcNow;
-            var biblioSpecListSpec = new BiblioSpecLiteSpec("foo", outputFile);
-            var library = BiblioSpecLiteLibrary.Load(biblioSpecListSpec, new DefaultFileLoadMonitor(new SilentProgressMonitor()));
-            Assert.IsNotNull(library);
-            var duration = DateTime.UtcNow.Subtract(start);
-            Console.Out.WriteLine("Time to load library: {0}", duration.TotalMilliseconds);
-            var startCached = DateTime.UtcNow;
-            var cachedLibrary = CallFunction(()=>BiblioSpecLiteLibrary.Load(biblioSpecListSpec, new DefaultFileLoadMonitor(new SilentProgressMonitor())));
-            Assert.IsNotNull(cachedLibrary);
-            var durationCached = DateTime.UtcNow.Subtract(startCached);
-            Console.Out.WriteLine("Time to load cached library: {0}", durationCached.TotalMilliseconds);
+            foreach (var filename in new[]{ "liborig.blib", "libvacuum.blib"})
+            {
+                var originalFile = Path.Combine(@"D:\skydata\20150901_Selevsek_yeast_shock\SWATH_data\OS\DIA-Umpire", filename);
+                var libraryFile = Path.Combine(TestContext.TestDir, "testFile.blib");
+                File.Copy(originalFile, libraryFile, true);
+                var start = DateTime.UtcNow;
+                var biblioSpecListSpec = new BiblioSpecLiteSpec("foo", libraryFile);
+                var library = BiblioSpecLiteLibrary.Load(biblioSpecListSpec, new DefaultFileLoadMonitor(new SilentProgressMonitor()));
+                Assert.IsNotNull(library);
+                var duration = DateTime.UtcNow.Subtract(start);
+                Console.Out.WriteLine("Time to load library {0}: {1}", filename, duration.TotalMilliseconds);
+                var startCached = DateTime.UtcNow;
+                var cachedLibrary = CallFunction(() => BiblioSpecLiteLibrary.Load(biblioSpecListSpec, new DefaultFileLoadMonitor(new SilentProgressMonitor())));
+                Assert.IsNotNull(cachedLibrary);
+                var durationCached = DateTime.UtcNow.Subtract(startCached);
+                Console.Out.WriteLine("Time to load cached library {0}: {1}", filename, durationCached.TotalMilliseconds);
+            }
         }
 
         private T CallFunction<T>(Func<T> function)

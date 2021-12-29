@@ -4,20 +4,20 @@ using System.Data;
 using System.Data.SQLite;
 using System.Linq;
 using System.Text;
+using SkydbStorage.Internal;
 using SkydbStorage.Internal.Orm;
 
 namespace SkydbStorage.DataApi
 {
-    public class InsertScoresStatement : IDisposable
+    public class InsertScoresStatement : PreparedStatement
     {
-        private IDbCommand _command;
         private IList<string> _scoreNames;
 
         public InsertScoresStatement(IDbConnection connection) : this(connection, GetScoreNames(connection)) 
         {
 
         }
-        public InsertScoresStatement(IDbConnection connection, IEnumerable<string> scoreNames)
+        public InsertScoresStatement(IDbConnection connection, IEnumerable<string> scoreNames) : base(connection)
         {
             _scoreNames = scoreNames.ToList();
             StringBuilder strCommand = new StringBuilder("INSERT INTO Scores (");
@@ -25,11 +25,10 @@ namespace SkydbStorage.DataApi
             strCommand.Append(") VALUES (");
             strCommand.Append(string.Join(",", _scoreNames.Select(name => "?")));
             strCommand.Append("); select last_insert_rowid();");
-            _command = connection.CreateCommand();
-            _command.CommandText = strCommand.ToString();
+            Command.CommandText = strCommand.ToString();
             for (int i = 0; i < _scoreNames.Count; i++)
             {
-                _command.Parameters.Add(new SQLiteParameter());
+                Command.Parameters.Add(new SQLiteParameter());
             }
         }
 
@@ -37,10 +36,10 @@ namespace SkydbStorage.DataApi
         {
             for (int i = 0; i < _scoreNames.Count; i++)
             {
-                ((SQLiteParameter) _command.Parameters[i]).Value = (object) scores.GetScore(_scoreNames[i]) ?? DBNull.Value;
+                ((SQLiteParameter) Command.Parameters[i]).Value = (object) scores.GetScore(_scoreNames[i]) ?? DBNull.Value;
             }
 
-            scores.Id = Convert.ToInt64(_command.ExecuteScalar());
+            scores.Id = Convert.ToInt64(Command.ExecuteScalar());
         }
 
         public void CopyAll(IDbConnection connection, EntityIdMap entityIdMap)
@@ -53,7 +52,6 @@ namespace SkydbStorage.DataApi
                 entityIdMap.SetNewId(typeof(Scores), oldId, entity.Id.Value);
             }
         }
-
 
         public IEnumerable<Scores> SelectAll(IDbConnection connection)
         {
@@ -85,11 +83,6 @@ namespace SkydbStorage.DataApi
                     }
                 }
             }
-        }
-
-        public void Dispose()
-        {
-            _command.Dispose();
         }
 
         public static IEnumerable<string> GetScoreNames(IDbConnection connection)

@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Data;
 using System.Data.SQLite;
-using System.Text;
 using NHibernate;
 using NHibernate.Cfg;
 using NHibernate.Mapping.Attributes;
@@ -10,13 +9,80 @@ using SkydbStorage.DataApi;
 using SkydbStorage.Internal;
 using SkydbStorage.Internal.Orm;
 using SkylineApi;
-using InstrumentInfo = SkydbStorage.Internal.Orm.InstrumentInfo;
 
 namespace SkydbStorage.Api
 {
-    public class SkydbFile
+    public class SkydbConnection : IDisposable
     {
-        public SkydbFile(string filePath)
+        private IDbTransaction _transaction;
+        public SkydbConnection(IDbConnection connection)
+        {
+            Connection = connection;
+        }
+
+        public IDbConnection Connection { get; }
+
+        public void Dispose()
+        {
+            Connection?.Dispose();
+        }
+
+        public void AttachDatabase(string filePath, string schemaName)
+        {
+            using (var cmd = Connection.CreateCommand())
+            {
+                cmd.CommandText = "ATTACH DATABASE ? AS " + QuoteIdentifier(schemaName);
+                cmd.Parameters.Add(new SQLiteParameter() {Value = filePath});
+                cmd.ExecuteNonQuery();
+            }
+        }
+
+        public void DetachDatabase(string schemaName)
+        {
+            using (var cmd = Connection.CreateCommand())
+            {
+                cmd.CommandText = "DETACH DATABASE " + QuoteIdentifier(schemaName);
+                cmd.ExecuteNonQuery();
+            }
+        }
+
+        public void BeginTransaction()
+        {
+            if (_transaction != null)
+            {
+                throw new InvalidOperationException(@"Transaction already begun");
+            }
+
+            _transaction = Connection.BeginTransaction();
+        }
+
+        public void CommitTransaction()
+        {
+            if (_transaction == null)
+            {
+                throw new InvalidOperationException(@"No transaction");
+            }
+            _transaction.Commit();
+            _transaction = null;
+        }
+
+
+        public string QuoteIdentifier(string identifier)
+        {
+            return SqliteOperations.QuoteIdentifier(identifier);
+        }
+
+        public string QuoteIdentifier(string schemaName, string objectName)
+        {
+            if (string.IsNullOrEmpty(schemaName))
+            {
+                return QuoteIdentifier(objectName);
+            }
+
+            return QuoteIdentifier(schemaName) + "." + QuoteIdentifier(objectName);
+        }
+
+        public SkydbConnection(string filePath)
         {
             FilePath = filePath;
         }
@@ -38,15 +104,14 @@ namespace SkydbStorage.Api
         {
             using (var writer = new SkydbWriter(OpenConnection()))
             {
-                writer.SetUnsafeJournalMode();
-                writer.BeginTransaction();
+                BeginTransaction();
                 var adder = new ExtractedDataFileWriter(writer, data);
                 adder.Write();
-                writer.CommitTransaction();
+                CommitTransaction();
             }
         }
 
-        public void AddSkydbFiles(IEnumerable<SkydbFile> filesToAdd)
+        public void AddSkydbFiles(IEnumerable<SkydbConnection> filesToAdd)
         {
             using (var writer = OpenWriter())
             {
@@ -64,7 +129,7 @@ namespace SkydbStorage.Api
             }
         }
 
-        public void JoinUsingAttachDatabase(IEnumerable<SkydbFile> filesToAdd)
+        public void JoinUsingAttachDatabase(IEnumerable<SkydbConnection> filesToAdd)
         {
             using (var writer = OpenWriter())
             {
@@ -79,7 +144,7 @@ namespace SkydbStorage.Api
 
                     var idOffsets = GetIdOffsets(writer.Connection, "toMerge", null);
                     writer.BeginTransaction();
-                    foreach (var tableClass in GetTableClasses())
+                    foreach (var tableClass in SkydbSchema.GetTableClasses())
                     {
                         using (var insertSelect =
                             new InsertSelectStatement(writer.Connection, "toMerge", null, tableClass))
@@ -105,21 +170,33 @@ namespace SkydbStorage.Api
             }
         }
 
+        public void CopyDataToPath(string path)
+        {
+            const string targetSchema = "targetSchema";
+            AttachDatabase(path, targetSchema);
+            BeginTransaction();
+            var idOffsets = GetIdOffsets(Connection, null, targetSchema);
+            foreach (var tableClass in SkydbSchema.GetTableClasses())
+            {
+                using (var insertSelect =
+                    new InsertSelectStatement(Connection, null, targetSchema, tableClass))
+                {
+                    insertSelect.CopyData(idOffsets);
+                }
+            }
+
+            CommitTransaction();
+            DetachDatabase(targetSchema);
+        }
+
         public IDbConnection OpenConnection()
         {
-            var connectionStringBuilder = SqliteOperations.MakeConnectionStringBuilder(FilePath);
-            return new SQLiteConnection(connectionStringBuilder.ToString()).OpenAndReturn();
+            return Connection;
         }
 
         public SkydbWriter OpenWriter()
         {
-            var writer = new SkydbWriter(OpenConnection());
-            if (UseUnsafeJournalMode)
-            {
-                writer.SetUnsafeJournalMode();
-            }
-
-            return writer;
+            return new SkydbWriter(Connection);
         }
 
         public ISessionFactory CreateSessionFactory()
@@ -160,23 +237,6 @@ namespace SkydbStorage.Api
             return configuration;
         }
 
-        public static IEnumerable<Type> GetTableClasses()
-        {
-            return new[]
-            {
-                typeof(ExtractedFile),
-                typeof(Scores),
-                typeof(SpectrumInfo),
-                typeof(SpectrumList),
-                typeof(ChromatogramData),
-                typeof(ChromatogramGroup),
-                typeof(Chromatogram),
-                typeof(CandidatePeak),
-                typeof(CandidatePeakGroup),
-                typeof(InstrumentInfo),
-            };
-        }
-
         public void SetStartingSequenceNumber(long sequenceNumber)
         {
             using (var connection = OpenConnection())
@@ -192,7 +252,7 @@ namespace SkydbStorage.Api
                     cmd.CommandText = "INSERT INTO SQLITE_SEQUENCE (NAME, SEQ) VALUES (?, ?)";
                     cmd.Parameters.Add(new SQLiteParameter());
                     cmd.Parameters.Add(new SQLiteParameter());
-                    foreach (var tableClass in GetTableClasses())
+                    foreach (var tableClass in SkydbSchema.GetTableClasses())
                     {
                         ((SQLiteParameter) cmd.Parameters[0]).Value = tableClass.Name;
                         ((SQLiteParameter) cmd.Parameters[1]).Value = sequenceNumber;
@@ -206,7 +266,7 @@ namespace SkydbStorage.Api
             string targetSchema)
         {
             var result = new Dictionary<Type, long>();
-            foreach (var tableType in GetTableClasses())
+            foreach (var tableType in SkydbSchema.GetTableClasses())
             {
                 long minSourceId;
                 using (var cmd = connection.CreateCommand())
@@ -216,7 +276,7 @@ namespace SkydbStorage.Api
                     var value = cmd.ExecuteScalar();
                     if (value == null || value is DBNull)
                     {
-                        minSourceId = 0;
+                        minSourceId = 1;
                     }
                     else
                     {

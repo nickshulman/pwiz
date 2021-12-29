@@ -4,6 +4,7 @@ using System.Data;
 using System.Data.SQLite;
 using System.Text;
 using SkydbStorage.DataApi;
+using SkydbStorage.Internal.Orm;
 
 namespace SkydbStorage.Internal
 {
@@ -52,8 +53,6 @@ namespace SkydbStorage.Internal
             {
                 tuple.Item2.Value = idOffsets[tuple.Item1];
             }
-
-            _command.ExecuteNonQuery();
         }
 
         public void Dispose()

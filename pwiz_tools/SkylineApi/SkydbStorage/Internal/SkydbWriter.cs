@@ -84,7 +84,6 @@ namespace SkydbStorage.DataApi
                 disposable.Dispose();
             }
             _insertStatements.Clear();
-            Connection.Close();
         }
     }
 }

@@ -10,6 +10,7 @@ using pwiz.Skyline.Model.Results;
 using pwiz.Skyline.Model.Skydb;
 using pwiz.SkylineTestUtil;
 using SkydbStorage.Api;
+using SkydbStorage.DataApi;
 using SkydbStorage.Internal;
 using SkydbStorage.Internal.Orm;
 
@@ -34,7 +35,7 @@ namespace pwiz.SkylineTest
                     new ProgressStatus(),
                     new DefaultFileLoadMonitor(new SilentProgressMonitor()), false))
                 {
-                    var skydbFile = new SkydbFile(outputFile)
+                    var skydbFile = new SkydbConnection(outputFile)
                     {
                         UseUnsafeJournalMode = true
                     };
@@ -63,6 +64,64 @@ namespace pwiz.SkylineTest
         }
 
         [TestMethod]
+        public void TestMemoryJoining()
+        {
+            using (var testFilesDir = new TestFilesDir(TestContext, @"Test\SkydFormatTest.zip"))
+            {
+                DateTime start = DateTime.UtcNow;
+                var inputFilePath = @"D:\skydata\20150501_Bruderer\delayloadingpeaks\BruderDIA2015_withdecoys.skyd";
+                //var inputFilePath = testFilesDir.GetTestPath("Bruder3Proteins.skyd");
+                //var inputFilePath = testFilesDir.GetTestPath("Human_plasma.skyd");
+                //var inputFilePath = @"D:\skydata\20150501_Bruderer\delayloadingpeaks\delay.skyd";
+                //var inputFilePath = @"D:\skydata\20140318_Hasmik_QE_DIA\Study9_2_Curve_DIA_QE_5trans_withSpLib_Jan2014\Study9_2_Curve_DIA_QE_5trans_withSpLib_Jan2014.skyd";
+                // var inputFilePath = @"D:\skydata\20150501_Bruderer\3Proteins_delayloadingpeaks\Bruder3Proteins.skyd";
+                var outputFile = testFilesDir.GetTestPath("joined.skydb");
+                var schema = new SkydbSchema();
+
+
+                using (var chromatogramCache = ChromatogramCache.Load(
+                    inputFilePath,
+                    new ProgressStatus(),
+                    new DefaultFileLoadMonitor(new SilentProgressMonitor()), false))
+                {
+                    using (var target = schema.CreateDatabase(outputFile))
+                    {
+                        using (var writer = new SkydbWriter(target.Connection))
+                        {
+                            writer.EnsureScores(chromatogramCache.ScoreTypes.Select(type=>type.Name));
+                        }
+                    }
+                    var lockObject = new object();
+                    ParallelEx.For(0, chromatogramCache.CachedFiles.Count(), iPart =>
+                    {
+                        using (var legacyChromatogramCache = new LegacyChromatogramCache(chromatogramCache))
+                        {
+                            using (var skydbConnection = schema.CreateDatabase(SkydbSchema.MEMORY_DATABASE_PATH))
+                            {
+                                var msDataFiles = legacyChromatogramCache.MsDataFileChromatogramDatas.ToList();
+                                skydbConnection.AddChromatogramData(msDataFiles[iPart]);
+                                lock (lockObject)
+                                {
+                                    skydbConnection.CopyDataToPath(outputFile);
+                                }
+                            }
+                        }
+                    });
+                }
+
+                Console.Out.WriteLine("Elapsed time {0}", DateTime.UtcNow.Subtract(start).TotalMilliseconds);
+                Console.Out.WriteLine("Input File Size: {0:N0}", new FileInfo(inputFilePath).Length);
+                Console.Out.WriteLine("Output File Size: {0:N0}", new FileInfo(outputFile).Length);
+                Console.Out.WriteLine("File size difference: {0:N0}", new FileInfo(outputFile).Length - new FileInfo(inputFilePath).Length);
+                var targetFile =
+                    Path.Combine(Path.GetDirectoryName(Path.GetDirectoryName(Path.GetDirectoryName(outputFile))),
+                        Path.GetFileName(outputFile));
+                File.Copy(outputFile, targetFile, true);
+            }
+        }
+
+
+        [TestMethod]
         public void TestSkydbJoiner()
         {
             using (var testFilesDir = new TestFilesDir(TestContext, @"Test\SkydFormatTest.zip"))
@@ -87,7 +146,7 @@ namespace pwiz.SkylineTest
                         using (var legacyChromatogramCache = new LegacyChromatogramCache(chromatogramCache))
                         {
                             var msDataFiles = legacyChromatogramCache.MsDataFileChromatogramDatas.ToList();
-                            var skydbFile = new SkydbFile(partFiles[iPart])
+                            var skydbFile = new SkydbConnection(partFiles[iPart])
                             {
                                 UseUnsafeJournalMode = true
                             };
@@ -98,12 +157,12 @@ namespace pwiz.SkylineTest
                 }
 
                 var outputFile = testFilesDir.GetTestPath("joined.skydb");
-                var outputSkydbFile = new SkydbFile(outputFile)
+                var outputSkydbFile = new SkydbConnection(outputFile)
                 {
                     UseUnsafeJournalMode = true
                 };
                 outputSkydbFile.CreateDatabase();
-                outputSkydbFile.AddSkydbFiles(partFiles.Select(file=>new SkydbFile(file)));
+                outputSkydbFile.AddSkydbFiles(partFiles.Select(file=>new SkydbConnection(file)));
                 Console.Out.WriteLine("Elapsed time {0}", DateTime.UtcNow.Subtract(start).TotalMilliseconds);
                 Console.Out.WriteLine("Input File Size: {0:N0}", new FileInfo(inputFilePath).Length);
                 Console.Out.WriteLine("Output File Size: {0:N0}", new FileInfo(outputFile).Length);
@@ -142,7 +201,7 @@ namespace pwiz.SkylineTest
                         using (var legacyChromatogramCache = new LegacyChromatogramCache(chromatogramCache))
                         {
                             var msDataFiles = legacyChromatogramCache.MsDataFileChromatogramDatas.ToList();
-                            var skydbFile = new SkydbFile(partFiles[iPart])
+                            var skydbFile = new SkydbConnection(partFiles[iPart])
                             {
                                 UseUnsafeJournalMode = true
                             };
@@ -155,7 +214,7 @@ namespace pwiz.SkylineTest
                 Console.Out.WriteLine("Time to generate parts {0}", DateTime.UtcNow.Subtract(start).TotalMilliseconds);
                 var startJoin = DateTime.UtcNow;
                 var outputFile = testFilesDir.GetTestPath("joined.skydb");
-                var outputSkydbFile = new SkydbFile(outputFile)
+                var outputSkydbFile = new SkydbConnection(outputFile)
                 {
                     UseUnsafeJournalMode = true
                 };
@@ -164,7 +223,7 @@ namespace pwiz.SkylineTest
                 {
                     writer.EnsureScores(scoreNames);
                 }
-                outputSkydbFile.JoinUsingAttachDatabase(partFiles.Select(file => new SkydbFile(file)));
+                outputSkydbFile.JoinUsingAttachDatabase(partFiles.Select(file => new SkydbConnection(file)));
                 Console.Out.WriteLine("Time to join parts {0}", DateTime.UtcNow.Subtract(startJoin).TotalMilliseconds);
                 Console.Out.WriteLine("Elapsed time {0}", DateTime.UtcNow.Subtract(start).TotalMilliseconds);
                 Console.Out.WriteLine("Input File Size: {0:N0}", new FileInfo(inputFilePath).Length);
@@ -210,7 +269,7 @@ namespace pwiz.SkylineTest
             var skydbPath = Path.Combine(TestContext.TestDir, "speedtest.skydb");
             File.Copy(originalFile, skydbPath, true);
             // var skydbPath = @"c:\skydb\joinedbyattachdb.skydb";
-            var skydbFile = new SkydbFile(skydbPath);
+            var skydbFile = new SkydbConnection(skydbPath);
             var chromGroupHeaderInfos = new List<ChromGroupHeaderInfo>();
             var chromTransitions = new List<ChromTransition>();
             var spectrumInfos = new List<SpectrumInfo>();

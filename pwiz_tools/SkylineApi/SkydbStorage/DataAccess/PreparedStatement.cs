@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Data;
 
-namespace SkydbStorage.Internal
+namespace SkydbStorage.DataAccess
 {
     public class PreparedStatement : IDisposable
     {

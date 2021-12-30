@@ -2,13 +2,9 @@
 using System.Collections.Generic;
 using System.Data;
 using System.Data.SQLite;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using NHibernate.Mapping.Attributes;
 using SkydbStorage.Internal.Orm;
 
-namespace SkydbStorage.Internal
+namespace SkydbStorage.DataAccess
 {
     public class SelectChromatogramStatement : IDisposable
     {

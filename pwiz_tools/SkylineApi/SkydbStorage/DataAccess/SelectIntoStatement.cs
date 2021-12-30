@@ -3,43 +3,42 @@ using System.Collections.Generic;
 using System.Data;
 using System.Data.SQLite;
 using System.Text;
-using SkydbStorage.DataApi;
-using SkydbStorage.Internal.Orm;
+using SkydbStorage.Internal;
 
-namespace SkydbStorage.Internal
+namespace SkydbStorage.DataAccess
 {
-    public class InsertSelectStatement : IDisposable
+    public class SelectIntoStatement : IDisposable
     {
         private IDbCommand _command;
         private IList<Tuple<Type, SQLiteParameter>> _parameters;
-        public InsertSelectStatement(IDbConnection connection, string sourceSchema, string targetSchema, Type tableType)
+        public SelectIntoStatement(SkydbSchema schema, IDbConnection connection, string sourceSchema, string targetSchema, Type tableType)
         {
             string tableName = tableType.Name;
 
             var insertList = new List<string>{"Id"};
             var selectList = new List<string> {"Id + ?"};
             _parameters = new List<Tuple<Type, SQLiteParameter>> { Tuple.Create(tableType, new SQLiteParameter()) };
-            foreach (var tuple in new SkydbSchema().GetColumns(tableType))
+            foreach (var columnInfo in schema.GetColumns(tableType))
             {
-                string columnName = SqliteOperations.QuoteIdentifier(tuple.Item1.Name);
+                string columnName = SqliteOps.QuoteIdentifier(columnInfo.Name);
                 insertList.Add(columnName);
-                if (tuple.Item2 == null)
+                if (columnInfo.ForeignEntityType == null)
                 {
                     selectList.Add(columnName);
                 }
                 else
                 {
                     selectList.Add(columnName + " + ?");
-                    _parameters.Add(Tuple.Create(tuple.Item2, new SQLiteParameter()));
+                    _parameters.Add(Tuple.Create(columnInfo.ForeignEntityType, new SQLiteParameter()));
                 }
             }
 
             _command = connection.CreateCommand();
             StringBuilder commandText = new StringBuilder();
-            commandText.AppendLine("INSERT INTO " + SqliteOperations.QuoteIdentifier(targetSchema, tableName) + " (" +
+            commandText.AppendLine("INSERT INTO " + SqliteOps.QuoteIdentifier(targetSchema, tableName) + " (" +
                                    string.Join(", ", insertList) + ")");
             commandText.AppendLine("SELECT " + string.Join(", ", selectList) + " FROM " +
-                                   SqliteOperations.QuoteIdentifier(sourceSchema, tableName));
+                                   SqliteOps.QuoteIdentifier(sourceSchema, tableName));
             _command.CommandText = commandText.ToString();
             foreach (var tuple in _parameters)
             {
@@ -53,6 +52,8 @@ namespace SkydbStorage.Internal
             {
                 tuple.Item2.Value = idOffsets[tuple.Item1];
             }
+
+            _command.ExecuteNonQuery();
         }
 
         public void Dispose()

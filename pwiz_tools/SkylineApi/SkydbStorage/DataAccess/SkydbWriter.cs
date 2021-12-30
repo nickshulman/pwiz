@@ -2,39 +2,35 @@
 using System.Collections.Generic;
 using System.Data;
 using System.Linq;
+using SkydbStorage.Internal;
 using SkydbStorage.Internal.Orm;
 
-namespace SkydbStorage.DataApi
+namespace SkydbStorage.DataAccess
 {
     public class SkydbWriter : IDisposable
     {
         private IDbTransaction _transaction;
         private Dictionary<Type, IDisposable> _insertStatements = new Dictionary<Type, IDisposable>();
-        public SkydbWriter(IDbConnection connection)
+        public SkydbWriter(SkydbConnection skydbConnection)
         {
-            Connection = connection;
+            SkydbConnection = skydbConnection;
         }
 
-        public IDbConnection Connection { get; }
+        public SkydbConnection SkydbConnection { get; }
 
-        public void SetUnsafeJournalMode()
+        public IDbConnection Connection
         {
-            using (var cmd = Connection.CreateCommand())
-            {
-                cmd.CommandText = "PRAGMA synchronous = OFF";
-                cmd.ExecuteNonQuery();
-                cmd.CommandText = "PRAGMA journal_mode = MEMORY";
-                cmd.ExecuteNonQuery();
-            }
+            get { return SkydbConnection.Connection; }
+        }
+
+        public SkydbSchema SkydbSchema
+        {
+            get { return SkydbConnection.SkydbSchema; }
         }
 
         public void BeginTransaction()
         {
-            if (_transaction != null)
-            {
-                throw new InvalidOperationException();
-            }
-            _transaction = Connection.BeginTransaction();
+            SkydbConnection.BeginTransaction();
         }
 
         public void CommitTransaction()
@@ -46,7 +42,7 @@ namespace SkydbStorage.DataApi
 
         public void EnsureScores(IEnumerable<string> scoreNames)
         {
-            var namesToAdd = scoreNames.Except(SqliteOperations.ListColumnNames(Connection, "Scores")).ToList();
+            var namesToAdd = scoreNames.Except(SqliteOps.ListColumnNames(Connection, "Scores")).ToList();
             if (namesToAdd.Count == 0)
             {
                 return;
@@ -54,25 +50,25 @@ namespace SkydbStorage.DataApi
             using (var cmd = Connection.CreateCommand())
             {
                 cmd.CommandText = string.Join(Environment.NewLine, namesToAdd.Select(scoreName =>
-                    "ALTER TABLE Scores ADD COLUMN " + SqliteOperations.QuoteIdentifier(scoreName) + " DOUBLE;"
+                    "ALTER TABLE Scores ADD COLUMN " + SqliteOps.QuoteIdentifier(scoreName) + " DOUBLE;"
                 ));
                 cmd.ExecuteNonQuery();
             }
         }
 
-        public void Insert<T>(T entity) where T : Entity
+        public void Insert<T>(T entity) where T : Entity, new()
         {
             GetInsertStatement<T>().Insert(entity);
         }
 
-        private InsertStatement<T> GetInsertStatement<T>() where T : Entity
+        private InsertStatement<T> GetInsertStatement<T>() where T : Entity, new()
         {
             if (_insertStatements.TryGetValue(typeof(T), out IDisposable statement))
             {
                 return (InsertStatement<T>) statement;
             }
 
-            var insertStatement = new InsertStatement<T>(Connection);
+            var insertStatement = new InsertStatement<T>(SkydbSchema, Connection);
             _insertStatements.Add(typeof(T), insertStatement);
             return insertStatement;
         }

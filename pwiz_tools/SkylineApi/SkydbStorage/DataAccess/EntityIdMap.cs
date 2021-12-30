@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 
-namespace SkydbStorage.DataApi
+namespace SkydbStorage.DataAccess
 {
     public class EntityIdMap
     {

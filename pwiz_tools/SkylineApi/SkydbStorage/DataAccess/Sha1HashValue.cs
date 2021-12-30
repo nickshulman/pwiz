@@ -2,12 +2,12 @@
 using System.Linq;
 using System.Security.Cryptography;
 
-namespace SkydbApi.ChromatogramData
+namespace SkydbStorage.DataAccess
 {
-    public class HashValue
+    public class Sha1HashValue
     {
         private byte[] _bytes;
-        private HashValue(byte[] bytes)
+        private Sha1HashValue(byte[] bytes)
         {
             _bytes = bytes;
         }
@@ -29,7 +29,7 @@ namespace SkydbApi.ChromatogramData
                 return true;
             }
 
-            var hash = obj as HashValue;
+            var hash = obj as Sha1HashValue;
             if (hash == null)
             {
                 return false;
@@ -49,11 +49,11 @@ namespace SkydbApi.ChromatogramData
             return result;
         }
 
-        public static HashValue HashBytes(byte[] bytes)
+        public static Sha1HashValue HashBytes(byte[] bytes)
         {
             using (var sha1 = new SHA1CryptoServiceProvider())
             {
-                return new HashValue(sha1.ComputeHash(bytes));
+                return new Sha1HashValue(sha1.ComputeHash(bytes));
             }
 
         }

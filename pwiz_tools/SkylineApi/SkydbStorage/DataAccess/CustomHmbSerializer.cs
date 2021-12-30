@@ -2,7 +2,7 @@
 using System.Reflection;
 using NHibernate.Mapping.Attributes;
 
-namespace SkydbStorage.Internal
+namespace SkydbStorage.DataAccess
 {
     public class CustomHbmWriter : HbmWriterEx
     {

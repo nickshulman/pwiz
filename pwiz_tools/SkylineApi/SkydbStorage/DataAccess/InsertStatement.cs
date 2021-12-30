@@ -3,34 +3,31 @@ using System.Collections.Generic;
 using System.Data;
 using System.Data.SQLite;
 using System.Linq;
-using System.Reflection;
 using System.Text;
-using NHibernate.Mapping.Attributes;
+using SkydbStorage.Internal;
 using SkydbStorage.Internal.Orm;
 
-namespace SkydbStorage.DataApi
+namespace SkydbStorage.DataAccess
 {
-    public class InsertStatement<T> : IDisposable where T:Entity
+    public class InsertStatement<T> : PreparedStatement where T:Entity, new()
     {
-        protected IDbCommand _command;
-        protected List<PropertyInfo> _parameters;
+        protected List<ColumnInfo> _parameters;
 
-        public InsertStatement(IDbConnection connection)
+        public InsertStatement(SkydbSchema skydbSchema, IDbConnection connection) : base(connection)
         {
-            _command = connection.CreateCommand();
-            var properties = ListColumnProperties().ToList();
+            var properties = skydbSchema.GetColumns(typeof(T)).ToList();
             StringBuilder commandText = new StringBuilder("INSERT INTO " + QuoteId(TableName) + " (");
             commandText.Append(string.Join(",", properties.Select(prop => QuoteId(prop.Name))));
             commandText.Append(") VALUES (");
             commandText.Append(string.Join(",", properties.Select(prop => "?")));
             commandText.Append("); select last_insert_rowid();");
-            _command.CommandText = commandText.ToString();
-            _parameters = new List<PropertyInfo>();
+            Command.CommandText = commandText.ToString();
+            _parameters = new List<ColumnInfo>();
             foreach (var property in properties)
             {
                 var sqliteParameter = new SQLiteParameter();
                 _parameters.Add(property);
-                _command.Parameters.Add(sqliteParameter);
+                Command.Parameters.Add(sqliteParameter);
             }
         }
 
@@ -50,10 +47,10 @@ namespace SkydbStorage.DataApi
                     value = foreignKey.Id;
                 }
 
-                ((SQLiteParameter) _command.Parameters[iProperty]).Value = value;
+                ((SQLiteParameter) Command.Parameters[iProperty]).Value = value;
             }
 
-            entity.Id = Convert.ToInt64(_command.ExecuteScalar());
+            entity.Id = Convert.ToInt64(Command.ExecuteScalar());
         }
 
         private void UpdateForeignKeys(T entity, EntityIdMap entityIdMap)
@@ -72,15 +69,15 @@ namespace SkydbStorage.DataApi
 
         public void CopyAll(IDbConnection connection, EntityIdMap entityIdMap)
         {
-            var entityProperties = _parameters.Where(p => typeof(Entity).IsAssignableFrom(p.PropertyType)).ToList();
+            var entityProperties = _parameters.Where(p => null != p.ForeignEntityType).ToList();
             foreach (var entity in SelectAll(connection))
             {
                 foreach (var p in entityProperties)
                 {
-                    var entityValue = p.GetValue(entity) as Entity;
-                    if (entityValue != null)
+                    var foreignId = (long?) p.GetValue(entity);
+                    if (foreignId.HasValue)
                     {
-                        entityValue.Id = entityIdMap.GetNewId(entityValue.EntityType, entityValue.Id.Value);
+                        p.SetValue(entity, entityIdMap.GetNewId(p.ForeignEntityType, foreignId.Value));
                     }
                 }
 
@@ -103,8 +100,10 @@ namespace SkydbStorage.DataApi
                 {
                     while (reader.Read())
                     {
-                        var entity = (T) Activator.CreateInstance(typeof(T));
-                        entity.Id = reader.GetInt64(0);
+                        var entity = new T
+                        {
+                            Id = reader.GetInt64(0)
+                        };
                         for (int i = 0; i < _parameters.Count; i++)
                         {
                             object columnValue = reader.GetValue(i + 1);
@@ -113,18 +112,7 @@ namespace SkydbStorage.DataApi
                                 continue;
                             }
                             var property = _parameters[i];
-                            if (typeof(Entity).IsAssignableFrom(property.PropertyType))
-                            {
-                                long? foreignKey = Convert.ToInt64(columnValue);
-                                var foreignEntity = (Entity) Activator.CreateInstance(property.PropertyType);
-                                foreignEntity.Id = foreignKey;
-                                property.SetValue(entity, foreignEntity);
-                            }
-                            else
-                            {
-
-                                property.SetValue(entity, columnValue);
-                            }
+                            property.SetValue(entity, columnValue);
                         }
 
                         yield return entity;
@@ -133,21 +121,9 @@ namespace SkydbStorage.DataApi
             }
         }
 
-        public static IEnumerable<PropertyInfo> ListColumnProperties()
-        {
-            return typeof(T).GetProperties().Where(prop =>
-                null != prop.GetCustomAttribute<PropertyAttribute>() ||
-                null != prop.GetCustomAttribute<ManyToOneAttribute>());
-        }
-
-        public void Dispose()
-        {
-            _command.Dispose();
-        }
-
         private static string QuoteId(string str)
         {
-            return SqliteOperations.QuoteIdentifier(str);
+            return SqliteOps.QuoteIdentifier(str);
         }
     }
 }

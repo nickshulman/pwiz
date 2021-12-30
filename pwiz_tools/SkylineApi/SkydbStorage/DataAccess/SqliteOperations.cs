@@ -21,9 +21,9 @@ using System.Collections.Generic;
 using System.Data;
 using System.Data.SQLite;
 
-namespace SkydbStorage.DataApi
+namespace SkydbStorage.DataAccess
 {
-    public static class SqliteOperations
+    public static class SqliteOps
     {
         public static bool TableExists(IDbConnection connection, string tableName)
         {
@@ -91,6 +91,11 @@ namespace SkydbStorage.DataApi
             }
 
             return QuoteIdentifier(schemaName) + "." + QuoteIdentifier(identifier);
+        }
+
+        public static IDbConnection OpenDatabaseFile(string path)
+        {
+            return new SQLiteConnection(MakeConnectionStringBuilder(path).ToString()).OpenAndReturn();
         }
     }
 }

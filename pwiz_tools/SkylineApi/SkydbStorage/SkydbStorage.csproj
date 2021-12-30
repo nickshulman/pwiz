@@ -54,36 +54,36 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Api\SkydbFile.cs" />
-    <Compile Include="Internal\CustomHmbSerializer.cs" />
-    <Compile Include="Internal\DataUtil.cs" />
-    <Compile Include="Internal\EntityIdMap.cs" />
-    <Compile Include="Internal\HashCode.cs" />
-    <Compile Include="Internal\InsertScoreStatement.cs" />
-    <Compile Include="Internal\InsertSelectStatement.cs" />
-    <Compile Include="Internal\InsertStatement.cs" />
-    <Compile Include="Internal\ExtractedDataFileWriter.cs" />
-    <Compile Include="Internal\Orm\CandidatePeak.cs" />
-    <Compile Include="Internal\Orm\InstrumentInfo.cs" />
-    <Compile Include="Internal\Orm\Molecule.cs" />
-    <Compile Include="Internal\PreparedStatement.cs" />
-    <Compile Include="Internal\SelectChromatogramStatement.cs" />
-    <Compile Include="Internal\SelectIntoStatement.cs" />
-    <Compile Include="Internal\SelectStatement.cs" />
-    <Compile Include="Internal\SkydbJoiner.cs" />
-    <Compile Include="Internal\SkydbSchema.cs" />
-    <Compile Include="Internal\SkydbWriter.cs" />
-    <Compile Include="Internal\SqliteOperations.cs" />
-    <Compile Include="Internal\Orm\CandidatePeakGroup.cs" />
-    <Compile Include="Internal\Orm\ChromatogramData.cs" />
-    <Compile Include="Internal\Orm\ChromatogramGroup.cs" />
-    <Compile Include="Internal\Orm\Chromatogram.cs" />
-    <Compile Include="Internal\Orm\Entity.cs" />
-    <Compile Include="Internal\Orm\ExtractedFile.cs" />
-    <Compile Include="Internal\Orm\SpectrumInfo.cs" />
-    <Compile Include="Internal\Orm\Scores.cs" />
-    <Compile Include="Internal\Orm\SpectrumList.cs" />
+    <Compile Include="DataAccess\SkydbConnection.cs" />
+    <Compile Include="DataAccess\ColumnInfo.cs" />
+    <Compile Include="DataAccess\CustomHmbSerializer.cs" />
+    <Compile Include="DataAccess\DataUtil.cs" />
+    <Compile Include="DataAccess\EntityIdMap.cs" />
+    <Compile Include="DataAccess\Sha1HashValue.cs" />
+    <Compile Include="DataAccess\SelectIntoStatement.cs" />
+    <Compile Include="DataAccess\InsertStatement.cs" />
+    <Compile Include="DataAccess\ExtractedDataFileWriter.cs" />
+    <Compile Include="DataAccess\Orm\CandidatePeak.cs" />
+    <Compile Include="DataAccess\Orm\InstrumentInfo.cs" />
+    <Compile Include="DataAccess\PreparedStatement.cs" />
+    <Compile Include="DataAccess\SelectChromatogramStatement.cs" />
+    <Compile Include="DataAccess\SelectStatement.cs" />
+    <Compile Include="DataAccess\SkydbSchema.cs" />
+    <Compile Include="DataAccess\SkydbWriter.cs" />
+    <Compile Include="DataAccess\SqliteOperations.cs" />
+    <Compile Include="DataAccess\Orm\CandidatePeakGroup.cs" />
+    <Compile Include="DataAccess\Orm\ChromatogramData.cs" />
+    <Compile Include="DataAccess\Orm\ChromatogramGroup.cs" />
+    <Compile Include="DataAccess\Orm\Chromatogram.cs" />
+    <Compile Include="DataAccess\Orm\Entity.cs" />
+    <Compile Include="DataAccess\Orm\ExtractedFile.cs" />
+    <Compile Include="DataAccess\Orm\SpectrumInfo.cs" />
+    <Compile Include="DataAccess\Orm\Scores.cs" />
+    <Compile Include="DataAccess\Orm\SpectrumList.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="SkylineDocument\ChromatogramGroupImpl.cs" />
+    <Compile Include="SkylineDocument\ExtractedDataFileImpl.cs" />
+    <Compile Include="SkylineDocument\SkylineDocumentImpl.cs" />
   </ItemGroup>
   <ItemGroup />
   <ItemGroup>

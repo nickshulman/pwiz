@@ -2,22 +2,20 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
-using SkydbApi.ChromatogramData;
-using SkydbStorage.DataApi;
+using SkydbStorage.Internal;
 using SkydbStorage.Internal.Orm;
 using SkylineApi;
 
-namespace SkydbStorage.Internal
+namespace SkydbStorage.DataAccess
 {
     public class ExtractedDataFileWriter
     {
         private IList<string> _scoreNames;
-        private InsertScoresStatement _insertScoresStatement;
         private ExtractedFile _msDataFile;
         private Dictionary<Tuple<float, string>, int> _spectrumIds = new Dictionary<Tuple<float, string>, int>();
-        private Dictionary<HashValue, long> _spectrumIndexLists = new Dictionary<HashValue, long>();
-        private Dictionary<HashValue, long> _retentionTimeLists = new Dictionary<HashValue, long>();
-        private Dictionary<HashValue, long> _scoreDictionary = new Dictionary<HashValue, long>();
+        private Dictionary<Sha1HashValue, long> _spectrumIndexLists = new Dictionary<Sha1HashValue, long>();
+        private Dictionary<Sha1HashValue, long> _retentionTimeLists = new Dictionary<Sha1HashValue, long>();
+        private Dictionary<Sha1HashValue, long> _scoreDictionary = new Dictionary<Sha1HashValue, long>();
 
         public ExtractedDataFileWriter(SkydbWriter writer, IExtractedDataFile msDataSourceFile)
         {
@@ -33,39 +31,36 @@ namespace SkydbStorage.Internal
         public void Write()
         {
             Writer.EnsureScores(MsDataSourceFile.ScoreNames);
-            using (_insertScoresStatement = new InsertScoresStatement(Writer.Connection, MsDataSourceFile.ScoreNames))
+            _msDataFile = new ExtractedFile()
             {
-                _msDataFile = new ExtractedFile()
+                FilePath = MsDataSourceFile.SourceFilePath,
+                HasCombinedIonMobility = MsDataSourceFile.HasCombinedIonMobility,
+                InstrumentSerialNumber = MsDataSourceFile.InstrumentSerialNumber,
+                LastWriteTime = MsDataSourceFile.LastWriteTime,
+                MaxIntensity = MsDataSourceFile.MaxIntensity,
+                MaxRetentionTime = MsDataSourceFile.MaxRetentionTime,
+                Ms1Centroid = MsDataSourceFile.Ms1Centroid,
+                Ms2Centroid = MsDataSourceFile.Ms2Centroid,
+                RunStartTime = MsDataSourceFile.RunStartTime,
+                SampleId = MsDataSourceFile.SampleId,
+                TotalIonCurrentArea = MsDataSourceFile.TotalIonCurrentArea
+            };
+            Writer.Insert(_msDataFile);
+            foreach (var instrumentInfo in MsDataSourceFile.InstrumentInfos)
+            {
+                Writer.Insert(new Internal.Orm.InstrumentInfo
                 {
-                    FilePath = MsDataSourceFile.SourceFilePath,
-                    HasCombinedIonMobility = MsDataSourceFile.HasCombinedIonMobility,
-                    InstrumentSerialNumber = MsDataSourceFile.InstrumentSerialNumber,
-                    LastWriteTime = MsDataSourceFile.LastWriteTime,
-                    MaxIntensity = MsDataSourceFile.MaxIntensity,
-                    MaxRetentionTime = MsDataSourceFile.MaxRetentionTime,
-                    Ms1Centroid = MsDataSourceFile.Ms1Centroid,
-                    Ms2Centroid = MsDataSourceFile.Ms2Centroid,
-                    RunStartTime = MsDataSourceFile.RunStartTime,
-                    SampleId = MsDataSourceFile.SampleId,
-                    TotalIonCurrentArea = MsDataSourceFile.TotalIonCurrentArea
-                };
-                Writer.Insert(_msDataFile);
-                foreach (var instrumentInfo in MsDataSourceFile.InstrumentInfos)
-                {
-                    Writer.Insert(new Orm.InstrumentInfo
-                    {
-                        ExtractedFile = _msDataFile.Id.Value,
-                        Analyzer = instrumentInfo.Analyzer,
-                        Detector = instrumentInfo.Detector,
-                        Ionization = instrumentInfo.Ionization,
-                        Model = instrumentInfo.Model
-                    });
-                }
-                WriteSpectrumInfos();
-                foreach (var group in MsDataSourceFile.ChromatogramGroups)
-                {
-                    WriteGroup(group);
-                }
+                    ExtractedFile = _msDataFile.Id.Value,
+                    Analyzer = instrumentInfo.Analyzer,
+                    Detector = instrumentInfo.Detector,
+                    Ionization = instrumentInfo.Ionization,
+                    Model = instrumentInfo.Model
+                });
+            }
+            WriteSpectrumInfos();
+            foreach (var group in MsDataSourceFile.ChromatogramGroups)
+            {
+                WriteGroup(group);
             }
         }
 
@@ -135,7 +130,7 @@ namespace SkydbStorage.Internal
             if (spectrumIndexes != null)
             {
                 var spectrumIndexBytes = DataUtil.PrimitivesToByteArray(spectrumIndexes);
-                var hashCode = HashValue.HashBytes(spectrumIndexBytes);
+                var hashCode = Sha1HashValue.HashBytes(spectrumIndexBytes);
                 if (_spectrumIndexLists.TryGetValue(hashCode, out long id))
                 {
                     chromatogramData.SpectrumList = id;
@@ -157,7 +152,7 @@ namespace SkydbStorage.Internal
             if (chromatogramData.SpectrumList == 0)
             {
                 var retentionTimeBytes = DataUtil.PrimitivesToByteArray(data.RetentionTimes.ToArray());
-                var hashCode = HashValue.HashBytes(retentionTimeBytes);
+                var hashCode = Sha1HashValue.HashBytes(retentionTimeBytes);
                 if (_retentionTimeLists.TryGetValue(hashCode, out long id))
                 {
                     chromatogramData.SpectrumList = id;
@@ -243,7 +238,7 @@ namespace SkydbStorage.Internal
                 Scores scoresEntity = null;
                 if (scores.Any(s=>!double.IsNaN(s)))
                 {
-                    var scoreKey = HashValue.HashBytes(DataUtil.PrimitivesToByteArray(scores));
+                    var scoreKey = Sha1HashValue.HashBytes(DataUtil.PrimitivesToByteArray(scores));
                     if (_scoreDictionary.TryGetValue(scoreKey, out long scoresId))
                     {
                         scoresEntity = new Scores { Id = scoresId };
@@ -259,7 +254,7 @@ namespace SkydbStorage.Internal
                             }
                         }
 
-                        _insertScoresStatement.Insert(scoresEntity);
+                        Writer.Insert(scoresEntity);
                         _scoreDictionary.Add(scoreKey, scoresEntity.Id.Value);
                     }
 

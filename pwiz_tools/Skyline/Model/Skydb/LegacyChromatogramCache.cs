@@ -78,7 +78,7 @@ namespace pwiz.Skyline.Model.Skydb
                 }
             }
 
-            public IEnumerable<string> ScoreNames => Cache._chromatogramCache.ScoreTypes.Select(type=>type.Name);
+            public IEnumerable<string> ScoreNames => Cache._chromatogramCache.ScoreTypes.Select(type=>type.FullName);
 
             public DateTime? LastWriteTime => ChromCachedFile.FileWriteTime;
 

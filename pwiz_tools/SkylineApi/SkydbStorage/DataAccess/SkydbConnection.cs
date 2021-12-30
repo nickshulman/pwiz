@@ -5,20 +5,27 @@ using System.Data.SQLite;
 using NHibernate;
 using NHibernate.Cfg;
 using NHibernate.Mapping.Attributes;
-using SkydbStorage.DataApi;
-using SkydbStorage.Internal;
 using SkydbStorage.Internal.Orm;
 using SkylineApi;
 
-namespace SkydbStorage.Api
+namespace SkydbStorage.DataAccess
 {
     public class SkydbConnection : IDisposable
     {
         private IDbTransaction _transaction;
-        public SkydbConnection(IDbConnection connection)
+        public SkydbConnection(SkydbSchema schema, IDbConnection connection)
         {
+            SkydbSchema = schema;
             Connection = connection;
         }
+
+        public static SkydbConnection OpenFile(string path)
+        {
+            var connection = SqliteOps.OpenDatabaseFile(path);
+            return new SkydbConnection(SkydbSchema.FromConnection(connection), connection);
+        }
+
+        public SkydbSchema SkydbSchema { get; }
 
         public IDbConnection Connection { get; }
 
@@ -69,7 +76,7 @@ namespace SkydbStorage.Api
 
         public string QuoteIdentifier(string identifier)
         {
-            return SqliteOperations.QuoteIdentifier(identifier);
+            return SqliteOps.QuoteIdentifier(identifier);
         }
 
         public string QuoteIdentifier(string schemaName, string objectName)
@@ -89,84 +96,14 @@ namespace SkydbStorage.Api
 
         public string FilePath { get; }
 
-        public bool UseUnsafeJournalMode { get; set; }
-
-        public void CreateDatabase()
-        {
-            var configuration = CreateConfiguration(true);
-            configuration.SetProperty(@"hbm2ddl.auto", @"create");
-            using (configuration.BuildSessionFactory())
-            {
-            }
-        }
-
         public void AddChromatogramData(IExtractedDataFile data)
         {
-            using (var writer = new SkydbWriter(OpenConnection()))
+            using (var writer = new SkydbWriter(this))
             {
                 BeginTransaction();
                 var adder = new ExtractedDataFileWriter(writer, data);
                 adder.Write();
                 CommitTransaction();
-            }
-        }
-
-        public void AddSkydbFiles(IEnumerable<SkydbConnection> filesToAdd)
-        {
-            using (var writer = OpenWriter())
-            {
-                writer.BeginTransaction();
-                foreach (var fileToAdd in filesToAdd)
-                {
-                    using (var reader = fileToAdd.OpenConnection())
-                    {
-                        var joiner = new SkydbJoiner(writer, reader);
-                        joiner.JoinFiles();
-                    }
-                }
-
-                writer.CommitTransaction();
-            }
-        }
-
-        public void JoinUsingAttachDatabase(IEnumerable<SkydbConnection> filesToAdd)
-        {
-            using (var writer = OpenWriter())
-            {
-                foreach (var fileToAdd in filesToAdd)
-                {
-                    using (var cmd = writer.Connection.CreateCommand())
-                    {
-                        cmd.CommandText = "ATTACH ? AS toMerge";
-                        cmd.Parameters.Add(new SQLiteParameter() {Value = fileToAdd.FilePath});
-                        cmd.ExecuteNonQuery();
-                    }
-
-                    var idOffsets = GetIdOffsets(writer.Connection, "toMerge", null);
-                    writer.BeginTransaction();
-                    foreach (var tableClass in SkydbSchema.GetTableClasses())
-                    {
-                        using (var insertSelect =
-                            new InsertSelectStatement(writer.Connection, "toMerge", null, tableClass))
-                        {
-                            insertSelect.CopyData(idOffsets);
-                        }
-                        // using (var cmd = writer.Connection.CreateCommand())
-                        // {
-                        //     cmd.CommandText = "INSERT INTO " + SqliteOperations.QuoteIdentifier(tableClass.Name) +
-                        //                       " SELECT * FROM toMerge." +
-                        //                       SqliteOperations.QuoteIdentifier(tableClass.Name);
-                        //     cmd.ExecuteNonQuery();
-                        // }
-                    }
-
-                    writer.CommitTransaction();
-                    using (var cmd = writer.Connection.CreateCommand())
-                    {
-                        cmd.CommandText = "DETACH toMerge";
-                        cmd.ExecuteNonQuery();
-                    }
-                }
             }
         }
 
@@ -179,7 +116,7 @@ namespace SkydbStorage.Api
             foreach (var tableClass in SkydbSchema.GetTableClasses())
             {
                 using (var insertSelect =
-                    new InsertSelectStatement(Connection, null, targetSchema, tableClass))
+                    new SelectIntoStatement(SkydbSchema, Connection, null, targetSchema, tableClass))
                 {
                     insertSelect.CopyData(idOffsets);
                 }
@@ -187,16 +124,6 @@ namespace SkydbStorage.Api
 
             CommitTransaction();
             DetachDatabase(targetSchema);
-        }
-
-        public IDbConnection OpenConnection()
-        {
-            return Connection;
-        }
-
-        public SkydbWriter OpenWriter()
-        {
-            return new SkydbWriter(Connection);
         }
 
         public ISessionFactory CreateSessionFactory()
@@ -212,7 +139,7 @@ namespace SkydbStorage.Api
                 //.SetProperty("generate_statistics", "true")
                 .SetProperty(@"dialect", typeof(NHibernate.Dialect.SQLiteDialect).AssemblyQualifiedName)
                 .SetProperty(@"connection.connection_string",
-                    SqliteOperations.MakeConnectionStringBuilder(FilePath).ToString())
+                    SqliteOps.MakeConnectionStringBuilder(FilePath).ToString())
                 .SetProperty(@"connection.driver_class",
                     typeof(NHibernate.Driver.SQLite20Driver).AssemblyQualifiedName);
             configuration.SetProperty(@"connection.provider",
@@ -237,31 +164,6 @@ namespace SkydbStorage.Api
             return configuration;
         }
 
-        public void SetStartingSequenceNumber(long sequenceNumber)
-        {
-            using (var connection = OpenConnection())
-            {
-                using (var cmd = connection.CreateCommand())
-                {
-                    cmd.CommandText = @"DELETE FROM SQLITE_SEQUENCE";
-                    cmd.ExecuteNonQuery();
-                }
-
-                using (var cmd = connection.CreateCommand())
-                {
-                    cmd.CommandText = "INSERT INTO SQLITE_SEQUENCE (NAME, SEQ) VALUES (?, ?)";
-                    cmd.Parameters.Add(new SQLiteParameter());
-                    cmd.Parameters.Add(new SQLiteParameter());
-                    foreach (var tableClass in SkydbSchema.GetTableClasses())
-                    {
-                        ((SQLiteParameter) cmd.Parameters[0]).Value = tableClass.Name;
-                        ((SQLiteParameter) cmd.Parameters[1]).Value = sequenceNumber;
-                        cmd.ExecuteNonQuery();
-                    }
-                }
-            }
-        }
-
         public static IDictionary<Type, long> GetIdOffsets(IDbConnection connection, string sourceSchema,
             string targetSchema)
         {
@@ -272,7 +174,7 @@ namespace SkydbStorage.Api
                 using (var cmd = connection.CreateCommand())
                 {
                     cmd.CommandText = "SELECT Min(Id) FROM " +
-                                      SqliteOperations.QuoteIdentifier(sourceSchema, tableType.Name);
+                                      SqliteOps.QuoteIdentifier(sourceSchema, tableType.Name);
                     var value = cmd.ExecuteScalar();
                     if (value == null || value is DBNull)
                     {
@@ -288,7 +190,7 @@ namespace SkydbStorage.Api
                 using (var cmd = connection.CreateCommand())
                 {
                     cmd.CommandText = "SELECT Max(Id) FROM " +
-                                      SqliteOperations.QuoteIdentifier(targetSchema, tableType.Name);
+                                      SqliteOps.QuoteIdentifier(targetSchema, tableType.Name);
                     var value = cmd.ExecuteScalar();
                     if (value == null || value is DBNull)
                     {
@@ -303,6 +205,14 @@ namespace SkydbStorage.Api
             }
 
             return result;
+        }
+
+        public IEnumerable<T> SelectAll<T>() where T : Entity, new()
+        {
+            using (var statement = new SelectStatement<T>(this))
+            {
+                return statement.SelectAll();
+            }
         }
     }
 }

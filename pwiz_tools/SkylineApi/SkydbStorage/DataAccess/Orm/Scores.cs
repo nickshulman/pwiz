@@ -23,5 +23,10 @@ namespace SkydbStorage.Internal.Orm
             _scores = _scores ?? new Dictionary<string, double>();
             _scores[name] = score;
         }
+
+        public void RemoveScore(string name)
+        {
+            _scores?.Remove(name);
+        }
     }
 }

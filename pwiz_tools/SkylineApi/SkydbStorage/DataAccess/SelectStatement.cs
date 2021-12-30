@@ -1,26 +1,23 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Data;
-using System.Reflection;
 using System.Text;
-using SkydbStorage.DataApi;
 using SkydbStorage.Internal.Orm;
 
-namespace SkydbStorage.Internal
+namespace SkydbStorage.DataAccess
 {
-    public class SelectStatement<T> : IDisposable where T : Entity
+    public class SelectStatement<T> : PreparedStatement where T:Entity, new()
     {
-        protected IDbCommand _command;
-        protected IList<Tuple<PropertyInfo, Func<IDataRecord, object>>> _columns;
+        protected IList<Tuple<ColumnInfo, Func<IDataRecord, object>>> _columns;
 
-        public SelectStatement(IDbConnection connection)
+        public SelectStatement(SkydbConnection connection) : base(connection.Connection)
         {
-            _columns = new List<Tuple<PropertyInfo, Func<IDataRecord, object>>>();
+            _columns = new List<Tuple<ColumnInfo, Func<IDataRecord, object>>>();
             StringBuilder commandTest = new StringBuilder("SELECT Id");
-            foreach (var property in InsertStatement<T>.ListColumnProperties())
+            foreach (var property in connection.SkydbSchema.GetColumns(typeof(T)))
             {
                 int columnIndex = _columns.Count + 1;
-                var propertyType = property.PropertyType;
+                var propertyType = property.ValueType;
                 Func<IDataRecord, object> getter;
                 if (propertyType == typeof(long) || propertyType == typeof(long?))
                 {
@@ -34,42 +31,28 @@ namespace SkydbStorage.Internal
                 {
                     getter = record => record.GetDouble(columnIndex);
                 }
-                else if (typeof(Entity).IsAssignableFrom(propertyType))
-                {
-                    continue;
-                    getter = record =>
-                    {
-                        var entity = (Entity) Activator.CreateInstance(propertyType);
-                        entity.Id = record.GetInt64(columnIndex);
-                        return entity;
-                    };
-                }
-                else
+                else 
                 {
                     getter = record => record.GetValue(columnIndex);
                 }
-                commandTest.Append(", " + SqliteOperations.QuoteIdentifier(property.Name));
+                commandTest.Append(", " + SqliteOps.QuoteIdentifier(property.Name));
                 _columns.Add(Tuple.Create(property, getter));
             }
 
-            commandTest.Append(" FROM " + SqliteOperations.QuoteIdentifier(typeof(T).Name));
-            _command = connection.CreateCommand();
-            _command.CommandText = commandTest.ToString();
-        }
-
-        public void Dispose()
-        {
-            _command.Dispose();
+            commandTest.Append(" FROM " + SqliteOps.QuoteIdentifier(typeof(T).Name));
+            Command.CommandText = commandTest.ToString();
         }
 
         public IEnumerable<T> SelectAll()
         {
-            using (var reader = _command.ExecuteReader())
+            using (var reader = Command.ExecuteReader())
             {
                 while (reader.Read())
                 {
-                    var entity = Activator.CreateInstance<T>();
-                    entity.Id = reader.GetInt64(0);
+                    var entity = new T()
+                    {
+                        Id = reader.GetInt64(0)
+                    };
                     for (int i = 0; i < _columns.Count; i++)
                     {
                         if (reader.IsDBNull(i + 1))

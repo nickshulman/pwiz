@@ -1,13 +1,10 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
+﻿using System.Collections.Generic;
 using System.Runtime.CompilerServices;
-using System.Text;
-using System.Threading.Tasks;
+using pwiz.Skyline.Model.Results;
 
 namespace pwiz.Skyline.Model.Skydb
 {
-    public class SpectrumIdMap
+    public class SpectrumIdMap : IMsDataFileScanIds
     {
         private Dictionary<string, int> _spectrumIdToScanId = new Dictionary<string, int>();
         private List<string> _scanIdToSpectrumId = new List<string>();
@@ -28,6 +25,11 @@ namespace pwiz.Skyline.Model.Skydb
         public string GetSpectrumId(int scanId)
         {
             return _scanIdToSpectrumId[scanId];
+        }
+
+        string IMsDataFileScanIds.GetMsDataFileSpectrumId(int index)
+        {
+            return GetSpectrumId(index);
         }
     }
 }

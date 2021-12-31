@@ -40,7 +40,7 @@ namespace SkydbStorage.DataAccess
         }
         public IEnumerable<ColumnInfo> GetColumns(Type entityType)
         {
-            foreach (var property in entityType.GetProperties())
+            foreach (var property in entityType.GetProperties(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
             {
                 Type foreignKeyType;
                 if (property.GetCustomAttribute<PropertyAttribute>() != null)

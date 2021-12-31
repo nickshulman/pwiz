@@ -16,20 +16,24 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-using System;
-using System.Collections.Generic;
-using System.Text;
 using pwiz.Common.Collections;
 using pwiz.ProteowizardWrapper;
 using pwiz.Skyline.Util;
 using pwiz.Skyline.Util.Extensions;
+using System;
+using System.Collections.Generic;
+using System.Text;
 
 namespace pwiz.Skyline.Model.Results
 {
+    public interface IMsDataFileScanIds
+    {
+        string GetMsDataFileSpectrumId(int index);
+    }
     /// <summary>
     /// Handles storing and retrieving abbreviated scan ids from a <see cref="MsDataFileImpl"/>
     /// </summary>
-    public class MsDataFileScanIds
+    public class MsDataFileScanIds : IMsDataFileScanIds
     {
         private readonly int[] _startBytes;
         private readonly int[] _lengths;

@@ -137,16 +137,16 @@ namespace pwiz.Skyline.Model.Databinding.Entities
             return chromatogramInfos[index];
         }
 
-        private Lazy<MsDataFileScanIds> GetLazyMsDataFileScanIds()
+        private Lazy<IMsDataFileScanIds> GetLazyMsDataFileScanIds()
         {
-            return new Lazy<MsDataFileScanIds>(ChromatogramGroup.ReadMsDataFileScanIds);
+            return new Lazy<IMsDataFileScanIds>(ChromatogramGroup.ReadMsDataFileScanIds);
         }
 
         public class Data
         {
             private TimeIntensities _timeIntensities;
-            private Lazy<MsDataFileScanIds> _scanIds;
-            public Data(TimeIntensities timeIntensities, Lazy<MsDataFileScanIds> scanIds)
+            private Lazy<IMsDataFileScanIds> _scanIds;
+            public Data(TimeIntensities timeIntensities, Lazy<IMsDataFileScanIds> scanIds)
             {
                 _timeIntensities = timeIntensities;
                 _scanIds = scanIds;

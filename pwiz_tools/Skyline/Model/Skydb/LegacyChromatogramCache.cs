@@ -59,7 +59,7 @@ namespace pwiz.Skyline.Model.Skydb
             public LegacyChromatogramCache Cache { get; }
             public ChromCachedFile ChromCachedFile { get; }
             public int FileIndex { get; }
-            public MsDataFileScanIds MsDataFileScanIds { get; }
+            public IMsDataFileScanIds MsDataFileScanIds { get; }
 
             public string SourceFilePath
             {

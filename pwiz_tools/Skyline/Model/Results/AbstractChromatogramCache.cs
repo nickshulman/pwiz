@@ -291,10 +291,7 @@ namespace pwiz.Skyline.Model.Results
             get { return ReadStream?.ModifiedExplanation; }
         }
 
-        public virtual MsDataFileScanIds LoadMSDataFileScanIds(int fileIndex)
-        {
-            return null;
-        }
+        public abstract IMsDataFileScanIds LoadMSDataFileScanIds(int fileIndex);
         public virtual bool IsSupportedVersion
         {
             get { return true; }

@@ -75,7 +75,7 @@ namespace pwiz.Skyline.Model.Results
     {
         private MsDataFileImpl _dataFile;
         private Dictionary<int, MsDataFileImpl> _dataFileCentroidedMap = new Dictionary<int, MsDataFileImpl>(4);
-        private MsDataFileScanIds _msDataFileScanIds; // Indexed container of MsDataFileImpl ids
+        private IMsDataFileScanIds _msDataFileScanIds; // Indexed container of MsDataFileImpl ids
         private ChromCachedFile _cachedFile;    // Cached file for the ids
         // Hold a strong reference to the measured results until the scan IDs are read
         private MeasuredResults _measuredResults;

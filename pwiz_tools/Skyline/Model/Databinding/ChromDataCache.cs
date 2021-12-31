@@ -7,9 +7,9 @@ namespace pwiz.Skyline.Model.Databinding
     {
         private Tuple<Key, ChromatogramGroupInfo> _withoutPoints;
         private Tuple<Key, ChromatogramGroupInfo> _withPoints;
-        private Tuple<Key, MsDataFileScanIds> _scanIds;
+        private Tuple<Key, IMsDataFileScanIds> _scanIds;
 
-        public MsDataFileScanIds GetScanIds(SrmDocument document, MsDataFileUri msDataFileUri)
+        public IMsDataFileScanIds GetScanIds(SrmDocument document, MsDataFileUri msDataFileUri)
         {
             var key = new Key(document, null, msDataFileUri, IdentityPath.ROOT);
             if (_scanIds != null && Equals(key, _scanIds.Item1))

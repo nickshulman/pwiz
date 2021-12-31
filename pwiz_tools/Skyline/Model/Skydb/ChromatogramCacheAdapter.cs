@@ -139,9 +139,9 @@ namespace pwiz.Skyline.Model.Skydb
             get { return CacheFormatVersion.CURRENT; }
         }
 
-        public override MsDataFileScanIds LoadMSDataFileScanIds(int fileIndex)
+        public override IMsDataFileScanIds LoadMSDataFileScanIds(int fileIndex)
         {
-            throw new NotImplementedException();
+            return SpectrumIdMaps[fileIndex];
         }
 
         public override IEnumerable<ChromTransition> GetTransitions(ChromGroupHeaderInfo chromGroupHeaderInfo)

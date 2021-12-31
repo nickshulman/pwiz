@@ -34,8 +34,10 @@ using pwiz.ProteowizardWrapper;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.Results.Crawdad;
 using pwiz.Skyline.Model.Results.Scoring;
+using pwiz.Skyline.Model.Skydb;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
+using SkylineApi;
 
 namespace pwiz.Skyline.Model.Results
 {
@@ -1070,6 +1072,40 @@ namespace pwiz.Skyline.Model.Results
         public static short To10x(double f)
         {
             return (short) Math.Round(f*10);
+        }
+
+        public ChromPeak(ICandidatePeak candidatePeak) : this()
+        {
+            if (candidatePeak == null)
+            {
+                return;
+            }
+            _area = (float) candidatePeak.Area;
+            _startTime = (float) candidatePeak.StartTime;
+            _endTime = (float) candidatePeak.EndTime;
+            _backgroundArea = (float) candidatePeak.BackgroundArea;
+            _fwhm = (float) candidatePeak.FullWidthAtHalfMax;
+            _height = (float) candidatePeak.Height;
+            _pointsAcross = (short) Math.Min(candidatePeak.PointsAcross ?? 0, ushort.MaxValue);
+            FlagValues flagValues = 0;
+            if (candidatePeak.ForcedIntegration)
+            {
+                flagValues |= FlagValues.forced_integration;
+            }
+
+            if (candidatePeak.DegenerateFwhm)
+            {
+                flagValues |= FlagValues.degenerate_fwhm;
+            }
+
+            double? massError = candidatePeak.MassError;
+            if (massError.HasValue)
+            {
+                flagValues |= FlagValues.mass_error_known;
+                FlagBits = ((uint)To10x((float) massError)) << 16;
+            }
+
+            FlagBits |= (uint) flagValues;
         }
 
         /// <summary>
@@ -2218,29 +2254,20 @@ namespace pwiz.Skyline.Model.Results
     public class ChromatogramGroupInfo
     {
         protected readonly ChromGroupHeaderInfo _groupHeaderInfo;
+        protected readonly ChromCachedFile _chromCachedFile;
         protected readonly IDictionary<Type, int> _scoreTypeIndices;
-        protected readonly byte[] _textIdBytes;
-        protected readonly IList<ChromCachedFile> _allFiles;
-        protected readonly IReadOnlyList<ChromTransition> _allTransitions;
+        protected readonly IReadOnlyList<ChromTransition> _transitions;
         [CanBeNull]
-        protected ChromatogramCache _chromatogramCache;
+        protected AbstractChromatogramCache _chromatogramCache;
         protected IList<ChromPeak> _chromPeaks;
         protected IList<float> _scores;
         private TimeIntensitiesGroup _timeIntensitiesGroup;
 
-        public ChromatogramGroupInfo(ChromGroupHeaderInfo groupHeaderInfo,
-                                     IDictionary<Type, int> scoreTypeIndices,
-                                     byte[] textIdBytes,
-                                     IList<ChromCachedFile> allFiles,
-                                     IReadOnlyList<ChromTransition> allTransitions,
-                                     ChromatogramCache chromatogramCache)
+        public ChromatogramGroupInfo(AbstractChromatogramCache chromatogramCache, ChromGroupHeaderInfo chromGroupHeaderInfo)
         {
-            _groupHeaderInfo = groupHeaderInfo;
-            _scoreTypeIndices = scoreTypeIndices;
-            _textIdBytes = textIdBytes;
-            _allFiles = allFiles;
-            _allTransitions = allTransitions;
+            _groupHeaderInfo = chromGroupHeaderInfo;
             _chromatogramCache = chromatogramCache;
+            _transitions = ImmutableList.ValueOf(_chromatogramCache.GetTransitions(chromGroupHeaderInfo));
         }
 
         public ChromatogramGroupInfo(ChromGroupHeaderInfo groupHeaderInfo,
@@ -2248,9 +2275,7 @@ namespace pwiz.Skyline.Model.Results
             TimeIntensitiesGroup timeIntensitiesGroup)
         {
             _groupHeaderInfo = groupHeaderInfo;
-            _textIdBytes = Array.Empty<byte>();
-            _allFiles = Array.Empty<ChromCachedFile>();
-            _allTransitions = allTransitions;
+            _transitions = allTransitions;
             _chromPeaks = peaks;
             _timeIntensitiesGroup = timeIntensitiesGroup;
             _scoreTypeIndices = new Dictionary<Type, int>();
@@ -2263,16 +2288,19 @@ namespace pwiz.Skyline.Model.Results
         {
             get
             {
-                return _groupHeaderInfo.TextIdIndex != -1
-                    ? Encoding.UTF8.GetString(_textIdBytes, _groupHeaderInfo.TextIdIndex, _groupHeaderInfo.TextIdLen)
-                    : null;
+                return _chromatogramCache.GetTextId(_groupHeaderInfo);
             }
         }
         public double? PrecursorCollisionalCrossSection { get { return _groupHeaderInfo.CollisionalCrossSection; } }
-        public ChromCachedFile CachedFile { get { return _allFiles[_groupHeaderInfo.FileIndex]; } }
-        public MsDataFileUri FilePath { get { return _allFiles[_groupHeaderInfo.FileIndex].FilePath; } }
-        public DateTime FileWriteTime { get { return _allFiles[_groupHeaderInfo.FileIndex].FileWriteTime; } }
-        public DateTime? RunStartTime { get { return _allFiles[_groupHeaderInfo.FileIndex].RunStartTime; } }
+
+        public ChromCachedFile CachedFile
+        {
+            get { return _chromatogramCache.CachedFiles[_groupHeaderInfo.FileIndex]; }
+        }
+
+        public MsDataFileUri FilePath { get { return CachedFile.FilePath; } }
+        public DateTime FileWriteTime { get { return CachedFile.FileWriteTime; } }
+        public DateTime? RunStartTime { get { return CachedFile.RunStartTime; } }
         public virtual int NumTransitions { get { return _groupHeaderInfo.NumTransitions; } }
         public int NumPeaks { get { return _groupHeaderInfo.NumPeaks; } }
         public int MaxPeakIndex { get { return _groupHeaderInfo.MaxPeakIndex; } }
@@ -2361,33 +2389,28 @@ namespace pwiz.Skyline.Model.Results
             return new ChromatogramInfo(this, index);
         }
 
-        protected SignedMz GetProductGlobal(int index)
+        public SignedMz GetProductLocal(int index)
         {
-            return new SignedMz(_allTransitions[index].Product, _groupHeaderInfo.NegativeCharge);
+            return new SignedMz(_transitions[index].Product, _groupHeaderInfo.NegativeCharge);
         }
 
-        private bool IsProductGlobalMatch(int index, TransitionDocNode nodeTran, float tolerance)
+        private bool IsProductMatch(int index, TransitionDocNode nodeTran, float tolerance)
         {
-            var source = _allTransitions[index].Source;
+            var source = _transitions[index].Source;
             bool isMs1Chromatogram = source == ChromSource.ms1 || source == ChromSource.sim;
             // Don't allow fragment ions to match data from MS1
             if (isMs1Chromatogram && nodeTran != null && !nodeTran.IsMs1)
             {
                 return false;
             }
-            var globalMz = GetProductGlobal(index);
+            var globalMz = GetProductLocal(index);
             var tranMz = nodeTran != null ? nodeTran.Mz : SignedMz.ZERO;
             return tranMz.CompareTolerant(globalMz, tolerance) == 0;
         }
 
-        public SignedMz GetProductLocal(int transitionIndex)
-        {
-            return new SignedMz(_allTransitions[_groupHeaderInfo.StartTransitionIndex + transitionIndex].Product, _groupHeaderInfo.NegativeCharge);
-        }
-
         public ChromTransition GetChromTransitionLocal(int transitionIndex)
         {
-            return _allTransitions[_groupHeaderInfo.StartTransitionIndex + transitionIndex];
+            return _transitions[transitionIndex];
         }
 
         public ChromatogramInfo GetTransitionInfo(TransitionDocNode nodeTran, float tolerance, OptimizableRegression regression)
@@ -2398,13 +2421,13 @@ namespace pwiz.Skyline.Model.Results
         public virtual ChromatogramInfo GetTransitionInfo(TransitionDocNode nodeTran, float tolerance, TransformChrom transform, OptimizableRegression regression)
         {
             var productMz = nodeTran != null ? nodeTran.Mz : SignedMz.ZERO;
-            int startTran = _groupHeaderInfo.StartTransitionIndex;
-            int endTran = startTran + _groupHeaderInfo.NumTransitions;
+            int startTran = 0;
+            int endTran = _groupHeaderInfo.NumTransitions;
             int? iNearest = null;
             double deltaNearestMz = double.MaxValue;
             for (int i = startTran; i < endTran; i++)
             {
-                if (IsProductGlobalMatch(i, nodeTran, tolerance))
+                if (IsProductMatch(i, nodeTran, tolerance))
                 {
                     int iMiddle;
                     if (regression == null)
@@ -2420,7 +2443,7 @@ namespace pwiz.Skyline.Model.Results
                         iMiddle = (startOptTran + endOptTran) / 2;
                     }
 
-                    double deltaMz = Math.Abs(productMz - GetProductGlobal(iMiddle));
+                    double deltaMz = Math.Abs(productMz - GetProductLocal(iMiddle));
                     if (deltaMz < deltaNearestMz)
                     {
                         iNearest = iMiddle;
@@ -2454,11 +2477,11 @@ namespace pwiz.Skyline.Model.Results
             }
 
             var productMz = nodeTran != null ? nodeTran.Mz : SignedMz.ZERO;
-            int startTran = _groupHeaderInfo.StartTransitionIndex;
-            int endTran = startTran + _groupHeaderInfo.NumTransitions;
+            int startTran = 0;
+            int endTran = _groupHeaderInfo.NumTransitions;
             for (int i = startTran; i < endTran; i++)
             {
-                if (IsProductGlobalMatch(i, nodeTran, tolerance))
+                if (IsProductMatch(i, nodeTran, tolerance))
                 {
                     int startOptTran, endOptTran;
                     GetOptimizationBounds(productMz, i, startTran, endTran, out startOptTran, out endOptTran);
@@ -2473,20 +2496,20 @@ namespace pwiz.Skyline.Model.Results
         {
             // CONSIDER: Tried to make this a little more fault tolerant, but that just caused
             //           more problems. So, decided to leave this close to the original implementation.
-            var productMzCurrent = GetProductGlobal(i);
+            var productMzCurrent = GetProductLocal(i);
 
             // First back up to find the beginning
             while (i > startTran &&
-                   ChromatogramInfo.IsOptimizationSpacing(GetProductGlobal(i - 1), productMzCurrent))
+                   ChromatogramInfo.IsOptimizationSpacing(GetProductLocal(i - 1), productMzCurrent))
             {
-                productMzCurrent = GetProductGlobal(--i);
+                productMzCurrent = GetProductLocal(--i);
             }
             startOptTran = i;
             // Walk forward until the end
             while (i < endTran - 1 &&
-                ChromatogramInfo.IsOptimizationSpacing(productMzCurrent, GetProductGlobal(i + 1)))
+                ChromatogramInfo.IsOptimizationSpacing(productMzCurrent, GetProductLocal(i + 1)))
             {
-                productMzCurrent = GetProductGlobal(++i);
+                productMzCurrent = GetProductLocal(++i);
             }
             endOptTran = i;
         }

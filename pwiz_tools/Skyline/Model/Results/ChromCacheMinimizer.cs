@@ -61,7 +61,10 @@ namespace pwiz.Skyline.Model.Results
         }
 
         public SrmDocument Document { get; private set; }
-        public ChromatogramCache ChromatogramCache { get; private set; }
+        public ChromatogramCache ChromatogramCache
+        {
+            get;
+        }
         public IList<ChromGroupHeaderInfo> ChromGroupHeaderInfos
         {
             get; private set;

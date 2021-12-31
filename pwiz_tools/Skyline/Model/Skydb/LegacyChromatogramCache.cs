@@ -2,11 +2,6 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Runtime.InteropServices.WindowsRuntime;
-using System.Text;
-using System.Threading.Tasks;
-using System.Windows.Forms.VisualStyles;
-using EnvDTE;
 using pwiz.Skyline.Model.Results;
 using pwiz.Skyline.Model.Results.Scoring;
 using SkylineApi;
@@ -40,7 +35,7 @@ namespace pwiz.Skyline.Model.Skydb
             get;
         }
 
-        public IEnumerable<IExtractedDataFile> MsDataFileChromatogramDatas
+        public IEnumerable<IExtractedDataFile> ExtractedDataFiles
         {
             get
             {
@@ -132,6 +127,8 @@ namespace pwiz.Skyline.Model.Skydb
             public double? StartTime => ChromGroupHeaderInfo.StartTime;
 
             public double? EndTime => ChromGroupHeaderInfo.EndTime;
+
+            public double? CollisionalCrossSection => ChromGroupHeaderInfo.CollisionalCrossSection;
 
             public IEnumerable<IChromatogram> Chromatograms => 
                 Enumerable.Range(0, ChromGroupHeaderInfo.NumTransitions).Select(i => new ExtractedChromatogram(this, i));

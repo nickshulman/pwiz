@@ -26,6 +26,7 @@ namespace SkylineApi
         string TextId { get; }
         double? StartTime { get; }
         double? EndTime { get; }
+        double? CollisionalCrossSection { get; }
         IEnumerable<IChromatogram> Chromatograms { get; }
         InterpolationParameters InterpolationParameters { get; }
         IEnumerable<ICandidatePeakGroup> CandidatePeakGroups { get; }

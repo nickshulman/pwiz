@@ -7,6 +7,7 @@ using System.Reflection;
 using NHibernate.Cfg;
 using NHibernate.Mapping.Attributes;
 using NHibernate.Tool.hbm2ddl;
+using SkydbStorage.DataAccess.Orm;
 using SkydbStorage.Internal;
 using SkydbStorage.Internal.Orm;
 

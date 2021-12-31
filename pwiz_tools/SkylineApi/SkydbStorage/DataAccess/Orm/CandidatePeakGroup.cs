@@ -1,5 +1,6 @@
 ﻿
 using NHibernate.Mapping.Attributes;
+using SkydbStorage.DataAccess.Orm;
 
 namespace SkydbStorage.Internal.Orm
 {

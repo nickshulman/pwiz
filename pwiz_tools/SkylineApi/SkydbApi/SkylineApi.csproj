@@ -53,6 +53,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="IChromatogramRepository.cs" />
     <Compile Include="IExtractedDataFile.cs" />
     <Compile Include="ISkylineDocument.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

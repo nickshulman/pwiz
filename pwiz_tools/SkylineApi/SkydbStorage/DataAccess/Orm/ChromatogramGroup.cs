@@ -1,6 +1,7 @@
 ﻿using NHibernate.Mapping.Attributes;
+using SkydbStorage.Internal.Orm;
 
-namespace SkydbStorage.Internal.Orm
+namespace SkydbStorage.DataAccess.Orm
 {
     [Class(Lazy = false)]
     public class ChromatogramGroup : Entity<ChromatogramGroup>
@@ -15,6 +16,8 @@ namespace SkydbStorage.Internal.Orm
         public double? StartTime { get; set; }
         [Property]
         public double? EndTime { get; set; }
+        [Property]
+        public double? CollisionalCrossSection { get; set; }
 
         [Property]
         public double? InterpolationStartTime { get; set; }

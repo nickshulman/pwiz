@@ -100,7 +100,7 @@ namespace pwiz.Skyline.Model.Results
             var chromKeyIndices = _chromKeyIndices[id];
             if (_lastChromGroupInfo == null || _lastIndices.GroupIndex != chromKeyIndices.GroupIndex)
             {
-                _lastChromGroupInfo = _cache.LoadChromatogramInfo(chromKeyIndices.GroupIndex);
+                _lastChromGroupInfo = new ChromatogramGroupInfo(_cache, _cache.ChromGroupHeaderInfos[chromKeyIndices.GroupIndex]);
             }
             _lastIndices = chromKeyIndices;
             var tranInfo = _lastChromGroupInfo.GetTransitionInfo(chromKeyIndices.TranIndex, TransformChrom.raw);

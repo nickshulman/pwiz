@@ -1,6 +1,7 @@
 ﻿using NHibernate.Mapping.Attributes;
+using SkydbStorage.Internal.Orm;
 
-namespace SkydbStorage.Internal.Orm
+namespace SkydbStorage.DataAccess.Orm
 {
     [Class(Lazy = false)]
     public class CandidatePeak : Entity<CandidatePeakGroup>

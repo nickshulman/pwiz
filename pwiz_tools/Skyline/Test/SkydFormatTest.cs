@@ -10,7 +10,7 @@ using pwiz.Skyline.Model.Results;
 using pwiz.Skyline.Model.Skydb;
 using pwiz.SkylineTestUtil;
 using SkydbStorage.DataAccess;
-using SkydbStorage.Internal;
+using SkydbStorage.DataAccess.Orm;
 using SkydbStorage.Internal.Orm;
 
 namespace pwiz.SkylineTest
@@ -49,7 +49,7 @@ namespace pwiz.SkylineTest
                         {
                             using (var skydbConnection = schema.CreateDatabase(SkydbSchema.MEMORY_DATABASE_PATH))
                             {
-                                var msDataFiles = legacyChromatogramCache.MsDataFileChromatogramDatas.ToList();
+                                var msDataFiles = legacyChromatogramCache.ExtractedDataFiles.ToList();
                                 skydbConnection.AddChromatogramData(msDataFiles[iPart]);
                                 lock (lockObject)
                                 {

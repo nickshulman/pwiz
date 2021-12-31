@@ -2,6 +2,8 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Windows.Forms.VisualStyles;
+using pwiz.Common.Collections;
 using pwiz.Skyline.Model.Results;
 using pwiz.Skyline.Model.Results.Scoring;
 using SkylineApi;
@@ -107,8 +109,6 @@ namespace pwiz.Skyline.Model.Skydb
 
         class ExtractedChromatogramGroup : IChromatogramGroup
         {
-            private TimeIntensitiesGroup _timeIntensitiesGroup;
-            private IList<ChromPeak> _chromPeaks;
             public ExtractedChromatogramGroup(MsDataSourceFile sourceFile, ChromGroupHeaderInfo chromGroupHeaderInfo)
             {
                 MsDataSourceFile = sourceFile;
@@ -133,45 +133,24 @@ namespace pwiz.Skyline.Model.Skydb
             public IEnumerable<IChromatogram> Chromatograms => 
                 Enumerable.Range(0, ChromGroupHeaderInfo.NumTransitions).Select(i => new ExtractedChromatogram(this, i));
 
-            public TimeIntensitiesGroup GetTimeIntensitiesGroup()
+            public IChromatogramGroupData Data
             {
-                if (_timeIntensitiesGroup == null)
-                {
-                    _timeIntensitiesGroup = Cache._chromatogramCache.ReadTimeIntensities(Cache._stream, ChromGroupHeaderInfo);
-                }
-                return _timeIntensitiesGroup;
+                get { return new ChromatogramGroupData(this); }
             }
+        }
 
-            public IList<ChromPeak> GetChromPeaks(int transitionIndex)
+        class ChromatogramGroupData : IChromatogramGroupData
+        {
+            private TimeIntensitiesGroup _timeIntensitiesGroup;
+            private IList<ChromPeak> _chromPeaks;
+
+            public ChromatogramGroupData(ExtractedChromatogramGroup chromatogramGroup)
             {
-                if (_chromPeaks == null)
-                {
-                    _chromPeaks = Cache._chromatogramCache.ReadPeaks(Cache._stream, ChromGroupHeaderInfo);
-                }
-
-                if (_chromPeaks == null)
-                {
-                    return Array.Empty<ChromPeak>();
-                }
-
-                return Enumerable.Range(0, ChromGroupHeaderInfo.NumPeaks).Select(p =>
-                    _chromPeaks[p + transitionIndex * ChromGroupHeaderInfo.NumPeaks]).ToList();
-            }
-
-
-            public InterpolationParameters InterpolationParameters {
-                get
-                {
-                    var interpolationParams = (GetTimeIntensitiesGroup() as RawTimeIntensities)?.InterpolationParams;
-                    if (interpolationParams == null)
-                    {
-                        return null;
-                    }
-
-                    return new InterpolationParameters(interpolationParams.StartTime, interpolationParams.EndTime,
-                        interpolationParams.NumPoints, interpolationParams.IntervalDelta,
-                        interpolationParams.InferZeroes);
-                }
+                MsDataSourceFile = chromatogramGroup.MsDataSourceFile;
+                ChromGroupHeaderInfo = chromatogramGroup.ChromGroupHeaderInfo;
+                Cache = MsDataSourceFile.Cache;
+                ChromatogramDatas = Enumerable.Range(0, ChromGroupHeaderInfo.NumTransitions)
+                    .Select(i => (IChromatogramData) new ChromatogramData(this, i)).ToList();
             }
 
             public IEnumerable<ICandidatePeakGroup> CandidatePeakGroups
@@ -200,6 +179,120 @@ namespace pwiz.Skyline.Model.Skydb
                     }
                 }
             }
+            public LegacyChromatogramCache Cache { get; }
+            public MsDataSourceFile MsDataSourceFile { get; }
+            public ChromGroupHeaderInfo ChromGroupHeaderInfo { get; }
+            public InterpolationParameters InterpolationParameters
+            {
+                get
+                {
+                    var interpolationParams = (GetTimeIntensitiesGroup() as RawTimeIntensities)?.InterpolationParams;
+                    if (interpolationParams == null)
+                    {
+                        return null;
+                    }
+
+                    return new InterpolationParameters(interpolationParams.StartTime, interpolationParams.EndTime,
+                        interpolationParams.NumPoints, interpolationParams.IntervalDelta,
+                        interpolationParams.InferZeroes);
+                }
+            }
+
+            public IList<ChromPeak> GetChromPeaks(int transitionIndex)
+            {
+                if (_chromPeaks == null)
+                {
+                    _chromPeaks = Cache._chromatogramCache.ReadPeaks(Cache._stream, ChromGroupHeaderInfo);
+                }
+
+                if (_chromPeaks == null)
+                {
+                    return Array.Empty<ChromPeak>();
+                }
+
+                return Enumerable.Range(0, ChromGroupHeaderInfo.NumPeaks).Select(p =>
+                    _chromPeaks[p + transitionIndex * ChromGroupHeaderInfo.NumPeaks]).ToList();
+            }
+            public TimeIntensitiesGroup GetTimeIntensitiesGroup()
+            {
+                if (_timeIntensitiesGroup == null)
+                {
+                    _timeIntensitiesGroup = Cache._chromatogramCache.ReadTimeIntensities(Cache._stream, ChromGroupHeaderInfo);
+                }
+                return _timeIntensitiesGroup;
+            }
+
+            public IList<IChromatogramData> ChromatogramDatas
+            {
+                get;
+            }
+        }
+
+        class ChromatogramData : IChromatogramData
+        {
+            private TimeIntensities _timeIntensities;
+            private IList<string> _spectrumIndentifiers;
+            public ChromatogramData(ChromatogramGroupData chromatogramGroupData, int chromatogramIndex)
+            {
+                ChromatogramGroupData = chromatogramGroupData;
+                ChromatogramIndex = chromatogramIndex;
+            }
+
+            public ChromatogramGroupData ChromatogramGroupData {get; }
+            public int ChromatogramIndex { get; }
+
+            public int NumPoints
+            {
+                get
+                {
+                    return TimeIntensities.NumPoints;
+                }
+            }
+
+            public TimeIntensities TimeIntensities
+            {
+                get
+                {
+                    if (_timeIntensities == null)
+                    {
+                        _timeIntensities = ChromatogramGroupData.GetTimeIntensitiesGroup()
+                            .TransitionTimeIntensities[ChromatogramIndex];
+                    }
+
+                    return _timeIntensities;
+                }
+            }
+
+            public IList<float> RetentionTimes => TimeIntensities.Times;
+
+            public IList<float> Intensities => TimeIntensities.Intensities;
+
+            public IList<float> MassErrors => TimeIntensities.MassErrors;
+
+            public IList<string> SpectrumIdentifiers
+            {
+                get
+                {
+                    if (_spectrumIndentifiers == null)
+                    {
+                        if (TimeIntensities.ScanIds == null)
+                        {
+                            return null;
+                        }
+
+                        _spectrumIndentifiers = new List<string>(NumPoints);
+                        var msDataFileScanIds = ChromatogramGroupData.MsDataSourceFile.MsDataFileScanIds;
+                        if (TimeIntensities.ScanIds == null || msDataFileScanIds == null)
+                        {
+                            return null;
+                        }
+
+                        _spectrumIndentifiers = TimeIntensities.ScanIds.Select(id => msDataFileScanIds.GetMsDataFileSpectrumId(id)).ToList();
+                    }
+
+                    return _spectrumIndentifiers;
+                }
+            }
         }
 
         class ExtractedChromatogram : IChromatogram
@@ -218,14 +311,6 @@ namespace pwiz.Skyline.Model.Skydb
             public ChromTransition ChromTransition { get; }
             public LegacyChromatogramCache Cache { get; }
 
-            public TimeIntensities TimeIntensities
-            {
-                get
-                {
-                    return Group.GetTimeIntensitiesGroup().TransitionTimeIntensities[TransitionIndex];
-                }
-            }
-
             public double ProductMz => ChromTransition.Product;
 
             public double ExtractionWidth => ChromTransition.ExtractionWidth;
@@ -233,28 +318,6 @@ namespace pwiz.Skyline.Model.Skydb
             public double? IonMobilityValue => ZeroToNull(ChromTransition.IonMobilityValue);
 
             public double? IonMobilityExtractionWidth => ZeroToNull(ChromTransition.IonMobilityExtractionWidth);
-
-            public int NumPoints => TimeIntensities.NumPoints;
-
-            public IList<float> RetentionTimes => TimeIntensities.Times;
-
-            public IList<float> Intensities => TimeIntensities.Intensities;
-
-            public IList<float> MassErrors => TimeIntensities.MassErrors;
-
-            public IList<string> SpectrumIdentifiers
-            {
-                get
-                {
-                    var msDataFileScanIds = Group.MsDataSourceFile.MsDataFileScanIds;
-                    if (TimeIntensities.ScanIds == null || msDataFileScanIds == null)
-                    {
-                        return null;
-                    }
-
-                    return TimeIntensities.ScanIds.Select(id => msDataFileScanIds.GetMsDataFileSpectrumId(id)).ToList();
-                }
-            }
 
         }
 

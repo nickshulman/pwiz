@@ -43,20 +43,16 @@ namespace pwiz.Skyline.Model.Skydb
         {
             var chromatogramGroup = ChromatogramGroups[fileIndex][groupIndex];
             ChromGroupHeaderInfo.FlagValues flagValues = 0;
-            if (chromatogramGroup.InterpolationParameters != null)
-            {
-                flagValues |= ChromGroupHeaderInfo.FlagValues.raw_chromatograms;
-            }
-
             var chromatograms = chromatogramGroup.Chromatograms.ToList();
-            var candidatePeakGroups = chromatogramGroup.CandidatePeakGroups.ToList();
-            int maxPeakIndex = Enumerable.Range(0, candidatePeakGroups.Count).Cast<int?>()
-                .FirstOrDefault(i => candidatePeakGroups[i.Value].IsBestPeak) ?? -1;
+            // var candidatePeakGroups = chromatogramGroup.CandidatePeakGroups.ToList();
+            // int maxPeakIndex = -1;
+            //     // Enumerable.Range(0, candidatePeakGroups.Count).Cast<int?>()
+            //     // .FirstOrDefault(i => candidatePeakGroups[i.Value].IsBestPeak) ?? -1;
 
             // TODO: IonMobilityUnits
             return new ChromGroupHeaderInfo(new SignedMz(chromatogramGroup.PrecursorMz), fileIndex, chromatograms.Count, 
                 groupIndex,
-                candidatePeakGroups.Count, 0, 0, maxPeakIndex, 0, 0, 0, 0, flagValues, 0, 0,
+                0, 0, 0, -1, 0, 0, 0, 0, flagValues, 0, 0,
                 (float?)chromatogramGroup.StartTime, (float?)chromatogramGroup.EndTime,
                 chromatogramGroup.CollisionalCrossSection, eIonMobilityUnits.unknown);
         }
@@ -71,8 +67,9 @@ namespace pwiz.Skyline.Model.Skydb
             var chromatogramGroup = GetChromatogramGroup(header);
             var spectrumIdMap = SpectrumIdMaps[header.FileIndex];
             var chromatograms = chromatogramGroup.Chromatograms.ToList();
-            var transitionTimeIntensitiesList = chromatograms.Select(chrom => GetTimeIntensities(chrom, spectrumIdMap)).ToList();
-            var interpolationParams = chromatogramGroup.InterpolationParameters;
+            var chromatogramGroupData = chromatogramGroup.Data;
+            var transitionTimeIntensitiesList = chromatogramGroupData.ChromatogramDatas.Select(chrom => GetTimeIntensities(chrom, spectrumIdMap)).ToList();
+            var interpolationParams = chromatogramGroupData.InterpolationParameters;
             if (interpolationParams == null)
             {
                 // TODO: chromSources
@@ -92,7 +89,7 @@ namespace pwiz.Skyline.Model.Skydb
             return null;
         }
 
-        private TimeIntensities GetTimeIntensities(IChromatogram chromatogram, SpectrumIdMap spectrumIdMap)
+        private TimeIntensities GetTimeIntensities(IChromatogramData chromatogram, SpectrumIdMap spectrumIdMap)
         {
             ImmutableList<int> scanIds =
                 ImmutableList.ValueOf(chromatogram.SpectrumIdentifiers?.Select(spectrumIdMap.GetScanId));
@@ -103,7 +100,7 @@ namespace pwiz.Skyline.Model.Skydb
         public override IList<ChromPeak> ReadPeaks(ChromGroupHeaderInfo header)
         {
             var chromatogramGroup = GetChromatogramGroup(header);
-            var peakGroups = chromatogramGroup.CandidatePeakGroups.ToList();
+            var peakGroups = chromatogramGroup.Data.CandidatePeakGroups.ToList();
             int peakCount = peakGroups.Count;
             int transitionCount = header.NumTransitions;
             var chromPeaks = new ChromPeak[peakCount * transitionCount];

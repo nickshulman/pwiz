@@ -1,9 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using SkydbStorage.DataAccess.Orm;
 using SkylineApi;
 
@@ -15,7 +12,7 @@ namespace SkydbStorage.SkylineDocument
         {
             DataFile = dataFile;
             ChromatogramGroup = chromatogramGroup;
-            Chromatograms = chromatograms.Select(chrom => new ChromatogramImpl(this, chrom)).ToList();
+            ChromatogramImpls = chromatograms.Select(chrom => new ChromatogramImpl(this, chrom)).ToList();
         }
 
         public SkylineDocumentImpl Document
@@ -36,13 +33,13 @@ namespace SkydbStorage.SkylineDocument
 
         public double? CollisionalCrossSection => ChromatogramGroup.CollisionalCrossSection;
 
+        public IList<ChromatogramImpl> ChromatogramImpls { get; }
+
         public IEnumerable<IChromatogram> Chromatograms
         {
-            get;
+            get { return ChromatogramImpls; }
         }
 
-        public InterpolationParameters InterpolationParameters => null;
-
-        public IEnumerable<ICandidatePeakGroup> CandidatePeakGroups => new List<ICandidatePeakGroup>();
+        public IChromatogramGroupData Data => new ChromatogramGroupDataImpl(this);
     }
 }

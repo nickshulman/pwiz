@@ -186,7 +186,7 @@ namespace pwiz.Skyline.Model.Results
             return caches.Any(cache => cache.CachedFilePaths.Contains(path.GetLocation())); // Strip any "?combine_ims=true" etc decoration
         }
 
-        public MsDataFileScanIds LoadMSDataFileScanIds(int fileIndex)
+        public override MsDataFileScanIds LoadMSDataFileScanIds(int fileIndex)
         {
             return MsDataFileScanIds.FromBytes(LoadMSDataFileScanIdBytes(fileIndex));
         }

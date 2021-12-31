@@ -28,8 +28,7 @@ namespace SkylineApi
         double? EndTime { get; }
         double? CollisionalCrossSection { get; }
         IEnumerable<IChromatogram> Chromatograms { get; }
-        InterpolationParameters InterpolationParameters { get; }
-        IEnumerable<ICandidatePeakGroup> CandidatePeakGroups { get; }
+        IChromatogramGroupData Data { get; }
     }
 
     public interface IChromatogram
@@ -38,6 +37,17 @@ namespace SkylineApi
         double ExtractionWidth { get; }
         double? IonMobilityValue { get; }
         double? IonMobilityExtractionWidth { get; }
+    }
+
+    public interface IChromatogramGroupData
+    {
+        InterpolationParameters InterpolationParameters { get; }
+        IEnumerable<ICandidatePeakGroup> CandidatePeakGroups { get; }
+        IList<IChromatogramData> ChromatogramDatas { get; }
+    }
+
+    public interface IChromatogramData
+    {
         int NumPoints { get; }
         IList<float> RetentionTimes { get; }
         IList<float> Intensities { get; }

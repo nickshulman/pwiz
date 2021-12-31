@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using SkydbStorage.DataAccess.Orm;
-using SkydbStorage.Internal;
 using SkydbStorage.Internal.Orm;
 using SkylineApi;
 
@@ -75,7 +74,8 @@ namespace SkydbStorage.DataAccess
                 PrecursorMz = group.PrecursorMz,
                 TextId = group.TextId
             };
-            var interpolationParams = group.InterpolationParameters;
+            var groupData = group.Data;
+            var interpolationParams = groupData.InterpolationParameters;
             if (interpolationParams != null)
             {
                 chromGroup.InterpolationStartTime = interpolationParams.StartTime;
@@ -86,20 +86,22 @@ namespace SkydbStorage.DataAccess
             }
             Writer.Insert(chromGroup);
             var transitionChromatograms = new List<Chromatogram>();
-            foreach (var chromatogram in group.Chromatograms)
+            var chromatograms = group.Chromatograms.ToList();
+            var chromatogramDatas = groupData.ChromatogramDatas;
+            for (int iChromatogram = 0; iChromatogram < chromatograms.Count; iChromatogram++)
             {
-                transitionChromatograms.Add(WriteChromatogram(chromGroup, chromatogram));
+                transitionChromatograms.Add(WriteChromatogram(chromGroup, chromatograms[iChromatogram], chromatogramDatas[iChromatogram]));
             }
-            WritePeaks(chromGroup, transitionChromatograms, group);
+            WritePeaks(chromGroup, groupData, transitionChromatograms, group);
         }
 
-        private Chromatogram WriteChromatogram(ChromatogramGroup group, IChromatogram chromatogram)
+        private Chromatogram WriteChromatogram(ChromatogramGroup group, IChromatogram chromatogram, IChromatogramData chromatogramData)
         {
-            var chromatogramData = WriteChromatogramData(chromatogram);
+            var chromatogramDataEntity = WriteChromatogramData(chromatogramData);
             var chromTransition = new Chromatogram()
             {
                 ChromatogramGroup = group.Id.Value,
-                ChromatogramData = chromatogramData.Id.Value,
+                ChromatogramData = chromatogramDataEntity.Id.Value,
                 ExtractionWidth = chromatogram.ExtractionWidth,
                 IonMobilityExtractionWidth = chromatogram.IonMobilityExtractionWidth,
                 IonMobilityValue = chromatogram.IonMobilityValue,
@@ -110,7 +112,7 @@ namespace SkydbStorage.DataAccess
             return chromTransition;
         }
 
-        private ChromatogramData WriteChromatogramData(IChromatogram data)
+        private ChromatogramData WriteChromatogramData(IChromatogramData data)
         {
             if (data == null)
             {
@@ -202,7 +204,7 @@ namespace SkydbStorage.DataAccess
             var scanTimes = new HashSet<Tuple<float, string>>();
             foreach (var group in MsDataSourceFile.ChromatogramGroups)
             {
-                foreach (var transition in group.Chromatograms)
+                foreach (var transition in group.Data.ChromatogramDatas)
                 {
                     var spectrumIdentifiers = transition.SpectrumIdentifiers;
                     if (spectrumIdentifiers == null)
@@ -231,9 +233,9 @@ namespace SkydbStorage.DataAccess
             }
         }
 
-        private void WritePeaks(ChromatogramGroup chromatogramGroup, IList<Chromatogram> transitionChromatograms, IChromatogramGroup group)
+        private void WritePeaks(ChromatogramGroup chromatogramGroup, IChromatogramGroupData groupData, IList<Chromatogram> transitionChromatograms, IChromatogramGroup group)
         {
-            foreach (var candidatePeakGroup in group.CandidatePeakGroups)
+            foreach (var candidatePeakGroup in groupData.CandidatePeakGroups)
             {
                 double[] scores = _scoreNames.Select(score => candidatePeakGroup.GetScore(score) ?? double.NaN).ToArray();
                 Scores scoresEntity = null;

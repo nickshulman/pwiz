@@ -71,7 +71,6 @@ namespace SkydbStorage.DataAccess
                     yield return entity;
                 }
             }
-
         }
 
         public IEnumerable<T> SelectAll()
@@ -84,7 +83,7 @@ namespace SkydbStorage.DataAccess
             using (var command = Connection.CreateCommand())
             {
                 command.CommandText = Command.CommandText + " WHERE " + SqliteOps.QuoteIdentifier(columnName) + " = ?";
-                command.Parameters.Add(new SQLiteParameter() {Value = value});
+                command.Parameters.Add(new SQLiteParameter {Value = value});
                 foreach (var item in ReturnAll(command))
                 {
                     yield return item;

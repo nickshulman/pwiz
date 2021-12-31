@@ -81,6 +81,8 @@
     <Compile Include="DataAccess\Orm\Scores.cs" />
     <Compile Include="DataAccess\Orm\SpectrumList.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="SkylineDocument\CandidatePeakGroupImpl.cs" />
+    <Compile Include="SkylineDocument\CandidatePeakImpl.cs" />
     <Compile Include="SkylineDocument\ChromatogramDataImpl.cs" />
     <Compile Include="SkylineDocument\ChromatogramGroupDataImpl.cs" />
     <Compile Include="SkylineDocument\ChromatogramGroupImpl.cs" />

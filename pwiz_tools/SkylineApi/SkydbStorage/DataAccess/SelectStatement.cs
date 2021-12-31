@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Data;
 using System.Data.SQLite;
+using System.Linq;
 using System.Text;
 using SkydbStorage.Internal.Orm;
 
@@ -89,6 +90,31 @@ namespace SkydbStorage.DataAccess
                     yield return item;
                 }
             }
+        }
+
+        public IEnumerable<T> SelectWhereIn(string columnName, IList<object> values)
+        {
+            if (values.Count == 0)
+            {
+                yield break;
+            }
+            using (var command = Connection.CreateCommand())
+            {
+                StringBuilder commandText = new StringBuilder(Command.CommandText);
+                commandText.Append(" WHERE " + SqliteOps.QuoteIdentifier(columnName) + " IN (");
+                commandText.Append(string.Join(",", Enumerable.Repeat("?", values.Count)));
+                commandText.Append(")");
+                command.CommandText = commandText.ToString();
+                foreach (var value in values)
+                {
+                    command.Parameters.Add(new SQLiteParameter() {Value = value});
+                }
+                foreach (var item in ReturnAll(command))
+                {
+                    yield return item;
+                }
+            }
+
         }
     }
 }

@@ -9,7 +9,7 @@ namespace SkydbStorage.Internal.Orm
     {
         [ManyToOne(ClassType = typeof(Scores))]
         public long? Scores { get; set; }
-        [ManyToOne(ClassType = typeof(ChromatogramGroup))]
+        [ManyToOne(ClassType = typeof(ChromatogramGroup), Index = "CandidatePeakGroup_ChromatogramGroup")]
         public long ChromatogramGroup { get; set; }
         [Property]
         public double? StartTime { get; set; }

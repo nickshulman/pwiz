@@ -110,6 +110,5 @@ namespace SkydbStorage.SkylineDocument
                     .Single();
             }
         }
-
     }
 }

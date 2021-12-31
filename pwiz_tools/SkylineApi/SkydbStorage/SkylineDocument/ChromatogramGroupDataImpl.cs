@@ -1,14 +1,14 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using SkydbStorage.DataAccess.Orm;
+using SkydbStorage.Internal.Orm;
 using SkylineApi;
 
 namespace SkydbStorage.SkylineDocument
 {
     public class ChromatogramGroupDataImpl : IChromatogramGroupData
     {
+        private List<CandidatePeakGroupImpl> _candidatePeakGroups;
         public ChromatogramGroupDataImpl(ChromatogramGroupImpl chromatogramGroup)
         {
             ChromatogramGroup = chromatogramGroup;
@@ -19,9 +19,34 @@ namespace SkydbStorage.SkylineDocument
             get;
         }
 
-        public InterpolationParameters InterpolationParameters => null;
+        public InterpolationParameters InterpolationParameters
+        {
+            get
+            {
+                return ChromatogramGroup.ChromatogramGroup.InterpolationParameters;
+            }
+        }
 
-        public IEnumerable<ICandidatePeakGroup> CandidatePeakGroups => new List<ICandidatePeakGroup>();
+        public IEnumerable<ICandidatePeakGroup> CandidatePeakGroups
+        {
+            get
+            {
+                if (_candidatePeakGroups == null)
+                {
+                    var document = ChromatogramGroup.Document;
+                    var candidatePeakGroupEntities = document.SelectWhere<CandidatePeakGroup>(
+                        nameof(CandidatePeakGroup.ChromatogramGroup), ChromatogramGroup.ChromatogramGroup.Id);
+                    var candidatePeakEntities = document.SelectWhereIn<CandidatePeak>(
+                            nameof(CandidatePeak.CandidatePeakGroup),
+                            candidatePeakGroupEntities.Select(peakGroup => peakGroup.Id))
+                        .ToLookup(peak => peak.CandidatePeakGroup);
+                    _candidatePeakGroups = candidatePeakGroupEntities.Select(entity =>
+                        new CandidatePeakGroupImpl(this, entity, candidatePeakEntities[entity.Id.Value])).ToList();
+                }
+
+                return _candidatePeakGroups;
+            }
+        }
 
         public IList<IChromatogramData> ChromatogramDatas
         {

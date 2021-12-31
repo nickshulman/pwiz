@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using SkydbStorage.DataAccess;
@@ -64,6 +65,17 @@ namespace SkydbStorage.SkylineDocument
                 using (var selectStatement = new SelectStatement<T>(connection))
                 {
                     return selectStatement.SelectWhere(column, value).ToList();
+                }
+            });
+        }
+
+        public IList<T> SelectWhereIn<T>(string column, IEnumerable values) where T : Entity, new()
+        {
+            return CallWithConnection(connection =>
+            {
+                using (var selectStatement = new SelectStatement<T>(connection))
+                {
+                    return selectStatement.SelectWhereIn(column, values.Cast<object>().ToList()).ToList();
                 }
             });
 

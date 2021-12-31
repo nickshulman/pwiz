@@ -2302,7 +2302,15 @@ namespace pwiz.Skyline.Model.Results
         public DateTime FileWriteTime { get { return CachedFile.FileWriteTime; } }
         public DateTime? RunStartTime { get { return CachedFile.RunStartTime; } }
         public virtual int NumTransitions { get { return _groupHeaderInfo.NumTransitions; } }
-        public int NumPeaks { get { return _groupHeaderInfo.NumPeaks; } }
+
+        public int NumPeaks
+        {
+            get
+            {
+                return CountPeakGroups(ReadPeaks());
+            }
+        }
+
         public int MaxPeakIndex { get { return _groupHeaderInfo.MaxPeakIndex; } }
         public int BestPeakIndex { get { return MaxPeakIndex; } }
 
@@ -2366,8 +2374,9 @@ namespace pwiz.Skyline.Model.Results
         public IEnumerable<ChromPeak> GetPeaks(int transitionIndex)
         {
             var peaks = ReadPeaks();
-            int startPeak = transitionIndex * _groupHeaderInfo.NumPeaks;
-            int endPeak = startPeak + _groupHeaderInfo.NumPeaks;
+            int numPeaks = CountPeakGroups(peaks);
+            int startPeak = transitionIndex * numPeaks;
+            int endPeak = startPeak + numPeaks;
             for (int i = startPeak; i < endPeak; i++)
                 yield return peaks[i];
         }
@@ -2516,7 +2525,26 @@ namespace pwiz.Skyline.Model.Results
 
         public ChromPeak GetTransitionPeak(int transitionIndex, int peakIndex)
         {
-            return ReadPeaks()[transitionIndex*_groupHeaderInfo.NumPeaks + peakIndex];
+            var peaks = ReadPeaks();
+            int numPeaks = CountPeakGroups(peaks);
+            if (0 > peakIndex || peakIndex > numPeaks)
+            {
+                throw new IndexOutOfRangeException(
+                    string.Format(Resources.ChromatogramInfo_ChromatogramInfo_The_index__0__must_be_between_0_and__1__,
+                        peakIndex, numPeaks));
+            }
+
+            return peaks[transitionIndex*numPeaks + peakIndex];
+        }
+
+        private int CountPeakGroups(IList<ChromPeak> peaks)
+        {
+            if (_groupHeaderInfo.NumPeaks > 0)
+            {
+                return _groupHeaderInfo.NumPeaks;
+            }
+
+            return peaks.Count / NumTransitions;
         }
 
         // ReSharper disable SuggestBaseTypeForParameter
@@ -2847,12 +2875,6 @@ namespace pwiz.Skyline.Model.Results
         /// </summary>
         public ChromPeak GetPeak(int peakIndex)
         {
-            if (0 > peakIndex || peakIndex > NumPeaks)
-            {
-                throw new IndexOutOfRangeException(
-                    string.Format(Resources.ChromatogramInfo_ChromatogramInfo_The_index__0__must_be_between_0_and__1__,
-                                  peakIndex, NumPeaks));
-            }
             return _groupInfo.GetTransitionPeak(_transitionIndex, peakIndex);
         }
 

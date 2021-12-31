@@ -6,7 +6,7 @@ namespace SkydbStorage.DataAccess.Orm
     [Class(Lazy = false)]
     public class CandidatePeak : Entity<CandidatePeakGroup>
     {
-        [ManyToOne(ClassType = typeof(CandidatePeakGroup))]
+        [ManyToOne(ClassType = typeof(CandidatePeakGroup), Index = "CandidatePeak_CandidatePeakGroup")]
         public long CandidatePeakGroup { get; set; }
         [ManyToOne(ClassType = typeof(Chromatogram))]
         public long Chromatogram { get; set; }

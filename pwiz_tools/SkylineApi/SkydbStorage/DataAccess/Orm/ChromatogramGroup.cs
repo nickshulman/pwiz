@@ -1,5 +1,6 @@
 ﻿using NHibernate.Mapping.Attributes;
 using SkydbStorage.Internal.Orm;
+using SkylineApi;
 
 namespace SkydbStorage.DataAccess.Orm
 {
@@ -29,5 +30,22 @@ namespace SkydbStorage.DataAccess.Orm
         public double? InterpolationIntervalDelta { get; set; }
         [Property]
         public bool? InterpolationInferZeroes { get; set; }
+
+        public InterpolationParameters InterpolationParameters
+        {
+            get
+            {
+                if (InterpolationStartTime.HasValue && InterpolationEndTime.HasValue &&
+                    InterpolationNumberOfPoints.HasValue && InterpolationIntervalDelta.HasValue &&
+                    InterpolationInferZeroes.HasValue)
+                {
+                    return new InterpolationParameters(InterpolationStartTime.Value, InterpolationEndTime.Value,
+                        InterpolationNumberOfPoints.Value, InterpolationIntervalDelta.Value,
+                        InterpolationInferZeroes.Value);
+                }
+
+                return null;
+            }
+        }
     }
 }

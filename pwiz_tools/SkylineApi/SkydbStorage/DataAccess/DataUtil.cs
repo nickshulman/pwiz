@@ -28,6 +28,11 @@ namespace SkydbStorage.DataAccess
             }
         }
 
+        public static byte[] Uncompress(byte[] bytes)
+        {
+            return ZlibStream.UncompressBuffer(bytes);
+        }
+
         public static T[] PrimitivesFromByteArray<T>(byte[] bytes)
         {
             if (null == bytes)

@@ -28,6 +28,7 @@ using System.Linq;
 using System.Xml;
 using System.Xml.Schema;
 using System.Xml.Serialization;
+using pwiz.Skyline.Model.Skydb;
 
 namespace pwiz.Skyline.Model.Results
 {
@@ -165,7 +166,7 @@ namespace pwiz.Skyline.Model.Results
 
         public IEnumerable<IPooledStream> ReadStreams
         {
-            get { return Caches.Select(cache => cache.ReadStream); }
+            get { return Caches.Select(cache => cache.ReadStream).Where(stream=>stream != null); }
         }
 
         public IEnumerable<string> CachePaths
@@ -1355,6 +1356,15 @@ namespace pwiz.Skyline.Model.Results
                 {
                     _resultsClone._listPartialCaches = ImmutableList.Singleton(_resultsClone._cacheFinal);
                     _resultsClone._cacheFinal = null;
+                }
+
+                var skydbCache = SkydbFiles.TryLoadSkydbFile(_documentPath);
+                if (skydbCache != null)
+                {
+                    _resultsClone._cacheFinal = skydbCache;
+                    _resultsClone._listPartialCaches = null;
+                    Complete(_resultsClone, true);
+                    return;
                 }
                     
                 // Try loading the final cache from disk, if progressive loading has not started

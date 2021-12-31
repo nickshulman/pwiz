@@ -12,15 +12,15 @@ namespace SkydbStorage.Internal.Orm
         [Property]
         public int SpectrumIndex { get; set; }
         [Property]
-        public int? IdPart1 { get; set; }
+        protected int? IdPart1 { get; set; }
         [Property]
-        public int? IdPart2 { get; set; }
+        protected int? IdPart2 { get; set; }
         [Property]
-        public int? IdPart3 { get; set; }
+        protected int? IdPart3 { get; set; }
         [Property]
-        public int? IdPart4 { get; set; }
+        protected int? IdPart4 { get; set; }
         [Property]
-        public string SpectrumIdentifierText { get; set; }
+        protected string SpectrumIdentifierText { get; set; }
         [Property]
         public double RetentionTime { get; set; }
 

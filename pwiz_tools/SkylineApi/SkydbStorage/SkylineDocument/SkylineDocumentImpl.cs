@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using SkydbStorage.DataAccess;
+using SkydbStorage.DataAccess.Orm;
 using SkydbStorage.Internal.Orm;
 using SkylineApi;
 
@@ -26,12 +27,13 @@ namespace SkydbStorage.SkylineDocument
         {
             get
             {
-                return CallWithConnection(skydbConnection =>
+                return CallWithConnection(connection =>
                 {
-                    using (var selectStatement = new SelectStatement<ExtractedFile>(skydbConnection))
-                    {
-                        return selectStatement.SelectAll().Select(file => new ExtractedDataFileImpl(this, file));
-                    }
+                    var chromatogramGroups = connection.SelectAll<ChromatogramGroup>().ToLookup(group => group.File);
+                    var chromatograms = connection.SelectAll<Chromatogram>().ToLookup(chrom => chrom.ChromatogramGroup);
+                    var spectrumInfos = connection.SelectAll<SpectrumInfo>().ToLookup(spectrum => spectrum.File);
+                    return connection.SelectAll<ExtractedFile>().Select(file => new ExtractedDataFileImpl(this, file,
+                        chromatogramGroups[file.Id.Value], spectrumInfos[file.Id.Value], chromatograms)).ToList();
                 });
             }
         }
@@ -42,6 +44,29 @@ namespace SkydbStorage.SkylineDocument
             {
                 return func(connection);
             }
+        }
+
+        public IList<T> SelectAll<T>() where T : Entity, new()
+        {
+            return CallWithConnection(connection =>
+            {
+                using (var selectStatement = new SelectStatement<T>(connection))
+                {
+                    return selectStatement.SelectAll().ToList();
+                }
+            });
+        }
+
+        public IList<T> SelectWhere<T>(string column, object value) where T : Entity, new()
+        {
+            return CallWithConnection(connection =>
+            {
+                using (var selectStatement = new SelectStatement<T>(connection))
+                {
+                    return selectStatement.SelectWhere(column, value).ToList();
+                }
+            });
+
         }
     }
 }

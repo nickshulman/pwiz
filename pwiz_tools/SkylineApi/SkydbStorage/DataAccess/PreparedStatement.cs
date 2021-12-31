@@ -5,10 +5,12 @@ namespace SkydbStorage.DataAccess
 {
     public class PreparedStatement : IDisposable
     {
+        protected IDbConnection Connection { get; }
         protected IDbCommand Command { get; set; }
 
         public PreparedStatement(IDbConnection connection)
         {
+            Connection = connection;
             Command = connection.CreateCommand();
         }
 

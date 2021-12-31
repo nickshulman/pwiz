@@ -5,6 +5,7 @@ using pwiz.Common.Chemistry;
 using pwiz.Common.Collections;
 using pwiz.ProteowizardWrapper;
 using pwiz.Skyline.Model.Results;
+using pwiz.Skyline.Util;
 using SkylineApi;
 
 namespace pwiz.Skyline.Model.Skydb
@@ -24,7 +25,14 @@ namespace pwiz.Skyline.Model.Skydb
             _chromGroupHeaderInfos = ImmutableList.ValueOf(GetChromGroupHeaderInfos()
                 .OrderBy(header => Tuple.Create(header.Precursor, header.FileIndex)));
             _chromCachedFiles = ImmutableList.ValueOf(ExtractedDataFiles.Select(ToChromCachedFile));
-            Init(ExtractedDataFiles.SelectMany(file=>file.ScoreNames).Distinct().Select(Type.GetType));
+            var scoreTypes = new List<Type>();
+            foreach (var scoreTypeName in ExtractedDataFiles.SelectMany(file => file.ScoreNames).Distinct())
+            {
+                var type = Type.GetType(scoreTypeName);
+                Assume.IsNotNull(type, scoreTypeName);
+                scoreTypes.Add(type);
+            }
+            Init(scoreTypes);
         }
 
         public ImmutableList<IExtractedDataFile> ExtractedDataFiles { get; }
@@ -144,14 +152,14 @@ namespace pwiz.Skyline.Model.Skydb
             var chromatogramGroup = GetChromatogramGroup(chromGroupHeaderInfo);
             // TODO: ChromSource
             return chromatogramGroup.Chromatograms.Select(chrom => new ChromTransition(chrom.ProductMz,
-                (float) chrom.ExtractionWidth, (float) chrom.IonMobilityValue, (float)chrom.IonMobilityExtractionWidth, ChromSource.unknown));
+                (float) chrom.ExtractionWidth, (float) chrom.IonMobilityValue.GetValueOrDefault(), (float)chrom.IonMobilityExtractionWidth.GetValueOrDefault(), ChromSource.unknown));
         }
 
         private IEnumerable<ChromGroupHeaderInfo> GetChromGroupHeaderInfos()
         {
             for (int fileIndex = 0; fileIndex < ExtractedDataFiles.Count; fileIndex++)
             {
-                for (int groupIndex = 0; groupIndex < ChromatogramGroups[groupIndex].Count; groupIndex++)
+                for (int groupIndex = 0; groupIndex < ChromatogramGroups[fileIndex].Count; groupIndex++)
                 {
                     yield return MakeChromGroupHeaderInfo(fileIndex, groupIndex);
                 }

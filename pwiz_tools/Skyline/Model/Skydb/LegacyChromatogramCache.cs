@@ -61,7 +61,7 @@ namespace pwiz.Skyline.Model.Skydb
 
             public string SourceFilePath
             {
-                get { return Cache._chromatogramCache.CachePath; }
+                get { return ChromCachedFile.FilePath.ToString(); }
             }
 
             public IEnumerable<IChromatogramGroup> ChromatogramGroups

@@ -140,6 +140,7 @@ namespace pwiz.Skyline.Model
             catch (Exception exception)
             {
                 Program.ReportException(exception);
+
             }
             finally
             {

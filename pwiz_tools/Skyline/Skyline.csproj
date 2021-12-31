@@ -621,6 +621,7 @@
     <Compile Include="Model\Skydb\ChromatogramGroupAdapter.cs" />
     <Compile Include="Model\Skydb\IChromatogramCache.cs" />
     <Compile Include="Model\Skydb\LegacyChromatogramCache.cs" />
+    <Compile Include="Model\Skydb\SkydbFiles.cs" />
     <Compile Include="Model\Skydb\SpectrumIdMap.cs" />
     <Compile Include="Properties\Resources.Designer.cs">
       <AutoGen>True</AutoGen>
@@ -5455,6 +5456,10 @@
     <ProjectReference Include="..\SkylineApi\SkydbApi\SkylineApi.csproj">
       <Project>{cd5b4c56-fa46-42a8-aa97-e08573f979e9}</Project>
       <Name>SkylineApi</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\SkylineApi\SkydbStorage\SkydbStorage.csproj">
+      <Project>{32a01481-f012-4b01-8edb-b2f01424844b}</Project>
+      <Name>SkydbStorage</Name>
     </ProjectReference>
     <ProjectReference Include="SkylineCmd\SkylineCmd.csproj">
       <Project>{fa16a0ef-edf7-4515-bd93-44badd7ab98a}</Project>

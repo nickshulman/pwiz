@@ -73,8 +73,7 @@ namespace pwiz.Skyline.Model.Results
         }
 
 
-        private IEnumerable<ChromatogramGroupInfo> GetHeaderInfos(PeptideDocNode nodePep, SignedMz precursorMz, double? explicitRT, float tolerance,
-    ChromatogramSet chromatograms)
+        private IEnumerable<ChromatogramGroupInfo> GetHeaderInfos(PeptideDocNode nodePep, SignedMz precursorMz, double? explicitRT, float tolerance, ChromatogramSet chromatograms)
         {
             foreach (int i in ChromatogramIndexesMatching(nodePep, precursorMz, tolerance, chromatograms))
             {

@@ -82,6 +82,7 @@
     <Compile Include="DataAccess\Orm\SpectrumList.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="SkylineDocument\ChromatogramGroupImpl.cs" />
+    <Compile Include="SkylineDocument\ChromatogramImpl.cs" />
     <Compile Include="SkylineDocument\ExtractedDataFileImpl.cs" />
     <Compile Include="SkylineDocument\SkylineDocumentImpl.cs" />
   </ItemGroup>

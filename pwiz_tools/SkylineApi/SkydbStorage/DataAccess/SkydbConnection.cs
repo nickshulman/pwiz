@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Data;
 using System.Data.SQLite;
+using System.Linq;
 using NHibernate;
 using NHibernate.Cfg;
 using NHibernate.Mapping.Attributes;
@@ -211,7 +212,7 @@ namespace SkydbStorage.DataAccess
         {
             using (var statement = new SelectStatement<T>(this))
             {
-                return statement.SelectAll();
+                return statement.SelectAll().ToList();
             }
         }
     }

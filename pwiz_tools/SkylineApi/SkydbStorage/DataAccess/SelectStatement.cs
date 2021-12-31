@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Data.SQLite;
 using System.Text;
 using SkydbStorage.Internal.Orm;
 
@@ -43,9 +44,9 @@ namespace SkydbStorage.DataAccess
             Command.CommandText = commandTest.ToString();
         }
 
-        public IEnumerable<T> SelectAll()
+        protected IEnumerable<T> ReturnAll(IDbCommand command)
         {
-            using (var reader = Command.ExecuteReader())
+            using (var reader = command.ExecuteReader())
             {
                 while (reader.Read())
                 {
@@ -68,6 +69,25 @@ namespace SkydbStorage.DataAccess
                     }
 
                     yield return entity;
+                }
+            }
+
+        }
+
+        public IEnumerable<T> SelectAll()
+        {
+            return ReturnAll(Command);
+        }
+
+        public IEnumerable<T> SelectWhere(string columnName, object value)
+        {
+            using (var command = Connection.CreateCommand())
+            {
+                command.CommandText = Command.CommandText + " WHERE " + SqliteOps.QuoteIdentifier(columnName) + " = ?";
+                command.Parameters.Add(new SQLiteParameter() {Value = value});
+                foreach (var item in ReturnAll(command))
+                {
+                    yield return item;
                 }
             }
         }

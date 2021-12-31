@@ -25,12 +25,14 @@ namespace pwiz.SkylineTest
             {
                 DateTime start = DateTime.UtcNow;
                 //var inputFilePath = @"D:\skydata\20150501_Bruderer\delayloadingpeaks\BruderDIA2015_withdecoys.skyd";
-                var inputFilePath = testFilesDir.GetTestPath("Bruder3Proteins.skyd");
+                //var inputFilePath = testFilesDir.GetTestPath("Bruder3Proteins.skyd");
+                var inputFilePath = @"D:\skydata\20110215_MikeB\Bereman_5proteins_spikein.skyd";
+                var outputFile = @"D:\skydata\20110215_MikeB\Bereman_5proteins_spikein.skydb";
                 //var inputFilePath = testFilesDir.GetTestPath("Human_plasma.skyd");
                 //var inputFilePath = @"D:\skydata\20150501_Bruderer\delayloadingpeaks\delay.skyd";
                 //var inputFilePath = @"D:\skydata\20140318_Hasmik_QE_DIA\Study9_2_Curve_DIA_QE_5trans_withSpLib_Jan2014\Study9_2_Curve_DIA_QE_5trans_withSpLib_Jan2014.skyd";
                 // var inputFilePath = @"D:\skydata\20150501_Bruderer\3Proteins_delayloadingpeaks\Bruder3Proteins.skyd";
-                var outputFile = testFilesDir.GetTestPath("joined.skydb");
+                //var outputFile = testFilesDir.GetTestPath("joined.skydb");
 
 
                 using (var chromatogramCache = ChromatogramCache.Load(

@@ -34,7 +34,8 @@ namespace SkydbStorage.SkylineDocument
 
         public double? GetScore(string name)
         {
-            throw new NotImplementedException();
+            // TODO
+            return null;
         }
 
         public bool IsBestPeak

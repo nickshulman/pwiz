@@ -6,7 +6,7 @@ namespace SkydbStorage.DataAccess.Orm
     [Class(Lazy = false)]
     public class Chromatogram : Entity<Chromatogram>
     {
-        [ManyToOne(ClassType = typeof(ChromatogramGroup))]
+        [ManyToOne(ClassType = typeof(ChromatogramGroup), Index = "Chromatogram_ChromatogramGroup")]
         public long ChromatogramGroup { get; set; }
         [ManyToOne(ClassType = typeof(ChromatogramData))]
         public long ChromatogramData { get; set; }

@@ -14,13 +14,13 @@ namespace SkydbStorage.SkylineDocument
     public class ExtractedDataFileImpl : IExtractedDataFile
     {
         private IDictionary<int, SpectrumInfo> _spectrumInfos;
-        public ExtractedDataFileImpl(SkylineDocumentImpl document, ExtractedFile entity, IEnumerable<ChromatogramGroup> groups, IEnumerable<SpectrumInfo> spectrumInfos, ILookup<long, Chromatogram> chromatograms)
+        public ExtractedDataFileImpl(SkylineDocumentImpl document, ExtractedFile entity)
         {
             Document = document;
             Entity = entity;
-            ChromatogramGroups =
-                groups.Select(group => new ChromatogramGroupImpl(this, group, chromatograms[group.Id.Value])).ToList();
-            _spectrumInfos = spectrumInfos.ToDictionary(spectrumInfo => spectrumInfo.SpectrumIndex);
+            ChromatogramGroups = new List<ChromatogramGroupImpl>();
+            //     groups.Select(group => new ChromatogramGroupImpl(this, group)).ToList();
+            // _spectrumInfos = spectrumInfos.ToDictionary(spectrumInfo => spectrumInfo.SpectrumIndex);
         }
 
         public ExtractedFile Entity { get; }
@@ -29,9 +29,12 @@ namespace SkydbStorage.SkylineDocument
 
         public string SourceFilePath => Entity.FilePath;
 
-        public IEnumerable<IChromatogramGroup> ChromatogramGroups {
-            get;
+        IEnumerable<IChromatogramGroup> IExtractedDataFile.ChromatogramGroups
+        {
+            get { return ChromatogramGroups; }
         }
+
+        public List<ChromatogramGroupImpl> ChromatogramGroups { get; }
 
         public IEnumerable<string> ScoreNames => Document.SkydbSchema.ScoreNames;
 

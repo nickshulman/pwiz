@@ -88,6 +88,7 @@
     <Compile Include="SkylineDocument\ChromatogramGroupImpl.cs" />
     <Compile Include="SkylineDocument\ChromatogramImpl.cs" />
     <Compile Include="SkylineDocument\ExtractedDataFileImpl.cs" />
+    <Compile Include="SkylineDocument\Precursor.cs" />
     <Compile Include="SkylineDocument\SkylineDocumentImpl.cs" />
   </ItemGroup>
   <ItemGroup />

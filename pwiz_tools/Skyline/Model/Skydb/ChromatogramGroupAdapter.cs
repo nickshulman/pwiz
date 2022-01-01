@@ -1,44 +1,77 @@
 ﻿using System.Collections.Generic;
+using System.ComponentModel;
 using System.Linq;
 using pwiz.Common.Chemistry;
 using pwiz.Common.Collections;
 using pwiz.Skyline.Model.Results;
 using SkylineApi;
-#if false
 namespace pwiz.Skyline.Model.Skydb
 {
-    public class ChromatogramGroupAdapter
+    public class ChromatogramGroupAdapter : IChromGroupHeaderInfo
     {
-        public ChromatogramGroupAdapter(ChromatogramCacheAdapter chromatogramCache, int fileIndex, int chromatogramGroupIndex)
+        private IChromatogramGroupData _groupData;
+        private ImmutableList<ICandidatePeakGroup> _peakGroups;
+        private ImmutableList<IChromatogram> _chromatograms;
+        public ChromatogramGroupAdapter(ChromatogramCacheAdapter chromatogramCache, int fileIndex, IChromatogramGroup group)
         {
             ChromatogramCache = chromatogramCache;
             FileIndex = fileIndex;
-            GroupIndex = GroupIndex;
-            Chromatograms = ImmutableList.ValueOf(chromatogramGroup.Chromatograms);
-            CandidatePeakGroups = ImmutableList.ValueOf(ChromatogramGroup.CandidatePeakGroups);
+            ExtractedDataFile = chromatogramCache.ExtractedDataFiles[fileIndex];
+            ChromatogramGroup = group;
         }
 
         public ChromatogramCacheAdapter ChromatogramCache { get; }
         public int FileIndex { get; }
-        public int GroupIndex { get; }
+        public string TextId
+        {
+            get { return ChromatogramGroup.TextId; }
+        }
+
+        [Browsable(false)]
+        public IChromatogramGroupData ChromatogramGroupData
+        {
+            get
+            {
+                if (_groupData == null)
+                {
+                    _groupData = ChromatogramGroup.Data;
+                }
+
+                return _groupData;
+            }
+        }
 
         public IExtractedDataFile ExtractedDataFile { get; }
         public IChromatogramGroup ChromatogramGroup { get; }
-        public ImmutableList<IChromatogram> Chromatograms { get; }
-        public ImmutableList<ICandidatePeakGroup> CandidatePeakGroups { get; }
 
-        public ChromGroupHeaderInfo ToChromGroupHeaderInfo()
+        public ImmutableList<IChromatogram> Chromatograms
         {
-            ChromGroupHeaderInfo.FlagValues flagValues = 0;
-            if (ChromatogramGroup.InterpolationParameters != null)
+            get
             {
-                flagValues |= ChromGroupHeaderInfo.FlagValues.raw_chromatograms;
+                lock (this)
+                {
+                    if (_chromatograms == null)
+                    {
+                        _chromatograms = ImmutableList.ValueOf(ChromatogramGroup.Chromatograms);
+                    }
+
+                    return _chromatograms;
+                }
             }
-            // TODO: IonMobilityUnits
-            return new ChromGroupHeaderInfo(new SignedMz(ChromatogramGroup.PrecursorMz), 0, Chromatograms.Count, 0,
-                CandidatePeakGroups.Count, 0, 0, GetMaxPeakIndex(), 0, 0, 0, 0, flagValues, 0, 0,
-                (float?) ChromatogramGroup.StartTime, (float?) ChromatogramGroup.EndTime,
-                ChromatogramGroup.CollisionalCrossSection, eIonMobilityUnits.unknown);
+        }
+
+        [Browsable(false)]
+        public ImmutableList<ICandidatePeakGroup> CandidatePeakGroups
+        {
+            get
+            {
+                if (_peakGroups == null)
+                {
+                    _peakGroups = ImmutableList.ValueOf(ChromatogramGroupData.CandidatePeakGroups);
+                }
+
+                return _peakGroups;
+            }
         }
 
         public int GetMaxPeakIndex()
@@ -54,92 +87,131 @@ namespace pwiz.Skyline.Model.Skydb
             return -1;
         }
 
-        private class ChromatogramCacheImpl : IChromatogramCache
+        public int NumTransitions => Chromatograms.Count;
+
+        public int NumPeaks => CandidatePeakGroups.Count;
+
+        public int MaxPeakIndex => GetMaxPeakIndex();
+
+        public float? StartTime => (float?)ChromatogramGroup.StartTime;
+
+        public float? EndTime => (float?) ChromatogramGroup.EndTime;
+
+        public SignedMz Precursor => new SignedMz(ChromatogramGroup.PrecursorMz);
+
+        public float? CollisionalCrossSection => (float?) ChromatogramGroup.CollisionalCrossSection;
+
+        public ChromExtractor Extractor
         {
-            private IDictionary<string, int> _spectrumIdToScanId = new Dictionary<string, int>();
-            private IList<string> _scanIdToSpectrumId = new List<string>();
-            private TimeIntensitiesGroup _timeIntensitiesGroup;
-            public ChromatogramCacheImpl(ChromatogramGroupAdapter adapter)
-            {
-                Adapter = adapter;
-            }
-
-            public ChromatogramGroupAdapter Adapter { get; }
-
-            public TimeIntensitiesGroup ReadTimeIntensities(ChromGroupHeaderInfo header)
-            {
-                return GetTimeIntensitiesGroup();
-            }
-
-            public IList<float> ReadScores(ChromGroupHeaderInfo header)
+            get
             {
                 // TODO
-                return null;
+                return ChromExtractor.summed;
+            }
+        }
+
+        public bool NegativeCharge
+        {
+            get
+            {
+                return ChromatogramGroup.PrecursorMz < 0;
+            }
+        }
+
+        public bool IsNotIncludedTime(double retentionTime)
+        {
+            return StartTime.HasValue && EndTime.HasValue &&
+                   (retentionTime < StartTime.Value || EndTime.Value < retentionTime);
+        }
+
+        public TimeIntensitiesGroup ReadTimeIntensities()
+        {
+            var chromatogramGroup = ChromatogramGroup;
+            var spectrumIdMap = ChromatogramCache.SpectrumIdMaps[FileIndex];
+            var chromatograms = chromatogramGroup.Chromatograms.ToList();
+            var chromatogramGroupData = chromatogramGroup.Data;
+            var transitionTimeIntensitiesList = chromatogramGroupData.ChromatogramDatas
+                .Select(chrom => GetTimeIntensities(chrom, spectrumIdMap)).ToList();
+            var interpolationParams = chromatogramGroupData.InterpolationParameters;
+            if (interpolationParams == null)
+            {
+                // TODO: chromSources
+                var chromSources = chromatograms.Select(chrom => ChromSource.unknown);
+                return new InterpolatedTimeIntensities(transitionTimeIntensitiesList, chromSources);
             }
 
-            public IList<ChromPeak> ReadPeaks(ChromGroupHeaderInfo header)
-            {
-                var peakGroups = Adapter.ChromatogramGroup.CandidatePeakGroups.ToList();
-                int peakCount = peakGroups.Count;
-                int transitionCount = Adapter.Chromatograms.Count;
-                var chromPeaks = new ChromPeak[peakCount * transitionCount];
-                for (int iPeak = 0; iPeak < peakCount; iPeak++)
-                {
-                    var peakGroupPeaks = peakGroups[iPeak].CandidatePeaks;
-                    for (int iTransition = 0; iTransition < transitionCount; iTransition++)
-                    {
-                        chromPeaks[iTransition * peakCount + iPeak] = new ChromPeak(peakGroupPeaks[iTransition]);
-                    }
-                }
+            return new RawTimeIntensities(transitionTimeIntensitiesList,
+                new InterpolationParams(interpolationParams.StartTime, interpolationParams.EndTime,
+                    interpolationParams.NumberOfPoints, interpolationParams.IntervalDelta));
+        }
 
-                return chromPeaks;
+        private TimeIntensities GetTimeIntensities(IChromatogramData chromatogram, SpectrumIdMap spectrumIdMap)
+        {
+            ImmutableList<int> scanIds =
+                ImmutableList.ValueOf(chromatogram.SpectrumIdentifiers?.Select(spectrumIdMap.GetScanId));
+            return new TimeIntensities(chromatogram.RetentionTimes, chromatogram.Intensities,
+                chromatogram.MassErrors, scanIds);
+        }
+
+        public IList<ChromPeak> ReadPeaks()
+        {
+            var peakGroups = ChromatogramGroupData.CandidatePeakGroups.ToList();
+            int peakCount = peakGroups.Count;
+            int transitionCount = NumTransitions;
+            var chromPeaks = new ChromPeak[peakCount * transitionCount];
+            for (int iPeak = 0; iPeak < peakCount; iPeak++)
+            {
+                var peakGroupPeaks = peakGroups[iPeak].CandidatePeaks;
+                for (int iTransition = 0; iTransition < transitionCount; iTransition++)
+                {
+                    chromPeaks[iTransition * peakCount + iPeak] = new ChromPeak(peakGroupPeaks[iTransition]);
+                }
             }
 
-            private TimeIntensities GetTimeIntensities(IChromatogram chromatogram)
-            {
-                var spectrumIdentifiers = chromatogram.SpectrumIdentifiers;
-                List<int> scanIds = null;
-                if (spectrumIdentifiers != null)
-                {
-                    scanIds = new List<int>(spectrumIdentifiers.Count);
-                    foreach (var spectrumIdentifier in spectrumIdentifiers)
-                    {
-                        int scanId;
-                        if (!_spectrumIdToScanId.TryGetValue(spectrumIdentifier, out scanId))
-                        {
-                            scanId = _scanIdToSpectrumId.Count;
-                            _spectrumIdToScanId.Add(spectrumIdentifier, scanId);
-                            _scanIdToSpectrumId.Add(spectrumIdentifier);
-                        }
-                        scanIds.Add(scanId);
-                    }
-                }
+            return chromPeaks;
+        }
 
-                return new TimeIntensities(chromatogram.RetentionTimes, chromatogram.Intensities,
-                    chromatogram.MassErrors, scanIds);
+        public IList<float> ReadScores()
+        {
+            var result = new List<float>();
+            foreach (var peakGroup in ChromatogramGroupData.CandidatePeakGroups)
+            {
+                foreach (var scoreType in ChromatogramCache.ScoreTypes)
+                {
+                    result.Add((float?) peakGroup.GetScore(scoreType.FullName) ?? float.NaN);
+                }
             }
 
-            private TimeIntensitiesGroup GetTimeIntensitiesGroup()
+            return result;
+        }
+
+        public IEnumerable<ChromTransition> GetTransitions()
+        {
+            // TODO: ChromSource
+            return ChromatogramGroup.Chromatograms.Select(chrom => new ChromTransition(chrom.ProductMz,
+                (float)chrom.ExtractionWidth, (float)chrom.IonMobilityValue.GetValueOrDefault(), (float)chrom.IonMobilityExtractionWidth.GetValueOrDefault(), ChromSource.unknown));
+        }
+
+        public ChromGroupHeaderInfo.FlagValues Flags {
+            get
             {
-                if (_timeIntensitiesGroup != null)
-                {
-                    return _timeIntensitiesGroup;
-                }
+                // TODO
+                return 0;
+            }
+        }
 
-                var transitionTimeIntensitiesList = Adapter.Chromatograms.Select(chrom => GetTimeIntensities(chrom)).ToList();
-                var interpolationParams = Adapter.ChromatogramGroup.InterpolationParameters;
-                if (interpolationParams == null)
-                {
-                    // TODO: chromSources
-                    var chromSources = Adapter.Chromatograms.Select(chrom => ChromSource.unknown);
-                    return new InterpolatedTimeIntensities(transitionTimeIntensitiesList, chromSources);
-                }
+        public bool HasRawTimes()
+        {
+            return 0 != (Flags & ChromGroupHeaderInfo.FlagValues.raw_chromatograms);
+        }
 
-                return _timeIntensitiesGroup = new RawTimeIntensities(transitionTimeIntensitiesList,
-                    new InterpolationParams(interpolationParams.StartTime, interpolationParams.EndTime,
-                        interpolationParams.NumberOfPoints, interpolationParams.IntervalDelta));
+        public eIonMobilityUnits IonMobilityUnits
+        {
+            get
+            {
+                // TODO
+                return eIonMobilityUnits.unknown;
             }
         }
     }
 }
-#endif

@@ -34,7 +34,6 @@ using pwiz.ProteowizardWrapper;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.Results.Crawdad;
 using pwiz.Skyline.Model.Results.Scoring;
-using pwiz.Skyline.Model.Skydb;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
 using SkylineApi;
@@ -127,9 +126,31 @@ namespace pwiz.Skyline.Model.Results
         }
         #endregion
     }
+    // public interface IChromGroupHeaderInfo
+    // {
+    //
+    // }
+
+    public interface IChromGroupHeaderInfo
+    {
+        int NumTransitions { get; }
+        int NumPeaks { get; }
+        int MaxPeakIndex { get; }
+        float? StartTime { get; }
+        float? EndTime { get; }
+        SignedMz Precursor { get; }
+        float? CollisionalCrossSection { get; }
+        ChromExtractor Extractor { get; }
+        bool NegativeCharge { get; }
+        bool IsNotIncludedTime(double retentionTime);
+        int FileIndex { get; }
+        ChromGroupHeaderInfo.FlagValues Flags { get; }
+        bool HasRawTimes();
+        eIonMobilityUnits IonMobilityUnits { get; }
+    }
 
     [StructLayout(LayoutKind.Sequential, Pack = 1)]
-    public struct ChromGroupHeaderInfo : IComparable<ChromGroupHeaderInfo>
+    public struct ChromGroupHeaderInfo : IComparable<ChromGroupHeaderInfo>, IChromGroupHeaderInfo
     {
         /////////////////////////////////////////////////////////////////////
         // CAREFUL: This ordering determines the layout of this struct on
@@ -322,6 +343,14 @@ namespace pwiz.Skyline.Model.Results
         public long LocationPoints { get{return _locationPoints;} }
         public int UncompressedSize { get{return _uncompressedSize;} }
         public bool IsProcessedScans { get { return _isProcessedScans != 0; } }
+
+        int IChromGroupHeaderInfo.NumTransitions => NumTransitions;
+
+        int IChromGroupHeaderInfo.NumPeaks => NumPeaks;
+
+        int IChromGroupHeaderInfo.MaxPeakIndex => MaxPeakIndex;
+
+        int IChromGroupHeaderInfo.FileIndex => FileIndex;
 
         public override string ToString()
         {
@@ -2253,7 +2282,7 @@ namespace pwiz.Skyline.Model.Results
 
     public class ChromatogramGroupInfo
     {
-        protected readonly ChromGroupHeaderInfo _groupHeaderInfo;
+        protected readonly IChromGroupHeaderInfo _groupHeaderInfo;
         protected readonly ChromCachedFile _chromCachedFile;
         protected readonly IDictionary<Type, int> _scoreTypeIndices;
         protected readonly IReadOnlyList<ChromTransition> _transitions;
@@ -2263,7 +2292,7 @@ namespace pwiz.Skyline.Model.Results
         protected IList<float> _scores;
         private TimeIntensitiesGroup _timeIntensitiesGroup;
 
-        public ChromatogramGroupInfo(AbstractChromatogramCache chromatogramCache, ChromGroupHeaderInfo chromGroupHeaderInfo)
+        public ChromatogramGroupInfo(AbstractChromatogramCache chromatogramCache, IChromGroupHeaderInfo chromGroupHeaderInfo)
         {
             _groupHeaderInfo = chromGroupHeaderInfo;
             _chromatogramCache = chromatogramCache;
@@ -2282,8 +2311,8 @@ namespace pwiz.Skyline.Model.Results
             _scores = Array.Empty<float>();
         }
 
-        internal ChromGroupHeaderInfo Header { get { return _groupHeaderInfo; } }
-        public SignedMz PrecursorMz { get { return new SignedMz(_groupHeaderInfo.Precursor, _groupHeaderInfo.NegativeCharge); } }
+        internal IChromGroupHeaderInfo Header { get { return _groupHeaderInfo; } }
+        public SignedMz PrecursorMz { get { return _groupHeaderInfo.Precursor; } }
         public string TextId
         {
             get
@@ -2695,7 +2724,7 @@ namespace pwiz.Skyline.Model.Results
 
         public ChromatogramGroupInfo GroupInfo { get { return _groupInfo; } }
 
-        public ChromGroupHeaderInfo Header { get { return _groupInfo.Header; } }
+        public IChromGroupHeaderInfo Header { get { return _groupInfo.Header; } }
 
         public int NumPeaks { get { return _groupInfo != null ? _groupInfo.NumPeaks : 0; } }
 

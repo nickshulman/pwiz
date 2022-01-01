@@ -70,7 +70,7 @@ namespace pwiz.Skyline.Model.Skydb
             {
                 get
                 {
-                    return Cache._chromatogramCache.ChromGroupHeaderInfos.Where(group => group.FileIndex == FileIndex)
+                    return Cache._chromatogramCache.ChromGroupHeaderInfoValues.Where(group => group.FileIndex == FileIndex)
                         .Select(group => new ExtractedChromatogramGroup(this, group));
                 }
             }

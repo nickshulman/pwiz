@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Data;
 using System.Data.SQLite;
@@ -92,22 +93,31 @@ namespace SkydbStorage.DataAccess
             }
         }
 
-        public IEnumerable<T> SelectWhereIn(string columnName, IList<object> values)
+        public IEnumerable<T> SelectWhereIn(string columnName, IEnumerable values)
         {
-            if (values.Count == 0)
+            var parameters = new List<SQLiteParameter>();
+            StringBuilder commandText = new StringBuilder(Command.CommandText);
+            commandText.Append(" WHERE " + SqliteOps.QuoteIdentifier(columnName) + " IN (");
+            string comma = string.Empty;
+            foreach (var value in values)
+            {
+                commandText.Append(comma);
+                comma = ", ";
+                commandText.Append("?");
+                parameters.Add(new SQLiteParameter() {Value = value});
+            }
+
+            commandText.Append(")");
+            if (parameters.Count == 0)
             {
                 yield break;
             }
             using (var command = Connection.CreateCommand())
             {
-                StringBuilder commandText = new StringBuilder(Command.CommandText);
-                commandText.Append(" WHERE " + SqliteOps.QuoteIdentifier(columnName) + " IN (");
-                commandText.Append(string.Join(",", Enumerable.Repeat("?", values.Count)));
-                commandText.Append(")");
                 command.CommandText = commandText.ToString();
-                foreach (var value in values)
+                foreach (var parameter in parameters)
                 {
-                    command.Parameters.Add(new SQLiteParameter() {Value = value});
+                    command.Parameters.Add(parameter);
                 }
                 foreach (var item in ReturnAll(command))
                 {

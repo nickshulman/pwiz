@@ -42,7 +42,7 @@ namespace pwiz.Skyline.Model.Results
         {
             Document = document;
             ChromatogramCache = chromatogramCache;
-            var chromGroupHeaderInfos = chromatogramCache.ChromGroupHeaderInfos.ToArray();
+            var chromGroupHeaderInfos = chromatogramCache.ChromGroupHeaderInfoValues.ToArray();
             Array.Sort(chromGroupHeaderInfos, CompareLocation);
             ChromGroupHeaderInfos = Array.AsReadOnly(chromGroupHeaderInfos);
             _tolerance = (float) Document.Settings.TransitionSettings.Instrument.MzMatchTolerance;
@@ -98,7 +98,7 @@ namespace pwiz.Skyline.Model.Results
                 {
                     foreach (var chromGroupInfo in ChromatogramCache.LoadChromatogramInfos(nodePep, nodeGroup, _tolerance, null))
                     {
-                        int headerIndex = chromGroupHeaderToIndex[chromGroupInfo.Header.LocationPoints];
+                        int headerIndex = chromGroupHeaderToIndex[((ChromGroupHeaderInfo) chromGroupInfo.Header).LocationPoints];
                         if (chromGroups[headerIndex] == null)
                         {
                             chromGroups[headerIndex] = chromGroupInfo;
@@ -281,7 +281,7 @@ namespace pwiz.Skyline.Model.Results
                 _chromatogramGroupInfo = chromGroupHeaderInfo;
             }
 
-            public ChromGroupHeaderInfo ChromGroupHeaderInfo { get { return _chromatogramGroupInfo.Header; } }
+            public ChromGroupHeaderInfo ChromGroupHeaderInfo { get { return(ChromGroupHeaderInfo) _chromatogramGroupInfo.Header; } }
 
             public IList<int> RetainedTransitionIndexes { get; set; }
             public float? OptimizedStartTime { get; private set; }
@@ -312,7 +312,7 @@ namespace pwiz.Skyline.Model.Results
 
             public void CalcPeakInfo(ChromatogramCache cache)
             {
-                var header = _chromatogramGroupInfo.Header;
+                var header = (ChromGroupHeaderInfo) _chromatogramGroupInfo.Header;
                 int numPeaks = header.NumPeaks;
                 var groupPeaks = cache.ReadPeaks(header);
                 var retainedPeakIndexes = new HashSet<int>();
@@ -626,7 +626,7 @@ namespace pwiz.Skyline.Model.Results
                     return;
                 }
            
-                var originalHeader = originalChromGroup.Header;
+                var originalHeader = (ChromGroupHeaderInfo) originalChromGroup.Header;
                 int fileIndex = originalHeader.FileIndex;
                 int startTransitionIndex = _transitions.Count;
                 int startPeakIndex = _peakCount;

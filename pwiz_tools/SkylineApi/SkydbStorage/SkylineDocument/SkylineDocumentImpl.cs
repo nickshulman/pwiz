@@ -30,11 +30,10 @@ namespace SkydbStorage.SkylineDocument
             {
                 return CallWithConnection(connection =>
                 {
-                    var chromatogramGroups = connection.SelectAll<ChromatogramGroup>().ToLookup(group => group.File);
-                    var chromatograms = connection.SelectAll<Chromatogram>().ToLookup(chrom => chrom.ChromatogramGroup);
-                    var spectrumInfos = connection.SelectAll<SpectrumInfo>().ToLookup(spectrum => spectrum.File);
-                    return connection.SelectAll<ExtractedFile>().Select(file => new ExtractedDataFileImpl(this, file,
-                        chromatogramGroups[file.Id.Value], spectrumInfos[file.Id.Value], chromatograms)).ToList();
+                    var extractedDataFiles =
+                        connection.SelectAllExtractedFiles().Select(file=>new ExtractedDataFileImpl(this, file)).ToList();
+                    SelectPrecursors(connection, extractedDataFiles);
+                    return extractedDataFiles;
                 });
             }
         }
@@ -78,7 +77,42 @@ namespace SkydbStorage.SkylineDocument
                     return selectStatement.SelectWhereIn(column, values.Cast<object>().ToList()).ToList();
                 }
             });
+        }
 
+        private void SelectPrecursors(SkydbConnection connection,
+            IList<ExtractedDataFileImpl> dataFiles)
+        {
+            var filesByUd = dataFiles.ToDictionary(file => file.Entity.Id.Value);
+            foreach (var grouping in SelectPrecursors(connection)
+                .GroupBy(group => Tuple.Create(group.TextId, group.PrecursorMz)))
+            {
+                var groupIds = grouping.Select(group => Tuple.Create(filesByUd[group.File], group.Id.Value)).ToList();
+                Precursor.CreatePrecursor(this, grouping.Key.Item1, grouping.Key.Item2, groupIds);
+            }
+        }
+
+        private IEnumerable<ChromatogramGroup> SelectPrecursors(SkydbConnection connection)
+        {
+            using (var cmd = connection.Connection.CreateCommand())
+            {
+                cmd.CommandText = "SELECT " + string.Join(", ", nameof(ChromatogramGroup.Id),
+                                                nameof(ChromatogramGroup.TextId), nameof(ChromatogramGroup.PrecursorMz),
+                                                nameof(ChromatogramGroup.File))
+                                            + " FROM ChromatogramGroup";
+                using (var reader = cmd.ExecuteReader())
+                {
+                    while (reader.Read())
+                    {
+                        yield return new ChromatogramGroup()
+                        {
+                            Id = reader.GetInt64(0),
+                            TextId = reader.IsDBNull(1) ? null : reader.GetString(1),
+                            PrecursorMz = reader.GetDouble(2),
+                            File = reader.GetInt64(3)
+                        };
+                    }
+                }
+            }
         }
     }
 }

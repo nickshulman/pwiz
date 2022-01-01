@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using pwiz.Common.Chemistry;
 using pwiz.Common.Collections;
 using pwiz.Common.SystemUtil;
@@ -28,14 +29,19 @@ namespace pwiz.Skyline.Model.Results
         {
         }
 
-        public abstract IReadOnlyList<ChromGroupHeaderInfo> ChromGroupHeaderInfos { get; }
-        public abstract TimeIntensitiesGroup ReadTimeIntensities(ChromGroupHeaderInfo header);
+        public abstract IList<IChromGroupHeaderInfo> ChromGroupHeaderInfos { get; }
 
-        public abstract IList<float> ReadScores(ChromGroupHeaderInfo header);
+        protected virtual IList<IChromGroupHeaderInfo> HeaderInfosSortedByPrecursor
+        {
+            get { return ChromGroupHeaderInfos; }
+        }
+        public abstract TimeIntensitiesGroup ReadTimeIntensities(IChromGroupHeaderInfo header);
 
-        public abstract IList<ChromPeak> ReadPeaks(ChromGroupHeaderInfo header);
+        public abstract IList<float> ReadScores(IChromGroupHeaderInfo header);
 
-        public virtual void ReadDataForAll(IList<ChromGroupHeaderInfo> chromGroupHeaderInfos, IList<ChromPeak>[] peaks, IList<float>[] scores)
+        public abstract IList<ChromPeak> ReadPeaks(IChromGroupHeaderInfo header);
+
+        public virtual void ReadDataForAll(IList<IChromGroupHeaderInfo> chromGroupHeaderInfos, IList<ChromPeak>[] peaks, IList<float>[] scores)
         {
             for (int i = 0; i < chromGroupHeaderInfos.Count; i++)
             {
@@ -44,7 +50,7 @@ namespace pwiz.Skyline.Model.Results
             }
         }
 
-        public abstract string GetTextId(ChromGroupHeaderInfo chromGroupHeaderInfo);
+        public abstract string GetTextId(IChromGroupHeaderInfo chromGroupHeaderInfo);
 
         public abstract IList<ChromCachedFile> CachedFiles { get; }
         public IEnumerable<MsDataFileUri> CachedFilePaths
@@ -89,6 +95,7 @@ namespace pwiz.Skyline.Model.Results
             }
         }
 
+        [MethodImpl(MethodImplOptions.NoOptimization|MethodImplOptions.NoInlining)]
         public IEnumerable<int> ChromatogramIndexesMatching(PeptideDocNode nodePep, SignedMz precursorMz,
             float tolerance, ChromatogramSet chromatograms)
         {
@@ -96,7 +103,9 @@ namespace pwiz.Skyline.Model.Results
             {
                 bool anyFound = false;
                 var key = new LibKey(nodePep.ModifiedTarget, Adduct.EMPTY).LibraryKey;
-                foreach (var chromatogramIndex in _chromEntryIndex.ItemsMatching(key, false).SelectMany(list => list))
+                IEnumerable<int> chromatogramIndexes =
+                    _chromEntryIndex.ItemsMatching(key, false).SelectMany(list => list);
+                foreach (var chromatogramIndex in chromatogramIndexes)
                 {
                     var entry = ChromGroupHeaderInfos[chromatogramIndex];
                     if (!MatchMz(precursorMz, entry.Precursor, tolerance))
@@ -140,7 +149,7 @@ namespace pwiz.Skyline.Model.Results
             }
         }
 
-        private bool TextIdEqual(ChromGroupHeaderInfo entry, PeptideDocNode nodePep)
+        private bool TextIdEqual(IChromGroupHeaderInfo entry, PeptideDocNode nodePep)
         {
             string textId = GetTextId(entry);
             if (string.IsNullOrEmpty(textId))
@@ -171,7 +180,7 @@ namespace pwiz.Skyline.Model.Results
 
         private int FindEntry(SignedMz precursorMz, float tolerance)
         {
-            return FindEntry(precursorMz, tolerance, 0, ChromGroupHeaderInfos.Count - 1);
+            return FindEntry(precursorMz, tolerance, 0, HeaderInfosSortedByPrecursor.Count - 1);
         }
 
         private int FindEntry(SignedMz precursorMz, float tolerance, int left, int right)
@@ -180,14 +189,14 @@ namespace pwiz.Skyline.Model.Results
             if (left > right)
                 return -1;
             int mid = (left + right) / 2;
-            int compare = CompareMz(precursorMz, ChromGroupHeaderInfos[mid].Precursor, tolerance);
+            int compare = CompareMz(precursorMz, HeaderInfosSortedByPrecursor[mid].Precursor, tolerance);
             if (compare < 0)
                 return FindEntry(precursorMz, tolerance, left, mid - 1);
             if (compare > 0)
                 return FindEntry(precursorMz, tolerance, mid + 1, right);
 
             // Scan backward until the first matching element is found.
-            while (mid > 0 && MatchMz(precursorMz, ChromGroupHeaderInfos[mid - 1].Precursor, tolerance))
+            while (mid > 0 && MatchMz(precursorMz, HeaderInfosSortedByPrecursor[mid - 1].Precursor, tolerance))
                 mid--;
 
             return mid;
@@ -213,10 +222,10 @@ namespace pwiz.Skyline.Model.Results
             List<LibraryKey> libraryKeys = new List<LibraryKey>();
             List<List<int>> chromGroupIndexes = new List<List<int>>();
 
-            for (int i = 0; i < ChromGroupHeaderInfos.Count; i++)
+            var headers = ChromGroupHeaderInfos;
+            for (int index = 0; index < headers.Count; index++)
             {
-                var entry = ChromGroupHeaderInfos[i];
-                string textId = GetTextId(entry);
+                string textId = GetTextId(headers[index]);
                 if (string.IsNullOrEmpty(textId))
                 {
                     continue;
@@ -244,13 +253,13 @@ namespace pwiz.Skyline.Model.Results
                     chromGroupIndexList = new List<int>();
                     chromGroupIndexes.Add(chromGroupIndexList);
                 }
-                chromGroupIndexList.Add(i);
+                chromGroupIndexList.Add(index);
             }
             return new LibKeyMap<int[]>(
                 ImmutableList.ValueOf(chromGroupIndexes.Select(indexes => indexes.ToArray())),
                 libraryKeys);
         }
-        public ChromatogramGroupInfo LoadChromatogramInfo(ChromGroupHeaderInfo chromGroupHeaderInfo)
+        public ChromatogramGroupInfo LoadChromatogramInfo(IChromGroupHeaderInfo chromGroupHeaderInfo)
         {
             return new ChromatogramGroupInfo(this, chromGroupHeaderInfo);
         }
@@ -281,7 +290,7 @@ namespace pwiz.Skyline.Model.Results
                 return LoadChromatogramInfos(null, null, 0, null).Any();
             }
         }
-        public abstract IEnumerable<ChromTransition> GetTransitions(ChromGroupHeaderInfo chromGroupHeaderInfo);
+        public abstract IEnumerable<ChromTransition> GetTransitions(IChromGroupHeaderInfo chromGroupHeaderInfo);
         public virtual bool IsReadStreamModified
         {
             get { return ReadStream?.IsModified ?? false; }

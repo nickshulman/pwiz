@@ -26,8 +26,6 @@ using pwiz.Common.Chemistry;
 using pwiz.Common.Collections;
 using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Model.DocSettings;
-using pwiz.Skyline.Model.Lib;
-using pwiz.Skyline.Model.Skydb;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
 using pwiz.Skyline.Util.Extensions;
@@ -160,9 +158,10 @@ namespace pwiz.Skyline.Model.Results
             return _rawData.ChromTransitions[index];
         }
 
-        public override IEnumerable<ChromTransition> GetTransitions(ChromGroupHeaderInfo chromGroupHeaderInfo)
+        public override IEnumerable<ChromTransition> GetTransitions(IChromGroupHeaderInfo chromGroupHeaderInfo)
         {
-            return Enumerable.Range(chromGroupHeaderInfo.StartTransitionIndex, chromGroupHeaderInfo.NumTransitions)
+            var header = (ChromGroupHeaderInfo) chromGroupHeaderInfo;
+            return Enumerable.Range(header.StartTransitionIndex, header.NumTransitions)
                 .Select(GetTransition);
         }
 
@@ -211,9 +210,22 @@ namespace pwiz.Skyline.Model.Results
             });
         }
 
-        public override IReadOnlyList<ChromGroupHeaderInfo> ChromGroupHeaderInfos
+        public override IList<IChromGroupHeaderInfo> ChromGroupHeaderInfos
         {
-            get { return _rawData.ChromatogramEntries; }
+            get
+            {
+                return ReadOnlyList.Create<IChromGroupHeaderInfo>(ChromGroupHeaderInfoValues.Count,
+                    i => ChromGroupHeaderInfoValues[i]);
+            }
+
+        }
+
+        public IReadOnlyList<ChromGroupHeaderInfo> ChromGroupHeaderInfoValues
+        {
+            get
+            {
+                return _rawData.ChromatogramEntries;
+            }
         }
 
         private ChromatogramCache ChangeCachePath(string prop, IStreamManager manager)
@@ -972,9 +984,9 @@ namespace pwiz.Skyline.Model.Results
             if (fileIndex == -1)
                 yield break;
 
-            for (int i = 0; i < ChromGroupHeaderInfos.Count; i++)
+            for (int i = 0; i < ChromGroupHeaderInfoValues.Count; i++)
             {
-                var groupInfo = ChromGroupHeaderInfos[i];
+                var groupInfo = ChromGroupHeaderInfoValues[i];
                 if (groupInfo.FileIndex != fileIndex)
                     continue;
 
@@ -1044,7 +1056,7 @@ namespace pwiz.Skyline.Model.Results
 
             // Sort by file, points location into new array
             // CONSIDER: This is limited to 2 GB allocation size, but 4 bytes per Tuple instead of 72 bytes per header
-            var listEntries = ChromGroupHeaderInfos
+            var listEntries = ChromGroupHeaderInfoValues
                 .Select((e, i) => new Tuple<int, long, int>(e.FileIndex, e.LocationPoints, i))
                 .Where(t => keepFileIndices.Contains(t.Item1)).ToArray();
             Array.Sort(listEntries);
@@ -1073,7 +1085,7 @@ namespace pwiz.Skyline.Model.Results
                 int i = 0;
                 do
                 {
-                    var firstEntry = ChromGroupHeaderInfos[listEntries[i].Item3];
+                    var firstEntry = ChromGroupHeaderInfoValues[listEntries[i].Item3];
                     var lastEntry = firstEntry;
                     int fileIndex = firstEntry.FileIndex;
                     long offsetPoints = fs.Stream.Position - firstEntry.LocationPoints;
@@ -1082,7 +1094,7 @@ namespace pwiz.Skyline.Model.Results
                     // Enumerate until end of current file encountered
                     while (iNext < listEntries.Length && fileIndex == ChromGroupHeaderInfos[listEntries[iNext].Item3].FileIndex)
                     {
-                        lastEntry = ChromGroupHeaderInfos[listEntries[iNext++].Item3];
+                        lastEntry = ChromGroupHeaderInfoValues[listEntries[iNext++].Item3];
                         // Otherwise add entries to the keep lists
                         int textIdIndex = -1;
                         if (lastEntry.TextIdIndex != -1 &&
@@ -1216,9 +1228,9 @@ namespace pwiz.Skyline.Model.Results
             fs.Commit(ReadStream);
         }
 
-        public class PathEqualityComparer : IEqualityComparer<IChromatogramCache>
+        public class PathEqualityComparer : IEqualityComparer<AbstractChromatogramCache>
         {
-            public bool Equals(IChromatogramCache x, IChromatogramCache y)
+            public bool Equals(AbstractChromatogramCache x, AbstractChromatogramCache y)
             {
                 if (ReferenceEquals(x, null) || ReferenceEquals(y, null))
                 {
@@ -1227,7 +1239,7 @@ namespace pwiz.Skyline.Model.Results
                 return Equals(x.CachePath, y.CachePath);
             }
 
-            public int GetHashCode(IChromatogramCache obj)
+            public int GetHashCode(AbstractChromatogramCache obj)
             {
                 return obj.CachePath.GetHashCode();
             }
@@ -1238,64 +1250,6 @@ namespace pwiz.Skyline.Model.Results
         static ChromatogramCache()
         {
             PathComparer = new PathEqualityComparer();
-        }
-
-        /// <summary>
-        /// Create a map of LibraryKey to the indexes into _chromatogramEntries that have that particular
-        /// TextId.
-        /// </summary>
-        private LibKeyMap<int[]> MakeChromEntryIndex()
-        {
-            if (_rawData.TextIdBytes == null)
-            {
-                return null;
-            }
-
-            var libraryKeyIndexes= new Dictionary<KeyValuePair<int, int>, int>();
-            List<LibraryKey> libraryKeys = new List<LibraryKey>();
-            List<List<int>> chromGroupIndexes = new List<List<int>>();
-
-            for (int i = 0; i < ChromGroupHeaderInfos.Count; i++)
-            {
-                var entry = ChromGroupHeaderInfos[i];
-                int textIdIndex = entry.TextIdIndex;
-                int textIdLength = entry.TextIdLen;
-                if (textIdLength == 0)
-                {
-                    continue;
-                }
-                var kvp = new KeyValuePair<int, int>(textIdIndex, textIdLength);
-                int libraryKeyIndex;
-                List<int> chromGroupIndexList;
-                if (libraryKeyIndexes.TryGetValue(kvp, out libraryKeyIndex))
-                {
-                    chromGroupIndexList = chromGroupIndexes[libraryKeyIndex];
-                }
-                else
-                {
-                    libraryKeyIndexes.Add(kvp, libraryKeys.Count);
-                    LibraryKey libraryKey;
-                    if (_rawData.TextIdBytes[textIdIndex] == '#')
-                    {
-                        var customMolecule =
-                            CustomMolecule.FromSerializableString(Encoding.UTF8.GetString(_rawData.TextIdBytes, textIdIndex,
-                                textIdLength));
-                        libraryKey = new MoleculeLibraryKey(customMolecule.GetSmallMoleculeLibraryAttributes(), Adduct.EMPTY);
-                    }
-                    else
-                    {
-                        libraryKey =
-                            new PeptideLibraryKey(Encoding.ASCII.GetString(_rawData.TextIdBytes, textIdIndex, textIdLength), 0);
-                    }
-                    libraryKeys.Add(libraryKey);
-                    chromGroupIndexList = new List<int>();
-                    chromGroupIndexes.Add(chromGroupIndexList);
-                }
-                chromGroupIndexList.Add(i);
-            }
-            return new LibKeyMap<int[]>(
-                ImmutableList.ValueOf(chromGroupIndexes.Select(indexes=>indexes.ToArray())), 
-                libraryKeys);
         }
 
         public byte[] GetTextIdBytes(int textIdOffset, int textIdLength)
@@ -1309,8 +1263,9 @@ namespace pwiz.Skyline.Model.Results
             return result;
         }
 
-        public override string GetTextId(ChromGroupHeaderInfo chromGroupHeaderInfo)
+        public override string GetTextId(IChromGroupHeaderInfo header)
         {
+            var chromGroupHeaderInfo = (ChromGroupHeaderInfo) header;
             var bytes = GetTextIdBytes(chromGroupHeaderInfo.TextIdIndex, chromGroupHeaderInfo.TextIdLen);
             if (bytes == null)
             {
@@ -1362,9 +1317,9 @@ namespace pwiz.Skyline.Model.Results
             }
         }
 
-        public override TimeIntensitiesGroup ReadTimeIntensities(ChromGroupHeaderInfo chromGroupHeaderInfo)
+        public override TimeIntensitiesGroup ReadTimeIntensities(IChromGroupHeaderInfo chromGroupHeaderInfo)
         {
-            return CallWithStream(stream => ReadTimeIntensities(stream, chromGroupHeaderInfo));
+            return CallWithStream(stream => ReadTimeIntensities(stream, (ChromGroupHeaderInfo) chromGroupHeaderInfo));
         }
 
         public TimeIntensitiesGroup ReadTimeIntensities(Stream stream, ChromGroupHeaderInfo chromGroupHeaderInfo)
@@ -1397,8 +1352,9 @@ namespace pwiz.Skyline.Model.Results
             }
         }
 
-        public override IList<ChromPeak> ReadPeaks(ChromGroupHeaderInfo chromGroupHeaderInfo)
+        public override IList<ChromPeak> ReadPeaks(IChromGroupHeaderInfo header)
         {
+            var chromGroupHeaderInfo = (ChromGroupHeaderInfo) header;
             return ReadPeaksStartingAt(chromGroupHeaderInfo.StartPeakIndex,
                 chromGroupHeaderInfo.NumPeaks * chromGroupHeaderInfo.NumTransitions);
         }
@@ -1422,8 +1378,9 @@ namespace pwiz.Skyline.Model.Results
         }
 
 
-        public override IList<float> ReadScores(ChromGroupHeaderInfo chromGroupHeaderInfo)
+        public override IList<float> ReadScores(IChromGroupHeaderInfo header)
         {
+            var chromGroupHeaderInfo = (ChromGroupHeaderInfo) header;
             var scoreValueCount = chromGroupHeaderInfo.NumPeaks * _scoreTypeIndices.Count;
             if (scoreValueCount == 0)
             {
@@ -1457,8 +1414,10 @@ namespace pwiz.Skyline.Model.Results
         /// Reads the peaks and/or the scores for a list of ChromGroupHeaderInfo's.
         /// The passed in arrays must either be null, or must have a length equal to the number of ChromGroupHeaderInfo's.
         /// </summary>
-        public override void ReadDataForAll(IList<ChromGroupHeaderInfo> chromGroupHeaderInfos, IList<ChromPeak>[] peaks, IList<float>[] scores)
+        public override void ReadDataForAll(IList<IChromGroupHeaderInfo> chromGroupHeaderInfoInterfaces, IList<ChromPeak>[] peaks, IList<float>[] scores)
         {
+            var chromGroupHeaderInfos = ReadOnlyList.Create(chromGroupHeaderInfoInterfaces.Count,
+                i => (ChromGroupHeaderInfo) chromGroupHeaderInfoInterfaces[i]);
             if (peaks != null)
             {
                 Assume.AreEqual(chromGroupHeaderInfos.Count, peaks.Length);

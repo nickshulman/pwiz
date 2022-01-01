@@ -3,9 +3,11 @@ using System.Collections.Generic;
 using System.Data;
 using System.Data.SQLite;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using NHibernate;
 using NHibernate.Cfg;
 using NHibernate.Mapping.Attributes;
+using SkydbStorage.DataAccess.Orm;
 using SkydbStorage.Internal.Orm;
 using SkylineApi;
 
@@ -214,6 +216,30 @@ namespace SkydbStorage.DataAccess
             {
                 return statement.SelectAll().ToList();
             }
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public IEnumerable<ChromatogramGroup> SelectAllChromatogramGroups()
+        {
+            return SelectAll<ChromatogramGroup>();
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public IEnumerable<Chromatogram> SelectAllChromatograms()
+        {
+            return SelectAll<Chromatogram>();
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public IEnumerable<SpectrumInfo> SelectAllSpectrumInfos()
+        {
+            return SelectAll<SpectrumInfo>();
+        }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public IEnumerable<ExtractedFile> SelectAllExtractedFiles()
+        {
+            return SelectAll<ExtractedFile>();
         }
     }
 }

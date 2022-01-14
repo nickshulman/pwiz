@@ -223,5 +223,20 @@ namespace pwiz.Common.Collections
 
             return dictionary;
         }
+
+        public static bool ReferencesEqual<T>(IEnumerable<T> list1, IEnumerable<T> list2)
+        {
+            if (list1 == null && list2 == null)
+            {
+                return true;
+            }
+
+            if (list1 == null || list2 == null)
+            {
+                return false;
+            }
+
+            return list1.SequenceEqual(list2, new IdentityEqualityComparer<T>());
+        }
     }
 }

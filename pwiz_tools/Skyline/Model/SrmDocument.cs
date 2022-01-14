@@ -369,6 +369,48 @@ namespace pwiz.Skyline.Model
 
         public Targets Targets { get { return new Targets(this);} }
 
+        public PeptideGroupProteinMap PeptideGroupProteinMap
+        {
+            get;
+            private set;
+        }
+
+        public IEnumerable<PeptideDocNode> GetPeptides(ProteinId proteinId)
+        {
+            var proteinNode = PeptideGroupProteinMap.FindProtein(proteinId);
+            if (proteinNode == null)
+            {
+                return Array.Empty<PeptideDocNode>();
+            }
+            return proteinNode.PeptideGroups.SelectMany(peptideGroup =>
+                FindPeptideGroup(peptideGroup).Molecules);
+        }
+
+        public PeptideDocNode FindPeptide(ProteinId proteinId, Peptide peptide)
+        {
+            var proteinNode = PeptideGroupProteinMap.FindProtein(proteinId);
+            if (proteinNode == null)
+            {
+                return null;
+            }
+
+            foreach (var peptideGroup in proteinNode.PeptideGroups)
+            {
+                var peptideDocNode = (PeptideDocNode) FindPeptideGroup(peptideGroup).FindNode(peptide);
+                if (peptideDocNode != null)
+                {
+                    return peptideDocNode;
+                }
+            }
+
+            return null;
+        }
+
+        public PeptideGroupDocNode FindPeptideGroup(PeptideGroup peptideGroup)
+        {
+            return (PeptideGroupDocNode) FindNode(peptideGroup);
+        }
+
         public bool DeferSettingsChanges { get; private set; }
 
         /// <summary>
@@ -649,16 +691,6 @@ namespace pwiz.Skyline.Model
             get { return !NonLoadedStateDescriptions.Any(); }
         }
 
-        public PeptideGroupDocNode FindPeptideGroup(PeptideGroup fastaSequence)
-        {
-            foreach (var peptideGroup in PeptideGroups)
-            {
-                if (peptideGroup.PeptideGroup.Sequence == fastaSequence.Sequence)
-                    return peptideGroup;
-            }
-            return null;
-        }
-
         public IdentityPath LastNodePath
         {
             get
@@ -803,6 +835,18 @@ namespace pwiz.Skyline.Model
             }
 
             return docClone.UpdateResultsSummaries(docClone.Children, dictPeptideIdPeptide);
+        }
+
+        private ProteinNode RemoveMissingProteinGroups(ProteinNode proteinNode)
+        {
+            var newPeptideGroups = proteinNode.PeptideGroups.Where(peptideGroup => null != FindPeptideGroup(peptideGroup))
+                .ToList();
+            if (newPeptideGroups.Count == proteinNode.PeptideGroups.Count)
+            {
+                return proteinNode;
+            }
+
+            return proteinNode.ChangePeptideGroups(newPeptideGroups);
         }
 
         /// <summary>

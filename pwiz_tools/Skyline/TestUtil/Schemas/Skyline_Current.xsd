@@ -13,6 +13,7 @@
         <xs:element name="protein" type="protein_type" />
         <xs:element name="peptide_list" type="peptide_list_type" />
       </xs:choice>
+	  <xs:element name="protein_group_map" type="protein_group_map_type" />
     </xs:sequence>
     <xs:attribute name="format_version" type="xs:string" use="required"/>
     <xs:attribute name="software_version" type="xs:string" use="required"/>
@@ -1928,4 +1929,16 @@
       <xs:enumeration value="aligned" />
     </xs:restriction>
   </xs:simpleType>
+  <xs:complexType name="protein_group_map_type" >
+    <xs:sequence>
+      <xs:element name="protein">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name="group_index" type="xs:integer" minOccurs="0" maxOccurs="unbounded"/>
+          </xs:sequence>
+          <xs:attribute name="sequence" type="xs:string"/>
+        </xs:complexType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
 </xs:schema>

@@ -107,6 +107,45 @@ namespace pwiz.Skyline.Model.DocSettings
             return ChangeProp(ImClone(this), im => im.IsSemiCleaving = isSemi);
         }
 
+        public bool IsCleavageMatch(int begin, int end, string proteinSequence)
+        {
+            bool beginMatch = IsCleavageSite(begin, proteinSequence);
+            bool endMatch = IsCleavageSite(end, proteinSequence);
+            if (IsSemiCleaving)
+            {
+                return beginMatch || endMatch;
+            }
+            return beginMatch && endMatch;
+        }
+
+        public bool IsCleavageSite(int index, string proteinSequence)
+        {
+            if (index == 0 || index == proteinSequence.Length)
+            {
+                return true;
+            }
+
+            char prevAa = proteinSequence[index - 1];
+            char nextAa = proteinSequence[index];
+            if (CleavageC != null && CleavageC.IndexOf(prevAa) >= 0)
+            {
+                if (RestrictC == null || RestrictC.IndexOf(nextAa) < 0)
+                {
+                    return true;
+                }
+            }
+
+            if (CleavageN != null && CleavageN.IndexOf(nextAa) >= 0)
+            {
+                if (RestrictN == null || RestrictN.IndexOf(prevAa) < 0)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         // Using this handrolled Regex equivalent because actual Regex is a bottleneck in multithreading
         // due to cacheing of the compiled regex by the system - the cache can be a lock contention
         private List<int> GetMatches(string sequence)

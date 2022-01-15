@@ -197,22 +197,28 @@ namespace pwiz.Skyline.Controls.SeqNode
             return listPeptides;
         }
 
+        public ProteinPeptide FindPeptide(Peptide peptide)
+        {
+            return DocNode.PeptideGroup.FindPeptide(peptide, DocSettings.PeptideSettings.Enzyme);
+        }
+
         protected override int GetPickInsertIndex(DocNode node, IList<DocNode> choices, int iFirst, int iLast)
         {
-            var nodePep = (PeptideDocNode) node;
+            var foundPeptide = FindPeptide(((PeptideDocNode) node).Peptide);
             for (int i = iFirst; i < iLast; i++)
             {
                 var nodeNext = (PeptideDocNode) choices[i];
+                var foundNext = FindPeptide(nodeNext.Peptide);
                 // If the next node is later in order than the node to insert, then
                 // insert before it.
-                if (nodePep.Peptide.Begin.HasValue && nodeNext.Peptide.Begin.HasValue &&
-                        nodePep.Peptide.Begin.Value < nodeNext.Peptide.Begin.Value)
+                if (foundPeptide.Begin.HasValue && foundNext.Begin.HasValue &&
+                    foundPeptide.Begin.Value < foundNext.Begin.Value)
                 {
                     return i;
                 }
                 // If the next node is the same peptide and has explicit modifications,
                 // insert before it.
-                if (Equals(nodePep.Peptide, nodeNext.Peptide) && nodeNext.HasExplicitMods)
+                if (Equals(foundPeptide.PeptideSequence, foundNext.PeptideSequence) && nodeNext.HasExplicitMods)
                 {
                     return i;
                 }

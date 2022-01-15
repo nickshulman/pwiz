@@ -409,6 +409,11 @@ namespace pwiz.Skyline.Model
             }
         }
 
+        public DocNodeChildren DocNodeChildren
+        {
+            get { return _children; }
+        }
+
         /// <summary>
         /// This breaks immutability, but it is necessary in order to free child memory
         /// during command-line processing to achieve maximum scale

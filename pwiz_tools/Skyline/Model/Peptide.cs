@@ -18,39 +18,24 @@
  */
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.Lib;
-using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
-using pwiz.Skyline.Util.Extensions;
 
 namespace pwiz.Skyline.Model
 {
     public class Peptide : Identity  // "Peptide" is a misnomer at this point - this could be a small molecule or a peptide.
     {
-        private readonly FastaSequence _fastaSequence;
-
         public Peptide(string sequence)
-            :this(null, sequence, null, null, 0)
+            :this(sequence, false)
         {
         }
 
-        public Peptide(FastaSequence fastaSequence, string sequence, int? begin, int? end, int missedCleavages)
-            :this(fastaSequence, sequence, begin, end, missedCleavages, false)
+        public Peptide(string sequence, bool isDecoy)
         {
-        }
-
-        public Peptide(FastaSequence fastaSequence, string sequence, int? begin, int? end, int missedCleavages, bool isDecoy)
-        {
-            _fastaSequence = fastaSequence;
-
             Target = new Target(sequence);
-            Begin = begin;
-            End = end;
-            MissedCleavages = missedCleavages;
             IsDecoy = isDecoy;
 
             Validate();
@@ -70,12 +55,7 @@ namespace pwiz.Skyline.Model
             Validate();
         }
 
-        public FastaSequence FastaSequence { get { return _fastaSequence; } }
-
         public Target Target { get; private set; } // Peptide sequence or custom molecule
-        public int? Begin { get; private set; }
-        public int? End { get; private set; } // non-inclusive
-        public int MissedCleavages { get; private set; }
         public bool IsDecoy { get; private set; }
 
         public CustomMolecule CustomMolecule { get { return Target.Molecule; } }
@@ -87,30 +67,6 @@ namespace pwiz.Skyline.Model
         public SmallMoleculeLibraryAttributes GetSmallMoleculeLibraryAttributes()
         {
             return IsCustomMolecule ? CustomMolecule.GetSmallMoleculeLibraryAttributes() : SmallMoleculeLibraryAttributes.EMPTY;
-        }
-
-        public int Order { get { return Begin ?? 0; } }
-
-        public char PrevAA
-        {
-            get
-            {
-                if (!Begin.HasValue)
-                    return 'X';
-                int begin = Begin.Value;
-                return (begin == 0 ? '-' : _fastaSequence.Sequence[begin - 1]);
-            }
-        }
-
-        public char NextAA
-        {
-            get
-            {
-                if (!End.HasValue)
-                    return 'X';
-                int end = End.Value;
-                return (end == _fastaSequence.Sequence.Length ? '-' : _fastaSequence.Sequence[end]);
-            }
         }
 
         public static int CompareGroups(DocNode node1, DocNode node2)
@@ -289,8 +245,7 @@ namespace pwiz.Skyline.Model
         /// </summary>
         public static IEnumerable<PeptideDocNode> CreateAllDocNodes(SrmSettings settings, string sequence)
         {
-            var peptide = new Peptide(null, sequence, null, null,
-                settings.PeptideSettings.Enzyme.CountCleavagePoints(sequence));
+            var peptide = new Peptide(sequence);
             return CreateAllDocNodes(settings, peptide);
         }
 
@@ -333,39 +288,9 @@ namespace pwiz.Skyline.Model
         {
             if (IsCustomMolecule)
             {
-                Assume.IsNull(_fastaSequence);
                 Assume.IsNull(Sequence);
                 CustomMolecule.Validate();
             }
-            else if (_fastaSequence == null)
-            {
-                if (Begin.HasValue || End.HasValue)
-                    throw new InvalidDataException(Resources.Peptide_Validate_Peptides_without_a_protein_sequence_do_not_support_the_start_and_end_properties);
-
-                // No FastaSequence checked the sequence, so check it here.
-                FastaSequence.ValidateSequence(Target.Sequence);
-            }
-            else
-            {
-                // Otherwise, validate the peptide sequence against the group sequence
-                if (!Begin.HasValue || !End.HasValue)
-                    throw new InvalidDataException(Resources.Peptide_Validate_Peptides_from_protein_sequences_must_have_start_and_end_values);
-                if (0 > Begin.Value || End.Value > _fastaSequence.Sequence.Length)
-                    throw new InvalidDataException(Resources.Peptide_Validate_Peptide_sequence_exceeds_the_bounds_of_the_protein_sequence);
-
-                var j = 0;
-                for (var i = Begin.Value; i < End.Value;)
-                {
-                    if (!Equals(Target.Sequence[j++], _fastaSequence.Sequence[i++]))
-                    {
-                        string sequenceCheck = _fastaSequence.Sequence.Substring(Begin.Value, End.Value - Begin.Value);
-                        throw new InvalidDataException(
-                            string.Format(Resources.Peptide_Validate_The_peptide_sequence__0__does_not_agree_with_the_protein_sequence__1__at__2__3__,
-                                Target, sequenceCheck, Begin.Value, End.Value));
-                    }
-                }
-            }
-            // CONSIDER: Validate missed cleavages some day?
         }
 
         #region object overrides
@@ -374,12 +299,8 @@ namespace pwiz.Skyline.Model
         {
             if (ReferenceEquals(null, obj)) return false;
             if (ReferenceEquals(this, obj)) return true;
-            var equal = Equals(obj._fastaSequence, _fastaSequence) &&
-                Equals(obj.Target, Target) &&
-                obj.Begin.Equals(Begin) &&
-                obj.End.Equals(End) &&
-                obj.MissedCleavages == MissedCleavages &&
-                obj.IsDecoy == IsDecoy;
+            var equal = Equals(obj.Target, Target) &&
+                        obj.IsDecoy == IsDecoy;
             return equal; // For debugging convenience
         }
 
@@ -395,11 +316,7 @@ namespace pwiz.Skyline.Model
         {
             unchecked
             {
-                int result = (_fastaSequence != null ? _fastaSequence.GetHashCode() : 0);
-                result = (result*397) ^ (Target != null ? Target.GetHashCode() : 0);
-                result = (result*397) ^ (Begin.HasValue ? Begin.Value : 0);
-                result = (result*397) ^ (End.HasValue ? End.Value : 0);
-                result = (result*397) ^ MissedCleavages;
+                int result = (Target != null ? Target.GetHashCode() : 0);
                 result = (result*397) ^ IsDecoy.GetHashCode();
                 return result;
             }
@@ -410,20 +327,7 @@ namespace pwiz.Skyline.Model
             if (IsCustomMolecule)
                 return CustomMolecule.DisplayName;
 
-            if (!Begin.HasValue || !End.HasValue)
-            {
-                if (MissedCleavages == 0)
-                    return Target.Sequence;
-                else
-                    return string.Format(TextUtil.SpaceSeparate(Target.Sequence, Resources.Peptide_ToString_missed__0__), MissedCleavages);
-            }
-            else
-            {
-                string format = @"{0}.{1}.{2} [{3}, {4}]";
-                if (MissedCleavages > 0)
-                    format = TextUtil.SpaceSeparate(format, Resources.Peptide_ToString__missed__5__);
-                return string.Format(format, PrevAA, Target, NextAA, (Begin + 1).Value, End.Value, MissedCleavages);
-            }
+            return Target.Sequence;
         }
 
         #endregion

@@ -117,6 +117,16 @@ namespace pwiz.Skyline.Model
             return peptidesNew.ToArray();
         }
 
+        public ProteinPeptide FindPeptide(Peptide peptide, Enzyme enzyme)
+        {
+            if (Sequence != null)
+            {
+                return ProteinPeptide.FindPeptide(peptide.Sequence, enzyme, Sequence);
+            }
+
+            return new ProteinPeptide(peptide.Sequence);
+        }
+
         private static bool IsUpdateNeeded(PeptideRankId rankId, IList<DocNode> listPeptides)
         {
             if (rankId != null)

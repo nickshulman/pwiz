@@ -1,13 +1,14 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Runtime.CompilerServices;
 using pwiz.Common.Collections;
 
 namespace pwiz.Skyline.Model
 {
-    public class DocNodeChildren : IList<DocNode>
+    public class DocNodeChildren : IList<DocNode>, IReadOnlyList<DocNode>
     {
+        public static readonly IEqualityComparer<Identity> IDENTITY_EQUALITY_COMPARER =
+            new IdentityEqualityComparer<Identity>();
         private readonly int _itemCount;    // Necessary for knowing the count after items have been freed
         private ImmutableList<DocNode> _items;
         private Dictionary<Identity, int> _indexes;
@@ -189,19 +190,5 @@ namespace pwiz.Skyline.Model
             return _items != null ? _items.GetHashCode() : 0;
         }
         #endregion
-
-        private static readonly IdentityEqualityComparer IDENTITY_EQUALITY_COMPARER = new IdentityEqualityComparer();
-        private class IdentityEqualityComparer : IEqualityComparer<Identity>
-        {
-            public bool Equals(Identity x, Identity y)
-            {
-                return ReferenceEquals(x, y);
-            }
-
-            public int GetHashCode(Identity obj)
-            {
-                return RuntimeHelpers.GetHashCode(obj);
-            }
-        }
     }
 }

@@ -418,7 +418,7 @@ namespace pwiz.Skyline.Model
         public bool IsEmptyOrHasPeptides { get { return DocumentType != DOCUMENT_TYPE.small_molecules; } }
         public bool HasPeptides { get { return DocumentType == DOCUMENT_TYPE.proteomic || DocumentType == DOCUMENT_TYPE.mixed; } }
         public bool HasSmallMolecules { get { return DocumentType == DOCUMENT_TYPE.small_molecules || DocumentType == DOCUMENT_TYPE.mixed; } }
-
+        private PeptideGroupLookup _peptideGroupLookup;
         /// <summary>
         /// Return all <see cref="PeptideGroupDocNode"/>s of any kind
         /// </summary>
@@ -758,11 +758,12 @@ namespace pwiz.Skyline.Model
 
             SrmDocument docClone = (SrmDocument)clone;
             docClone.RevisionIndex = RevisionIndex + 1;
-
+            DocNodeChildren children = DocNodeChildren;
+            children = PeptideGroupLookup.MakePeptideGroupLookup(children, out _peptideGroupLookup);
             if (!DeferSettingsChanges)
             {
                 // Make sure peptide standards lists are up to date
-                docClone.Settings = docClone.Settings.CachePeptideStandards(Children, docClone.Children);
+                docClone.Settings = docClone.Settings.CachePeptideStandards(Children, children);
             }
 
             // Note protein metadata readiness

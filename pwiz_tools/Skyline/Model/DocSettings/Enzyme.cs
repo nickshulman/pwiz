@@ -212,7 +212,7 @@ namespace pwiz.Skyline.Model.DocSettings
             }
         }
 
-        public IEnumerable<Peptide> Digest(FastaSequence fastaSeq, DigestSettings settings, int? maxPeptideSequenceLength = null, int? minPeptideSequenceLength = null)
+        public IEnumerable<ProteinPeptide> Digest(FastaSequence fastaSeq, DigestSettings settings, int? maxPeptideSequenceLength = null, int? minPeptideSequenceLength = null)
         {
             int begin = 0;
             var sequence = fastaSeq.Sequence;
@@ -263,8 +263,7 @@ namespace pwiz.Skyline.Model.DocSettings
                         {
                             if (!tooLong)
                             {
-                                yield return new Peptide(fastaSeq, sequence.Substring(begin, end - begin),
-                                    begin, end, missed);
+                                yield return ProteinPeptide.MakeProteinPeptide(sequence.Substring(begin, end - begin), begin, sequence);
                             }
 
                             if (IsSemiCleaving)
@@ -272,11 +271,11 @@ namespace pwiz.Skyline.Model.DocSettings
                                 // Add N-terminal semi-cleavage, which excludes peptides already included in prior peptide,
                                 // when missed cleavage occurs
                                 for (int i = Math.Min(count - 1, maxPepLen); i >= Math.Max(endLast - begin + 1, minPepLen); i--)
-                                    yield return new Peptide(fastaSeq, sequence.Substring(begin, i), begin, begin + i, missed);
+                                    yield return ProteinPeptide.MakeProteinPeptide(sequence.Substring(begin, i), begin, sequence);
                                 // Add C-terminal semi-cleavage, which excludes peptides to come in subsequent peptides,
                                 // when missed cleavage occurs
                                 for (int i = Math.Min(count - 1, maxPepLen); i >= Math.Max(end - endFirst + 1, minPepLen); i--)
-                                    yield return new Peptide(fastaSeq, sequence.Substring(end - i, i), end - i, end, missed);
+                                    yield return ProteinPeptide.MakeProteinPeptide(sequence.Substring(end - i, i), end - i, sequence);
                             }
                         }
                     }
@@ -344,6 +343,26 @@ namespace pwiz.Skyline.Model.DocSettings
         public override string GetKey()
         {
             return ToString();
+        }
+
+        public IEnumerable<int> FindPeptideInProtein(string peptideSequence, string proteinSequence)
+        {
+            int lastIndex = -1;
+            while (true)
+            {
+                int begin = proteinSequence.IndexOf(peptideSequence, lastIndex + 1, StringComparison.Ordinal);
+                if (begin < 0)
+                {
+                    yield break;
+                }
+
+                if (IsCleavageMatch(begin, begin + peptideSequence.Length, proteinSequence))
+                {
+                    yield return begin;
+                }
+
+                lastIndex = begin;
+            }
         }
 
         #region Implementation of IXmlSerializable

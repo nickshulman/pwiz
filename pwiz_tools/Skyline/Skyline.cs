@@ -1358,7 +1358,13 @@ namespace pwiz.Skyline
                 var liveResultsGrid = _resultsGridForm;
                 if (null != liveResultsGrid)
                 {
-                    bookmark = bookmark.ChangeChromFileInfoId(liveResultsGrid.GetCurrentChromFileInfoId());
+                    var replicateIndex = liveResultsGrid.GetReplicateIndex();
+                    var chromFileInfoId = liveResultsGrid.GetCurrentChromFileInfoId();
+                    if (replicateIndex.HasValue && chromFileInfoId != null)
+                    {
+                        bookmark = bookmark.ChangeResult(replicateIndex.Value, chromFileInfoId, 0);
+                    }
+                    
                 }
             }            
             var findResult = DocumentUI.SearchDocument(bookmark,
@@ -2470,6 +2476,7 @@ namespace pwiz.Skyline
                                     {
                                         return;
                                     }
+
                                     // Looping here in case some other agent interrupts us with a change to Document
                                     while (newSettings.PeptideSettings.NeedsBackgroundProteomeUniquenessCheckProcessing)
                                     {
@@ -2498,6 +2505,15 @@ namespace pwiz.Skyline
                 {
                     // Canceled mid-change due to background document change
                     documentChanged = true;
+                }
+                catch (Exception exception)
+                {
+                    if (ExceptionUtil.IsProgrammingDefect(exception))
+                    {
+                        throw;
+                    }
+                    MessageDlg.ShowWithException(this, TextUtil.LineSeparate(Resources.ShareListDlg_OkDialog_An_error_occurred, exception.Message), exception);
+                    return false;
                 }
                 finally
                 {
@@ -4327,15 +4343,23 @@ namespace pwiz.Skyline
                 }
                 return;
             }
-            var bookmark = new Bookmark();
+            var bookmark = Bookmark.ROOT;
             var resultRef = elementRef as ResultRef;
             if (resultRef != null)
             {
-                var chromFileInfo = resultRef.FindChromFileInfo(document);
+                if (measuredResults == null)
+                {
+                    return;
+                }
+                int replicateIndex = resultRef.FindReplicateIndex(document);
+                if (replicateIndex < 0)
+                {
+                    return;
+                }
+                var chromFileInfo = resultRef.FindChromFileInfo(measuredResults.Chromatograms[replicateIndex]);
                 if (chromFileInfo != null)
                 {
-                    bookmark = bookmark.ChangeChromFileInfoId(chromFileInfo.FileId)
-                        .ChangeOptStep(resultRef.OptimizationStep);
+                    bookmark = bookmark.ChangeResult(replicateIndex, chromFileInfo.FileId, resultRef.OptimizationStep);
                 }
                 elementRef = elementRef.Parent;
             }

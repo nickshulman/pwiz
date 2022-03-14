@@ -322,11 +322,13 @@ namespace pwiz.Skyline.Menus
             else
             {
                 string text;
-                string textCsv;
                 try
                 {
-                    text = ClipboardEx.GetText().Trim();
-                    textCsv = ClipboardEx.GetText(TextDataFormat.CommaSeparatedValue);
+                    text = ClipboardEx.GetText(TextDataFormat.CommaSeparatedValue);
+                    if (string.IsNullOrEmpty(text))
+                    {
+                        text = ClipboardEx.GetText().Trim();
+                    }
                 }
                 catch (Exception)
                 {
@@ -335,7 +337,7 @@ namespace pwiz.Skyline.Menus
                 }
                 try
                 {
-                    Paste(string.IsNullOrEmpty(textCsv) ? text : textCsv);
+                    Paste(text);
                 }
                 catch (Exception x)
                 {
@@ -1157,8 +1159,19 @@ namespace pwiz.Skyline.Menus
                 // As long as it has columns we want to parse the input as a transition list
                 if (MassListImporter.IsColumnar(text, out formatProvider, out separator, out columnTypes))
                 {
-                    SkylineWindow.ImportMassList(new MassListInputs(text, formatProvider, separator),
-                        Resources.SkylineWindow_Paste_Paste_transition_list, false, SrmDocument.DOCUMENT_TYPE.none, true);
+                    try
+                    {
+                        SkylineWindow.ImportMassList(new MassListInputs(text, formatProvider, separator),
+                            Resources.SkylineWindow_Paste_Paste_transition_list, false, SrmDocument.DOCUMENT_TYPE.none, true);
+                    }
+                    catch (Exception exception)
+                    {
+                        if (ExceptionUtil.IsProgrammingDefect(exception))
+                        {
+                            throw;
+                        }
+                        MessageDlg.ShowWithException(this, exception.Message, exception, true);
+                    }
                 }
                 else
                 {

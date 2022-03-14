@@ -27,7 +27,6 @@ using pwiz.Skyline.Model;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.DocSettings.Extensions;
 using pwiz.Skyline.Model.Proteome;
-using pwiz.Skyline.Properties;
 using pwiz.Skyline.SettingsUI;
 using pwiz.SkylineTestUtil;
 
@@ -105,14 +104,9 @@ namespace pwiz.SkylineTestFunctional
             string allErrorText = "";
             var pasteText = TransitionsClipboardText;
             var transitionDlg = ShowDialog<InsertTransitionListDlg>(SkylineWindow.ShowPasteTransitionListDlg);
-            var windowDlg = ShowDialog<ImportTransitionListColumnSelectDlg>(() => transitionDlg.textBox1.Text = pasteText);
-            RunUI(() => {
-                var comboBoxes = windowDlg.ComboBoxes;
-                comboBoxes[0].SelectedIndex = comboBoxes[1].FindStringExact(Resources.ImportTransitionListColumnSelectDlg_PopulateComboBoxes_Peptide_Modified_Sequence);
-                comboBoxes[1].SelectedIndex = comboBoxes[1].FindStringExact(Resources.ImportTransitionListColumnSelectDlg_PopulateComboBoxes_Precursor_m_z);
-                comboBoxes[2].SelectedIndex = comboBoxes[1].FindStringExact(Resources.ImportTransitionListColumnSelectDlg_PopulateComboBoxes_Product_m_z);
-            });
-            var errDlg = ShowDialog<ImportTransitionListErrorDlg>(windowDlg.OkDialog);
+            var windowDlg = ShowDialog<ImportTransitionListColumnSelectDlg>(() => transitionDlg.TransitionListText = pasteText);
+            var associateProteinsDlg = ShowDialog<FilterMatchedPeptidesDlg>(windowDlg.OkDialog); // Some peptides aren't in background proteome
+            var errDlg = ShowDialog<ImportTransitionListErrorDlg>(associateProteinsDlg.OkDialog);
             RunUI(() =>
             {
                 foreach (var err in errDlg.ErrorList)
@@ -122,7 +116,7 @@ namespace pwiz.SkylineTestFunctional
                 Assert.IsTrue(allErrorText.Contains((506.7821).ToString(LocalizationHelper.CurrentCulture)),
                     string.Format("Unexpected value in paste dialog error window:\r\nexpected \"{0}\"\r\ngot \"{1}\"",
                         (506.7821).ToString(LocalizationHelper.CurrentCulture), errDlg.ErrorList));
-                errDlg.Close();
+                errDlg.CancelDialog();
             });
             RunUI(windowDlg.CancelDialog);
 
@@ -145,16 +139,13 @@ namespace pwiz.SkylineTestFunctional
 
             var pasteText2 = "LGPGRPLPTFPTSEC[+57]TS[+80]DVEPDTR[+10]\t907.081803\t1387.566968\tDDX54_CL02".Replace(".", LocalizationHelper.CurrentCulture.NumberFormat.NumberDecimalSeparator);
             var transitionDlg2 = ShowDialog<InsertTransitionListDlg>(SkylineWindow.ShowPasteTransitionListDlg);
-            var windowDlg2 = ShowDialog<ImportTransitionListColumnSelectDlg>(() => transitionDlg2.textBox1.Text = pasteText2);
-            RunUI(() => {
-                var comboBoxes = windowDlg2.ComboBoxes;
-                comboBoxes[0].SelectedIndex = comboBoxes[1].FindStringExact(Resources.ImportTransitionListColumnSelectDlg_PopulateComboBoxes_Peptide_Modified_Sequence);
-                comboBoxes[1].SelectedIndex = comboBoxes[1].FindStringExact(Resources.ImportTransitionListColumnSelectDlg_PopulateComboBoxes_Precursor_m_z);
-                comboBoxes[2].SelectedIndex = comboBoxes[1].FindStringExact(Resources.ImportTransitionListColumnSelectDlg_PopulateComboBoxes_Product_m_z);
-                comboBoxes[3].SelectedIndex = comboBoxes[1].FindStringExact(Resources.ImportTransitionListColumnSelectDlg_PopulateComboBoxes_Protein_Name);
-            });
-            // This data was recognized by an error when put into PasteDlg but does not meet the criteria for an error here
-            RunUI(windowDlg2.CancelDialog);
+            var windowDlg2 = ShowDialog<ImportTransitionListColumnSelectDlg>(() => transitionDlg2.TransitionListText = pasteText2);
+            associateProteinsDlg = ShowDialog<FilterMatchedPeptidesDlg>(() => windowDlg2.CheckForErrors()); // Some peptides aren't in background proteome
+            var noErrDlg = ShowDialog<MessageDlg>(associateProteinsDlg.OkDialog);
+            Assert.AreEqual(Skyline.Properties.Resources.PasteDlg_ShowNoErrors_No_errors, noErrDlg.Message);
+            OkDialog(noErrDlg, noErrDlg.OkDialog);
+            RunUI(() => windowDlg2.CancelDialog());
+            WaitForClosedForm(windowDlg2);
         }
 
         private static void PastePeptides(PasteDlg pasteDlg, BackgroundProteome.DuplicateProteinsFilter duplicateProteinsFilter, 

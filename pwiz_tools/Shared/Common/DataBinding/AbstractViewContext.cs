@@ -29,6 +29,7 @@ using System.Threading;
 using System.Windows.Forms;
 using pwiz.Common.Collections;
 using pwiz.Common.DataBinding.Attributes;
+using pwiz.Common.DataBinding.Clustering;
 using pwiz.Common.DataBinding.Controls;
 using pwiz.Common.DataBinding.Controls.Editor;
 using pwiz.Common.DataBinding.Layout;
@@ -140,11 +141,6 @@ namespace pwiz.Common.DataBinding
 
         protected abstract void SaveViewSpecList(ViewGroupId viewGroupId, ViewSpecList viewSpecList);
 
-        protected RowSourceInfo FindRowSourceInfo(ViewInfo viewInfo)
-        {
-            return FindRowSourceInfo(viewInfo.ParentColumn.PropertyType);
-        }
-
         public ViewInfo GetViewInfo(ViewGroup viewGroup, ViewSpec viewSpec)
         {
             var rowSourceInfo = GetRowSourceInfo(viewSpec);
@@ -169,7 +165,7 @@ namespace pwiz.Common.DataBinding
             return GetViewInfo(FindGroup(viewName.Value.GroupId), viewSpec);
         }
 
-        protected RowSourceInfo GetRowSourceInfo(ViewSpec viewSpec)
+        public RowSourceInfo GetRowSourceInfo(ViewSpec viewSpec)
         {
             return RowSources.FirstOrDefault(rowSource => rowSource.Name == viewSpec.RowSource);
         }
@@ -684,9 +680,31 @@ namespace pwiz.Common.DataBinding
             get { yield break; }
         }
 
+        public virtual void ToggleClustering(BindingListSource bindingListSource, bool turnClusteringOn)
+        {
+            if (null == bindingListSource.ClusteringSpec)
+            {
+                bindingListSource.ClusteringSpec = ClusteringSpec.DEFAULT;
+            }
+            else
+            {
+                if (!bindingListSource.IsComplete && !(bindingListSource.ReportResults is ClusteredReportResults))
+                {
+                    return;
+                }
+                bindingListSource.ClusteringSpec = null;
+            }
+
+        }
+
         // Default implementation of ViewsChanged which never fires.
         // SkylineViewContext overrides and uses this event 
 #pragma warning disable 67
         public virtual event Action ViewsChanged;
+
+        public virtual bool CanDisplayView(ViewSpec viewSpec)
+        {
+            return null != GetRowSourceInfo(viewSpec);
+        }
     }
 }

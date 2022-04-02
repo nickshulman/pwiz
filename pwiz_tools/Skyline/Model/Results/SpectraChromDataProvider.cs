@@ -42,6 +42,7 @@ namespace pwiz.Skyline.Model.Results
         private IDemultiplexer _demultiplexer;
         private readonly IRetentionTimePredictor _retentionTimePredictor;
         private List<string> _scanIdList = new List<string>();
+        private Dictionary<string, int> _scanIdDictionary = new Dictionary<string, int>();
         private readonly bool _isProcessedScans;
         private double? _maxIonMobilityValue;
         private bool _isSingleMzMatch;
@@ -84,6 +85,11 @@ namespace pwiz.Skyline.Model.Results
             _document = document;
             _cachePath = cachePath;
             _globalChromatogramExtractor = new GlobalChromatogramExtractor(dataFile);
+            if (_document.Settings.TransitionSettings.FullScan.IsEnabledMs 
+                && !_globalChromatogramExtractor.IsTicChromatogramUsable())
+            {
+                _globalChromatogramExtractor.TicChromatogramIndex = null;
+            }
 
             // If no SRM spectra, then full-scan filtering must be enabled
             _isSrm = dataFile.HasSrmSpectra;
@@ -148,18 +154,17 @@ namespace pwiz.Skyline.Model.Results
 
         private bool NeedMaxIonMobilityValue(MsDataFileImpl dataFile)
         {
-            var linear = IonMobilityWindowWidthCalculator.IonMobilityPeakWidthType.linear_range;
-            // If peak width mode for a predictor is linear then the maximum is needed
-            var peptidePrediction = _document.Settings.PeptideSettings.Prediction;
-            if (peptidePrediction.IonMobilityPredictor?.WindowWidthCalculator.PeakWidthMode == linear)
-                return true;
+            // Only need to find the IM range if filter window width calculation mode is linear
+            var settings = _document.Settings.TransitionSettings.IonMobilityFiltering;
 
-            // Otherwise, if library ion mobilities are not used, then it is not necessary
-            if (!_document.Settings.PeptideSettings.Prediction.UseLibraryIonMobilityValues)
+            if (settings == null || settings.IsEmpty)
                 return false;
-            // If the library window width calculator is not using linear mode, then it is not necessary
-            if (peptidePrediction.LibraryIonMobilityWindowWidthCalculator?.PeakWidthMode != linear)
+
+            if (dataFile.IsWatersSonarData())
                 return false;
+
+            if (settings.FilterWindowWidthCalculator?.WindowWidthMode != IonMobilityWindowWidthCalculator.IonMobilityWindowWidthType.linear_range)
+                return false; // Only the linear_range option needs to discover the IM range
 
             // This is the expensive part - check if there are any ion mobilities in the libraries that will need windows
             // TODO (bspratt): Use a quicker check for any ion mobility for a file - this especially slow with big DDA libraries used in DIA where the library may be composed of 40 files none of them this one
@@ -439,16 +444,14 @@ namespace pwiz.Skyline.Model.Results
 
         private int GetScanIdIndex(string id)
         {
-            if (_scanIdList.Count > 0)
+            if (_scanIdDictionary.TryGetValue(id, out int scanIndex))
             {
-                if (id == _scanIdList[_scanIdList.Count - 1])
-                {
-                    return _scanIdList.Count - 1;
-                }
+                return scanIndex;
             }
-            int nextIndex = _scanIdList.Count;
+            scanIndex = _scanIdList.Count;
             _scanIdList.Add(id);
-            return nextIndex;
+            _scanIdDictionary.Add(id, scanIndex);
+            return scanIndex;
         }
 
         private void AddChromatograms(ChromDataCollectorSet chromMap)
@@ -485,9 +488,7 @@ namespace pwiz.Skyline.Model.Results
                         chromMap.ChromSource,
                         modSeq.Extractor,
                         true,
-                        true,
-                        null,
-                        null);
+                        true);
 
                     _collectors.AddSrmCollector(key, chromCollector);
                 }
@@ -595,27 +596,29 @@ namespace pwiz.Skyline.Model.Results
         public override bool GetChromatogram(int id, Target modifiedSequence, Color peptideColor, out ChromExtra extra, out TimeIntensities timeIntensities)
         {
             var chromKey = _collectors.ChromKeys.Count > id ? _collectors.ChromKeys[id] : null;
-
-            if (!SignedMz.ZERO.Equals(chromKey?.Precursor ?? SignedMz.ZERO) ||
-                !_globalChromatogramExtractor.GetChromatogram(id, out float[] times, out float[] intensities))
+            timeIntensities = null;
+            extra = null;
+            if (SignedMz.ZERO.Equals(chromKey?.Precursor ?? SignedMz.ZERO))
+            {
+                if (_globalChromatogramExtractor.GetChromatogram(id, out float[] times, out float[] intensities))
+                {
+                    timeIntensities = new TimeIntensities(times, intensities, null, null);
+                    extra = new ChromExtra(0, 0);
+                }
+            }
+            if (null == timeIntensities)
             {
                 var statusId = _collectors.ReleaseChromatogram(id, _chromGroups, out timeIntensities);
                 extra = new ChromExtra(statusId, 0);
                 // Each chromatogram will be read only once!
                 _readChromatograms++;
             }
-            else
+
+            if (null != chromKey && SignedMz.ZERO.Equals(chromKey.Precursor) &&
+                ChromExtractor.summed == chromKey.Extractor && timeIntensities.NumPoints > 0)
             {
-                // BPC and TIC are extracted directly from the file's chromatograms
-                timeIntensities = new TimeIntensities(times, intensities, null, null);
-                extra = new ChromExtra(0, 0);
-
-                if (timeIntensities.NumPoints > 0 && ChromExtractor.summed == chromKey?.Extractor)
-                {
-                    _ticArea = timeIntensities.Integral(0, timeIntensities.NumPoints - 1);
-                }
+                _ticArea = timeIntensities.Integral(0, timeIntensities.NumPoints - 1);
             }
-
 
             UpdatePercentComplete();
             return timeIntensities.NumPoints > 0;
@@ -745,17 +748,24 @@ namespace pwiz.Skyline.Model.Results
                 
                 _lookaheadContext = new LookaheadContext(_filter, _dataFile);
                 _countSpectra = dataFile.SpectrumCount;
-                // Use the TIC chromatogram if possible, because spectrum count can be massive for data files with IMS
-                double[] tic = null;
+
+                // Initially use the number of spectra as the estimate of the number of points that chromatograms will have.
+                _countCycles = _countSpectra;
                 try
                 {
-                    tic = dataFile.GetTotalIonCurrent();
+                    double[] tic = dataFile.GetTotalIonCurrent();
+                    if (tic != null && tic.Length > 0)
+                    {
+                        // The TIC's length is equal to the number of MS1 spectra in the data file.
+                        // It is a better estimate of extracted chromatogram length
+                        // because spectrum count can be massive for data files with IMS
+                        _countCycles = tic.Length;
+                    }
                 }
                 catch (Exception)
                 {
                     // Ignore and use _countSpectra
                 }
-                _countCycles = tic != null ? tic.Length : _countSpectra;
 
                 HasSrmSpectra = dataFile.HasSrmSpectra;
                 
@@ -854,7 +864,7 @@ namespace pwiz.Skyline.Model.Results
                 get
                 {
                     // If the data file has been disposed, then count this as 100% complete
-                    if (_currentInfo.IsLast)
+                    if (_currentInfo == null || _currentInfo.IsLast)
                         return 100;
                     return Math.Max(0, CurrentIndex)*100/_countSpectra;
                 }
@@ -1086,7 +1096,7 @@ namespace pwiz.Skyline.Model.Results
                             if (_filter.IsWatersMse)
                             {
                                 // looking for the 3 in 3.0.1 (or the 10 in 10.0.1) or the 2 in 1.2.3 if it's combined ion mobility'
-                                if (MsDataSpectrum.WatersFunctionNumberFromId(nextSpectrum.Id, _dataFile.HasCombinedIonMobilitySpectra) > 2)
+                                if (MsDataSpectrum.WatersFunctionNumberFromId(nextSpectrum.Id, _dataFile.HasCombinedIonMobilitySpectra && nextSpectrum.IonMobilities != null) > 2)
                                     continue;
                             }
                             else if (_filter.IsWatersFile)
@@ -1553,6 +1563,8 @@ namespace pwiz.Skyline.Model.Results
 
         public bool IsAgilentFile { get { return _dataFile.IsAgilentFile; } }
 
+        public bool HasDeclaredMSnSpectra { get { return _dataFile.HasDeclaredMSnSpectra; } }
+
         public IEnumerable<MsInstrumentConfigInfo> ConfigInfoList
         {
             get { return _dataFile.GetInstrumentConfigInfoList(); }
@@ -1569,6 +1581,12 @@ namespace pwiz.Skyline.Model.Results
         public double CCSFromIonMobility(IonMobilityValue im, double mz, int charge)
         {
             return _dataFile.CCSFromIonMobilityValue(im, mz, charge);
+        }
+
+        public bool IsWatersSonarData { get { return _dataFile.IsWatersSonarData(); } }
+        public Tuple<int, int> SonarMzToBinRange(double mz, double tolerance)
+        {
+            return _dataFile.SonarMzToBinRange(mz, tolerance);
         }
     }
     internal enum TimeSharing { single, shared, grouped }
@@ -1645,9 +1663,12 @@ namespace pwiz.Skyline.Model.Results
             int lenTimes = collector.TimeCount;
             if (IsGroupedTime)
             {
-                // Shared scan ids and times do not belong to a group.
-                collector.AddScanId(scanId);
-                collector.AddGroupedTime(time);
+                // The chromatogram index is used to determine which spillfile to use.
+                // All chromatograms in this group use the same spillfile, so any chromatogram index will work
+                int firstChromatogramIndex = chromatograms.ProductFilterIdToId(spectrum.ProductFilters.First().FilterId);
+
+                collector.ScansCollector.Add(firstChromatogramIndex, scanId, _blockWriter);
+                collector.GroupedTimesCollector.Add(firstChromatogramIndex, time, _blockWriter);
                 lenTimes = collector.GroupedTimesCollector.Count;
             }
 
@@ -1728,16 +1749,6 @@ namespace pwiz.Skyline.Model.Results
         public Dictionary<SpectrumProductFilter, ChromCollector> ProductIntensityMap { get; private set; }
         public readonly SortedBlockedList<float> GroupedTimesCollector;
         public readonly BlockedList<int> ScansCollector;
-
-        public void AddGroupedTime(float time)
-        {
-            GroupedTimesCollector.AddShared(time);
-        }
-
-        public void AddScanId(int scanId)
-        {
-            ScansCollector.AddShared(scanId);
-        }
 
         public int TimeCount
         {

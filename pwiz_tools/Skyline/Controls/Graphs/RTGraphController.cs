@@ -74,6 +74,8 @@ namespace pwiz.Skyline.Controls.Graphs
                 {
                     case RegressionMethodRT.kde:
                         return false;
+                    case RegressionMethodRT.log:
+                        return true;
                     case RegressionMethodRT.loess:
                         return false;
                     case RegressionMethodRT.linear:
@@ -167,9 +169,9 @@ namespace pwiz.Skyline.Controls.Graphs
             
         }
 
-        public void OnRatioIndexChanged()
+        public void OnNormalizeOptionChanged()
         {
-            // Retention times are not impacted by the ratio index
+            // Retention times are not impacted by normalization
         }
 
         public void OnUpdateGraph()
@@ -205,7 +207,7 @@ namespace pwiz.Skyline.Controls.Graphs
                 case GraphTypeSummary.schedule:
                     if (!(GraphSummary.GraphPanes.FirstOrDefault() is RTScheduleGraphPane))
                     {
-                        GraphSummary.GraphPanes = new[] {new RTScheduleGraphPane(GraphSummary)};
+                        GraphSummary.GraphPanes = new[] {new RTScheduleGraphPane(GraphSummary, GraphSummary.GraphControl)};
                     }
                     break;
             }

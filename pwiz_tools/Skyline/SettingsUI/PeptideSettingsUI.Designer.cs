@@ -65,13 +65,7 @@ namespace pwiz.Skyline.SettingsUI
             this.listLibraries = new System.Windows.Forms.CheckedListBox();
             this.btnUpdateCalculator = new System.Windows.Forms.Button();
             this.comboPeakScoringModel = new System.Windows.Forms.ComboBox();
-            this.btnUpdateIonMobilityLibraries = new System.Windows.Forms.Button();
-            this.comboDriftTimePredictor = new System.Windows.Forms.ComboBox();
-            this.textSpectralLibraryDriftTimesResolvingPower = new System.Windows.Forms.TextBox();
-            this.cbUseSpectralLibraryDriftTimes = new System.Windows.Forms.CheckBox();
             this.comboBoxPeptideUniquenessConstraint = new System.Windows.Forms.ComboBox();
-            this.textSpectralLibraryDriftTimesWidthAtDtMax = new System.Windows.Forms.TextBox();
-            this.textSpectralLibraryDriftTimesWidthAtDt0 = new System.Windows.Forms.TextBox();
             this.btnFilter = new System.Windows.Forms.Button();
             this.tbxMaxLoqBias = new System.Windows.Forms.TextBox();
             this.comboLodMethod = new System.Windows.Forms.ComboBox();
@@ -81,6 +75,8 @@ namespace pwiz.Skyline.SettingsUI
             this.comboNormalizationMethod = new System.Windows.Forms.ComboBox();
             this.comboRegressionFit = new System.Windows.Forms.ComboBox();
             this.comboWeighting = new System.Windows.Forms.ComboBox();
+            this.tbxIonRatioThreshold = new System.Windows.Forms.TextBox();
+            this.cbxSimpleRatios = new System.Windows.Forms.CheckBox();
             this.tabControl1 = new System.Windows.Forms.TabControl();
             this.tabDigestion = new System.Windows.Forms.TabPage();
             this.labelPeptideUniquenessConstraint = new System.Windows.Forms.Label();
@@ -88,11 +84,6 @@ namespace pwiz.Skyline.SettingsUI
             this.label1 = new System.Windows.Forms.Label();
             this.label15 = new System.Windows.Forms.Label();
             this.tabPrediction = new System.Windows.Forms.TabPage();
-            this.labelWidthDtMax = new System.Windows.Forms.Label();
-            this.labelWidthDtZero = new System.Windows.Forms.Label();
-            this.cbLinear = new System.Windows.Forms.CheckBox();
-            this.labelResolvingPower = new System.Windows.Forms.Label();
-            this.label19 = new System.Windows.Forms.Label();
             this.label14 = new System.Windows.Forms.Label();
             this.label13 = new System.Windows.Forms.Label();
             this.label9 = new System.Windows.Forms.Label();
@@ -125,8 +116,8 @@ namespace pwiz.Skyline.SettingsUI
             this.tabQuantification = new System.Windows.Forms.TabPage();
             this.groupBoxFiguresOfMerit = new System.Windows.Forms.GroupBox();
             this.cbxBilinearLoq = new System.Windows.Forms.CheckBox();
-            this.tbxMaxLoqBias = new System.Windows.Forms.TextBox();
-            this.comboLodMethod = new System.Windows.Forms.ComboBox();
+            this.label20 = new System.Windows.Forms.Label();
+            this.lblIonRatioThreshold = new System.Windows.Forms.Label();
             this.lblCaclulateLodBy = new System.Windows.Forms.Label();
             this.lblMaxLoqBias = new System.Windows.Forms.Label();
             this.lblMaxLoqBiasPct = new System.Windows.Forms.Label();
@@ -141,11 +132,6 @@ namespace pwiz.Skyline.SettingsUI
             this.addCalculatorContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.editCalculatorCurrentContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.editCalculatorListContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-            this.contextMenuIonMobilityLibraries = new System.Windows.Forms.ContextMenuStrip(this.components);
-            this.addIonMobilityLibraryContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-            this.editIonMobilityLibraryCurrentContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-            this.editIonMobilityLibraryListContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-            ((System.ComponentModel.ISupportInitialize)(this.modeUIHandler)).BeginInit();
             this.tabControl1.SuspendLayout();
             this.tabDigestion.SuspendLayout();
             this.tabPrediction.SuspendLayout();
@@ -158,7 +144,6 @@ namespace pwiz.Skyline.SettingsUI
             this.tabQuantification.SuspendLayout();
             this.groupBoxFiguresOfMerit.SuspendLayout();
             this.contextMenuCalculator.SuspendLayout();
-            this.contextMenuIonMobilityLibraries.SuspendLayout();
             this.SuspendLayout();
             // 
             // btnOk
@@ -424,38 +409,6 @@ namespace pwiz.Skyline.SettingsUI
             this.helpTip.SetToolTip(this.comboPeakScoringModel, resources.GetString("comboPeakScoringModel.ToolTip"));
             this.comboPeakScoringModel.SelectedIndexChanged += new System.EventHandler(this.comboPeakScoringModel_SelectedIndexChanged);
             // 
-            // btnUpdateIonMobilityLibraries
-            // 
-            this.btnUpdateIonMobilityLibraries.Image = global::pwiz.Skyline.Properties.Resources.Calculator;
-            resources.ApplyResources(this.btnUpdateIonMobilityLibraries, "btnUpdateIonMobilityLibraries");
-            this.btnUpdateIonMobilityLibraries.Name = "btnUpdateIonMobilityLibraries";
-            this.helpTip.SetToolTip(this.btnUpdateIonMobilityLibraries, resources.GetString("btnUpdateIonMobilityLibraries.ToolTip"));
-            this.btnUpdateIonMobilityLibraries.UseVisualStyleBackColor = true;
-            this.btnUpdateIonMobilityLibraries.Click += new System.EventHandler(this.btnUpdateIonMobilityLibrary_Click);
-            // 
-            // comboDriftTimePredictor
-            // 
-            this.comboDriftTimePredictor.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
-            this.comboDriftTimePredictor.FormattingEnabled = true;
-            resources.ApplyResources(this.comboDriftTimePredictor, "comboDriftTimePredictor");
-            this.comboDriftTimePredictor.Name = "comboDriftTimePredictor";
-            this.helpTip.SetToolTip(this.comboDriftTimePredictor, resources.GetString("comboDriftTimePredictor.ToolTip"));
-            this.comboDriftTimePredictor.SelectedIndexChanged += new System.EventHandler(this.comboDriftTime_SelectedIndexChanged);
-            // 
-            // textSpectralLibraryDriftTimesResolvingPower
-            // 
-            resources.ApplyResources(this.textSpectralLibraryDriftTimesResolvingPower, "textSpectralLibraryDriftTimesResolvingPower");
-            this.textSpectralLibraryDriftTimesResolvingPower.Name = "textSpectralLibraryDriftTimesResolvingPower";
-            this.helpTip.SetToolTip(this.textSpectralLibraryDriftTimesResolvingPower, resources.GetString("textSpectralLibraryDriftTimesResolvingPower.ToolTip"));
-            // 
-            // cbUseSpectralLibraryDriftTimes
-            // 
-            resources.ApplyResources(this.cbUseSpectralLibraryDriftTimes, "cbUseSpectralLibraryDriftTimes");
-            this.cbUseSpectralLibraryDriftTimes.Name = "cbUseSpectralLibraryDriftTimes";
-            this.helpTip.SetToolTip(this.cbUseSpectralLibraryDriftTimes, resources.GetString("cbUseSpectralLibraryDriftTimes.ToolTip"));
-            this.cbUseSpectralLibraryDriftTimes.UseVisualStyleBackColor = true;
-            this.cbUseSpectralLibraryDriftTimes.CheckedChanged += new System.EventHandler(this.cbUseSpectralLibraryDriftTimes_CheckChanged);
-            // 
             // comboBoxPeptideUniquenessConstraint
             // 
             this.comboBoxPeptideUniquenessConstraint.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
@@ -468,18 +421,6 @@ namespace pwiz.Skyline.SettingsUI
             resources.ApplyResources(this.comboBoxPeptideUniquenessConstraint, "comboBoxPeptideUniquenessConstraint");
             this.comboBoxPeptideUniquenessConstraint.Name = "comboBoxPeptideUniquenessConstraint";
             this.helpTip.SetToolTip(this.comboBoxPeptideUniquenessConstraint, resources.GetString("comboBoxPeptideUniquenessConstraint.ToolTip"));
-            // 
-            // textSpectralLibraryDriftTimesWidthAtDtMax
-            // 
-            resources.ApplyResources(this.textSpectralLibraryDriftTimesWidthAtDtMax, "textSpectralLibraryDriftTimesWidthAtDtMax");
-            this.textSpectralLibraryDriftTimesWidthAtDtMax.Name = "textSpectralLibraryDriftTimesWidthAtDtMax";
-            this.helpTip.SetToolTip(this.textSpectralLibraryDriftTimesWidthAtDtMax, resources.GetString("textSpectralLibraryDriftTimesWidthAtDtMax.ToolTip"));
-            // 
-            // textSpectralLibraryDriftTimesWidthAtDt0
-            // 
-            resources.ApplyResources(this.textSpectralLibraryDriftTimesWidthAtDt0, "textSpectralLibraryDriftTimesWidthAtDt0");
-            this.textSpectralLibraryDriftTimesWidthAtDt0.Name = "textSpectralLibraryDriftTimesWidthAtDt0";
-            this.helpTip.SetToolTip(this.textSpectralLibraryDriftTimesWidthAtDt0, resources.GetString("textSpectralLibraryDriftTimesWidthAtDt0.ToolTip"));
             // 
             // btnFilter
             // 
@@ -542,6 +483,7 @@ namespace pwiz.Skyline.SettingsUI
             resources.ApplyResources(this.comboRegressionFit, "comboRegressionFit");
             this.comboRegressionFit.Name = "comboRegressionFit";
             this.helpTip.SetToolTip(this.comboRegressionFit, resources.GetString("comboRegressionFit.ToolTip"));
+            this.comboRegressionFit.SelectedIndexChanged += new System.EventHandler(this.comboRegressionFit_SelectedIndexChanged);
             // 
             // comboWeighting
             // 
@@ -550,6 +492,19 @@ namespace pwiz.Skyline.SettingsUI
             resources.ApplyResources(this.comboWeighting, "comboWeighting");
             this.comboWeighting.Name = "comboWeighting";
             this.helpTip.SetToolTip(this.comboWeighting, resources.GetString("comboWeighting.ToolTip"));
+            // 
+            // tbxIonRatioThreshold
+            // 
+            resources.ApplyResources(this.tbxIonRatioThreshold, "tbxIonRatioThreshold");
+            this.tbxIonRatioThreshold.Name = "tbxIonRatioThreshold";
+            this.helpTip.SetToolTip(this.tbxIonRatioThreshold, resources.GetString("tbxIonRatioThreshold.ToolTip"));
+            // 
+            // cbxSimpleRatios
+            // 
+            resources.ApplyResources(this.cbxSimpleRatios, "cbxSimpleRatios");
+            this.cbxSimpleRatios.Name = "cbxSimpleRatios";
+            this.helpTip.SetToolTip(this.cbxSimpleRatios, resources.GetString("cbxSimpleRatios.ToolTip"));
+            this.cbxSimpleRatios.UseVisualStyleBackColor = true;
             // 
             // tabControl1
             // 
@@ -564,6 +519,7 @@ namespace pwiz.Skyline.SettingsUI
             this.tabControl1.Controls.Add(this.tabQuantification);
             this.tabControl1.Name = "tabControl1";
             this.tabControl1.SelectedIndex = 0;
+            this.tabControl1.SelectedIndexChanged += new System.EventHandler(this.tabControl1_TabIndexChanged);
             // 
             // tabDigestion
             // 
@@ -602,17 +558,6 @@ namespace pwiz.Skyline.SettingsUI
             // 
             // tabPrediction
             // 
-            this.tabPrediction.Controls.Add(this.textSpectralLibraryDriftTimesWidthAtDtMax);
-            this.tabPrediction.Controls.Add(this.textSpectralLibraryDriftTimesWidthAtDt0);
-            this.tabPrediction.Controls.Add(this.labelWidthDtMax);
-            this.tabPrediction.Controls.Add(this.labelWidthDtZero);
-            this.tabPrediction.Controls.Add(this.cbLinear);
-            this.tabPrediction.Controls.Add(this.textSpectralLibraryDriftTimesResolvingPower);
-            this.tabPrediction.Controls.Add(this.cbUseSpectralLibraryDriftTimes);
-            this.tabPrediction.Controls.Add(this.labelResolvingPower);
-            this.tabPrediction.Controls.Add(this.btnUpdateIonMobilityLibraries);
-            this.tabPrediction.Controls.Add(this.comboDriftTimePredictor);
-            this.tabPrediction.Controls.Add(this.label19);
             this.tabPrediction.Controls.Add(this.btnUpdateCalculator);
             this.tabPrediction.Controls.Add(this.label14);
             this.tabPrediction.Controls.Add(this.textMeasureRTWindow);
@@ -623,33 +568,6 @@ namespace pwiz.Skyline.SettingsUI
             resources.ApplyResources(this.tabPrediction, "tabPrediction");
             this.tabPrediction.Name = "tabPrediction";
             this.tabPrediction.UseVisualStyleBackColor = true;
-            // 
-            // labelWidthDtMax
-            // 
-            resources.ApplyResources(this.labelWidthDtMax, "labelWidthDtMax");
-            this.labelWidthDtMax.Name = "labelWidthDtMax";
-            // 
-            // labelWidthDtZero
-            // 
-            resources.ApplyResources(this.labelWidthDtZero, "labelWidthDtZero");
-            this.labelWidthDtZero.Name = "labelWidthDtZero";
-            // 
-            // cbLinear
-            // 
-            resources.ApplyResources(this.cbLinear, "cbLinear");
-            this.cbLinear.Name = "cbLinear";
-            this.cbLinear.UseVisualStyleBackColor = true;
-            this.cbLinear.CheckedChanged += new System.EventHandler(this.cbLinear_CheckedChanged);
-            // 
-            // labelResolvingPower
-            // 
-            resources.ApplyResources(this.labelResolvingPower, "labelResolvingPower");
-            this.labelResolvingPower.Name = "labelResolvingPower";
-            // 
-            // label19
-            // 
-            resources.ApplyResources(this.label19, "label19");
-            this.label19.Name = "label19";
             // 
             // label14
             // 
@@ -840,6 +758,7 @@ namespace pwiz.Skyline.SettingsUI
             // 
             // listBoxSmallMolInternalStandardTypes
             // 
+            this.listBoxSmallMolInternalStandardTypes.CheckOnClick = true;
             this.listBoxSmallMolInternalStandardTypes.FormattingEnabled = true;
             resources.ApplyResources(this.listBoxSmallMolInternalStandardTypes, "listBoxSmallMolInternalStandardTypes");
             this.listBoxSmallMolInternalStandardTypes.Name = "listBoxSmallMolInternalStandardTypes";
@@ -860,6 +779,7 @@ namespace pwiz.Skyline.SettingsUI
             // 
             // tabQuantification
             // 
+            this.tabQuantification.Controls.Add(this.cbxSimpleRatios);
             this.tabQuantification.Controls.Add(this.groupBoxFiguresOfMerit);
             this.tabQuantification.Controls.Add(this.tbxQuantUnits);
             this.tabQuantification.Controls.Add(this.lblQuantUnits);
@@ -879,7 +799,10 @@ namespace pwiz.Skyline.SettingsUI
             // 
             resources.ApplyResources(this.groupBoxFiguresOfMerit, "groupBoxFiguresOfMerit");
             this.groupBoxFiguresOfMerit.Controls.Add(this.cbxBilinearLoq);
+            this.groupBoxFiguresOfMerit.Controls.Add(this.label20);
             this.groupBoxFiguresOfMerit.Controls.Add(this.tbxMaxLoqBias);
+            this.groupBoxFiguresOfMerit.Controls.Add(this.tbxIonRatioThreshold);
+            this.groupBoxFiguresOfMerit.Controls.Add(this.lblIonRatioThreshold);
             this.groupBoxFiguresOfMerit.Controls.Add(this.comboLodMethod);
             this.groupBoxFiguresOfMerit.Controls.Add(this.lblCaclulateLodBy);
             this.groupBoxFiguresOfMerit.Controls.Add(this.lblMaxLoqBias);
@@ -896,17 +819,15 @@ namespace pwiz.Skyline.SettingsUI
             this.cbxBilinearLoq.Name = "cbxBilinearLoq";
             this.cbxBilinearLoq.UseVisualStyleBackColor = true;
             // 
-            // tbxMaxLoqBias
+            // label20
             // 
-            resources.ApplyResources(this.tbxMaxLoqBias, "tbxMaxLoqBias");
-            this.tbxMaxLoqBias.Name = "tbxMaxLoqBias";
+            resources.ApplyResources(this.label20, "label20");
+            this.label20.Name = "label20";
             // 
-            // comboLodMethod
+            // lblIonRatioThreshold
             // 
-            this.comboLodMethod.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
-            this.comboLodMethod.FormattingEnabled = true;
-            resources.ApplyResources(this.comboLodMethod, "comboLodMethod");
-            this.comboLodMethod.Name = "comboLodMethod";
+            resources.ApplyResources(this.lblIonRatioThreshold, "lblIonRatioThreshold");
+            this.lblIonRatioThreshold.Name = "lblIonRatioThreshold";
             // 
             // lblCaclulateLodBy
             // 
@@ -948,14 +869,6 @@ namespace pwiz.Skyline.SettingsUI
             resources.ApplyResources(this.lblNormalizationMethod, "lblNormalizationMethod");
             this.lblNormalizationMethod.Name = "lblNormalizationMethod";
             // 
-            // comboRegressionFit
-            // 
-            this.comboRegressionFit.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
-            this.comboRegressionFit.FormattingEnabled = true;
-            resources.ApplyResources(this.comboRegressionFit, "comboRegressionFit");
-            this.comboRegressionFit.Name = "comboRegressionFit";
-            this.comboRegressionFit.SelectedIndexChanged += new System.EventHandler(this.comboRegressionFit_SelectedIndexChanged);
-            // 
             // lblRegressionFit
             // 
             resources.ApplyResources(this.lblRegressionFit, "lblRegressionFit");
@@ -993,33 +906,6 @@ namespace pwiz.Skyline.SettingsUI
             resources.ApplyResources(this.editCalculatorListContextMenuItem, "editCalculatorListContextMenuItem");
             this.editCalculatorListContextMenuItem.Click += new System.EventHandler(this.editCalculatorListContextMenuItem_Click);
             // 
-            // contextMenuIonMobilityLibraries
-            // 
-            this.contextMenuIonMobilityLibraries.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
-            this.addIonMobilityLibraryContextMenuItem,
-            this.editIonMobilityLibraryCurrentContextMenuItem,
-            this.editIonMobilityLibraryListContextMenuItem});
-            this.contextMenuIonMobilityLibraries.Name = "contextMenuIonMobilityLibraries";
-            resources.ApplyResources(this.contextMenuIonMobilityLibraries, "contextMenuIonMobilityLibraries");
-            // 
-            // addIonMobilityLibraryContextMenuItem
-            // 
-            this.addIonMobilityLibraryContextMenuItem.Name = "addIonMobilityLibraryContextMenuItem";
-            resources.ApplyResources(this.addIonMobilityLibraryContextMenuItem, "addIonMobilityLibraryContextMenuItem");
-            this.addIonMobilityLibraryContextMenuItem.Click += new System.EventHandler(this.addIonMobilityLibraryContextMenuItem_Click);
-            // 
-            // editIonMobilityLibraryCurrentContextMenuItem
-            // 
-            this.editIonMobilityLibraryCurrentContextMenuItem.Name = "editIonMobilityLibraryCurrentContextMenuItem";
-            resources.ApplyResources(this.editIonMobilityLibraryCurrentContextMenuItem, "editIonMobilityLibraryCurrentContextMenuItem");
-            this.editIonMobilityLibraryCurrentContextMenuItem.Click += new System.EventHandler(this.editIonMobilityLibraryCurrentContextMenuItem_Click);
-            // 
-            // editIonMobilityLibraryListContextMenuItem
-            // 
-            this.editIonMobilityLibraryListContextMenuItem.Name = "editIonMobilityLibraryListContextMenuItem";
-            resources.ApplyResources(this.editIonMobilityLibraryListContextMenuItem, "editIonMobilityLibraryListContextMenuItem");
-            this.editIonMobilityLibraryListContextMenuItem.Click += new System.EventHandler(this.editIonMobilityLibraryListContextMenuItem_Click);
-            // 
             // PeptideSettingsUI
             // 
             this.AcceptButton = this.btnOk;
@@ -1034,7 +920,6 @@ namespace pwiz.Skyline.SettingsUI
             this.MinimizeBox = false;
             this.Name = "PeptideSettingsUI";
             this.ShowInTaskbar = false;
-            ((System.ComponentModel.ISupportInitialize)(this.modeUIHandler)).EndInit();
             this.tabControl1.ResumeLayout(false);
             this.tabDigestion.ResumeLayout(false);
             this.tabDigestion.PerformLayout();
@@ -1057,7 +942,6 @@ namespace pwiz.Skyline.SettingsUI
             this.groupBoxFiguresOfMerit.ResumeLayout(false);
             this.groupBoxFiguresOfMerit.PerformLayout();
             this.contextMenuCalculator.ResumeLayout(false);
-            this.contextMenuIonMobilityLibraries.ResumeLayout(false);
             this.ResumeLayout(false);
 
         }
@@ -1132,16 +1016,6 @@ namespace pwiz.Skyline.SettingsUI
         private System.Windows.Forms.TabPage tabIntegration;
         private System.Windows.Forms.ComboBox comboPeakScoringModel;
         private System.Windows.Forms.Label label36;
-        private System.Windows.Forms.Button btnUpdateIonMobilityLibraries;
-        private System.Windows.Forms.ContextMenuStrip contextMenuIonMobilityLibraries;
-        private System.Windows.Forms.ToolStripMenuItem addIonMobilityLibraryContextMenuItem;
-        private System.Windows.Forms.ToolStripMenuItem editIonMobilityLibraryCurrentContextMenuItem;
-        private System.Windows.Forms.ToolStripMenuItem editIonMobilityLibraryListContextMenuItem;
-        private System.Windows.Forms.ComboBox comboDriftTimePredictor;
-        private System.Windows.Forms.Label label19;
-        private System.Windows.Forms.TextBox textSpectralLibraryDriftTimesResolvingPower;
-        private System.Windows.Forms.CheckBox cbUseSpectralLibraryDriftTimes;
-        private System.Windows.Forms.Label labelResolvingPower;
         private System.Windows.Forms.TabPage tabQuantification;
         private System.Windows.Forms.ComboBox comboWeighting;
         private System.Windows.Forms.Label lblRegressionWeighting;
@@ -1155,11 +1029,6 @@ namespace pwiz.Skyline.SettingsUI
         private System.Windows.Forms.Label lblQuantUnits;
         private System.Windows.Forms.Label labelPeptideUniquenessConstraint;
         private System.Windows.Forms.ComboBox comboBoxPeptideUniquenessConstraint;
-        private System.Windows.Forms.CheckBox cbLinear;
-        private System.Windows.Forms.TextBox textSpectralLibraryDriftTimesWidthAtDtMax;
-        private System.Windows.Forms.TextBox textSpectralLibraryDriftTimesWidthAtDt0;
-        private System.Windows.Forms.Label labelWidthDtMax;
-        private System.Windows.Forms.Label labelWidthDtZero;
         private System.Windows.Forms.Button btnFilter;
         private System.Windows.Forms.Label lblCaclulateLodBy;
         private System.Windows.Forms.Label lblMaxLoqCvPct;
@@ -1175,5 +1044,9 @@ namespace pwiz.Skyline.SettingsUI
         private System.Windows.Forms.Button buttonEditListSmallMolInternalStandardTypes;
         private System.Windows.Forms.Label labelSmallMolInternalStandardTypes;
         private System.Windows.Forms.CheckedListBox listBoxSmallMolInternalStandardTypes;
+        private System.Windows.Forms.Label label20;
+        private System.Windows.Forms.TextBox tbxIonRatioThreshold;
+        private System.Windows.Forms.Label lblIonRatioThreshold;
+        private System.Windows.Forms.CheckBox cbxSimpleRatios;
     }
 }

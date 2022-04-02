@@ -68,7 +68,7 @@ namespace pwiz.Skyline.Model
                             massShift = -massShift;
                         var result = i;
                         nearestCharge = i;
-                        return Adduct.FromChargeProtonated(result);
+                        return Adduct.FromCharge(result, isCustomIon ? Adduct.ADDUCT_TYPE.non_proteomic : Adduct.ADDUCT_TYPE.proteomic);
                     }
                     if (deltaAbs < nearestDelta)
                     {
@@ -315,6 +315,8 @@ namespace pwiz.Skyline.Model
                         case IonType.b:
                             return 0;
                         case IonType.z:
+                        case IonType.zh:
+                        case IonType.zhh:
                         case IonType.c:
                             return 1;
                         case IonType.x:

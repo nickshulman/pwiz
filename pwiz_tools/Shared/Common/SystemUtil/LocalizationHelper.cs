@@ -79,4 +79,28 @@ namespace pwiz.Common.SystemUtil
             }
         }
     }
+
+    /// <summary>
+    /// Sets CurrentThread.CurrentCulture for the duration of the object's lifetime (typically within a using() block),
+    /// then restores it back to its original value
+    /// </summary>
+    public class CurrentCultureSetter : IDisposable
+    {
+        private CultureInfo PreviousCulture { get; }
+        private CultureInfo PreviousUICulture { get; }
+
+        public CurrentCultureSetter(CultureInfo newCultureInfo)
+        {
+            PreviousCulture = Thread.CurrentThread.CurrentCulture;
+            PreviousUICulture = Thread.CurrentThread.CurrentUICulture;
+            Thread.CurrentThread.CurrentCulture = newCultureInfo;
+            Thread.CurrentThread.CurrentUICulture = newCultureInfo;
+        }
+
+        public void Dispose()
+        {
+            Thread.CurrentThread.CurrentCulture = PreviousCulture;
+            Thread.CurrentThread.CurrentUICulture = PreviousUICulture;
+        }
+    }
 }

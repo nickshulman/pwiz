@@ -111,12 +111,13 @@ namespace pwiz.Skyline.Model.Results
 
         private static bool IsComparable(ChromDataSet dataSet)
         {
-            return dataSet.NodeGroup != null && dataSet.NodeGroup.RelativeRT != RelativeRT.Unknown;
+            return dataSet.RelativeRT != RelativeRT.Unknown;
         }
 
         private static IsotopeLabelType GetSafeLabelType(ChromDataSet dataSet)
         {
-            return dataSet.NodeGroup != null ? dataSet.NodeGroup.TransitionGroup.LabelType : null;
+            var labelTypes = dataSet.LabelTypes.Distinct().ToList();
+            return labelTypes.Count == 1 ? labelTypes[0] : null;
         }
 
         private IEnumerable<ChromData> ChromDatas
@@ -150,15 +151,46 @@ namespace pwiz.Skyline.Model.Results
 
         public void PickChromatogramPeaks()
         {
+            TimeIntervals intersectedTimeIntervals = null;
+            if (_document.Settings.TransitionSettings.Instrument.TriggeredAcquisition && NodePep != null)
+            {
+                var triggeredAcquisition = new TriggeredAcquisition();
+                foreach (var chromDataSet in _dataSets)
+                {
+                    var timeIntervals = triggeredAcquisition.InferTimeIntervals(
+                        chromDataSet.Chromatograms.Where(chrom => null != chrom.DocNode)
+                            .Select(chrom => chrom.RawTimes));
+                    chromDataSet.TimeIntervals = timeIntervals;
+                    if (timeIntervals != null)
+                    {
+                        if (intersectedTimeIntervals == null)
+                        {
+                            intersectedTimeIntervals = timeIntervals;
+                        }
+                        else
+                        {
+                            intersectedTimeIntervals = intersectedTimeIntervals.Intersect(timeIntervals);
+                        }
+                    }
+                }
+            }
             // Make sure times are evenly spaced before doing any peak detection.
             EvenlySpaceTimes();
             var explicitPeakBounds = _document.Settings.GetExplicitPeakBounds(NodePep, FileInfo.FilePath);
+
+            // If an explicit retention time was provided, limit peak picking to that window
+            var explicitRetentionTime = NodePep?.ExplicitRetentionTime;
+            if (explicitRetentionTime != null && !explicitRetentionTime.RetentionTimeWindow.HasValue)
+            {
+                // If no explicit window, use the one in Peptide Settings
+                explicitRetentionTime = new ExplicitRetentionTimeInfo(explicitRetentionTime.RetentionTime, _document.Settings.PeptideSettings.Prediction.MeasuredRTWindow);
+            }
             // Pick peak groups at the precursor level
             foreach (var chromDataSet in _dataSets)
             {
                 if (explicitPeakBounds == null)
                 {
-                    chromDataSet.PickChromatogramPeaks(_retentionTimes, _isAlignedTimes);
+                    chromDataSet.PickChromatogramPeaks(_retentionTimes, _isAlignedTimes, explicitRetentionTime);
                 }
                 else
                 {
@@ -173,7 +205,7 @@ namespace pwiz.Skyline.Model.Results
 
             // Adjust peak dimensions based on peak picking
             foreach (var chromDataSet in _dataSets)
-                chromDataSet.GeneratePeakData();
+                chromDataSet.GeneratePeakData(intersectedTimeIntervals);
 
             var detailedCalcs = DetailedPeakFeatureCalculators.Select(calc => (IPeakFeatureCalculator)calc).ToList();
             for (int i = 0; i < _listListPeakSets.Count; i++)
@@ -883,13 +915,7 @@ namespace pwiz.Skyline.Model.Results
                 var firstKey = DataSets[i].FirstKey;
                 if (Equals(chromDataSet.FirstKey.Precursor, firstKey.Precursor)) // Don't merge dissimilar precursors
                 {
-                    var nodeGroup = DataSets[i].NodeGroup;
-                    if (AreEquivalentGroups(nodeGroup, chromDataSet.NodeGroup))
-                    {
-                        DataSets[i].NodeGroup = nodeGroup.Merge(chromDataSet.NodeGroup);
-                        DataSets[i].Merge(chromDataSet);
-                        return true;
-                    }
+                    DataSets[i].Merge(chromDataSet);
                 }
             }
             return false;
@@ -997,7 +1023,14 @@ namespace pwiz.Skyline.Model.Results
                 else
                 {
                     Ms1TranstionPeakData = TransitionPeakData.Where(t => t.NodeTran != null && t.NodeTran.IsMs1).ToArray();
-                    Ms2TranstionPeakData = TransitionPeakData.Where(t => t.NodeTran != null && !t.NodeTran.IsMs1).ToArray();
+                    if (Data.FullScanAcquisitionMethod == FullScanAcquisitionMethod.DDA)
+                    {
+                        Ms2TranstionPeakData = ChromDataPeakList.EMPTY;
+                    }
+                    else
+                    {
+                        Ms2TranstionPeakData = TransitionPeakData.Where(t => t.NodeTran != null && !t.NodeTran.IsMs1).ToArray();
+                    }
                 }
             }
         }

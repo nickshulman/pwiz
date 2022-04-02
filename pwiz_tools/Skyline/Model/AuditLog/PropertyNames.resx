@@ -231,6 +231,9 @@
   <data name="TransitionInstrument_IsDynamicMin" xml:space="preserve">
     <value>Dynamic min product m/z</value>
   </data>
+  <data name="TransitionInstrument_TriggeredAcquisition" xml:space="preserve">
+    <value>Triggered Acquisition</value>
+  </data>
   <data name="MeasuredIon_IsFragment" xml:space="preserve">
     <value>Intense fragment</value>
   </data>
@@ -302,6 +305,9 @@
   </data>
   <data name="StaticMod_Terminus" xml:space="preserve">
     <value>Terminus</value>
+  </data>
+  <data name="StaticMod_IsCrosslinker" xml:space="preserve">
+    <value>Crosslinker</value>
   </data>
   <data name="TransitionFullScan_UseSelectiveExtraction" xml:space="preserve">
     <value>Use high-selectivity extraction</value>
@@ -416,6 +422,9 @@
   </data>
   <data name="ViewSpecList_Views" xml:space="preserve">
     <value>Reports</value>
+  </data>
+  <data name="ViewSpecList_ViewLayouts" xml:space="preserve">
+    <value>Layouts</value>
   </data>
   <data name="PivotSpec_ColumnHeaders" xml:space="preserve">
     <value>Column headers</value>
@@ -556,6 +565,21 @@
   </data>
   <data name="IonMobilityWindowWidthCalculator_PeakWidthAtIonMobilityValueZero" xml:space="preserve">
     <value>Width at Dt0</value>
+  </data>
+  <data name="IonMobilityLibrary_Status" xml:space="preserve">
+    <value>Contents changed</value>
+  </data>
+  <data name="IonMobilityLibraryChange_Added" xml:space="preserve">
+    <value>Items added</value>
+  </data>
+  <data name="IonMobilityLibraryChange_Deleted" xml:space="preserve">
+    <value>Items deleted</value>
+  </data>
+  <data name="IonMobilityLibraryChange_LSID" xml:space="preserve">
+    <value>LSID</value>
+  </data>
+  <data name="IonMobilityLibraryChange_CreationTime" xml:space="preserve">
+    <value>Timestamp</value>
   </data>
   <data name="RetentionTimeRegression_PeptideTimes" xml:space="preserve">
     <value>Measured peptides</value>
@@ -754,6 +778,9 @@
   </data>
   <data name="Annotations_ColorBrush" xml:space="preserve">
     <value>Color</value>
+  </data>
+  <data name="PeptideDocNode_ExplicitModsTyped" xml:space="preserve">
+    <value>Isotope modifications</value>
   </data>
   <data name="PeptideDocNode_ExplicitModsHeavy" xml:space="preserve">
     <value>Heavy modifications</value>
@@ -1202,7 +1229,7 @@
   <data name="TransitionGroupDocNode_LabelType" xml:space="preserve">
     <value>Isotope label type</value>
   </data>
-  <data name="TransitionGroupDocNode_PrecursorConcentration">
+  <data name="TransitionGroupDocNode_PrecursorConcentration" xml:space="preserve">
     <value>Precursor concentration</value>
   </data>
   <data name="UniquePeptideSettings_ProteinPeptideSelections" xml:space="preserve">
@@ -1374,7 +1401,7 @@
     <value>Column Sorts</value>
   </data>
   <data name="BatchModifyInfo_ViewName" xml:space="preserve">
-    <value>View name</value>
+    <value>Report name</value>
   </data>
   <data name="ColumnSort_ListSortDirection" xml:space="preserve">
     <value>Direction</value>
@@ -1447,5 +1474,185 @@
   </data>
   <data name="RefinementSettings_MSLevel" xml:space="preserve">
     <value>MS level</value>
+  </data>
+  <data name="RefinementSettings_AdjustedPValueCutoff" xml:space="preserve">
+    <value>Adjusted p value cutoff</value>
+  </data>
+  <data name="RefinementSettings_FoldChangeCutoff" xml:space="preserve">
+    <value>Fold change cutoff</value>
+  </data>
+  <data name="RefinementSettings_MSLevelGroupComparison" xml:space="preserve">
+    <value>MS Level</value>
+  </data>
+  <data name="RefinementSettings_GroupComparisonDefs" xml:space="preserve">
+    <value>Group comparisons</value>
+  </data>
+  <data name="PeptideChromInfo_ExcludeFromCalibration" xml:space="preserve">
+    <value>Exclude From Calibration</value>
+  </data>
+  <data name="PeptideChromInfo_AnalyteConcentration" xml:space="preserve">
+    <value>Analyte Concentration</value>
+  </data>
+  <data name="TransitionDocNode_ExplicitQuantitative" xml:space="preserve">
+    <value>Quantitative</value>
+  </data>
+  <data name="TransitionIntegration_IsIntegrateAll" xml:space="preserve">
+    <value>Integrate All</value>
+  </data>
+  <data name="TransitionIntegration_SynchronizedIntegrationGroupBy" xml:space="preserve">
+    <value>Synchronized Integration Group By</value>
+  </data>
+  <data name="TransitionIntegration_SynchronizedIntegrationAll" xml:space="preserve">
+    <value>Synchronized Integration All</value>
+  </data>
+  <data name="TransitionIntegration_SynchronizedIntegrationTargets" xml:space="preserve">
+    <value>Synchronized Integration Targets</value>
+  </data>
+  <data name="TransitionSettings_Integration" xml:space="preserve">
+    <value>Integration</value>
+  </data>
+  <data name="PeptideIntegration_PeakScoringModel" xml:space="preserve">
+    <value>Peak scoring model</value>
+  </data>
+  <data name="PeptideSettings_Integration" xml:space="preserve">
+    <value>Integration</value>
+  </data>
+  <data name="TransitionFilterAndLibrariesSettings_IonRangeFrom" xml:space="preserve">
+    <value>Product ion selection start</value>
+  </data>
+  <data name="TransitionFilterAndLibrariesSettings_IonRangeTo" xml:space="preserve">
+    <value>Product ion selection end</value>
+  </data>
+  <data name="TransitionFilterAndLibrariesSettings_MinIonMz" xml:space="preserve">
+    <value>Min ion m/z</value>
+  </data>
+  <data name="TransitionFilterAndLibrariesSettings_MaxIonMz" xml:space="preserve">
+    <value>Max ion m/z</value>
+  </data>
+  <data name="LoggableExplicitMod_LinkedPeptide" xml:space="preserve">
+    <value>Linked peptide</value>
+  </data>
+  <data name="LinkedPeptide_ExplicitModsStatic" xml:space="preserve">
+    <value>Modifications</value>
+  </data>
+  <data name="LinkedPeptide_PeptideSequence" xml:space="preserve">
+    <value>Sequence</value>
+  </data>
+  <data name="LinkedPeptide_Position" xml:space="preserve">
+    <value>Position</value>
+  </data>
+  <data name="IonMobilityWindowWidthCalculator_FixedWindowWidth" xml:space="preserve">
+    <value>Ion mobility filter window fixed width value</value>
+  </data>
+  <data name="IonMobilityWindowWidthCalculator_WindowWidthMode" xml:space="preserve">
+    <value>Ion mobility filter window width calculation type</value>
+  </data>
+  <data name="TransitionIonMobilityFiltering_IonMobilityLibrary" xml:space="preserve">
+    <value>Ion mobility library</value>
+  </data>
+  <data name="TransitionIonMobilityFiltering_UseSpectralLibraryIonMobilityValues" xml:space="preserve">
+    <value>Use spectral library ion mobility values</value>
+  </data>
+  <data name="TransitionSettings_IonMobilityFiltering" xml:space="preserve">
+    <value>Ion mobility</value>
+  </data>
+  <data name="IonMobilityLibrary_FilePathAuditLog" xml:space="preserve">
+    <value>File path</value>
+  </data>
+  <data name="DataSettings_MetadataRuleSets" xml:space="preserve">
+    <value>Rule sets</value>
+  </data>
+  <data name="IonMobilityLibrary_IonMobilityValues" xml:space="preserve">
+    <value>Library ion mobility values</value>
+  </data>
+  <data name="MetadataRule_Source" xml:space="preserve">
+    <value>Source</value>
+  </data>
+  <data name="MetadataRule_Pattern" xml:space="preserve">
+    <value>Pattern</value>
+  </data>
+  <data name="MetadataRule_Replacement" xml:space="preserve">
+    <value>Replacement</value>
+  </data>
+  <data name="MetadataRule_Target" xml:space="preserve">
+    <value>Target</value>
+  </data>
+  <data name="MetadataRuleSet_Name" xml:space="preserve">
+    <value>Name</value>
+  </data>
+  <data name="MetadataRuleSet_RowSource" xml:space="preserve">
+    <value>Row source</value>
+  </data>
+  <data name="MetadataRuleSet_Rules" xml:space="preserve">
+    <value>Rules</value>
+  </data>
+  <data name="QuantificationSettings_QualitativeIonRatioThreshold" xml:space="preserve">
+    <value>Qualitative ion ratio threshold</value>
+  </data>
+  <data name="QuantificationSettings_SimpleRatios" xml:space="preserve">
+    <value>Simple ratios</value>
+  </data>
+  <data name="ViewLayout_ClusterSpec" xml:space="preserve">
+    <value>Clustering specification</value>
+  </data>
+  <data name="ClusteringSpec_Values" xml:space="preserve">
+    <value>Values</value>
+  </data>
+  <data name="ClusteringSpec_DistanceMetric" xml:space="preserve">
+    <value>Distance Metric</value>
+  </data>
+  <data name="ValueSpec_ColumnRef" xml:space="preserve">
+    <value>Column reference</value>
+  </data>
+  <data name="ExplicitMods_CrosslinkStructure" xml:space="preserve">
+    <value>Crosslink structure</value>
+  </data>
+  <data name="CrosslinkStructure_LinkedPeptides" xml:space="preserve">
+    <value>Linked peptides</value>
+  </data>
+  <data name="CrosslinkStructure_LinkedExplicitMods" xml:space="preserve">
+    <value>Linked explicit modifications</value>
+  </data>
+  <data name="CrosslinkStructure_Crosslinks" xml:space="preserve">
+    <value>Crosslinks</value>
+  </data>
+  <data name="BuildPeptideSearchLibrarySettings_InputFileType" xml:space="preserve">
+    <value>Input File Type</value>
+  </data>
+  <data name="ImportFastaSettings_FastaImportTargetsFile" xml:space="preserve">
+    <value>FASTA file for importing targets</value>
+  </data>
+  <data name="DdaConverterSettings_InstrumentPreset" xml:space="preserve">
+    <value>Instrument preset</value>
+  </data>
+  <data name="DdaSearchSettings_FragmentIons" xml:space="preserve">
+    <value>Fragment ion types</value>
+  </data>
+  <data name="DdaSearchSettings_FragmentTolerance" xml:space="preserve">
+    <value>Fragment tolerance</value>
+  </data>
+  <data name="DdaSearchSettings_MaxVariableMods" xml:space="preserve">
+    <value>Max variable mods per peptide</value>
+  </data>
+  <data name="DdaSearchSettings_PrecursorTolerance" xml:space="preserve">
+    <value>Precursor tolerance</value>
+  </data>
+  <data name="ImportPeptideSearchSettings_DdaConverterSettings" xml:space="preserve">
+    <value>DDA converter settings</value>
+  </data>
+  <data name="ImportPeptideSearchSettings_DdaSearchSettings" xml:space="preserve">
+    <value>DDA search settings</value>
+  </data>
+  <data name="DdaConverterSettings_NonDefaultAdditionalSettings" xml:space="preserve">
+    <value>DDA conversion non-default settings</value>
+  </data>
+  <data name="DdaConverterSettings_Protocol" xml:space="preserve">
+    <value>DDA conversion protocol</value>
+  </data>
+  <data name="DdaSearchSettings_Ms2Analyzer" xml:space="preserve">
+    <value>MS2 analyzer</value>
+  </data>
+  <data name="DdaSearchSettings_SearchEngine" xml:space="preserve">
+    <value>Search Engine</value>
   </data>
 </root>

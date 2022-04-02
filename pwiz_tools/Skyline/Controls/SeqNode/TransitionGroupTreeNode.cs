@@ -26,6 +26,7 @@ using System.Text;
 using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Model;
 using pwiz.Skyline.Model.DocSettings;
+using pwiz.Skyline.Model.GroupComparison;
 using pwiz.Skyline.Model.Lib;
 using pwiz.Skyline.Model.Results;
 using pwiz.Skyline.Properties;
@@ -102,6 +103,11 @@ namespace pwiz.Skyline.Controls.SeqNode
 
             // Make sure children are up to date
             OnUpdateChildren(SequenceTree.ExpandPrecursors);
+            // Refresh the text on the TransitionTreeNodes.
+            foreach (var child in Nodes.OfType<TransitionTreeNode>())
+            {
+                child.Model = child.Model;
+            }
         }
 
         public int TypeImageIndex
@@ -165,18 +171,32 @@ namespace pwiz.Skyline.Controls.SeqNode
         public static string DisplayText(TransitionGroupDocNode nodeGroup, DisplaySettings settings)
         {
             return GetLabel(nodeGroup.TransitionGroup, nodeGroup.PrecursorMz,
-                GetResultsText(nodeGroup, settings.NodePep, settings.Index, settings.RatioIndex));
+                GetResultsText(settings, nodeGroup));
         }
 
         private const string DOTP_FORMAT = "0.##";
         private const string CS_SEPARATOR = ", ";
 
-        public static string GetResultsText(TransitionGroupDocNode nodeGroup,
-            PeptideDocNode nodePep, int indexResult, int indexRatio)
+        public static string GetResultsText(DisplaySettings displaySettings, TransitionGroupDocNode nodeGroup)
         {
-            float? libraryProduct = nodeGroup.GetLibraryDotProduct(indexResult);
-            float? isotopeProduct = nodeGroup.GetIsotopeDotProduct(indexResult);
-            RatioValue ratio = nodeGroup.GetPeakAreaRatio(indexResult, indexRatio);
+            float? libraryProduct = nodeGroup.GetLibraryDotProduct(displaySettings.ResultsIndex);
+            float? isotopeProduct = nodeGroup.GetIsotopeDotProduct(displaySettings.ResultsIndex);
+            RatioValue ratio = null;
+            if (displaySettings.NormalizationMethod is NormalizationMethod.RatioToLabel ratioToLabel)
+            {
+                ratio = displaySettings.NormalizedValueCalculator.GetTransitionGroupRatioValue(ratioToLabel,
+                    displaySettings.NodePep, nodeGroup, nodeGroup.GetChromInfoEntry(displaySettings.ResultsIndex));
+            }
+            else if (NormalizationMethod.GLOBAL_STANDARDS.Equals(displaySettings.NormalizationMethod))
+            {
+                var ratioToGlobalStandards = displaySettings.NormalizedValueCalculator.GetTransitionGroupValue(
+                    displaySettings.NormalizationMethod, displaySettings.NodePep, nodeGroup,
+                    nodeGroup.GetChromInfoEntry(displaySettings.ResultsIndex));
+                if (ratioToGlobalStandards.HasValue)
+                {
+                    ratio = new RatioValue(ratioToGlobalStandards.Value);
+                }
+            }
             if (null == ratio && !isotopeProduct.HasValue && !libraryProduct.HasValue)
                 return string.Empty;
             StringBuilder sb = new StringBuilder(@" (");
@@ -193,16 +213,23 @@ namespace pwiz.Skyline.Controls.SeqNode
             {
                 if (sb.Length > len)
                     sb.Append(CS_SEPARATOR);
-                if (!double.IsNaN(ratio.StdDev))
-                {
-                    sb.Append(string.Format(@"rdotp {0}", ratio.DotProduct.ToString(DOTP_FORMAT)));
-                    sb.Append(CS_SEPARATOR);
-                }
-
-                sb.Append(string.Format(Resources.TransitionGroupTreeNode_GetResultsText_total_ratio__0__,
-                                        MathEx.RoundAboveZero(ratio.Ratio, 2, 4)));
+                sb.Append(FormatRatioValue(ratio));
             }
             sb.Append(@")");
+            return sb.ToString();
+        }
+
+        public static string FormatRatioValue(RatioValue ratio)
+        {
+            StringBuilder sb = new StringBuilder();
+            if (ratio.HasDotProduct)
+            {
+                sb.Append(string.Format(@"rdotp {0}", ratio.DotProduct.ToString(DOTP_FORMAT)));
+                sb.Append(CS_SEPARATOR);
+            }
+
+            sb.Append(string.Format(Resources.TransitionGroupTreeNode_GetResultsText_total_ratio__0__,
+                MathEx.RoundAboveZero(ratio.Ratio, 2, 4)));
             return sb.ToString();
         }
 
@@ -240,7 +267,7 @@ namespace pwiz.Skyline.Controls.SeqNode
 
         public override string GetPickLabel(DocNode child)
         {
-            return TransitionTreeNode.DisplayText((TransitionDocNode) child, SequenceTree.GetDisplaySettings(PepNode));
+            return TransitionTreeNode.DisplayText(SequenceTree.GetDisplaySettings(PepNode), (TransitionDocNode) child);
         }
 
         public override Image GetPickTypeImage(DocNode child)
@@ -326,6 +353,10 @@ namespace pwiz.Skyline.Controls.SeqNode
         {
             get
             {
+                if (DocSettings.PeptideSettings.Quantification.SimpleRatios)
+                {
+                    return null;
+                }
                 return HasSiblingsToSynch(false)
                            ? Resources.TransitionGroupTreeNode_SynchSiblingsLabel_Synchronize_isotope_label_types
                            : null;
@@ -520,7 +551,7 @@ namespace pwiz.Skyline.Controls.SeqNode
                         string plusSub = Transition.GetChargeIndicator(charge);
                         foreach (IonType type in types)
                         {
-                            CellDesc cell = CreateHead(type.ToString().ToLower() + plusSub, rt);
+                            CellDesc cell = CreateHead(type.GetLocalizedString().ToLower() + plusSub, rt);
                             if (Transition.IsNTerminal(type))
                                 headers.Insert(0, cell);
                             else

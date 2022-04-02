@@ -137,7 +137,7 @@ namespace pwiz.SkylineTestFunctional
                 int countNull = 0;
                 foreach (var tuple in LoadAllChromatograms(document, chromatogramSet))
                 {
-                    var prediction = new PeptidePrediction(null, null, true, 1, false, IonMobilityWindowWidthCalculator.EMPTY);
+                    var prediction = new PeptidePrediction(null, true, 1);
                     double windowRtIgnored;
 
                     var schedulingPeptide =
@@ -188,13 +188,16 @@ namespace pwiz.SkylineTestFunctional
                     peptideSettingsDlg.UseMeasuredRT(false);
                 });
                 OkDialog(peptideSettingsDlg, peptideSettingsDlg.OkDialog);
+                AssertEx.AreEqual(calcName, SkylineWindow.Document.Settings.PeptideSettings.Prediction.RetentionTime?.Calculator.Name);
                 docBeforeImport = WaitForDocumentChange(docBeforeSettingsChange);
                 Assert.IsFalse(SkylineWindow.Document.Settings.PeptideSettings.Prediction.UseMeasuredRTs);
                 var importResultsDlg = ShowDialog<ImportResultsDlg>(SkylineWindow.ImportResults);
                 var openDataSourceDialog = ShowDialog<OpenDataSourceDialog>(importResultsDlg.OkDialog);
                 RunUI(() => openDataSourceDialog.SelectFile("8fmol" + extension));
                 OkDialog(openDataSourceDialog, openDataSourceDialog.Open);
+                AssertEx.AreEqual(calcName, SkylineWindow.Document.Settings.PeptideSettings.Prediction.RetentionTime?.Calculator.Name);
                 var document = WaitForDocumentChangeLoaded(docBeforeImport);
+                AssertEx.AreEqual(calcName, SkylineWindow.Document.Settings.PeptideSettings.Prediction.RetentionTime?.Calculator.Name);
                 var chromatogramSet = document.Settings.MeasuredResults.Chromatograms.First(cs => cs.Name == "8fmol");
                 
                 var regressionLine =
@@ -246,7 +249,7 @@ namespace pwiz.SkylineTestFunctional
                 {
                     ChromatogramGroupInfo[] infos;
                     document.Settings.MeasuredResults.TryLoadChromatogram(chromatogramSet, peptide, transitionGroup,
-                        (float) TransitionInstrument.DEFAULT_MZ_MATCH_TOLERANCE, true, out infos);
+                        (float) TransitionInstrument.DEFAULT_MZ_MATCH_TOLERANCE, out infos);
                     yield return new Tuple<PeptideDocNode, TransitionGroupDocNode, ChromatogramGroupInfo[]>(peptide, transitionGroup, infos);
                 }
             }

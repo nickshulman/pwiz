@@ -3,9 +3,11 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Xml.Serialization;
+using pwiz.Common.Chemistry;
 using pwiz.Common.Collections;
 using pwiz.Skyline.Model.AuditLog;
 using pwiz.Skyline.Model.DocSettings;
+using pwiz.Skyline.Model.Lib;
 using pwiz.Skyline.Model.Results;
 using pwiz.Skyline.Properties;
 
@@ -13,7 +15,8 @@ namespace pwiz.Skyline.Model.Irt
 {
     public class IrtStandard : XmlNamedElement
     {
-        public static readonly IrtStandard EMPTY = new IrtStandard(AuditLogStrings.None, null, null, new DbIrtPeptide[0]);
+        public static IrtStandard AUTO => new IrtStandard(Resources.IrtStandard_AUTO_Automatic, null, null, Array.Empty<DbIrtPeptide>());
+        public static IrtStandard EMPTY => new IrtStandard(AuditLogStrings.None, null, null, Array.Empty<DbIrtPeptide>());
 
         public static readonly IrtStandard BIOGNOSYS_10 = new IrtStandard(@"Biognosys-10 (iRT-C18)", @"Biognosys10.sky", null,
             new[] {
@@ -305,9 +308,9 @@ namespace pwiz.Skyline.Model.Irt
                 MakePeptide(@"YTQSNSVC[+57.0]YAK",         -12.79),
             });
 
-        public static readonly ImmutableList<IrtStandard> ALL = ImmutableList.ValueOf(new[] {
-            EMPTY, BIOGNOSYS_10, BIOGNOSYS_11, PIERCE, REPLICAL, RTBEADS, SCIEX, SIGMA, APOA1, CIRT_SHORT
-        });
+        public static IEnumerable<IrtStandard> ALL => new[] {
+            EMPTY, AUTO, BIOGNOSYS_10, BIOGNOSYS_11, PIERCE, REPLICAL, RTBEADS, SCIEX, SIGMA, APOA1, CIRT_SHORT
+        };
 
         private static readonly HashSet<Target> ALL_TARGETS = new HashSet<Target>(ALL.SelectMany(l => l.Peptides.Select(p => p.ModifiedTarget)));
 
@@ -342,8 +345,11 @@ namespace pwiz.Skyline.Model.Irt
         public string DocXml { get; private set; }
         public ImmutableList<DbIrtPeptide> Peptides { get; private set; }
 
-        public override string AuditLogText => Equals(this, EMPTY) ? LogMessage.NONE : Name;
-        public override bool IsName => !Equals(this, EMPTY); // So EMPTY logs as None (unquoted) rather than "None"
+        public override string AuditLogText => IsEmpty ? LogMessage.NONE : Name;
+        public override bool IsName => !IsEmpty; // So EMPTY logs as None (unquoted) rather than "None"
+
+        public bool IsEmpty => Equals(this, EMPTY);
+        public bool IsAuto => Equals(this, AUTO);
 
         public bool HasDocument => !string.IsNullOrEmpty(_resourceSkyFile) || !string.IsNullOrEmpty(DocXml);
 
@@ -387,6 +393,31 @@ namespace pwiz.Skyline.Model.Irt
                         out _,
                         false)
                     : null;
+            }
+        }
+
+        public IEnumerable<Target> MissingFromDocument(SrmDocument document)
+        {
+            var found = new TargetMap<bool>(FindInDocument(document).Select(nodePep => new KeyValuePair<Target, bool>(nodePep.ModifiedTarget, true)));
+            return Peptides.Where(pep => !found.ContainsKey(pep.ModifiedTarget)).Select(pep => pep.ModifiedTarget);
+        }
+
+        public IEnumerable<PeptideDocNode> FindInDocument(SrmDocument document)
+        {
+            var standardDoc = GetDocument();
+            var docPeps = new TargetMap<Dictionary<int, SignedMz>>(standardDoc != null
+                ? standardDoc.Peptides.Select(pep =>
+                    new KeyValuePair<Target, Dictionary<int, SignedMz>>(pep.ModifiedTarget,
+                        pep.TransitionGroups.ToDictionary(nodeTranGroup => nodeTranGroup.PrecursorCharge, nodeTranGroup => nodeTranGroup.PrecursorMz)))
+                : Peptides.Select(pep => new KeyValuePair<Target, Dictionary<int, SignedMz>>(pep.ModifiedTarget, null)));
+            // Compare precursor m/z to see if heavy labeled
+            foreach (var nodePep in document.Peptides)
+            {
+                if (docPeps.TryGetValue(nodePep.ModifiedTarget, out var precursors) &&
+                    (precursors == null || nodePep.TransitionGroups.Any(nodeTranGroup => precursors.TryGetValue(nodeTranGroup.PrecursorCharge, out var mz) && Math.Abs(mz - nodeTranGroup.PrecursorMz) < 1)))
+                {
+                    yield return nodePep;
+                }
             }
         }
 
@@ -507,6 +538,53 @@ namespace pwiz.Skyline.Model.Irt
         public override string ToString()
         {
             return Name;
+        }
+
+        public static List<IrtStandard> BestMatch(IEnumerable<Target> targets)
+        {
+            var targetMap = new TargetMap<bool>(targets.Select(t => new KeyValuePair<Target, bool>(t, true)));
+            var matches = ALL.Where(s => s.Peptides.Count > 0 && s.Peptides.All(pep => targetMap.ContainsKey(pep.ModifiedTarget))).ToList();
+
+            if (matches.Contains(BIOGNOSYS_10) && matches.Contains(BIOGNOSYS_11))
+                matches.Remove(BIOGNOSYS_10);
+
+            return matches;
+        }
+
+        public static List<IrtStandard> BestMatch(ICollection<SpectrumMzInfo> targets)
+        {
+            var potentialMatches = BestMatch(targets.Select(t => t.Key.Target)).ToList();
+
+            var matches = new List<IrtStandard>();
+            foreach (var standard in potentialMatches)
+            {
+                var doc = standard.GetDocument();
+                if (doc == null || doc.Peptides.All(nodePep => nodePep.ExplicitModsHeavy.Count == 0))
+                {
+                    matches.Add(standard);
+                    continue;
+                }
+
+                // Compare precursor m/zs in document (heavy label check)
+                var docPeps = new TargetMap<PeptideDocNode>(doc.Peptides.Select(pep => new KeyValuePair<Target, PeptideDocNode>(pep.ModifiedTarget, pep)));
+                var matchTargets = doc.Peptides.Select(pep => pep.ModifiedTarget).ToHashSet();
+                foreach (var target in targets)
+                {
+                    if (!docPeps.TryGetValue(target.Key.Target, out var nodePep))
+                        continue;
+
+                    var nodeTranGroup = nodePep.TransitionGroups.FirstOrDefault(precursor => precursor.PrecursorCharge == target.Key.Charge);
+                    if (nodeTranGroup != null && Math.Abs(nodeTranGroup.PrecursorMz - target.PrecursorMz) < 1)
+                        matchTargets.Remove(nodePep.ModifiedTarget);
+                }
+                if (matchTargets.Count == 0)
+                    matches.Add(standard);
+            }
+
+            if (matches.Contains(BIOGNOSYS_10) && matches.Contains(BIOGNOSYS_11))
+                matches.Remove(BIOGNOSYS_10);
+
+            return matches;
         }
     }
 }

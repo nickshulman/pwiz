@@ -103,7 +103,7 @@
             this.checkBoxFilter.UseVisualStyleBackColor = true;
             this.checkBoxFilter.CheckedChanged += new System.EventHandler(this.Preview);
             // 
-            // VolcanoPlotProperties
+            // VolcanoPlotPropertiesDlg
             // 
             this.AcceptButton = this.btnOk;
             resources.ApplyResources(this, "$this");

@@ -42,6 +42,7 @@
 #include "pwiz/utility/misc/SHA1Calculator.hpp"
 #include "boost/thread/thread.hpp"
 #include "boost/thread/barrier.hpp"
+#include "boost/locale/encoding_utf.hpp"
 
 
 using namespace pwiz::util;
@@ -75,14 +76,17 @@ void mangleSourceFileLocations(const string& sourceName, vector<SourceFilePtr>& 
     BOOST_FOREACH(SourceFilePtr& sourceFilePtr, sourceFiles)
     {
         // if the sourceName or newSourceName is in the location, preserve it (erase everything preceding it)
-        size_t sourceNameInLocation = newSourceName.empty() ? sourceFilePtr->location.find(sourceName) : min(sourceFilePtr->location.find(sourceName), sourceFilePtr->location.find(newSourceName));
-        if (sourceNameInLocation != string::npos)
+        if (!isHTTP(sourceFilePtr->location))
         {
-            sourceFilePtr->location.erase(0, sourceNameInLocation);
-            sourceFilePtr->location = "file:///" + newSourceName.empty() ? sourceName : newSourceName;
+            size_t sourceNameInLocation = newSourceName.empty() ? sourceFilePtr->location.find(sourceName) : min(sourceFilePtr->location.find(sourceName), sourceFilePtr->location.find(newSourceName));
+            if (sourceNameInLocation != string::npos)
+            {
+                sourceFilePtr->location.erase(0, sourceNameInLocation);
+                sourceFilePtr->location = "file:///" + newSourceName.empty() ? sourceName : newSourceName;
+            }
+            else
+                sourceFilePtr->location = "file:///";
         }
-        else
-            sourceFilePtr->location = "file:///";
 
         if (!newSourceName.empty())
         {
@@ -279,10 +283,10 @@ void testRead(const Reader& reader, const string& rawpath, const bfs::path& pare
 
     string sourceName = BFS_STRING(bfs::path(rawpath).filename());
 
-    size_t msdCount = msds.size();
-    for (size_t i=0; i < msdCount; ++i)
+    auto runRange = config.runIndex ? make_pair(config.runIndex.get(), config.runIndex.get()+1) : make_pair(0, (int) msds.size());
+    for (auto runItr = runRange; runItr.first < runItr.second; ++runItr.first)
     {
-        MSData& msd = *msds[i];
+        MSData& msd = *msds[runItr.first];
         if (os_) (*os_) << "MzML serialization test of " << config.resultFilename(msd.run.id + ".mzML") << endl;
 
         calculateSourceFileChecksums(msd.fileDescription.sourceFilePtrs);
@@ -301,6 +305,59 @@ void testRead(const Reader& reader, const string& rawpath, const bfs::path& pare
         if (diff) cerr << headDiff(diff, 5000) << endl;
         unit_assert(!diff);
 
+        // test ion mobility conversion
+        auto imsl = boost::dynamic_pointer_cast<SpectrumListIonMobilityBase>(msd.run.spectrumListPtr);
+        if (imsl != nullptr && imsl->canConvertIonMobilityAndCCS())
+        {
+            double imTestValue = 0.832;
+            double ccs = imsl->ionMobilityToCCS(imTestValue, 678.9, 2);
+            double imValue = imsl->ccsToIonMobility(ccs, 678.9, 2);
+            unit_assert_equal(imValue, imTestValue, 1e-5); // some vendors use 32-bit float so accuracy can't be too stringent
+        }
+      
+        // use mzML reference file instead of remote API for the following tests
+        auto& vendorMsd = isHTTP(rawpath) ? targetResult : msd;
+
+        // test that non-IMS peak picked data have unique m/z values
+        if (config.peakPicking && !config.combineIonMobilitySpectra && vendorMsd.run.spectrumListPtr)
+        {
+            const auto& sl = *vendorMsd.run.spectrumListPtr;
+            ostringstream ss;
+
+            for (size_t i = 0; i < sl.size(); ++i)
+            {
+                map<double, vector<size_t>> duplicateIndicesByMz;
+                auto s = sl.spectrum(i, true);
+                auto mzArray = s->getMZArray()->data;
+                for (size_t j=0; j < mzArray.size(); ++j)
+                    duplicateIndicesByMz[mzArray[j]].push_back(j);
+
+                bool hasDuplicates = false;
+                for (auto& mzIndicesPair : duplicateIndicesByMz)
+                    if (mzIndicesPair.second.size() > 1)
+                    {
+                        hasDuplicates = true;
+                        break;
+                    }
+
+                if (hasDuplicates)
+                {
+                    ss << "Spectrum " << s->id << " - " << duplicateIndicesByMz.size() << " duplicates (";
+                    for (auto& mzIndicesPair : duplicateIndicesByMz)
+                    {
+                        ss << mzIndicesPair.first << " [" << mzIndicesPair.second[0];
+                        for (size_t k = 0; k < mzIndicesPair.second.size(); ++k)
+                            ss << " " << mzIndicesPair.second[k];
+                        ss << "]";
+                    }
+                    ss << ")";
+                }
+            }
+
+            if (ss.tellp() > 0)
+                throw runtime_error(unit_assert_message(__FILE__, __LINE__, ("Duplicate m/z values detected in peak picked spectra:\n" + ss.str()).c_str()));
+        }
+
         // test serialization of this vendor format in and out of pwiz's supported open formats
         stringstream* stringstreamPtr = new stringstream;
         boost::shared_ptr<std::iostream> serializedStreamPtr(stringstreamPtr);
@@ -313,18 +370,32 @@ void testRead(const Reader& reader, const string& rawpath, const bfs::path& pare
             {
                 MSData msd_mz5;
                 Serializer_mz5 serializer_mz5;
-                serializer_mz5.write(targetResultFilename_mz5, msd);
+                serializer_mz5.write(targetResultFilename_mz5, vendorMsd);
                 serializer_mz5.read(targetResultFilename_mz5, msd_mz5);
 
                 DiffConfig diffConfig_mz5(diffConfig);
                 diffConfig_mz5.ignoreExtraBinaryDataArrays = true;
-                Diff<MSData, DiffConfig> diff_mz5(msd, msd_mz5, diffConfig_mz5);
+                Diff<MSData, DiffConfig> diff_mz5(vendorMsd, msd_mz5, diffConfig_mz5);
                 if (diff_mz5) cerr << headDiff(diff_mz5, 5000) << endl;
                 unit_assert(!diff_mz5);
             }
             bfs::remove(targetResultFilename_mz5);
         }
 #endif
+
+        // test SpectrumList::min_level_accepted() for vendors
+        if (msd.run.spectrumListPtr && msd.run.spectrumListPtr->size() > 0)
+        {
+            DetailLevel msLevelDetailLevel = msd.run.spectrumListPtr->min_level_accepted([](const Spectrum& s) { return s.hasCVParam(MS_ms_level); });
+            unit_assert_operator_equal(DetailLevel_InstantMetadata, msLevelDetailLevel);
+
+            if (!bal::iequals(reader.getType(), "UIMF"))
+            {
+                DetailLevel polarityDetailLevel = msd.run.spectrumListPtr->min_level_accepted([](const Spectrum& s) { return s.hasCVParamChild(MS_scan_polarity); });
+                unit_assert(DetailLevel_FastMetadata >= polarityDetailLevel);
+            }
+        }
+
         DiffConfig diffConfig_non_mzML(diffConfig);
         diffConfig_non_mzML.ignoreMetadata = true;
         diffConfig_non_mzML.ignoreExtraBinaryDataArrays = true;
@@ -337,11 +408,12 @@ void testRead(const Reader& reader, const string& rawpath, const bfs::path& pare
             bal::contains(fileType, "MassHunter") ||
             fileType == "Bruker FID" ||
             fileType == "Bruker TDF" ||
+            fileType == "Mobilion MBI" ||
             fileType == "UIMF" ||
             bal::contains(fileType, "T2D"))
             diffConfig_non_mzML.ignoreIdentity = true;
 
-        if (msd.run.spectrumListPtr)
+        if (vendorMsd.run.spectrumListPtr)
         {
             // mzML <-> mzXML
             MSData msd_mzXML;
@@ -352,11 +424,11 @@ void testRead(const Reader& reader, const string& rawpath, const bfs::path& pare
                 config_mzXML.binaryDataEncoderConfig.precision = BinaryDataEncoder::Precision_32;
             }
             Serializer_mzXML serializer_mzXML(config_mzXML);
-            serializer_mzXML.write(*stringstreamPtr, msd);
+            serializer_mzXML.write(*stringstreamPtr, vendorMsd);
             if (os_) *os_ << "mzXML:\n" << stringstreamPtr->str() << endl;
             serializer_mzXML.read(serializedStreamPtr, msd_mzXML);
 
-            Diff<MSData, DiffConfig> diff_mzXML(msd, msd_mzXML, diffConfig_non_mzML);
+            Diff<MSData, DiffConfig> diff_mzXML(vendorMsd, msd_mzXML, diffConfig_non_mzML);
             if (diff_mzXML && !os_) cerr << "mzXML:\n" << headStream(*serializedStreamPtr, 5000) << endl;
             if (diff_mzXML) cerr << headDiff(diff_mzXML, 5000) << endl;
             unit_assert(!diff_mzXML);
@@ -369,15 +441,15 @@ void testRead(const Reader& reader, const string& rawpath, const bfs::path& pare
         if (msd.run.spectrumListPtr)
         {
             // mzML <-> MGF
-            msd.run.spectrumListPtr = SpectrumListPtr(new SpectrumList_MGF_Filter(msd.run.spectrumListPtr));
+            vendorMsd.run.spectrumListPtr = SpectrumListPtr(new SpectrumList_MGF_Filter(vendorMsd.run.spectrumListPtr));
             MSData msd_MGF;
             Serializer_MGF serializer_MGF;
-            serializer_MGF.write(*stringstreamPtr, msd);
+            serializer_MGF.write(*stringstreamPtr, vendorMsd);
             if (os_) *os_ << "MGF:\n" << stringstreamPtr->str() << endl;
             serializer_MGF.read(serializedStreamPtr, msd_MGF);
 
             diffConfig_non_mzML.ignoreIdentity = true;
-            Diff<MSData, DiffConfig> diff_MGF(msd, msd_MGF, diffConfig_non_mzML);
+            Diff<MSData, DiffConfig> diff_MGF(vendorMsd, msd_MGF, diffConfig_non_mzML);
             if (diff_MGF && !os_) cerr << "MGF:\n" << headStream(*serializedStreamPtr, 5000) << endl;
             if (diff_MGF) cerr << headDiff(diff_MGF, 5000) << endl;
             unit_assert(!diff_MGF);
@@ -386,23 +458,24 @@ void testRead(const Reader& reader, const string& rawpath, const bfs::path& pare
 
     msds.clear();
 
-    // test reverse iteration of metadata on a fresh document;
+    // test reverse iteration of metadata on a fresh document; remote APIs excluded (e.g. UNIFI);
     // this tests that caching optimization for forward iteration doesn't hide problems;
     // i.e. SpectrumList_Thermo::findPrecursorSpectrumIndex()
-    for (size_t i = 0; i < msdCount; ++i)
-    {
-        MSData msd_reverse;
-        reader.read(rawpath, rawheader, msd_reverse, i, readerConfig);
-        if (os_) (*os_) << "Reverse iteration test of " << config.resultFilename(msd_reverse.run.id + ".mzML") << endl;
+    if (!isHTTP(rawpath))
+        for (auto runItr = runRange; runItr.first < runItr.second; ++runItr.first)
+        {
+            MSData msd_reverse;
+            reader.read(rawpath, rawheader, msd_reverse, runItr.first, readerConfig);
+            if (os_) (*os_) << "Reverse iteration test of " << config.resultFilename(msd_reverse.run.id + ".mzML") << endl;
 
-        if (msd_reverse.run.spectrumListPtr.get())
-            for (size_t j = 0, end = msd_reverse.run.spectrumListPtr->size(); j < end; ++j)
-                msd_reverse.run.spectrumListPtr->spectrum(end - j - 1);
+            if (msd_reverse.run.spectrumListPtr.get())
+                for (size_t j = 0, end = msd_reverse.run.spectrumListPtr->size(); j < end; ++j)
+                    msd_reverse.run.spectrumListPtr->spectrum(end - j - 1);
 
-        if (msd_reverse.run.chromatogramListPtr.get())
-            for (size_t j = 0, end = msd_reverse.run.chromatogramListPtr->size(); j < end; ++j)
-                msd_reverse.run.chromatogramListPtr->chromatogram(end - j - 1);
-    }
+            if (msd_reverse.run.chromatogramListPtr.get())
+                for (size_t j = 0, end = msd_reverse.run.chromatogramListPtr->size(); j < end; ++j)
+                    msd_reverse.run.chromatogramListPtr->chromatogram(end - j - 1);
+        }
 
     // no unicode test for HTTP paths
     if (isHTTP(rawpath))
@@ -410,10 +483,11 @@ void testRead(const Reader& reader, const string& rawpath, const bfs::path& pare
 
     // test non-ASCII characters in the source name, which in case of failure is conditionally an error or warning;
     // create a copy of the rawpath (file or directory) with non-ASCII characters in it
-    bfs::path::string_type unicodeTestString(boost::locale::conv::utf_to_utf<bfs::path::value_type>(L".试验"));
+    bfs::path::string_type unicodeTestString(boost::locale::conv::utf_to_utf<bfs::path::value_type>(L"-试验"));
     bfs::path rawpathPath(rawpath);
     bfs::path newRawPath = bfs::current_path() / rawpathPath.filename();
-    newRawPath.replace_extension(unicodeTestString + newRawPath.extension().native());
+    auto oldExtension = newRawPath.extension().native();
+    newRawPath = newRawPath.replace_extension().native() + unicodeTestString + newRawPath.extension().native();
     if (bfs::exists(newRawPath))
         bfs::remove_all(newRawPath);
     if (bfs::is_directory(rawpathPath))
@@ -428,7 +502,29 @@ void testRead(const Reader& reader, const string& rawpath, const bfs::path& pare
             if (bfs::exists(wiffscanPath))
             {
                 bfs::path newWiffscanPath = bfs::current_path() / rawpathPath.filename(); // replace_extension won't work as desired on wiffscanPath
-                newWiffscanPath.replace_extension(unicodeTestString + boost::locale::conv::utf_to_utf<bfs::path::value_type>(L".wiff.scan"));
+                newWiffscanPath = newWiffscanPath.replace_extension().native() + unicodeTestString + boost::locale::conv::utf_to_utf<bfs::path::value_type>(L".wiff.scan");
+                if (bfs::exists(newWiffscanPath))
+                    bfs::remove(newWiffscanPath);
+                bfs::copy_file(wiffscanPath, newWiffscanPath);
+            }
+
+            wiffscanPath = rawpathPath;
+            wiffscanPath.replace_extension(".dad.scan");
+            if (bfs::exists(wiffscanPath))
+            {
+                bfs::path newWiffscanPath = bfs::current_path() / rawpathPath.filename(); // replace_extension won't work as desired on wiffscanPath
+                newWiffscanPath = newWiffscanPath.replace_extension().native() + unicodeTestString + boost::locale::conv::utf_to_utf<bfs::path::value_type>(L".dad.scan");
+                if (bfs::exists(newWiffscanPath))
+                    bfs::remove(newWiffscanPath);
+                bfs::copy_file(wiffscanPath, newWiffscanPath);
+            }
+
+            wiffscanPath = rawpathPath;
+            wiffscanPath.replace_extension(".dad.sidx");
+            if (bfs::exists(wiffscanPath))
+            {
+                bfs::path newWiffscanPath = bfs::current_path() / rawpathPath.filename(); // replace_extension won't work as desired on wiffscanPath
+                newWiffscanPath = newWiffscanPath.replace_extension().native() + unicodeTestString + boost::locale::conv::utf_to_utf<bfs::path::value_type>(L".dad.sidx");
                 if (bfs::exists(newWiffscanPath))
                     bfs::remove(newWiffscanPath);
                 bfs::copy_file(wiffscanPath, newWiffscanPath);
@@ -441,7 +537,6 @@ void testRead(const Reader& reader, const string& rawpath, const bfs::path& pare
     {
         rawheader = pwiz::util::read_file_header(newRawPath.string(), 512);
         reader.read(newRawPath.string(), rawheader, msds, readerConfig);
-        msdCount = msds.size();
 
         bfs::path sourceNameAsPath(sourceName);
         sourceNameAsPath.replace_extension("");
@@ -451,9 +546,9 @@ void testRead(const Reader& reader, const string& rawpath, const bfs::path& pare
         // Compensate for the change to the filename:
         // - single-run sources will change like: <SourceName> -> <SourceName>.<UnicodeTestString>
         // - multi-run sources (e.g. WIFF) will change like: <SourceName>-<SampleName> -> <SourceName>.<UnicodeTestString>-<SampleName>
-        for (size_t i = 0; i < msdCount; ++i)
+        for (auto runItr = runRange; runItr.first < runItr.second; ++runItr.first)
         {
-            MSData& msd = *msds[i];
+            MSData& msd = *msds[runItr.first];
             if (os_) (*os_) << "Unicode support mzML serialization test of " << config.resultFilename(msd.run.id + ".mzML") << endl;
 
             calculateSourceFileChecksums(msd.fileDescription.sourceFilePtrs);
@@ -552,15 +647,17 @@ void generate(const Reader& reader, const string& rawpath, const bfs::path& pare
     writeConfig.indexed = false;
     writeConfig.binaryDataEncoderConfig.precision = config.doublePrecision ? BinaryDataEncoder::Precision_64 : BinaryDataEncoder::Precision_32;
     writeConfig.binaryDataEncoderConfig.compression = BinaryDataEncoder::Compression_Zlib;
-    if (os_) *os_ << "Writing mzML(s) for " << rawpath << endl;
-    for (size_t i=0; i < msds.size(); ++i)
+
+    for (auto runItr = config.runIndex ? make_pair(config.runIndex.get(), config.runIndex.get()+1) : make_pair(0, (int) msds.size()); runItr.first < runItr.second; ++runItr.first)
     {
-        bfs::path outputFilename = parentPath / config.resultFilename(msds[i]->run.id + ".mzML");
-        calculateSourceFileChecksums(msds[i]->fileDescription.sourceFilePtrs);
+        auto& msd = msds[runItr.first];
+        bfs::path outputFilename = parentPath / config.resultFilename(msd->run.id + ".mzML");
+        calculateSourceFileChecksums(msd->fileDescription.sourceFilePtrs);
 
-        config.wrap(*msds[i]);
+        config.wrap(*msd);
 
-        MSDataFile::write(*msds[i], outputFilename.string(), writeConfig);
+        if (os_) *os_ << "Converting " << rawpath << " to " << outputFilename << endl;
+        MSDataFile::write(*msd, outputFilename.string(), writeConfig);
     }
 }
 
@@ -610,10 +707,41 @@ void testThreadSafety(const int& testThreadCount, const Reader& reader, bool tes
 } // namespace
 
 
+
+PWIZ_API_DECL TestResult& TestResult::operator+= (const TestResult& rhs)
+{
+    totalTests += rhs.totalTests;
+    failedTests += rhs.failedTests;
+    return *this;
+}
+
+PWIZ_API_DECL TestResult TestResult::operator+ (const TestResult& rhs) const
+{
+    TestResult lhs = *this;
+    return lhs += rhs;
+}
+
+PWIZ_API_DECL void TestResult::check() const
+{
+    if (totalTests == 0)
+        throw runtime_error("no vendor test data found (try running without --incremental)");
+
+    if (failedTests > 0)
+        throw runtime_error("failed " + lexical_cast<string>(failedTests) + " of " + lexical_cast<string>(totalTests) + " tests");
+}
+
+
+
 PWIZ_API_DECL
 string ReaderTestConfig::resultFilename(const string& baseFilename) const
 {
     string result = baseFilename;
+
+    string illegalFilename = "\\/*:?<>|\"";
+    for (char& c : result)
+        if (illegalFilename.find(c) != string::npos)
+            c = '_';
+
     if (simAsSpectra) bal::replace_all(result, ".mzML", "-simSpectra.mzML");
     if (srmAsSpectra) bal::replace_all(result, ".mzML", "-srmSpectra.mzML");
     if (acceptZeroLengthSpectra) bal::replace_all(result, ".mzML", "-acceptZeroLength.mzML");
@@ -622,6 +750,7 @@ string ReaderTestConfig::resultFilename(const string& baseFilename) const
     if (preferOnlyMsLevel) bal::replace_all(result, ".mzML", "-ms" + lexical_cast<string>(preferOnlyMsLevel) + ".mzML");
     if (!allowMsMsWithoutPrecursor) bal::replace_all(result, ".mzML", "-noMsMsWithoutPrecursor.mzML");
     if (peakPicking) bal::replace_all(result, ".mzML", "-centroid.mzML");
+    if (peakPickingCWT) bal::replace_all(result, ".mzML", "-centroid-cwt.mzML");
     if (!isolationMzAndMobilityFilter.empty()) bal::replace_all(result, ".mzML", "-mzMobilityFilter.mzML");
     if (globalChromatogramsAreMs1Only) bal::replace_all(result, ".mzML", "-globalChromatogramsAreMs1Only.mzML");
     //if (thresholdCount > 0) bal::replace_all(result, ".mzML", "-top" + lexical_cast<string>(thresholdCount) + ".mzML");
@@ -649,7 +778,7 @@ void ReaderTestConfig::wrap(MSData& msd) const
 
 
 PWIZ_API_DECL
-pair<int, int> testReader(const Reader& reader, const vector<string>& args, bool testAcceptOnly, bool requireUnicodeSupport, const TestPathPredicate& isPathTestable, const ReaderTestConfig& config)
+TestResult testReader(const Reader& reader, const vector<string>& args, bool testAcceptOnly, bool requireUnicodeSupport, const TestPathPredicate& isPathTestable, const ReaderTestConfig& config)
 {
     bool generateMzML;
     vector<string> rawpaths;
@@ -659,7 +788,8 @@ pair<int, int> testReader(const Reader& reader, const vector<string>& args, bool
         throw runtime_error(string("Invalid arguments: ") + bal::join(args, " ") +
                             "\nUsage: " + args[0] + " [-v] [--generate-mzML] <source path 1> [source path 2] ..."); 
 
-    int totalTests = 0, failedTests = 0;
+    TestResult result;
+
     bfs::detail::utf8_codecvt_facet utf8;
     for (size_t i = 0; i < rawpaths.size(); ++i)
     {
@@ -672,7 +802,7 @@ pair<int, int> testReader(const Reader& reader, const vector<string>& args, bool
             {
                 ifstream urls(filepath.string().c_str());
                 string url;
-                while (getline(urls, url))
+                while (getlinePortable(urls, url))
                 {
                     if (isPathTestable(url))
                     {
@@ -692,10 +822,10 @@ pair<int, int> testReader(const Reader& reader, const vector<string>& args, bool
                 }
             }
         }
-        
+
         for (size_t i=0; i < testpaths.size(); ++i)
         {
-            ++totalTests;
+            ++result.totalTests;
             const string& rawpath = testpaths[i];
             const string& parentPath = parentPaths[i];
             if (generateMzML && config.autoTest)
@@ -714,7 +844,7 @@ pair<int, int> testReader(const Reader& reader, const vector<string>& args, bool
                         (config.peakPickingCWT ? "-cwt" : "") <<
                         (config.thresholdCount > 0 ? "-threshold-top3" : "") <<
                         "): " << e.what() << endl;
-                    ++failedTests;
+                    ++result.failedTests;
                 }
 
                 /* TODO: there are issues to be resolved here but not just simple crashes
@@ -743,6 +873,7 @@ pair<int, int> testReader(const Reader& reader, const vector<string>& args, bool
         }
     }
 
+
     // run auto tests (e.g. thresholding)
     if (!config.autoTest)
     {
@@ -752,17 +883,17 @@ pair<int, int> testReader(const Reader& reader, const vector<string>& args, bool
 
         // thresholding is always tested to check that mutating SpectrumListWrappers work as expected;
         // thresholding by itself does not create a separate mzML file
-        auto result = testReader(reader, args, testAcceptOnly, requireUnicodeSupport, isPathTestable, newConfig);
-        failedTests += result.first;
-        totalTests += result.second;
-    }
-    else // manual tests currently throw for failed tests (TODO: refactor to a list of configs to run in order to get a grand total of all tests and failed tests)
-    {
-        if (totalTests == 0)
-            throw runtime_error("no vendor test data found (try running without --incremental)");
+        result += testReader(reader, args, testAcceptOnly, requireUnicodeSupport, isPathTestable, newConfig);
 
-        if (failedTests > 0)
-            throw runtime_error("failed " + lexical_cast<string>(failedTests) + " of " + lexical_cast<string>(totalTests) + " tests");
+        /*if (!generateMzML && config.peakPicking)
+        {
+            // the config should also have thresholding (per above recursive call)
+            ReaderTestConfig newConfig = config;
+            newConfig.autoTest = true;
+            newConfig.peakPicking = false;
+            newConfig.peakPickingCWT = true;
+            result += testReader(reader, args, testAcceptOnly, requireUnicodeSupport, isPathTestable, newConfig);
+        }*/
     }
 
     /*if (!generateMzML && config.peakPicking)
@@ -774,7 +905,7 @@ pair<int, int> testReader(const Reader& reader, const vector<string>& args, bool
         return testReader(reader, args, testAcceptOnly, requireUnicodeSupport, isPathTestable, newConfig);
     }*/
 
-    return make_pair(failedTests, totalTests);
+    return result;
 }
 
 

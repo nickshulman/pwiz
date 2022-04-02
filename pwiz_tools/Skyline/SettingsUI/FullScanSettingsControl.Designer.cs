@@ -75,7 +75,7 @@
             this.textPrecursorCharges = new System.Windows.Forms.TextBox();
             this.toolTip = new System.Windows.Forms.ToolTip(this.components);
             this.cbHighSelectivity = new System.Windows.Forms.CheckBox();
-            this.useSpectralLibraryIonMobilityValuesControl = new pwiz.Skyline.SettingsUI.IonMobility.UseSpectralLibraryIonMobilityValuesControl();
+            this.usercontrolIonMobilityFiltering = new pwiz.Skyline.SettingsUI.IonMobility.IonMobilityFilteringUserControl();
             this.groupBoxRetentionTimeToKeep.SuspendLayout();
             this.flowLayoutPanelUseSchedulingWindow.SuspendLayout();
             this.flowLayoutPanelTimeAroundMs2Ids.SuspendLayout();
@@ -347,6 +347,7 @@
             // 
             // comboAcquisitionMethod
             // 
+            this.comboAcquisitionMethod.DisplayMember = "Label";
             this.comboAcquisitionMethod.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.comboAcquisitionMethod.FormattingEnabled = true;
             resources.ApplyResources(this.comboAcquisitionMethod, "comboAcquisitionMethod");
@@ -368,6 +369,12 @@
             resources.ApplyResources(this.textPrecursorCharges, "textPrecursorCharges");
             this.textPrecursorCharges.Name = "textPrecursorCharges";
             // 
+            // toolTip
+            // 
+            this.toolTip.AutoPopDelay = 32767;
+            this.toolTip.InitialDelay = 500;
+            this.toolTip.ReshowDelay = 100;
+            // 
             // cbHighSelectivity
             // 
             resources.ApplyResources(this.cbHighSelectivity, "cbHighSelectivity");
@@ -375,17 +382,20 @@
             this.toolTip.SetToolTip(this.cbHighSelectivity, resources.GetString("cbHighSelectivity.ToolTip"));
             this.cbHighSelectivity.UseVisualStyleBackColor = true;
             // 
-            // useSpectralLibraryIonMobilityValuesControl1
+            // usercontrolIonMobilityFiltering
             // 
-            resources.ApplyResources(this.useSpectralLibraryIonMobilityValuesControl, "useSpectralLibraryIonMobilityValuesControl");
-            this.useSpectralLibraryIonMobilityValuesControl.Name = "useSpectralLibraryIonMobilityValuesControl";
+            this.usercontrolIonMobilityFiltering.IonMobilityFilterResolvingPower = null;
+            this.usercontrolIonMobilityFiltering.IsUseSpectralLibraryIonMobilities = false;
+            resources.ApplyResources(this.usercontrolIonMobilityFiltering, "usercontrolIonMobilityFiltering");
+            this.usercontrolIonMobilityFiltering.Name = "usercontrolIonMobilityFiltering";
+            this.usercontrolIonMobilityFiltering.WindowWidthType = pwiz.Skyline.Model.DocSettings.IonMobilityWindowWidthCalculator.IonMobilityWindowWidthType.none;
             // 
             // FullScanSettingsControl
             // 
             resources.ApplyResources(this, "$this");
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.BackColor = System.Drawing.Color.Transparent;
-            this.Controls.Add(this.useSpectralLibraryIonMobilityValuesControl);
+            this.Controls.Add(this.usercontrolIonMobilityFiltering);
             this.Controls.Add(this.cbHighSelectivity);
             this.Controls.Add(this.textPrecursorCharges);
             this.Controls.Add(this.lblPrecursorCharges);
@@ -455,6 +465,6 @@
         private System.Windows.Forms.Label labelPrecursorPPM;
         private System.Windows.Forms.Label labelProductPPM;
         private System.Windows.Forms.CheckBox cbHighSelectivity;
-        private IonMobility.UseSpectralLibraryIonMobilityValuesControl useSpectralLibraryIonMobilityValuesControl;
+        private IonMobility.IonMobilityFilteringUserControl usercontrolIonMobilityFiltering;
     }
 }

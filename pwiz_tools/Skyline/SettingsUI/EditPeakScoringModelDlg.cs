@@ -26,6 +26,7 @@ using System.Windows.Forms;
 using pwiz.Common.Controls;
 using ZedGraph;
 using pwiz.Common.DataBinding;
+using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Alerts;
 using pwiz.Skyline.Controls;
 using pwiz.Skyline.Model;
@@ -383,11 +384,6 @@ namespace pwiz.Skyline.SettingsUI
             }
         }
 
-        public static bool IsUnknown(double d)
-        {
-            return (double.IsNaN(d) || double.IsInfinity(d));
-        }
-
         /// <summary>
         /// Has this weight been assigned a score opposite to that expected in its definition?
         /// </summary>
@@ -405,7 +401,7 @@ namespace pwiz.Skyline.SettingsUI
 
         private static void ProcessScores(double score, ref double min, ref double max, ref int countUnknownScores)
         {
-            if (IsUnknown(score))
+            if (TargetDecoyGenerator.IsUnknown(score))
                 countUnknownScores++;
             else
             {
@@ -683,10 +679,7 @@ namespace pwiz.Skyline.SettingsUI
             ClearGraphPane(graphPane);
 
             HistogramGroup modelHistograms;
-            HistogramGroup pHistograms;
-            HistogramGroup qHistograms;
-            PointPairList nullDensity;
-            GetPoints(_selectedCalculator, out modelHistograms, out pHistograms, out qHistograms, out nullDensity);
+            GetPoints(_selectedCalculator, out modelHistograms, out _, out _, out _);
             var targetPoints = modelHistograms.BinGroups[0];
             var decoyPoints = modelHistograms.BinGroups[1];
             var secondBestPoints = modelHistograms.BinGroups[2];
@@ -767,10 +760,15 @@ namespace pwiz.Skyline.SettingsUI
             var targetScores = new List<double>(_targetDecoyGenerator.TargetCount);
             var decoyScores = new List<double>(_targetDecoyGenerator.DecoyCount);
             var secondBestScores = new List<double>(_targetDecoyGenerator.TargetCount);
-            // Invert the score if its "natural" sign as specified in the calculator's definition is negative
-            bool invert = selectedCalculator != -1 && _peakScoringModel.PeakFeatureCalculators[selectedCalculator].IsReversedScore;
+            if (selectedCalculator == -1)
+            {
+                _targetDecoyGenerator.GetScores(calculatorParameters, targetScores, decoyScores, secondBestScores);
+            }
+            else
+            {
+                _targetDecoyGenerator.GetScoresForCalculator(selectedCalculator, targetScores, decoyScores, secondBestScores);
+            }
             // Evaluate each score on the best peak according to that score (either individual calculator or composite)
-            _targetDecoyGenerator.GetScores(calculatorParameters, calculatorParameters, targetScores, decoyScores, secondBestScores, invert);
             var scoreGroups = new List<List<double>> {targetScores, decoyScores, secondBestScores};
             scoreHistograms = new HistogramGroup(scoreGroups);
             if (selectedCalculator == -1)
@@ -810,11 +808,28 @@ namespace pwiz.Skyline.SettingsUI
 
             public HistogramGroup(ICollection<List<double>> scoreGroups)
             {
-                int nGroups = scoreGroups.Count;
                 var histogramList = scoreGroups.Select(scoreGroup => new HistogramData(scoreGroup)).ToList();
-                Min = histogramList.Select(histogram => histogram.Min).Min();
+
+                double binWidth = InitBinGroups(histogramList);
+
+                HasUnknownScores = histogramList.Sum(histogram => histogram.CountUnknowns) > 0;
+                if (HasUnknownScores)
+                {
+                    Max += (Max - Min) * 0.2;
+                    for (int i = 0; i < scoreGroups.Count; ++i)
+                    {
+                        BinGroups[i].Add(new PointPair(Max, histogramList[i].CountUnknowns));
+                    }
+
+                    Max += binWidth;
+                }
+            }
+
+            private double InitBinGroups(IList<HistogramData> histogramList, double? min = null)
+            {
+                Min = min ?? histogramList.Select(histogram => histogram.Min).Min();
                 Max = histogramList.Select(histogram => histogram.Max).Max();
-                BinGroups = scoreGroups.Select(group => new PointPairList()).ToList();
+                BinGroups = histogramList.Select(group => new PointPairList()).ToList();
                 double binWidth = (Max - Min) / HISTOGRAM_BAR_COUNT;
                 AllUnknownScores = histogramList.All(histogram => histogram.Scores.Count == histogram.CountUnknowns);
                 if (AllUnknownScores)
@@ -826,18 +841,22 @@ namespace pwiz.Skyline.SettingsUI
                 else
                 {
                     double minTemp = Min;
-                    BinGroups = histogramList.Select(histogram => histogram.ComputeHistogram(minTemp, binWidth, HISTOGRAM_BAR_COUNT)).ToList();
+                    BinGroups = histogramList
+                        .Select(histogram => histogram.ComputeHistogram(minTemp, binWidth, HISTOGRAM_BAR_COUNT)).ToList();
+
+                    int minVisibleBinIndex = GetMinVisibleBinIndex();
+                    if (minVisibleBinIndex > 0)
+                        return InitBinGroups(histogramList, Min + binWidth * minVisibleBinIndex);
                 }
-                HasUnknownScores = histogramList.Sum(histogram => histogram.CountUnknowns) > 0;
-                if (HasUnknownScores)
-                {
-                    Max += (Max - Min) * 0.2;
-                    for (int i = 0; i < nGroups; ++i)
-                    {
-                        BinGroups[i].Add(new PointPair(Max, histogramList[i].CountUnknowns));
-                    }
-                    Max += binWidth;
-                }
+
+                return binWidth;
+            }
+
+            private int GetMinVisibleBinIndex()
+            {
+                const double minPercentOfMax = 0.0001;
+                double maxBar = BinGroups.SelectMany(g => g).Max(p => p.Y);
+                return BinGroups.Select(g => g.IndexOf(p => p.Y / maxBar >= minPercentOfMax)).Min();
             }
 
             protected bool Equals(HistogramGroup other)
@@ -905,7 +924,7 @@ namespace pwiz.Skyline.SettingsUI
                 }
                 foreach (var score in Scores)
                 {
-                    if (IsUnknown(score))
+                    if (TargetDecoyGenerator.IsUnknown(score))
                         continue;
                     int bin = Math.Max(0, Math.Min(listBins.Count - 1, (int)((score - min) / binWidth)));
                     listBins[bin].Y++;
@@ -952,9 +971,16 @@ namespace pwiz.Skyline.SettingsUI
                 {
                     var cell = gridPeakCalculators.Rows[row].Cells[i];
                     cell.Style = new DataGridViewCellStyle();
-                    cell.ReadOnly = false;
-                    cell.ToolTipText = string.Empty;
+                    if (i == IsEnabled.Index)
+                    {
+                        cell.ReadOnly = false;
+                    }
+                    cell.ToolTipText = null;
                 }
+
+                var calculator = PeakScoringModel.PeakFeatureCalculators[unsortedIndex];
+                gridPeakCalculators.Rows[row].Cells[PeakCalculatorName.Index].ToolTipText =
+                    FeatureTooltips.ResourceManager.GetString(calculator.HeaderName);
                 // Show row in red if weight is the wrong sign
                 if (IsWrongSignWeight(row))
                 {
@@ -962,7 +988,7 @@ namespace pwiz.Skyline.SettingsUI
                     {
                         var cell = gridPeakCalculators.Rows[row].Cells[i];
                         cell.Style = warningStyle;
-                        cell.ToolTipText = Resources.EditPeakScoringModelDlg_OnDataBindingComplete_Unexpected_Coefficient_Sign;
+                        cell.ToolTipText = cell.ToolTipText ?? Resources.EditPeakScoringModelDlg_OnDataBindingComplete_Unexpected_Coefficient_Sign;
                     }
                 }
                 // Show row in disabled style if the score is not eligible
@@ -972,7 +998,10 @@ namespace pwiz.Skyline.SettingsUI
                     {
                         var cell = gridPeakCalculators.Rows[row].Cells[i];
                         cell.Style = inactiveStyle;
-                        cell.ReadOnly = true;
+                        if (i == IsEnabled.Index)
+                        {
+                            cell.ReadOnly = true;
+                        }
                     }
                 }
             }
@@ -1206,6 +1235,10 @@ namespace pwiz.Skyline.SettingsUI
             return decoyGroups.Count;
         }
 
+        public bool SelectedCalculatorHasUnknownScores
+        {
+            get { return _hasUnknownScores; }
+        }
         #endregion
 
         private class PeakCalculatorGridViewDriver : SimpleGridViewDriver<PeakCalculatorWeight>

@@ -134,13 +134,14 @@ struct PWIZ_API_DECL Spectrum
     virtual int getMSLevel() const = 0;
 
     virtual bool getHasIsolationInfo() const = 0;
-    virtual void getIsolationInfo(double& centerMz, double& lowerLimit, double& upperLimit) const = 0;
+    virtual void getIsolationInfo(double& centerMz, double& lowerLimit, double& upperLimit, double& collisionEnergy) const = 0;
 
     virtual bool getHasPrecursorInfo() const = 0;
     virtual void getPrecursorInfo(double& selectedMz, double& intensity, int& charge) const = 0;
 
     virtual double getStartTime() const = 0;
 
+    virtual bool getDataIsContinuous() const = 0;
     virtual size_t getDataSize(bool doCentroid, bool ignoreZeroIntensityPoints = false) const = 0;
     virtual void getData(bool doCentroid, pwiz::util::BinaryData<double>& mz, pwiz::util::BinaryData<double>& intensities, bool ignoreZeroIntensityPoints = false) const = 0;
 
@@ -190,10 +191,6 @@ struct PWIZ_API_DECL Experiment
     virtual void getSIC(size_t index, pwiz::util::BinaryData<double>& times, pwiz::util::BinaryData<double>& intensities,
                         double& basePeakX, double& basePeakY) const = 0;
 
-    virtual bool getHasIsolationInfo() const = 0;
-    virtual void getIsolationInfo(int cycle, double& centerMz, double& lowerLimit, double& upperLimit) const = 0;
-    virtual void getPrecursorInfo(int cycle, double& centerMz, int& charge) const = 0;
-
     virtual void getAcquisitionMassRange(double& startMz, double& stopMz) const = 0;
     virtual ScanType getScanType() const = 0;
     virtual ExperimentType getExperimentType() const = 0;
@@ -219,6 +216,8 @@ class PWIZ_API_DECL WiffFile
     typedef boost::shared_ptr<WiffFile> Ptr;
     static Ptr create(const std::string& wiffpath);
 
+    virtual std::string getWiffPath() const = 0;
+
     virtual int getSampleCount() const = 0;
     virtual int getPeriodCount(int sample) const = 0;
     virtual int getExperimentCount(int sample, int period) const = 0;
@@ -240,6 +239,9 @@ class PWIZ_API_DECL WiffFile
     virtual int getADCTraceCount(int sample) const = 0;
     virtual std::string getADCTraceName(int sample, int traceIndex) const = 0;
     virtual void getADCTrace(int sample, int traceIndex, ADCTrace& trace) const = 0;
+
+    /// get total wavelength chromatogram; returned ADCTrace is empty if there is no UV data in the file
+    virtual void getTWC(int sample, ADCTrace& totalWavelengthChromatogram) const = 0;
 
     virtual ExperimentPtr getExperiment(int sample, int period, int experiment) const = 0;
     virtual SpectrumPtr getSpectrum(int sample, int period, int experiment, int cycle) const = 0;

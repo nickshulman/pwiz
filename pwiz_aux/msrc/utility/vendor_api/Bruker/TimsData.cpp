@@ -26,6 +26,7 @@
 #include "pwiz/utility/misc/Std.hpp"
 #include "pwiz/utility/misc/DateTime.hpp"
 #include "pwiz/utility/misc/Filesystem.hpp"
+#include "pwiz/utility/misc/sort_together.hpp"
 #include "TimsData.hpp"
 #include "sqlite3pp.h"
 
@@ -204,6 +205,11 @@ TimsDataImpl::TimsDataImpl(const string& rawpath, bool combineIonMobilitySpectra
         spectra_.reserve(countNonEmpty * nScans);
     }
 
+    string queryCalibrations = "SELECT MAX(TimsCalibration) FROM Frames";
+    size_t calibrationsCount = sqlite::query(db, queryCalibrations.c_str()).begin()->get<sqlite3_int64>(0);
+    vector<map<double, int>> scanNumberByOneOverK0ByCalibrationIndex(calibrationsCount);
+    oneOverK0ByScanNumberByCalibration_.resize(calibrationsCount);
+
     std::string querySelect =
         "SELECT f.Id, Time, Polarity, ScanMode, MsMsType, MaxIntensity, SummedIntensities, NumScans, NumPeaks, "
         "Parent, TriggerMass, IsolationWidth, PrecursorCharge, CollisionEnergy, TimsCalibration-1 "
@@ -214,8 +220,7 @@ TimsDataImpl::TimsDataImpl(const string& rawpath, bool combineIonMobilitySpectra
     sqlite::query q(db, querySelect.c_str());
 
     int maxNumScans = 0;
-    vector<TimsFramePtr> representativeFrameByCalibrationIndex; // the first frame for each calibration index
-    vector<map<double, int>> scanNumberByOneOverK0ByCalibrationIndex;
+    vector<TimsFramePtr> representativeFrameByCalibrationIndex(calibrationsCount); // the first frame for each calibration index
 
     for (sqlite::query::iterator itr = q.begin(); itr != q.end(); ++itr)
     {
@@ -257,13 +262,7 @@ TimsDataImpl::TimsDataImpl(const string& rawpath, bool combineIonMobilitySpectra
         optional<double> collisionEnergy(row.get<optional<double> >(++idx));
 
         int calibrationIndex = row.get<int>(++idx);
-        bool newCalibrationIndex = oneOverK0ByScanNumberByCalibration_.size() <= calibrationIndex;
-        if (newCalibrationIndex)
-        {
-            oneOverK0ByScanNumberByCalibration_.resize(calibrationIndex + 1);
-            representativeFrameByCalibrationIndex.resize(calibrationIndex + 1);
-            scanNumberByOneOverK0ByCalibrationIndex.resize(calibrationIndex + 1);
-        }
+        bool newCalibrationIndex = representativeFrameByCalibrationIndex[calibrationIndex] == nullptr;
 
         TimsFramePtr frame = boost::make_shared<TimsFrame>(*this, frameId,
                                          msmsType, rt,
@@ -297,7 +296,8 @@ TimsDataImpl::TimsDataImpl(const string& rawpath, bool combineIonMobilitySpectra
 
     bool isDdaPasef = db.has_table("PasefFrameMsMsInfo") && sqlite::query(db, "SELECT COUNT(*) FROM PasefFrameMsMsInfo").begin()->get<int>(0) > 0;
     bool isDiaPasef = !isDdaPasef && db.has_table("DiaFrameMsMsInfo") && sqlite::query(db, "SELECT COUNT(*) FROM DiaFrameMsMsInfo").begin()->get<int>(0) > 0;
-    hasPASEFData_ = isDdaPasef | isDiaPasef;
+    bool isPrmPasef = !isDdaPasef && !isDiaPasef && db.has_table("PrmFrameMsMsInfo") && sqlite::query(db, "SELECT COUNT(*) FROM PrmFrameMsMsInfo").begin()->get<int>(0) > 0;
+    hasPASEFData_ = isDdaPasef | isDiaPasef | isPrmPasef;
 
     string pasefIsolationMzFilter;
     if (hasPASEFData_ && !isolationMzFilter_.empty())
@@ -351,7 +351,7 @@ TimsDataImpl::TimsDataImpl(const string& rawpath, bool combineIonMobilitySpectra
                 info.intensity = row.get<double>(++idx);
             }
         }
-        else // DiaPasef
+        else if (isDiaPasef)
         {
             string querySql = "SELECT Frame, MIN(ScanNumBegin), MAX(ScanNumEnd), IsolationMz, IsolationWidth, AVG(CollisionEnergy), f.WindowGroup "
                               "FROM DiaFrameMsMsInfo f "
@@ -364,30 +364,25 @@ TimsDataImpl::TimsDataImpl(const string& rawpath, bool combineIonMobilitySpectra
             for (sqlite::query::iterator itr = q.begin(); itr != q.end(); ++itr)
             {
                 sqlite::query::rows row = *itr;
-                const int colFrameId = 0;
-                const int colScanBegin = 1;
-                const int colScanEnd = 2;
-                const int colIsolationMz = 3;
-                const int colIsolationWidth = 4;
-                const int colCE = 5;
-                const int colWindowGroup = 6;
+                int idx = -1;
 
-                int64_t frameId = row.get<sqlite3_int64>(colFrameId);
+                int64_t frameId = row.get<sqlite3_int64>(++idx);
 
                 auto findItr = frames_.find(frameId);
                 if (findItr == frames_.end()) // numPeaks == 0, but sometimes still shows up in PasefFrameMsMsInfo!?
                     continue;
                 auto& frame = findItr->second;
 
-                int scanBegin = row.get<int>(colScanBegin);
-                int scanEnd = row.get<int>(colScanEnd) - 1; // scan end in TDF is exclusive, but in pwiz is inclusive
+                int scanBegin = row.get<int>(++idx);
+                int scanEnd = row.get<int>(++idx) - 1; // scan end in TDF is exclusive, but in pwiz is inclusive
 
-                info.isolationMz = row.get<double>(colIsolationMz);
-                info.isolationWidth = row.get<double>(colIsolationWidth);
-                info.collisionEnergy = row.get<double>(colCE);
-                int windowGroup = row.get<int>(colWindowGroup);
+                info.isolationMz = row.get<double>(++idx);
+                info.isolationWidth = row.get<double>(++idx);
+                info.collisionEnergy = row.get<double>(++idx);
+                int windowGroup = row.get<int>(++idx);
 
-                info.numScans = 1 + scanEnd - scanBegin;
+                // NB: some data has ScanNumEnd > NumScans, which should not happen because ScanNumEnd is supposed to be an exclusive 0-based index, so clamp it here
+                info.numScans = min(frame->numScans(), 1 + scanEnd) - scanBegin;
 
                 if (!isolationMzFilter_.empty())
                 {
@@ -436,6 +431,40 @@ TimsDataImpl::TimsDataImpl(const string& rawpath, bool combineIonMobilitySpectra
 
                 frame->windowGroup_ = windowGroup; 
                 frame->diaPasefIsolationInfoByScanNumber_[scanBegin] = info;
+            }
+        }
+        else // PrmPasef
+        {
+            string querySql = "SELECT Frame, ScanNumBegin, ScanNumEnd, IsolationMz, IsolationWidth, CollisionEnergy, MonoisotopicMz, Charge, Target "
+                              "FROM PrmFrameMsMsInfo f "
+                              "JOIN PrmTargets t ON t.Id=f.Target " +
+                              pasefIsolationMzFilter +
+                              "ORDER BY Frame, ScanNumBegin";
+            sqlite::query q(db, querySql.c_str());
+            for (sqlite::query::iterator itr = q.begin(); itr != q.end(); ++itr)
+            {
+                sqlite::query::rows row = *itr;
+                int idx = -1;
+                int64_t frameId = row.get<sqlite3_int64>(++idx);
+
+                auto findItr = frames_.find(frameId);
+                if (findItr == frames_.end()) // numPeaks == 0, but sometimes still shows up in PasefFrameMsMsInfo!?
+                    continue;
+                auto& frame = findItr->second;
+
+                frame->pasef_precursor_info_.emplace_back(new PasefPrecursorInfo);
+                PasefPrecursorInfo& info = *frame->pasef_precursor_info_.back();
+
+                info.scanBegin = row.get<int>(++idx);
+                info.scanEnd = row.get<int>(++idx) - 1; // scan end in TDF is exclusive, but in pwiz is inclusive
+
+                info.isolationMz = row.get<double>(++idx);
+                info.isolationWidth = row.get<double>(++idx);
+                info.collisionEnergy = row.get<double>(++idx);
+                info.monoisotopicMz = row.get<double>(++idx);
+                info.charge = row.get<int>(++idx);
+                info.avgScanNumber = 0;
+                info.intensity = 0;
             }
         }
     }
@@ -564,6 +593,19 @@ TimsDataImpl::TimsDataImpl(const string& rawpath, bool combineIonMobilitySpectra
 bool TimsDataImpl::hasMSData() const { return true; }
 bool TimsDataImpl::hasLCData() const { return false; }
 bool TimsDataImpl::hasPASEFData() const { return hasPASEFData_; }
+
+bool TimsDataImpl::canConvertOneOverK0AndCCS() const { return true; }
+
+double TimsDataImpl::oneOverK0ToCCS(double oneOverK0, double mz, int charge) const
+{
+    return tims_oneoverk0_to_ccs_for_mz(oneOverK0, charge, mz);
+}
+
+double TimsDataImpl::ccsToOneOverK0(double ccs, double mz, int charge) const
+{
+    return tims_ccs_to_oneoverk0_for_mz(ccs, charge, mz);
+}
+
 size_t TimsDataImpl::getMSSpectrumCount() const { return spectra_.size(); }
 MSSpectrumPtr TimsDataImpl::getMSSpectrum(int scan, DetailLevel detailLevel) const { return spectra_[scan - 1]; }
 
@@ -656,6 +698,7 @@ TimsFrame::TimsFrame(TimsDataImpl& timsDataImpl, int64_t frameId,
         case MsMsType::MRM: msLevel_ = 2; break; // MRM
         case MsMsType::DDA_PASEF: msLevel_ = 2; break; // PASEF
         case MsMsType::DIA_PASEF: msLevel_ = 2; break; // DIA
+        case MsMsType::PRM_PASEF: msLevel_ = 2; break; // PRM
         default: throw runtime_error("Unhandled msmsType: " + lexical_cast<string>((int) msmsType_));
     }
 }
@@ -667,7 +710,7 @@ bool TimsSpectrum::hasProfileData() const { return false; }
 size_t TimsSpectrum::getLineDataSize() const { return frame_.timsDataImpl_.readFrame(frame_.frameId_).getNbrPeaks(scanBegin_); }
 size_t TimsSpectrum::getProfileDataSize() const { return 0; }
 
-void TimsSpectrum::getLineData(automation_vector<double>& mz, automation_vector<double>& intensities) const
+void TimsSpectrum::getLineData(pwiz::util::BinaryData<double>& mz, pwiz::util::BinaryData<double>& intensities) const
 {
     auto& storage = frame_.timsDataImpl_;
     const auto& frameProxy = storage.readFrame(frame_.frameId_);
@@ -683,8 +726,8 @@ void TimsSpectrum::getLineData(automation_vector<double>& mz, automation_vector<
     }
 
     auto scanMZs = frameProxy.getScanMZs(scanBegin_);
-    intensities.resize_no_initialize(intensityCounts.size());
-    mz.resize_no_initialize(intensityCounts.size());
+    intensities.resize(intensityCounts.size());
+    mz.resize(intensityCounts.size());
 
     double *m = &mz[0];
     double *inten = &intensities[0];
@@ -695,7 +738,7 @@ void TimsSpectrum::getLineData(automation_vector<double>& mz, automation_vector<
     }
 }
 
-void TimsSpectrum::getProfileData(automation_vector<double>& mz, automation_vector<double>& intensities) const
+void TimsSpectrum::getProfileData(pwiz::util::BinaryData<double>& mz, pwiz::util::BinaryData<double>& intensities) const
 {
     // TDF does not support profile data
     mz.clear();
@@ -725,21 +768,19 @@ double TimsSpectrum::oneOverK0() const
     }
 }
 
-namespace {
-    template<typename T>
-    struct SortByOther
+// Get the measured ion mobility range
+std::pair<double, double> TimsSpectrum::getIonMobilityRange() const
+{
+    if (!isCombinedScans())
     {
-        const vector<T> & value_vector;
-
-        SortByOther(const vector<T> & val_vec) :
-            value_vector(val_vec) {}
-
-        bool operator()(int i1, int i2) const
-        {
-            return value_vector[i1] < value_vector[i2];
-        }
-    };
+        return make_pair(frame_.oneOverK0_[scanBegin_], frame_.oneOverK0_[scanBegin_]);
+    }
+    else
+    {
+        return make_pair(frame_.oneOverK0_[scanEnd()], frame_.oneOverK0_[scanBegin_]);
+    }
 }
+
 
 void TimsSpectrum::getCombinedSpectrumData(pwiz::util::BinaryData<double>& mz, pwiz::util::BinaryData<double>& intensities, pwiz::util::BinaryData<double>& mobilities, bool sortAndJitter) const
 {
@@ -759,6 +800,8 @@ void TimsSpectrum::getCombinedSpectrumData(pwiz::util::BinaryData<double>& mz, p
 
     intensities.resize(frameProxy.getTotalNbrPeaks());
     mobilities.resize(intensities.size());
+    if (intensities.empty())
+        return;
     double* itr = &intensities[0];
     double* itr2 = &mobilities[0];
     for (int i = 0; i <= range; ++i)
@@ -778,21 +821,7 @@ void TimsSpectrum::getCombinedSpectrumData(pwiz::util::BinaryData<double>& mz, p
     if (!sortAndJitter)
         return;
 
-    // sort an array of indices by m/z; these indices are used to reorder all 3 arrays
-    vector<int> indices(mz.size());
-    for (int i = 0; i < mz.size(); ++i)
-        indices[i] = i;
-    std::sort(indices.begin(), indices.end(), SortByOther<double>(mz));
-    pwiz::util::BinaryData<double> mzTmp(mz.size()), intensityTmp(mz.size()), mobilityTmp(mz.size());
-    for (int i = 0; i < mz.size(); ++i)
-    {
-        mzTmp[i] = mz[indices[i]];
-        intensityTmp[i] = intensities[indices[i]];
-        mobilityTmp[i] = mobilities[indices[i]];
-    }
-    swap(mzTmp, mz);
-    swap(intensityTmp, intensities);
-    swap(mobilityTmp, mobilities);
+    sort_together(mz, vector<boost::iterator_range<BinaryData<double>::iterator>> { intensities, mobilities });
 
     // add jitter to identical m/z values (which come from different mobility bins)
     for (size_t i = 1; i < mz.size(); ++i)

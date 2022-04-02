@@ -95,6 +95,7 @@
             this.cbLibraryPick = new System.Windows.Forms.CheckBox();
             this.label13 = new System.Windows.Forms.Label();
             this.tabInstrument = new System.Windows.Forms.TabPage();
+            this.cbxTriggeredAcquisition = new System.Windows.Forms.CheckBox();
             this.textMaxInclusions = new System.Windows.Forms.TextBox();
             this.label21 = new System.Windows.Forms.Label();
             this.label30 = new System.Windows.Forms.Label();
@@ -110,16 +111,17 @@
             this.textMaxTrans = new System.Windows.Forms.TextBox();
             this.label17 = new System.Windows.Forms.Label();
             this.textMzMatchTolerance = new System.Windows.Forms.TextBox();
-            this.label16 = new System.Windows.Forms.Label();
+            this.lblMethodMatchTolerance = new System.Windows.Forms.Label();
             this.label10 = new System.Windows.Forms.Label();
             this.label11 = new System.Windows.Forms.Label();
             this.textMaxMz = new System.Windows.Forms.TextBox();
             this.textMinMz = new System.Windows.Forms.TextBox();
             this.tabFullScan = new System.Windows.Forms.TabPage();
+            this.tabIonMobility = new System.Windows.Forms.TabPage();
+            this.ionMobilityFilteringControl = new pwiz.Skyline.SettingsUI.IonMobility.IonMobilityFilteringUserControl();
             this.helpTip = new System.Windows.Forms.ToolTip(this.components);
             this.contextMenuStripPrecursorAdduct = new System.Windows.Forms.ContextMenuStrip(this.components);
             this.contextMenuStripFragmentAdduct = new System.Windows.Forms.ContextMenuStrip(this.components);
-            ((System.ComponentModel.ISupportInitialize)(this.modeUIHandler)).BeginInit();
             this.tabControl1.SuspendLayout();
             this.tabGeneral.SuspendLayout();
             this.tabFilter.SuspendLayout();
@@ -130,6 +132,7 @@
             this.tabLibrary.SuspendLayout();
             this.panelPick.SuspendLayout();
             this.tabInstrument.SuspendLayout();
+            this.tabIonMobility.SuspendLayout();
             this.SuspendLayout();
             // 
             // btnCancel
@@ -154,6 +157,7 @@
             this.tabControl1.Controls.Add(this.tabLibrary);
             this.tabControl1.Controls.Add(this.tabInstrument);
             this.tabControl1.Controls.Add(this.tabFullScan);
+            this.tabControl1.Controls.Add(this.tabIonMobility);
             this.tabControl1.DataBindings.Add(new System.Windows.Forms.Binding("SelectedIndex", global::pwiz.Skyline.Properties.Settings.Default, "TransitionSettingsTab", true, System.Windows.Forms.DataSourceUpdateMode.OnPropertyChanged));
             this.tabControl1.Name = "tabControl1";
             this.tabControl1.SelectedIndex = global::pwiz.Skyline.Properties.Settings.Default.TransitionSettingsTab;
@@ -555,6 +559,7 @@
             this.radioAllAndFiltered.Name = "radioAllAndFiltered";
             this.radioAllAndFiltered.TabStop = true;
             this.helpTip.SetToolTip(this.radioAllAndFiltered, resources.GetString("radioAllAndFiltered.ToolTip"));
+            this.modeUIHandler.SetUIMode(this.radioAllAndFiltered, pwiz.Skyline.Util.Helpers.ModeUIExtender.MODE_UI_HANDLING_TYPE.proteomic);
             this.radioAllAndFiltered.UseVisualStyleBackColor = true;
             // 
             // radioFiltered
@@ -563,6 +568,7 @@
             this.radioFiltered.Name = "radioFiltered";
             this.radioFiltered.TabStop = true;
             this.helpTip.SetToolTip(this.radioFiltered, resources.GetString("radioFiltered.ToolTip"));
+            this.modeUIHandler.SetUIMode(this.radioFiltered, pwiz.Skyline.Util.Helpers.ModeUIExtender.MODE_UI_HANDLING_TYPE.proteomic);
             this.radioFiltered.UseVisualStyleBackColor = true;
             // 
             // radioAll
@@ -571,6 +577,7 @@
             this.radioAll.Name = "radioAll";
             this.radioAll.TabStop = true;
             this.helpTip.SetToolTip(this.radioAll, resources.GetString("radioAll.ToolTip"));
+            this.modeUIHandler.SetUIMode(this.radioAll, pwiz.Skyline.Util.Helpers.ModeUIExtender.MODE_UI_HANDLING_TYPE.proteomic);
             this.radioAll.UseVisualStyleBackColor = true;
             // 
             // label14
@@ -610,6 +617,7 @@
             // 
             // tabInstrument
             // 
+            this.tabInstrument.Controls.Add(this.cbxTriggeredAcquisition);
             this.tabInstrument.Controls.Add(this.textMaxInclusions);
             this.tabInstrument.Controls.Add(this.label21);
             this.tabInstrument.Controls.Add(this.label30);
@@ -625,7 +633,7 @@
             this.tabInstrument.Controls.Add(this.textMaxTrans);
             this.tabInstrument.Controls.Add(this.label17);
             this.tabInstrument.Controls.Add(this.textMzMatchTolerance);
-            this.tabInstrument.Controls.Add(this.label16);
+            this.tabInstrument.Controls.Add(this.lblMethodMatchTolerance);
             this.tabInstrument.Controls.Add(this.label10);
             this.tabInstrument.Controls.Add(this.label11);
             this.tabInstrument.Controls.Add(this.textMaxMz);
@@ -633,6 +641,14 @@
             resources.ApplyResources(this.tabInstrument, "tabInstrument");
             this.tabInstrument.Name = "tabInstrument";
             this.tabInstrument.UseVisualStyleBackColor = true;
+            // 
+            // cbxTriggeredAcquisition
+            // 
+            resources.ApplyResources(this.cbxTriggeredAcquisition, "cbxTriggeredAcquisition");
+            this.cbxTriggeredAcquisition.Name = "cbxTriggeredAcquisition";
+            this.helpTip.SetToolTip(this.cbxTriggeredAcquisition, resources.GetString("cbxTriggeredAcquisition.ToolTip"));
+            this.cbxTriggeredAcquisition.UseVisualStyleBackColor = true;
+            this.cbxTriggeredAcquisition.CheckedChanged += new System.EventHandler(this.cbxTriggeredAcquisition_CheckedChanged);
             // 
             // textMaxInclusions
             // 
@@ -716,10 +732,10 @@
             this.textMzMatchTolerance.Name = "textMzMatchTolerance";
             this.helpTip.SetToolTip(this.textMzMatchTolerance, resources.GetString("textMzMatchTolerance.ToolTip"));
             // 
-            // label16
+            // lblMethodMatchTolerance
             // 
-            resources.ApplyResources(this.label16, "label16");
-            this.label16.Name = "label16";
+            resources.ApplyResources(this.lblMethodMatchTolerance, "lblMethodMatchTolerance");
+            this.lblMethodMatchTolerance.Name = "lblMethodMatchTolerance";
             // 
             // label10
             // 
@@ -748,6 +764,21 @@
             resources.ApplyResources(this.tabFullScan, "tabFullScan");
             this.tabFullScan.Name = "tabFullScan";
             this.tabFullScan.UseVisualStyleBackColor = true;
+            // 
+            // tabIonMobility
+            // 
+            this.tabIonMobility.Controls.Add(this.ionMobilityFilteringControl);
+            resources.ApplyResources(this.tabIonMobility, "tabIonMobility");
+            this.tabIonMobility.Name = "tabIonMobility";
+            this.tabIonMobility.UseVisualStyleBackColor = true;
+            // 
+            // ionMobilityFilteringControl
+            // 
+            this.ionMobilityFilteringControl.IonMobilityFilterResolvingPower = null;
+            this.ionMobilityFilteringControl.IsUseSpectralLibraryIonMobilities = false;
+            resources.ApplyResources(this.ionMobilityFilteringControl, "ionMobilityFilteringControl");
+            this.ionMobilityFilteringControl.Name = "ionMobilityFilteringControl";
+            this.ionMobilityFilteringControl.WindowWidthType = pwiz.Skyline.Model.DocSettings.IonMobilityWindowWidthCalculator.IonMobilityWindowWidthType.none;
             // 
             // helpTip
             // 
@@ -779,7 +810,6 @@
             this.MinimizeBox = false;
             this.Name = "TransitionSettingsUI";
             this.ShowInTaskbar = false;
-            ((System.ComponentModel.ISupportInitialize)(this.modeUIHandler)).EndInit();
             this.tabControl1.ResumeLayout(false);
             this.tabGeneral.ResumeLayout(false);
             this.tabGeneral.PerformLayout();
@@ -798,6 +828,7 @@
             this.panelPick.PerformLayout();
             this.tabInstrument.ResumeLayout(false);
             this.tabInstrument.PerformLayout();
+            this.tabIonMobility.ResumeLayout(false);
             this.ResumeLayout(false);
 
         }
@@ -826,6 +857,8 @@
         private System.Windows.Forms.GroupBox groupBox1;
         private System.Windows.Forms.CheckBox cbAutoSelect;
         private System.Windows.Forms.TabPage tabInstrument;
+        private IonMobility.IonMobilityFilteringUserControl ionMobilityFilteringControl;
+        private System.Windows.Forms.TabPage tabIonMobility;
         private System.Windows.Forms.Label label10;
         private System.Windows.Forms.Label label11;
         private System.Windows.Forms.TextBox textMaxMz;
@@ -845,7 +878,7 @@
         private System.Windows.Forms.TextBox textIonCount;
         private System.Windows.Forms.CheckBox cbLibraryPick;
         private System.Windows.Forms.Panel panelPick;
-        private System.Windows.Forms.Label label16;
+        private System.Windows.Forms.Label lblMethodMatchTolerance;
         private System.Windows.Forms.TextBox textMzMatchTolerance;
         private System.Windows.Forms.ComboBox comboOptimizeType;
         private System.Windows.Forms.CheckBox cbUseOptimized;
@@ -893,5 +926,6 @@
         private System.Windows.Forms.ContextMenuStrip contextMenuStripFragmentAdduct;
         private System.Windows.Forms.Label label22;
         private System.Windows.Forms.TextBox textMinIonCount;
+        private System.Windows.Forms.CheckBox cbxTriggeredAcquisition;
     }
 }

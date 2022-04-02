@@ -60,6 +60,7 @@ SpectrumList_PeakPicker::SpectrumList_PeakPicker(
 :   SpectrumListWrapper(inner),
     algorithm_(algorithm),
     msLevelsToPeakPick_(msLevelsToPeakPick),
+    minDetailLevel_(DetailLevel_InstantMetadata),
     mode_(0)
 {
     if (preferVendorPeakPicking)
@@ -129,8 +130,12 @@ SpectrumList_PeakPicker::SpectrumList_PeakPicker(
         method.userParams.push_back(UserParam("Waters/MassLynx peak picking"));
     else if (mode_ == 7)
         method.userParams.push_back(UserParam("Shimadzu peak picking"));
-    //else
-    //    method.userParams.push_back(algorithm->name());
+    else if (algorithm != NULL)
+        method.userParams.emplace_back(algorithm->name());
+
+    if (algorithm_)
+        noVendorCentroidingWarningMessage_ = string("[SpectrumList_PeakPicker]: vendor centroiding requested but not available for this data; falling back to ") + algorithm_->name();
+
     if (preferVendorPeakPicking && !mode_ && (algorithm_ != NULL)) // VendorOnlyPeakPicker sets algorithm null, we deal with this at get binary data time
     {
         cerr << "Warning: vendor peakPicking was requested, but is unavailable";
@@ -165,55 +170,64 @@ PWIZ_API_DECL bool SpectrumList_PeakPicker::accept(const msdata::SpectrumListPtr
     return true;
 }
 
-PWIZ_API_DECL SpectrumPtr SpectrumList_PeakPicker::spectrum(size_t index, DetailLevel detailLevel) const
+PWIZ_API_DECL SpectrumPtr SpectrumList_PeakPicker::spectrum(size_t index, bool getBinaryData) const
 {
-    // for full metadata, defaultArrayLength must be accurate, so go ahead and do peak picking anyway
-    return (int) detailLevel >= (int) DetailLevel_FullMetadata ? spectrum(index, true) : inner_->spectrum(index, detailLevel);
+    return spectrum(index, getBinaryData ? DetailLevel_FullData : DetailLevel_FullMetadata);
 }
 
 
-PWIZ_API_DECL SpectrumPtr SpectrumList_PeakPicker::spectrum(size_t index, bool getBinaryData) const
+PWIZ_API_DECL SpectrumPtr SpectrumList_PeakPicker::spectrum(size_t index, DetailLevel detailLevel) const
 {
     SpectrumPtr s;
     
+    if (minDetailLevel_ > detailLevel)
+        detailLevel = minDetailLevel_;
+
     switch (mode_)
     {
         case 1:
-            s = dynamic_cast<detail::SpectrumList_Thermo*>(&*inner_)->spectrum(index, getBinaryData, msLevelsToPeakPick_);
+            s = dynamic_cast<detail::SpectrumList_Thermo*>(&*inner_)->spectrum(index, detailLevel, msLevelsToPeakPick_);
             break;
 
         case 2:
-            s = dynamic_cast<detail::SpectrumList_Bruker*>(&*inner_)->spectrum(index, getBinaryData, msLevelsToPeakPick_);
+            s = dynamic_cast<detail::SpectrumList_Bruker*>(&*inner_)->spectrum(index, detailLevel, msLevelsToPeakPick_);
             break;
 
         case 3:
-            s = dynamic_cast<detail::SpectrumList_ABI*>(&*inner_)->spectrum(index, getBinaryData, msLevelsToPeakPick_);
+            s = dynamic_cast<detail::SpectrumList_ABI*>(&*inner_)->spectrum(index, detailLevel, msLevelsToPeakPick_);
             break;
 
         case 4:
-            s = dynamic_cast<detail::SpectrumList_Agilent*>(&*inner_)->spectrum(index, getBinaryData, msLevelsToPeakPick_);
+            s = dynamic_cast<detail::SpectrumList_Agilent*>(&*inner_)->spectrum(index, detailLevel, msLevelsToPeakPick_);
             break;
 
         case 5:
-            s = dynamic_cast<detail::SpectrumList_ABI_T2D*>(&*inner_)->spectrum(index, getBinaryData, msLevelsToPeakPick_);
+            s = dynamic_cast<detail::SpectrumList_ABI_T2D*>(&*inner_)->spectrum(index, detailLevel, msLevelsToPeakPick_);
             break;
 
         case 6:
-            s = dynamic_cast<detail::SpectrumList_Waters*>(&*inner_)->spectrum(index, getBinaryData, msLevelsToPeakPick_);
+            s = dynamic_cast<detail::SpectrumList_Waters*>(&*inner_)->spectrum(index, detailLevel, msLevelsToPeakPick_);
             break;
 
         case 7:
-            s = dynamic_cast<detail::SpectrumList_Shimadzu*>(&*inner_)->spectrum(index, getBinaryData, msLevelsToPeakPick_);
+            s = dynamic_cast<detail::SpectrumList_Shimadzu*>(&*inner_)->spectrum(index, detailLevel, msLevelsToPeakPick_);
             break;
 
         case 0:
         default:
-            s = inner_->spectrum(index, true); // TODO you'd think this would be "getBinaryData" instead of "true" but that breaks SpectrumListFactoryTest
+            s = inner_->spectrum(index, true); // TODO you'd think this would be "detailLevel" instead of "true" but that breaks SpectrumListFactoryTest
             break;
     }
 
-    if (!getBinaryData || !msLevelsToPeakPick_.contains(s->cvParam(MS_ms_level).valueAs<int>()))
+    if (!msLevelsToPeakPick_.contains(s->cvParam(MS_ms_level).valueAs<int>()))
         return s;
+
+    bool hasSpectrumRepresentation = s->hasCVParamChild(MS_spectrum_representation);
+    if (!hasSpectrumRepresentation && detailLevel < DetailLevel_FullMetadata)
+    {
+        minDetailLevel_ = (DetailLevel) (detailLevel + 1);
+        return spectrum(index, minDetailLevel_);
+    }
 
     bool isCentroided = s->hasCVParam(MS_centroid_spectrum);
     vector<CVParam>& cvParams = s->cvParams;
@@ -278,13 +292,28 @@ PWIZ_API_DECL SpectrumPtr SpectrumList_PeakPicker::spectrum(size_t index, bool g
 
     if (itr != cvParams.end())
         *itr = MS_centroid_spectrum;
+    s->dataProcessingPtr = dp_;
+
+    if (detailLevel < DetailLevel_FullMetadata)
+        return s;
 
     try
     {
         if (algorithm_ == NULL) // As with VendorOnlyPeakPicker
             throw NoVendorPeakPickingException();
+        if (mode_)
+            warn_once(noVendorCentroidingWarningMessage_.c_str());
+
         BinaryData<double>& mzs = s->getMZArray()->data;
         BinaryData<double>& intensities = s->getIntensityArray()->data;
+        if (mzs.empty())
+            return s;
+
+        // remove extra arrays that are the same length as the m/z array because pwiz peak picking will not preserve the one-to-one correspondence
+        for (size_t i = 2; i < s->binaryDataArrayPtrs.size(); ++i)
+            if (s->binaryDataArrayPtrs[i]->data.size() == mzs.size())
+                s->binaryDataArrayPtrs.erase(s->binaryDataArrayPtrs.begin() + (i--));
+
         vector<double> xPeakValues, yPeakValues;
         algorithm_->detect(mzs, intensities, xPeakValues, yPeakValues);
         mzs.swap(xPeakValues);
@@ -296,7 +325,6 @@ PWIZ_API_DECL SpectrumPtr SpectrumList_PeakPicker::spectrum(size_t index, bool g
         throw std::runtime_error(std::string("[SpectrumList_PeakPicker::spectrum()] Error picking peaks: ") + e.what());
     }
 
-    s->dataProcessingPtr = dp_;
     return s;
 }
 

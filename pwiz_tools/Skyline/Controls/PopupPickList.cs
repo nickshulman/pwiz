@@ -265,12 +265,11 @@ namespace pwiz.Skyline.Controls
             if (searches != null)
             {
                 // Make sure all search strings are in the label
-                string label = choice.Label;
                 foreach (string search in searches)
                 {
                     if (string.IsNullOrEmpty(search))
                         continue;
-                    if (!label.Contains(search))
+                    if (!choice.SearchMatch(search))
                         return false;
                 }
             }
@@ -326,8 +325,14 @@ namespace pwiz.Skyline.Controls
                     OnOk();
                     break;
                 case Keys.Space:
-                    ToggleItem(pickListMulti.SelectedIndex);
+                {
+                    int i = pickListMulti.SelectedIndex;
+                    if (i >= 0)
+                    {
+                        ToggleItem(pickListMulti.SelectedIndex);
+                    }
                     break;
+                }
             }
         }
 
@@ -615,6 +620,23 @@ namespace pwiz.Skyline.Controls
             public DocNode Choice { get; private set; }
             public string Label { get; private set; }
             public bool Chosen { get; set; }
+
+            public bool SearchMatch(string searchString)
+            {
+                if (string.IsNullOrEmpty(searchString) || Label.Contains(searchString))
+                    return true;
+
+                if (Choice.Id is Transition transition)
+                {
+                    foreach (var inputString in transition.IonType.GetInputAliases())
+                    {
+                        if (Label.Contains(searchString.Replace(inputString, transition.IonType.GetLocalizedString())))
+                            return true;
+                    }
+                }
+
+                return false;
+            }
         }
 
         public Rectangle ScreenRect

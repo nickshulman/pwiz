@@ -246,6 +246,9 @@
   <data name="_import_optimizing" xml:space="preserve">
     <value>Indicates the data being imported contains extra transitions for detecting optimal collision energy or declustering potential.</value>
   </data>
+	<data name="_import_peak_boundaries" xml:space="preserve">
+	<value>Read peak boundaries from a comma or tab separated file</value>	
+  </data>
   <data name="_import_process_count" xml:space="preserve">
     <value>A number of sub-processes will be run for single-file import, after which the results from each single file will be joined by the main process. This can produce 10x performance gains on24-core NUMA servers and 3-4x even on i7 processors, under the right conditions. Be sure to test with your system.</value>
   </data>
@@ -257,6 +260,15 @@
   </data>
   <data name="_import_search_cutoff_score" xml:space="preserve">
     <value>Defines a cutoff score (between 0 and 1) to be used when building a spectral library from peptide search results files, where 1 is for highest confidence matches and 0 includes everything. [default 0.95]</value>
+  </data>
+  <data name="_import_search_irts" xml:space="preserve">
+    <value>Name of iRT standard to to be used when building a spectral library.</value>
+  </data>
+  <data name="_import_search_num_cirts" xml:space="preserve">
+    <value>Specify the number of CiRT peptides to use as iRT standards if building a spectral library with CiRT peptides as iRT standards.</value>
+  </data>
+  <data name="_import_search_recalibrate_irts" xml:space="preserve">
+    <value>If building a spectral library with iRT standards, recalibrate the iRT standard values relative to the peptides being added.</value>
   </data>
   <data name="_import_search_file" xml:space="preserve">
     <value>Import a peptide search results file into the open document, building a document-specific spectral library. This may be specified multiple times for multiple files. Use –import-fasta argument to add matched peptides as targets.</value>
@@ -783,5 +795,26 @@ greater peak area.</value>
   </data>
   <data name="_ims_library_res" xml:space="preserve">
     <value>Resolving power of ion mobility dimension used to filter around ion mobility values from the spectral libraries.</value>
+  </data>
+  <data name="_refine_gc_fold_change_cutoff" xml:space="preserve">
+    <value>Keep only targets with a group comparision fold change above this cutoff. (optional for group comparison refinement)</value>
+  </data>
+  <data name="_refine_gc_ms_level" xml:space="preserve">
+    <value>The MS level (1 or 2) to use in calculating peak areas for a group comparison refinement. Defaults to level 2 if both levels are present, and otherwise uses whichever level is present.</value>
+  </data>
+  <data name="_refine_gc_name" xml:space="preserve">
+    <value>The name of a previously defined group comparison to use in refining for significantly changing targets. Specify the argument multiple times with multiple names to keep the union of multiple comparisons.</value>
+  </data>
+  <data name="_refine_gc_p_value_cutoff" xml:space="preserve">
+    <value>Keep only targets with a group comparison adjusted p value below the specified cut-off. (required for group comparison refinement)</value>
+  </data>
+  <data name="CommandArgs_GROUP_MINIMIZE_RESULTS_Minimizing_results_file_size" xml:space="preserve">
+    <value>Minimizing results file size</value>
+  </data>
+  <data name="_chromatograms_discard_unused" xml:space="preserve">
+    <value>Discard all unused chromatograms from the document.</value>
+  </data>
+  <data name="_chromatograms_limit_noise" xml:space="preserve">
+    <value>Limits the length of the chromatagrams to a number of minutes around the chromatogram peak, i.e. ± minutes.</value>
   </data>
 </root>

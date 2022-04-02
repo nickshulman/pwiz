@@ -25,9 +25,13 @@
 
 #include "Filesystem.hpp"
 
-#ifdef WIN32
+#ifdef _MSC_VER
+    #ifdef _WIN32_WINNT
+        #undef _WIN32_WINNT
+    #endif
     #define _WIN32_WINNT 0x0600
     #define WIN32_LEAN_AND_MEAN
+    #define NOMINMAX
     #define NOGDI
     #include <windows.h>
     #include <direct.h>
@@ -53,9 +57,11 @@
 #include "pwiz/utility/misc/random_access_compressed_ifstream.hpp"
 #include <boost/filesystem/detail/utf8_codecvt_facet.hpp>
 #include <boost/locale/conversion.hpp>
+#include <boost/locale/encoding_utf.hpp>
 #include <boost/spirit/include/karma.hpp>
 //#include <boost/xpressive/xpressive.hpp>
 #include <iostream>
+#include <thread>
 
 using std::string;
 using std::vector;
@@ -646,7 +652,7 @@ PWIZ_API_DECL bool isHTTP(const string& s)
     //sregex uriRegex = sregex::compile("^(([^:/?#]+):)?(//([^/?#]*))?([^?#]*)(\\?([^#]*))?(#(.*))?");
     //return regex_match(s, uriRegex);
 
-    return bal::istarts_with(s, "http://") || bal::istarts_with(s, "https://");
+    return bal::istarts_with(s, "http:") || bal::istarts_with(s, "https:");
 }
 
 
@@ -669,29 +675,67 @@ PWIZ_API_DECL string read_file_header(const string& filepath, size_t length)
     UTF8_BoostFilesystemPathImbuer::instance->imbue();
 
     string head;
-    if (!bfs::is_directory(filepath) && !isHTTP(filepath))
-    {
-        if (!bfs::exists(filepath))
-            throw runtime_error("[read_file_header()] Unable to open file " + filepath + " (file does not exist)");
+    if (bfs::is_directory(filepath) || isHTTP(filepath))
+        return head;
 
-#ifdef WIN32 // check for locked files which can be opened by ifstream but only produce garbage when read (at least in VC12)
+    if (!bfs::exists(filepath))
+        throw runtime_error("[read_file_header()] Unable to open file " + filepath + " (file does not exist)");
+
+    const int RETRY_COUNT = 10;
+    for (int retry=1; retry <= RETRY_COUNT; ++retry)
+    {
+        try
         {
-            std::wstring wide_filepath = boost::locale::conv::utf_to_utf<wchar_t>(filepath);
-            FileWrapper handle(::CreateFileW(wide_filepath.c_str(), GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL));
-            if (handle == INVALID_HANDLE_VALUE)
-                throw runtime_error("[read_file_header()] Unable to open file " + filepath + " (invalid permission or file locked)");
-        }
+#ifdef WIN32 // check for locked files which can be opened by ifstream but only produce garbage when read (at least in VC12)
+            {
+                std::wstring wide_filepath = boost::locale::conv::utf_to_utf<wchar_t>(filepath);
+                FileWrapper handle(::CreateFileW(wide_filepath.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL));
+                if (handle == INVALID_HANDLE_VALUE)
+                    throw runtime_error("[read_file_header()] Unable to open file " + filepath + " (invalid permission or file locked)");
+            }
 #endif
 
-        random_access_compressed_ifstream is(filepath.c_str());
-        if (!is)
-            throw runtime_error("[read_file_header()] Unable to open file " + filepath + " (" + strerror(errno) + ")");
+            random_access_compressed_ifstream is(filepath.c_str());
+            if (!is)
+                throw runtime_error("[read_file_header()] Unable to open file " + filepath + " (" + strerror(errno) + ")");
 
-        head.resize(length, '\0');
-        if (!is.read(&head[0], (std::streamsize)head.size()) && !is.eof())
-            throw runtime_error("[read_file_header()] Unable to read file " + filepath + " (" + strerror(errno) + ")");
+            head.resize(length, '\0');
+            if (!is.read(&head[0], (std::streamsize)head.size()) && !is.eof())
+                throw runtime_error("[read_file_header()] Unable to read file " + filepath + " (" + strerror(errno) + ")");
+
+            break;
+        }
+        catch (runtime_error& e)
+        {
+            if (retry == RETRY_COUNT)
+                throw e;
+            std::this_thread::sleep_for(std::chrono::milliseconds(200));
+        }
     }
     return head;
+}
+
+
+PWIZ_API_DECL void check_path_length(const string& path)
+{
+#ifdef WIN32
+    if (isHTTP(path)) return;
+    std::wstring wide_path = boost::locale::conv::utf_to_utf<wchar_t>(bfs::absolute(path).string());
+    if (wide_path.length() > 250)
+        throw std::invalid_argument("path is too long (must be 250 characters or less): " + bfs::absolute(path).string());
+#endif
+}
+
+
+PWIZ_API_DECL TemporaryFile::TemporaryFile(const string& extension)
+{
+    filepath = bfs::temp_directory_path() / bfs::unique_path("%%%%%%%%%%%%%%%%" + extension);
+}
+
+PWIZ_API_DECL TemporaryFile::~TemporaryFile()
+{
+    if (bfs::exists(filepath))
+        bfs::remove(filepath);
 }
 
 

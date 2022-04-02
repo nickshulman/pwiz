@@ -20,12 +20,12 @@
 using System;
 using System.ComponentModel;
 using System.Linq;
-using pwiz.Common.Chemistry;
 using pwiz.Common.DataBinding;
 using pwiz.Common.DataBinding.Attributes;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.DocSettings.AbsoluteQuantification;
 using pwiz.Skyline.Model.ElementLocators;
+using pwiz.Skyline.Model.GroupComparison;
 using pwiz.Skyline.Model.Hibernate;
 using pwiz.Skyline.Model.Results;
 using pwiz.Skyline.Model.Results.Scoring;
@@ -38,7 +38,7 @@ namespace pwiz.Skyline.Model.Databinding.Entities
     public class PrecursorResult : Result
     {
         private readonly CachedValue<TransitionGroupChromInfo> _chromInfo;
-        private readonly CachedValue<QuantificationResult> _quantificationResult;
+        private readonly CachedValue<PrecursorQuantificationResult> _quantificationResult;
         public PrecursorResult(Precursor precursor, ResultFile file) : base(precursor, file)
         {
             _chromInfo = CachedValue.Create(DataSchema, ()=>GetResultFile().FindChromInfo(precursor.DocNode.Results));
@@ -80,10 +80,32 @@ namespace pwiz.Skyline.Model.Databinding.Entities
         public double? TotalBackgroundMs1 { get { return ChromInfo.BackgroundAreaMs1; } }
         [Format(Formats.PEAK_AREA, NullValue = TextUtil.EXCEL_NA)]
         public double? TotalBackgroundFragment { get { return ChromInfo.BackgroundAreaFragment; } }
+
         [Format(Formats.STANDARD_RATIO, NullValue = TextUtil.EXCEL_NA)]
-        public double? TotalAreaRatio { get { return ChromInfo.Ratio; } }
+        public double? TotalAreaRatio
+        {
+            get
+            {
+                var firstInternalStandard = DataSchema.NormalizedValueCalculator.RatioInternalStandardTypes.FirstOrDefault();
+                if (firstInternalStandard != null)
+                {
+                    return GetNormalizedArea(new NormalizationMethod.RatioToLabel(firstInternalStandard));
+                }
+                return GetNormalizedArea(NormalizationMethod.GLOBAL_STANDARDS);
+            }
+        }
         [Format(Formats.STANDARD_RATIO, NullValue = TextUtil.EXCEL_NA)]
-        public double? RatioDotProduct { get { return RatioValue.GetDotProduct(ChromInfo.Ratios.FirstOrDefault()); } }
+        public double? RatioDotProduct {
+            get
+            {
+                var firstInternalStandard = DataSchema.NormalizedValueCalculator.RatioInternalStandardTypes.FirstOrDefault();
+                if (firstInternalStandard != null)
+                {
+                    return GetRatioValue(new NormalizationMethod.RatioToLabel(firstInternalStandard))?.DotProduct;
+                }
+                return null;
+            }
+        }
         [Format(Formats.PEAK_AREA_NORMALIZED, NullValue = TextUtil.EXCEL_NA)]
         public double? TotalAreaNormalized { get { return TotalArea / GetResultFile().GetTotalArea(Precursor.IsotopeLabelType); } }
         [Format(Formats.PEAK_AREA, NullValue = TextUtil.EXCEL_NA)]
@@ -164,14 +186,13 @@ namespace pwiz.Skyline.Model.Databinding.Entities
         public double? IonMobilityWindow { get { return ChromInfo.IonMobilityInfo.IonMobilityWindow; } }
 
         [Format(NullValue = TextUtil.EXCEL_NA)]
-        public string IonMobilityUnits { get { return IonMobilityValue.GetUnitsString(ChromInfo.IonMobilityInfo.IonMobilityUnits); } }
+        public string IonMobilityUnits { get { return IonMobilityFilter.IonMobilityUnitsL10NString(ChromInfo.IonMobilityInfo.IonMobilityUnits); } }
 
-        [ChildDisplayName("Precursor{0}")]
-        public LinkValue<QuantificationResult> PrecursorQuantification
+        public LinkValue<PrecursorQuantificationResult> PrecursorQuantification
         {
             get
             {
-                return new LinkValue<QuantificationResult>(_quantificationResult.Value, (sender, args) =>
+                return new LinkValue<PrecursorQuantificationResult>(_quantificationResult.Value, (sender, args) =>
                 {
                     SkylineWindow skylineWindow = DataSchema.SkylineWindow;
                     if (skylineWindow != null)
@@ -246,16 +267,28 @@ namespace pwiz.Skyline.Model.Databinding.Entities
         {
             return !ChromInfo.RetentionTime.HasValue;
         }
-        private QuantificationResult GetQuantification()
+        private PrecursorQuantificationResult GetQuantification()
         {
             var calibrationCurveFitter = PeptideResult.GetCalibrationCurveFitter();
-            if (!calibrationCurveFitter.IsotopologResponseCurve)
-            {
-                return null;
-            }
             return calibrationCurveFitter.GetPrecursorQuantificationResult(GetResultFile().Replicate.ReplicateIndex,
                 Precursor.DocNode);
         }
 
+        public double? GetNormalizedArea(NormalizationMethod normalizationMethod)
+        {
+            if (normalizationMethod == null)
+            {
+                return null;
+            }
+
+            return DataSchema.NormalizedValueCalculator.GetTransitionGroupValue(normalizationMethod,
+                Precursor.Peptide.DocNode, Precursor.DocNode, ChromInfo);
+        }
+
+        public RatioValue GetRatioValue(NormalizationMethod.RatioToLabel ratioToLabel)
+        {
+            return DataSchema.NormalizedValueCalculator.GetTransitionGroupRatioValue(ratioToLabel,
+                Precursor.Peptide.DocNode, Precursor.DocNode, ChromInfo);
+        }
     }
 }

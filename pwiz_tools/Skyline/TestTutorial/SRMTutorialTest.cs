@@ -42,14 +42,13 @@ namespace pwiz.SkylineTestTutorial
     public class SrmTutorialTest : AbstractFunctionalTestEx
     {
         [TestMethod]
-        [Timeout(60*60*1000)]  // These can take a long time in code coverage mode (1 hour)
-        public void TestSrmTutorial()
+        public void TestSrmTutorialLegacy()
         {
             //Set true to look at tutorial screenshots
             //IsPauseForScreenShots = true;
             TestFilesZipPaths = new[]
             {
-                @"http://targetedproteomics.ethz.ch/tutorials2014/USB.zip",
+                @"https://skyline.gs.washington.edu/tutorials/SrmTutorialTest.zip",
                 @"TestTutorial\SRMViews.zip"
             };
             RunFunctionalTest();
@@ -338,16 +337,21 @@ namespace pwiz.SkylineTestTutorial
             PauseForScreenShot("Edit Collision Energy Equation Window", 2);
             OkDialog(editCollisionEnergy, editCollisionEnergy.OkDialog);
             OkDialog(transitionSettings, transitionSettings.OkDialog);
-
+            
             SetExcelFileClipboardText(GetTestPath("Tutorial-4_Parameters\\transition_list_for_CEO.xlsx"), "Sheet1", 3,
                 false);
-            var insertTransitionDlg = ShowDialog<PasteDlg>(SkylineWindow.ShowPasteTransitionListDlg);
-            RunUI(() => insertTransitionDlg.IsMolecule = false); // Make sure it's ready to accept peptides, not small molecules
-            RunUI(insertTransitionDlg.PasteTransitions);
-            OkDialog(insertTransitionDlg, insertTransitionDlg.OkDialog);
+
+            var importDialog3 = ShowDialog<InsertTransitionListDlg>(SkylineWindow.ShowPasteTransitionListDlg);
+            string impliedLabeled = GetExcelFileText(GetTestPath("Tutorial-4_Parameters\\transition_list_for_CEO.xlsx"), "Sheet1", 3,
+                false);
+            var col4Dlg = ShowDialog<ImportTransitionListColumnSelectDlg>(() => importDialog3.TransitionListText = impliedLabeled);
+            WaitForConditionUI(() => col4Dlg.AssociateProteinsPreviewCompleted); // Wait for initial associate proteins to complete
+
+            OkDialog(col4Dlg, col4Dlg.OkDialog);
 
             AssertEx.IsDocumentState(SkylineWindow.Document, null, 10, 30, 30, 143);
 
+            
             var exportDlg3 = ShowDialog<ExportMethodDlg>(SkylineWindow.ShowExportTransitionListDlg);
             RunUI(() =>
             {
@@ -384,7 +388,7 @@ namespace pwiz.SkylineTestTutorial
             RunUI(() =>
             {
                 SkylineWindow.ShowAllTransitions();
-                SkylineWindow.NormalizeAreaGraphTo(AreaNormalizeToView.area_maximum_view);
+                SkylineWindow.NormalizeAreaGraphTo(NormalizeOption.MAXIMUM);
             });
             RestoreViewOnScreen(44);
             PauseForScreenShot("Skyline Window", 4);
@@ -463,5 +467,6 @@ namespace pwiz.SkylineTestTutorial
             WaitForDocumentLoaded();
             WaitForClosedForm<AllChromatogramsGraph>();
         }
+        
     }
 }

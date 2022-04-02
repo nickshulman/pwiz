@@ -52,6 +52,7 @@ namespace pwiz.SkylineTestFunctional
             // Open the .sky file
             string documentPath = TestFilesDir.GetTestPath(DOCUMENT_NAME);
             RunUI(() => SkylineWindow.OpenFile(documentPath));
+            WaitForDocumentLoaded();
 
             // SCIEX parameter equations changed in 4.1.1
             RunDlg<TransitionSettingsUI>(() => SkylineWindow.ShowTransitionSettingsUI(), tranSettings =>
@@ -111,6 +112,7 @@ namespace pwiz.SkylineTestFunctional
             RunUI(() => SkylineWindow.SaveDocument());
             RunUI(SkylineWindow.NewDocument);
             RunUI(() => SkylineWindow.OpenFile(documentPath));
+            WaitForDocumentLoaded();
             Assert.AreEqual(2, GetPrecursorTranstionCount());
 
             // Export a transition list
@@ -137,8 +139,8 @@ namespace pwiz.SkylineTestFunctional
 
             // Paste the transition list
             SetClipboardTextUI(File.ReadAllText(tranListPath));
-            RunUI(() => SkylineWindow.Paste());
-
+            PasteTransitionListSkipColumnSelect();
+            WaitForCondition(() => 0 != SkylineWindow.Document.MoleculeCount);
             Assert.AreEqual(2, GetPrecursorTranstionCount());
             Assert.AreEqual(docCurrent.PeptideTransitionCount, SkylineWindow.Document.PeptideTransitionCount);
             Assert.AreEqual(IonType.precursor, new List<TransitionDocNode>(docCurrent.PeptideTransitions)[0].Transition.IonType,

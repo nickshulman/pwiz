@@ -192,6 +192,7 @@
     <Compile Include="PropertySettingsTest.cs" />
     <Compile Include="Proteome\ProteomeDbTest.cs" />
     <Compile Include="PublishDocAddSubfolderTest.cs" />
+    <Compile Include="Quantification\BilinearLoqCalculationTest.cs" />
     <Compile Include="Quantification\CalibrationCurveFitterTest.cs" />
     <Compile Include="Quantification\WeightedRegressionTest.cs" />
     <Compile Include="RandomTest.cs" />

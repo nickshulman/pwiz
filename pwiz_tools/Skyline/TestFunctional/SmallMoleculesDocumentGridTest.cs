@@ -51,13 +51,14 @@ namespace pwiz.SkylineTestFunctional
         {
             // Try a mixed document
             const string mixedSky = "mixed.sky";
+            EnsureMixedTransitionListReport();
             CheckDocumentGridAndColumns(mixedSky,
-                Resources.SkylineViewContext_GetTransitionListReportSpec_Mixed_Transition_List,
+                MIXED_TRANSITION_LIST_REPORT_NAME,
                 49, 32, SrmDocument.DOCUMENT_TYPE.mixed, "C19H34[M-H]", "custom", "C12H19", "C12H19", "C12H18");
 
             CheckDocumentGridAndColumns(mixedSky,
                 Resources.SkylineViewContext_GetDocumentGridRowSources_Precursors,
-                4, 14, SrmDocument.DOCUMENT_TYPE.mixed);
+                4, 15, SrmDocument.DOCUMENT_TYPE.mixed);
 
             CheckDocumentGridAndColumns(mixedSky,
                 Resources.SkylineViewContext_GetDocumentGridRowSources_Molecules,
@@ -76,7 +77,7 @@ namespace pwiz.SkylineTestFunctional
 
             CheckDocumentGridAndColumns(smallMoleculeSky,
                 Resources.SkylineViewContext_GetDocumentGridRowSources_Precursors,
-                1, 13, SrmDocument.DOCUMENT_TYPE.small_molecules);
+                1, 14, SrmDocument.DOCUMENT_TYPE.small_molecules);
 
             CheckDocumentGridAndColumns(smallMoleculeSky,
                 Resources.SkylineViewContext_GetDocumentGridRowSources_Molecules,
@@ -94,7 +95,7 @@ namespace pwiz.SkylineTestFunctional
 
             CheckDocumentGridAndColumns(peptideSky,
                             Resources.SkylineViewContext_GetDocumentGridRowSources_Precursors,
-                            3, 10, SrmDocument.DOCUMENT_TYPE.proteomic);
+                            3, 11, SrmDocument.DOCUMENT_TYPE.proteomic);
 
             CheckDocumentGridAndColumns(peptideSky,
                             Resources.SkylineViewContext_GetDocumentGridRowSources_Peptides,

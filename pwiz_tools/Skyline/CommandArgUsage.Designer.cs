@@ -19,7 +19,7 @@ namespace pwiz.Skyline {
     // class via a tool like ResGen or Visual Studio.
     // To add or remove a member, edit your .ResX file then rerun ResGen
     // with the /str option, or rebuild your VS project.
-    [global::System.CodeDom.Compiler.GeneratedCodeAttribute("System.Resources.Tools.StronglyTypedResourceBuilder", "15.0.0.0")]
+    [global::System.CodeDom.Compiler.GeneratedCodeAttribute("System.Resources.Tools.StronglyTypedResourceBuilder", "17.0.0.0")]
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
     [global::System.Runtime.CompilerServices.CompilerGeneratedAttribute()]
     internal class CommandArgUsage {
@@ -61,7 +61,7 @@ namespace pwiz.Skyline {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Name to give the spectral library in an –add-library-path operation..
+        ///   Looks up a localized string similar to Name to give the spectral library in an –-add-library-path operation..
         /// </summary>
         internal static string _add_library_name {
             get {
@@ -129,6 +129,24 @@ namespace pwiz.Skyline {
         internal static string _chromatogram_tics {
             get {
                 return ResourceManager.GetString("_chromatogram_tics", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Discard all unused chromatograms from the document..
+        /// </summary>
+        internal static string _chromatograms_discard_unused {
+            get {
+                return ResourceManager.GetString("_chromatograms_discard_unused", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Limits the length of the chromatagrams to a number of minutes around the chromatogram peak, i.e. ± minutes..
+        /// </summary>
+        internal static string _chromatograms_limit_noise {
+            get {
+                return ResourceManager.GetString("_chromatograms_limit_noise", resourceCulture);
             }
         }
         
@@ -205,7 +223,7 @@ namespace pwiz.Skyline {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Export an isolation list. This option is required for exporting an isolation list and has no default. This option cannot be used with –exp-translist-instrument or –exp-method-instrument, because you cannot export an isolation list and a transition list or method simultaneously..
+        ///   Looks up a localized string similar to Export an isolation list. This option is required for exporting an isolation list and has no default. This option cannot be used with -–exp-translist-instrument or –exp-method-instrument, because you cannot export an isolation list and a transition list or method simultaneously..
         /// </summary>
         internal static string _exp_isolationlist_instrument {
             get {
@@ -223,7 +241,7 @@ namespace pwiz.Skyline {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Export a method. This option is required for exporting a method and has no default. This option cannot be used with –exp-isolationlist-instrument or --exp-translist-instrument, because you cannot export a method and an isolation/transition list simultaneously..
+        ///   Looks up a localized string similar to Export a method. This option is required for exporting a method and has no default. This option cannot be used with --exp-isolationlist-instrument or --exp-translist-instrument, because you cannot export a method and an isolation/transition list simultaneously..
         /// </summary>
         internal static string _exp_method_instrument {
             get {
@@ -313,7 +331,7 @@ namespace pwiz.Skyline {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Export a transition list. This option is required for exporting a transition list and has no default. This option cannot be used with –exp-isolation-list or --exp-method-instrument, because you cannot export a transition list and an isolation list or method simultaneously..
+        ///   Looks up a localized string similar to Export a transition list. This option is required for exporting a transition list and has no default. This option cannot be used with --exp-isolation-list or --exp-method-instrument, because you cannot export a transition list and an isolation list or method simultaneously..
         /// </summary>
         internal static string _exp_translist_instrument {
             get {
@@ -565,6 +583,15 @@ namespace pwiz.Skyline {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Read peak boundaries from a comma or tab separated file.
+        /// </summary>
+        internal static string _import_peak_boundaries {
+            get {
+                return ResourceManager.GetString("_import_peak_boundaries", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to A number of sub-processes will be run for single-file import, after which the results from each single file will be joined by the main process. This can produce 10x performance gains on24-core NUMA servers and 3-4x even on i7 processors, under the right conditions. Be sure to test with your system..
         /// </summary>
         internal static string _import_process_count {
@@ -628,11 +655,38 @@ namespace pwiz.Skyline {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Name of iRT standard to to be used when building a spectral library..
+        /// </summary>
+        internal static string _import_search_irts {
+            get {
+                return ResourceManager.GetString("_import_search_irts", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Specify the number of CiRT peptides to use as iRT standards if building a spectral library with CiRT peptides as iRT standards..
+        /// </summary>
+        internal static string _import_search_num_cirts {
+            get {
+                return ResourceManager.GetString("_import_search_num_cirts", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to For MaxQuant msms.txt files to force use of the spectra in the file rather than opening raw data files for the original spectra. The MaxQuant msms.txt files contain charge-state deconvoluted spectra which may not be appropriate for target selection..
         /// </summary>
         internal static string _import_search_prefer_embedded_spectra {
             get {
                 return ResourceManager.GetString("_import_search_prefer_embedded_spectra", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to If building a spectral library with iRT standards, recalibrate the iRT standard values relative to the peptides being added..
+        /// </summary>
+        internal static string _import_search_recalibrate_irts {
+            get {
+                return ResourceManager.GetString("_import_search_recalibrate_irts", resourceCulture);
             }
         }
         
@@ -879,6 +933,42 @@ namespace pwiz.Skyline {
         internal static string _refine_cv_transitions_count {
             get {
                 return ResourceManager.GetString("_refine_cv_transitions_count", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Keep only targets with a group comparision fold change above this cutoff. (optional for group comparison refinement).
+        /// </summary>
+        internal static string _refine_gc_fold_change_cutoff {
+            get {
+                return ResourceManager.GetString("_refine_gc_fold_change_cutoff", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The MS level (1 or 2) to use in calculating peak areas for a group comparison refinement. Defaults to level 2 if both levels are present, and otherwise uses whichever level is present..
+        /// </summary>
+        internal static string _refine_gc_ms_level {
+            get {
+                return ResourceManager.GetString("_refine_gc_ms_level", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The name of a previously defined group comparison to use in refining for significantly changing targets. Specify the argument multiple times with multiple names to keep the union of multiple comparisons..
+        /// </summary>
+        internal static string _refine_gc_name {
+            get {
+                return ResourceManager.GetString("_refine_gc_name", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Keep only targets with a group comparison adjusted p value below the specified cut-off. (required for group comparison refinement).
+        /// </summary>
+        internal static string _refine_gc_p_value_cutoff {
+            get {
+                return ResourceManager.GetString("_refine_gc_p_value_cutoff", resourceCulture);
             }
         }
         
@@ -1371,7 +1461,7 @@ namespace pwiz.Skyline {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Specifies the path to an executable on the local machine for the program title and version specified by the -–tool-program-macro flag..
+        ///   Looks up a localized string similar to Specifies the path to an executable on the local machine for the program title and version specified by the --tool-program-macro flag..
         /// </summary>
         internal static string _tool_program_path {
             get {
@@ -1703,6 +1793,15 @@ namespace pwiz.Skyline {
         internal static string CommandArgs_GROUP_METHOD_Exporting_native_instrument_methods {
             get {
                 return ResourceManager.GetString("CommandArgs_GROUP_METHOD_Exporting_native_instrument_methods", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Minimizing results file size.
+        /// </summary>
+        internal static string CommandArgs_GROUP_MINIMIZE_RESULTS_Minimizing_results_file_size {
+            get {
+                return ResourceManager.GetString("CommandArgs_GROUP_MINIMIZE_RESULTS_Minimizing_results_file_size", resourceCulture);
             }
         }
         

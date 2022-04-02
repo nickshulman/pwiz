@@ -19,6 +19,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using pwiz.Skyline.Controls.Graphs;
 using pwiz.Skyline.Controls.SeqNode;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.Results;
@@ -54,8 +55,7 @@ namespace pwiz.Skyline.Model
                 return;
 
             var chromSet = doc.Settings.MeasuredResults.Chromatograms[resultsIndex];
-            ChromatogramGroupInfo[] chromGroupInfos;
-            if (!doc.Settings.MeasuredResults.TryLoadChromatogram(chromSet, nodePep, nodeTranGroup, mzMatchTolerance, true, out chromGroupInfos))
+            if (!doc.Settings.MeasuredResults.TryLoadChromatogram(chromSet, nodePep, nodeTranGroup, mzMatchTolerance, out var chromGroupInfos))
                 return;
 
             var chromGroupInfo = chromGroupInfos.FirstOrDefault(info => Equals(chromSet.GetFileInfo(tranGroupChromInfo.FileId).FilePath, info.FilePath));
@@ -122,21 +122,27 @@ namespace pwiz.Skyline.Model
             referenceMatchData = referenceMatchDataList.ToArray();
         }
 
-        public static SrmDocument ApplyPeak(SrmDocument doc, PeptideTreeNode nodePepTree, ref TransitionGroupDocNode nodeTranGroup,
-            int resultsIndex, ChromFileInfoId resultsFile, bool subsequent, ILongWaitBroker longWaitBroker)
+        public static SrmDocument ApplyPeak(SrmDocument doc, PeptideTreeNode nodePepTree, TransitionGroupDocNode nodeTranGroup,
+            int resultsIndex, ChromFileInfoId resultsFile, bool subsequent, ReplicateValue groupBy, object groupByValue, ILongWaitBroker longWaitBroker)
         {
             nodeTranGroup = nodeTranGroup ?? PickTransitionGroup(doc, nodePepTree, resultsIndex);
+            GetReferenceData(doc, nodePepTree.DocNode, nodeTranGroup, resultsIndex, resultsFile, out var referenceTarget, out var referenceMatchData, out var runTime);
 
-            PeakMatchData referenceTarget;
-            PeakMatchData[] referenceMatchData;
-            DateTime? runTime;
-            GetReferenceData(doc, nodePepTree.DocNode, nodeTranGroup, resultsIndex, resultsFile, out referenceTarget, out referenceMatchData, out runTime);
-
+            var annotationCalculator = new AnnotationCalculator(doc);
             var chromatograms = doc.Settings.MeasuredResults.Chromatograms;
-            for (int i = 0; i < chromatograms.Count; i++)
+            for (var i = 0; i < chromatograms.Count; i++)
             {
                 var chromSet = chromatograms[i];
-                for (int j = 0; j < chromSet.MSDataFileInfos.Count; j++)
+
+                if (groupBy != null)
+                {
+                    if (!Equals(groupByValue, groupBy.GetValue(annotationCalculator, chromSet)))
+                    {
+                        continue;
+                    }
+                }
+
+                for (var j = 0; j < chromSet.MSDataFileInfos.Count; j++)
                 {
                     var fileInfo = chromSet.MSDataFileInfos[j];
                     if ((i == resultsIndex && (resultsFile == null || ReferenceEquals(resultsFile, fileInfo.FileId))) ||
@@ -154,7 +160,7 @@ namespace pwiz.Skyline.Model
             return doc;
         }
 
-        private static TransitionGroupDocNode PickTransitionGroup(SrmDocument doc, PeptideTreeNode nodePepTree, int resultsIndex)
+        public static TransitionGroupDocNode PickTransitionGroup(SrmDocument doc, PeptideTreeNode nodePepTree, int resultsIndex)
         {
             // Determine which transition group to use
             var nodeTranGroups = nodePepTree.DocNode.TransitionGroups.ToArray();
@@ -182,7 +188,7 @@ namespace pwiz.Skyline.Model
             {
                 ChromatogramSet chromSet = doc.Settings.MeasuredResults.Chromatograms[resultsIndex];
                 ChromatogramGroupInfo[] chromGroupInfos;
-                if (!doc.Settings.MeasuredResults.TryLoadChromatogram(chromSet, nodePepTree.DocNode, tranGroup, mzMatchTolerance, false, out chromGroupInfos))
+                if (!doc.Settings.MeasuredResults.TryLoadChromatogram(chromSet, nodePepTree.DocNode, tranGroup, mzMatchTolerance, out chromGroupInfos))
                     continue;
 
                 float areaSum = chromGroupInfos.Where(info => info != null && info.TransitionPointSets != null)
@@ -205,7 +211,7 @@ namespace pwiz.Skyline.Model
             var mzMatchTolerance = (float) doc.Settings.TransitionSettings.Instrument.MzMatchTolerance;
 
             ChromatogramGroupInfo[] loadInfos;
-            if (!nodeTranGroup.HasResults || !doc.Settings.MeasuredResults.TryLoadChromatogram(chromSet, null, nodeTranGroup, mzMatchTolerance, true, out loadInfos))
+            if (!nodeTranGroup.HasResults || !doc.Settings.MeasuredResults.TryLoadChromatogram(chromSet, null, nodeTranGroup, mzMatchTolerance, out loadInfos))
                 return null;
 
             var chromGroupInfo = loadInfos.FirstOrDefault(info => Equals(info.FilePath, fileInfo.FilePath));

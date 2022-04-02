@@ -29,9 +29,9 @@ using pwiz.Skyline.Controls;
 using pwiz.Skyline.FileUI.PeptideSearch;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.Irt;
-using pwiz.Skyline.Model.Lib;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
+using pwiz.Skyline.Util.Extensions;
 
 namespace pwiz.Skyline.SettingsUI
 {
@@ -50,6 +50,11 @@ namespace pwiz.Skyline.SettingsUI
         {
             _documentContainer = documentContainer;
 
+            Initialize();
+        }
+
+        public void Initialize()
+        {
             InitializeComponent();
 
             InitializeMs1FilterUI();
@@ -72,7 +77,7 @@ namespace pwiz.Skyline.SettingsUI
         public TransitionSettings TransitionSettings { get { return _documentContainer.Document.Settings.TransitionSettings; } }
         public TransitionFullScan FullScan { get { return TransitionSettings.FullScan; } }
 
-        public IonMobility.UseSpectralLibraryIonMobilityValuesControl UseSpectralLibraryIonMobilityValuesControl { get { return useSpectralLibraryIonMobilityValuesControl; } }
+        public IonMobility.IonMobilityFilteringUserControl IonMobilityFiltering { get { return usercontrolIonMobilityFiltering; } }
 
         public FullScanPrecursorIsotopes PrecursorIsotopesCurrent
         {
@@ -105,6 +110,8 @@ namespace pwiz.Skyline.SettingsUI
 
             set { comboAcquisitionMethod.SelectedItem = value; }
         }
+
+        public ComboBox ComboAcquisitionMethod => comboAcquisitionMethod;
 
         public FullScanMassAnalyzerType ProductMassAnalyzer
         {
@@ -517,7 +524,22 @@ namespace pwiz.Skyline.SettingsUI
             string sel = (FullScan.IsolationScheme != null ? FullScan.IsolationScheme.Name : null);
             _driverIsolationScheme.LoadList(sel);
 
-            comboAcquisitionMethod.Items.AddRange(FullScanAcquisitionMethod.ALL.Cast<object>().ToArray());
+            comboAcquisitionMethod.Items.AddRange(FullScanAcquisitionMethod.AVAILABLE.Cast<object>().ToArray());
+            if (FullScanAcquisitionMethod.AVAILABLE.IndexOf(FullScan.AcquisitionMethod) < 0)
+            {
+                // If the current value is an obsolete method which has been removed from FullScanAcquisitionMethod.AVAILABLE
+                // then add it now
+                comboAcquisitionMethod.Items.Add(FullScan.AcquisitionMethod);
+            }
+            ComboHelper.AutoSizeDropDown(comboAcquisitionMethod);
+
+            // Set the tooltip on comboAcquisitionMethod based on the available options
+            var acquisitionMethodTooltip = TextUtil.LineSeparate(
+                comboAcquisitionMethod.Items.OfType<FullScanAcquisitionMethod>()
+                    .Where(option => !string.IsNullOrEmpty(option.Tooltip))
+                    .Select(option => option.Label + @": " + option.Tooltip));
+            toolTip.SetToolTip(comboAcquisitionMethod, acquisitionMethodTooltip);
+
             comboProductAnalyzerType.Items.AddRange(TransitionFullScan.MASS_ANALYZERS.Cast<object>().ToArray());
             comboAcquisitionMethod.SelectedItem = FullScan.AcquisitionMethod;
 
@@ -529,6 +551,8 @@ namespace pwiz.Skyline.SettingsUI
         /// Callback event handler that will get called if the Acquisition method gets changed
         /// </summary>
         public EventHandler IsolationSchemeChangedEvent { get; set; }
+
+        public event Action AcquisitionMethodChanged;
 
         private void comboAcquisitionMethod_SelectedIndexChanged(object sender, EventArgs e)
         {
@@ -567,6 +591,7 @@ namespace pwiz.Skyline.SettingsUI
             }
             FullScanEnabledChanged?.Invoke(new FullScanEnabledChangeEventArgs(null, comboProductAnalyzerType.Enabled));// Fire event so Filter iontypes settings can update as needed
             UpdateRetentionTimeFilterUi();
+            AcquisitionMethodChanged?.Invoke();
         }
 
         private void EnableIsolationScheme(bool enable)
@@ -613,6 +638,11 @@ namespace pwiz.Skyline.SettingsUI
         public void AddIsolationScheme()
         {
             _driverIsolationScheme.AddItem();
+        }
+
+        public void EditCurrentIsolationScheme()
+        {
+            _driverIsolationScheme.EditCurrent();
         }
 
         public void EditIsolationScheme()
@@ -778,14 +808,13 @@ namespace pwiz.Skyline.SettingsUI
             set { radioKeepAllTime.Checked = value; }
         }
 
-        public bool UseTimeAroundMs2Ids
-        {
-            get { return radioTimeAroundMs2Ids.Checked; }
-        }
-
         public double TimeAroundMs2Ids
         {
             get { return double.Parse(tbxTimeAroundMs2Ids.Text); }
+        }
+        public double TimeAroundPrediction
+        {
+            get { return double.Parse(tbxTimeAroundPrediction.Text); }
         }
 
         public static void SetAnalyzerType(FullScanMassAnalyzerType analyzerTypeNew,
@@ -881,12 +910,17 @@ namespace pwiz.Skyline.SettingsUI
 
         private void InitializeUseSpectralLibraryIonMobilityUI()
         {
-            useSpectralLibraryIonMobilityValuesControl.InitializeSettings(_documentContainer);
+            usercontrolIonMobilityFiltering.InitializeSettings(_documentContainer);
         }
 
-        public void ModifyOptionsForImportPeptideSearchWizard(ImportPeptideSearchDlg.Workflow workflow, Library lib)
+        private ImportPeptideSearchDlg.Workflow? _lastPeptideSearchWorkflow;
+        public void ModifyOptionsForImportPeptideSearchWizard(ImportPeptideSearchDlg.Workflow workflow, bool libIonMobilities)
         {
             var settings = _documentContainer.Document.Settings;
+
+            if (_lastPeptideSearchWorkflow == workflow)
+                return;
+            _lastPeptideSearchWorkflow = workflow;
 
             // Reduce MS1 filtering groupbox
             int sepMS1FromMS2 = groupBoxMS2.Top - groupBoxMS1.Bottom;
@@ -908,6 +942,11 @@ namespace pwiz.Skyline.SettingsUI
 
                 // Reposition MS1 filtering groupbox
                 groupBoxMS1.Top = textPrecursorCharges.Bottom + sepMS1FromMS2;
+            }
+            else
+            {
+                textPrecursorCharges.Enabled = false; // So these don't show up in height calculation
+                lblPrecursorCharges.Enabled = false;
             }
 
             if (workflow != ImportPeptideSearchDlg.Workflow.dia)
@@ -941,13 +980,14 @@ namespace pwiz.Skyline.SettingsUI
 
                 AcquisitionMethod = (workflow == ImportPeptideSearchDlg.Workflow.dia)
                     ? FullScanAcquisitionMethod.DIA
-                    : FullScanAcquisitionMethod.Targeted;
+                    : FullScanAcquisitionMethod.PRM;
 
                 ProductMassAnalyzer = PrecursorMassAnalyzer;
 
-                if (workflow == ImportPeptideSearchDlg.Workflow.dia && Settings.Default.IsolationSchemeList.Count > 1)
+                if (workflow == ImportPeptideSearchDlg.Workflow.dia && Settings.Default.IsolationSchemeList.Count > 1 &&
+                    settings.TransitionSettings.FullScan.IsolationScheme == null)
                 {
-                    comboIsolationScheme.SelectedIndex = 1;
+                    comboIsolationScheme.SelectedIndex = 1; // Use "Results" isolation scheme
                 }
             }
             else
@@ -961,20 +1001,39 @@ namespace pwiz.Skyline.SettingsUI
             }
 
             // Ask about ion mobility filtering if any IM values in library
-            if (lib != null && PeptideLibraries.HasIonMobilities(lib, null))
+            if (libIonMobilities)
             {
-                useSpectralLibraryIonMobilityValuesControl.Top = groupBoxRetentionTimeToKeep.Bottom + sepMS1FromMS2;
-                useSpectralLibraryIonMobilityValuesControl.InitializeSettings(_documentContainer, true);
-                useSpectralLibraryIonMobilityValuesControl.Width = groupBoxMS1.Width;
-                useSpectralLibraryIonMobilityValuesControl.HideControls();
-                var adjustedHeight = useSpectralLibraryIonMobilityValuesControl.Bottom + label1.Height; // Add control height plus a margin
-                MinimumSize = new Size(MinimumSize.Width, adjustedHeight);
-                Height = adjustedHeight;
+                usercontrolIonMobilityFiltering.InitializeSettings(_documentContainer, true);
+                usercontrolIonMobilityFiltering.ShowOnlyResolvingPowerControls(groupBoxMS1.Width);
+                var extraHeight = usercontrolIonMobilityFiltering.Height + sepMS1FromMS2; // Add control height plus a margin
+
+                // Move the IM filter control above the RT control
+                var usercontrolIonMobilityFilteringTop = groupBoxRetentionTimeToKeep.Top;
+                var lowerControls = Controls.OfType<Control>().Where(c => c.Enabled && c.Top >= usercontrolIonMobilityFilteringTop).ToArray();
+                foreach (var ctl in lowerControls)
+                {
+                    ctl.Top += extraHeight;
+                }
+                usercontrolIonMobilityFiltering.Top = usercontrolIonMobilityFilteringTop;
+                // And now enforce consistent vertical spacing
+                var controls = Controls.OfType<Control>().OrderBy(c => c.Top).ToArray();
+                for (var i = 1; i < controls.Length; i++)
+                {
+                    if (lowerControls.Contains(controls[i]))
+                    {
+                        controls[i].Top = controls[i - 1].Bottom + sepMS1FromMS2;
+                    }
+                }
             }
             else
             {
-                useSpectralLibraryIonMobilityValuesControl.Visible = false;
+                usercontrolIonMobilityFiltering.Visible = false;
+                usercontrolIonMobilityFiltering.Enabled = false;
             }
+            // Note actual in-use  height
+            var bottom = Controls.OfType<Control>().Where(c => c.Enabled).Select(c => c.Bottom).Max();
+            Height = bottom;
+            MinimumSize = new Size(MinimumSize.Width, Height);
         }
 
         private void radioTimeAroundMs2Ids_CheckedChanged(object sender, EventArgs e)
@@ -1004,7 +1063,7 @@ namespace pwiz.Skyline.SettingsUI
             {
                 groupBoxRetentionTimeToKeep.Enabled = true;
             }
-            if (radioKeepAllTime.Checked && !disabled)
+            if (radioKeepAllTime.Checked && !disabled && ShouldAdviseAgainstFullGradientChromatograms(AcquisitionMethod))
             {
                 radioKeepAllTime.ForeColor = Color.Red;
                 toolTip.SetToolTip(radioKeepAllTime,
@@ -1056,6 +1115,23 @@ namespace pwiz.Skyline.SettingsUI
             {
                 tbxTimeAroundPrediction.Enabled = false;
             }
+        }
+
+        /// <summary>
+        /// Returns true if the user should be encouraged to use one of the retention time filtering
+        /// options to prevent full gradient chromatograms from being extracted.
+        /// </summary>
+        private bool ShouldAdviseAgainstFullGradientChromatograms(
+            FullScanAcquisitionMethod fullScanAcquisitionMethod)
+        {
+            if (fullScanAcquisitionMethod == FullScanAcquisitionMethod.PRM ||
+                fullScanAcquisitionMethod == FullScanAcquisitionMethod.SureQuant ||
+                fullScanAcquisitionMethod == FullScanAcquisitionMethod.Targeted)
+            {
+                return false;
+            }
+
+            return true;
         }
 
         public int GroupBoxMS2Height { get { return groupBoxMS2.Height; } }

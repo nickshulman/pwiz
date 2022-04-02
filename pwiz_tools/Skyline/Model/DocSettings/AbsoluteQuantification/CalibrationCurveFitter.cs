@@ -85,11 +85,22 @@ namespace pwiz.Skyline.Model.DocSettings.AbsoluteQuantification
             return result;
         }
 
-        public double? GetPeptideConcentration(ChromatogramSet chromatogramSet)
+        public double? GetPeptideConcentration(int replicateIndex)
         {
+            var chromatogramSet = GetChromatogramSet(replicateIndex);
             if (null == chromatogramSet)
             {
                 return null;
+            }
+
+            var results = PeptideQuantifier.PeptideDocNode.Results;
+            if (null != results && 0 <= replicateIndex && replicateIndex < results.Count)
+            {
+                var peptideChromInfo = results[replicateIndex].FirstOrDefault();
+                if (peptideChromInfo != null && peptideChromInfo.AnalyteConcentration.HasValue)
+                {
+                    return peptideChromInfo.AnalyteConcentration.Value;
+                }
             }
             double concentrationMultiplier = PeptideQuantifier.PeptideDocNode.ConcentrationMultiplier.GetValueOrDefault(1.0);
             return chromatogramSet.AnalyteConcentration*concentrationMultiplier/chromatogramSet.SampleDilutionFactor;
@@ -112,7 +123,7 @@ namespace pwiz.Skyline.Model.DocSettings.AbsoluteQuantification
                 }
                 return transitionGroup.PrecursorConcentration / chromatogramSet.SampleDilutionFactor;
             }
-            return GetPeptideConcentration(chromatogramSet);
+            return GetPeptideConcentration(calibrationPoint.ReplicateIndex);
         }
 
         public IEnumerable<CalibrationPoint> EnumerateCalibrationPoints()
@@ -186,7 +197,7 @@ namespace pwiz.Skyline.Model.DocSettings.AbsoluteQuantification
                     {
                         continue;
                     }
-                    double? concentration = GetPeptideConcentration(chromatogramSet);
+                    double? concentration = GetPeptideConcentration(replicateIndex);
                     if (concentration.HasValue)
                     {
                         result.Add(new CalibrationPoint(replicateIndex, null), concentration.Value);
@@ -271,7 +282,7 @@ namespace pwiz.Skyline.Model.DocSettings.AbsoluteQuantification
             {
                 quantitiesToSum = allTransitionQuantities.Values;
             }
-            return PeptideQuantifier.SumQuantities(quantitiesToSum, PeptideQuantifier.NormalizationMethod);
+            return PeptideQuantifier.SumQuantities(quantitiesToSum, PeptideQuantifier.NormalizationMethod, QuantificationSettings.SimpleRatios);
         }
 
         public CalibrationCurve GetCalibrationCurve()
@@ -325,7 +336,41 @@ namespace pwiz.Skyline.Model.DocSettings.AbsoluteQuantification
             {
                 figuresOfMerit = figuresOfMerit.ChangeUnits(QuantificationSettings.Units);
             }
+
             return figuresOfMerit;
+        }
+
+        public double? GetTargetIonRatio(TransitionGroupDocNode transitionGroupDocNode)
+        {
+            var measuredResults = SrmSettings.MeasuredResults;
+            double totalQualitativeIonRatio = 0;
+            int qualitativeIonRatioCount = 0;
+            foreach (var replicateIndex in EnumerateReplicates())
+            {
+                if (IsExcluded(replicateIndex))
+                {
+                    continue;
+                }
+                var chromatogramSet = measuredResults.Chromatograms[replicateIndex];
+                if (!SampleType.STANDARD.Equals(chromatogramSet.SampleType))
+                {
+                    continue;
+                }
+
+                var qualitativeIonRatio = PeptideQuantifier.GetQualitativeIonRatio(SrmSettings, transitionGroupDocNode, replicateIndex);
+                if (qualitativeIonRatio.HasValue)
+                {
+                    totalQualitativeIonRatio += qualitativeIonRatio.Value;
+                    qualitativeIonRatioCount++;
+                }
+            }
+
+            if (qualitativeIonRatioCount != 0)
+            {
+                return totalQualitativeIonRatio / qualitativeIonRatioCount;
+            }
+
+            return null;
         }
 
         public double? GetLimitOfQuantification(CalibrationCurve calibrationCurve)
@@ -345,9 +390,10 @@ namespace pwiz.Skyline.Model.DocSettings.AbsoluteQuantification
             {
                 return null;
             }
-            double loq = double.PositiveInfinity;
-            var concentrationReplicateLookup = GetStandardConcentrations().ToLookup(entry => entry.Value, entry => entry.Key);
-            foreach (var concentrationReplicate in concentrationReplicateLookup.OrderByDescending(grouping => grouping.Key))
+
+            double? bestLoq = null;
+            var concentrationReplicateLookup = GetStandardConcentrations().ToLookup(entry=>entry.Value, entry=>entry.Key);
+            foreach (var concentrationReplicate in concentrationReplicateLookup.OrderByDescending(grouping=>grouping.Key))
             {
                 var peakAreas = new List<double>();
                 foreach (var standardIdentifier in concentrationReplicate)
@@ -360,16 +406,16 @@ namespace pwiz.Skyline.Model.DocSettings.AbsoluteQuantification
                 }
                 if (peakAreas.Count > 1)
                 {
-                    if (QuantificationSettings.MaxLoqCv.HasValue)
+                    if (peakAreas.Count > 1)
                     {
                         double cv = peakAreas.StandardDeviation() / peakAreas.Mean();
                         if (double.IsNaN(cv) || double.IsInfinity(cv))
                         {
-                            return loq;
+                            break;
                         }
                         if (cv * 100 > QuantificationSettings.MaxLoqCv)
                         {
-                            return loq;
+                            break;
                         }
                     }
                 }
@@ -384,22 +430,22 @@ namespace pwiz.Skyline.Model.DocSettings.AbsoluteQuantification
                         GetConcentrationFromXValue(calibrationCurve.GetFittedX(meanPeakArea));
                     if (!backCalculatedConcentration.HasValue)
                     {
-                        continue;
+                        break;
                     }
                     double bias = (concentrationReplicate.Key - backCalculatedConcentration.Value) /
                                   concentrationReplicate.Key;
                     if (double.IsNaN(bias) || double.IsInfinity(bias))
                     {
-                        return loq;
+                        break;
                     }
                     if (Math.Abs(bias * 100) > QuantificationSettings.MaxLoqBias.Value)
                     {
-                        return loq;
+                        break;
                     }
                 }
-                loq = concentrationReplicate.Key;
+                bestLoq = concentrationReplicate.Key;
             }
-            return loq;
+            return bestLoq;
         }
 
         private double? GetBilinearLoq(CalibrationCurve calibrationCurve)
@@ -519,7 +565,7 @@ namespace pwiz.Skyline.Model.DocSettings.AbsoluteQuantification
                 return null;
             }
 
-            double? peptideConcentration = GetPeptideConcentration(chromatogramSet);
+            double? peptideConcentration = GetPeptideConcentration(calibrationPoint.ReplicateIndex);
             if (peptideConcentration.HasValue)
             {
                 if (HasExternalStandards() && HasInternalStandardConcentration())
@@ -620,38 +666,55 @@ namespace pwiz.Skyline.Model.DocSettings.AbsoluteQuantification
             return PeptideQuantifier.NormalizationMethod is NormalizationMethod.RatioToLabel;
         }
 
-        public QuantificationResult GetQuantificationResult(int replicateIndex)
+
+
+        public QuantificationResult GetPeptideQuantificationResult(int replicateIndex)
         {
-            QuantificationResult result = new QuantificationResult();
             CalibrationCurve calibrationCurve = GetCalibrationCurve();
+            QuantificationResult result = new QuantificationResult();
             result = result.ChangeNormalizedArea(GetNormalizedPeakArea(new CalibrationPoint(replicateIndex, null)));
             if (HasExternalStandards() || HasInternalStandardConcentration())
             {
                 double? calculatedConcentration = GetCalculatedConcentration(calibrationCurve, new CalibrationPoint(replicateIndex, null));
                 result = result.ChangeCalculatedConcentration(calculatedConcentration);
-                double? expectedConcentration = GetPeptideConcentration(GetChromatogramSet(replicateIndex));
+                double? expectedConcentration = GetPeptideConcentration(replicateIndex) * GetChromatogramSet(replicateIndex)?.SampleDilutionFactor;
                 result = result.ChangeAccuracy(calculatedConcentration / expectedConcentration);
-                result = result.ChangeUnits(SrmSettings.PeptideSettings.Quantification.Units);
+                result = result.ChangeUnits(QuantificationSettings.Units);
             }
+
+
             return result;
         }
 
-        public QuantificationResult GetPrecursorQuantificationResult(int replicateIndex, TransitionGroupDocNode transitionGroupDocNode)
+        public PrecursorQuantificationResult GetPrecursorQuantificationResult(int replicateIndex, TransitionGroupDocNode transitionGroupDocNode)
         {
-            QuantificationResult result = new QuantificationResult();
-            var calibrationPoint = new CalibrationPoint(replicateIndex, transitionGroupDocNode.LabelType);
-            CalibrationCurve calibrationCurve = GetCalibrationCurve();
-            result = result.ChangeNormalizedArea(GetNormalizedPeakArea(calibrationPoint));
-            if (HasExternalStandards() || HasInternalStandardConcentration())
+            PrecursorQuantificationResult result = null;
+            if (IsotopologResponseCurve)
             {
-                double? calculatedConcentration = GetCalculatedConcentration(calibrationCurve, calibrationPoint);
-                result = result.ChangeCalculatedConcentration(calculatedConcentration);
-                double? expectedConcentration = transitionGroupDocNode.PrecursorConcentration;
-                result = result.ChangeAccuracy(calculatedConcentration / expectedConcentration);
-                result = result.ChangeUnits(SrmSettings.PeptideSettings.Quantification.Units);
+                result = new PrecursorQuantificationResult();
+                var calibrationPoint = new CalibrationPoint(replicateIndex, transitionGroupDocNode.LabelType);
+                CalibrationCurve calibrationCurve = GetCalibrationCurve();
+                result = (PrecursorQuantificationResult)result.ChangeNormalizedArea(GetNormalizedPeakArea(calibrationPoint));
+                if (HasExternalStandards() || HasInternalStandardConcentration())
+                {
+                    double? calculatedConcentration = GetCalculatedConcentration(calibrationCurve, calibrationPoint);
+                    result = (PrecursorQuantificationResult)result.ChangeCalculatedConcentration(calculatedConcentration);
+                    double? expectedConcentration = transitionGroupDocNode.PrecursorConcentration;
+                    result = (PrecursorQuantificationResult)result.ChangeAccuracy(calculatedConcentration / expectedConcentration);
+                    result = (PrecursorQuantificationResult)result.ChangeUnits(QuantificationSettings.Units);
+                }
+            }
+
+            var targetIonRatio = GetTargetIonRatio(transitionGroupDocNode);
+            var ionRatio = PeptideQuantifier.GetQualitativeIonRatio(SrmSettings, transitionGroupDocNode, replicateIndex);
+            if (targetIonRatio.HasValue || ionRatio.HasValue)
+            {
+                result = result ?? new PrecursorQuantificationResult();
+                var status = ValueStatus.GetStatus(ionRatio, GetTargetIonRatio(transitionGroupDocNode),
+                    SrmSettings.PeptideSettings.Quantification.QualitativeIonRatioThreshold / 100);
+                result = result.ChangeIonRatio(targetIonRatio, ionRatio, status);
             }
             return result;
-
         }
 
         public static String AppendUnits(String title, String units)
@@ -722,7 +785,7 @@ namespace pwiz.Skyline.Model.DocSettings.AbsoluteQuantification
         public static bool AnyBatchNames(SrmSettings srmSettings)
         {
             return srmSettings.HasResults &&
-                srmSettings.MeasuredResults.Chromatograms.Any(c => !string.IsNullOrEmpty(c.BatchName));
+                   srmSettings.MeasuredResults.Chromatograms.Any(c => !string.IsNullOrEmpty(c.BatchName));
         }
     }
 

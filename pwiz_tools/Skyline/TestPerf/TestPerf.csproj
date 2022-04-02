@@ -135,6 +135,12 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="AreaCVHistogramQValueAndRatioTest.cs" />
+    <Compile Include="DdaTutorialTest.cs" />
+    <Compile Include="DiaUmpireVendorFormatTest.cs" />
+    <Compile Include="DiaUmpireTutorialTest.cs" />
+    <Compile Include="DiaSwathTutorialTest.cs" />
+    <Compile Include="PerfAssociateProteinsTest.cs" />
+    <Compile Include="PerfImportBrukerPasefBbCIDTest.cs" />
     <Compile Include="PerfImportHundredsOfReplicatesTest.cs" />
     <Compile Include="HiResMetabolomicsTutorial.cs" />
     <Compile Include="ImportMassOnlyMoleculesTest.cs" />
@@ -154,6 +160,7 @@
     <Compile Include="PerfLockmassTest.cs" />
     <Compile Include="PerfMeasuredDriftTimes.cs" />
     <Compile Include="PerfMeasuredInverseK0.cs" />
+    <Compile Include="PerfMobilIonTest.cs" />
     <Compile Include="PerfMs3ChromatogramTest.cs" />
     <Compile Include="PerfNegativeIonDIATest.cs" />
     <Compile Include="PerfOpenSwathConvert.cs" />
@@ -163,8 +170,13 @@
     <Compile Include="PerfPeakTest.cs" />
     <Compile Include="PerfPeakViewConvert.cs" />
     <Compile Include="PerfThermoFAIMSTest.cs" />
+    <Compile Include="PerfThermoNegativeFAIMSTest.cs" />
+    <Compile Include="PerfTicAreaTest.cs" />
     <Compile Include="PerfUniquePeptidesTest.cs" />
+    <Compile Include="PerfWatersSonarTest.cs" />
+    <Compile Include="OrbiPrmTutorialTest.cs" />
     <Compile Include="SmallMolDriftTimePredictorTest.cs" />
+    <Compile Include="SmallMolLibrariesTutorialTest.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\Shared\BiblioSpec\BiblioSpec.csproj">
@@ -230,11 +242,16 @@
     <EmbeddedResource Include="ThermoDIA.ChorusRequest.xml" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="DdaTutorialViews.zip" />
+    <None Include="DiaSwathQEViews.zip" />
+    <None Include="DiaSwathTTOFViews.zip" />
     <None Include="DriftTimePredictorExtra.zip" />
     <None Include="DriftTimePredictorViews.zip" />
+    <None Include="OrbiPrmViews.zip" />
     <None Include="PerfImportHundredsOfReplicatesTest.zip" />
     <None Include="HiResMetabolomicsViews.zip" />
     <None Include="PerfMs3ChromatogramTest.zip" />
+    <None Include="SmallMolLibrariesTutorialViews.zip" />
   </ItemGroup>
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

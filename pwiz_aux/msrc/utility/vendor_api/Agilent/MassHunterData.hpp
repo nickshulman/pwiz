@@ -30,7 +30,6 @@
 
 
 #include "pwiz/utility/misc/Export.hpp"
-#include "pwiz/utility/misc/automation_vector.h"
 #include "pwiz/utility/misc/BinaryData.hpp"
 #include "pwiz/utility/chemistry/MzMobilityWindow.hpp"
 #include <string>
@@ -73,9 +72,31 @@ PWIZ_API_DECL enum DeviceType
     DeviceType_QuaternaryPump = 32,
     DeviceType_CapillaryPump = 33,
     DeviceType_NanoPump = 34,
+    DeviceType_LowFlowPump = 35,
     DeviceType_ThermostattedColumnCompartment = 40,
     DeviceType_ChipCube = 41,
-    DeviceType_CANValves = 42
+    DeviceType_CANValves = 42,
+    DeviceType_UIB2 = 43,
+    DeviceType_FlexCube = 44,
+    DeviceType_GCDetector = 50,
+    DeviceType_NitrogenPhosphorousDetector = 51,
+    DeviceType_FlamePhotometricDetector = 52,
+    DeviceType_CE = 60, // Capillary Electrophoresis
+    DeviceType_SFC = 70,
+    DeviceType_PumpValveCluster = 80,
+    DeviceType_ColumnCompCluster = 81,
+    DeviceType_HDR = 82,
+    DeviceType_MultiColumnCluster = 83,
+    DeviceType_CompactLCIsoPump = 90,
+    DeviceType_CompactLCGradPump = 91,
+    DeviceType_CompactLC1220IsoPump = 92,
+    DeviceType_CompactLC1220GradPump = 93,
+    DeviceType_CompactLCColumnOven = 94,
+    DeviceType_CompactLCSampler = 95,
+    DeviceType_CompactLC1220Sampler = 96,
+    DeviceType_CompactLCVWD = 97,
+    DeviceType_CompactLC1220VWD = 98,
+    DeviceType_CompactLC1220DAD = 99
 };
 
 PWIZ_API_DECL enum IonizationMode
@@ -163,6 +184,18 @@ struct PWIZ_API_DECL Transition
 };
 
 
+struct PWIZ_API_DECL Signal
+{
+    std::string deviceName;
+    std::string signalName;
+    std::string signalDescription;
+    bool isInstrumentCurve;
+    DeviceType deviceType;
+
+    bool operator< (const Signal& rhs) const;
+};
+
+
 struct PWIZ_API_DECL PeakFilter
 {
     int maxNumPeaks;
@@ -175,16 +208,31 @@ typedef boost::shared_ptr<PeakFilter> PeakFilterPtr;
 
 struct PWIZ_API_DECL Chromatogram
 {
-    virtual double getCollisionEnergy() const = 0;
     virtual int getTotalDataPoints() const = 0;
-    virtual void getXArray(automation_vector<double>& x) const = 0;
-    virtual void getYArray(automation_vector<float>& y) const = 0;
-    virtual IonPolarity getIonPolarity() const = 0;
+    virtual void getXArray(pwiz::util::BinaryData<double>& x) const = 0;
+    virtual void getYArray(pwiz::util::BinaryData<float>& y) const = 0;
 
     virtual ~Chromatogram() {}
 };
 
-typedef boost::shared_ptr<Chromatogram> ChromatogramPtr;
+
+struct PWIZ_API_DECL MassChromatogram : public Chromatogram
+{
+    virtual double getCollisionEnergy() const = 0;
+    virtual IonPolarity getIonPolarity() const = 0;
+
+    virtual ~MassChromatogram() {}
+};
+
+typedef boost::shared_ptr<MassChromatogram> MassChromatogramPtr;
+
+
+struct PWIZ_API_DECL SignalChromatogram : public Chromatogram
+{
+    virtual ~SignalChromatogram() {}
+};
+
+typedef boost::shared_ptr<SignalChromatogram> SignalChromatogramPtr;
 
 
 struct PWIZ_API_DECL Spectrum
@@ -307,12 +355,15 @@ class PWIZ_API_DECL MassHunterData
     virtual double ccsToDriftTime(double ccs, double mz, int charge) const = 0;
 
     virtual const std::set<Transition>& getTransitions() const = 0;
-    virtual ChromatogramPtr getChromatogram(const Transition& transition) const = 0;
+    virtual MassChromatogramPtr getChromatogram(const Transition& transition) const = 0;
 
-    virtual const automation_vector<double>& getTicTimes(bool ms1Only = false) const = 0;
-    virtual const automation_vector<double>& getBpcTimes(bool ms1Only = false) const = 0;
-    virtual const automation_vector<float>& getTicIntensities(bool ms1Only = false) const = 0;
-    virtual const automation_vector<float>& getBpcIntensities(bool ms1Only = false) const = 0;
+    virtual const std::vector<Signal>& getSignals() const = 0;
+    virtual SignalChromatogramPtr getSignal(const Signal& signal) const = 0;
+
+    virtual const pwiz::util::BinaryData<double>& getTicTimes(bool ms1Only = false) const = 0;
+    virtual const pwiz::util::BinaryData<double>& getBpcTimes(bool ms1Only = false) const = 0;
+    virtual const pwiz::util::BinaryData<float>& getTicIntensities(bool ms1Only = false) const = 0;
+    virtual const pwiz::util::BinaryData<float>& getBpcIntensities(bool ms1Only = false) const = 0;
 
     /// rowNumber is a 0-based index
     virtual ScanRecordPtr getScanRecord(int rowNumber) const = 0;

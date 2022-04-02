@@ -68,8 +68,7 @@ namespace pwiz.Skyline.FileUI.PeptideSearch
             get { return _foundResultsFiles; }
             set
             {
-                var files = ImportResultsControl.EnsureUniqueNames(value); // May change names to ensure uniqueness
-                _foundResultsFiles = new BindingList<ImportPeptideSearch.FoundResultsFile>(files);
+                _foundResultsFiles = new BindingList<ImportPeptideSearch.FoundResultsFile>(ImportPeptideSearch.EnsureUniqueNames(value).ToList());
                 listResultsFiles.DataSource = _foundResultsFiles;
             }
         }
@@ -87,13 +86,18 @@ namespace pwiz.Skyline.FileUI.PeptideSearch
 
         private void btnBrowse_Click(object sender, EventArgs e)
         {
+            Browse();
+        }
+
+        public void Browse(string path = null)
+        {
             using (var dlgOpen = new OpenDataSourceDialog(Settings.Default.RemoteAccountList)
             {
                 Text = Resources.ImportResultsDIAControl_btnBrowse_Click_Browse_for_Results_Files
             })
             {
                 // The dialog expects null to mean no directory was supplied, so don't assign an empty string.
-                string initialDir = Path.GetDirectoryName(DocumentContainer.DocumentFilePath);
+                string initialDir = path ?? Path.GetDirectoryName(DocumentContainer.DocumentFilePath);
                 dlgOpen.InitialDirectory = new MsDataFilePath(initialDir);
 
                 // Use saved source type, if there is one.
@@ -112,9 +116,11 @@ namespace pwiz.Skyline.FileUI.PeptideSearch
                     return;
                 }
 
-                foreach (var dataSource in dataSources.Where(d => !_foundResultsFiles.Select(f => f.Path).Contains(d.ToString())))
+                foreach (var dataSource in dataSources.Where(
+                    d => !_foundResultsFiles.Select(f => f.Path).Contains(d.ToString())))
                 {
-                    _foundResultsFiles.Add(new ImportPeptideSearch.FoundResultsFile(dataSource.GetFileNameWithoutExtension(), dataSource.ToString()));
+                    _foundResultsFiles.Add(new ImportPeptideSearch.FoundResultsFile(dataSource.GetFileNameWithoutExtension(),
+                        dataSource.ToString()));
                 }
 
                 if (ResultsFilesChanged != null)

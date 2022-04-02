@@ -24,10 +24,12 @@ using System.Linq;
 using pwiz.Common.Chemistry;
 using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Controls.SeqNode;
+using pwiz.Skyline.Model.Crosslinking;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.Lib;
 using pwiz.Skyline.Model.Results;
 using pwiz.Skyline.Model.Results.Scoring;
+using pwiz.Skyline.Model.RetentionTimes;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
 using pwiz.Skyline.Util.Extensions;
@@ -48,13 +50,14 @@ namespace pwiz.Skyline.Model
         /// </summary>
         /// <param name="id">The <see cref="TransitionGroup"/> identity for this node</param>
         /// <param name="children">A set of explicit children, or null if children should be auto-managed</param>
-        public TransitionGroupDocNode(TransitionGroup id, TransitionDocNode[] children)
+        /// <param name="explicitTransitionGroupValues">Optional values like ion mobility etc</param>
+        public TransitionGroupDocNode(TransitionGroup id, TransitionDocNode[] children, ExplicitTransitionGroupValues explicitTransitionGroupValues = null)
             : this(id,
                    Annotations.EMPTY,
                    null,
                    null,
                    null,
-                   ExplicitTransitionGroupValues.EMPTY,
+                   explicitTransitionGroupValues ?? ExplicitTransitionGroupValues.EMPTY,
                    null,
                    children,
                    children == null)
@@ -149,10 +152,21 @@ namespace pwiz.Skyline.Model
                              ? groupNew.CustomMolecule : transition.CustomIon;
                 var tranNew = new Transition(groupNew, transition.IonType, transition.CleavageOffset,
                     transition.MassIndex, adduct, transition.DecoyMassShift, molecule);
-                var moleculeMass = transition.IonType == IonType.precursor && nodeGroupTemp.IsotopeDist != null
-                    ? nodeGroupTemp.IsotopeDist.GetMassI(transition.MassIndex)
-                    : nodeTran.GetMoleculeMass();
-
+                TypedMass moleculeMass;
+                if (transition.IonType == IonType.precursor && nodeGroupTemp.IsotopeDist != null)
+                {
+                    var peakIndex = nodeGroupTemp.IsotopeDist.MassIndexToPeakIndex(transition.MassIndex);
+                    if (peakIndex < 0 || peakIndex >= nodeGroupTemp.IsotopeDist.CountPeaks)
+                    {
+                        // Mass index is no longer valid: remove the transition
+                        continue;
+                    }
+                    moleculeMass = nodeGroupTemp.IsotopeDist.GetMassI(transition.MassIndex);
+                }
+                else
+                {
+                    moleculeMass = nodeTran.GetMoleculeMass();
+                }
                 var nodeTranNew = new TransitionDocNode(tranNew, nodeTran.Annotations, nodeTran.Losses,
                     moleculeMass, nodeTran.QuantInfo, nodeTran.ExplicitValues, nodeTran.Results);
                 children.Add(nodeTranNew);
@@ -248,7 +262,7 @@ namespace pwiz.Skyline.Model
         }
 
         /// <summary>
-        /// For t eransition lists with explicit values for CE, ion mobilitytc
+        /// For transition lists with explicit values for CE, ion mobility
         /// </summary>
         [TrackChildren]
         public ExplicitTransitionGroupValues ExplicitValues { get; private set; }
@@ -341,7 +355,7 @@ namespace pwiz.Skyline.Model
         }
 
 
-        private TransitionGroupChromInfo GetChromInfoEntry(int i)
+        public TransitionGroupChromInfo GetChromInfoEntry(int i)
         {
             var result = GetSafeChromInfo(i);
             // CONSIDER: Also specify the file index and/or optimization step?
@@ -427,7 +441,7 @@ namespace pwiz.Skyline.Model
             get
             {
                 return GetAverageResultValue(chromInfo => chromInfo.OptimizationStep != 0
-                                                              ? (float?)null
+                                                              ? null
                                                               : chromInfo.Area);
             }
         }
@@ -441,18 +455,18 @@ namespace pwiz.Skyline.Model
             var result = GetSafeChromInfo(i);
             if (result.IsEmpty)
                 return null;
-            return result.GetAverageValue(chromInfo => chromInfo.OptimizationStep == 0
+            return result.GetAverageValue(chromInfo => chromInfo.OptimizationStep == 0 && chromInfo.Area.HasValue
                                                               ? chromInfo.IsotopeDotProduct
-                                                              : (float?)null);
+                                                              : null);
         }
 
         public float? AverageIsotopeDotProduct
         {
             get
             {
-                return GetAverageResultValue(chromInfo => chromInfo.OptimizationStep == 0
+                return GetAverageResultValue(chromInfo => chromInfo.OptimizationStep == 0 && chromInfo.Area.HasValue
                                                               ? chromInfo.IsotopeDotProduct
-                                                              : (float?)null);
+                                                              : null);
             }
         }
 
@@ -465,36 +479,19 @@ namespace pwiz.Skyline.Model
             var result = GetSafeChromInfo(i);
             if (result.IsEmpty)
                 return null;
-            return result.GetAverageValue(chromInfo => chromInfo.OptimizationStep == 0
+            return result.GetAverageValue(chromInfo => chromInfo.OptimizationStep == 0 && chromInfo.Area.HasValue
                                                               ? chromInfo.LibraryDotProduct
-                                                              : (float?)null);
+                                                              : null);
         }
 
         public float? AverageLibraryDotProduct
         {
             get
             {
-                return GetAverageResultValue(chromInfo => chromInfo.OptimizationStep == 0
+                return GetAverageResultValue(chromInfo => chromInfo.OptimizationStep == 0 && chromInfo.Area.HasValue
                                                               ? chromInfo.LibraryDotProduct
-                                                              : (float?) null);
+                                                              : null);
             }
-        }
-
-        public RatioValue GetPeakAreaRatio(int i)
-        {
-            return GetPeakAreaRatio(i, 0);
-        }
-
-        public RatioValue GetPeakAreaRatio(int i, int indexIS)
-        {
-            // CONSIDER: Also specify the file index?
-            var chromInfo = GetChromInfoEntry(i);
-            if (chromInfo == null)
-            {
-                return null;
-            }
-
-            return chromInfo.GetRatio(indexIS);
         }
 
         public class ScheduleTimes        
@@ -528,7 +525,7 @@ namespace pwiz.Skyline.Model
                             !chromInfo.StartRetentionTime.HasValue ||
                             !chromInfo.EndRetentionTime.HasValue)
                         return null;
-                    // Make an array of the last 4 or 6 (depending on data available) center Times to use for linear regresson
+                    // Make an array of the last 4 or 6 (depending on data available) center Times to use for linear regression
                     if (i >= Results.Count - centerTimes.Length)
                     {
                         valTotal += (chromInfo.StartRetentionTime.Value + chromInfo.EndRetentionTime.Value) / 2.0;
@@ -755,6 +752,17 @@ namespace pwiz.Skyline.Model
 
         private double CalcPrecursorMZ(SrmSettings settings, ExplicitMods mods, out IsotopeDistInfo isotopeDist, out TypedMass mass)
         {
+            if (mods != null && mods.HasCrosslinks)
+            {
+                return CalcCrosslinkedPrecursorMz(settings, mods, out isotopeDist, out mass);
+            }
+
+            return CalcSelfPrecursorMZ(settings, mods, out isotopeDist, out mass);
+        }
+
+
+        private double CalcSelfPrecursorMZ(SrmSettings settings, ExplicitMods mods, out IsotopeDistInfo isotopeDist, out TypedMass mass)
+        {
             var seq = TransitionGroup.Peptide.Target;
             var adduct = TransitionGroup.PrecursorAdduct;
             IsotopeLabelType labelType = TransitionGroup.LabelType;
@@ -774,7 +782,7 @@ namespace pwiz.Skyline.Model
                 calc = settings.GetPrecursorCalc(labelType, mods);
                 mass = calc.GetPrecursorMass(seq);
                 mz = SequenceMassCalc.GetMZ(mass, adduct) + 
-                    SequenceMassCalc.GetPeptideInterval(TransitionGroup.DecoyMassShift);
+                     SequenceMassCalc.GetPeptideInterval(TransitionGroup.DecoyMassShift);
                 if (TransitionGroup.DecoyMassShift.HasValue)
                     mass = new TypedMass(SequenceMassCalc.GetMH(mz, adduct.AdductCharge), calc.MassType);
             }
@@ -798,15 +806,57 @@ namespace pwiz.Skyline.Model
                 {
                     massDist = calc.GetMZDistributionSinglePoint(mz);
                 }
-                isotopeDist = new IsotopeDistInfo(massDist, mass, adduct,
-                    settings.TransitionSettings.FullScan.GetPrecursorFilterWindow,
-                    // Centering resolution must be inversely proportional to charge state
-                    // High charge states can bring major peaks close enough toghether to
-                    // cause them to be combined and centered in isotope distribution valleys
-                    TransitionFullScan.ISOTOPE_PEAK_CENTERING_RES / (1 + Math.Abs(adduct.AdductCharge/ 15.0)),
-                    TransitionFullScan.MIN_ISOTOPE_PEAK_ABUNDANCE);
+
+                isotopeDist = GetIsotopeDistInfo(settings, massDist, mass);
             }
             return mz;
+        }
+
+        private double CalcCrosslinkedPrecursorMz(SrmSettings settings, ExplicitMods mods,
+            out IsotopeDistInfo isotopeDist, out TypedMass mass)
+        {
+            var crosslinkBuilder = new CrosslinkBuilder(settings, TransitionGroup.Peptide, mods, LabelType);
+            MassType massType = settings.TransitionSettings.Prediction.PrecursorMassType;
+            mass = crosslinkBuilder.GetPrecursorMass(massType);
+            Assume.IsFalse(mass.IsMassH());
+            if (settings.TransitionSettings.FullScan.IsHighResPrecursor)
+            {
+                double decoyMassShift = 0;
+                if (TransitionGroup.DecoyMassShift.HasValue)
+                {
+                    decoyMassShift = SequenceMassCalc.GetPeptideInterval(TransitionGroup.DecoyMassShift.Value);
+                }
+                isotopeDist = crosslinkBuilder.GetPrecursorIsotopeDistInfo(PrecursorAdduct, decoyMassShift);
+            }
+            else
+            {
+                isotopeDist = null;
+            }
+
+            return (mass / PrecursorCharge) + BioMassCalc.MassProton;
+        }
+
+        private IsotopeDistInfo GetIsotopeDistInfo(SrmSettings settings, MassDistribution massDist, TypedMass monoMassH)
+        {
+            return IsotopeDistInfo.MakeIsotopeDistInfo(massDist, monoMassH, PrecursorAdduct, settings.TransitionSettings.FullScan);
+        }
+
+        public MoleculeMassOffset GetNeutralFormula(SrmSettings settings, ExplicitMods mods)
+        {
+            if (IsCustomIon)
+            {
+                if (string.IsNullOrEmpty(CustomMolecule.Formula))
+                {
+                    return new MoleculeMassOffset(Molecule.Empty, CustomMolecule.MonoisotopicMass, CustomMolecule.AverageMass);
+                }
+                return new MoleculeMassOffset(Molecule.ParseExpression(CustomMolecule.Formula), 0, 0);
+            }
+            IPrecursorMassCalc massCalc = settings.GetPrecursorCalc(LabelType, mods);
+            MoleculeMassOffset moleculeMassOffset = new MoleculeMassOffset(Molecule.Parse(massCalc.GetMolecularFormula(Peptide.Sequence)), 0, 0);
+            moleculeMassOffset = moleculeMassOffset.Plus((mods?.CrosslinkStructure ?? CrosslinkStructure.EMPTY)
+                .GetNeutralFormula(settings, LabelType));
+            
+            return moleculeMassOffset;
         }
 
         private static MassDistribution ShiftMzDistribution(MassDistribution massDist, int massShift)
@@ -838,6 +888,20 @@ namespace pwiz.Skyline.Model
         public TransitionGroupDocNode ChangePrecursorConcentration(double? precursorConcentration)
         {
             return ChangeProp(ImClone(this), im => im.PrecursorConcentration = precursorConcentration);
+        }
+
+        public TransitionGroupDocNode ChangePeptide(Peptide peptide)
+        {
+            var newId = new TransitionGroup(peptide, TransitionGroup.PrecursorAdduct, TransitionGroup.LabelType, true,
+                TransitionGroup.DecoyMassShift);
+            return ChangeTransitionGroupId(newId, Transitions.Select(t => t.ChangeTransitionGroup(newId)));
+        }
+
+        public TransitionGroupDocNode ChangeTransitionGroupId(TransitionGroup newId, IEnumerable<TransitionDocNode> newTransitions)
+        {
+            var node = (TransitionGroupDocNode)ChangeId(newId);
+            node = (TransitionGroupDocNode)node.ChangeChildren(newTransitions.Cast<DocNode>().ToList());
+            return node;
         }
 
         public TransitionGroupDocNode ChangeSettings(SrmSettings settingsNew, PeptideDocNode nodePep, ExplicitMods mods, SrmSettingsDiff diff)
@@ -873,11 +937,12 @@ namespace pwiz.Skyline.Model
                 GetLibraryInfo(settingsNew, mods, autoSelectTransitions, ref libInfo, transitionRanksLib);
             }
 
+            CrosslinkBuilder crosslinkBuilder = null;
+
             TransitionGroupDocNode nodeResult = this;
             if (autoSelectTransitions)
             {
                 IList<DocNode> childrenNew = new List<DocNode>();
-
                 // TODO: Use TransitionLossKey
                 Dictionary<TransitionLossKey, DocNode> mapIdToChild = CreateTransitionLossToChildMap();
                 foreach (TransitionDocNode nodeTran in GetTransitions(settingsNew, mods,
@@ -894,17 +959,30 @@ namespace pwiz.Skyline.Model
                         {
                             var tran = nodeTranResult.Transition;
                             var annotations = nodeTranResult.Annotations;
-                            var explictValues = nodeTranResult.ExplicitValues;
+                            var explicitValues = nodeTranResult.ExplicitValues;
                             var losses = nodeTranResult.Losses;
-                            var massH = settingsNew.GetFragmentMass(TransitionGroup, mods, tran, isotopeDist);
+                            TypedMass massH = settingsNew.RecalculateTransitionMass(mods, nodeTran, isotopeDist);
                             var quantInfo = TransitionDocNode.TransitionQuantInfo
-                                .GetTransitionQuantInfo(tran, losses, isotopeDist, Transition.CalcMass(massH, losses), transitionRanks)
+                                .GetTransitionQuantInfo(nodeTranResult.ComplexFragmentIon, isotopeDist, Transition.CalcMass(massH, losses), transitionRanks)
                                 .UseValuesFrom(nodeTranResult.QuantInfo);
                             if (!ReferenceEquals(quantInfo.LibInfo, nodeTranResult.LibInfo))
                                 dotProductChange = true;
                             var results = nodeTranResult.Results;
-                            nodeTranResult = new TransitionDocNode(tran, annotations, losses,
-                                massH, quantInfo, explictValues, results);
+                            if (mods != null && mods.HasCrosslinks)
+                            {
+                                crosslinkBuilder = crosslinkBuilder ??
+                                                   new CrosslinkBuilder(settingsNew, TransitionGroup.Peptide, mods,
+                                                       LabelType);
+
+                                nodeTranResult = crosslinkBuilder.MakeTransitionDocNode(
+                                    nodeTranResult.ComplexFragmentIon, isotopeDist, annotations, quantInfo,
+                                    explicitValues, results);
+                            }
+                            else
+                            {
+                                nodeTranResult = new TransitionDocNode(tran, annotations, losses,
+                                    massH, quantInfo, explicitValues, results);
+                            }
 
                             Helpers.AssignIfEquals(ref nodeTranResult, (TransitionDocNode) existing);
                         }
@@ -987,8 +1065,8 @@ namespace pwiz.Skyline.Model
                         // Discard isotope transitions which are no longer valid
                         if (!TransitionDocNode.IsValidIsotopeTransition(tran, isotopeDist))
                             continue;
-                        var massH = settingsNew.GetFragmentMass(TransitionGroup, mods, tran, isotopeDist);
-                        var quantInfo = TransitionDocNode.TransitionQuantInfo.GetTransitionQuantInfo(tran, losses, isotopeDist,
+                        var massH = settingsNew.RecalculateTransitionMass(mods, nodeTransition, isotopeDist);
+                        var quantInfo = TransitionDocNode.TransitionQuantInfo.GetTransitionQuantInfo(nodeTransition.ComplexFragmentIon, isotopeDist,
                             Transition.CalcMass(massH, losses), transitionRanks).UseValuesFrom(nodeTransition.QuantInfo);
                         if (!ReferenceEquals(quantInfo.LibInfo, nodeTransition.LibInfo))
                             dotProductChange = true;
@@ -996,8 +1074,21 @@ namespace pwiz.Skyline.Model
                         // Avoid overwriting valid transition lib info before the libraries are loaded or for decoys
                         if (libInfo != null && quantInfo.LibInfo == null && (IsDecoy || !settingsNew.PeptideSettings.Libraries.IsLoaded))
                             quantInfo = quantInfo.ChangeLibInfo(nodeTransition.LibInfo);
-                        var nodeNew = new TransitionDocNode(tran, annotations, losses,
-                            massH, quantInfo, explicitValues, results);
+                        TransitionDocNode nodeNew;
+                        if (mods != null && mods.HasCrosslinks)
+                        {
+                            crosslinkBuilder = crosslinkBuilder ??
+                                               new CrosslinkBuilder(settingsNew, TransitionGroup.Peptide, mods,
+                                                   LabelType);
+
+                            nodeNew = crosslinkBuilder.MakeTransitionDocNode(nodeTransition.ComplexFragmentIon, isotopeDist,
+                                nodeTransition.Annotations, quantInfo, explicitValues, results);
+                        }
+                        else
+                        {
+                            nodeNew = new TransitionDocNode(tran, annotations, losses,
+                                massH, quantInfo, explicitValues, results);
+                        }
 
                         Helpers.AssignIfEquals(ref nodeNew, nodeTransition);
                         if (settingsNew.TransitionSettings.Instrument.IsMeasurable(nodeNew.Mz, precursorMz))
@@ -1035,7 +1126,13 @@ namespace pwiz.Skyline.Model
         public IEnumerable<TransitionDocNode> GetTransitions(SrmSettings settings, ExplicitMods mods, double precursorMz,
             IsotopeDistInfo isotopeDist, SpectrumHeaderInfo libInfo, Dictionary<double, LibraryRankedSpectrumInfo.RankedMI> transitionRanks, bool useFilter)
         {
-            return TransitionGroup.GetTransitions(settings, this, mods, precursorMz, isotopeDist, libInfo, transitionRanks,
+            if (mods == null || !mods.HasCrosslinks)
+            {
+                return TransitionGroup.GetTransitions(settings, this, mods, precursorMz, isotopeDist, libInfo, transitionRanks,
+                    useFilter, true);
+            }
+            var crosslinkBuilder = new CrosslinkBuilder(settings, TransitionGroup.Peptide, mods, LabelType);
+            return crosslinkBuilder.GetTransitionDocNodes(TransitionGroup, precursorMz, isotopeDist, transitionRanks,
                 useFilter);
         }
 
@@ -1125,307 +1222,381 @@ namespace pwiz.Skyline.Model
                 }
                 return (TransitionGroupDocNode) nodeResult.ChangeChildren(childrenNew);
             }
-            else if (Children.Count == 0)
+            if (Children.Count == 0)
             {
                 // If no children, just use a null populated list of the right size.
                 return ChangeResults(settingsNew.MeasuredResults.EmptyTransitionGroupResults);
             }
-            else if (!settingsNew.MeasuredResults.Chromatograms.Any(c => c.IsLoaded) &&
-                     (!HasResults || Results.All(r => r.IsEmpty)))
+            if (!settingsNew.MeasuredResults.Chromatograms.Any(c => c.IsLoaded) &&
+                (!HasResults || Results.All(r => r.IsEmpty)))
             {
                 // If nothing is loaded yet and the old settings had no results then initialize to empty results
                 return UpdateResultsToEmpty(settingsNew.MeasuredResults);
             }
-            else
-            {
-                // Store indexes to previous results in a dictionary for lookup
-                var settingsOld = diff.SettingsOld;
-                var dictChromIdIndex = settingsOld != null && settingsOld.HasResults
-                    ? settingsOld.MeasuredResults.IdToIndexDictionary
-                    : EMPTY_RESULTS_LOOKUP;
+            // Store indexes to previous results in a dictionary for lookup
+            var settingsOld = diff.SettingsOld;
+            var dictChromIdIndex = settingsOld != null && settingsOld.HasResults
+                ? settingsOld.MeasuredResults.IdToIndexDictionary
+                : EMPTY_RESULTS_LOOKUP;
 
-                // Store keys for previous children in a set, if the children have changed due
-                // to a user action, and not simply loading (when nodePrevious may be null).
-                HashSet<TransitionLossKey> setTranPrevious = null;
-                if (nodePrevious != null && !AreEquivalentChildren(Children, nodePrevious.Children) &&
-                    // Only necessry if children were added
-                    Children.Count > nodePrevious.Children.Count)
+            // Store keys for previous children in a set, if the children have changed due
+            // to a user action, and not simply loading (when nodePrevious may be null).
+            HashSet<TransitionLossKey> setTranPrevious = null;
+            if (nodePrevious != null && !AreEquivalentChildren(Children, nodePrevious.Children) &&
+                // Only necessary if children were added
+                Children.Count > nodePrevious.Children.Count)
+            {
+                setTranPrevious = new HashSet<TransitionLossKey>(
+                    from child in nodePrevious.Children
+                    select ((TransitionDocNode)child).Key(this));
+            }
+
+            var resultsCalc = new TransitionGroupResultsCalculator(settingsNew, nodePep, this, dictChromIdIndex);
+            var measuredResults = settingsNew.MeasuredResults;
+            List<IList<ChromatogramGroupInfo>> allChromatogramGroupInfos = null;
+            if (MustReadAllChromatograms(settingsNew, diff))
+            {
+                allChromatogramGroupInfos = measuredResults.LoadChromatogramsForAllReplicates(nodePep, this,
+                    (float) settingsNew.TransitionSettings.Instrument.MzMatchTolerance);
+                ChromatogramGroupInfo.LoadPeaksForAll(allChromatogramGroupInfos.SelectMany(list=>list), false);
+            }
+            for (int chromIndex = 0; chromIndex < measuredResults.Chromatograms.Count; chromIndex++)
+            {
+                CalcResultsForReplicate(resultsCalc, chromIndex, settingsNew, diff, nodePep, nodePrevious, setTranPrevious, allChromatogramGroupInfos?[chromIndex]);
+            }
+            return resultsCalc.UpdateTransitionGroupNode(this);
+        }
+
+        private void CalcResultsForReplicate(TransitionGroupResultsCalculator resultsCalc, int chromIndex, SrmSettings settingsNew, SrmSettingsDiff diff, PeptideDocNode nodePep, TransitionGroupDocNode nodePrevious, HashSet<TransitionLossKey> setTranPrevious, IList<ChromatogramGroupInfo> chromGroupInfos)
+        {
+            var measuredResults = settingsNew.MeasuredResults;
+            var settingsOld = diff.SettingsOld;
+            var dictChromIdIndex = settingsOld?.MeasuredResults?.IdToIndexDictionary;
+            var chromatograms = measuredResults.Chromatograms[chromIndex];
+            var resultsHandler = settingsNew.PeptideSettings.Integration.ResultsHandler;
+            bool chromatogramDataChanged = measuredResults.HasNewChromatogramData(chromIndex);
+
+            resultsCalc.AddSet();
+
+            // Check if this object has existing results information
+            int iResultOld;
+            if (!diff.DiffResults)
+            {
+                iResultOld = chromIndex;
+            }
+            else if (dictChromIdIndex == null
+                     || !dictChromIdIndex.TryGetValue(chromatograms.Id.GlobalIndex, out iResultOld)
+                     || Results != null && iResultOld >= Results.Count)
+            {
+                iResultOld = -1;
+            }
+
+            if (iResultOld != -1)
+            {
+                if (Results == null || iResultOld >= Results.Count || Results[iResultOld].IsEmpty)
                 {
-                    setTranPrevious = new HashSet<TransitionLossKey>(
-                        from child in nodePrevious.Children
-                        select ((TransitionDocNode)child).Key(this));
+                    iResultOld = -1;
+                }
+            }
+
+            // Check whether we can reuse the existing information without having to look at the ChromatogramInfo
+            if (iResultOld != -1 && resultsHandler == null)
+            {
+                if (CanUseOldResults(settingsNew, diff, nodePrevious, chromIndex, iResultOld))
+                {
+                    for (int iTran = 0; iTran < Children.Count; iTran++)
+                    {
+                        var nodeTran = (TransitionDocNode)Children[iTran];
+                        var results = nodeTran.HasResults ? nodeTran.Results[iResultOld] : default(ChromInfoList<TransitionChromInfo>);
+                        if (results.IsEmpty)
+                            resultsCalc.AddTransitionChromInfo(iTran, null);
+                        else
+                            resultsCalc.AddTransitionChromInfo(iTran, results.ToList());
+                    }
+
+                    return;
+                }
+            }
+            double qcutoff = double.MaxValue;
+            bool keepUserSet = true;
+            if (resultsHandler != null)
+            {
+                keepUserSet = !resultsHandler.OverrideManual;
+                if (!resultsHandler.IncludeDecoys && IsDecoy)
+                    resultsHandler = null;
+                else
+                    qcutoff = resultsHandler.QValueCutoff;
+            }
+
+            // Check for any user set transitions in the previous node that
+            // should be used to set peak boundaries on any new nodes.
+            Dictionary<int, TransitionChromInfo> dictUserSetInfoBest = null;
+            bool mismatchedEmptyReintegrated = false;
+            if (keepUserSet && iResultOld != -1)
+            {
+                // Or we have reintegrated peaks that are not matching the current integrate all setting
+                if (settingsOld == null)
+                    mismatchedEmptyReintegrated = nodePrevious.IsMismatchedEmptyReintegrated(iResultOld);
+                if (setTranPrevious != null || mismatchedEmptyReintegrated || chromatogramDataChanged)
+                    dictUserSetInfoBest = nodePrevious.FindBestUserSetInfo(iResultOld);
+            }
+            float mzMatchTolerance = (float)settingsNew.TransitionSettings.Instrument.MzMatchTolerance;
+            if (chromGroupInfos == null)
+            {
+                measuredResults.TryLoadChromatogram(chromatograms, nodePep, this, mzMatchTolerance,
+                    out var arrayChromGroupInfo);
+                chromGroupInfos = arrayChromGroupInfo ?? Array.Empty<ChromatogramGroupInfo>();
+            }
+            if (chromGroupInfos.Count == 0)
+            {
+                bool useOldResults = iResultOld != -1 && !chromatograms.IsLoadedAndAvailable(measuredResults);
+
+                for (int iTran = 0; iTran < Children.Count; iTran++)
+                {
+                    var nodeTran = (TransitionDocNode)Children[iTran];
+                    var results = default(ChromInfoList<TransitionChromInfo>);
+                    if (useOldResults)
+                    {
+                        if (nodeTran.HasResults && nodeTran.Results.Count > iResultOld)
+                        {
+                            results = nodeTran.Results[iResultOld];
+                        }
+                    }
+                    if (results.IsEmpty)
+                        resultsCalc.AddTransitionChromInfo(iTran, null);
+                    else
+                        resultsCalc.AddTransitionChromInfo(iTran, results.ToList());
                 }
 
-                float mzMatchTolerance = (float)settingsNew.TransitionSettings.Instrument.MzMatchTolerance;
-                var resultsCalc = new TransitionGroupResultsCalculator(settingsNew, nodePep, this, dictChromIdIndex);
-                var resultsHandler = settingsNew.PeptideSettings.Integration.ResultsHandler;
-                double qcutoff = double.MaxValue;
-                bool keepUserSet = true;
+                return;
+            }
+
+            // Make sure each file only appears once in the list, since downstream
+            // code has problems with multiple measurements in the same file.
+            // Most measurements should happen only once per replicate, meaning this
+            // if clause is an unusual case.  A race condition pre-0.7 occasionally
+            // resulted in writing precursor entries multiple times to the cache file.
+            // This code also corrects that problem by ignoring all but the first
+            // instance.
+            if (chromGroupInfos.Count > 1)
+                chromGroupInfos = chromGroupInfos.Distinct(ChromatogramGroupInfo.PathComparer).ToList();
+            // Find the file indexes once
+            int countGroupInfos = chromGroupInfos.Count;
+            var fileIds = new ChromFileInfoId[countGroupInfos];
+            // and matching reintegration statistics, if any
+            PeakFeatureStatistics[] reintegratePeaks = resultsHandler != null
+                ? new PeakFeatureStatistics[countGroupInfos]
+                : null;
+            for (int j = 0; j < countGroupInfos; j++)
+            {
+                var fileId = chromatograms.FindFile(chromGroupInfos[j]);
+
+                fileIds[j] = fileId;
+
                 if (resultsHandler != null)
                 {
-                    keepUserSet = !resultsHandler.OverrideManual;
-                    if (!resultsHandler.IncludeDecoys && IsDecoy)
-                        resultsHandler = null;
-                    else
-                        qcutoff = resultsHandler.QValueCutoff;
+                    reintegratePeaks[j] = resultsHandler.GetPeakFeatureStatistics(
+                        nodePep.Peptide.GlobalIndex, fileId.GlobalIndex);
                 }
-                var measuredResults = settingsNew.MeasuredResults;
-                // Avoid allocating a bunch of arrays in the inner loops
-                var listChromInfo = new List<ChromatogramInfo>();
-                var listChromGroupInfo = new List<ChromatogramGroupInfo>();
-                for (int chromIndex = 0; chromIndex < measuredResults.Chromatograms.Count; chromIndex++)
-                {
-                    var chromatograms = measuredResults.Chromatograms[chromIndex];
-
-                    resultsCalc.AddSet();
-
-                    // Check if this object has existing results information
-                    int iResultOld;
-                    if (!diff.DiffResults)
-                    {
-                        iResultOld = chromIndex;
-                    }
-                    else if (!dictChromIdIndex.TryGetValue(chromatograms.Id.GlobalIndex, out iResultOld) ||
-                        (Results != null && iResultOld >= Results.Count))
-                    {
-                        iResultOld = -1;
-                    }
-                    // But never if performing reintegration, since there will always be existing information
-                    // for everything, and this will just cause reintegration to do nothing.
-                    else if (resultsHandler == null)
-                    {
-                        Assume.IsNotNull(settingsOld);
-                        Assume.IsTrue(settingsOld.HasResults);
-
-                        // If there is existing results information, and it was set
-                        // by the user, then preserve it, and skip automatic peak picking
-                        var resultOld = Results != null ? Results[iResultOld] : default(ChromInfoList<TransitionGroupChromInfo>);
-                        if (!resultOld.IsEmpty &&
-                                (// Unfortunately, it is always possible that new results need
-                                 // to be added from other files.  So this must be handled below.
-                                 //(UserSetResults(resultOld) && setTranPrevious == null) ||
-                                 // or this set of results is not yet loaded
-                                 !chromatograms.IsLoadedAndAvailable(measuredResults) ||
-                                 // or not forcing a full recalc of all peaks, chromatograms have not
-                                 // changed and the node has not otherwise changed yet.
-                                 // (happens while loading results)
-                                 // ReSharper disable once ConditionIsAlwaysTrueOrFalse
-                                 (!diff.DiffResultsAll && settingsOld != null &&
-                                  ReferenceEquals(chromatograms, settingsOld.MeasuredResults.Chromatograms[iResultOld]) &&
-                                  Equals(this, nodePrevious))))
-                        {
-                            for (int iTran = 0; iTran < Children.Count; iTran++)
-                            {
-                                var nodeTran = (TransitionDocNode)Children[iTran];
-                                var results = nodeTran.HasResults ? nodeTran.Results[iResultOld] : default(ChromInfoList<TransitionChromInfo>);
-                                if (results.IsEmpty)
-                                    resultsCalc.AddTransitionChromInfo(iTran, null);
-                                else
-                                    resultsCalc.AddTransitionChromInfo(iTran, results.ToArray());
-                            }
-                            continue;                            
-                        }
-                    }
-
-                    // Check for any user set transitions in the previous node that
-                    // should be used to set peak boundaries on any new nodes.
-                    Dictionary<int, TransitionChromInfo> dictUserSetInfoBest = null;
-                    bool missmatchedEmptyReintegrated = false;
-                    if (keepUserSet && iResultOld != -1)
-                    {
-                        // Or we have reintegrated peaks that are not matching the current integrate all setting
-                        if (settingsOld == null)
-                            missmatchedEmptyReintegrated = nodePrevious.IsMismatchedEmptyReintegrated(iResultOld);
-                        if (setTranPrevious != null || missmatchedEmptyReintegrated)
-                            dictUserSetInfoBest = nodePrevious.FindBestUserSetInfo(iResultOld);
-                    }
-
-                    bool loadPoints;
-                    if (dictUserSetInfoBest != null)
-                    {
-                        loadPoints = dictUserSetInfoBest.Values.Any(chromInfo => !chromInfo.IsEmpty);
-                    }
-                    else
-                    {
-                        loadPoints = GetMatchingGroups(nodePep).Any();
-                    }
-                    ChromatogramGroupInfo[] temp;   // Dummy variable, using list instead to avoid extra allocation
-                    if (!measuredResults.TryLoadChromatogram(chromatograms, nodePep, this, mzMatchTolerance,
-                            loadPoints, listChromGroupInfo, out temp))
-                    {
-                        bool useOldResults = iResultOld != -1 && !chromatograms.IsLoadedAndAvailable(measuredResults);
-
-                        for (int iTran = 0; iTran < Children.Count; iTran++)
-                        {
-                            var nodeTran = (TransitionDocNode)Children[iTran];
-                            var results = default(ChromInfoList<TransitionChromInfo>);
-                            if (useOldResults)
-                            {
-                                if (nodeTran.HasResults && nodeTran.Results.Count > iResultOld)
-                                {
-                                    results = nodeTran.Results[iResultOld];
-                                }
-                            }
-                            if (results.IsEmpty)
-                                resultsCalc.AddTransitionChromInfo(iTran, null);
-                            else
-                                resultsCalc.AddTransitionChromInfo(iTran, results.ToArray());
-                        }
-                    }
-                    else
-                    {
-                        // Make sure each file only appears once in the list, since downstream
-                        // code has problems with multiple measurements in the same file.
-                        // Most measuremenst should happen only once per replicate, meaning this
-                        // if clause is an unusual case.  A race condition pre-0.7 occasionally
-                        // resulted in writing precursor entries multiple times to the cache file.
-                        // This code also corrects that problem by ignoring all but the first
-                        // instance.
-                        IList<ChromatogramGroupInfo> chromGroupInfos = listChromGroupInfo;
-                        if (chromGroupInfos.Count > 1)
-                            chromGroupInfos = chromGroupInfos.Distinct(ChromatogramGroupInfo.PathComparer).ToArray();
-                        // Find the file indexes once
-                        int countGroupInfos = chromGroupInfos.Count;
-                        var fileIds = new ChromFileInfoId[countGroupInfos];
-                        // and matching reintegration statistics, if any
-                        PeakFeatureStatistics[] reintegratePeaks = resultsHandler != null
-                            ? new PeakFeatureStatistics[countGroupInfos]
-                            : null;
-                        for (int j = 0; j < countGroupInfos; j++)
-                        {
-                            var fileId = chromatograms.FindFile(chromGroupInfos[j]);
-
-                            fileIds[j] = fileId;
-
-                            if (resultsHandler != null)
-                            {
-                                reintegratePeaks[j] = resultsHandler.GetPeakFeatureStatistics(
-                                    nodePep.Peptide.GlobalIndex, fileId.GlobalIndex);
-                            }
-                        }
-                        resultsCalc.AddReintegrateInfo(resultsHandler, fileIds, reintegratePeaks);
-
-                        // Figure out the number of steps for this chromatogram set, if it has
-                        // an optimization function.
-                        int numSteps = 0;
-                        if (chromatograms.OptimizationFunction != null)
-                            numSteps = chromatograms.OptimizationFunction.StepCount;
-
-                        // Calculate the transition info, and the max values for the transition group
-                        for (int iTran = 0; iTran < Children.Count; iTran++)
-                        {
-                            var nodeTran = (TransitionDocNode) Children[iTran];
-                            // Use existing information, if it is still equivalent to the
-                            // chosen peak.
-                            var results = nodeTran.HasResults && iResultOld != -1 ?
-                                nodeTran.Results[iResultOld] : default(ChromInfoList<TransitionChromInfo>);
-
-                            // Singleton chrom infos are most common. So avoid creating a list every time
-                            TransitionChromInfo firstChromInfo = null;
-                            IList<TransitionChromInfo> listTranInfo = null;
-                            for (int j = 0; j < countGroupInfos; j++)
-                            {
-                                // Get all transition chromatogram info for this file.
-                                ChromatogramGroupInfo chromGroupInfo = chromGroupInfos[j];
-                                ChromFileInfoId fileId = fileIds[j];
-                                PeakFeatureStatistics reintegratePeak = reintegratePeaks != null ? reintegratePeaks[j] : null;
-
-                                chromGroupInfo.GetAllTransitionInfo(nodeTran,
-                                    mzMatchTolerance, chromatograms.OptimizationFunction, listChromInfo, TransformChrom.interpolated);
-
-                                // Always add the right number of steps to the list, no matter
-                                // how many entries were returned.
-                                int offset = listChromInfo.Count/2 - numSteps;
-                                int countInfos = numSteps*2 + 1;
-                                // Make sure nothing gets added when no measurements are present
-                                if (listChromInfo.Count == 0)
-                                    countInfos = 0;
-                                else if (listChromInfo.Count < countInfos)
-                                    offset = FindCenterInfo(nodeTran, listChromInfo) - numSteps;
-                                for (int i = 0; i < countInfos; i++)
-                                {
-                                    ChromatogramInfo info = null;
-                                    int iInfo = i + offset;
-                                    if (0 <= iInfo && iInfo < listChromInfo.Count)
-                                        info = listChromInfo[iInfo];
-
-                                    // Check for existing info that was set by the user.
-                                    int step = i - numSteps;
-                                    UserSet userSet = UserSet.FALSE;
-                                    var chromInfo = FindChromInfo(results, fileId, step);
-                                    bool notUserSet;
-                                    if (resultsHandler == null)
-                                    {
-                                        // If we don't have a model then we shouldn't change peaks that are "REINTEGRATED".
-                                        notUserSet = chromInfo == null || chromInfo.UserSet == UserSet.FALSE;
-                                    }
-                                    else
-                                    {
-                                        notUserSet = chromInfo == null || chromInfo.UserSet == UserSet.FALSE ||
-                                                     chromInfo.UserSet == UserSet.REINTEGRATED;
-                                    }
-                                    if (!keepUserSet || notUserSet || missmatchedEmptyReintegrated)
-                                    {
-                                        ChromPeak peak = ChromPeak.EMPTY;
-                                        IonMobilityFilter ionMobility = IonMobilityFilter.EMPTY;
-                                        if (info != null)
-                                        {
-                                            // If the peak boundaries have been set by the user, make sure this peak matches
-                                            TransitionChromInfo chromInfoBest;
-                                            TransitionGroupChromInfo chromGroupInfoMatch;
-                                            if (dictUserSetInfoBest != null &&
-                                                    dictUserSetInfoBest.TryGetValue(fileId.GlobalIndex, out chromInfoBest))
-                                            {
-                                                peak = CalcPeak(settingsNew, info, chromInfoBest);
-                                                userSet = chromInfoBest.UserSet;
-                                            }
-                                            // Or if there is a matching peak on another precursor in the peptide
-                                            else if (nodePep.HasResults && !HasResults &&
-                                                TryGetMatchingGroupInfo(nodePep, chromIndex, fileId, step, out chromGroupInfoMatch))
-                                            {
-                                                peak = CalcMatchingPeak(settingsNew, info, chromGroupInfoMatch, reintegratePeak, qcutoff, ref userSet);
-                                            }
-                                            // Otherwise use the best peak chosen at import time
-                                            else
-                                            {
-                                                int bestIndex = GetBestIndex(info, reintegratePeak, qcutoff, ref userSet);
-                                                if (bestIndex != -1)
-                                                    peak = info.GetPeak(bestIndex);
-                                            }
-                                            ionMobility = info.GetIonMobilityFilter();
-                                        }
-
-                                        // Avoid creating new info objects that represent the same data
-                                        // in use before.
-                                        if (chromInfo == null || !chromInfo.Equivalent(fileId, step, peak, ionMobility) || chromInfo.UserSet != userSet)
-                                        {
-                                            int ratioCount = settingsNew.PeptideSettings.Modifications.RatioInternalStandardTypes.Count;
-                                            chromInfo = CreateTransitionChromInfo(chromInfo, fileId, step, peak, ionMobility, ratioCount, userSet);
-                                        }
-                                    }
-
-                                    if (firstChromInfo == null)
-                                        firstChromInfo = chromInfo;
-                                    else
-                                    {
-                                        if (listTranInfo == null)
-                                            listTranInfo = new List<TransitionChromInfo>(countGroupInfos) {firstChromInfo};
-                                        listTranInfo.Add(chromInfo);
-                                    }
-                                }
-                            }
-                            if (firstChromInfo == null)
-                                resultsCalc.AddTransitionChromInfo(iTran, null);
-                            else if (listTranInfo == null)
-                                resultsCalc.AddTransitionChromInfo(iTran, new SingletonList<TransitionChromInfo>(firstChromInfo));
-                            else
-                                resultsCalc.AddTransitionChromInfo(iTran, listTranInfo);
-                            
-                        }
-                    }
-                }
-                return resultsCalc.UpdateTransitionGroupNode(this);
             }
+            resultsCalc.AddReintegrateInfo(resultsHandler, fileIds, reintegratePeaks);
+
+            // Figure out the number of steps for this chromatogram set, if it has
+            // an optimization function.
+            int numSteps = 0;
+            if (chromatograms.OptimizationFunction != null)
+                numSteps = chromatograms.OptimizationFunction.StepCount;
+
+            // Calculate the transition info, and the max values for the transition group
+            for (int iTran = 0; iTran < Children.Count; iTran++)
+            {
+                var nodeTran = (TransitionDocNode)Children[iTran];
+                // Use existing information, if it is still equivalent to the
+                // chosen peak.
+                var results = nodeTran.HasResults && iResultOld != -1 ?
+                    nodeTran.Results[iResultOld] : default(ChromInfoList<TransitionChromInfo>);
+
+                // Singleton chrom infos are most common. So avoid creating a list every time
+                TransitionChromInfo firstChromInfo = null;
+                IList<TransitionChromInfo> listTranInfo = null;
+                for (int j = 0; j < countGroupInfos; j++)
+                {
+                    // Get all transition chromatogram info for this file.
+                    ChromatogramGroupInfo chromGroupInfo = chromGroupInfos[j];
+                    ChromFileInfoId fileId = fileIds[j];
+                    PeakFeatureStatistics reintegratePeak = reintegratePeaks != null ? reintegratePeaks[j] : null;
+
+                    var listChromInfo = chromGroupInfo.GetAllTransitionInfo(nodeTran,
+                        mzMatchTolerance, chromatograms.OptimizationFunction, TransformChrom.interpolated);
+                    if (listChromInfo.IsEmpty)
+                    {
+                        // Make sure nothing gets added when no measurements are present
+                        continue;
+                    }
+
+                    // Always add the right number of steps to the list, no matter
+                    // how many entries were returned.
+                    for (int step = -numSteps; step <= numSteps; step++)
+                    {
+                        ChromatogramInfo info = listChromInfo.GetChromatogramForStep(step);
+                        // Check for existing info that was set by the user.
+                        UserSet userSet = UserSet.FALSE;
+                        var chromInfo = FindChromInfo(results, fileId, step);
+                        bool notUserSet;
+                        if (resultsHandler == null)
+                        {
+                            // If we don't have a model then we shouldn't change peaks that are "REINTEGRATED".
+                            notUserSet = chromInfo == null || chromInfo.UserSet == UserSet.FALSE;
+                        }
+                        else
+                        {
+                            notUserSet = chromInfo == null || chromInfo.UserSet == UserSet.FALSE ||
+                                         chromInfo.UserSet == UserSet.REINTEGRATED;
+                        }
+                        if (!keepUserSet || notUserSet || mismatchedEmptyReintegrated || chromatogramDataChanged)
+                        {
+                            ChromPeak peak = ChromPeak.EMPTY;
+                            IonMobilityFilter ionMobility = IonMobilityFilter.EMPTY;
+                            if (info != null)
+                            {
+                                TransitionGroupChromInfo chromGroupInfoMatch;
+                                if (dictUserSetInfoBest != null)
+                                {
+                                    TransitionChromInfo chromInfoBest;
+                                    if (mismatchedEmptyReintegrated)
+                                    {
+                                        // If we are reintegrating, then copy the peak boundaries of the best peak
+                                        dictUserSetInfoBest.TryGetValue(fileId.GlobalIndex,
+                                            out chromInfoBest);
+                                    }
+                                    else
+                                    {
+                                        // Otherwise, use the same peak boundaries
+                                        chromInfoBest = chromInfo;
+                                    }
+
+                                    if (chromInfoBest != null)
+                                    {
+                                        peak = CalcPeak(settingsNew, info, chromInfoBest);
+                                        userSet = chromInfoBest.UserSet;
+                                    }
+                                }
+                                // Or if there is a matching peak on another precursor in the peptide
+                                else if (nodePep.HasResults && !HasResults &&
+                                    TryGetMatchingGroupInfo(nodePep, chromIndex, fileId, step, out chromGroupInfoMatch))
+                                {
+                                    peak = CalcMatchingPeak(settingsNew, info, chromGroupInfoMatch, reintegratePeak, qcutoff, ref userSet);
+                                }
+                                // Otherwise use the best peak chosen at import time
+                                else
+                                {
+                                    int bestIndex = GetBestIndex(info, reintegratePeak, qcutoff, ref userSet);
+                                    if (bestIndex != -1)
+                                        peak = info.GetPeak(bestIndex);
+                                }
+                                ionMobility = info.GetIonMobilityFilter();
+                            }
+
+                            // Avoid creating new info objects that represent the same data
+                            // in use before.
+                            if (chromInfo == null || !chromInfo.Equivalent(fileId, step, peak, ionMobility) || chromInfo.UserSet != userSet)
+                            {
+                                int ratioCount = settingsNew.PeptideSettings.Modifications.RatioInternalStandardTypes.Count;
+                                chromInfo = CreateTransitionChromInfo(chromInfo, fileId, step, peak, ionMobility, ratioCount, userSet);
+                            }
+                        }
+
+                        if (firstChromInfo == null)
+                            firstChromInfo = chromInfo;
+                        else
+                        {
+                            if (listTranInfo == null)
+                                listTranInfo = new List<TransitionChromInfo>(countGroupInfos) { firstChromInfo };
+                            listTranInfo.Add(chromInfo);
+                        }
+                    }
+                }
+                if (firstChromInfo == null)
+                    resultsCalc.AddTransitionChromInfo(iTran, null);
+                else if (listTranInfo == null)
+                    resultsCalc.AddTransitionChromInfo(iTran, new SingletonList<TransitionChromInfo>(firstChromInfo));
+                else
+                    resultsCalc.AddTransitionChromInfo(iTran, listTranInfo);
+            }
+        }
+
+        private bool MustReadAllChromatograms(SrmSettings settingsNew, SrmSettingsDiff settingsDiff)
+        {
+            if (null != settingsNew.PeptideSettings.Integration.ResultsHandler)
+            {
+                return true;
+            }
+
+            var settingsOld = settingsDiff.SettingsOld;
+            if (settingsOld == null)
+            {
+                return true;
+            }
+
+            if (settingsNew.TransitionSettings.Instrument.MzMatchTolerance !=
+                settingsOld.TransitionSettings.Instrument.MzMatchTolerance)
+            {
+                return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Returns true if the area values in the TransitionChromInfo's can be trusted so that the data from the .skyd does not need to be examined.
+        /// </summary>
+        private bool CanUseOldResults(SrmSettings settingsNew, SrmSettingsDiff diff, TransitionGroupDocNode nodePrevious, int chromIndex, int iResultOld)
+        {
+            if (MustReadAllChromatograms(settingsNew, diff))
+            {
+                return false;
+            }
+            var measuredResults = settingsNew.MeasuredResults;
+            var chromatograms = settingsNew.MeasuredResults.Chromatograms[chromIndex];
+            var settingsOld = diff.SettingsOld;
+            if (!chromatograms.IsLoadedAndAvailable(measuredResults))
+            {
+                return true;
+            }
+            if (settingsOld == null)
+            {
+                return false;
+            }
+            if (settingsNew.TransitionSettings.Instrument.MzMatchTolerance != settingsOld.TransitionSettings.Instrument.MzMatchTolerance)
+            {
+                return false;
+            }
+            if (measuredResults.HasNewChromatogramData(chromIndex))
+            {
+                return false;
+            }
+            if (!ReferenceEquals(chromatograms, settingsOld.MeasuredResults?.Chromatograms[iResultOld]))
+            {
+                return false;
+            }
+            if (!Equals(this, nodePrevious))
+            {
+                return false;
+            }
+
+            foreach (var transition in Transitions)
+            {
+                if (transition.Results == null || iResultOld >= transition.Results.Count)
+                {
+                    return false;
+                }
+
+                if (transition.Results[iResultOld].IsEmpty)
+                {
+                    return false;
+                }
+            }
+            return true;
         }
 
         private TransitionGroupDocNode UpdateResultsToEmpty(MeasuredResults measuredResults)
@@ -1440,27 +1611,6 @@ namespace pwiz.Skyline.Model
 
             var empty = measuredResults.EmptyTransitionGroupResults;
             return (TransitionGroupDocNode) ChangeResults(empty).ChangeChildren(childrenNew);
-        }
-
-        /// <summary>
-        /// Returns the <see cref="ChromatogramInfo"/> with the closest m/z value to the given transition.
-        /// </summary>
-        private int FindCenterInfo(TransitionDocNode nodeTran, List<ChromatogramInfo> listChromInfo)
-        {
-            // The list is assumed to be sorted by m/z. So, m/z values should get closer and closer
-            // until they start getting farther and farther.
-            double minDelta = double.MaxValue;
-            for (int i = 1; i < listChromInfo.Count; i++)
-            {
-                // Stop once the first element is farther away than the last and return the last
-                double delta = Math.Abs(listChromInfo[i].ProductMz - nodeTran.Mz);
-                if (delta > minDelta)
-                    return i - 1;
-                minDelta = delta;
-            }
-
-            // Just got closer with each step. So return the last element
-            return listChromInfo.Count - 1;
         }
 
         private static int GetBestIndex(ChromatogramInfo info, PeakFeatureStatistics reintegratePeak, double qcutoff, ref UserSet userSet)
@@ -1495,12 +1645,10 @@ namespace pwiz.Skyline.Model
             {
                 return ChromPeak.EMPTY;
             }
-            int startIndex = info.IndexOfNearestTime(chromInfoBest.StartRetentionTime);
-            int endIndex = info.IndexOfNearestTime(chromInfoBest.EndRetentionTime);
             ChromPeak.FlagValues flags = 0;
             if (settingsNew.MeasuredResults.IsTimeNormalArea)
                 flags = ChromPeak.FlagValues.time_normalized;
-            return info.CalcPeak(startIndex, endIndex, flags);
+            return info.CalcPeak(chromInfoBest.StartRetentionTime, chromInfoBest.EndRetentionTime, flags);
         }
 
         private static ChromPeak CalcMatchingPeak(SrmSettings settingsNew,
@@ -1510,12 +1658,10 @@ namespace pwiz.Skyline.Model
                                                   double qcutoff, 
                                                   ref UserSet userSet)
         {
-            int startIndex = info.IndexOfNearestTime(chromGroupInfoMatch.StartRetentionTime.Value);
-            int endIndex = info.IndexOfNearestTime(chromGroupInfoMatch.EndRetentionTime.Value);
             ChromPeak.FlagValues flags = 0;
             if (settingsNew.MeasuredResults.IsTimeNormalArea)
                 flags = ChromPeak.FlagValues.time_normalized;
-            var peak = info.CalcPeak(startIndex, endIndex, flags);
+            var peak = info.CalcPeak(chromGroupInfoMatch.StartRetentionTime.Value, chromGroupInfoMatch.EndRetentionTime.Value, flags);
             userSet = UserSet.MATCHED;
             var userSetBest = UserSet.FALSE;
             int bestIndex = GetBestIndex(info, reintegratePeak, qcutoff, ref userSetBest);
@@ -1565,9 +1711,8 @@ namespace pwiz.Skyline.Model
         {
             // Use the old ratio for now, and it will be corrected by the peptide,
             // if it is incorrect.
-            IList<float?> ratios = chromInfo != null ? chromInfo.Ratios : TransitionChromInfo.GetEmptyRatios(ratioCount);
             Annotations annotations = chromInfo != null ? chromInfo.Annotations : Annotations.EMPTY;
-            return new TransitionChromInfo(fileId, step, peak, ionMobility, ratios, annotations, userSet);
+            return new TransitionChromInfo(fileId, step, peak, ionMobility, annotations, userSet);
         }
 
         /// <summary>
@@ -1659,7 +1804,7 @@ namespace pwiz.Skyline.Model
                     var chromInfo = results[i];
                     if (ReferenceEquals(fileId, chromInfo.FileId) && step == chromInfo.OptimizationStep)
                         return chromInfo;
-            }
+                }
             }
             return null;
         }
@@ -2175,7 +2320,6 @@ namespace pwiz.Skyline.Model
                                                                           fileId,
                                                                           step,
                                                                           TransitionCount,
-                                                                          chromInfo.Ratios.Count,
                                                                           chromInfoGroup,
                                                                           ReintegrateResults,
                                                                           GetReintegratePeak(fileId, step), 
@@ -2259,7 +2403,6 @@ namespace pwiz.Skyline.Model
                                                         ChromFileInfoId fileId,
                                                         int optimizationStep,
                                                         int transitionCount,
-                                                        int ratioCount,
                                                         TransitionGroupChromInfo chromInfo,
                                                         MProphetResultsHandler reintegrateResults,
                                                         PeakFeatureStatistics reintegratePeak,
@@ -2278,14 +2421,12 @@ namespace pwiz.Skyline.Model
                     QValue = chromInfo.QValue;
                     ZScore = chromInfo.ZScore;
 
-                    Ratios = chromInfo.Ratios;
                     Annotations = chromInfo.Annotations;
 
                     IonMobilityInfo = chromInfo.IonMobilityInfo;
                 }
                 else
                 {
-                    Ratios = TransitionGroupChromInfo.GetEmptyRatios(ratioCount);
                     Annotations = Annotations.EMPTY;
 
                     IonMobilityInfo = TransitionGroupIonMobilityInfo.EMPTY; 
@@ -2308,10 +2449,8 @@ namespace pwiz.Skyline.Model
             private int TransitionCount { get; set; }
             private int PeakCount { get; set; }
             private int ResultsCount { get; set; }
-            private float MaxHeight { get; set; }
-            private float? RetentionTime { get; set; }
-            private float? StartTime { get; set; }
-            private float? EndTime { get; set; }
+            private RetentionTimeValues BestRetentionTimes { get; set; }
+            private RetentionTimeValues NonQuantitativeRetentionTimes { get; set; }
             private TransitionGroupIonMobilityInfo IonMobilityInfo { get; set; }
             private float? Fwhm { get; set; }
             private float? Area { get; set; }
@@ -2327,7 +2466,6 @@ namespace pwiz.Skyline.Model
             private float? IsotopeDotProduct { get; set; }
             private float? QValue { get; set; }
             private float? ZScore { get; set; }
-            private IList<RatioValue> Ratios { get; set; }
             private Annotations Annotations { get; set; }
             private UserSet UserSet { get; set; }
 
@@ -2361,7 +2499,8 @@ namespace pwiz.Skyline.Model
                 {
                     if (info.IsGoodPeak(Settings.TransitionSettings.Integration.IsIntegrateAll))
                         PeakCount++;
-                    if (nodeTran.ExplicitQuantitative)
+                    var retentionTimeValues = RetentionTimeValues.FromTransitionChromInfo(info);
+                    if (nodeTran.IsQuantitative(Settings))
                     {
                         Area = (Area ?? 0) + info.Area;
                         BackgroundArea = (BackgroundArea ?? 0) + info.BackgroundArea;
@@ -2371,11 +2510,8 @@ namespace pwiz.Skyline.Model
                             massError += (info.MassError.Value - massError) * info.Area / Area.Value;
                             MassError = (float)massError;
                         }
-                        if (info.Height > MaxHeight)
-                        {
-                            MaxHeight = info.Height;
-                            RetentionTime = info.RetentionTime;
-                        }
+
+                        BestRetentionTimes = RetentionTimeValues.Merge(BestRetentionTimes, retentionTimeValues);
                         if (!info.IsFwhmDegenerate)
                             Fwhm = Math.Max(info.Fwhm, Fwhm ?? float.MinValue);
                         if (info.IsTruncated.HasValue)
@@ -2396,10 +2532,10 @@ namespace pwiz.Skyline.Model
                                 BackgroundAreaFragment = (BackgroundAreaFragment ?? 0) + info.BackgroundArea;
                                 break;
                         }
-                        if (info.StartRetentionTime != 0)
-                            StartTime = Math.Min(info.StartRetentionTime, StartTime ?? float.MaxValue);
-                        if (info.EndRetentionTime != 0)
-                            EndTime = Math.Max(info.EndRetentionTime, EndTime ?? float.MinValue);
+                    }
+                    else
+                    {
+                        NonQuantitativeRetentionTimes = RetentionTimeValues.Merge(NonQuantitativeRetentionTimes, retentionTimeValues);
                     }
 
                     if (info.IsIdentified &&
@@ -2457,18 +2593,19 @@ namespace pwiz.Skyline.Model
                         qValue = (float)ExplicitPeakBounds.Score;
                     }
                 }
+
+                var retentionTimeValues = BestRetentionTimes ?? NonQuantitativeRetentionTimes;
                 return new TransitionGroupChromInfo(FileId,
                                                     OptimizationStep,
                                                     PeakCountRatio,
-                                                    RetentionTime,
-                                                    StartTime,
-                                                    EndTime,
+                                                    (float?) retentionTimeValues?.RetentionTime,
+                                                    (float?) retentionTimeValues?.StartRetentionTime,
+                                                    (float?) retentionTimeValues?.EndRetentionTime,
                                                     IonMobilityInfo,
                                                     Fwhm,
                                                     Area, AreaMs1, AreaFragment,
                                                     BackgroundArea, BackgroundAreaMs1, BackgroundAreaFragment,
-                                                    MaxHeight,
-                                                    Ratios,
+                                                    (float?) BestRetentionTimes?.Height,
                                                     MassError,
                                                     Truncated,
                                                     Identified,
@@ -2618,27 +2755,26 @@ namespace pwiz.Skyline.Model
             }
             // Update all transitions with the new information
             var listChildrenNew = new List<DocNode>(Children.Count);
-            var listChromInfo = new List<ChromatogramInfo>();
             foreach (TransitionDocNode nodeTran in Children)
             {
-                chromGroupInfo.GetAllTransitionInfo(nodeTran, (float)mzMatchTolerance, regression, listChromInfo, TransformChrom.interpolated);
+                var optStepChromatograms = chromGroupInfo.GetAllTransitionInfo(nodeTran, (float)mzMatchTolerance, regression, TransformChrom.interpolated);
                 // Shouldn't need to update a transition with no chrom info
-                if (listChromInfo.Count == 0)
+                if (optStepChromatograms.IsEmpty) 
                     listChildrenNew.Add(nodeTran.RemovePeak(indexSet, fileId, userSet));
                 else
                 {
-                    // CONSIDER: Do this more efficiently?  Only when there is opimization
-                    //           data will the loop execute more than once.
-                    int numSteps = listChromInfo.Count/2;
+                    int numSteps = optStepChromatograms.StepCount;
                     var nodeTranNew = nodeTran;
-                    for (int i = 0; i < listChromInfo.Count; i++)
+                    for (int step = -numSteps; step <= numSteps; step++)
                     {
-                        var chromInfo = listChromInfo[i];
-                        int step = i - numSteps;
-
+                        var chromInfo = optStepChromatograms.GetChromatogramForStep(step);
+                        if (chromInfo == null)
+                        {
+                            continue;
+                        }
                         ChromPeak peakNew = chromInfo.GetPeak(indexPeakBest);
-                        nodeTranNew = (TransitionDocNode) nodeTranNew.ChangePeak(
-                                                              indexSet, fileId, step, peakNew, chromInfo.GetIonMobilityFilter(), ratioCount, userSet);
+                        nodeTranNew = (TransitionDocNode) nodeTranNew.ChangePeak(indexSet, fileId, step, peakNew,
+                            chromInfo.GetIonMobilityFilter(), ratioCount, userSet);
                     }
                     listChildrenNew.Add(nodeTranNew);
                 }
@@ -2676,7 +2812,6 @@ namespace pwiz.Skyline.Model
                 flags |= ChromPeak.FlagValues.contains_id;
             if (identified == PeakIdentification.ALIGNED)
                 flags |= ChromPeak.FlagValues.used_id_alignment;
-            var listChromInfo = new List<ChromatogramInfo>();
             foreach (TransitionDocNode nodeTran in Children)
             {
                 if (transition != null && !ReferenceEquals(transition, nodeTran.Transition))
@@ -2696,28 +2831,23 @@ namespace pwiz.Skyline.Model
                         }
                     }
                 }
-                chromGroupInfo.GetAllTransitionInfo(nodeTran, (float)mzMatchTolerance, regression, listChromInfo, TransformChrom.interpolated);
+                var listChromInfo = chromGroupInfo.GetAllTransitionInfo(nodeTran, (float)mzMatchTolerance, regression, TransformChrom.interpolated);
 
                 // Shouldn't need to update a transition with no chrom info
                 // Also if startTime is null, remove the peak
-                if (listChromInfo.Count == 0 || startTime == null)
+                if (listChromInfo.IsEmpty || startTime == null)
                     listChildrenNew.Add(nodeTran.RemovePeak(indexSet, fileId, userSet));
                 else
                 {
-                    // CONSIDER: Do this more efficiently?  Only when there is opimization
-                    //           data will the loop execute more than once.
-                    int numSteps = listChromInfo.Count / 2;
+                    int numSteps = regression?.StepCount ?? 0;
                     var nodeTranNew = nodeTran;
-                    for (int i = 0; i < listChromInfo.Count; i++)
+                    for (int step = -numSteps; step <= numSteps; step++)
                     {
-                        var chromInfo = listChromInfo[i];
-                        int startIndex = chromInfo.IndexOfNearestTime((float)startTime);
-                        int endIndex = chromInfo.IndexOfNearestTime((float)endTime);
-                        int step = i - numSteps;
-                        nodeTranNew = (TransitionDocNode) nodeTranNew.ChangePeak(indexSet, fileId, step,
-                                                                                    chromInfo.CalcPeak(startIndex, endIndex, flags),
-                                                                                    chromInfo.GetIonMobilityFilter(),
-                                                                                    ratioCount, userSet);
+                        var chromInfo = listChromInfo.GetChromatogramForStep(step);
+                        ChromPeak chromPeak = chromInfo?.CalcPeak((float) startTime, (float) endTime, flags) 
+                                              ?? ChromPeak.EMPTY;
+                        nodeTranNew = (TransitionDocNode) nodeTranNew.ChangePeak(indexSet, fileId, step, chromPeak,
+                            chromInfo?.GetIonMobilityFilter(), ratioCount, userSet);
                     }
                     listChildrenNew.Add(nodeTranNew);
                 }
@@ -2982,7 +3112,7 @@ namespace pwiz.Skyline.Model
                     }
                     if (libraries.TryLoadSpectrum(key, out spectrumInfo))
                     {
-                        var spectrumInfoR = new LibraryRankedSpectrumInfo(spectrumInfo, labelType,
+                        var spectrumInfoR = LibraryRankedSpectrumInfo.NewLibraryRankedSpectrumInfo(spectrumInfo, labelType,
                             this, settings, mods, useFilter, TransitionGroup.MAX_MATCHED_MSMS_PEAKS);
                         foreach (var rmi in spectrumInfoR.PeaksRanked)
                         {

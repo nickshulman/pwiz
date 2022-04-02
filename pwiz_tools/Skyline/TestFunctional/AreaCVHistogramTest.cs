@@ -29,6 +29,8 @@ using pwiz.Skyline.Controls.Graphs;
 using pwiz.Skyline.EditUI;
 using pwiz.Skyline.Model;
 using pwiz.Skyline.Model.DocSettings.Extensions;
+using pwiz.Skyline.Model.GroupComparison;
+using pwiz.Skyline.Model.Results;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
 using ZedGraph;
@@ -68,14 +70,14 @@ namespace pwiz.SkylineTestFunctional
 
         private static readonly string[] HISTOGRAM_FINDRESULTS = 
         {
-            "K.DFATVYVDAVK.D [35, 45]",
-            "R.ASGIIDTLFQDR.F [181, 192]",
-            "R.HTNNGMICLTSLLR.I [279, 292]",
-            "K.ENSSNILDNLLSR.M [802, 814]",
-            "R.ALIHCLHMS.- [436, 444]",
-            "R.LTHGDFTWTTK.K [90, 100]",
-            "K.YGLDLGSLLVR.L [1066, 1076]",
-            "K.AGSWQITMK.G [258, 266]",
+            "K.DFATVYVDAVK.D [36, 46]",
+            "R.ASGIIDTLFQDR.F [182, 193]",
+            "R.HTNNGMICLTSLLR.I [280, 293]",
+            "K.ENSSNILDNLLSR.M [803, 815]",
+            "R.ALIHCLHMS.- [437, 445]",
+            "R.LTHGDFTWTTK.K [91, 101]",
+            "K.YGLDLGSLLVR.L [1067, 1077]",
+            "K.AGSWQITMK.G [259, 267]",
             "TLNSINIAVFSK",
             "ENEGTYYGPDGR",
             "ENLSPPLGECLLER",
@@ -92,14 +94,14 @@ namespace pwiz.SkylineTestFunctional
 
         private static readonly string[] HISTOGRAM2D_FINDRESULTS = 
         {
-            "K.DFATVYVDAVK.D [35, 45]",
-            "R.ASGIIDTLFQDR.F [181, 192]",
-            "R.HTNNGMICLTSLLR.I [279, 292]",
-            "K.ENSSNILDNLLSR.M [802, 814]",
-            "R.ALIHCLHMS.- [436, 444]",
-            "R.LTHGDFTWTTK.K [90, 100]",
-            "K.YGLDLGSLLVR.L [1066, 1076]",
-            "K.AGSWQITMK.G [258, 266]",
+            "K.DFATVYVDAVK.D [36, 46]",
+            "R.ASGIIDTLFQDR.F [182, 193]",
+            "R.HTNNGMICLTSLLR.I [280, 293]",
+            "K.ENSSNILDNLLSR.M [803, 815]",
+            "R.ALIHCLHMS.- [437, 445]",
+            "R.LTHGDFTWTTK.K [91, 101]",
+            "K.YGLDLGSLLVR.L [1067, 1077]",
+            "K.AGSWQITMK.G [259, 267]",
             "TLNSINIAVFSK",
             "ENEGTYYGPDGR",
             "ENLSPPLGECLLER",
@@ -230,11 +232,11 @@ namespace pwiz.SkylineTestFunctional
             RunUI(() => Assert.AreEqual(0, pane.GetBoxObjCount()));
 
             // Make sure the toolbar is displaying the annotations correctly and that grouping by "All" works
-            RunUI(() => SkylineWindow.SetAreaCVGroup("SubjectId"));
+            RunUI(() => SkylineWindow.SetAreaCVGroup(new ReplicateValue.Annotation(SkylineWindow.Document.Settings.DataSettings.AnnotationDefs.First(def=>def.Name == "SubjectId"))));
             RunUI(() => SkylineWindow.SetAreaCVPointsType(PointsTypePeakArea.targets));
             WaitForGraphs();
 
-            string[] annotations = null;
+            object[] annotations = null;
             RunUI(() => annotations = toolbar.Annotations.ToArray());
 
             CollectionAssert.AreEqual(annotations,
@@ -305,19 +307,19 @@ namespace pwiz.SkylineTestFunctional
 
 
             // Verify that global standards normalization works
-            RunUI(() => SkylineWindow.SetNormalizationMethod(AreaCVNormalizationMethod.global_standards));
+            RunUI(() => SkylineWindow.SetNormalizationMethod(NormalizationMethod.GLOBAL_STANDARDS));
             WaitForGraphs();
             AssertDataCorrect(pane, statsStartIndex++);
 
             // Verify that median normalization works
-            RunUI(() => SkylineWindow.SetNormalizationMethod(AreaCVNormalizationMethod.medians));
+            RunUI(() => SkylineWindow.SetNormalizationMethod(NormalizationMethod.EQUALIZE_MEDIANS));
             WaitForGraphs();
             AssertDataCorrect(pane, statsStartIndex++);
 
             // Verify that transition count works
             RunUI(() =>
             {
-                SkylineWindow.SetNormalizationMethod(AreaCVNormalizationMethod.none);
+                SkylineWindow.SetNormalizationMethod(NormalizationMethod.NONE);
                 SkylineWindow.SetAreaCVTransitions(AreaCVTransitions.count, 3);
             });
             WaitForGraphs();
@@ -334,7 +336,7 @@ namespace pwiz.SkylineTestFunctional
 
             RunUI(() =>
             {
-                SkylineWindow.SetNormalizationMethod(AreaCVNormalizationMethod.medians);
+                SkylineWindow.SetNormalizationMethod(NormalizationMethod.EQUALIZE_MEDIANS);
                 SkylineWindow.SetAreaCVTransitions(AreaCVTransitions.all, -1);
             });
         }
@@ -346,7 +348,7 @@ namespace pwiz.SkylineTestFunctional
                 SkylineWindow.SetAreaCVBinWidth(1.0);
                 SkylineWindow.SetAreaCVPointsType(PointsTypePeakArea.targets);
                 SkylineWindow.SetAreaCVGroup(null);
-                SkylineWindow.SetNormalizationMethod(AreaCVNormalizationMethod.none);
+                SkylineWindow.SetNormalizationMethod(NormalizationMethod.NONE);
             });
 
             WaitForGraphs();
@@ -365,7 +367,7 @@ namespace pwiz.SkylineTestFunctional
             int startIndex = HISTOGRAM_HEAVY_START;
             AssertDataCorrect(pane, startIndex++);
 
-            RunUI(() => SkylineWindow.SetNormalizationMethod(AreaCVNormalizationMethod.ratio, 0));
+            RunUI(() => SkylineWindow.SetNormalizationMethod(NormalizeOption.RatioToFirstStandard(SkylineWindow.Document.Settings)));
             AssertDataCorrect(pane, startIndex);
         }
 
@@ -377,10 +379,13 @@ namespace pwiz.SkylineTestFunctional
             var refineDlg = ShowDialog<RefineDlg>(() => SkylineWindow.ShowRefineDlg());
             RunUI(() => { refineDlg.CVCutoff = 20; });
             OkDialog(refineDlg, refineDlg.OkDialog);
-            var doc = SkylineWindow.Document;
-            var refineDocState = (doc.PeptideGroupCount, doc.PeptideCount, doc.PeptideTransitionGroupCount,
-                doc.PeptideTransitionCount);
-            Assert.AreEqual(graphStates[0], refineDocState);
+            WaitForCondition(() =>
+            {
+                var doc = SkylineWindow.Document;
+                var refineDocState = (doc.PeptideGroupCount, doc.PeptideCount, doc.PeptideTransitionGroupCount,
+                    doc.PeptideTransitionCount);
+                return Equals(graphStates[0], refineDocState);
+            });
             RunUI(SkylineWindow.Undo);
 
             // Normalize to global standards
@@ -388,13 +393,16 @@ namespace pwiz.SkylineTestFunctional
             RunUI(() =>
             {
                 refineDlg.CVCutoff = 20;
-                refineDlg.NormalizationMethod = AreaCVNormalizationMethod.global_standards;
+                refineDlg.NormalizationMethod = NormalizeOption.FromNormalizationMethod(NormalizationMethod.GLOBAL_STANDARDS);
             });
             OkDialog(refineDlg, refineDlg.OkDialog);
-            doc = SkylineWindow.Document;
-            refineDocState = (doc.PeptideGroupCount, doc.PeptideCount, doc.PeptideTransitionGroupCount,
-                doc.PeptideTransitionCount);
-            Assert.AreEqual(graphStates[0], refineDocState);
+            WaitForCondition(() =>
+            {
+                var doc = SkylineWindow.Document;
+                var refineDocState = (doc.PeptideGroupCount, doc.PeptideCount, doc.PeptideTransitionGroupCount,
+                    doc.PeptideTransitionCount);
+                return Equals(graphStates[0], refineDocState);
+            });
             RunUI(SkylineWindow.Undo);
 
             // Normalize to medians
@@ -402,13 +410,16 @@ namespace pwiz.SkylineTestFunctional
             RunUI(() =>
             {
                 refineDlg.CVCutoff = 20;
-                refineDlg.NormalizationMethod = AreaCVNormalizationMethod.medians;
+                refineDlg.NormalizationMethod = NormalizeOption.FromNormalizationMethod(NormalizationMethod.EQUALIZE_MEDIANS);
             });
             OkDialog(refineDlg, refineDlg.OkDialog);
-            doc = SkylineWindow.Document;
-            refineDocState = (doc.PeptideGroupCount, doc.PeptideCount, doc.PeptideTransitionGroupCount,
-                doc.PeptideTransitionCount);
-            Assert.AreEqual(graphStates[1], refineDocState);
+            WaitForCondition(() =>
+            {
+                var doc = SkylineWindow.Document;
+                var refineDocState = (doc.PeptideGroupCount, doc.PeptideCount, doc.PeptideTransitionGroupCount,
+                    doc.PeptideTransitionCount);
+                return Equals(graphStates[1], refineDocState);
+            });
             RunUI(SkylineWindow.Undo);
 
             // Best transitions for products
@@ -420,10 +431,13 @@ namespace pwiz.SkylineTestFunctional
                 refineDlg.MSLevel = AreaCVMsLevel.products;
             });
             OkDialog(refineDlg, refineDlg.OkDialog);
-            doc = SkylineWindow.Document;
-            refineDocState = (doc.PeptideGroupCount, doc.PeptideCount, doc.PeptideTransitionGroupCount,
-                doc.PeptideTransitionCount);
-            Assert.AreEqual(graphStates[2], refineDocState);
+            WaitForCondition(() =>
+            {
+                var doc = SkylineWindow.Document;
+                var refineDocState = (doc.PeptideGroupCount, doc.PeptideCount, doc.PeptideTransitionGroupCount,
+                    doc.PeptideTransitionCount);
+                return Equals(graphStates[2], refineDocState);
+            });
             RunUI(SkylineWindow.Undo);
 
             // Transition count for products
@@ -436,10 +450,13 @@ namespace pwiz.SkylineTestFunctional
                 refineDlg.MSLevel = AreaCVMsLevel.products;
             });
             OkDialog(refineDlg, refineDlg.OkDialog);
-            doc = SkylineWindow.Document;
-            refineDocState = (doc.PeptideGroupCount, doc.PeptideCount, doc.PeptideTransitionGroupCount,
-                doc.PeptideTransitionCount);
-            Assert.AreEqual(graphStates[3], refineDocState);
+            WaitForCondition(() =>
+            {
+                var doc = SkylineWindow.Document;
+                var refineDocState = (doc.PeptideGroupCount, doc.PeptideCount, doc.PeptideTransitionGroupCount,
+                    doc.PeptideTransitionCount);
+                return Equals(graphStates[3], refineDocState);
+            });
             RunUI(SkylineWindow.Undo);
         }
 
@@ -457,10 +474,13 @@ namespace pwiz.SkylineTestFunctional
                 refineDlg.MSLevel = AreaCVMsLevel.precursors;
             });
             OkDialog(refineDlg, refineDlg.OkDialog);
-            var doc = SkylineWindow.Document;
-            var refineDocState = (doc.PeptideGroupCount, doc.PeptideCount, doc.PeptideTransitionGroupCount,
-                doc.PeptideTransitionCount);
-            Assert.AreEqual(graphStates[1], refineDocState);
+            WaitForCondition(() =>
+            {
+                var doc = SkylineWindow.Document;
+                var refineDocState = (doc.PeptideGroupCount, doc.PeptideCount, doc.PeptideTransitionGroupCount,
+                    doc.PeptideTransitionCount);
+                return Equals(graphStates[1], refineDocState);
+            });
             RunUI(SkylineWindow.Undo);
 
             // Verify best and top 1 counts are equal for precursors
@@ -472,10 +492,13 @@ namespace pwiz.SkylineTestFunctional
                 refineDlg.MSLevel = AreaCVMsLevel.precursors;
             });
             OkDialog(refineDlg, refineDlg.OkDialog);
-            doc = SkylineWindow.Document;
-            refineDocState = (doc.PeptideGroupCount, doc.PeptideCount, doc.PeptideTransitionGroupCount,
-                doc.PeptideTransitionCount);
-            Assert.AreEqual(graphStates[0], refineDocState);
+            WaitForCondition(() =>
+            {
+                var doc = SkylineWindow.Document;
+                var refineDocState = (doc.PeptideGroupCount, doc.PeptideCount, doc.PeptideTransitionGroupCount,
+                    doc.PeptideTransitionCount);
+                return Equals(graphStates[0], refineDocState);
+            });
             RunUI(SkylineWindow.Undo);
 
             refineDlg = ShowDialog<RefineDlg>(() => SkylineWindow.ShowRefineDlg());
@@ -487,10 +510,13 @@ namespace pwiz.SkylineTestFunctional
                 refineDlg.MSLevel = AreaCVMsLevel.precursors;
             });
             OkDialog(refineDlg, refineDlg.OkDialog);
-            doc = SkylineWindow.Document;
-            refineDocState = (doc.PeptideGroupCount, doc.PeptideCount, doc.PeptideTransitionGroupCount,
-                doc.PeptideTransitionCount);
-            Assert.AreEqual(graphStates[0], refineDocState);
+            WaitForCondition(() =>
+            {
+                var doc = SkylineWindow.Document;
+                var refineDocState = (doc.PeptideGroupCount, doc.PeptideCount, doc.PeptideTransitionGroupCount,
+                    doc.PeptideTransitionCount);
+                return Equals(graphStates[0], refineDocState);
+            });
             RunUI(SkylineWindow.Undo);
         }
 
@@ -538,7 +564,9 @@ namespace pwiz.SkylineTestFunctional
                 var graphDataStatistics = new AreaCVGraphDataStatistics(data, items);
 
                 if (!RecordData)
-                    Assert.AreEqual(STATS[statsIndex], new AreaCVGraphDataStatistics(data, items));
+                {
+                    AssertEx.AreEqual(STATS[statsIndex], new AreaCVGraphDataStatistics(data, items));
+                }
                 else
                     Console.WriteLine(graphDataStatistics.ToCode());
             });

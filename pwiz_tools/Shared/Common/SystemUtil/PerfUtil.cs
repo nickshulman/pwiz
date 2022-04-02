@@ -209,7 +209,7 @@ namespace pwiz.Common.SystemUtil
                 }
                 string info = string.Format(CultureInfo.InvariantCulture, CSVLINE_FORMAT, key,
                     (double)(t.Value.Sum() - leaftime) / TimeSpan.TicksPerMillisecond,
-                    (t.Value.Sum()!=0) ? 100.0 * (double)(t.Value.Sum() - leaftime) / t.Value.Sum() : 100.0,
+                    (t.Value.Sum()!=0) ? 100.0 * (t.Value.Sum() - leaftime) / t.Value.Sum() : 100.0,
                     t.Value.Count,
                     t.Value.Average() / TimeSpan.TicksPerMillisecond, (double)t.Value.Max() / TimeSpan.TicksPerMillisecond,
                     (double)t.Value.Min() / TimeSpan.TicksPerMillisecond);
@@ -234,6 +234,11 @@ namespace pwiz.Common.SystemUtil
         public PerfUtilFactory(bool issueDummyPerfUtils)
         {
             IssueDummyPerfUtils = issueDummyPerfUtils; // "true" means do no work
+        }
+
+        public void Reset()
+        {
+            IssueDummyPerfUtils = true; // reset back to doing no work
         }
 
         public IPerfUtil CreatePerfUtil(string name)

@@ -21,7 +21,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Windows.Forms;
 using pwiz.Skyline.Model;
-using pwiz.Skyline.Model.DocSettings;
+using pwiz.Skyline.Model.Results;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
 
@@ -30,7 +30,8 @@ namespace pwiz.Skyline.Controls.Graphs
     public sealed partial class AreaCVToolbar : GraphSummaryToolbar //UserControl // for designer
     {
         private readonly Timer _timer;
-        private int _standardTypeCount;
+        private List<NormalizeOption> _normalizationMethods 
+            = new List<NormalizeOption>();
 
         public AreaCVToolbar(GraphSummary graphSummary) :
             base(graphSummary)
@@ -77,10 +78,12 @@ namespace pwiz.Skyline.Controls.Graphs
             }
             else
             {
-                Program.MainWindow.SetAreaCVAnnotation(toolStripComboGroup.Items[index].ToString(), false);
+                Program.MainWindow.SetAreaCVAnnotation(toolStripComboGroup.Items[index], false);
+                var document = _graphSummary.DocumentUIContainer.DocumentUI;
+                var groupByGroup =
+                    ReplicateValue.FromPersistedString(document.Settings, AreaGraphController.GroupByGroup);
                 toolStripNumericDetections.NumericUpDownControl.Maximum = AnnotationHelper
-                    .GetReplicateIndices(_graphSummary.DocumentUIContainer.DocumentUI.Settings,
-                        AreaGraphController.GroupByGroup, AreaGraphController.GroupByAnnotation).Length;
+                    .GetReplicateIndices(document, groupByGroup, AreaGraphController.GroupByAnnotation).Length;
             }
 
             if (IsCurrentDataCached())
@@ -100,39 +103,8 @@ namespace pwiz.Skyline.Controls.Graphs
 
         public void SetNormalizationIndex(int index)
         {
-            // TODO(Tobi): Fix this. It causes an error loading a saved layout with an Area CV graph and normalization meth
-            if (Program.MainWindow == null)
-                return;
-
-            if (index < _standardTypeCount)
-            {
-                Program.MainWindow.SetNormalizationMethod(AreaCVNormalizationMethod.ratio, index, false);
-            }
-            else
-            {
-                index -= _standardTypeCount;
-                if (!_graphSummary.DocumentUIContainer.DocumentUI.Settings.HasGlobalStandardArea)
-                    ++index;
-
-                var normalizationMethod = AreaCVNormalizationMethod.none;
-                switch (index)
-                {
-                    case 0:
-                        normalizationMethod =
-                            _graphSummary.DocumentUIContainer.Document.Settings.HasGlobalStandardArea
-                                ? AreaCVNormalizationMethod.global_standards
-                                : AreaCVNormalizationMethod.medians;
-                        break;
-                    case 1:
-                        normalizationMethod = AreaCVNormalizationMethod.medians;
-                        break;
-                    case 2:
-                        normalizationMethod = AreaCVNormalizationMethod.none;
-                        break;
-                }
-
-                Program.MainWindow.SetNormalizationMethod(normalizationMethod, -1, false);
-            }
+            var entry = _normalizationMethods[index];
+            _graphSummary.StateProvider.AreaNormalizeOption = entry;
 
             if (IsCurrentDataCached())
             {
@@ -169,12 +141,13 @@ namespace pwiz.Skyline.Controls.Graphs
             if (info == null)
                 return false;
 
-            return info.Cache.IsValidFor(_graphSummary.DocumentUIContainer.DocumentUI, new AreaCVGraphData.AreaCVGraphSettings(_graphSummary.Type)) &&
-                info.Cache.Get(AreaGraphController.GroupByGroup,
+            var document = _graphSummary.DocumentUIContainer.DocumentUI;
+            var normalizeOption = AreaGraphController.AreaCVNormalizeOption;
+            return info.Cache.IsValidFor(document, new AreaCVGraphData.AreaCVGraphSettings(document.Settings, _graphSummary.Type)) &&
+                info.Cache.Get(ReplicateValue.FromPersistedString(document.Settings, AreaGraphController.GroupByGroup),
                     AreaGraphController.GroupByAnnotation,
                     AreaGraphController.MinimumDetections,
-                    AreaGraphController.NormalizationMethod,
-                    AreaGraphController.AreaCVRatioIndex) != null;
+                    normalizeOption) != null;
         }
 
         private void toolStripProperties_Click(object sender, EventArgs e)
@@ -216,7 +189,7 @@ namespace pwiz.Skyline.Controls.Graphs
                 if (AreaGraphController.GroupByGroup == null || AreaGraphController.GroupByAnnotation == null)
                     toolStripNumericDetections.NumericUpDownControl.Maximum = document.MeasuredResults.Chromatograms.Count;
                 else
-                    toolStripNumericDetections.NumericUpDownControl.Maximum = AnnotationHelper.GetReplicateIndices(document.Settings, AreaGraphController.GroupByGroup, AreaGraphController.GroupByAnnotation).Length;
+                    toolStripNumericDetections.NumericUpDownControl.Maximum = AnnotationHelper.GetReplicateIndices(document, ReplicateValue.FromPersistedString(document.Settings, AreaGraphController.GroupByGroup), AreaGraphController.GroupByAnnotation).Length;
 
                 if (!detectionsVisiblePrev)
                     toolStripNumericDetections.NumericUpDownControl.Value = 2;
@@ -224,7 +197,10 @@ namespace pwiz.Skyline.Controls.Graphs
 
             if (groupsVisible)
             {
-                var annotations = new[] { Resources.GraphSummary_UpdateToolbar_All }.Concat(AnnotationHelper.GetPossibleAnnotations(document.Settings, AreaGraphController.GroupByGroup, AnnotationDef.AnnotationTarget.replicate)).ToArray();
+                var annotations = new[] {Resources.GraphSummary_UpdateToolbar_All}.Concat(
+                    AnnotationHelper.GetPossibleAnnotations(document,
+                            ReplicateValue.FromPersistedString(document.Settings, AreaGraphController.GroupByGroup))
+                        .Except(new object[] {null})).ToArray();
 
                 toolStripComboGroup.Items.Clear();
                 // ReSharper disable once CoVariantArrayConversion
@@ -234,36 +210,17 @@ namespace pwiz.Skyline.Controls.Graphs
                     toolStripComboGroup.SelectedItem = AreaGraphController.GroupByAnnotation;
                 else
                     toolStripComboGroup.SelectedIndex = 0;
+                ComboHelper.AutoSizeDropDown(toolStripComboGroup);
             }
-
-            var mods = _graphSummary.DocumentUIContainer.DocumentUI.Settings.PeptideSettings.Modifications;
-            var standardTypes = mods.RatioInternalStandardTypes;
 
             toolStripComboNormalizedTo.Items.Clear();
-            _standardTypeCount = 0;
-
-            if (mods.HasHeavyModifications)
-            {
-                // ReSharper disable once CoVariantArrayConversion
-                toolStripComboNormalizedTo.Items.AddRange(standardTypes.Select(s => s.Title).ToArray());
-                _standardTypeCount = standardTypes.Count;
-            }
-
-            var hasGlobalStandard = _graphSummary.DocumentUIContainer.DocumentUI.Settings.HasGlobalStandardArea;
-            if (hasGlobalStandard)
-                toolStripComboNormalizedTo.Items.Add(Resources.AreaCVToolbar_UpdateUI_Global_standards);
-            toolStripComboNormalizedTo.Items.Add(Resources.AreaCVToolbar_UpdateUI_Medians);
-            toolStripComboNormalizedTo.Items.Add(Resources.AreaCVToolbar_UpdateUI_None);
-
-            if (AreaGraphController.NormalizationMethod == AreaCVNormalizationMethod.ratio)
-                toolStripComboNormalizedTo.SelectedIndex = AreaGraphController.AreaCVRatioIndex;
-            else
-            {
-                var index = _standardTypeCount + (int) AreaGraphController.NormalizationMethod;
-                if (!hasGlobalStandard)
-                    --index;
-                toolStripComboNormalizedTo.SelectedIndex = index;
-            } 
+            _normalizationMethods.Clear();
+            _normalizationMethods.Add(NormalizeOption.DEFAULT);
+            _normalizationMethods.AddRange(NormalizeOption.AvailableNormalizeOptions(_graphSummary.DocumentUIContainer.DocumentUI));
+            _normalizationMethods.Add(NormalizeOption.NONE);
+            toolStripComboNormalizedTo.Items.AddRange(_normalizationMethods.Select(item=>item.Caption).ToArray());
+            toolStripComboNormalizedTo.SelectedIndex = _normalizationMethods.IndexOf(AreaGraphController.AreaCVNormalizeOption);
+            ComboHelper.AutoSizeDropDown(toolStripComboNormalizedTo);
         }
 
         #region Functional Test Support
@@ -277,9 +234,9 @@ namespace pwiz.Skyline.Controls.Graphs
 
         public bool GroupsVisible { get { return toolStripLabel1.Visible && toolStripComboGroup.Visible; } }
 
-        public IEnumerable<string> Annotations
+        public IEnumerable<object> Annotations
         {
-            get { return toolStripComboGroup.Items.Cast<string>(); }
+            get { return toolStripComboGroup.Items.Cast<object>(); }
             set
             {
                 toolStripComboGroup.Items.Clear();

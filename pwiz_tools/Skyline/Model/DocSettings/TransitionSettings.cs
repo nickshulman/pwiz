@@ -46,7 +46,8 @@ namespace pwiz.Skyline.Model.DocSettings
                                   TransitionLibraries libraries,
                                   TransitionIntegration integration,
                                   TransitionInstrument instrument,
-                                  TransitionFullScan fullScan)
+                                  TransitionFullScan fullScan,
+                                  TransitionIonMobilityFiltering ionMobilityFiltering)
         {
             Prediction = prediction;
             Filter = filter;
@@ -54,6 +55,7 @@ namespace pwiz.Skyline.Model.DocSettings
             Integration = integration;
             Instrument = instrument;
             FullScan = fullScan;
+            IonMobilityFiltering = ionMobilityFiltering ?? TransitionIonMobilityFiltering.EMPTY;
 
             DoValidate();
         }
@@ -67,6 +69,7 @@ namespace pwiz.Skyline.Model.DocSettings
         [TrackChildren(true)]
         public TransitionLibraries Libraries { get; private set; }
 
+        [TrackChildren(true)]
         public TransitionIntegration Integration { get; private set; }
 
         [TrackChildren(true)]
@@ -75,6 +78,9 @@ namespace pwiz.Skyline.Model.DocSettings
         [TrackChildren(true)]
         public TransitionFullScan FullScan { get; private set; }
 
+        [TrackChildren(true)]
+        public TransitionIonMobilityFiltering IonMobilityFiltering { get; private set; }
+        
         public bool IsMeasurablePrecursor(double mz)
         {
             if (!Instrument.IsMeasurable(mz))
@@ -113,6 +119,11 @@ namespace pwiz.Skyline.Model.DocSettings
         public TransitionSettings ChangeIntegration(TransitionIntegration prop)
         {
             return ChangeProp(ImClone(this), im => im.Integration = prop);
+        }
+
+        public TransitionSettings ChangeIonMobilityFiltering(TransitionIonMobilityFiltering prop)
+        {
+            return ChangeProp(ImClone(this), im => im.IonMobilityFiltering = prop ?? TransitionIonMobilityFiltering.EMPTY);
         }
 
         public TransitionSettings ChangeInstrument(TransitionInstrument prop)
@@ -185,6 +196,9 @@ namespace pwiz.Skyline.Model.DocSettings
                 // Read child elements.
                 Prediction = reader.DeserializeElement<TransitionPrediction>();
                 Filter = reader.DeserializeElement<TransitionFilter>();
+                IonMobilityFiltering = reader.IsStartElement(TransitionIonMobilityFiltering.EL.ion_mobility_filtering) ?
+                    reader.DeserializeElement<TransitionIonMobilityFiltering>() :
+                    TransitionIonMobilityFiltering.EMPTY; // Looks like a pre-20.2 format
                 Libraries = reader.DeserializeElement<TransitionLibraries>();
                 Integration = reader.DeserializeElement<TransitionIntegration>();
                 Instrument = reader.DeserializeElement<TransitionInstrument>();
@@ -215,6 +229,8 @@ namespace pwiz.Skyline.Model.DocSettings
             // Write child elements
             writer.WriteElement(Prediction);
             writer.WriteElement(Filter);
+            if (!IonMobilityFiltering.IsEmpty)
+                writer.WriteElement(IonMobilityFiltering);
             writer.WriteElement(Libraries);
             writer.WriteElement(Integration);
             writer.WriteElement(Instrument);
@@ -232,12 +248,22 @@ namespace pwiz.Skyline.Model.DocSettings
         {
             if (ReferenceEquals(null, obj)) return false;
             if (ReferenceEquals(this, obj)) return true;
-            return Equals(obj.Prediction, Prediction) &&
-                   Equals(obj.Filter, Filter) &&
-                   Equals(obj.Libraries, Libraries) &&
-                   Equals(obj.Integration, Integration) &&
-                   Equals(obj.Instrument, Instrument) &&
-                   Equals(obj.FullScan, FullScan);
+            // N.B. This multi-statement implementation makes debugging easier
+            if (!Equals(obj.Prediction, Prediction))
+                return false;
+            if (!Equals(obj.Filter, Filter))
+                return false;
+            if (!Equals(obj.IonMobilityFiltering, IonMobilityFiltering))
+                return false;
+            if (!Equals(obj.Libraries, Libraries))
+                return false;
+            if (!Equals(obj.Integration, Integration))
+                return false;
+            if (!Equals(obj.Instrument, Instrument))
+                return false;
+            if (!Equals(obj.FullScan, FullScan))
+                return false;
+            return true;
         }
 
         public override bool Equals(object obj)
@@ -254,6 +280,7 @@ namespace pwiz.Skyline.Model.DocSettings
             {
                 int result = Prediction.GetHashCode();
                 result = (result * 397) ^ Filter.GetHashCode();
+                result = (result * 397) ^ IonMobilityFiltering.GetHashCode();
                 result = (result * 397) ^ Libraries.GetHashCode();
                 result = (result * 397) ^ Integration.GetHashCode();
                 result = (result * 397) ^ Instrument.GetHashCode();
@@ -1062,7 +1089,8 @@ namespace pwiz.Skyline.Model.DocSettings
             string sep = TextUtil.SEPARATOR_CSV.ToString(CultureInfo.InvariantCulture);
             if (spaces)
                 sep += TextUtil.SEPARATOR_SPACE;
-            return ionTypes.ToString(sep).Replace(IonType.precursor.ToString(), PRECURSOR_ION_CHAR);
+            var stringsList = ionTypes.Select(ion => ion.GetInputAliases().First()).ToList();
+            return stringsList.ToString(sep).Replace(IonType.precursor.ToString(), PRECURSOR_ION_CHAR);
         }
 
         public static IonType[] ParseTypes(string s, IonType[] defaultTypes)
@@ -1082,7 +1110,7 @@ namespace pwiz.Skyline.Model.DocSettings
             {
                 return IonType.precursor;
             }
-            IonType ionType = TypeSafeEnum.Parse<IonType>(s);
+            IonType ionType = IonTypeExtension.GetEnum(s);
             if (ionType == IonType.custom)
             {
                 throw new ArgumentException();
@@ -1189,6 +1217,13 @@ namespace pwiz.Skyline.Model.DocSettings
             return FragmentStartFinders.Select(f => f.Label);
         }
 
+        public static IEnumerable<string> GetFilterStartFragmentFinderLabels()
+        {
+            return FragmentStartFinders
+                .Where(f => f is OrdinalFragmentFinder || Equals(DEFAULT_START_FINDER, f.Name))
+                .Select(f => f.Label);
+        }
+
         public static string GetStartFragmentNameFromLabel(string label)
         {
             for (int i = 0; i < FragmentStartFinders.SafeLength(); i++)
@@ -1265,6 +1300,13 @@ namespace pwiz.Skyline.Model.DocSettings
         public static IEnumerable<string> GetEndFragmentFinderLabels()
         {
             return FragmentEndFinders.Select(f => f.Label);
+        }
+
+        public static IEnumerable<string> GetFilterEndFragmentFinderLabels()
+        {
+            return FragmentEndFinders
+                .Where(f => f is LastFragmentFinder)
+                .Select(f => f.Label);
         }
 
         public static IEndFragmentFinder GetEndFragmentFinder(string finderName)
@@ -1473,7 +1515,7 @@ namespace pwiz.Skyline.Model.DocSettings
             #endregion
         }
 
-        private abstract class EndFragmentFinder : LabeledValues<string>, IEndFragmentFinder
+        public abstract class EndFragmentFinder : LabeledValues<string>, IEndFragmentFinder
         {
             public static readonly EndFragmentFinder LAST_ION = new LastFragmentFinder(@"last ion", () => Resources.TransitionFilter_FragmentEndFinders_last_ion, 0);
             public static readonly EndFragmentFinder LAST_ION_MINUS_1 = new LastFragmentFinder(@"last ion - 1", () => Resources.TransitionFilter_FragmentEndFinders_last_ion_minus_1, 1);
@@ -1898,6 +1940,9 @@ namespace pwiz.Skyline.Model.DocSettings
 
         public double? ProductFilter { get; private set; }
 
+        [Track(defaultValues: typeof(DefaultValuesFalse))]
+        public bool TriggeredAcquisition { get; private set; }
+
         #region Property change methods
 
         public TransitionInstrument ChangeMinMz(int prop)
@@ -1953,6 +1998,10 @@ namespace pwiz.Skyline.Model.DocSettings
                                                  });
         }
 
+        public TransitionInstrument ChangeTriggeredAcquisition( bool triggeredAcquisition)
+        {
+            return ChangeProp(ImClone(this), im => im.TriggeredAcquisition = triggeredAcquisition);
+        }
         #endregion
 
         #region Implementation of IXmlSerializable
@@ -1974,6 +2023,7 @@ namespace pwiz.Skyline.Model.DocSettings
             mz_match_tolerance,
             max_transitions,
             max_inclusions,
+            triggered_acquisition,
 
             // Backward compatibility with 0.7.1
             precursor_filter_type,
@@ -2084,6 +2134,7 @@ namespace pwiz.Skyline.Model.DocSettings
             MaxTime = reader.GetNullableIntAttribute(ATTR.max_time);
             MaxTransitions = reader.GetNullableIntAttribute(ATTR.max_transitions);
             MaxInclusions = reader.GetNullableIntAttribute(ATTR.max_inclusions);
+            TriggeredAcquisition = reader.GetBoolAttribute(ATTR.triggered_acquisition, false);
 
             // Full-scan filter parameters (backward compatibility w/ 0.7.1)
             PrecursorAcquisitionMethod = FullScanAcquisitionMethod.FromLegacyName(reader.GetAttribute(ATTR.precursor_filter_type))
@@ -2117,6 +2168,7 @@ namespace pwiz.Skyline.Model.DocSettings
             writer.WriteAttributeNullable(ATTR.max_time, MaxTime);
             writer.WriteAttributeNullable(ATTR.max_transitions, MaxTransitions);
             writer.WriteAttributeNullable(ATTR.max_inclusions, MaxInclusions);
+            writer.WriteAttribute(ATTR.triggered_acquisition, TriggeredAcquisition, false);
         }
 
         #endregion
@@ -2138,7 +2190,8 @@ namespace pwiz.Skyline.Model.DocSettings
                 Equals(other.PrecursorAcquisitionMethod, PrecursorAcquisitionMethod) &&
                 other.PrecursorFilter.Equals(PrecursorFilter) &&
                 Equals(other.ProductFilterType, ProductFilterType) &&
-                other.ProductFilter.Equals(ProductFilter);
+                other.ProductFilter.Equals(ProductFilter) &&
+                other.TriggeredAcquisition.Equals(TriggeredAcquisition);
         }
 
         public override bool Equals(object obj)
@@ -2733,20 +2786,20 @@ namespace pwiz.Skyline.Model.DocSettings
             }
             else
             {
-                if (AcquisitionMethod == FullScanAcquisitionMethod.Targeted)
-                {
-                    if (IsolationScheme != null)
-                        throw new InvalidDataException(Resources.TransitionFullScan_DoValidate_An_isolation_window_width_value_is_not_allowed_in_Targeted_mode);
-                }
-                else if (AcquisitionMethod == FullScanAcquisitionMethod.DDA)
-                {
-                    if (IsolationScheme != null)
-                        throw new InvalidDataException(Resources.TransitionFullScan_DoValidate_An_isolation_window_width_value_is_not_allowed_in_Targeted_mode);
-                }
-                else
+                if (AcquisitionMethod == FullScanAcquisitionMethod.DIA)
                 {
                     if (IsolationScheme == null)
                         throw new InvalidDataException(Resources.TransitionFullScan_DoValidate_An_isolation_window_width_value_is_required_in_DIA_mode);
+                }
+                else
+                {
+                    if (IsolationScheme != null)
+                    {
+                        string message = string.Format(Resources
+                                .TransitionFullScan_DoValidate_An_isolation_window_width_value_is_not_allowed_in__0___mode,
+                            AcquisitionMethod);
+                        throw new InvalidDataException(message);
+                    }
                 }
 
                 _cachedProductRes = ValidateRes(ProductMassAnalyzer, ProductRes, ProductResMz);
@@ -3014,14 +3067,34 @@ namespace pwiz.Skyline.Model.DocSettings
     [XmlRoot("transition_integration")]
     public sealed class TransitionIntegration : Immutable, IValidating, IXmlSerializable
     {
+        [Track]
         public bool IsIntegrateAll { get; private set; }
+
+        [Track]
+        public string SynchronizedIntegrationGroupBy { get; private set; }
+
+        [Track]
+        public bool SynchronizedIntegrationAll { get; private set; }
+
+        [Track]
+        public string[] SynchronizedIntegrationTargets { get; private set; }
 
         #region Property change methods
 
         public TransitionIntegration ChangeIntegrateAll(bool prop)
         {
             return ChangeProp(ImClone(this), im => im.IsIntegrateAll = prop);
-        }        
+        }
+
+        public TransitionIntegration ChangeSynchronizedIntegration(string groupBy, bool all, string[] targets)
+        {
+            return ChangeProp(ImClone(this), im =>
+            {
+                im.SynchronizedIntegrationGroupBy = groupBy;
+                im.SynchronizedIntegrationAll = all;
+                im.SynchronizedIntegrationTargets = !all && targets.Length > 0 ? targets : Array.Empty<string>();
+            });
+        }
 
         #endregion
 
@@ -3030,6 +3103,15 @@ namespace pwiz.Skyline.Model.DocSettings
         private enum ATTR
         {
             integrate_all,
+            group_by,
+            all,
+            value
+        }
+
+        private enum EL
+        {
+            synchronize_integration,
+            target
         }
 
         void IValidating.Validate()
@@ -3053,12 +3135,69 @@ namespace pwiz.Skyline.Model.DocSettings
 
             // Consume tag
             reader.Read();
+
+            if (reader.IsStartElement(EL.synchronize_integration))
+            {
+                SynchronizedIntegrationGroupBy = reader.GetAttribute(ATTR.group_by) ?? string.Empty;
+                SynchronizedIntegrationAll = reader.GetBoolAttribute(ATTR.all);
+                SynchronizedIntegrationTargets = Array.Empty<string>();
+
+                if (!reader.IsEmptyElement)
+                {
+                    // Consume synchronize_integration start tag
+                    reader.Read();
+
+                    // Read synchronization values
+                    var syncTargets = new List<string>();
+                    while (reader.IsStartElement(EL.target))
+                    {
+                        syncTargets.Add(reader.GetAttribute(ATTR.value));
+                        reader.Read();
+                    }
+                    SynchronizedIntegrationTargets = syncTargets.ToArray();
+                }
+
+                // Consume synchronize_integration end tag
+                reader.Read();
+                // Consume transition_integration end tag
+                reader.Read();
+            }
         }
 
         public void WriteXml(XmlWriter writer)
         {
             // Write attributes
             writer.WriteAttribute(ATTR.integrate_all, IsIntegrateAll);
+
+            // Write synchronize_integration
+            var hasGroupBy = SynchronizedIntegrationGroupBy != null;
+            var hasSyncTargets = SynchronizedIntegrationTargets != null && SynchronizedIntegrationTargets.Length > 0;
+            if (hasGroupBy || SynchronizedIntegrationAll || hasSyncTargets)
+            {
+                writer.WriteStartElement(EL.synchronize_integration);
+
+                if (hasGroupBy)
+                {
+                    writer.WriteAttribute(ATTR.group_by, SynchronizedIntegrationGroupBy);
+                }
+
+                if (SynchronizedIntegrationAll)
+                {
+                    writer.WriteAttribute(ATTR.all, SynchronizedIntegrationAll);
+                }
+
+                if (hasSyncTargets)
+                {
+                    foreach (var target in SynchronizedIntegrationTargets)
+                    {
+                        writer.WriteStartElement(EL.target);
+                        writer.WriteAttribute(ATTR.value, target);
+                        writer.WriteEndElement();
+                    }
+                }
+
+                writer.WriteEndElement();
+            }
         }
 
         #endregion
@@ -3069,7 +3208,10 @@ namespace pwiz.Skyline.Model.DocSettings
         {
             if (ReferenceEquals(null, other)) return false;
             if (ReferenceEquals(this, other)) return true;
-            return other.IsIntegrateAll.Equals(IsIntegrateAll);
+            return other.IsIntegrateAll.Equals(IsIntegrateAll) &&
+                   Equals(other.SynchronizedIntegrationGroupBy, SynchronizedIntegrationGroupBy) &&
+                   Equals(other.SynchronizedIntegrationAll, SynchronizedIntegrationAll) &&
+                   ArrayUtil.EqualsDeep(other.SynchronizedIntegrationTargets, SynchronizedIntegrationTargets);
         }
 
         public override bool Equals(object obj)
@@ -3082,7 +3224,15 @@ namespace pwiz.Skyline.Model.DocSettings
 
         public override int GetHashCode()
         {
-            return IsIntegrateAll.GetHashCode();
+            unchecked
+            {
+                int result = IsIntegrateAll.GetHashCode();
+                if (SynchronizedIntegrationGroupBy != null)
+                    result = (result * 397) ^ SynchronizedIntegrationGroupBy.GetHashCode();
+                result = (result * 397) ^ SynchronizedIntegrationAll.GetHashCode();
+                result = (result * 397) ^ ArrayUtil.GetHashCodeDeep(SynchronizedIntegrationTargets);
+                return result;
+            }
         }
 
         #endregion

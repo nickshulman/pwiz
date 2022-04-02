@@ -42,6 +42,11 @@ namespace pwiz.Common.DataBinding
         IRowSource GetRowSource(ViewInfo viewInfo);
         ViewInfo GetViewInfo(ViewGroup viewGroup, ViewSpec viewSpec);
         ViewInfo GetViewInfo(ViewName? viewName);
+        RowSourceInfo GetRowSourceInfo(ViewSpec viewSpec);
+        /// <summary>
+        /// Returns true if this view is able to be displayed in this ViewContext.
+        /// </summary>
+        bool CanDisplayView(ViewSpec viewSpec);
         void Export(Control owner, BindingListSource bindingListSource);
         void CopyAll(Control owner, BindingListSource bindingListSource);
         ViewSpec NewView(Control owner, ViewGroup viewGroup);
@@ -68,5 +73,7 @@ namespace pwiz.Common.DataBinding
         event Action ViewsChanged;
         DataSchema DataSchema { get; }
         IEnumerable<IUiModeInfo> AvailableUiModes { get; }
+
+        void ToggleClustering(BindingListSource bindingListSource, bool turnClusteringOn);
     }
 }

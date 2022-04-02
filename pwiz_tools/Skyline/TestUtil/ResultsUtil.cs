@@ -21,6 +21,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading;
+using System.Xml;
 using System.Xml.Serialization;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using pwiz.ProteowizardWrapper;
@@ -42,7 +43,11 @@ namespace pwiz.SkylineTestUtil
             {
                 using (var stream = new FileStream(path, FileMode.Open))
                 {
-                    return DeserializeDocument(stream);
+                    // Wrap stream in XmlReader so that BaseUri is known
+                    var xmlReader = XmlReader.Create(stream,
+                        new XmlReaderSettings() { IgnoreWhitespace = true },
+                        path);
+                    return DeserializeDocument(xmlReader);
                 }
             }
             catch (Exception x)
@@ -60,7 +65,12 @@ namespace pwiz.SkylineTestUtil
             {
                 using (var stream = classType.Assembly.GetManifestResourceStream(classType.Namespace + "." + fileName))
                 {
-                    return DeserializeDocument(stream);
+                    Assert.IsNotNull(stream);
+                    // Wrap stream in XmlReader so that BaseUri is known
+                    var xmlReader = XmlReader.Create(stream,
+                        new XmlReaderSettings() { IgnoreWhitespace = true },
+                        fileName);
+                    return DeserializeDocument(xmlReader);
                 }
             }
             catch (Exception x)
@@ -72,14 +82,14 @@ namespace pwiz.SkylineTestUtil
             }
         }
 
-        public static SrmDocument DeserializeDocument(Stream stream)
+        public static SrmDocument DeserializeDocument(XmlReader reader)
         {
-            Assert.IsNotNull(stream);
+            Assert.IsNotNull(reader);
 
             XmlSerializer xmlSerializer = new XmlSerializer(typeof(SrmDocument));
             try
             {
-                SrmDocument result = (SrmDocument)xmlSerializer.Deserialize(stream);
+                SrmDocument result = (SrmDocument)xmlSerializer.Deserialize(reader);
                 return result;
             }
             catch (Exception x)
@@ -151,6 +161,19 @@ namespace pwiz.SkylineTestUtil
             cacheSize += CacheHeaderStruct.GetStructSize(ChromatogramCache.FORMAT_VERSION_CACHE) -
                          CacheHeaderStruct.GetStructSize(ChromatogramCache.FORMAT_VERSION_CACHE_11);
             return cacheSize;
+        }
+
+        /// <summary>
+        /// Set all of ImportTime values in all of the ChromFileInfos to null.
+        /// </summary>
+        public static SrmDocument ClearFileImportTimes(SrmDocument document)
+        {
+            var newMeasuredResults = document.MeasuredResults?.ClearImportTimes();
+            if (Equals(newMeasuredResults, document.MeasuredResults))
+            {
+                return document;
+            }
+            return document.ChangeSettingsNoDiff(document.Settings.ChangeMeasuredResults(newMeasuredResults));
         }
     }
 
@@ -458,11 +481,11 @@ namespace pwiz.SkylineTestUtil
             {
                 ChromatogramGroupInfo[] chromGroupInfo1;
                 Assert.IsTrue(results.TryLoadChromatogram(iChrom1, pair.NodePep, pair.NodeGroup,
-                    tolerance, true, out chromGroupInfo1));
+                    tolerance, out chromGroupInfo1));
                 Assert.AreEqual(1, chromGroupInfo1.Length);
                 ChromatogramGroupInfo[] chromGroupInfo2;
                 Assert.IsTrue(results.TryLoadChromatogram(iChrom2, pair.NodePep, pair.NodeGroup,
-                    tolerance, true, out chromGroupInfo2));
+                    tolerance, out chromGroupInfo2));
                 Assert.AreEqual(1, chromGroupInfo2.Length);
                 if (delta != -1)
                 {
@@ -500,6 +523,6 @@ namespace pwiz.SkylineTestUtil
                 }
             }
             return maxTime;
-        }        
+        }
     }
 }

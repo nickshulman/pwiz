@@ -26,6 +26,7 @@ using pwiz.Skyline.Model;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.Results;
 using pwiz.Skyline.Model.RetentionTimes;
+using pwiz.Skyline.Model.Themes;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
 using ZedGraph;
@@ -185,7 +186,7 @@ namespace pwiz.Skyline.Controls.Graphs
                         color = GraphSummary.StateProvider.GetPeptideGraphInfo(peptideDocNode).Color;
                         if (identityPath.Equals(selectedTreeNode.Path) && step == 0)
                         {
-                            color = ChromGraphItem.ColorSelected;
+                            color = ColorScheme.ChromGraphItemSelected;
                             isSelected = true;
                         }
                     }
@@ -203,7 +204,7 @@ namespace pwiz.Skyline.Controls.Graphs
                     }
                     else if (ReferenceEquals(docNode, selectedNode) && step == 0)
                     {
-                        color = ChromGraphItem.ColorSelected;
+                        color = ColorScheme.ChromGraphItemSelected;
                         isSelected = true;
                     }
                     else
@@ -364,7 +365,7 @@ namespace pwiz.Skyline.Controls.Graphs
                 }
                 Assume.IsNotNull(chromInfoData, @"chromInfoData");
                 Assume.IsNotNull(chromInfoData.ChromFileInfo, @"chromInfoData.ChromFileInfo");
-                IRegressionFunction regressionFunction;
+                RegressionLine regressionFunction;
                 return !RetentionTimeTransform.RtTransformOp.TryGetRegressionFunction(chromInfoData.ChromFileInfo.FileId, out regressionFunction);
             }
 
@@ -373,7 +374,7 @@ namespace pwiz.Skyline.Controls.Graphs
                 return IsMissingAlignment(chromInfoData) || null == GetRetentionTimeValues(chromInfoData);
             }
 
-            private PointPair CalculatePointPair<TChromInfoData>(int iResult, IEnumerable<TChromInfoData> chromInfoDatas, Func<TChromInfoData, RetentionTimeValues?> getRetentionTimeValues) 
+            private PointPair CalculatePointPair<TChromInfoData>(int iResult, IEnumerable<TChromInfoData> chromInfoDatas, Func<TChromInfoData, RetentionTimeValues> getRetentionTimeValues) 
                 where TChromInfoData : ChromInfoData
             {
                 var startTimes = new List<double>();
@@ -382,8 +383,8 @@ namespace pwiz.Skyline.Controls.Graphs
                 var fwhms = new List<double>();
                 foreach (var chromInfoData in chromInfoDatas)
                 {
-                    var retentionTimeValues = getRetentionTimeValues(chromInfoData).GetValueOrDefault();
-                    IRegressionFunction regressionFunction = null;
+                    var retentionTimeValues = getRetentionTimeValues(chromInfoData);
+                    RegressionLine regressionFunction = null;
                     if (null != RetentionTimeTransform.RtTransformOp)
                     {
                         RetentionTimeTransform.RtTransformOp.TryGetRegressionFunction(chromInfoData.ChromFileInfo.FileId, out regressionFunction);
@@ -446,7 +447,7 @@ namespace pwiz.Skyline.Controls.Graphs
 
             protected override bool IsMissingValue(TransitionGroupChromInfoData chromInfoData)
             {
-                return IsMissingAlignment(chromInfoData) || !GetRetentionTimeValues(chromInfoData).HasValue;
+                return IsMissingAlignment(chromInfoData) || GetRetentionTimeValues(chromInfoData) == null;
             }
 
             protected override PointPair CreatePointPair(int iResult, ICollection<TransitionGroupChromInfoData> chromInfoDatas)
@@ -454,12 +455,12 @@ namespace pwiz.Skyline.Controls.Graphs
                 return CalculatePointPair(iResult, chromInfoDatas, GetRetentionTimeValues);
             }
 
-            private RetentionTimeValues? GetRetentionTimeValues(TransitionChromInfoData transitionChromInfoData)
+            private RetentionTimeValues GetRetentionTimeValues(TransitionChromInfoData transitionChromInfoData)
             {
                 return transitionChromInfoData.GetRetentionTimes();
             }
 
-            private RetentionTimeValues? GetRetentionTimeValues(TransitionGroupChromInfoData transitionGroupChromInfoData)
+            private RetentionTimeValues GetRetentionTimeValues(TransitionGroupChromInfoData transitionGroupChromInfoData)
             {
                 return transitionGroupChromInfoData.GetRetentionTimes();
             }

@@ -52,7 +52,8 @@ namespace pwiz.Common.Chemistry
         public TValue GetElementCount(String element)
         {
             TValue atomCount;
-            TryGetValue(element, out atomCount);
+            if (!TryGetValue(element, out atomCount))
+                atomCount = default(TValue);
             return atomCount;
         }
 
@@ -355,6 +356,28 @@ namespace pwiz.Common.Chemistry
                 }
             }
             return result.ToString();
+        }
+
+        public static T Sum(IEnumerable<T> items)
+        {
+            var dictionary = new Dictionary<string, int>();
+            foreach (var item in items)
+            {
+                foreach (var entry in item)
+                {
+                    int count;
+                    if (dictionary.TryGetValue(entry.Key, out count))
+                    {
+                        dictionary[entry.Key] = count + entry.Value;
+                    }
+                    else
+                    {
+                        dictionary.Add(entry.Key, entry.Value);
+                    }
+                }
+            }
+
+            return FromDict(dictionary);
         }
     }
 }

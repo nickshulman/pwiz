@@ -27,7 +27,6 @@
 
 #include "pwiz/utility/misc/Export.hpp"
 #include "pwiz/utility/misc/BinaryData.hpp"
-#include "pwiz/utility/misc/automation_vector.h"
 #include "pwiz/utility/misc/IntegerSet.hpp"
 #include "pwiz/utility/chemistry/MzMobilityWindow.hpp"
 #include <string>
@@ -110,6 +109,7 @@ PWIZ_API_DECL enum InstrumentSource // not from CXT
     InstrumentSource_CaptiveSpray = 11,
     InstrumentSource_EI = 16,
     InstrumentSource_GC_APCI = 17,
+    InstrumentSource_VIP_HESI = 18,
     InstrumentSource_Unknown = 255
 };
 
@@ -195,8 +195,8 @@ struct PWIZ_API_DECL MSSpectrum
     virtual bool hasProfileData() const = 0;
     virtual size_t getLineDataSize() const = 0;
     virtual size_t getProfileDataSize() const = 0;
-    virtual void getLineData(automation_vector<double>& mz, automation_vector<double>& intensities) const = 0;
-    virtual void getProfileData(automation_vector<double>& mz, automation_vector<double>& intensities) const = 0;
+    virtual void getLineData(pwiz::util::BinaryData<double>& mz, pwiz::util::BinaryData<double>& intensities) const = 0;
+    virtual void getProfileData(pwiz::util::BinaryData<double>& mz, pwiz::util::BinaryData<double>& intensities) const = 0;
 
     virtual double getTIC() const = 0;
     virtual double getBPI() const = 0;
@@ -214,6 +214,7 @@ struct PWIZ_API_DECL MSSpectrum
 
     virtual bool isIonMobilitySpectrum() const { return false; }
     virtual double oneOverK0() const { return 0.0; }
+    virtual std::pair<double, double> getIonMobilityRange() const { return std::pair<double, double>(0, 0); }
 	virtual int getWindowGroup() const { return 0; } // for diaPASEF data
 
     virtual void getCombinedSpectrumData(pwiz::util::BinaryData<double>& mz, pwiz::util::BinaryData<double>& intensities, pwiz::util::BinaryData<double>& mobilities, bool sortAndJitter) const { }
@@ -288,6 +289,10 @@ struct PWIZ_API_DECL CompassData
 
     /// returns true if the source is TIMS PASEF data
     virtual bool hasPASEFData() const { return false; }
+
+    virtual bool canConvertOneOverK0AndCCS() const { return false; }
+    virtual double oneOverK0ToCCS(double oneOverK0, double mz, int charge) const { return 0; }
+    virtual double ccsToOneOverK0(double ccs, double mz, int charge) const { return 0; }
 
     /// returns the number of spectra available from the MS source
     virtual size_t getMSSpectrumCount() const = 0;

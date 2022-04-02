@@ -56,11 +56,12 @@ namespace pwiz.SkylineTestTutorial
     public class GroupedStudies1TutorialTest : AbstractFunctionalTestEx
     {
         [TestMethod]
-        [Timeout(60*60*1000)]  // These can take a long time in code coverage mode (1 hour)
         public void TestGroupedStudies1Tutorial()
         {
             // Set true to look at tutorial screenshots.
-            // IsPauseForScreenShots = true;
+//            IsPauseForScreenShots = true;
+//            IsCoverShotMode = true;
+            CoverShotName = "GroupedStudies";
 
             ForceMzml = true;   // Mzml is faster for this test.
 
@@ -112,13 +113,15 @@ namespace pwiz.SkylineTestTutorial
             SimpleGroupComparisons();
         }
 
+        private int _pageNum = 3;
+
         private void OpenImportArrange()
         {
             // Open the file
             RunUI(() => SkylineWindow.OpenFile(GetHfRawTestPath("Rat_plasma.sky")));
             var docInitial = WaitForDocumentLoaded();
             AssertEx.IsDocumentState(docInitial, null, 49, 137, 137, 789);
-            PauseForScreenShot("Status bar", 3);
+            PauseForScreenShot("Status bar", _pageNum++);
 
             var documentGrid = ShowDialog<DocumentGridForm>(() => SkylineWindow.ShowDocumentGrid(true));
             var pathLibraryName = PropertyPath.Parse("LibraryName");
@@ -146,7 +149,7 @@ namespace pwiz.SkylineTestTutorial
 
             RunUI(() => Assert.AreEqual(137, documentGrid.RowCount));
 
-            PauseForScreenShot<DocumentGridForm>("Document grid toolbar", 4);
+            PauseForScreenShot<DocumentGridForm>("Document grid toolbar", _pageNum++);
 
             RunUI(() =>
             {
@@ -196,7 +199,7 @@ namespace pwiz.SkylineTestTutorial
             {
                 allChrom = WaitForOpenForm<AllChromatogramsGraph>();
 
-                PauseForScreenShot<AllChromatogramsGraph>("Loading Chromatograms form", 5);
+                PauseForScreenShot<AllChromatogramsGraph>("Loading Chromatograms form", _pageNum++);
             }
 
             RunUI(() =>
@@ -212,14 +215,14 @@ namespace pwiz.SkylineTestTutorial
             });
 
             RestoreViewOnScreen(6);
-            PauseForScreenShot("Docking Retention Times view", 6);
+            PauseForScreenShot("Docking Retention Times view", _pageNum++);
 
             RestoreViewOnScreen(7);
             RunUI(() => SkylineWindow.ShowGraphPeakArea(true));
-            PauseForScreenShot("Docking Peak Areas view", 7);
+            PauseForScreenShot("Docking Peak Areas view", _pageNum++);
 
             RestoreViewOnScreen(8);
-            PauseForScreenShot("Docking Targets view", 8);
+            PauseForScreenShot("Docking Targets view", _pageNum++);
 
             RestoreViewOnScreen(9);
             var arrangeGraphsDlg = ShowDialog<ArrangeGraphsGroupedDlg>(SkylineWindow.ArrangeGraphsGrouped);
@@ -230,7 +233,7 @@ namespace pwiz.SkylineTestTutorial
                 arrangeGraphsDlg.GroupOrder = GroupGraphsOrder.Document;
             });
 
-            PauseForScreenShot<ArrangeGraphsGroupedDlg>("Arrange Graphs Grouped form", 9);
+            PauseForScreenShot<ArrangeGraphsGroupedDlg>("Arrange Graphs Grouped form", _pageNum);
 
             OkDialog(arrangeGraphsDlg, arrangeGraphsDlg.OkDialog);
 
@@ -247,7 +250,7 @@ namespace pwiz.SkylineTestTutorial
 
             WaitForDocumentLoaded(10 * 60 * 1000); // 10 minutes
 
-            PauseForScreenShot("Skyline window maximized", 9);
+            PauseForScreenShot("Skyline window maximized", _pageNum++);
 
             if (!IsFullData)
                 TestApplyToAll();
@@ -260,36 +263,36 @@ namespace pwiz.SkylineTestTutorial
         {
             RestoreViewOnScreen(10);
 
-            PauseForScreenShot("Retention Times graph (zoomed to show only healthy)", 10);
+            // PauseForScreenShot("Retention Times graph (zoomed to show only healthy)", 10);
+            //
+            // RunUI(() => SkylineWindow.SetIntegrateAll(true));
 
-            RunUI(() => SkylineWindow.SetIntegrateAll(true));
-
-            PauseForScreenShot("Retention Times graph with integrate all (zoomed to show only healthy)", 11);
+            PauseForScreenShot("Retention Times graph", _pageNum++);
 
             SelectNode(SrmDocument.Level.Molecules, 0);
             RunUI(SkylineWindow.EditDelete); // Delete first peptide
 
-            PauseForScreenShot("Retention Times graph for second peptide", 11);
+            PauseForScreenShot("Retention Times graph for second peptide", _pageNum);
 
             RestoreViewOnScreen(12);
 
-            PauseForScreenShot("Peak Areas graph", 12);
+            PauseForScreenShot("Peak Areas graph", _pageNum++);
 
-            RunUI(() => SkylineWindow.NormalizeAreaGraphTo(AreaNormalizeToView.area_percent_view));
+            RunUI(() => SkylineWindow.NormalizeAreaGraphTo(NormalizeOption.TOTAL));
 
-            PauseForScreenShot("Peak Areas graph (normalized to total)", 13);
+            PauseForScreenShot("Peak Areas graph (normalized to total)", _pageNum++);
 
             RestoreViewOnScreen(13);
 
             ActivateReplicate("D_103_REP3");
 
-            PauseForScreenShot("Chromatogram graph for D_103_REP3", 13);
+            PauseForScreenShot("Chromatogram graph for D_103_REP3", _pageNum);
 
             ChangePeakBounds("D_103_REP3", 30.11, 30.43);
 
             ActivateReplicate("H_162_REP1");
 
-            PauseForScreenShot("Chromatogram graph for H_162_REP1", 14);
+            PauseForScreenShot("Chromatogram graph for H_162_REP1", _pageNum++);
 
             ActivateReplicate("D_108_REP2");
 
@@ -308,7 +311,8 @@ namespace pwiz.SkylineTestTutorial
                         .ChangeCustomFinders(Finders.ListAllFinders().Where(f => f is TruncatedPeakFinder));
                 });
 
-                PauseForScreenShot<FindNodeDlg>("Find form", 15);
+                _pageNum++; // Page without figures
+                PauseForScreenShot<FindNodeDlg>("Find form", _pageNum);
 
                 RunUI(findDlg.FindAll);
 
@@ -325,7 +329,7 @@ namespace pwiz.SkylineTestTutorial
                     RunUI(() => Assert.AreEqual(expectedItems, findView.ItemCount));
                 }
 
-                PauseForScreenShot("Find Results view", 16);
+                PauseForScreenShot("Find Results view", _pageNum++);
             }
 
             var documentGrid = ShowDialog<DocumentGridForm>(() => SkylineWindow.ShowDocumentGrid(true));
@@ -340,25 +344,25 @@ namespace pwiz.SkylineTestTutorial
             FindNode("DFATVYVDAVK");
             ActivateReplicate("D_196_REP3");
 
-            PauseForScreenShot("Chromatogram graph", 19);
+            PauseForScreenShot("Chromatogram graph", _pageNum++);
 
             RestoreViewOnScreen(10); // Same layout for RT graph as on page 10
 
             SelectNode(SrmDocument.Level.Molecules, 1);
             ActivateReplicate("D_196_REP3");
 
-            RunUI(() => Assert.AreEqual("R.LGGEEVSVACK.L [237, 247]", SkylineWindow.SelectedNode.Text));
+            RunUI(() => Assert.AreEqual("R.LGGEEVSVACK.L [238, 248]", SkylineWindow.SelectedNode.Text));
 
-            PauseForScreenShot("Retention Times graph for LGGEEVSVACK peptide", 20);
+            PauseForScreenShot("Retention Times graph for LGGEEVSVACK peptide", _pageNum++);
 
             RestoreViewOnScreen(12); // Same layout for Peak Areas graph as on page 12
 
             SelectNode(SrmDocument.Level.Molecules, 1);
             ActivateReplicate("D_196_REP3");
 
-            RunUI(() => SkylineWindow.NormalizeAreaGraphTo(AreaNormalizeToView.none));
+            RunUI(() => SkylineWindow.NormalizeAreaGraphTo(NormalizeOption.NONE));
 
-            PauseForScreenShot("Peak Areas graph", 21);
+            PauseForScreenShot("Peak Areas graph", _pageNum++);
 
             RestoreViewOnScreen(13); // Same layout for chromatogram graphs as before on page 13
 
@@ -367,27 +371,27 @@ namespace pwiz.SkylineTestTutorial
 
             RunUI(() =>
             {
-                SkylineWindow.NormalizeAreaGraphTo(AreaNormalizeToView.area_percent_view);
+                SkylineWindow.NormalizeAreaGraphTo(NormalizeOption.TOTAL);
                 SkylineWindow.AutoZoomBestPeak();
             });
 
-            PauseForScreenShot("Chromatogram graph zoomed", 22);
+            PauseForScreenShot("Chromatogram graph zoomed", _pageNum);
 
             ActivateReplicate("D_138_REP1");
 
-            PauseForScreenShot("Chromatogram graph zoomed - interference", 22);
+            PauseForScreenShot("Chromatogram graph zoomed - interference", _pageNum++);
 
             SelectNode(SrmDocument.Level.Molecules, 2);
             ActivateReplicate("D_154_REP1");
 
-            PauseForScreenShot("Chromatogram graph zoomed - nice signal", 23);
+            PauseForScreenShot("Chromatogram graph zoomed - nice signal", _pageNum);
 
             RestoreViewOnScreen(12); // Same layout for Peak Areas graph as on page 12
 
             SelectNode(SrmDocument.Level.Molecules, 2);
             ActivateReplicate("D_154_REP1");
 
-            PauseForScreenShot("Peak Areas graph - consistent abundances", 23);
+            PauseForScreenShot("Peak Areas graph - consistent abundances", _pageNum++);
 
             RestoreViewOnScreen(13); // Same layout for chromatogram graphs as before on page 13
 
@@ -396,15 +400,15 @@ namespace pwiz.SkylineTestTutorial
 
             RunUI(() =>
             {
-                Assert.AreEqual("R.GSYNLQDLLAQAK.L [378, 390]", SkylineWindow.SelectedNode.Text);
+                Assert.AreEqual("R.GSYNLQDLLAQAK.L [379, 391]", SkylineWindow.SelectedNode.Text);
                 SkylineWindow.AutoZoomNone();
             });
 
-            PauseForScreenShot("Chromatogram graph - langscape", 24);
+            PauseForScreenShot("Chromatogram graph - langscape", _pageNum++);
 
             ActivateReplicate("D_103_REP3");
 
-            PauseForScreenShot("Chromatogram graph - missing peak", 25);
+            PauseForScreenShot("Chromatogram graph - missing peak", _pageNum);
 
             RestoreViewOnScreen(12); // Same layout for Peak Areas graph as on page 12
 
@@ -426,7 +430,7 @@ namespace pwiz.SkylineTestTutorial
 
             RemovePeak("D_103_REP3", pathGroupRemove, nodeGroupRemove);
 
-            PauseForScreenShot("Peak Areas graph - removed peak", 25);
+            PauseForScreenShot("Peak Areas graph - removed peak", _pageNum++);
 
             RestoreViewOnScreen(13); // Same layout for chromatogram graphs as before on page 13
 
@@ -440,7 +444,7 @@ namespace pwiz.SkylineTestTutorial
 
             RunUI(() => SkylineWindow.ActivateReplicate("H_148_REP2"));
 
-            PauseForScreenShot("Chromatogram graph - truncated peak", 26);
+            PauseForScreenShot("Chromatogram graph - truncated peak", _pageNum);
 
             RestoreViewOnScreen(12); // Same layout for Peak Areas graph as on page 12
 
@@ -457,14 +461,14 @@ namespace pwiz.SkylineTestTutorial
 
             ActivateReplicate("H_162_REP3");
 
-            PauseForScreenShot("Peak Areas graph - removed peaks", 26);
+            PauseForScreenShot("Peak Areas graph - removed peaks", _pageNum++);
 
             RestoreViewOnScreen(10); // Same layout for RT graph as on page 10
 
             SelectNode(SrmDocument.Level.Molecules, 3);
             ActivateReplicate("D_103_REP3");
 
-            PauseForScreenShot("Retention Times graph - removed peaks", 27);
+            PauseForScreenShot("Retention Times graph - removed peaks", _pageNum++);
 
             RunUI(() =>
             {
@@ -474,13 +478,13 @@ namespace pwiz.SkylineTestTutorial
                 Assert.IsTrue(SkylineWindow.SelectedNode.Text.Contains("TSDQIHFFFAK"));
             });
 
-            PauseForScreenShot("Retention Times graph - strange variance", 27);
+            PauseForScreenShot("Retention Times graph - strange variance", _pageNum);
 
             RunUI(() => SkylineWindow.ShowReplicateOrder(SummaryReplicateOrder.time));
 
-            PauseForScreenShot("Retention Times graph - acquired time order", 28);
+            PauseForScreenShot("Retention Times graph - acquired time order", _pageNum++);
 
-            RestoreViewOnScreen(13); // Same layout for chromatogram graphs as before on page 13
+            RestoreViewOnScreen(28);
 
             SelectNode(SrmDocument.Level.Molecules, 5);
             SelectNode(SrmDocument.Level.Molecules, 6);
@@ -488,17 +492,17 @@ namespace pwiz.SkylineTestTutorial
 
             ChangePeakBounds("D_108_REP2", 26.8, 27.4);
 
-            PauseForScreenShot("Chromatogram graph - peak truncation", 29);
+            PauseForScreenShot("Chromatogram graph - peak truncation", _pageNum);
 
             ActivateReplicate("H_162_REP3");
 
-            PauseForScreenShot("Chromatogram graph - peak truncation noisy", 29);
+            PauseForScreenShot("Chromatogram graph - peak truncation noisy", _pageNum);
 
             RestoreViewOnScreen(12); // Same layout for Peak Areas graph as on page 12
 
             FindNode("FGLYSDQMR");
 
-            PauseForScreenShot("Peak Areas graph - inconsistent ion abundance", 29);
+            PauseForScreenShot("Peak Areas graph - inconsistent ion abundance", _pageNum++);
 
             RunUI(SkylineWindow.EditDelete);
         }
@@ -526,7 +530,7 @@ namespace pwiz.SkylineTestTutorial
             });
 
             if (initialTestExecution)
-                PauseForScreenShot<ViewEditor.ChooseColumnsView>("Customize View form", 17);
+                PauseForScreenShot<ViewEditor.ChooseColumnsView>("Customize Report form", _pageNum++);
 
             RunUI(() =>
             {
@@ -540,7 +544,7 @@ namespace pwiz.SkylineTestTutorial
             });
 
             if (initialTestExecution)
-                PauseForScreenShot<ViewEditor.ChooseColumnsView>("Customize View - Filter tab", 18);
+                PauseForScreenShot<ViewEditor.ChooseColumnsView>("Customize Report - Filter tab", _pageNum++);
 
             OkDialog(viewEditor, viewEditor.OkDialog);
 
@@ -567,7 +571,7 @@ namespace pwiz.SkylineTestTutorial
             });
 
             if (initialTestExecution)
-                PauseForScreenShot<DocumentGridForm>("Document Grid", 19);
+                PauseForScreenShot<DocumentGridForm>("Document Grid", _pageNum);
         }
 
         private void ExploreGlobalStandards()
@@ -579,7 +583,7 @@ namespace pwiz.SkylineTestTutorial
             // Ensure some settings, in case prior steps did not occur
             RunUI(() =>
             {
-                SkylineWindow.NormalizeAreaGraphTo(AreaNormalizeToView.area_percent_view);
+                SkylineWindow.NormalizeAreaGraphTo(NormalizeOption.TOTAL);
                 SkylineWindow.ShowReplicateOrder(SummaryReplicateOrder.time);
             });
 
@@ -595,19 +599,19 @@ namespace pwiz.SkylineTestTutorial
                     string.Format("{0} does not contain VVLSGSDATLAYSAFK", SkylineWindow.SequenceTree.SelectedNode.Text));
             });
 
-            PauseForScreenShot("Retention Times graph for VVLSGSDATLAYSAFK", 30);
+            PauseForScreenShot("Retention Times graph for VVLSGSDATLAYSAFK", _pageNum++);
 
             RestoreViewOnScreen(12); // Same layout for Peak Areas graph as on page 12
 
             SelectNode(SrmDocument.Level.Molecules, peptideCount - 2);
 
-            PauseForScreenShot("Peak Areas graph for VVLSGSDATLAYSAFK", 30);
+            PauseForScreenShot("Peak Areas graph for VVLSGSDATLAYSAFK", _pageNum);
 
             SelectNode(SrmDocument.Level.Molecules, peptideCount - 3);
             RunUI(() => Assert.IsTrue(SkylineWindow.SequenceTree.SelectedNode.Text.Contains("HLNGFSVPR"),
                     string.Format("{0} does not contain HLNGFSVPR", SkylineWindow.SequenceTree.SelectedNode.Text)));
 
-            PauseForScreenShot("Peak Areas graph for VVLSGSDATLAYSAFK", 31);
+            PauseForScreenShot("Peak Areas graph for HLNGFSVPR", _pageNum++);
 
             RestoreViewOnScreen(13); // Same layout for chromatogram graphs as before on page 13
 
@@ -619,18 +623,18 @@ namespace pwiz.SkylineTestTutorial
                 SkylineWindow.AutoZoomBestPeak();
             });
 
-            PauseForScreenShot("Chromatogram graph with interference", 31);
+            PauseForScreenShot("Chromatogram graph with interference", _pageNum++);
 
-            RunUI(() => SkylineWindow.NormalizeAreaGraphTo(AreaNormalizeToView.none));
+            RunUI(() => SkylineWindow.NormalizeAreaGraphTo(NormalizeOption.NONE));
 
             SelectNode(SrmDocument.Level.MoleculeGroups, SkylineWindow.Document.PeptideGroupCount - 1);
             ActivateReplicate("D_102_REP1");
 
-            PauseForScreenShot("Multi-peptide chromatogram graph for S", 32);
+            PauseForScreenShot("Multi-peptide chromatogram graph for S", _pageNum);
 
             RunUI(SkylineWindow.SelectAll);
 
-            PauseForScreenShot("All multi-peptide chromatogram graph", 33);
+            PauseForScreenShot("All multi-peptide chromatogram graph", _pageNum++);
 
             RunUI(() =>
             {
@@ -649,7 +653,7 @@ namespace pwiz.SkylineTestTutorial
                 SkylineWindow.ShowCVValues(true);
             });
 
-            PauseForScreenShot("Peak areas peptide comparison graph with CV valuse", 34);
+            PauseForScreenShot("Peak areas peptide comparison graph with CV values", _pageNum++);
 
             RestoreViewOnScreen(12); // Same layout for Peak Areas graph as on page 12
 
@@ -657,15 +661,15 @@ namespace pwiz.SkylineTestTutorial
 
             RunUI(SkylineWindow.ShowPeakAreaReplicateComparison);
 
-            PauseForScreenShot("Peak area replicate comparison graph for LGPLVEDQGR", 34);
+            PauseForScreenShot("Peak area replicate comparison graph for LGPLVEDQGR", _pageNum);
 
             RunUI(() =>
             {
                 SkylineWindow.ShowAllTransitions();
-                SkylineWindow.NormalizeAreaGraphTo(AreaNormalizeToView.area_percent_view);
+                SkylineWindow.NormalizeAreaGraphTo(NormalizeOption.TOTAL);
             });
 
-            PauseForScreenShot("Peak area graph for LGPLVEDQR normalized", 35);
+            PauseForScreenShot("Peak area graph for LGPLVEDQR normalized", _pageNum++);
         }
 
         private void ExploreBottomPeptides()
@@ -677,7 +681,7 @@ namespace pwiz.SkylineTestTutorial
             RunUI(() =>
             {
                 // Ensure these important settings are set
-                SkylineWindow.NormalizeAreaGraphTo(AreaNormalizeToView.area_percent_view);
+                SkylineWindow.NormalizeAreaGraphTo(NormalizeOption.TOTAL);
                 SkylineWindow.SetIntegrateAll(true);    
                 SkylineWindow.ShowReplicateOrder(SummaryReplicateOrder.time);
             });
@@ -703,14 +707,14 @@ namespace pwiz.SkylineTestTutorial
                     SkylineWindow.AutoZoomNone();
                 });
 
-                PauseForScreenShot("Chromatogram graph - truncated peak", 36);
+                PauseForScreenShot("Chromatogram graph - truncated peak", _pageNum++);
 
                 RestoreViewOnScreen(10); // Same layout for RT graph as on page 10
 
                 SelectNode(SrmDocument.Level.Molecules, i);
                 ActivateReplicate("H_146_REP1");
 
-                PauseForScreenShot("Retention Times graph - wide peaks", 36);
+                PauseForScreenShot("Retention Times graph - wide peaks", _pageNum);
 
                 RestoreViewOnScreen(36);
                 SelectNode(SrmDocument.Level.Molecules, i);
@@ -721,7 +725,7 @@ namespace pwiz.SkylineTestTutorial
                     SkylineWindow.Size = new Size(1380, 744);
                 });
 
-                PauseForScreenShot("Chromatogram graphs - use zoom and pan to set up", 37);
+                PauseForScreenShot("Chromatogram graphs - use zoom and pan to set up", _pageNum++);
 
                 RunUI(() => SkylineWindow.Size = new Size(974, 640));
                 RestoreViewOnScreen(12); // Same layout for Peak Areas graph as on page 12
@@ -729,13 +733,13 @@ namespace pwiz.SkylineTestTutorial
 
                 i = SelectPeptidesUpUntil("MLSGFIPLKPTVK");
 
-                PauseForScreenShot("Peak Areas graph - variance", 37);
+                PauseForScreenShot("Peak Areas graph - variance", _pageNum);
 
                 RestoreViewOnScreen(13); // Same layout for chromatogram graphs as before on page 13
                 SelectNode(SrmDocument.Level.Molecules, i);
                 ActivateReplicate("D_138_REP1");
 
-                PauseForScreenShot("Chromatogram graph - y7 with no coeluting", 38);
+                PauseForScreenShot("Chromatogram graph - y7 with no coeluting", _pageNum++);
 
                 RestoreViewOnScreen(36);    // Chromatogram graphs as on page 36
 
@@ -743,7 +747,7 @@ namespace pwiz.SkylineTestTutorial
 
                 RunUI(() =>
                 {
-                    SkylineWindow.NormalizeAreaGraphTo(AreaNormalizeToView.none);
+                    SkylineWindow.NormalizeAreaGraphTo(NormalizeOption.NONE);
                     SkylineWindow.Size = new Size(1380, 744);
                 });
                 
@@ -751,7 +755,7 @@ namespace pwiz.SkylineTestTutorial
                 ActivateReplicate("H_148_REP2");
                 ActivateReplicate("H_148_REP3");
 
-                PauseForScreenShot("Chromatogram graphs - showing coelution", 38);
+                PauseForScreenShot("Chromatogram graphs - showing coelution", _pageNum);
 
                 RunUI(() => SkylineWindow.Size = new Size(898, 615));
 
@@ -759,12 +763,12 @@ namespace pwiz.SkylineTestTutorial
 
                 SelectNode(SrmDocument.Level.Molecules, i);
 
-                PauseForScreenShot("Retention Times graph - misintegrated peaks", 39);
+                PauseForScreenShot("Retention Times graph - misintegrated peaks", _pageNum++);
 
                 RestoreViewOnScreen(12); // Same layout for Peak Areas graph as on page 12
                 SelectNode(SrmDocument.Level.Molecules, i);
 
-                PauseForScreenShot("Peak Areas graph - no normalization", 39);
+                PauseForScreenShot("Peak Areas graph - no normalization", _pageNum);
 
                 if (IsFullData)
                 {
@@ -773,12 +777,12 @@ namespace pwiz.SkylineTestTutorial
                 SelectNode(SrmDocument.Level.Molecules, i);
                 ActivateReplicate("D_154_REP3");
 
-                PauseForScreenShot("Chromatogram graph - mispicked peak", 40);
+                PauseForScreenShot("Chromatogram graph - mispicked peak", _pageNum++);
 
                 ChangePeakBounds("D_154_REP3", 23, 23.5);
                 }
 
-                RunUI(() => SkylineWindow.NormalizeAreaGraphTo(AreaNormalizeToView.area_percent_view));
+                RunUI(() => SkylineWindow.NormalizeAreaGraphTo(NormalizeOption.TOTAL));
 
                 SelectPeptidesUpUntil("GMYESLPVVAVK");
 
@@ -787,7 +791,8 @@ namespace pwiz.SkylineTestTutorial
                 i = SelectPeptidesUpUntil("ETGLMAFTNLK");
                 ActivateReplicate("D_103_REP1");
 
-                PauseForScreenShot("Chromatogram graph - interference outside peak", 41);
+                _pageNum++; // Page without figures
+                PauseForScreenShot("Chromatogram graph - interference outside peak", _pageNum);
 
                 RestoreViewOnScreen(12); // Same layout for Peak Areas graph as on page 12
 
@@ -802,14 +807,14 @@ namespace pwiz.SkylineTestTutorial
 
                 VerifyLowDotProducts(0.35);
 
-                PauseForScreenShot("Peak Areas graph - poor library correlation", 42);
+                PauseForScreenShot("Peak Areas graph - poor library correlation", _pageNum++);
 
                 RestoreViewOnScreen(13); // Same layout for chromatogram graphs as before on page 13
 
                 SelectNode(SrmDocument.Level.Molecules, i);
                 ActivateReplicate("D_196_REP1");
 
-                PauseForScreenShot("Chromatogram graph - poor library correlation", 42);
+                PauseForScreenShot("Chromatogram graph - poor library correlation", _pageNum++);
 
                 if (IsFullData)
                 {
@@ -825,28 +830,28 @@ namespace pwiz.SkylineTestTutorial
                 SelectNode(SrmDocument.Level.Molecules, i);
                 ActivateReplicate("D_154_REP1");
 
-                PauseForScreenShot("Peak Areas graph - poor run-to-run correlation", 43);
+                PauseForScreenShot("Peak Areas graph - poor run-to-run correlation", _pageNum);
 
                 RunUI(() => SkylineWindow.ShowReplicateOrder(SummaryReplicateOrder.document));
 
-                PauseForScreenShot("Peak Areas graph - poor run-to-run correlation - logical order", 44);
+                PauseForScreenShot("Peak Areas graph - poor run-to-run correlation - logical order", _pageNum++);
 
                 RestoreViewOnScreen(10); // Same layout for RT graph as on page 10
 
                 SelectNode(SrmDocument.Level.Molecules, i);
                 ActivateReplicate("D_154_REP1");
 
-                PauseForScreenShot("Retention Times graph - poor run-to-run correlation - logical order", 44);
+                PauseForScreenShot("Retention Times graph - poor run-to-run correlation - logical order", _pageNum);
 
                 RestoreViewOnScreen(44);
                 SelectNode(SrmDocument.Level.Molecules, i);
                 ActivateReplicate("D_102_REP3");
 
-                PauseForScreenShot("Cromatogram graph (A) - no peak - Formate width 3.2", 45);
+                PauseForScreenShot("Cromatogram graph (A) - no peak - Format width 3.2", _pageNum);
 
                 ActivateReplicate("D_108_REP1");
 
-                PauseForScreenShot("Cromatogram graph (B) - no peak - Formate width 3.2", 45);
+                PauseForScreenShot("Cromatogram graph (B) - no peak - Format width 3.2", _pageNum++);
 
                 int count = IsFullData ? 15 : 10;
                 AssertUserSetCount(count);
@@ -871,11 +876,11 @@ namespace pwiz.SkylineTestTutorial
 
                 RunUI(() =>
                 {
-                    SkylineWindow.NormalizeAreaGraphTo(AreaNormalizeToView.none);
+                    SkylineWindow.NormalizeAreaGraphTo(NormalizeOption.NONE);
                     SkylineWindow.ShowReplicateOrder(SummaryReplicateOrder.time);
                 });
 
-                PauseForScreenShot("Peak Areas graph - no normalization", 46);
+                PauseForScreenShot("Peak Areas graph - no normalization", _pageNum++);
 
                 RunUI(() =>
                 {
@@ -915,11 +920,11 @@ namespace pwiz.SkylineTestTutorial
                 Settings.Default.AnnotationDefList.Clear();
                 var documentSettingsDlg = ShowDialog<DocumentSettingsDlg>(SkylineWindow.ShowDocumentSettingsDialog);
 
-                AddReplicateAnnotation(documentSettingsDlg, "SubjectId", AnnotationDef.AnnotationType.text, null, 47);
+                AddReplicateAnnotation(documentSettingsDlg, "SubjectId", AnnotationDef.AnnotationType.text, null, _pageNum++);
 
                 RunUI(() => documentSettingsDlg.AnnotationsCheckedListBox.SetItemChecked(0, true));
 
-                PauseForScreenShot<DocumentSettingsDlg>("Annotation Settings form with SubjectId", 48);
+                PauseForScreenShot<DocumentSettingsDlg>("Annotation Settings form with SubjectId", _pageNum++);
 
                 OkDialog(documentSettingsDlg, documentSettingsDlg.OkDialog);
             }
@@ -931,7 +936,7 @@ namespace pwiz.SkylineTestTutorial
 
                 RunUI(() => toolStoreDlg.SelectTool("MSstats"));
 
-                PauseForScreenShot<ToolStoreDlg>("Tool Store form - showing MSstats tool details", 49);
+                PauseForScreenShot<ToolStoreDlg>("Tool Store form - showing MSstats tool details", _pageNum++);
 
                 OkDialog(toolStoreDlg, toolStoreDlg.CancelButton.PerformClick);
             }
@@ -940,10 +945,10 @@ namespace pwiz.SkylineTestTutorial
                 var documentSettingsDlg = ShowDialog<DocumentSettingsDlg>(SkylineWindow.ShowDocumentSettingsDialog);
 
                 AddReplicateAnnotation(documentSettingsDlg, "BioReplicate", AnnotationDef.AnnotationType.text,
-                    null, 50);
+                    null, _pageNum);
 
                 AddReplicateAnnotation(documentSettingsDlg, "Condition", AnnotationDef.AnnotationType.value_list,
-                    new[] {"Healthy", "Diseased"}, 50);
+                    new[] {"Healthy", "Diseased"}, _pageNum);
 
                 RunUI(() =>
                 {
@@ -951,7 +956,7 @@ namespace pwiz.SkylineTestTutorial
                     documentSettingsDlg.AnnotationsCheckedListBox.SetItemChecked(2, true);
                 });
 
-                PauseForScreenShot<DocumentSettingsDlg>("Annotation Settings form with MSstats annotations", 50);
+                PauseForScreenShot<DocumentSettingsDlg>("Annotation Settings form with MSstats annotations", _pageNum++);
 
                 OkDialog(documentSettingsDlg, documentSettingsDlg.OkDialog);
             }
@@ -967,7 +972,11 @@ namespace pwiz.SkylineTestTutorial
                 WaitForConditionUI(() => (documentGrid.RowCount > 0 &&
                     documentGrid.FindColumn(pathSubjectId) != null)); // Let it initialize
 
-                PauseForScreenShot<DocumentGridForm>("Document Grid - replicates", 51);
+                RestoreViewOnScreen(50);
+                PauseForScreenShot<DocumentGridForm>("Document Grid - replicates", _pageNum++);
+
+                // In case the layout was restored, the old document grid reference may no longer be valid
+                documentGrid = WaitForOpenForm<DocumentGridForm>();
 
                 RunUI(() =>
                 {
@@ -976,14 +985,14 @@ namespace pwiz.SkylineTestTutorial
                     gridView.CurrentCell = gridView.Rows[0].Cells[columnSubjectId.Index];
                 });
 
-                PauseForScreenShot<DocumentGridForm>("Document Grid - SubjectId column selected", 52);
+                PauseForScreenShot<DocumentGridForm>("Document Grid - SubjectId column selected", _pageNum);
 
                 var filePath = GetTestPath(@"Heart Failure\raw\Annotations.xlsx");
                 SetExcelFileClipboardText(filePath, "Sheet1", 3, true);
 
                 RunUI(() => documentGrid.DataGridView.SendPaste());
 
-                PauseForScreenShot<DocumentGridForm>("Document Grid - filled", 52);
+                PauseForScreenShot<DocumentGridForm>("Document Grid - filled", _pageNum++);
 
                 RunUI(() => SkylineWindow.ShowDocumentGrid(false));
             }
@@ -992,11 +1001,11 @@ namespace pwiz.SkylineTestTutorial
                 var documentSettingsDlg = ShowDialog<DocumentSettingsDlg>(SkylineWindow.ShowDocumentSettingsDialog);
 
                 AddAnnotation(documentSettingsDlg, "MissingData", AnnotationDef.AnnotationType.true_false, null,
-                    AnnotationDef.AnnotationTargetSet.Singleton(AnnotationDef.AnnotationTarget.peptide), 53);
+                    AnnotationDef.AnnotationTargetSet.Singleton(AnnotationDef.AnnotationTarget.peptide), _pageNum++);
 
                 RunUI(() => documentSettingsDlg.AnnotationsCheckedListBox.SetItemChecked(3, true));
 
-                PauseForScreenShot<DocumentSettingsDlg>("Annotations form with all annotations checked", 54);
+                PauseForScreenShot<DocumentSettingsDlg>("Annotations form with all annotations checked", _pageNum++);
 
                 OkDialog(documentSettingsDlg, documentSettingsDlg.OkDialog);
             }
@@ -1018,14 +1027,14 @@ namespace pwiz.SkylineTestTutorial
                     viewEditor.ChooseColumnsTab.AddSelectedColumn();
                 });
 
-                PauseForScreenShot<ViewEditor.ChooseColumnsView>("Customize View form with MissingData annotation checked", 55);
+                PauseForScreenShot<ViewEditor.ChooseColumnsView>("Customize View form with MissingData annotation checked", _pageNum++);
 
                 OkDialog(viewEditor, viewEditor.OkDialog);
 
                 RunUI(() => FormEx.GetParentForm(documentGrid).Size = new Size(591, 296));
 
                 var pathMissingData = PropertyPath.Parse("Peptide").Property(_missingDataName);
-                WaitForConditionUI(() => (documentGrid.RowCount > 0 &&
+                WaitForConditionUI(() => (documentGrid.IsComplete && documentGrid.RowCount > 0 &&
                     documentGrid.FindColumn(pathMissingData) != null)); // Let it initialize
 
                 var pathCountTruncated = PropertyPath.Parse("Results!*.Value.CountTruncated");
@@ -1035,8 +1044,9 @@ namespace pwiz.SkylineTestTutorial
                     documentGrid.DataGridView.Sort(columnCountTruncated,
                         ListSortDirection.Descending);                    
                 });
+                WaitForConditionUI(() => documentGrid.IsComplete);
 
-                PauseForScreenShot<DocumentGridForm>("Document Grid with MissingData field", 55);
+                PauseForScreenShot<DocumentGridForm>("Document Grid with MissingData field", _pageNum);
 
                 int expectedRows = IsFullData ? 222 : 149;
                 const int expectedRowsAbbreviated = 221; // When not all of the tests are run
@@ -1053,7 +1063,7 @@ namespace pwiz.SkylineTestTutorial
                     gridView.CurrentCell = gridView.Rows[1].Cells[columnSubjectId.Index];
                 });
 
-                PauseForScreenShot<DocumentGridForm>("Document Grid with MissingData field checked", 56);
+                PauseForScreenShot<DocumentGridForm>("Document Grid with MissingData field checked", _pageNum++);
 
                 string linesTrue = TextUtil.LineSeparate(new string[expectedRows].Select(v => "TRUE"));
                 RunUI(() =>
@@ -1064,10 +1074,13 @@ namespace pwiz.SkylineTestTutorial
                     gridView.CurrentCell = gridView.Rows[0].Cells[columnSubjectId.Index];
                     gridView.SendPaste();
 
+                    var columnCountTruncated = documentGrid.FindColumn(pathCountTruncated);
                     for (int i = 0; i < expectedRows; i++)
                     {
                         var value = gridView.Rows[i].Cells[columnSubjectId.Index].Value;
                         Assert.IsTrue((bool)value);
+                        var valueTruncated = gridView.Rows[i].Cells[columnCountTruncated.Index].Value;
+                        Assert.AreNotEqual(0, (int)valueTruncated);
                     }
 
                     documentGrid.Close();
@@ -1075,7 +1088,9 @@ namespace pwiz.SkylineTestTutorial
 
                 FindNode("SQLPGIIAEGR");
 
-                PauseForScreenShot("Targets NP_036870 and peptides", 57);
+                RunUI(() => SkylineWindow.ChangeTextSize(TreeViewMS.LRG_TEXT_FACTOR));
+
+                PauseForScreenShot("Targets NP_036870 and peptides", _pageNum++);
             }
 
             {
@@ -1093,10 +1108,10 @@ namespace pwiz.SkylineTestTutorial
                     viewEditor.ChooseColumnsTab.RemoveColumn(pathPrecursors);
                     viewEditor.ChooseColumnsTab.RemoveColumn(pathCountTruncated);
                     PivotReplicateAndIsotopeLabelWidget.SetPivotReplicate(viewEditor, true);
-                    viewEditor.Height = 352;
+                    viewEditor.Height = 410;
                 });
 
-                PauseForScreenShot<ViewEditor.ChooseColumnsView>("Missing Results view", 57);
+                PauseForScreenShot<ViewEditor.ChooseColumnsView>("Missing Peaks report", _pageNum++);
 
                 RunUI(() =>
                 {
@@ -1108,7 +1123,7 @@ namespace pwiz.SkylineTestTutorial
                     viewEditor.FilterTab.SetFilterOperation(iFilter, FilterOperations.OP_IS_BLANK);
                 });
 
-                PauseForScreenShot<ViewEditor.FilterView>("Filter tab of column editor", 58);
+                PauseForScreenShot<ViewEditor.FilterView>("Filter tab of column editor", _pageNum);
 
                 OkDialog(viewEditor, viewEditor.OkDialog);
                 OkDialog(viewManager, viewManager.AcceptButton.PerformClick);
@@ -1167,7 +1182,7 @@ namespace pwiz.SkylineTestTutorial
                         FormEx.GetParentForm(documentGrid).Size = new Size(756, 352);
                     });
 
-                    PauseForScreenShot<DocumentGridForm>("Missing Peaks view in document grid", 58);
+                    PauseForScreenShot<DocumentGridForm>("Missing Peaks view in document grid", _pageNum++);
 
                     RunUI(() =>
                     {
@@ -1190,14 +1205,15 @@ namespace pwiz.SkylineTestTutorial
             RunUI(() =>
             {
                 SkylineWindow.ShowTotalTransitions();
-                SkylineWindow.NormalizeAreaGraphTo(AreaNormalizeToView.area_global_standard_view);
+                SkylineWindow.NormalizeAreaGraphTo(NormalizeOption.GLOBAL_STANDARDS);
                 SkylineWindow.GroupByReplicateAnnotation("SubjectId");
                 SkylineWindow.ShowCVValues(true);
             });
 
             ActivateReplicate("D_102_REP1");
 
-            PauseForScreenShot("By SubjectId CV peak area ratio to global standard", 60);
+            _pageNum++; // Page without figures
+            PauseForScreenShot("By SubjectId CV peak area ratio to global standard", _pageNum++);
 
             RestoreViewOnScreen(60);
 
@@ -1209,69 +1225,31 @@ namespace pwiz.SkylineTestTutorial
 
             FindNode("IAELFSDLEER");
 
-            PauseForScreenShot("IAELFSDLEER mean peak area ratio to global standard by condition", 61);
+            PauseForScreenShot("IAELFSDLEER mean peak area ratio to global standard by condition", _pageNum);
 
             FindNode("FSISTDYSLK");
 
-            PauseForScreenShot("FSISTDYSLK mean peak area ratio to global standard by condition", 61);
+            PauseForScreenShot("FSISTDYSLK mean peak area ratio to global standard by condition", _pageNum);
 
             FindNode("EVLPELGIK");
 
-            PauseForScreenShot("EVLPELGIK mean peak area ratio to global standard by condition", 61);
+            PauseForScreenShot("EVLPELGIK mean peak area ratio to global standard by condition", _pageNum++);
 
             FindNode("SVVDIGLIK");
 
-            PauseForScreenShot("SVVDIGLIK mean peak area ratio to global standard by condition", 62);
+            PauseForScreenShot("SVVDIGLIK mean peak area ratio to global standard by condition", _pageNum);
 
             FindNode("LQTEGDGIYTLNSEK");
 
-            PauseForScreenShot("LQTEGDGIYTLNSEK mean peak area ratio to global standard by condition", 62);
+            PauseForScreenShot("LQTEGDGIYTLNSEK mean peak area ratio to global standard by condition", _pageNum);
 
             FindNode("CSSLLWAGAAWLR");
 
-            PauseForScreenShot("CSSLLWAGAAWLR mean peak area ratio to global standard by condition", 62);
+            PauseForScreenShot("CSSLLWAGAAWLR mean peak area ratio to global standard by condition", _pageNum);
 
             FindNode("NLGVVVAPHALR");
 
-            PauseForScreenShot("NLGVVVAPHALR mean peak area ratio to global standard by condition", 62);
-        }
-
-        private void AddReplicateAnnotation(DocumentSettingsDlg documentSettingsDlg,
-                                            string annotationName,
-                                            AnnotationDef.AnnotationType annotationType,
-                                            IList<string> annotationValues,
-                                            int pausePage)
-        {
-            AddAnnotation(documentSettingsDlg, annotationName, annotationType, annotationValues,                
-                    AnnotationDef.AnnotationTargetSet.Singleton(AnnotationDef.AnnotationTarget.replicate),
-                    pausePage);
-        }
-
-        private void AddAnnotation(DocumentSettingsDlg documentSettingsDlg,
-                                            string annotationName,
-                                            AnnotationDef.AnnotationType annotationType,
-                                            IList<string> annotationValues,
-                                            AnnotationDef.AnnotationTargetSet annotationTargets,
-                                            int pausePage)
-        {
-            var annotationsListDlg = ShowDialog<EditListDlg<SettingsListBase<AnnotationDef>, AnnotationDef>>
-                (documentSettingsDlg.EditAnnotationList);
-            RunUI(annotationsListDlg.SelectLastItem);
-            var annotationDefDlg = ShowDialog<DefineAnnotationDlg>(annotationsListDlg.AddItem);
-
-            RunUI(() =>
-            {
-                annotationDefDlg.AnnotationName = annotationName;
-                annotationDefDlg.AnnotationType = annotationType;
-                if (annotationValues != null)
-                annotationDefDlg.Items = annotationValues;
-                annotationDefDlg.AnnotationTargets = annotationTargets;
-            });
-
-            PauseForScreenShot<DefineAnnotationDlg>("Define Annotation form - " + annotationName, pausePage);
-
-            OkDialog(annotationDefDlg, annotationDefDlg.OkDialog);
-            OkDialog(annotationsListDlg, annotationsListDlg.OkDialog);
+            PauseForScreenShot("NLGVVVAPHALR mean peak area ratio to global standard by condition", _pageNum++);
         }
 
         private static int SelectPeptidesUpUntil(string sequence)
@@ -1345,20 +1323,20 @@ namespace pwiz.SkylineTestTutorial
         private void SimpleGroupComparisons()
         {
             const string comparisonName = "Healthy v. Diseased";
-            const string controlAnnoation = "Condition";
+            const string controlAnnotation = "Condition";
             const string controlValue = "Healthy";
             const string caseValue = "Diseased";
-            const string idendityAnnotation = "SubjectId";
+            const string identityAnnotation = "SubjectId";
 
             var docBeforeComparison = SkylineWindow.Document;
             var documentSettingsDlg = ShowDialog<DocumentSettingsDlg>(SkylineWindow.ShowDocumentSettingsDialog);
-            RunUI(() => documentSettingsDlg.GetTabControl().SelectedIndex = 1);
+            RunUI(() => documentSettingsDlg.SelectTab(DocumentSettingsDlg.TABS.group_comparisons));
             var editGroupComparisonDlg = ShowDialog <EditGroupComparisonDlg>(documentSettingsDlg.AddGroupComparison);
             RunUI(() =>
             {
                 editGroupComparisonDlg.TextBoxName.Text = comparisonName;
-                Assert.IsTrue(editGroupComparisonDlg.ComboControlAnnotation.Items.Contains(controlAnnoation));
-                editGroupComparisonDlg.ComboControlAnnotation.SelectedItem = controlAnnoation;
+                Assert.IsTrue(editGroupComparisonDlg.ComboControlAnnotation.Items.Contains(controlAnnotation));
+                editGroupComparisonDlg.ComboControlAnnotation.SelectedItem = controlAnnotation;
             });
             WaitForConditionUI(2000, () => editGroupComparisonDlg.ComboControlValue.Items.Contains(controlValue));
             RunUI(() =>
@@ -1366,50 +1344,58 @@ namespace pwiz.SkylineTestTutorial
                 editGroupComparisonDlg.ComboControlValue.SelectedItem = controlValue;
                 editGroupComparisonDlg.ComboCaseValue.SelectedItem = caseValue;
                 Assert.IsTrue(editGroupComparisonDlg.ComboCaseValue.Items.Contains(caseValue));
-                editGroupComparisonDlg.ComboIdentityAnnotation.SelectedItem = idendityAnnotation;
-                Assert.IsTrue(editGroupComparisonDlg.ComboIdentityAnnotation.Items.Contains(idendityAnnotation));
+                editGroupComparisonDlg.ComboIdentityAnnotation.SelectedItem = identityAnnotation;
+                Assert.IsTrue(editGroupComparisonDlg.ComboIdentityAnnotation.Items.Contains(identityAnnotation));
                 editGroupComparisonDlg.ComboNormalizationMethod.SelectedItem = NormalizationMethod.GLOBAL_STANDARDS;
                 editGroupComparisonDlg.TextBoxConfidenceLevel.Text = 99.ToString(CultureInfo.CurrentCulture);
                 editGroupComparisonDlg.RadioScopePerProtein.Checked = true;
             });
-            PauseForScreenShot<EditGroupComparisonDlg>("Edit Group Comparison", 64);
+            _pageNum++; // Page without figures
+            PauseForScreenShot<EditGroupComparisonDlg>("Edit Group Comparison", _pageNum);
             OkDialog(editGroupComparisonDlg, editGroupComparisonDlg.OkDialog);
-            PauseForScreenShot<DocumentSettingsDlg>("Document Settings", 65);
+            RunUI(() => documentSettingsDlg.Height = 310);
+            PauseForScreenShot<DocumentSettingsDlg>("Document Settings", _pageNum++);
             OkDialog(documentSettingsDlg, documentSettingsDlg.OkDialog);
             var docAfterComparison = WaitForDocumentChange(docBeforeComparison);
             var groupComparisonDefs = docAfterComparison.Settings.DataSettings.GroupComparisonDefs;
             Assert.AreEqual(1, groupComparisonDefs.Count);
             var groupComparison = groupComparisonDefs[0];
             Assert.AreEqual(comparisonName, groupComparison.Name);
-            Assert.AreEqual(controlAnnoation, groupComparison.ControlAnnotation);
+            Assert.AreEqual(controlAnnotation, groupComparison.ControlAnnotation);
             Assert.AreEqual(controlValue, groupComparison.ControlValue);
             Assert.AreEqual(caseValue, groupComparison.CaseValue);
-            Assert.AreEqual(idendityAnnotation, groupComparison.IdentityAnnotation);
+            Assert.AreEqual(identityAnnotation, groupComparison.IdentityAnnotation);
             RunUI(() => SkylineWindow.ShowGroupComparisonWindow(comparisonName));
             var foldChangeGrid = FindOpenForm<FoldChangeGrid>();
-            WaitForConditionUI(() => foldChangeGrid.DataboundGridControl.IsComplete &&
-                foldChangeGrid.DataboundGridControl.FindColumn(PropertyPath.Root.Property("FoldChangeResult")) != null);
+            var foldChangeGridControl = foldChangeGrid.DataboundGridControl;
+            WaitForConditionUI(() => foldChangeGridControl.IsComplete &&
+                foldChangeGridControl.FindColumn(PropertyPath.Root.Property("FoldChangeResult")) != null);
             RunUI(() =>
             {
                 var foldChangeResultColumn =
-                    foldChangeGrid.DataboundGridControl.FindColumn(PropertyPath.Root.Property("FoldChangeResult"));
-                foldChangeGrid.DataboundGridControl.DataGridView.AutoResizeColumn(foldChangeResultColumn.Index);
+                    foldChangeGridControl.FindColumn(PropertyPath.Root.Property("FoldChangeResult"));
+                foldChangeGridControl.DataGridView.AutoResizeColumn(foldChangeResultColumn.Index);
+                foldChangeGrid.Parent.Parent.Height = 278;
             });
-            WaitForConditionUI(() => 0 != foldChangeGrid.DataboundGridControl.RowCount,
+            WaitForConditionUI(() => 0 != foldChangeGridControl.RowCount,
                 "0 != foldChangeGrid.DataboundGridControl.RowCount");
-            WaitForConditionUI(() => foldChangeGrid.DataboundGridControl.IsComplete,
+            WaitForConditionUI(() => foldChangeGridControl.IsComplete,
                 "foldChangeGrid.DataboundGridControl.IsComplete");
-            PauseForScreenShot<FoldChangeGrid>("Healthy v. Diseased:Grid", 65);
+            PauseForScreenShot<FoldChangeGrid>("Healthy v. Diseased:Grid", _pageNum++);
             RunUI(() =>
             {
                 foldChangeGrid.ShowGraph();
+                foldChangeGrid.Parent.Parent.Size = new Size(837, 476);
             });
-            PauseForScreenShot<FoldChangeBarGraph>("Healthy v Diseased:Graph", 66);
-            var foldChangeGraph = FindOpenForm<FoldChangeBarGraph>();
-            RunUI(() =>
-            {
-                foldChangeGraph.Show(foldChangeGraph.DockPanel, DockState.Floating);
-            });
+            PauseForScreenShot<FoldChangeBarGraph>("Healthy v Diseased:Graph", _pageNum++);
+            if (!IsCoverShotMode)
+                RestoreViewOnScreen(67);
+            else
+                RestoreCoverViewOnScreen();
+            var foldChangeGraph = WaitForOpenForm<FoldChangeBarGraph>();
+            foldChangeGrid = WaitForOpenForm<FoldChangeGrid>();
+            if (!IsCoverShotMode)
+                RunUI(() => foldChangeGraph.Show(foldChangeGraph.DockPanel, DockState.Floating));
             RunUI(() =>
             {
                 var foldChangeResultColumn =
@@ -1437,7 +1423,38 @@ namespace pwiz.SkylineTestTutorial
             WaitForConditionUI(() => foldChangeGrid.DataboundGridControl.IsComplete);
             WaitForConditionUI(() => 11 == foldChangeGrid.DataboundGridControl.RowCount);
             RunUI(() => Assert.AreEqual(11, foldChangeGrid.DataboundGridControl.RowCount));
-            PauseForScreenShot<FoldChangeBarGraph>("Right click on the graph and choose Copy", 67);
+            PauseForScreenShot<FoldChangeBarGraph>("Copy protein bar graph metafile", _pageNum++);
+
+            if (IsCoverShotMode)
+            {
+                RunUI(() =>
+                {
+                    Settings.Default.ChromatogramFontSize = 14;
+                    Settings.Default.AreaFontSize = 14;
+                    SkylineWindow.ChangeTextSize(TreeViewMS.LRG_TEXT_FACTOR);
+                    SkylineWindow.ShowPeakAreaLegend(false);
+                    SkylineWindow.ShowChromatogramLegends(false);
+                    SkylineWindow.ShowAllTransitions();
+                    SkylineWindow.NormalizeAreaGraphTo(NormalizeOption.TOTAL);
+                    SkylineWindow.GroupByReplicateValue(null);
+                });
+                RunUI(SkylineWindow.AutoZoomBestPeak);
+                RunUI(() => SkylineWindow.SequenceTree.SelectedNode = SkylineWindow.SelectedNode.PrevNode);
+                WaitForGraphs();
+                RunUI(() => SkylineWindow.SequenceTree.SelectedNode = SkylineWindow.SelectedNode.NextNode);
+                WaitForGraphs();
+                RunUI(() =>
+                {
+                    ZoomYAxis(foldChangeGraph.ZedGraphControl, -6, 6);
+                    var gcFloatingWindow = foldChangeGraph.Parent.Parent;
+                    gcFloatingWindow.Top = SkylineWindow.Top + 5;
+                    gcFloatingWindow.Height = SkylineWindow.Height - 10;
+                    gcFloatingWindow.Left = SkylineWindow.Right - gcFloatingWindow.Width - 5;
+                });
+                TakeCoverShot();
+                return;
+            }
+
             WaitForConditionUI(() => foldChangeGrid.DataboundGridControl.IsComplete);
             var settingsForm = ShowDialog<EditGroupComparisonDlg>(foldChangeGrid.ShowChangeSettings);
             RunUI(() => settingsForm.ComboIdentityAnnotation.SelectedIndex = 0);
@@ -1468,7 +1485,8 @@ namespace pwiz.SkylineTestTutorial
                 OkDialog(quickFilterForm, quickFilterForm.OkDialog);
             }
             WaitForConditionUI(() => 92 == foldChangeGrid.DataboundGridControl.RowCount);
-            PauseForScreenShot<FoldChangeBarGraph>("Copy the graph", 68);
+            PauseForScreenShot<FoldChangeBarGraph>("Copy peptide bar graph metafile", _pageNum++);
+
             RunUI(() =>
             {
                 foldChangeGrid.DataboundGridControl.DataGridView.SelectAll();
@@ -1478,9 +1496,9 @@ namespace pwiz.SkylineTestTutorial
                         .First(row => (string) row.Cells[colPeptide.Index].FormattedValue ==  "VVLSGSDATLAYSAFK");
                 rowToDeselect.Selected = false;
             });
-            PauseForScreenShot<FoldChangeGrid>("Healthy v. Diseased:Grid", 69);
+            PauseForScreenShot<FoldChangeGrid>("Healthy v. Diseased:Grid", _pageNum);
             var messageDlg = ShowDialog<MultiButtonMsgDlg>(foldChangeGrid.FoldChangeBindingSource.ViewContext.Delete);
-            PauseForScreenShot<MultiButtonMsgDlg>("Are you sure you want to delete...", 69);
+            PauseForScreenShot<MultiButtonMsgDlg>("Are you sure you want to delete...", _pageNum++);
             var docBefore = SkylineWindow.Document;
             OkDialog(messageDlg, messageDlg.BtnYesClick);
             WaitForDocumentChange(docBefore);   // Avoid tearing down the test before the deletion is complete
@@ -1495,7 +1513,7 @@ namespace pwiz.SkylineTestTutorial
             // Apply to all
             RunUI(() =>
             {
-                PeakMatcherTestUtil.SelectAndApplyPeak("GILAADESVGSMAK", null, "D_103_REP1", false, 19.0987);
+                PeakMatcherTestUtil.SelectAndApplyPeak("GILAADESVGSMAK", null, "D_103_REP1", false, false, 19.0987);
                 PeakMatcherTestUtil.VerifyPeaks(MakeVerificationDictionary(
                     19.09872, 18.53870, 18.38107, 18.98798, 18.80227, 18.76315,
                     19.10433, 19.03328, 18.83977, 19.10928, 18.65008, 18.45997,
@@ -1504,7 +1522,7 @@ namespace pwiz.SkylineTestTutorial
             });
             RunUI(() =>
             {
-                PeakMatcherTestUtil.SelectAndApplyPeak("LNDGSQITFEK", null, "D_138_REP1", false, 23.5299);
+                PeakMatcherTestUtil.SelectAndApplyPeak("LNDGSQITFEK", null, "D_138_REP1", false, false, 23.5299);
                 PeakMatcherTestUtil.VerifyPeaks(MakeVerificationDictionary(
                     23.45410, 22.77782, 23.11210, 23.19398, 22.88790, 23.00840,
                     23.52992, 23.57400, 23.19233, 23.45998, 22.81207, 22.81960,
@@ -1514,7 +1532,7 @@ namespace pwiz.SkylineTestTutorial
             // Apply to subsequent
             RunUI(() =>
             {
-                PeakMatcherTestUtil.SelectAndApplyPeak("DLTGFPQGADQR", null, "H_159_REP2", true, 24.7955);
+                PeakMatcherTestUtil.SelectAndApplyPeak("DLTGFPQGADQR", null, "H_159_REP2", true, false, 24.7955);
                 PeakMatcherTestUtil.VerifyPeaks(MakeVerificationDictionary(
                     24.02537, 23.31307, 24.60460, 23.61628, 23.12335, 25.40152,
                     23.99268, 23.95832, 25.69842, 24.07185, 23.27097, 25.12858,
@@ -1523,7 +1541,7 @@ namespace pwiz.SkylineTestTutorial
             });
             RunUI(() =>
             {
-                PeakMatcherTestUtil.SelectAndApplyPeak("GATYAFSGSHYWR", null, "D_103_REP3", true, 16.4223);
+                PeakMatcherTestUtil.SelectAndApplyPeak("GATYAFSGSHYWR", null, "D_103_REP3", true, false, 16.4223);
                 PeakMatcherTestUtil.VerifyPeaks(MakeVerificationDictionary(
                     17.38182, 17.08060, 16.42228, 17.19397, 17.21502, 16.66367,
                     17.23210, 17.45838, 16.66472, 17.39735, 17.00417, 16.43715,
@@ -1535,7 +1553,7 @@ namespace pwiz.SkylineTestTutorial
             // with two small (sometimes non-existent) peaks on either side
             RunUI(() =>
             {
-                PeakMatcherTestUtil.SelectAndApplyPeak("LGGEEVSVAC[+57.0]K", null, "H_148_REP1", false, 13.1616);
+                PeakMatcherTestUtil.SelectAndApplyPeak("LGGEEVSVAC[+57.0]K", null, "H_148_REP1", false, false, 13.1616);
                 PeakMatcherTestUtil.VerifyPeaks(MakeVerificationDictionary(
                     13.16143, 13.12685, 13.12692, 13.09358, 13.16153, 13.16042,
                     13.12773, 13.26173, 13.19442, 13.12825, 13.09322, 13.12713,
@@ -1544,7 +1562,7 @@ namespace pwiz.SkylineTestTutorial
             });
             RunUI(() =>
             {
-                PeakMatcherTestUtil.SelectAndApplyPeak("LGGEEVSVAC[+57.0]K", null, "H_148_REP1", false, 13.4631);
+                PeakMatcherTestUtil.SelectAndApplyPeak("LGGEEVSVAC[+57.0]K", null, "H_148_REP1", false, false, 13.4631);
                 PeakMatcherTestUtil.VerifyPeaks(MakeVerificationDictionary(
                     13.46293, 13.39485, 13.39492, 13.42858, 13.39603, 13.46192,
                     13.42923, 13.46273, 13.46242, 13.42975, 13.42822, 13.42863,
@@ -1553,7 +1571,7 @@ namespace pwiz.SkylineTestTutorial
             });
             RunUI(() =>
             {
-                PeakMatcherTestUtil.SelectAndApplyPeak("LGGEEVSVAC[+57.0]K", null, "H_148_REP1", false, 13.6641);
+                PeakMatcherTestUtil.SelectAndApplyPeak("LGGEEVSVAC[+57.0]K", null, "H_148_REP1", false, false, 13.6641);
                 PeakMatcherTestUtil.VerifyPeaks(MakeVerificationDictionary(
                     14.30043, 13.79685, 13.79692, 13.79708, 14.33403, 14.90242,
                     13.83123, 14.03223, 13.66342, 13.76475, 13.83022, 13.73013,
@@ -1566,20 +1584,23 @@ namespace pwiz.SkylineTestTutorial
                 RunUI(() => SkylineWindow.Undo());
         }
 
+        private static IEnumerable<string> AllReplicates => new[]
+        {
+            "D_103_REP1", "D_103_REP2", "D_103_REP3",
+            "D_108_REP1", "D_108_REP2", "D_108_REP3",
+            "D_138_REP1", "D_138_REP2", "D_138_REP3",
+            "D_196_REP1", "D_196_REP2", "D_196_REP3",
+            "H_146_REP1", "H_146_REP2", "H_146_REP3",
+            "H_148_REP1", "H_148_REP2", "H_148_REP3",
+            "H_159_REP1", "H_159_REP2", "H_159_REP3",
+            "H_162_REP1", "H_162_REP2", "H_162_REP3",
+        };
+
         private static Dictionary<string, double> MakeVerificationDictionary(params double[] expected)
         {
             Assert.AreEqual(24, expected.Length);
-            return new Dictionary<string, double>
-            {
-                {"D_103_REP1", expected[0]}, {"D_103_REP2", expected[1]}, {"D_103_REP3", expected[2]},
-                {"D_108_REP1", expected[3]}, {"D_108_REP2", expected[4]}, {"D_108_REP3", expected[5]},
-                {"D_138_REP1", expected[6]}, {"D_138_REP2", expected[7]}, {"D_138_REP3", expected[8]},
-                {"D_196_REP1", expected[9]}, {"D_196_REP2", expected[10]}, {"D_196_REP3", expected[11]},
-                {"H_146_REP1", expected[12]}, {"H_146_REP2", expected[13]}, {"H_146_REP3", expected[14]},
-                {"H_148_REP1", expected[15]}, {"H_148_REP2", expected[16]}, {"H_148_REP3", expected[17]},
-                {"H_159_REP1", expected[18]}, {"H_159_REP2", expected[19]}, {"H_159_REP3", expected[20]},
-                {"H_162_REP1", expected[21]}, {"H_162_REP2", expected[22]}, {"H_162_REP3", expected[23]},
-            };
+            return AllReplicates.Zip(expected, (name, expect) => new {name, expect})
+                .ToDictionary(x => x.name, x => x.expect);
         }
     }
 }

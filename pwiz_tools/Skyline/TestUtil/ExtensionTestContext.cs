@@ -17,7 +17,6 @@
  * limitations under the License.
  */
 using System;
-using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -167,15 +166,27 @@ namespace pwiz.SkylineTestUtil
             get
             {
                 // return false to import mzML
-                return (Environment.Is64BitProcess && !Program.SkylineOffscreen &&  /* wiff2 access leaks thread and event handles, so avoid it during nightly tests when offscreen */
-                        (CultureInfo.CurrentCulture.NumberFormat.NumberDecimalSeparator != "," || /* wiff2 access fails under french language settings */
-                         CultureInfo.CurrentCulture.NumberFormat.NumberGroupSeparator != "\xA0")) /* no break space */ ;
+                return AllowVendorReaders;
             }
         }
 
         public static string ExtAgilentRaw
         {
             get { return CanImportAgilentRaw ? DataSourceUtil.EXT_AGILENT_BRUKER_RAW : ExtMzml; }
+        }
+
+        public static bool CanImportMobilionRaw
+        {
+            get
+            {
+                // return false to import mzML
+                return Environment.Is64BitProcess && AllowVendorReaders;
+            }
+        }
+
+        public static string ExtMobilionRaw
+        {
+            get { return CanImportMobilionRaw ? DataSourceUtil.EXT_MOBILION_MBI : ExtMzml; }
         }
 
         public static bool CanImportShimadzuRaw

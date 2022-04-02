@@ -16,19 +16,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-using System;
+
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
-using System.Windows.Forms;
 using pwiz.Common.SystemUtil;
-using pwiz.Skyline.Alerts;
-using pwiz.Skyline.Controls;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.Irt;
 using pwiz.Skyline.Model.Lib.BlibData;
-using pwiz.Skyline.Properties;
-using pwiz.Skyline.Util.Extensions;
 
 namespace pwiz.Skyline.Model.Lib
 {
@@ -55,7 +49,7 @@ namespace pwiz.Skyline.Model.Lib
                     {
                         for (var i = 0; i < Document.Settings.MeasuredResults.Chromatograms.Count; i++)
                         {
-                            ProcessTransitionGroup(spectra, nodePep, nodeTranGroup, i);
+                            ProcessTransitionGroup(spectra, nodePepGroup, nodePep, nodeTranGroup, i);
                         }
                     }
                 }
@@ -82,8 +76,8 @@ namespace pwiz.Skyline.Model.Lib
             }
         }
 
-        private void ProcessTransitionGroup(IDictionary<LibKey, SpectrumMzInfo> spectra, 
-            PeptideDocNode nodePep, TransitionGroupDocNode nodeTranGroup, int replicateIndex)
+        private void ProcessTransitionGroup(IDictionary<LibKey, SpectrumMzInfo> spectra,
+            PeptideGroupDocNode nodePepGroup, PeptideDocNode nodePep, TransitionGroupDocNode nodeTranGroup, int replicateIndex)
         {
             LibKey key;
             if (nodePep.IsProteomic)
@@ -108,17 +102,27 @@ namespace pwiz.Skyline.Model.Lib
                 imGroup = chromInfo.IonMobilityInfo;
             }
             var maxApex = float.MinValue;
+            var maxApexMs1 = float.MinValue;
             string chromFileName = null;
+            double? mobilityMs1 = null; // Track MS1 ion mobility in order to derive high energy ion mobility offset value
             foreach (var nodeTran in nodeTranGroup.Transitions)
             {
-                if (nodeTran.IsMs1)
-                    continue;
                 var chromInfos = nodeTran.GetSafeChromInfo(replicateIndex);
                 if (chromInfos.IsEmpty)
                     continue;
                 var chromInfo = chromInfos.First(info => info.OptimizationStep == 0);
                 if (chromInfo.Area == 0)
                     continue;
+                if (nodeTran.IsMs1)
+                {
+                    // Track MS1 ion mobility in order to derive high energy ion mobility offset value
+                    if (chromInfo.Height > maxApexMs1)
+                    {
+                        maxApexMs1 = chromInfo.Height;
+                        mobilityMs1 = chromInfo.IonMobility.IonMobility.Mobility;
+                    }
+                    continue;
+                }
                 if (chromFileName == null)
                 {
                     var chromFileInfo = Document.Settings.MeasuredResults.Chromatograms[replicateIndex].MSDataFileInfos.FirstOrDefault(file => ReferenceEquals(file.Id, chromInfo.FileId));
@@ -137,13 +141,22 @@ namespace pwiz.Skyline.Model.Lib
                 {
                     maxApex = chromInfo.Height;
                     rt = chromInfo.RetentionTime;
-                    im = IonMobilityAndCCS.GetIonMobilityAndCCS(chromInfo.IonMobility.IonMobility, chromInfo.IonMobility.CollisionalCrossSectionSqA ?? imGroup.CollisionalCrossSection, 0);
+                    var mobility = chromInfo.IonMobility.IonMobility;
+                    var mobilityHighEnergyOffset = 0.0;
+                    if (mobilityMs1.HasValue && mobility.HasValue && mobility.Mobility != mobilityMs1)
+                    {
+                        // Note any difference in MS1 and MS2 ion mobilities - the "high energy ion mobility offset"
+                        mobilityHighEnergyOffset = mobility.Mobility.Value - mobilityMs1.Value;
+                        mobility = mobility.ChangeIonMobility(mobilityMs1);
+                    }
+                    im = IonMobilityAndCCS.GetIonMobilityAndCCS(mobility, chromInfo.IonMobility.CollisionalCrossSectionSqA ?? imGroup.CollisionalCrossSection, mobilityHighEnergyOffset);
                 }
             }
             if (chromFileName == null)
                 return;
             SpectrumMzInfo spectrumMzInfo;
-            if (!spectra.TryGetValue(key, out spectrumMzInfo))
+            var isBest = replicateIndex == nodePep.BestResult;
+            if (!spectra.TryGetValue(key, out spectrumMzInfo) || isBest)
             {
                 spectrumMzInfo = new SpectrumMzInfo
                 {
@@ -151,64 +164,14 @@ namespace pwiz.Skyline.Model.Lib
                     Key = key,
                     PrecursorMz = nodeTranGroup.PrecursorMz,
                     SpectrumPeaks = new SpectrumPeaksInfo(mi.ToArray()),
-                    RetentionTimes = new List<SpectrumMzInfo.IonMobilityAndRT>(),
+                    RetentionTimes = spectrumMzInfo?.RetentionTimes ?? new List<SpectrumMzInfo.IonMobilityAndRT>(),
                     IonMobility = im,
+                    Protein = nodePepGroup.Name,
                     RetentionTime = rt
                 };
                 spectra[key] = spectrumMzInfo;
             }
-            var isBest = replicateIndex == nodePep.BestResult;
-            if (isBest)
-            {
-                spectrumMzInfo.IonMobility = im;
-                spectrumMzInfo.RetentionTime = rt;
-            }
             spectrumMzInfo.RetentionTimes.Add(new SpectrumMzInfo.IonMobilityAndRT(chromFileName, im, rt, isBest));
-        }
-
-        public void ShowExportSpectralLibraryDialog(Control owner)
-        {
-            if (Document.MoleculeTransitionGroupCount == 0)
-            {
-                MessageDlg.Show(owner, Resources.SkylineWindow_ShowExportSpectralLibraryDialog_The_document_must_contain_at_least_one_peptide_precursor_to_export_a_spectral_library_);
-                return;
-            }
-            else if (!Document.Settings.HasResults)
-            {
-                MessageDlg.Show(owner, Resources.SkylineWindow_ShowExportSpectralLibraryDialog_The_document_must_contain_results_to_export_a_spectral_library_);
-                return;
-            }
-
-            using (var dlg = new SaveFileDialog
-            {
-                Title = Resources.SkylineWindow_ShowExportSpectralLibraryDialog_Export_Spectral_Library,
-                OverwritePrompt = true,
-                DefaultExt = BiblioSpecLiteSpec.EXT,
-                Filter = TextUtil.FileDialogFiltersAll(BiblioSpecLiteSpec.FILTER_BLIB)
-            })
-            {
-                if (!string.IsNullOrEmpty(DocumentFilePath))
-                    dlg.InitialDirectory = Path.GetDirectoryName(DocumentFilePath);
-
-                if (dlg.ShowDialog(owner) == DialogResult.Cancel)
-                    return;
-
-                try
-                {
-                    using (var longWaitDlg = new LongWaitDlg
-                    {
-                        Text = Resources.SkylineWindow_ShowExportSpectralLibraryDialog_Export_Spectral_Library,
-                        Message = string.Format(Resources.SkylineWindow_ShowExportSpectralLibraryDialog_Exporting_spectral_library__0____, Path.GetFileName(dlg.FileName))
-                    })
-                    {
-                        longWaitDlg.PerformWork(owner, 800, monitor => ExportSpectralLibrary(dlg.FileName, monitor));
-                    }
-                }
-                catch (Exception x)
-                {
-                    MessageDlg.ShowWithException(owner, TextUtil.LineSeparate(string.Format(Resources.SkylineWindow_ShowExportSpectralLibraryDialog_Failed_exporting_spectral_library_to__0__, dlg.FileName), x.Message), x);
-                }
-            }
         }
     }
 }

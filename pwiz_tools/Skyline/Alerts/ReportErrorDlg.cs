@@ -60,7 +60,7 @@ namespace pwiz.Skyline.Alerts
 
         public ReportErrorDlg(Exception e, StackTrace stackTraceExceptionCaughtAt)
         {
-            Init(e.GetType().Name, e.Message, ExceptionUtil.GetStackTraceText(e, stackTraceExceptionCaughtAt));
+            Init(e.GetType().Name, e.Message, ExceptionUtil.GetExceptionText(e, stackTraceExceptionCaughtAt));
 
             Install.InstallType installType = Install.Type;
 
@@ -236,7 +236,7 @@ namespace pwiz.Skyline.Alerts
 
         private void btnClipboard_Click(object sender, EventArgs e)
         {
-            ClipboardEx.SetDataObject(MessageBody, true);
+            ClipboardEx.SetText(MessageBody);
         }
 
         private void btnOK_Click(object sender, EventArgs e)

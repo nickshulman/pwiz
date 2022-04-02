@@ -1,3 +1,5 @@
+using System;
+
 namespace pwiz.Skyline.SettingsUI
 {
     partial class ViewLibraryDlg
@@ -40,6 +42,9 @@ namespace pwiz.Skyline.SettingsUI
             this.PreviousLink = new System.Windows.Forms.LinkLabel();
             this.splitMain = new System.Windows.Forms.SplitContainer();
             this.PeptideEditPanel = new System.Windows.Forms.Panel();
+            this.byLabel = new System.Windows.Forms.Label();
+            this.comboFilterCategory = new System.Windows.Forms.ComboBox();
+            this.filterLabel = new System.Windows.Forms.Label();
             this.MoleculeLabel = new System.Windows.Forms.Label();
             this.tableLayoutPanel1 = new System.Windows.Forms.TableLayoutPanel();
             this.comboLibrary = new System.Windows.Forms.ComboBox();
@@ -102,8 +107,6 @@ namespace pwiz.Skyline.SettingsUI
             this.toolStripSeparator15 = new System.Windows.Forms.ToolStripSeparator();
             this.zoomSpectrumContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.toolStripSeparator27 = new System.Windows.Forms.ToolStripSeparator();
-            this.prositCheckBox = new System.Windows.Forms.CheckBox();
-            ((System.ComponentModel.ISupportInitialize)(this.modeUIHandler)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.splitPeptideList)).BeginInit();
             this.splitPeptideList.Panel1.SuspendLayout();
             this.splitPeptideList.Panel2.SuspendLayout();
@@ -142,11 +145,11 @@ namespace pwiz.Skyline.SettingsUI
             // 
             // PeptideListPanel
             // 
-            this.PeptideListPanel.Controls.Add(this.prositCheckBox);
             this.PeptideListPanel.Controls.Add(this.listPeptide);
             this.PeptideListPanel.Controls.Add(this.cbShowModMasses);
             resources.ApplyResources(this.PeptideListPanel, "PeptideListPanel");
             this.PeptideListPanel.Name = "PeptideListPanel";
+            this.PeptideListPanel.Resize += new System.EventHandler(this.PeptideListPanel_Resize);
             // 
             // listPeptide
             // 
@@ -210,12 +213,33 @@ namespace pwiz.Skyline.SettingsUI
             // 
             // PeptideEditPanel
             // 
+            this.PeptideEditPanel.Controls.Add(this.byLabel);
+            this.PeptideEditPanel.Controls.Add(this.comboFilterCategory);
+            this.PeptideEditPanel.Controls.Add(this.filterLabel);
             this.PeptideEditPanel.Controls.Add(this.MoleculeLabel);
             this.PeptideEditPanel.Controls.Add(this.tableLayoutPanel1);
             this.PeptideEditPanel.Controls.Add(this.PeptideLabel);
             this.PeptideEditPanel.Controls.Add(this.textPeptide);
             resources.ApplyResources(this.PeptideEditPanel, "PeptideEditPanel");
             this.PeptideEditPanel.Name = "PeptideEditPanel";
+            // 
+            // byLabel
+            // 
+            resources.ApplyResources(this.byLabel, "byLabel");
+            this.byLabel.Name = "byLabel";
+            // 
+            // comboFilterCategory
+            // 
+            resources.ApplyResources(this.comboFilterCategory, "comboFilterCategory");
+            this.comboFilterCategory.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.comboFilterCategory.FormattingEnabled = true;
+            this.comboFilterCategory.Name = "comboFilterCategory";
+            this.comboFilterCategory.SelectedIndexChanged += new System.EventHandler(this.comboFilterCategory_SelectedIndexChanged);
+            // 
+            // filterLabel
+            // 
+            resources.ApplyResources(this.filterLabel, "filterLabel");
+            this.filterLabel.Name = "filterLabel";
             // 
             // MoleculeLabel
             // 
@@ -252,8 +276,8 @@ namespace pwiz.Skyline.SettingsUI
             // 
             // textPeptide
             // 
-            this.textPeptide.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
             resources.ApplyResources(this.textPeptide, "textPeptide");
+            this.textPeptide.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
             this.textPeptide.Name = "textPeptide";
             this.textPeptide.TextChanged += new System.EventHandler(this.textPeptide_TextChanged);
             this.textPeptide.KeyDown += new System.Windows.Forms.KeyEventHandler(this.PeptideTextBox_KeyDown);
@@ -692,12 +716,6 @@ namespace pwiz.Skyline.SettingsUI
             this.toolStripSeparator27.Name = "toolStripSeparator27";
             resources.ApplyResources(this.toolStripSeparator27, "toolStripSeparator27");
             // 
-            // prositCheckBox
-            // 
-            resources.ApplyResources(this.prositCheckBox, "prositCheckBox");
-            this.prositCheckBox.Name = "prositCheckBox";
-            this.prositCheckBox.UseVisualStyleBackColor = true;
-            // 
             // ViewLibraryDlg
             // 
             this.AcceptButton = this.btnCancel;
@@ -717,7 +735,6 @@ namespace pwiz.Skyline.SettingsUI
             this.Load += new System.EventHandler(this.ViewLibraryDlg_Load);
             this.Shown += new System.EventHandler(this.ViewLibraryDlg_Shown);
             this.KeyDown += new System.Windows.Forms.KeyEventHandler(this.ViewLibraryDlg_KeyDown);
-            ((System.ComponentModel.ISupportInitialize)(this.modeUIHandler)).EndInit();
             this.splitPeptideList.Panel1.ResumeLayout(false);
             this.splitPeptideList.Panel2.ResumeLayout(false);
             this.splitPeptideList.Panel2.PerformLayout();
@@ -819,6 +836,8 @@ namespace pwiz.Skyline.SettingsUI
         private System.Windows.Forms.Label MoleculeLabel;
         private System.Windows.Forms.ToolStripButton btnFragmentIons;
         private System.Windows.Forms.ToolStripMenuItem scoreContextMenuItem;
-        private System.Windows.Forms.CheckBox prositCheckBox;
+        private System.Windows.Forms.Label filterLabel;
+        private System.Windows.Forms.Label byLabel;
+        private System.Windows.Forms.ComboBox comboFilterCategory;
     }
 }

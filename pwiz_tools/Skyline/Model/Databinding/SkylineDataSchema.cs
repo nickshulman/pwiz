@@ -34,6 +34,7 @@ using pwiz.Skyline.Model.DocSettings.AbsoluteQuantification;
 using pwiz.Skyline.Model.ElementLocators;
 using pwiz.Skyline.Model.GroupComparison;
 using pwiz.Skyline.Model.Lists;
+using pwiz.Skyline.Model.Results;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
 using SkylineTool;
@@ -49,6 +50,7 @@ namespace pwiz.Skyline.Model.Databinding
         private readonly CachedValue<IDictionary<ResultFileKey, ResultFile>> _resultFiles;
         private readonly CachedValue<ElementRefs> _elementRefCache;
         private readonly CachedValue<AnnotationCalculator> _annotationCalculator;
+        private readonly CachedValue<NormalizedValueCalculator> _normalizedValueCalculator;
 
         private SrmDocument _batchChangesOriginalDocument;
         private List<EditDescription> _batchEditDescriptions;
@@ -64,6 +66,7 @@ namespace pwiz.Skyline.Model.Databinding
             _resultFiles = CachedValue.Create(this, CreateResultFileList);
             _elementRefCache = CachedValue.Create(this, () => new ElementRefs(Document));
             _annotationCalculator = CachedValue.Create(this, () => new AnnotationCalculator(this));
+            _normalizedValueCalculator = CachedValue.Create(this, () => new NormalizedValueCalculator(Document));
         }
 
         public override string DefaultUiMode
@@ -272,6 +275,11 @@ namespace pwiz.Skyline.Model.Databinding
             get { return _annotationCalculator.Value; }
         }
 
+        public NormalizedValueCalculator NormalizedValueCalculator
+        {
+            get { return _normalizedValueCalculator.Value; }
+        }
+
         public override PropertyDescriptor GetPropertyDescriptor(Type type, string name)
         {
             var propertyDescriptor = base.GetPropertyDescriptor(type, name);
@@ -407,6 +415,10 @@ namespace pwiz.Skyline.Model.Databinding
             }
             return docPair =>
             {
+                if (EqualExceptAuditLog(docPair.OldDoc, docPair.NewDoc))
+                {
+                    return AuditLogEntry.SKIP;
+                }
                 MessageType singular, plural;
                 var detailType = MessageType.set_to_in_document_grid;
                 Func<EditDescription, object[]> getArgsFunc = descr => new object[]
@@ -471,9 +483,14 @@ namespace pwiz.Skyline.Model.Databinding
             {
                 if (SkylineWindow != null)
                 {
+                    if (SkylineWindow.SequenceTree == null)
+                    {
+                        // The SequenceTree can be null if we are in the process of restoring a .view
+                        // We should ignore any change that happens during that.
+                        return;
+                    }
                     SkylineWindow.ModifyDocument(editDescription.GetUndoText(DataSchemaLocalizer), action,
-                        logFunc ?? (docPair => AuditLogEntry.CreateSimpleEntry(MessageType.set_to_in_document_grid, docPair.NewDocumentType,
-                            editDescription.AuditLogParseString, editDescription.ElementRefName, CellValueToString(editDescription.Value))));
+                        logFunc ?? (docPair => LogEntryFromEditDescription(editDescription, docPair)));
                 }
                 else
                 {
@@ -555,6 +572,23 @@ namespace pwiz.Skyline.Model.Databinding
             }
 
             return uiMode;
+        }
+
+        public AuditLogEntry LogEntryFromEditDescription(EditDescription editDescription, SrmDocumentPair docPair)
+        {
+            if (EqualExceptAuditLog(docPair.OldDoc, docPair.NewDoc))
+            {
+                return AuditLogEntry.SKIP;
+            }
+
+            return AuditLogEntry.CreateSimpleEntry(MessageType.set_to_in_document_grid, docPair.NewDocumentType,
+                editDescription.AuditLogParseString, editDescription.ElementRefName,
+                CellValueToString(editDescription.Value));
+        }
+
+        public static bool EqualExceptAuditLog(SrmDocument document1, SrmDocument document2)
+        {
+            return document1.ChangeAuditLog(AuditLogEntry.ROOT).Equals(document2.ChangeAuditLog(AuditLogEntry.ROOT));
         }
     }
 }

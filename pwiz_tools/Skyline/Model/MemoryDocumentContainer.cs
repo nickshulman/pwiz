@@ -72,10 +72,9 @@ namespace pwiz.Skyline.Model
 
                     if (wait)
                     {
-                        while (!IsFinal(Document))
-                            Monitor.Wait(CHANGE_EVENT_LOCK);    // Wait for completing document changed event
+                        WaitForComplete();
                     }
-                    else if (IsFinal(docNew))
+                    else if (IsFinal(Document))
                     {
                         Monitor.Pulse(CHANGE_EVENT_LOCK);
                     }
@@ -89,8 +88,37 @@ namespace pwiz.Skyline.Model
         {
             lock (CHANGE_EVENT_LOCK)
             {
+                // Wait for completing document changed event
+                uint nLoops = 0;
                 while (!IsFinal(Document))
-                    Monitor.Wait(CHANGE_EVENT_LOCK);    // Wait until next DocumentChangedEvent
+                {
+                    Monitor.Wait(CHANGE_EVENT_LOCK, 1000);  // Check every second or risk deadlock
+
+                    // Help for debugging occasional hangs in tests - report after an hour's wait, and once an hour after that
+                    if (++nLoops % 3600 == 0 && Program.UnitTest && !IsFinal(Document))
+                    {
+                        const string PREAMBLE = @"# "; // Leading hash is a cue to SkylineTester to ignore these informational lines
+                        Console.WriteLine(PREAMBLE + @"unusually long WaitForComplete():");
+                        foreach (var why in Document.NonLoadedStateDescriptionsFull)
+                        {
+                            Console.WriteLine(PREAMBLE + why);
+                        }
+
+                        if (LastProgress != null)
+                        {
+                            Console.WriteLine(PREAMBLE + @"LastProgress status:");
+                            Console.WriteLine(PREAMBLE + LastProgress.State);
+                            if (!string.IsNullOrEmpty(LastProgress.Message))
+                            {
+                                Console.WriteLine(PREAMBLE + LastProgress.Message);
+                            }
+                            if (!string.IsNullOrEmpty(LastProgress.WarningMessage))
+                            {
+                                Console.WriteLine(PREAMBLE + LastProgress.WarningMessage);
+                            }
+                        }
+                    }
+                }
             }
         }
 
@@ -109,25 +137,36 @@ namespace pwiz.Skyline.Model
 
         private void UpdateProgress(object sender, ProgressUpdateEventArgs e)
         {
+            var status = e.Progress;
+            if (ProgressMonitor != null)
+                ProgressMonitor.UpdateProgress(status);
+
             // Unblock the waiting thread, if there was a cancel or error
             lock (CHANGE_EVENT_LOCK)
             {
                 // Keep track of last progress, but do not overwrite an error, unless
                 // this is a MultiProgressStatus, where useful information may be added
                 // even after the first error.
-                var multiProgress = e.Progress as MultiProgressStatus;
-                if (multiProgress != null || LastProgress == null || !LastProgress.IsError)
+                if (status is MultiProgressStatus)
                 {
-                    // Keep MultiProgressStatus around, even when it is completed
-                    LastProgress = multiProgress != null || !e.Progress.IsComplete
-                        ? e.Progress : null;
+                    // But avoid overwriting a final progress with a non-final progress for the same operation
+                    if (IsProgressIdChanging(status) || !LastProgress.IsFinal)
+                        LastProgress = status;
                 }
-                if (e.Progress.IsCanceled || e.Progress.IsError)
+                else
+                {
+                    if (IsProgressIdChanging(status) || !LastProgress.IsError)
+                        LastProgress = !status.IsComplete ? status : null;
+                }
+
+                if (status.IsCanceled || status.IsError)
                     Monitor.Pulse(CHANGE_EVENT_LOCK);
             }
+        }
 
-            if (ProgressMonitor != null)
-                ProgressMonitor.UpdateProgress(e.Progress);
+        private bool IsProgressIdChanging(IProgressStatus status)
+        {
+            return LastProgress == null || !ReferenceEquals(LastProgress.Id, status.Id);
         }
 
         public void Register(BackgroundLoader loader)

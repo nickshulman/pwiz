@@ -87,9 +87,18 @@ namespace pwiz.Skyline.Model.DocSettings.AbsoluteQuantification
         [Track]
         public LodCalculation LodCalculation { get; private set; }
 
+
         public QuantificationSettings ChangeLodCalculation(LodCalculation lodCalculation)
         {
             return ChangeProp(ImClone(this), im => im.LodCalculation = lodCalculation);
+        }
+
+        [Track]
+        public bool SimpleRatios { get; private set; }
+
+        public QuantificationSettings ChangeSimpleRatios(bool value)
+        {
+            return ChangeProp(ImClone(this), im => im.SimpleRatios = value);
         }
 
         [Track]
@@ -114,6 +123,14 @@ namespace pwiz.Skyline.Model.DocSettings.AbsoluteQuantification
             return ChangeProp(ImClone(this), im => im.BilinearLoq = bilinearLoq);
         }
 
+        [Track]
+        public double? QualitativeIonRatioThreshold { get; private set; }
+
+        public QuantificationSettings ChangeQualitativeIonRatioThreshold(double? ionRatioThreshold)
+        {
+            return ChangeProp(ImClone(this), im => im.QualitativeIonRatioThreshold = ionRatioThreshold);
+        }
+
         #region Equality Members
 
         protected bool Equals(QuantificationSettings other)
@@ -126,7 +143,9 @@ namespace pwiz.Skyline.Model.DocSettings.AbsoluteQuantification
                    Equals(LodCalculation, other.LodCalculation) &&
                    Equals(MaxLoqBias, other.MaxLoqBias) &&
                    Equals(MaxLoqCv, other.MaxLoqCv) &&
-                   Equals(BilinearLoq, other.BilinearLoq);
+                   Equals(BilinearLoq, other.BilinearLoq) &&
+                   Equals(QualitativeIonRatioThreshold, other.QualitativeIonRatioThreshold) &&
+                   Equals(SimpleRatios, other.SimpleRatios);
         }
 
         public override bool Equals(object obj)
@@ -150,6 +169,7 @@ namespace pwiz.Skyline.Model.DocSettings.AbsoluteQuantification
                 hashCode = (hashCode*397) ^ MaxLoqBias.GetHashCode();
                 hashCode = (hashCode*397) ^ MaxLoqCv.GetHashCode();
                 hashCode = (hashCode*397) ^ BilinearLoq.GetHashCode();
+                hashCode = (hashCode*397) ^ SimpleRatios.GetHashCode();
                 return hashCode;
             }
         }
@@ -168,6 +188,8 @@ namespace pwiz.Skyline.Model.DocSettings.AbsoluteQuantification
             max_loq_bias,
             max_loq_cv,
             bilinear_loq,
+            qualitative_ion_ratio_threshold,
+            simple_ratios
         }
         XmlSchema IXmlSerializable.GetSchema()
         {
@@ -189,6 +211,8 @@ namespace pwiz.Skyline.Model.DocSettings.AbsoluteQuantification
             MaxLoqBias = reader.GetNullableDoubleAttribute(Attr.max_loq_bias);
             MaxLoqCv = reader.GetNullableDoubleAttribute(Attr.max_loq_cv);
             BilinearLoq = reader.GetBoolAttribute(Attr.bilinear_loq);
+            QualitativeIonRatioThreshold = reader.GetNullableDoubleAttribute(Attr.qualitative_ion_ratio_threshold);
+            SimpleRatios = reader.GetBoolAttribute(Attr.simple_ratios, false);
             bool empty = reader.IsEmptyElement;
             reader.Read();
             if (!empty)
@@ -220,6 +244,8 @@ namespace pwiz.Skyline.Model.DocSettings.AbsoluteQuantification
             writer.WriteAttributeNullable(Attr.max_loq_bias, MaxLoqBias);
             writer.WriteAttributeNullable(Attr.max_loq_cv, MaxLoqCv);
             writer.WriteAttribute(Attr.bilinear_loq, BilinearLoq);
+            writer.WriteAttributeNullable(Attr.qualitative_ion_ratio_threshold, QualitativeIonRatioThreshold);
+            writer.WriteAttribute(Attr.simple_ratios, SimpleRatios, false);
         }
 
         public static QuantificationSettings Deserialize(XmlReader reader)

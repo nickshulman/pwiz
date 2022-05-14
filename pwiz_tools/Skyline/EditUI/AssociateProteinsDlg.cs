@@ -19,6 +19,7 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.IO;
 using System.Windows.Forms;
 using pwiz.Common.Collections;
@@ -338,7 +339,19 @@ namespace pwiz.Skyline.EditUI
                     result = _proteinAssociation.CreateDocTree(current, monitor);
                 });
                 if (longWaitDlg.IsCanceled)
+                {
+                    Trace.TraceWarning("CreateDocTree: Cancelled");
                     return null;
+                }
+            }
+
+            if (result == null)
+            {
+                Trace.TraceWarning("CreateDocTree: null document");
+            }
+            else
+            {
+                Trace.TraceWarning("CreateDocTree: {0} proteins", result.MoleculeTransitionGroupCount);
             }
             return result;
         }
@@ -374,7 +387,13 @@ namespace pwiz.Skyline.EditUI
                         return _newDocument;
                     }
                     // If the document was changed, then we need to call CreateDocTree again.
-                    return CreateDocTree(current) ?? current;
+                    var newDocument = CreateDocTree(current);
+                    if (newDocument == null)
+                    {
+                        // User cancelled the LongWaitDlg
+                        return current;
+                    }
+                    return newDocument;
                 }, FormSettings.EntryCreator.Create);
             }
 

@@ -64,7 +64,6 @@ namespace pwiz.Skyline.Model.Databinding
                 return _chromatogramGroupInfo.Item2;
             }
             var groupInfo = cache.LoadChromatogramInfo(chromatogramGroupInfo.Header);
-            groupInfo.ReadChromatogram(cache);
             _chromatogramGroupInfo = Tuple.Create(key, groupInfo);
             return groupInfo;
         }

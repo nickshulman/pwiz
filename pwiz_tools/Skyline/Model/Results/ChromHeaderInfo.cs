@@ -184,6 +184,15 @@ namespace pwiz.Skyline.Model.Results
 
         private const byte NO_MAX_PEAK = 0xFF;
 
+        public ChromGroupHeaderInfo(SignedMz precursor, int numTransitions, int numPeaks, int maxPeakIndex,
+            int compressedSize, int uncompressedSize,
+            int numPoints, FlagValues flags, int statusId, int statusRank, float? startTime, float? endTime,
+            double? collisionalCrossSection, eIonMobilityUnits ionMobilityUnits)
+            : this(precursor, 0, numTransitions, 0, numPeaks, 0, 0, maxPeakIndex, numPoints, compressedSize, uncompressedSize, 0, flags, statusId,
+                statusRank, startTime, endTime, collisionalCrossSection, ionMobilityUnits)
+        {
+        }
+
         /// <summary>
         /// Constructs header struct with TextIdIndex and TextIdCount left to be initialized
         /// in a subsequent call to <see cref="CalcTextIdIndex"/>.
@@ -1072,159 +1081,29 @@ namespace pwiz.Skyline.Model.Results
             return (short) Math.Round(f*10);
         }
 
-        /// <summary>
-        /// Constructs a ChromPeak with the specified start and end times and no background subtraction.
-        /// </summary>
-        public ChromPeak(TimeIntensities timeIntensities, float startTime, float endTime, FlagValues flagValues)
+        public ChromPeak(float retentionTime, float startTime, float endTime, float area, float backgroundArea,
+            float height, float fwhm, FlagValues flagValues, double? massError, int? pointsAcross)
         {
-            int pointsAcrossThePeak = 0;
-            double totalArea = 0;
-            double totalMassError = 0;
-            double apexTime = 0;
-            double apexHeight = 0;
-
-            int startIndex = CollectionUtil.BinarySearch(timeIntensities.Times, startTime);
-            if (startIndex < 0)
-            {
-                startIndex = ~startIndex;
-            }
-
-            for (int index = startIndex; index < timeIntensities.NumPoints; index++)
-            {
-                double time = timeIntensities.Times[index];
-                double prevTime = startTime;
-                if (index > 0)
-                {
-                    prevTime = Math.Max(prevTime, (time + timeIntensities.Times[index - 1]) / 2);
-                }
-
-                double nextTime = endTime;
-                if (index < timeIntensities.NumPoints - 1)
-                {
-                    nextTime = Math.Min(nextTime, (time + timeIntensities.Times[index + 1]) / 2);
-                }
-
-                float intensity = timeIntensities.Intensities[index];
-                if (nextTime > prevTime)
-                {
-                    double width = nextTime - prevTime;
-                    double area = intensity * width * 60;
-                    totalArea += area;
-                    if (timeIntensities.MassErrors != null)
-                    {
-                        totalMassError += area * timeIntensities.MassErrors[index];
-                    }
-                }
-
-                if (startTime <= time && endTime >= time)
-                {
-                    pointsAcrossThePeak++;
-                    if (intensity > apexHeight)
-                    {
-                        apexHeight = intensity;
-                        apexTime = time;
-                    }
-                }
-
-                if (time >= endTime)
-                {
-                    break;
-                }
-            }
-
-            // Determine the full width at half max
-            bool fwhmDegenerate = false;
-            double? halfMaxStart = null;
-            double? halfMaxEnd = null;
-            var halfHeight = apexHeight / 2;
-            for (int index = startIndex; index < timeIntensities.NumPoints; index++)
-            {
-                double time = timeIntensities.Times[index];
-                double intensity = timeIntensities.Intensities[index];
-                if (intensity >= halfHeight)
-                {
-                    if (!halfMaxStart.HasValue)
-                    {
-                        halfMaxStart = time;
-                        if (index > startIndex)
-                        {
-                            if (intensity > halfHeight)
-                            {
-                                double prevTime = timeIntensities.Times[index - 1];
-                                double prevIntensity = timeIntensities.Intensities[index - 1];
-                                if (prevIntensity < halfHeight)
-                                {
-                                    var fraction = (intensity - halfHeight) / (intensity - prevIntensity);
-                                    halfMaxStart = (1 - fraction) * time + fraction * prevTime;
-                                }
-                            }
-                        }
-                        else
-                        {
-                            fwhmDegenerate = true;
-                        }
-                    }
-
-                    halfMaxEnd = time;
-                    if (index < timeIntensities.NumPoints - 1)
-                    {
-                        double nextTime = timeIntensities.Times[index + 1];
-                        if (nextTime <= endTime)
-                        {
-                            double nextIntensity = timeIntensities.Intensities[index + 1];
-                            if (nextIntensity < halfHeight)
-                            {
-                                var fraction = (intensity - halfHeight) / (intensity - nextIntensity);
-                                halfMaxEnd = (1 - fraction) * time + fraction * nextTime;
-                            }
-                        }
-                        else
-                        {
-                            fwhmDegenerate = true;
-                        }
-                    }
-                    else
-                    {
-                        fwhmDegenerate = true;
-                    }
-                }
-                if (time >= endTime)
-                {
-                    break;
-                }
-            }
-
-            _area = (float) totalArea;
+            _retentionTime = retentionTime;
             _startTime = startTime;
             _endTime = endTime;
-            _height = (float) apexHeight;
-            _backgroundArea = 0;
-            _pointsAcross = (short)Math.Min(pointsAcrossThePeak, ushort.MaxValue);
-            _retentionTime = (float) apexTime;
-            _flagValues = flagValues;
-            if (halfMaxStart.HasValue)
+            _area = area;
+            _backgroundArea = backgroundArea;
+            _height = height;
+            _fwhm = fwhm;
+            if (massError.HasValue)
             {
-                _fwhm = (float) (halfMaxEnd - halfMaxStart);
+                flagValues |= FlagValues.mass_error_known;
+                _massError = To10x(massError.Value);
             }
             else
             {
-                _fwhm = 0;
-            }
-            if (null != timeIntensities.MassErrors && totalArea > 0)
-            {
-                _flagValues |= FlagValues.mass_error_known;
-                _massError = To10x(totalMassError / totalArea);
-            }
-            else
-            {
-                _flagValues &= ~FlagValues.mass_error_known;
+                flagValues &= ~FlagValues.mass_error_known;
                 _massError = 0;
             }
 
-            if (fwhmDegenerate)
-            {
-                _flagValues |= FlagValues.degenerate_fwhm;
-            }
+            _pointsAcross = (short) Math.Min(pointsAcross.GetValueOrDefault(), ushort.MaxValue);
+            _flagValues = flagValues;
         }
 
         public ChromPeak(IPeakFinder finder,
@@ -1448,6 +1327,154 @@ namespace pwiz.Skyline.Model.Results
                 ItemSizeOnDisk = chromPeakSize,
                 DirectSerializer = DirectSerializer.Create(ReadArray, WriteArray)
             };
+        }
+
+        public static ChromPeak IntegrateWithoutBackground(TimeIntensities timeIntensities, float startTime,
+            float endTime, FlagValues flags)
+        {
+            int pointsAcrossPeak = 0;
+            int startIndex = CollectionUtil.BinarySearch(timeIntensities.Times, startTime);
+            if (startIndex < 0)
+            {
+                startIndex = ~startIndex;
+                timeIntensities = timeIntensities.InterpolateTime(startTime);
+                Assume.AreEqual(startTime, timeIntensities.Times[startIndex]);
+                pointsAcrossPeak--;
+            }
+
+            int endIndex = CollectionUtil.BinarySearch(timeIntensities.Times, endTime);
+            if (endIndex < 0)
+            {
+                endIndex = ~endIndex;
+                timeIntensities = timeIntensities.InterpolateTime(endTime);
+                Assume.AreEqual(endTime, timeIntensities.Times[endIndex]);
+                pointsAcrossPeak--;
+            }
+            pointsAcrossPeak += endIndex - startIndex + 1;
+            double totalArea = 0;
+            double totalMassError = 0;
+            for (int i = startIndex; i < endIndex; i++)
+            {
+                double width = (timeIntensities.Times[i + 1] - timeIntensities.Times[i]) * 60;
+                double intensity1 = timeIntensities.Intensities[i];
+                double intensity2 = timeIntensities.Intensities[i + 1];
+                totalArea += (intensity1 + intensity2) * width / 2;
+                if (timeIntensities.MassErrors != null)
+                {
+                    totalMassError +=
+                        (intensity1 * timeIntensities.MassErrors[i] + intensity2 * timeIntensities.MassErrors[i + 1]) *
+                        width / 2;
+                }
+            }
+
+            double apexTime, apexHeight;
+            if (totalArea == 0)
+            {
+                apexTime = (startTime + endTime) / 2;
+                apexHeight = 0;
+            }
+            else
+            {
+                apexHeight = timeIntensities.Intensities[startIndex];
+                apexTime = timeIntensities.Times[startIndex];
+                for (int i = startIndex + 1; i <= endIndex; i++)
+                {
+                    if (timeIntensities.Intensities[i] > apexHeight)
+                    {
+                        apexTime = timeIntensities.Times[i];
+                        apexHeight = timeIntensities.Intensities[i];
+                    }
+                }
+            }
+            // Determine the full width at half max
+            bool fwhmDegenerate = false;
+            double? halfMaxStart = null;
+            double? halfMaxEnd = null;
+            var halfHeight = apexHeight / 2;
+            for (int index = startIndex; index <= endIndex; index++)
+            {
+                double time = timeIntensities.Times[index];
+                double intensity = timeIntensities.Intensities[index];
+                if (intensity >= halfHeight)
+                {
+                    if (!halfMaxStart.HasValue)
+                    {
+                        halfMaxStart = time;
+                        if (index > startIndex)
+                        {
+                            if (intensity > halfHeight)
+                            {
+                                double prevTime = timeIntensities.Times[index - 1];
+                                double prevIntensity = timeIntensities.Intensities[index - 1];
+                                if (prevIntensity < halfHeight)
+                                {
+                                    var fraction = (intensity - halfHeight) / (intensity - prevIntensity);
+                                    halfMaxStart = (1 - fraction) * time + fraction * prevTime;
+                                }
+                            }
+                        }
+                        else
+                        {
+                            fwhmDegenerate = true;
+                        }
+                    }
+
+                    halfMaxEnd = time;
+                    if (index < timeIntensities.NumPoints - 1)
+                    {
+                        double nextTime = timeIntensities.Times[index + 1];
+                        if (nextTime <= endTime)
+                        {
+                            double nextIntensity = timeIntensities.Intensities[index + 1];
+                            if (nextIntensity < halfHeight)
+                            {
+                                var fraction = (intensity - halfHeight) / (intensity - nextIntensity);
+                                halfMaxEnd = (1 - fraction) * time + fraction * nextTime;
+                            }
+                        }
+                        else
+                        {
+                            fwhmDegenerate = true;
+                        }
+                    }
+                    else
+                    {
+                        fwhmDegenerate = true;
+                    }
+                }
+                if (time >= endTime)
+                {
+                    break;
+                }
+            }
+
+            if (fwhmDegenerate)
+            {
+                flags |= FlagValues.degenerate_fwhm;
+            }
+            else
+            {
+                flags &= ~FlagValues.degenerate_fwhm;
+            }
+
+            float fwhm;
+            if (halfMaxStart.HasValue)
+            {
+                fwhm = (float)(halfMaxEnd - halfMaxStart);
+            }
+            else
+            {
+                fwhm = 0;
+            }
+
+            double? massError = null;
+            if (timeIntensities.MassErrors != null && totalArea > 0)
+            {
+                massError = totalMassError / totalArea;
+            }
+
+            return new ChromPeak((float) apexTime, startTime, endTime, (float) totalArea, 0, (float) apexHeight, fwhm, flags, massError,
+                pointsAcrossPeak);
         }
 
         #region Fast file I/O
@@ -1777,8 +1804,8 @@ namespace pwiz.Skyline.Model.Results
                 if (configInfo == null || configInfo.IsEmpty)
                     continue;
 
-				if (infoString.Length > 0)
-	                infoString.Append('\n');
+                if (infoString.Length > 0)
+                    infoString.Append('\n');
 
                 // instrument model
                 if(!string.IsNullOrWhiteSpace(configInfo.Model))
@@ -2221,7 +2248,7 @@ namespace pwiz.Skyline.Model.Results
     public class ChromatogramGroupInfo
     {
         protected readonly ChromGroupHeaderInfo _groupHeaderInfo;
-        protected readonly IDictionary<Type, int> _scoreTypeIndices;
+        protected readonly FeatureNames _scoreTypeIndices;
         protected readonly byte[] _textIdBytes;
         protected readonly IList<ChromCachedFile> _allFiles;
         protected readonly IReadOnlyList<ChromTransition> _allTransitions;
@@ -2232,7 +2259,7 @@ namespace pwiz.Skyline.Model.Results
         private TimeIntensitiesGroup _timeIntensitiesGroup;
 
         public ChromatogramGroupInfo(ChromGroupHeaderInfo groupHeaderInfo,
-                                     IDictionary<Type, int> scoreTypeIndices,
+                                     FeatureNames scoreTypeIndices,
                                      byte[] textIdBytes,
                                      IList<ChromCachedFile> allFiles,
                                      IReadOnlyList<ChromTransition> allTransitions,
@@ -2248,7 +2275,14 @@ namespace pwiz.Skyline.Model.Results
 
         public ChromatogramGroupInfo(ChromGroupHeaderInfo groupHeaderInfo,
             IReadOnlyList<ChromTransition> allTransitions, IList<ChromPeak> peaks, 
-            TimeIntensitiesGroup timeIntensitiesGroup)
+            TimeIntensitiesGroup timeIntensitiesGroup) 
+            : this(groupHeaderInfo, allTransitions, peaks, timeIntensitiesGroup, FeatureNames.EMPTY, Array.Empty<float>())
+        {
+        }
+
+        public ChromatogramGroupInfo(ChromGroupHeaderInfo groupHeaderInfo,
+            IReadOnlyList<ChromTransition> allTransitions, IList<ChromPeak> peaks,
+            TimeIntensitiesGroup timeIntensitiesGroup, FeatureNames scoreTypeIndices, float[] scores)
         {
             _groupHeaderInfo = groupHeaderInfo;
             _textIdBytes = Array.Empty<byte>();
@@ -2256,9 +2290,10 @@ namespace pwiz.Skyline.Model.Results
             _allTransitions = allTransitions;
             _chromPeaks = peaks;
             _timeIntensitiesGroup = timeIntensitiesGroup;
-            _scoreTypeIndices = new Dictionary<Type, int>();
-            _scores = Array.Empty<float>();
+            _scoreTypeIndices = scoreTypeIndices;
+            _scores = scores;
         }
+
 
         internal ChromGroupHeaderInfo Header { get { return _groupHeaderInfo; } }
         public SignedMz PrecursorMz { get { return new SignedMz(_groupHeaderInfo.Precursor, _groupHeaderInfo.NegativeCharge); } }
@@ -2296,7 +2331,7 @@ namespace pwiz.Skyline.Model.Results
 
         public bool HasScore(Type scoreType)
         {
-            return _scoreTypeIndices.ContainsKey(scoreType);
+            return _scoreTypeIndices.IndexOf(scoreType) >= 0;
         }
 
         protected IList<float> ReadScores()
@@ -2321,10 +2356,13 @@ namespace pwiz.Skyline.Model.Results
 
         public float GetScore(Type scoreType, int peakIndex)
         {
-            int scoreIndex;
-            if (!_scoreTypeIndices.TryGetValue(scoreType, out scoreIndex))
+            int scoreIndex = _scoreTypeIndices.IndexOf(scoreType);
+            if (scoreIndex < 0)
+            {
                 return float.NaN;
-            return ReadScores()[peakIndex*_scoreTypeIndices.Count + scoreIndex];
+            }
+            var scores = ReadScores();
+            return scores[peakIndex*_scoreTypeIndices.Count + scoreIndex];
         }
 
         public IEnumerable<ChromatogramInfo> TransitionPointSets
@@ -2345,6 +2383,13 @@ namespace pwiz.Skyline.Model.Results
             int endPeak = startPeak + _groupHeaderInfo.NumPeaks;
             for (int i = startPeak; i < endPeak; i++)
                 yield return peaks[i];
+        }
+
+        public IList<ChromPeak> GetPeakGroup(int peakIndex)
+        {
+            var peaks = ReadPeaks();
+            return ReadOnlyList.Create(_groupHeaderInfo.NumTransitions,
+                transitionIndex => peaks[transitionIndex * _groupHeaderInfo.NumPeaks + peakIndex]);
         }
 
         public ChromatogramInfo GetTransitionInfo(int index)
@@ -2835,13 +2880,10 @@ namespace pwiz.Skyline.Model.Results
             return _groupInfo.GetTransitionPeak(_transitionIndex, peakIndex);
         }
 
-        public ChromPeak CalcPeak(float startTime, float endTime, ChromPeak.FlagValues flags)
+        public ChromPeak CalcPeak(FullScanAcquisitionMethod acquisitionMethod, float startTime, float endTime, ChromPeak.FlagValues flags)
         {
-            var peakIntegrator = new PeakIntegrator(TimeIntensities)
-            {
-                RawTimeIntensities = RawTimeIntensities,
-                TimeIntervals = TimeIntervals
-            };
+            var peakIntegrator = new PeakIntegrator(acquisitionMethod, TimeIntervals, Source, RawTimeIntensities,
+                TimeIntensities, null);
             return peakIntegrator.IntegratePeak(startTime, endTime, flags);
         }
 

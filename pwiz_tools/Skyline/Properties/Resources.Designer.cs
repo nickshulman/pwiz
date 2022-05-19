@@ -19,7 +19,7 @@ namespace pwiz.Skyline.Properties {
     // class via a tool like ResGen or Visual Studio.
     // To add or remove a member, edit your .ResX file then rerun ResGen
     // with the /str option, or rebuild your VS project.
-    [global::System.CodeDom.Compiler.GeneratedCodeAttribute("System.Resources.Tools.StronglyTypedResourceBuilder", "15.0.0.0")]
+    [global::System.CodeDom.Compiler.GeneratedCodeAttribute("System.Resources.Tools.StronglyTypedResourceBuilder", "17.0.0.0")]
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
     [global::System.Runtime.CompilerServices.CompilerGeneratedAttribute()]
     public class Resources {
@@ -1923,6 +1923,15 @@ namespace pwiz.Skyline.Properties {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Find &amp;minimal protein group list that explains all peptides.
+        /// </summary>
+        public static string AssociateProteinsDlg_Find_minimal_protein_group_list_that_explains_all_peptides {
+            get {
+                return ResourceManager.GetString("AssociateProteinsDlg_Find_minimal_protein_group_list_that_explains_all_peptides", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Finding peptides in FASTA file.
         /// </summary>
         public static string AssociateProteinsDlg_FindProteinMatchesWithFasta_Finding_peptides_in_FASTA_file {
@@ -1938,6 +1947,33 @@ namespace pwiz.Skyline.Properties {
             get {
                 return ResourceManager.GetString("AssociateProteinsDlg_FindProteinMatchesWithFasta_No_matches_were_found_using_the_" +
                         "imported_fasta_file_", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Mi&amp;n peptides per protein group.
+        /// </summary>
+        public static string AssociateProteinsDlg_Min_peptides_per_protein_group {
+            get {
+                return ResourceManager.GetString("AssociateProteinsDlg_Min_peptides_per_protein_group", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to &amp;Remove subset protein groups.
+        /// </summary>
+        public static string AssociateProteinsDlg_Remove_subset_protein_groups {
+            get {
+                return ResourceManager.GetString("AssociateProteinsDlg_Remove_subset_protein_groups", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Applying parsimony options.
+        /// </summary>
+        public static string AssociateProteinsDlg_UpdateParsimonyResults_Applying_parsimony_options {
+            get {
+                return ResourceManager.GetString("AssociateProteinsDlg_UpdateParsimonyResults_Applying_parsimony_options", resourceCulture);
             }
         }
         
@@ -2994,6 +3030,148 @@ namespace pwiz.Skyline.Properties {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to File.
+        /// </summary>
+        public static string BuildLibraryGridView__colFile_File {
+            get {
+                return ResourceManager.GetString("BuildLibraryGridView__colFile_File", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Score Type.
+        /// </summary>
+        public static string BuildLibraryGridView__colScoreType_Score_Type {
+            get {
+                return ResourceManager.GetString("BuildLibraryGridView__colScoreType_Score_Type", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Score Threshold.
+        /// </summary>
+        public static string BuildLibraryGridView__colThreshold_Score_Threshold {
+            get {
+                return ResourceManager.GetString("BuildLibraryGridView__colThreshold_Score_Threshold", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0} scores indicate the probability that an identification is {1}..
+        /// </summary>
+        public static string BuildLibraryGridView_GetThresholds__0__scores_indicate_the_probability_that_an_identification_is__1__ {
+            get {
+                return ResourceManager.GetString("BuildLibraryGridView_GetThresholds__0__scores_indicate_the_probability_that_an_id" +
+                        "entification_is__1__", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to correct.
+        /// </summary>
+        public static string BuildLibraryGridView_GetThresholds_correct {
+            get {
+                return ResourceManager.GetString("BuildLibraryGridView_GetThresholds_correct", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to incorrect.
+        /// </summary>
+        public static string BuildLibraryGridView_GetThresholds_incorrect {
+            get {
+                return ResourceManager.GetString("BuildLibraryGridView_GetThresholds_incorrect", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Score threshold {0} for {1} is unusually permissive..
+        /// </summary>
+        public static string BuildLibraryGridView_GetThresholds_Score_threshold__0__for__1__is_unusually_permissive_ {
+            get {
+                return ResourceManager.GetString("BuildLibraryGridView_GetThresholds_Score_threshold__0__for__1__is_unusually_permi" +
+                        "ssive_", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Score threshold {0} for {1} will include all identifications..
+        /// </summary>
+        public static string BuildLibraryGridView_GetThresholds_Score_threshold__0__for__1__will_include_all_identifications_ {
+            get {
+                return ResourceManager.GetString("BuildLibraryGridView_GetThresholds_Score_threshold__0__for__1__will_include_all_i" +
+                        "dentifications_", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Score threshold {0} for {1} will only include identifications with perfect scores..
+        /// </summary>
+        public static string BuildLibraryGridView_GetThresholds_Score_threshold__0__for__1__will_only_include_identifications_with_perfect_scores_ {
+            get {
+                return ResourceManager.GetString("BuildLibraryGridView_GetThresholds_Score_threshold__0__for__1__will_only_include_" +
+                        "identifications_with_perfect_scores_", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Score types not loaded..
+        /// </summary>
+        public static string BuildLibraryGridView_GetThresholds_Score_types_not_loaded_ {
+            get {
+                return ResourceManager.GetString("BuildLibraryGridView_GetThresholds_Score_types_not_loaded_", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Error getting score type for this file..
+        /// </summary>
+        public static string BuildLibraryGridView_GridUpdateScoreInfo_Error_getting_score_type_for_this_file_ {
+            get {
+                return ResourceManager.GetString("BuildLibraryGridView_GridUpdateScoreInfo_Error_getting_score_type_for_this_file_", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Score threshold maximum (score is probability that identification is incorrect)..
+        /// </summary>
+        public static string BuildLibraryGridView_GridUpdateScoreInfo_Score_threshold_maximum__score_is_probability_that_identification_is_incorrect__ {
+            get {
+                return ResourceManager.GetString("BuildLibraryGridView_GridUpdateScoreInfo_Score_threshold_maximum__score_is_probab" +
+                        "ility_that_identification_is_incorrect__", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Score threshold minimum (score is probability that identification is correct)..
+        /// </summary>
+        public static string BuildLibraryGridView_GridUpdateScoreInfo_Score_threshold_minimum__score_is_probability_that_identification_is_correct__ {
+            get {
+                return ResourceManager.GetString("BuildLibraryGridView_GridUpdateScoreInfo_Score_threshold_minimum__score_is_probab" +
+                        "ility_that_identification_is_correct__", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Score threshold &apos;{0}&apos; is invalid (must be a decimal value between {1} and {2})..
+        /// </summary>
+        public static string BuildLibraryGridView_OnCellValueChanged_Score_threshold___0___is_invalid__must_be_a_decimal_value_between__1__and__2___ {
+            get {
+                return ResourceManager.GetString("BuildLibraryGridView_OnCellValueChanged_Score_threshold___0___is_invalid__must_be" +
+                        "_a_decimal_value_between__1__and__2___", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Are you sure you want to continue?.
+        /// </summary>
+        public static string BuildLibraryGridView_Validate_Are_you_sure_you_want_to_continue_ {
+            get {
+                return ResourceManager.GetString("BuildLibraryGridView_Validate_Are_you_sure_you_want_to_continue_", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Library {0}.
         /// </summary>
         public static string BuildLibraryNotification_BuildLibraryNotification_Library__0__ {
@@ -3439,6 +3617,42 @@ namespace pwiz.Skyline.Properties {
             get {
                 return ResourceManager.GetString("CalibrationGridViewDriver_FindEvenlySpacedPeptides_Would_you_like_to_use_the_pred" +
                         "efined_iRT_values_", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Candidate Peaks.
+        /// </summary>
+        public static string CandidatePeakForm_CandidatePeakForm_Candidate_Peaks {
+            get {
+                return ResourceManager.GetString("CandidatePeakForm_CandidatePeakForm_Candidate_Peaks", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Choose peak.
+        /// </summary>
+        public static string CandidatePeakGroup_Chosen_Choose_peak {
+            get {
+                return ResourceManager.GetString("CandidatePeakGroup_Chosen_Choose_peak", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Remove Peak.
+        /// </summary>
+        public static string CandidatePeakGroup_Chosen_Remove_Peak {
+            get {
+                return ResourceManager.GetString("CandidatePeakGroup_Chosen_Remove_Peak", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to [{0}-{1}].
+        /// </summary>
+        public static string CandidatePeakGroup_ToString___0___1__ {
+            get {
+                return ResourceManager.GetString("CandidatePeakGroup_ToString___0___1__", resourceCulture);
             }
         }
         
@@ -10463,6 +10677,15 @@ namespace pwiz.Skyline.Properties {
             get {
                 return ResourceManager.GetString("EditIrtCalcDlg_OkDialog_Using_fewer_than__0__standard_peptides_is_not_recommended" +
                         "_Are_you_sure_you_want_to_continue_with_only__1__", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Opening database.
+        /// </summary>
+        public static string EditIrtCalcDlg_OpenDatabase_Opening_database {
+            get {
+                return ResourceManager.GetString("EditIrtCalcDlg_OpenDatabase_Opening_database", resourceCulture);
             }
         }
         
@@ -20850,6 +21073,15 @@ namespace pwiz.Skyline.Properties {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to FASTA files.
+        /// </summary>
+        public static string OpenFileDialog_FASTA_files {
+            get {
+                return ResourceManager.GetString("OpenFileDialog_FASTA_files", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized resource of type System.Drawing.Bitmap.
         /// </summary>
         public static System.Drawing.Bitmap OpenFolder {
@@ -24011,6 +24243,70 @@ namespace pwiz.Skyline.Properties {
             get {
                 return ResourceManager.GetString("Protein_GetDeleteConfirmation_Are_you_sure_you_want_to_delete_these__0__proteins_" +
                         "", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Calculating protein groups.
+        /// </summary>
+        public static string ProteinAssociation_CalculateProteinGroups_Calculating_protein_groups {
+            get {
+                return ResourceManager.GetString("ProteinAssociation_CalculateProteinGroups_Calculating_protein_groups", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Group of {0} proteins.
+        /// </summary>
+        public static string ProteinAssociation_CalculateProteinGroups_Group_of__0__proteins {
+            get {
+                return ResourceManager.GetString("ProteinAssociation_CalculateProteinGroups_Group_of__0__proteins", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Calculating protein clusters.
+        /// </summary>
+        public static string ProteinAssociation_Calculating_protein_clusters {
+            get {
+                return ResourceManager.GetString("ProteinAssociation_Calculating_protein_clusters", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Creating protein targets and assigning their peptides.
+        /// </summary>
+        public static string ProteinAssociation_CreateDocTree_Creating_protein_targets_and_assigning_their_peptides {
+            get {
+                return ResourceManager.GetString("ProteinAssociation_CreateDocTree_Creating_protein_targets_and_assigning_their_pep" +
+                        "tides", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Finding minimal protein list.
+        /// </summary>
+        public static string ProteinAssociation_Finding_minimal_protein_list {
+            get {
+                return ResourceManager.GetString("ProteinAssociation_Finding_minimal_protein_list", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Building peptide prefix tree.
+        /// </summary>
+        public static string ProteinAssociation_ListPeptidesForMatching_Building_peptide_prefix_tree {
+            get {
+                return ResourceManager.GetString("ProteinAssociation_ListPeptidesForMatching_Building_peptide_prefix_tree", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Removing subset proteins.
+        /// </summary>
+        public static string ProteinAssociation_Removing_subset_proteins {
+            get {
+                return ResourceManager.GetString("ProteinAssociation_Removing_subset_proteins", resourceCulture);
             }
         }
         
@@ -27275,6 +27571,15 @@ namespace pwiz.Skyline.Properties {
         public static string SkylineVersion_V21_1_Skyline_21_1 {
             get {
                 return ResourceManager.GetString("SkylineVersion_V21_1_Skyline_21_1", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Skyline 21.2.
+        /// </summary>
+        public static string SkylineVersion_V21_2_Skyline_21_2 {
+            get {
+                return ResourceManager.GetString("SkylineVersion_V21_2_Skyline_21_2", resourceCulture);
             }
         }
         

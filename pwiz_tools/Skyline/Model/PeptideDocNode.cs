@@ -997,9 +997,10 @@ namespace pwiz.Skyline.Model
                     IList<DocNode> childrenNew = new List<DocNode>();
                     foreach (TransitionGroupDocNode nodeGroup in nodeResult.Children)
                     {
-                        if (settingsNew.HasPrecursorCalc(nodeGroup.TransitionGroup.LabelType, explicitMods)
-                            || nodeGroup.IsCustomIon)
+                        if (settingsNew.SupportsPrecursor(nodeGroup, explicitMods))
+                        {
                             childrenNew.Add(nodeGroup);
+                        }
                     }
 
                     nodeResult = (PeptideDocNode)nodeResult.ChangeChildrenChecked(childrenNew);
@@ -1048,14 +1049,6 @@ namespace pwiz.Skyline.Model
         public IEnumerable<TransitionGroup> GetTransitionGroups(SrmSettings settings, ExplicitMods explicitMods, bool useFilter)
         {
             return Peptide.GetTransitionGroups(settings, this, explicitMods, useFilter);
-        }
-
-        public TransitionGroup[] GetNonProteomicChildren()
-        {
-            return
-                TransitionGroups.Where(tranGroup => tranGroup.TransitionGroup.IsCustomIon)
-                    .Select(groupNode => groupNode.TransitionGroup)
-                    .ToArray();
         }
 
         /// <summary>
@@ -1303,6 +1296,19 @@ namespace pwiz.Skyline.Model
             get { return TransitionGroups.Any(tg => tg.PrecursorConcentration.HasValue); }
         }
 
+        /// <summary>
+        /// Return groups of TransitionGroups that should participate in peak finding with each other.
+        /// TransitionGroups whose RelativeRT are not Unknown are one group.
+        /// The rest of the TransitionGroups are grouped by LabelType.
+        /// </summary>
+        /// <returns></returns>
+        public IEnumerable<IEnumerable<TransitionGroupDocNode>> GetComparableGroups()
+        {
+            var lookup = TransitionGroups.ToLookup(group =>
+                group.RelativeRT == RelativeRT.Unknown ? group.LabelType : null);
+            return lookup;
+        }
+
         private sealed class PeptideResultsCalculator
         {
             private readonly List<PeptideChromInfoListCalculator> _listResultCalcs;
@@ -1529,7 +1535,7 @@ namespace pwiz.Skyline.Model
 
             public void AddChromInfoList(TransitionGroupDocNode nodeGroup, TransitionDocNode nodeTran)
             {
-                var listInfo = nodeTran.Results[ResultsIndex];
+                var listInfo = nodeTran.GetSafeChromInfo(ResultsIndex);
                 if (listInfo.IsEmpty)
                     return;
 

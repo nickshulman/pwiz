@@ -144,6 +144,7 @@
             this.toolBarToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.statusToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.chromatogramsGridMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.candidatePeaksToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.menuStrip1.SuspendLayout();
             this.SuspendLayout();
             // 
@@ -911,7 +912,8 @@
             this.groupComparisonsMenuItem,
             this.listsMenuItem,
             this.auditLogMenuItem,
-            this.chromatogramsGridMenuItem});
+            this.chromatogramsGridMenuItem,
+            this.candidatePeaksToolStripMenuItem});
             this.otherGridsMenuItem.Name = "otherGridsMenuItem";
             resources.ApplyResources(this.otherGridsMenuItem, "otherGridsMenuItem");
             // 
@@ -990,6 +992,12 @@
             this.chromatogramsGridMenuItem.Name = "chromatogramsGridMenuItem";
             resources.ApplyResources(this.chromatogramsGridMenuItem, "chromatogramsGridMenuItem");
             this.chromatogramsGridMenuItem.Click += new System.EventHandler(this.chromatogramsGridMenuItem_Click);
+            // 
+            // candidatePeaksToolStripMenuItem
+            // 
+            this.candidatePeaksToolStripMenuItem.Name = "candidatePeaksToolStripMenuItem";
+            resources.ApplyResources(this.candidatePeaksToolStripMenuItem, "candidatePeaksToolStripMenuItem");
+            this.candidatePeaksToolStripMenuItem.Click += new System.EventHandler(this.candidatePeaksToolStripMenuItem_Click);
             // 
             // ViewMenu
             // 
@@ -1120,6 +1128,7 @@
         private System.Windows.Forms.ToolStripMenuItem toolBarToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem statusToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem chromatogramsGridMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem candidatePeaksToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem viewTargetsMenuItem;
     }
 }

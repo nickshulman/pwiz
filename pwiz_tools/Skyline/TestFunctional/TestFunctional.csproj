@@ -167,12 +167,17 @@
     <Compile Include="AssociateProteinVariantTest.cs" />
     <Compile Include="AutoTrainModelTest.cs" />
     <Compile Include="BlibMoleculeListsTest.cs" />
+    <Compile Include="CandidatePeakTest.cs" />
     <Compile Include="CantReadSkydTest.cs" />
     <Compile Include="ConstrainNormalizationMethodTest.cs" />
+    <Compile Include="DdaPeakIntegrationTest.cs" />
     <Compile Include="DdaScoringTest.cs" />
+    <Compile Include="IgnoreSimScansTest.cs" />
     <Compile Include="LegacyScoringModelTest.cs" />
     <Compile Include="MinimizeIrtTest.cs" />
     <Compile Include="EADZIonsTest.cs" />
+    <Compile Include="UnreadableBlibTest.cs" />
+    <Compile Include="RemoveSmallMoleculeLabelTypeTest.cs" />
     <Compile Include="StartPageInsertTransitionListTest.cs" />
     <Compile Include="LibraryCacheTest.cs" />
     <Compile Include="PermuteIsotopeModificationsTest.cs" />
@@ -463,6 +468,7 @@
     <None Include="CalibrationScenariosTest.zip" />
     <None Include="CalibrationTest.zip" />
     <None Include="CancelExportReportTest.zip" />
+    <None Include="CandidatePeakTest.zip" />
     <None Include="ChromDataSetMatchingTest.zip" />
     <None Include="ChromGraphTransformTest.zip" />
     <None Include="ChromUITest.zip" />
@@ -470,6 +476,7 @@
     <None Include="CopyPasteTest.zip" />
     <None Include="CrosslinkingTest.zip" />
     <None Include="CrosslinkNeutralLossTest.zip" />
+    <None Include="DdaPeakIntegrationTest.zip" />
     <None Include="DdaSearchTest.zip" />
     <None Include="DecoyTargetMatchTest.zip" />
     <None Include="DetectionsPlotTest.zip" />
@@ -500,6 +507,7 @@
     <None Include="ClusteredHeatMapTest.zip" />
     <None Include="HighPrecModsTest.zip" />
     <None Include="HighReplicateCountTest.zip" />
+    <None Include="IgnoreSimScansTest.zip" />
     <None Include="ImportAnnotationsTest.zip" />
     <None Include="ImportDocTest.zip" />
     <None Include="ImportEncyclopeDiaLibraryTest.zip" />

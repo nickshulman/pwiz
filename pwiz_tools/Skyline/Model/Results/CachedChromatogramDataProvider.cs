@@ -22,6 +22,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
 using pwiz.Common.Chemistry;
+using pwiz.Common.Collections;
 using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Util;
 
@@ -31,7 +32,7 @@ namespace pwiz.Skyline.Model.Results
     {
         private ChromatogramCache _cache;
         private readonly int _fileIndex;
-        private ChromKeyIndices[] _chromKeyIndices;
+        private TypeSafeList<ChromatogramProviderId, ChromKeyIndices> _chromKeyIndices;
 
         private ChromKeyIndices _lastIndices;
         private ChromatogramGroupInfo _lastChromGroupInfo;
@@ -67,7 +68,8 @@ namespace pwiz.Skyline.Model.Results
             _cache = ChromatogramCache.Load(cache.CachePath, new ProgressStatus(), loader, assumeNegativeChargesInPreV11Caches);
 
             _fileIndex = cache.CachedFiles.IndexOf(f => Equals(f.FilePath, dataFilePath));
-            _chromKeyIndices = cache.GetChromKeys(dataFilePath).OrderBy(v => v.LocationPoints).ToArray();
+            _chromKeyIndices = ChromatogramProviderId.TypeSafeList<ChromKeyIndices>();
+            _chromKeyIndices.AddRange(cache.GetChromKeys(dataFilePath).OrderBy(v => v.LocationPoints));
             foreach (var c in _chromKeyIndices.Where(i => i.Key.Precursor != 0))
             {
                 if (c.Key.Precursor.IsNegative)
@@ -90,14 +92,14 @@ namespace pwiz.Skyline.Model.Results
 
         public override IEnumerable<ChromKeyProviderIdPair> ChromIds
         {
-            get { return _chromKeyIndices.Select((v, i) => new ChromKeyProviderIdPair(v.Key, i)); }
+            get { return _chromKeyIndices.KeyValuePairs.Select(kvp => new ChromKeyProviderIdPair(kvp.Value.Key, kvp.Key)); }
         }
 
         public override eIonMobilityUnits IonMobilityUnits { get { return _cache != null ? _cache.CachedFiles[_fileIndex].IonMobilityUnits : eIonMobilityUnits.none; } }
 
-        public override bool GetChromatogram(int id, Target modifiedSequence, Color peptideColor, out ChromExtra extra, out TimeIntensities timeIntensities)
+        public override bool GetChromatogram(ChromatogramProviderId chromatogramProviderId, Target modifiedSequence, Color peptideColor, out ChromExtra extra, out TimeIntensities timeIntensities)
         {
-            var chromKeyIndices = _chromKeyIndices[id];
+            var chromKeyIndices = _chromKeyIndices[chromatogramProviderId];
             if (_lastChromGroupInfo == null || _lastIndices.GroupIndex != chromKeyIndices.GroupIndex)
             {
                 _lastChromGroupInfo = _cache.LoadChromatogramInfo(chromKeyIndices.GroupIndex);
@@ -111,7 +113,7 @@ namespace pwiz.Skyline.Model.Results
             _readChromatograms++;
 
             // But avoid reaching 100% before reading is actually complete
-            SetPercentComplete(Math.Min(99, 100 * _readChromatograms / _chromKeyIndices.Length));
+            SetPercentComplete(Math.Min(99, 100 * _readChromatograms / _chromKeyIndices.Count));
 
             extra = new ChromExtra(chromKeyIndices.StatusId, chromKeyIndices.StatusRank);
 

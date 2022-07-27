@@ -24,6 +24,7 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using pwiz.Common.Chemistry;
+using pwiz.Common.Collections;
 using pwiz.Common.SystemUtil;
 using pwiz.ProteowizardWrapper;
 using pwiz.Skyline.Model.DocSettings;
@@ -388,7 +389,7 @@ namespace pwiz.Skyline.Model.Results
 
         }
 
-        private void AddChromCollector(int productFilterId, ChromCollector collector)
+        private void AddChromCollector(ChromatogramProviderId productFilterId, ChromCollector collector)
         {
             _collectors.AddCollector(productFilterId, collector);
         }
@@ -544,15 +545,8 @@ namespace pwiz.Skyline.Model.Results
         {
             get
             {
-                var chromIds = new List<ChromKeyProviderIdPair>(_collectors.ChromKeys.Count);
-                for (int i = 0; i < _collectors.ChromKeys.Count; i++)
-                    chromIds.Add(new ChromKeyProviderIdPair(_collectors.ChromKeys[i], i));
-
-                _globalChromatogramExtractor.IndexOffset =
-                    chromIds.Count - _globalChromatogramExtractor.GlobalChromatogramIndexes.Count -
-                    _globalChromatogramExtractor.QcTraceByIndex.Count;
-
-                return chromIds;
+                return _collectors.ChromKeys.KeyValuePairs.Select(kvp =>
+                    new ChromKeyProviderIdPair(kvp.Value, kvp.Key));
             }
         }
 
@@ -561,7 +555,7 @@ namespace pwiz.Skyline.Model.Results
             get { return MsDataFileScanIds.ToBytes(_scanIdList); }
         }
 
-        public override void SetRequestOrder(IList<IList<int>> chromatogramRequestOrder)
+        public override void SetRequestOrder(IList<IList<ChromatogramProviderId>> chromatogramRequestOrder)
         {
             if (_isSrm)
                 return;
@@ -593,9 +587,9 @@ namespace pwiz.Skyline.Model.Results
             }
         }
 
-        public override bool GetChromatogram(int id, Target modifiedSequence, Color peptideColor, out ChromExtra extra, out TimeIntensities timeIntensities)
+        public override bool GetChromatogram(ChromatogramProviderId id, Target modifiedSequence, Color peptideColor, out ChromExtra extra, out TimeIntensities timeIntensities)
         {
-            var chromKey = _collectors.ChromKeys.Count > id ? _collectors.ChromKeys[id] : null;
+            var chromKey = _collectors.ChromKeys[id];
             timeIntensities = null;
             extra = null;
             if (SignedMz.ZERO.Equals(chromKey?.Precursor ?? SignedMz.ZERO))
@@ -1182,59 +1176,68 @@ namespace pwiz.Skyline.Model.Results
             }
         }
 
+        public struct ChromCollectorId
+        {
+            private int _intValue;
+
+            private ChromCollectorId(int intValue)
+            {
+                _intValue = intValue;
+            }
+
+            public static TypeSafeList<ChromCollectorId, TItem> TypeSafeList<TItem>()
+            {
+                return new List<TItem>();
+            }
+
+            private class List<TItem> : TypeSafeList<ChromCollectorId, TItem>
+            {
+                protected override int IndexFromKey(ChromCollectorId key)
+                {
+                    return key._intValue;
+                }
+
+                protected override ChromCollectorId KeyFromIndex(int index)
+                {
+                    return new ChromCollectorId(index);
+                }
+            }
+        }
+
         /// <summary>
         /// Manage collectors for chromatogram storage and retrieval, possibly on different threads.
         /// </summary>
         public class Collectors
         {
-            private readonly IList<ChromCollector> _collectors;
-            private readonly int[] _chromKeyLookup;
+            private readonly TypeSafeList<ChromCollectorId, ChromCollector> _collectors;
+            private IDictionary<ChromatogramProviderId, ChromCollectorId> _chromKeyLookup;
             private float _retentionTime;
             private Exception _exception;
 
             public Collectors()
             {
-                ChromKeys = new List<ChromKey>();
-                _collectors = new List<ChromCollector>();
+                ChromKeys = ChromatogramProviderId.TypeSafeList<ChromKey>();
+                _collectors = ChromCollectorId.TypeSafeList<ChromCollector>();
             }
 
-            public Collectors(ICollection<ChromKey> chromKeys, bool runningAsync)
+            public Collectors(TypeSafeList<ChromatogramProviderId, ChromKey> chromKeys, bool runningAsync)
             {
                 IsRunningAsync = runningAsync;
-
+                _collectors = ChromCollectorId.TypeSafeList<ChromCollector>();
+                var chromKeyLookup = new Dictionary<ChromatogramProviderId, ChromCollectorId>();
                 // Sort ChromKeys in order of max retention time, and note the sort order.
-                var chromKeyArray = chromKeys.ToArray();
-                if (chromKeyArray.Length > 1)
+                foreach (var kvp in chromKeys.KeyValuePairs.OrderBy(kvp => kvp.Value.OptionalMaxTime ?? float.MaxValue))
                 {
-                    var lastMaxTime = chromKeyArray[0].OptionalMaxTime ?? float.MaxValue;
-                    for (int i = 1; i < chromKeyArray.Length; i++)
-                    {
-                        var maxTime = chromKeyArray[i].OptionalMaxTime ?? float.MaxValue;
-                        if (maxTime < lastMaxTime)
-                        {
-                            int[] sortIndexes;
-                            ArrayUtil.Sort(chromKeyArray, out sortIndexes);
-                            // The sort indexes tell us where the keys used to live. For lookup, we need
-                            // to go the other way. Chromatograms will come in indexed by where they used to
-                            // be, and we need to put them into the _chromList array in the new location of
-                            // the ChromKey.
-                            _chromKeyLookup = new int[sortIndexes.Length];
-                            for (int j = 0; j < sortIndexes.Length; j++)
-                                _chromKeyLookup[sortIndexes[j]] = j;
-                            break;
-                        }
-                        lastMaxTime = maxTime;
-                    }
+                    var collectorId = _collectors.Add(null);
+                    chromKeyLookup.Add(kvp.Key, collectorId);
                 }
-                ChromKeys = chromKeyArray;
-
-                // Create empty chromatograms for each ChromKey.
-                _collectors = new ChromCollector[chromKeys.Count];
+                ChromKeys = chromKeys;
+                _chromKeyLookup = chromKeyLookup;
             }
 
             public bool IsRunningAsync { get; private set; }
 
-            public IList<ChromKey> ChromKeys { get; private set; }
+            public TypeSafeList<ChromatogramProviderId, ChromKey> ChromKeys { get; private set; }
 
             public int Count { get { return ChromKeys.Count; } }
 
@@ -1254,18 +1257,18 @@ namespace pwiz.Skyline.Model.Results
             /// <summary>
             /// Add a collector for a non-SRM chromatogram.
             /// </summary>
-            public void AddCollector(int productFilterId, ChromCollector collector)
+            public void AddCollector(ChromatogramProviderId chromatogramProviderId, ChromCollector collector)
             {
                 lock (this)
                 {
-                    int index = ProductFilterIdToId(productFilterId);
+                    var index = ProductFilterIdToId(chromatogramProviderId);
                     _collectors[index] = collector;
                 }
             }
 
-            public int ProductFilterIdToId(int productFilterId)
+            public ChromCollectorId ProductFilterIdToId(ChromatogramProviderId productFilterId)
             {
-                return _chromKeyLookup == null ? productFilterId : _chromKeyLookup[productFilterId];
+                return _chromKeyLookup[productFilterId];
             }
 
             public void ExtractionComplete()
@@ -1291,7 +1294,7 @@ namespace pwiz.Skyline.Model.Results
             /// extraction thread has completed the requested chromatogram.
             /// </summary>
             public int ReleaseChromatogram(
-                int chromatogramIndex,
+                ChromatogramProviderId id,
                 ChromGroups chromGroups,
                 out TimeIntensities timeIntensities)
             {
@@ -1299,12 +1302,13 @@ namespace pwiz.Skyline.Model.Results
                 {
                     while (_exception == null)
                     {
+                        var collectorId = _chromKeyLookup[id];
                         // Copy chromatogram data to output arrays and release memory.
-                        var collector = _collectors[chromatogramIndex];
+                        var collector = _collectors[collectorId];
                         int status;
                         if (chromGroups != null)
                         {
-                            status = chromGroups.ReleaseChromatogram(chromatogramIndex, _retentionTime, collector,
+                            status = chromGroups.ReleaseChromatogram(id, _retentionTime, collector,
                                 out timeIntensities);
                         }
                         else
@@ -1314,7 +1318,7 @@ namespace pwiz.Skyline.Model.Results
                         }
                         if (status >= 0)
                         {
-                            _collectors[chromatogramIndex] = null;
+                            _collectors[collectorId] = null;
                             return status;
                         }
                         Monitor.Wait(this);
@@ -1634,7 +1638,7 @@ namespace pwiz.Skyline.Model.Results
 
         public int Count { get { return PrecursorCollectorMap.Count; } }
 
-        public void ProcessExtractedSpectrum(float time, SpectraChromDataProvider.Collectors chromatograms, int scanId, ExtractedSpectrum spectrum, Action<int, ChromCollector> addCollector)
+        public void ProcessExtractedSpectrum(float time, SpectraChromDataProvider.Collectors chromatograms, int scanId, ExtractedSpectrum spectrum, Action<ChromatogramProviderId, ChromCollector> addCollector)
         {
             var precursorMz = spectrum.PrecursorMz;
             var ionMobility = spectrum.IonMobility;
@@ -1665,7 +1669,7 @@ namespace pwiz.Skyline.Model.Results
             {
                 // The chromatogram index is used to determine which spillfile to use.
                 // All chromatograms in this group use the same spillfile, so any chromatogram index will work
-                int firstChromatogramIndex = chromatograms.ProductFilterIdToId(spectrum.ProductFilters.First().FilterId);
+                var firstChromatogramIndex = chromatograms.ProductFilterIdToId(spectrum.ProductFilters.First().FilterId);
 
                 collector.ScansCollector.Add(firstChromatogramIndex, scanId, _blockWriter);
                 collector.GroupedTimesCollector.Add(firstChromatogramIndex, time, _blockWriter);

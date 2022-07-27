@@ -136,7 +136,7 @@ namespace pwiz.Skyline.Model.Results
 
         private DetailedFeatureCalculators DetailedPeakFeatureCalculators { get; set; }
 
-        public IEnumerable<int> ProviderIds { get { return _dataSets.SelectMany(d => d.ProviderIds); } }
+        public IEnumerable<ChromatogramProviderId> ProviderIds { get { return _dataSets.SelectMany(d => d.ProviderIds); } }
 
         public bool Load(ChromDataProvider provider)
         {

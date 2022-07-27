@@ -50,7 +50,7 @@ namespace pwiz.Skyline.Model.Results
         private const double MIN_COELUTION_RESCUE_CORRELATION = 0.95;
 
 
-        public ChromData(ChromKey key, int providerId)
+        public ChromData(ChromKey key, ChromatogramProviderId providerId)
         {
             Key = PrimaryKey = key;
             ProviderId = providerId;
@@ -58,7 +58,7 @@ namespace pwiz.Skyline.Model.Results
             MaxPeakIndex = -1;
         }
 
-        public ChromData(ChromKey chromKey, TransitionDocNode transitionDocNode, TimeIntensities rawTimeIntensities, TimeIntensities timeIntensities) : this(chromKey, -1)
+        public ChromData(ChromKey chromKey, TransitionDocNode transitionDocNode, TimeIntensities rawTimeIntensities, TimeIntensities timeIntensities) : this(chromKey, ChromatogramProviderId.INVALID)
         {
             DocNode = transitionDocNode;
             RawTimeIntensities = rawTimeIntensities;
@@ -253,7 +253,7 @@ namespace pwiz.Skyline.Model.Results
         public ChromKey Key { get; private set; }
         public ChromExtra Extra { get; private set; }
         public TransitionDocNode DocNode { get; set; }
-        public int ProviderId { get; private set; }
+        public ChromatogramProviderId ProviderId { get; private set; }
         public TimeIntensities RawTimeIntensities { get; private set; }
         public TimeIntensities TimeIntensities { get; private set; }
         public IList<float> RawTimes { get{return RawTimeIntensities == null ? null : RawTimeIntensities.Times;} }

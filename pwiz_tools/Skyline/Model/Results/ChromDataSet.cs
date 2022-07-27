@@ -267,7 +267,7 @@ namespace pwiz.Skyline.Model.Results
             get { return _listChromData.ConvertAll(data => data.Intensities).ToArray(); }
         }
 
-        public IEnumerable<int> ProviderIds { get { return _listChromData.Select(c => c.ProviderId); } }
+        public IEnumerable<ChromatogramProviderId> ProviderIds { get { return _listChromData.Select(c => c.ProviderId); } }
 
         public void Merge(ChromDataSet chromDataSet)
         {

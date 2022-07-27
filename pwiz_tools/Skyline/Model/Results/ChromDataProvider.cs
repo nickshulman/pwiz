@@ -19,7 +19,9 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Linq;
 using pwiz.Common.Chemistry;
+using pwiz.Common.Collections;
 using pwiz.Common.SystemUtil;
 using pwiz.ProteowizardWrapper;
 
@@ -78,9 +80,9 @@ namespace pwiz.Skyline.Model.Results
 
         public virtual byte[] MSDataFileScanIdBytes { get { return new byte[0]; } }
 
-        public virtual void SetRequestOrder(IList<IList<int>> orderedSets) { }
+        public virtual void SetRequestOrder(IList<IList<ChromatogramProviderId>> orderedSets) { }
 
-        public abstract bool GetChromatogram(int id, Target modifiedSequence, Color color, out ChromExtra extra, out TimeIntensities timeIntensities);
+        public abstract bool GetChromatogram(ChromatogramProviderId id, Target modifiedSequence, Color color, out ChromExtra extra, out TimeIntensities timeIntensities);
 
         public abstract double? MaxRetentionTime { get; }
 
@@ -109,110 +111,10 @@ namespace pwiz.Skyline.Model.Results
         public abstract void Dispose();
     }
 
-    public sealed class GlobalChromatogramExtractor
-    {
-        private MsDataFileImpl _dataFile;
-        private const string TIC_CHROMATOGRAM_ID = @"TIC";
-        private const string BPC_CHROMATOGRAM_ID = @"BPC";
-
-        public GlobalChromatogramExtractor(MsDataFileImpl dataFile)
-        {
-            _dataFile = dataFile;
-            IndexOffset = 0;
-
-            if (dataFile.ChromatogramCount > 0 && dataFile.GetChromatogramId(0, out _) == TIC_CHROMATOGRAM_ID)
-                TicChromatogramIndex = 0;
-            if (dataFile.ChromatogramCount > 1 && dataFile.GetChromatogramId(1, out _) == BPC_CHROMATOGRAM_ID)
-                BpcChromatogramIndex = 1;
-
-            QcTraceByIndex = new SortedDictionary<int, MsDataFileImpl.QcTrace>();
-            foreach (var qcTrace in dataFile.GetQcTraces() ?? new List<MsDataFileImpl.QcTrace>())
-            {
-                QcTraceByIndex[qcTrace.Index] = qcTrace;
-            }
-        }
-
-        /// <summary>
-        /// Since global chromatograms can share the same index as Skyline's target chromatograms (they both start at 0),
-        /// the global chromatograms are given an index offset starting after the last target chromatogram
-        /// </summary>
-        public int IndexOffset { get; set; }
-
-        public int? TicChromatogramIndex { get; set; }
-        public int? BpcChromatogramIndex { get; }
-
-        public IList<int> GlobalChromatogramIndexes
-        {
-            get
-            {
-                var result = new List<int>();
-                if (TicChromatogramIndex.HasValue)
-                    result.Add(TicChromatogramIndex.Value);
-                if (BpcChromatogramIndex.HasValue)
-                    result.Add(BpcChromatogramIndex.Value);
-                return result;
-            }
-        }
-
-        public IDictionary<int, MsDataFileImpl.QcTrace> QcTraceByIndex { get; }
-
-        public string GetChromatogramId(int index, out int indexId)
-        {
-            return _dataFile.GetChromatogramId(index, out indexId);
-        }
-
-        public bool GetChromatogram(int index, out float[] times, out float[] intensities)
-        {
-            index -= IndexOffset;
-
-            if (QcTraceByIndex.TryGetValue(index, out MsDataFileImpl.QcTrace qcTrace))
-            {
-                times = MsDataFileImpl.ToFloatArray(qcTrace.Times);
-                intensities = MsDataFileImpl.ToFloatArray(qcTrace.Intensities);
-            }
-            else if (index == TicChromatogramIndex || index == BpcChromatogramIndex)
-            {
-                _dataFile.GetChromatogram(index, out _, out times, out intensities, true);
-            }
-            else
-            {
-                times = intensities = null;
-            }
-
-            return times != null;
-        }
-
-        /// <summary>
-        /// Returns true if the TIC chromatogram present in the .raw file can be relied on
-        /// for the calculation of total MS1 ion current.
-        /// </summary>
-        public bool IsTicChromatogramUsable()
-        {
-            if (!TicChromatogramIndex.HasValue)
-            {
-                return false;
-            }
-
-            float[] times;
-            if (!GetChromatogram(TicChromatogramIndex.Value, out times, out _))
-            {
-                return false;
-            }
-
-            if (times.Length == 0)
-            {
-                return false;
-            }
-
-            return true;
-        }
-    }
-
     internal sealed class ChromatogramDataProvider : ChromDataProvider
     {
-        private readonly List<ChromKeyProviderIdPair> _chromIds = new List<ChromKeyProviderIdPair>();
-        private readonly int[] _chromIndices;
-
+        private TypeSafeList<ChromatogramProviderId, ChromatogramIdentifier> _chromIds =
+            ChromatogramProviderId.TypeSafeList<ChromatogramIdentifier>();
         private MsDataFileImpl _dataFile;
         private GlobalChromatogramExtractor _globalChromatogramExtractor;
 
@@ -239,8 +141,6 @@ namespace pwiz.Skyline.Model.Results
             _globalChromatogramExtractor = new GlobalChromatogramExtractor(dataFile);
 
             int len = dataFile.ChromatogramCount;
-            _chromIndices = new int[len];
-
             bool fixCEOptForShimadzu = dataFile.IsShimadzuFile;
             int indexPrecursor = -1;
             var lastPrecursor = SignedMz.ZERO;
@@ -266,16 +166,15 @@ namespace pwiz.Skyline.Model.Results
                 {
                     _sourceHasPositivePolarityData = true;
                 }
-                var ki = new ChromKeyProviderIdPair(chromKey, index);
-                _chromIndices[index] = indexPrecursor;
-                _chromIds.Add(ki);
+
+                _chromIds.Add(new ChromatogramIdentifier(chromKey, index));
             }
 
             // Shimadzu can't do the necessary product m/z stepping for itself.
             // So, they provide the CE values in their IDs and we need to adjust
             // product m/z values for them to support CE optimization.
             if (fixCEOptForShimadzu)
-                FixCEOptForShimadzu();
+                _chromIds = FixCEOptForShimadzu(_chromIds);
 
             if (_chromIds.Count == 0)
                 throw new NoSrmDataException(FileInfo.FilePath);
@@ -290,8 +189,7 @@ namespace pwiz.Skyline.Model.Results
 
             foreach (var qcTracePair in _globalChromatogramExtractor.QcTraceByIndex)
             {
-                _chromIndices[qcTracePair.Key] = qcTracePair.Key;
-                _chromIds.Add(new ChromKeyProviderIdPair(ChromKey.FromQcTrace(qcTracePair.Value), qcTracePair.Key));
+                _chromIds.Add(new ChromatogramIdentifier(ChromKey.FromQcTrace(qcTracePair.Value), qcTracePair.Key));
             }
 
             // CONSIDER(kaipot): Some way to support mzML files converted from MIDAS wiff files
@@ -304,87 +202,92 @@ namespace pwiz.Skyline.Model.Results
             SetPercentComplete(50);
         }
 
-        private void FixCEOptForShimadzu()
+        private static TypeSafeList<ChromatogramProviderId, ChromatogramIdentifier> FixCEOptForShimadzu(IEnumerable<ChromatogramIdentifier> chromatogramIds)
         {
             // Need to sort by keys to ensure everything is in the right order.
-            _chromIds.Sort();
+            var list = chromatogramIds.OrderBy(id => id.Key).ToList();
 
             int indexLast = 0;
             var lastPrecursor = SignedMz.ZERO;
             var lastProduct = SignedMz.ZERO;
-            for (int i = 0; i < _chromIds.Count; i++)
+            for (int i = 0; i < list.Count; i++)
             {
-                var chromKey = _chromIds[i].Key;
+                var chromKey = list[i].Key;
                 if (chromKey.Precursor != lastPrecursor || chromKey.Product != lastProduct)
                 {
                     int count = i - indexLast;
-                    if (HasConstantCEInterval(indexLast, count))
+                    if (HasConstantCEInterval(list, indexLast, count))
                     {
-                        AddCEMzSteps(indexLast, count);
+                        AddCEMzSteps(list, indexLast, count);
                     }
                     lastPrecursor = chromKey.Precursor;
                     lastProduct = chromKey.Product;
                     indexLast = i;
                 }
             }
-            int finalCount = _chromIds.Count - indexLast;
-            if (HasConstantCEInterval(indexLast, finalCount))
+            int finalCount = list.Count - indexLast;
+            if (HasConstantCEInterval(list, indexLast, finalCount))
             {
-                AddCEMzSteps(indexLast, finalCount);
+                AddCEMzSteps(list, indexLast, finalCount);
             }
+
+            var typeSafeList = ChromatogramProviderId.TypeSafeList<ChromatogramIdentifier>();
+            typeSafeList.AddRange(list);
+            return typeSafeList;
         }
 
-        private float GetCE(int i)
+        private static float GetCE(List<ChromatogramIdentifier> list, int i)
         {
-            return _chromIds[i].Key.CollisionEnergy;
+            return list[i].Key.CollisionEnergy;
         }
 
-        private bool HasConstantCEInterval(int start, int count)
+        private static bool HasConstantCEInterval(List<ChromatogramIdentifier> list, int start, int count)
         {
             // Need at least 3 steps for CE optimization
             if (count < 3)
                 return false;
 
-            double ceStart = GetCE(start);
-            double ceEnd = GetCE(start + count - 1);
+            double ceStart = GetCE(list, start);
+            double ceEnd = GetCE(list, start + count - 1);
             double expectedInterval = (ceEnd - ceStart)/(count - 1);
             if (expectedInterval == 0)
                 return false;
 
             for (int i = 1; i < count; i++)
             {
-                double interval = GetCE(start + i) - GetCE(start + i - 1);
+                double interval = GetCE(list, start + i) - GetCE(list, start + i - 1);
                 if (Math.Abs(interval - expectedInterval) > 0.001)
                     return false;
             }
             return true;
         }
 
-        private void AddCEMzSteps(int start, int count)
+        private static void AddCEMzSteps(List<ChromatogramIdentifier> list, int start, int count)
         {
             int step = count / 2;
             for (int i = count - 1; i >= 0; i--)
             {
-                var chromId = _chromIds[start + i];
+                var chromId = list[start + i];
                 var chromKeyNew = chromId.Key.ChangeOptimizationStep(step);
-                _chromIds[start + i] = new ChromKeyProviderIdPair(chromKeyNew, chromId.ProviderId);
+                list[start + i] = new ChromatogramIdentifier(chromKeyNew, chromId.ChromatogramIndex);
                 step--;
             }
         }
 
         public override IEnumerable<ChromKeyProviderIdPair> ChromIds
         {
-            get { return _chromIds; }
+            get { return _chromIds.KeyValuePairs.Select(kvp=>new ChromKeyProviderIdPair(kvp.Value.Key, kvp.Key)); }
         }
 
         public override eIonMobilityUnits IonMobilityUnits { get { return _ionMobilityUnits; } }
 
-        public override bool GetChromatogram(int id, Target modifiedSequence, Color color, out ChromExtra extra, out TimeIntensities timeIntensities)
+        public override bool GetChromatogram(ChromatogramProviderId chromatogramProviderId, Target modifiedSequence, Color color, out ChromExtra extra, out TimeIntensities timeIntensities)
         {
+            var chromatogramIdentifier = _chromIds[chromatogramProviderId];
             float[] times, intensities;
-            if (!_globalChromatogramExtractor.GetChromatogram(id, out times, out intensities))
+            if (!_globalChromatogramExtractor.GetChromatogram(chromatogramIdentifier.ChromatogramIndex, out times, out intensities))
             {
-                _dataFile.GetChromatogram(id, out _, out times, out intensities);
+                _dataFile.GetChromatogram(chromatogramIdentifier.ChromatogramIndex, out _, out times, out intensities);
             }
 
             timeIntensities = new TimeIntensities(times, intensities, null, null);
@@ -396,8 +299,7 @@ namespace pwiz.Skyline.Model.Results
             if (_readChromatograms < _chromIds.Count)
                 SetPercentComplete(50 + _readChromatograms * 50 / _chromIds.Count);
 
-            int index = _chromIndices[id];
-            extra = new ChromExtra(index, -1);  // TODO: is zero the right value?
+            extra = new ChromExtra(chromatogramIdentifier.ChromatogramIndex, -1);  // TODO: is zero the right value?
 
             // Display in AllChromatogramsGraph
             var loadingStatus = Status as ChromatogramLoadingStatus;
@@ -405,7 +307,7 @@ namespace pwiz.Skyline.Model.Results
                 loadingStatus.Transitions.AddTransition(
                     modifiedSequence,
                     color,
-                    index, -1,
+                    chromatogramIdentifier.ChromatogramIndex, -1,
                     times,
                     intensities);
             return true;
@@ -471,6 +373,18 @@ namespace pwiz.Skyline.Model.Results
             if (_dataFile != null)
                 _dataFile.Dispose();
             _dataFile = null;
+        }
+
+        private class ChromatogramIdentifier
+        {
+            public ChromatogramIdentifier(ChromKey chromKey, int chromatogramIndex)
+            {
+                Key = chromKey;
+                ChromatogramIndex = chromatogramIndex;
+            }
+
+            public ChromKey Key { get; }
+            public int ChromatogramIndex { get; }
         }
     }
 }

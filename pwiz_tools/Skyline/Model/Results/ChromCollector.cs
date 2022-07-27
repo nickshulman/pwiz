@@ -71,7 +71,7 @@ namespace pwiz.Skyline.Model.Results
         /// <summary>
         /// Add intensity and mass error (if needed) to the given chromatogram.
         /// </summary>
-        public void AddPoint(int chromatogramIndex, float intensity, float? massError, BlockWriter writer)
+        public void AddPoint(ChromatogramProviderId chromatogramIndex, float intensity, float? massError, BlockWriter writer)
         {
             if (MassErrors != null)
                 // ReSharper disable once PossibleInvalidOperationException
@@ -82,7 +82,7 @@ namespace pwiz.Skyline.Model.Results
         /// <summary>
         /// Fill a number of intensity and mass error values for the given chromatogram with zeroes.
         /// </summary>
-        public void FillZeroes(int chromatogramIndex, int count, BlockWriter writer)
+        public void FillZeroes(ChromatogramProviderId chromatogramIndex, int count, BlockWriter writer)
         {
             if (MassErrors != null)
                 MassErrors.FillZeroes(chromatogramIndex, count, writer);
@@ -92,7 +92,7 @@ namespace pwiz.Skyline.Model.Results
         /// <summary>
         /// Add a time value to the given chromatogram.
         /// </summary>
-        public void AddTime(int chromatogramIndex, float time, BlockWriter writer)
+        public void AddTime(ChromatogramProviderId chromatogramIndex, float time, BlockWriter writer)
         {
             Times.Add(chromatogramIndex, time, writer);
         }
@@ -191,7 +191,7 @@ namespace pwiz.Skyline.Model.Results
         /// Add a data element to the list for a given chromatogram, and write the block
         /// to disk if it is complete.
         /// </summary>
-        public void Add(int chromatogramIndex, TData data, BlockWriter writer)
+        public void Add(ChromatogramProviderId chromatogramIndex, TData data, BlockWriter writer)
         {
             // Spill data to disk at block boundaries, if necessary.
             if (_blockIndex == 0)
@@ -231,7 +231,7 @@ namespace pwiz.Skyline.Model.Results
         /// Add a specified number of zero intensities to the given chromatogram, possibly
         /// writing finished blocks to disk.
         /// </summary>
-        public void FillZeroes(int chromatogramIndex, int count, BlockWriter writer)
+        public void FillZeroes(ChromatogramProviderId chromatogramIndex, int count, BlockWriter writer)
         {
             if (count < 1)
                 return;
@@ -406,7 +406,7 @@ namespace pwiz.Skyline.Model.Results
     /// <typeparam name="TData"></typeparam>
     public class SortedBlockedList<TData> : BlockedList<TData>
     {
-        public new void Add(int chromatogramIndex, TData data, BlockWriter writer)
+        public new void Add(ChromatogramProviderId chromatogramIndex, TData data, BlockWriter writer)
         {
             // Check sort ordering within blocks.  Checking across blocks is too time consuming.
             if (_blockIndex > 0 && Comparer<TData>.Default.Compare(_block._data[_blockIndex-1], data) > 0)
@@ -438,7 +438,7 @@ namespace pwiz.Skyline.Model.Results
         /// <summary>
         /// Write a block from a blocked list to disk for the given chromatogram.
         /// </summary>
-        public void WriteBlock(int chromatogramIndex, IBlockedList blockedList)
+        public void WriteBlock(ChromatogramProviderId chromatogramIndex, IBlockedList blockedList)
         {
             var fileStream = _chromGroups.GetFileStream(chromatogramIndex);
             blockedList.WriteBlock(fileStream);
@@ -458,18 +458,18 @@ namespace pwiz.Skyline.Model.Results
         // most pessimistic estimate of the data size is less than this
         private const long MAX_SPILL_FILE_SIZE = 1L << 32 - 1;
 
-        private readonly IList<ChromKey> _chromKeys;
+        private readonly TypeSafeList<ChromatogramProviderId, ChromKey> _chromKeys;
         private readonly float _maxRetentionTime;
         private readonly int _cycleCount;
         private readonly string _cachePath;
         private readonly SpillFile[] _spillFiles;
-        private readonly int[] _idToGroupId;
+        private readonly IDictionary<ChromatogramProviderId, int> _idToGroupId;
         private SpillFile _cachedSpillFile;
         private byte[] _bytesFromSpillFile;
 
         public ChromGroups(
-            IList<IList<int>> chromatogramRequestOrder,
-            IList<ChromKey> chromKeys,
+            IList<IList<ChromatogramProviderId>> chromatogramRequestOrder,
+            TypeSafeList<ChromatogramProviderId, ChromKey> chromKeys,
             float maxRetentionTime,
             int cycleCount,
             string cachePath)
@@ -486,11 +486,13 @@ namespace pwiz.Skyline.Model.Results
             foreach (var group in RequestOrder)
             {
                 foreach (var chromIndex in group)
-                    Assume.IsTrue(chromIndex >= 0 && chromIndex < _chromKeys.Count);
+                {
+                    Assume.IsTrue(_chromKeys.ContainsKey(chromIndex));
+                }
             }
 
             // Create array to map a provider id back to the peptide group that contains it.
-            _idToGroupId = new int[_chromKeys.Count];
+            _idToGroupId = new Dictionary<ChromatogramProviderId, int>();
             for (int groupId = 0; groupId < chromatogramRequestOrder.Count; groupId++)
             {
                 foreach (var id in chromatogramRequestOrder[groupId])
@@ -523,7 +525,7 @@ namespace pwiz.Skyline.Model.Results
         /// This is the order and grouping that the reader will use when reading
         /// chromatograms.  We exploit this information for speed and memory use.
         /// </summary>
-        public IList<IList<int>> RequestOrder { get; private set; }
+        public IList<IList<ChromatogramProviderId>> RequestOrder { get; private set; }
 
         public void Dispose()
         {
@@ -547,9 +549,13 @@ namespace pwiz.Skyline.Model.Results
         /// <summary>
         /// Return the group that a given chromatogram belongs to.
         /// </summary>
-        public int GetGroupIndex(int chromatogramIndex)
+        public int GetGroupIndex(ChromatogramProviderId chromatogramIndex)
         {
-            return chromatogramIndex < _idToGroupId.Length ? _idToGroupId[chromatogramIndex] : 0;
+            if (_idToGroupId.TryGetValue(chromatogramIndex, out int index))
+            {
+                return index;
+            }
+            return 0;
         }
 
         /// <summary>
@@ -571,7 +577,7 @@ namespace pwiz.Skyline.Model.Results
         /// <summary>
         /// Return (or possibly create) a spill file stream for the given group.
         /// </summary>
-        public Stream GetFileStream(int chromIndex)
+        public Stream GetFileStream(ChromatogramProviderId chromIndex)
         {
             int groupIndex = GetGroupIndex(chromIndex);
             return _spillFiles[groupIndex].CreateFileStream(_cachePath, groupIndex);
@@ -582,7 +588,7 @@ namespace pwiz.Skyline.Model.Results
         /// </summary>
         /// <returns>-1 if chromatogram is not finished yet.</returns>
         public int ReleaseChromatogram(
-            int chromatogramIndex, float retentionTime, ChromCollector collector,
+            ChromatogramProviderId chromatogramIndex, float retentionTime, ChromCollector collector,
             out TimeIntensities timeIntensities)
         {
             int groupIndex = GetGroupIndex(chromatogramIndex);

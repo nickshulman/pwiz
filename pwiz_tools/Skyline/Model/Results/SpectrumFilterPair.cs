@@ -335,7 +335,7 @@ namespace pwiz.Skyline.Model.Results
             return (!_hasMinTime || _minTime <= retentionTime) && (!_hasMaxTime || _maxTime >= retentionTime);
         }
 
-        public IEnumerable<int> ProductFilterIds
+        public IEnumerable<ChromatogramProviderId> ProductFilterIds
         {
             get
             {
@@ -349,7 +349,7 @@ namespace pwiz.Skyline.Model.Results
             }
         }
 
-        public void AddChromKeys(List<ChromKey> listChromKeys)
+        public void AddChromKeys(TypeSafeList<ChromatogramProviderId, ChromKey> listChromKeys)
         {
             AddChromKeys(ChromSource.ms1, Ms1ProductFilters, false, listChromKeys);
             AddChromKeys(ChromSource.sim, SimProductFilters, false, listChromKeys);
@@ -357,14 +357,13 @@ namespace pwiz.Skyline.Model.Results
         }
 
         private void AddChromKeys(ChromSource source, SpectrumProductFilter[] productFilters, bool highEnergy,
-                                  List<ChromKey> listChromKeys)
+                                  TypeSafeList<ChromatogramProviderId, ChromKey> listChromKeys)
         {
             if (null != productFilters)
             {
                 var ionMobilityFilter = GetIonMobilityWindow();
                 foreach (var spectrumProductFilter in productFilters)
                 {
-                    spectrumProductFilter.FilterId = listChromKeys.Count;
                     var key = new ChromKey(ModifiedSequence,
                         Q1,
                         ionMobilityFilter.ApplyOffset(highEnergy ? spectrumProductFilter.HighEnergyIonMobilityValueOffset : 0),
@@ -379,7 +378,7 @@ namespace pwiz.Skyline.Model.Results
                     {
                         key = key.ChangeOptionalTimes(_minTime, _maxTime);
                     }
-                    listChromKeys.Add(key);
+                    spectrumProductFilter.FilterId = listChromKeys.Add(key);
                 }
             }
         }
@@ -577,6 +576,7 @@ namespace pwiz.Skyline.Model.Results
         }
     }
 
+
     public class SpectrumProductFilter
     {
         public SpectrumProductFilter(double targetMz, double filterWidth, double highEnergyIonMobilityValueOffset) :
@@ -589,11 +589,12 @@ namespace pwiz.Skyline.Model.Results
             TargetMz = targetMz;
             FilterWidth = filterWidth;
             HighEnergyIonMobilityValueOffset = highEnergyIonMobilityValueOffset;
+            FilterId = new ChromatogramProviderId();
         }
 
         public SignedMz TargetMz { get; private set; }
         public double FilterWidth { get; private set; }
-        public int FilterId { get; set; }
+        public ChromatogramProviderId FilterId { get; set; }
         public double HighEnergyIonMobilityValueOffset { get; private set; }
 
 
@@ -602,7 +603,7 @@ namespace pwiz.Skyline.Model.Results
         protected bool Equals(SpectrumProductFilter other)
         {
             return TargetMz.Equals(other.TargetMz) && FilterWidth.Equals(other.FilterWidth) &&
-                   FilterId == other.FilterId && 
+                   Equals(FilterId, other.FilterId) && 
                    Equals(HighEnergyIonMobilityValueOffset, other.HighEnergyIonMobilityValueOffset);
         }
 
@@ -620,7 +621,7 @@ namespace pwiz.Skyline.Model.Results
             {
                 var hashCode = TargetMz.GetHashCode();
                 hashCode = (hashCode*397) ^ FilterWidth.GetHashCode();
-                hashCode = (hashCode*397) ^ FilterId;
+                hashCode = (hashCode*397) ^ FilterId.GetHashCode();
                 hashCode = (hashCode * 397) ^ HighEnergyIonMobilityValueOffset.GetHashCode();
                 return hashCode;
             }

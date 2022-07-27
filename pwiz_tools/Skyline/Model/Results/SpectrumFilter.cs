@@ -68,7 +68,7 @@ namespace pwiz.Skyline.Model.Results
         private readonly Dictionary<double,SpectrumFilterPair[]> _filterMzValuesFAIMSDict; // FAIMS chromatogram extraction is a special case for non-contiguous scans
 //        private readonly Dictionary<double, Dictionary<double, bool>> _filterMobilityPrecursors; // TODO map showing which IM by Mz windows are useful and not useful
         private readonly SpectrumFilterPair[] _filterRTValues;
-        private readonly ChromKey[] _productChromKeys;
+        private readonly TypeSafeList<ChromatogramProviderId, ChromKey> _productChromKeys;
         private int _retentionTimeIndex;
         private readonly bool _isWatersFile;
         private readonly bool _isWatersSonar;
@@ -327,7 +327,7 @@ namespace pwiz.Skyline.Model.Results
                     _filterMzValuesFAIMSDict.Add(cv, filterCV);
                 }
 
-                var listChromKeyFilterIds = new List<ChromKey>(filterCount);
+                var listChromKeyFilterIds = ChromatogramProviderId.TypeSafeList<ChromKey>();
                 foreach (var spectrumFilterPair in _filterMzValues)
                 {
                     spectrumFilterPair.AddChromKeys(listChromKeyFilterIds);
@@ -349,7 +349,7 @@ namespace pwiz.Skyline.Model.Results
                     }
                 }
 
-                _productChromKeys = listChromKeyFilterIds.ToArray();
+                _productChromKeys = listChromKeyFilterIds;
 
                 // Sort a copy of the filter pairs by maximum retention time so that we can detect when
                 // filters are no longer active.
@@ -563,7 +563,7 @@ namespace pwiz.Skyline.Model.Results
             get { return true; }
         }
 
-        public IList<ChromKey> ProductChromKeys
+        public TypeSafeList<ChromatogramProviderId, ChromKey> ProductChromKeys
         {
             get { return _productChromKeys; }
         }

@@ -386,7 +386,7 @@ namespace pwiz.Skyline.Model.Results
                 listChromData[i].IndexInFile = i;
             }
 
-            var listProviderIds = new List<IList<int>>(listChromData.Where(IsFirstPassPeptide).Select(c => c.ProviderIds.ToArray()));
+            var listProviderIds = new List<IList<ChromatogramProviderId>>(listChromData.Where(IsFirstPassPeptide).Select(c => c.ProviderIds.ToArray()));
             var doSecondPass = true;
             listProviderIds.AddRange(listChromData.Where(c => !IsFirstPassPeptide(c)).Select(c => c.ProviderIds.ToArray()));
 
@@ -417,7 +417,7 @@ namespace pwiz.Skyline.Model.Results
                 {
                     // Then refresh the chrom data list if indicated by provider, as it should now contain more than first-pass peptides
                     listChromData = CalcPeptideChromDataSets(provider, listMzPrecursors, setInternalStandards);
-                    listProviderIds = new List<IList<int>>(listChromData.Select(c => c.ProviderIds.ToArray()));
+                    listProviderIds = new List<IList<ChromatogramProviderId>>(listChromData.Select(c => c.ProviderIds.ToArray()));
                     provider.SetRequestOrder(listProviderIds);
                 }
             }

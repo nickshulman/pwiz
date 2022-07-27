@@ -2148,14 +2148,14 @@ namespace pwiz.Skyline.Model.Results
     /// </summary>
     public struct ChromKeyProviderIdPair : IComparable<ChromKeyProviderIdPair>
     {
-        public ChromKeyProviderIdPair(ChromKey key, int providerId)
+        public ChromKeyProviderIdPair(ChromKey key, ChromatogramProviderId providerId)
         {
             Key = key;
             ProviderId = providerId;
         }
 
         public ChromKey Key;
-        public int ProviderId;
+        public ChromatogramProviderId ProviderId;
 
         public int CompareTo(ChromKeyProviderIdPair other)
         {

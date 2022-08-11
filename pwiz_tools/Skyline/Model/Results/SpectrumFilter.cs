@@ -284,6 +284,10 @@ namespace pwiz.Skyline.Model.Results
                             }
                             dictPrecursorMzToFilter.Add(key, filter);
                         }
+                        else
+                        {
+                            filter.SetOrUnionWithTimeRange(minTime, maxTime);
+                        }
 
                         if (!EnabledMs)
                         {

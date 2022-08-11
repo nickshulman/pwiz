@@ -384,6 +384,40 @@ namespace pwiz.Skyline.Model.Results
             }
         }
 
+        /// <summary>
+        /// If MinTime and MaxTime have not already been set, then set them to the passed in values.
+        /// Otherwise, set MinTime and MaxTime to a time range which encompasses both the current
+        /// time range and the new passed in range.
+        /// </summary>
+        public void SetOrUnionWithTimeRange(double? minTime, double? maxTime)
+        {
+            if (minTime.HasValue)
+            {
+                if (_hasMinTime)
+                {
+                    _minTime = Math.Min(_minTime, minTime.Value);
+                }
+                else
+                {
+                    _hasMinTime = true;
+                    _minTime = minTime.Value;
+                }
+            }
+
+            if (maxTime.HasValue)
+            {
+                if (_hasMaxTime)
+                {
+                    _maxTime = Math.Max(_maxTime, maxTime.Value);
+                }
+                else
+                {
+                    _hasMaxTime = true;
+                    _maxTime = maxTime.Value;
+                }
+            }
+        }
+
         public bool HasIonMobilityFAIMS()
         {
             return IonMobilityInfo.HasIonMobilityValue && 

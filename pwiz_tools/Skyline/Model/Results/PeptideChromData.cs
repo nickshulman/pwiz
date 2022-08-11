@@ -877,20 +877,6 @@ namespace pwiz.Skyline.Model.Results
 
         private void AddDataSet(ChromDataSet chromDataSet)
         {
-            if (DataSets.Count != 0)
-            {
-                var firstMaxTime = DataSets[0].FirstKey.OptionalMaxTime;
-                var nextMaxTime = chromDataSet.FirstKey.OptionalMaxTime;
-                if (firstMaxTime != nextMaxTime)
-                {
-                    string peptideName = NodePep == null ? string.Empty : NodePep.ModifiedSequenceDisplay;
-                    string message = string.Format(
-                        Resources.PeptideChromDataSets_AddDataSet_Unable_to_process_chromatograms_for_the_molecule___0___because_one_chromatogram_ends_at_time___1___and_the_other_ends_at_time___2___,
-                        peptideName, firstMaxTime, nextMaxTime);
-                    throw new InvalidOperationException(message);
-                }
-            }
-
             bool multiTranMatch = OptimizableRegression != null;
             // Only accept if mz is as good or better fit than what's already in list - if better, chuck out any previous values.
             // (If mz fit is the same, that will have been dealt with in FindAndMerge.)

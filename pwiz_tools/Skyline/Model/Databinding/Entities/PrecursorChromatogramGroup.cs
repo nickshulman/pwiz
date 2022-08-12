@@ -3,7 +3,7 @@ using pwiz.Skyline.Model.Results;
 
 namespace pwiz.Skyline.Model.Databinding.Entities
 {
-    public class PrecursorChromatogramGroup : SkylineObject
+    public class PrecursorChromatogramGroup : RootSkylineObject
     {
         private readonly Lazy<ChromatogramGroupInfo> _chromatogramGroupInfo;
         public PrecursorChromatogramGroup(PrecursorResult precursorResult) : base(precursorResult.DataSchema)

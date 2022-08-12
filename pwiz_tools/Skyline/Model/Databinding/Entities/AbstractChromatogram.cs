@@ -13,7 +13,7 @@ using pwiz.Skyline.Util.Extensions;
 
 namespace pwiz.Skyline.Model.Databinding.Entities
 {
-    public abstract class AbstractChromatogram : SkylineObject
+    public abstract class AbstractChromatogram : RootSkylineObject
     {
         private CachedValue<IList<CandidatePeak>> _candidatePeaks;
         protected AbstractChromatogram(SkylineDataSchema dataSchema) : base(dataSchema)

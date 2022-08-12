@@ -1,5 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using pwiz.Common.DataBinding.Attributes;
@@ -7,7 +6,7 @@ using pwiz.Skyline.Model.Results;
 
 namespace pwiz.Skyline.Model.Databinding.Entities
 {
-    public class ChromatogramGroup : SkylineObject
+    public class ChromatogramGroup : RootSkylineObject
     {
         private readonly ChromatogramCache _chromatogramCache;
         private readonly ChromatogramGroupInfo _chromatogramGroupInfo;
@@ -21,7 +20,6 @@ namespace pwiz.Skyline.Model.Databinding.Entities
         }
 
         public string CachePath { get { return _chromatogramCache.CachePath; } }
-
         public double PrecursorMz
         {
             get

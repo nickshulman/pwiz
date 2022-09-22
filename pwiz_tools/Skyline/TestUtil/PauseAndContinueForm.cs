@@ -18,11 +18,16 @@
  */
 
 using System;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Windows.Forms;
+using DigitalRune.Windows.Docking;
+using pwiz.Common.SystemUtil;
 using pwiz.Skyline;
+using pwiz.Skyline.Controls.Graphs;
 using pwiz.Skyline.Controls.Startup;
+using pwiz.Skyline.EditUI;
 using pwiz.Skyline.Util;
 using pwiz.Skyline.Util.Extensions;
 
@@ -32,10 +37,33 @@ namespace pwiz.SkylineTestUtil
     {
         private readonly string _linkUrl;
         private readonly bool _showMatchingPage;
+        private Form _screenshotForm;
+        private ScreenshotManager _screenshotManager;
 
-        public PauseAndContinueForm(string description = null, string link = null, bool showMatchingPages = false)
+        public PauseAndContinueForm(string description = null, string link = null, bool showMatchingPages = false, Form screenshotForm = null, ScreenshotManager screenshotManager = null)
         {
             InitializeComponent();
+            _screenshotForm = screenshotForm;
+            _screenshotManager = screenshotManager;
+
+            if (_screenshotForm != null && _screenshotManager != null)
+            {
+                if (_screenshotForm is DockableForm dockableForm && dockableForm.DockState != DockState.Floating) 
+                {
+                    // If this dockable window isn't a floating window, then caller meant to screenshot the Skyline window
+                    var parent = _screenshotForm.ParentForm;
+                    if (parent != null)
+                    {
+                        _screenshotForm = parent;
+                    }
+                }
+                // Show the copy buttons
+                btnCopyToClipBoard.Visible = btnCopyToClipBoard.Enabled = true;
+                if ((_screenshotForm is GraphSummary zgControl) && zgControl.GraphControl != null)
+                {
+                    btnCopyMetafileToClipboard.Visible = btnCopyMetafileToClipboard.Enabled = true; // Control is a metafile provider
+                }
+            }
             _linkUrl = link;
             if (!string.IsNullOrEmpty(link))
             {
@@ -81,9 +109,14 @@ namespace pwiz.SkylineTestUtil
             }
         }
 
+        protected override bool ShowWithoutActivation
+        {
+            get { return true; }    // Don't take activation away from SkylineWindow
+        }
+
         private static readonly object _pauseLock = new object();
 
-        public static void Show(string description = null, string link = null, bool showMatchingPages = false)
+        public static void Show(string description = null, string link = null, bool showMatchingPages = false, int? timeout = null, Form screenshotForm = null, ScreenshotManager screenshotManager = null)
         {
             ClipboardEx.UseInternalClipboard(false);
 
@@ -95,7 +128,7 @@ namespace pwiz.SkylineTestUtil
 
             RunUI(parentWindow, () =>
             {
-                var dlg = new PauseAndContinueForm(description, link, showMatchingPages) { Left = parentWindow.Left };
+                var dlg = new PauseAndContinueForm(description, link, showMatchingPages, screenshotForm, screenshotManager) { Left = parentWindow.Left };
                 const int spacing = 15;
                 var screen = Screen.FromControl(parentWindow);
                 if (parentWindow.Top > screen.WorkingArea.Top + dlg.Height + spacing)
@@ -123,7 +156,13 @@ namespace pwiz.SkylineTestUtil
             lock (_pauseLock)
             {
                 // Wait for an event on the pause lock, when the form is closed
-                Monitor.Wait(_pauseLock);
+                if (!Monitor.Wait(_pauseLock, timeout ?? -1))
+                {
+                    // Close the form programmatically if timeout is exceeded
+                    var form = FormUtil.OpenForms.FirstOrDefault(f => f is PauseAndContinueForm && f.IsHandleCreated);
+                    if (form != null)
+                        form.Close();
+                }
                 ClipboardEx.UseInternalClipboard();
                 if (SkylineWindow != null)
                     RunUI(SkylineWindow, () => SkylineWindow.UseKeysOverride = true);
@@ -177,5 +216,21 @@ namespace pwiz.SkylineTestUtil
         [DllImport("user32.dll")]
         [return: MarshalAs(UnmanagedType.Bool)]
         static extern bool SetForegroundWindow(IntPtr hWnd);
+
+        private void btnCopyToClipboard_Click(object sender, EventArgs e)
+        {
+            // Copy current window image to clipboard, with clean edges
+            _screenshotForm.Focus();
+            _screenshotManager.TakeNextShot(_screenshotForm);
+        }
+
+        private void btnCopyMetaFileToClipboard_Click(object sender, EventArgs e)
+        {
+            _screenshotForm.Focus();
+            if (_screenshotForm is GraphSummary zgControl)
+            {
+                CopyEmfToolStripMenuItem.CopyEmf(zgControl.GraphControl);
+            }
+        }
     }
 }

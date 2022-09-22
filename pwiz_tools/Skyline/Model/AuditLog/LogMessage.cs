@@ -74,8 +74,8 @@ namespace pwiz.Skyline.Model.AuditLog
         added_spectral_library,
         applied_peak_all,
         applied_peak_subsequent,
-        associated_peptides_with_protein,
         associated_peptides_with_proteins,
+        associated_peptides_with_protein_groups,
         canceled_import,
         changed_peak_bounds,
         changed_peak_bounds_of,
@@ -83,6 +83,7 @@ namespace pwiz.Skyline.Model.AuditLog
         changed_peak_end_all,
         changed_peak_start,
         changed_peak_start_all,
+        changed_quantitative,
         cleared_cell_in_document_grid,
         cleared_document_grid,
         cleared_document_grid_single,
@@ -178,7 +179,10 @@ namespace pwiz.Skyline.Model.AuditLog
         renamed_replicate,
         undocumented_change,
         modified_outside_of_skyline,
-        start_log_existing_doc
+        start_log_existing_doc,
+        edited_ion_mobility_library,
+        permuted_isotope_label_simple,
+        permuted_isotope_label_complete,
     } // N.B. as you add to this, consider whether or not the human-readable message may want to refuse the "peptide"->"molecule" translation for small molecule UI (see ModeUIInvariantMesdsageTypes below)
 
     /// <summary>
@@ -226,8 +230,8 @@ namespace pwiz.Skyline.Model.AuditLog
         MessageType.added_peptide_decoy,
         MessageType.added_peptide_decoys,
         MessageType.added_peptides_to_peptide_group_from_background_proteome,
-        MessageType.associated_peptides_with_protein,
         MessageType.associated_peptides_with_proteins,
+        MessageType.associated_peptides_with_protein_groups,
         MessageType.imported_fasta,
         MessageType.imported_fasta_paste,
         MessageType.inserted_proteins_fasta,

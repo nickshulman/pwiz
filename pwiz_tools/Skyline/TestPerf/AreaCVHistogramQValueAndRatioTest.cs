@@ -20,6 +20,10 @@ using System;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using pwiz.Skyline.Controls.Graphs;
+using pwiz.Skyline.EditUI;
+using pwiz.Skyline.Model;
+using pwiz.Skyline.Model.GroupComparison;
+using pwiz.Skyline.Model.Results;
 using pwiz.Skyline.Properties;
 using pwiz.SkylineTestUtil;
 
@@ -38,12 +42,12 @@ namespace TestPerf
             new AreaCVGraphDataStatistics(5847, 5847, 3.1, 7.45, 18608, 1.71, 0, 17, 0.50598024141351039, 0.53897463456577754, 0.13392089423903697),
             new AreaCVGraphDataStatistics(2494, 2494, 3.6500000000000004, 8.5, 13187, 1.56, 0, 42, 0.10081781341883254, 0.14358231591719073, 0.78357473269128686),
             new AreaCVGraphDataStatistics(2129, 2129, 3.9000000000000004, 8.5, 11312, 1.56, 0, 40, 0.095865665157771063, 0.13204738330975938, 0.81108557284299854),
-            new AreaCVGraphDataStatistics(50, 51, 0, 0, 247, 3.63, 0.28, 22, 2.2389780027334241, 2.2399595141700406, 0),
-            new AreaCVGraphDataStatistics(50, 51, 0, 0, 246, 2.1, 0.06, 24, 0.15889170898788108, 0.27004065040650405, 0.64634146341463417),
-            new AreaCVGraphDataStatistics(97, 99, 0, 0, 250, 3.63, 0.06, 12, 1.2490041523697495, 1.26328, 0.32),
-            new AreaCVGraphDataStatistics(201, 201, 3.7, 7, 247, 3.63, 0.28, 4, 2.2389780027334241, 2.239959514170041, 0),
-            new AreaCVGraphDataStatistics(203, 203, 3.7, 7, 246, 2.1, 0.06, 4, 0.15889170898788108, 0.2700406504065041, 0.64634146341463417),
-            new AreaCVGraphDataStatistics(233, 233, 3.7, 7, 250, 3.63, 0.06, 3, 1.2490041523697495, 1.2632800000000002, 0.32),
+            new AreaCVGraphDataStatistics(87, 88, 0, 0, 125, 6.63, 0.53, 4, 1.6731671213240806, 1.908, 0),
+            new AreaCVGraphDataStatistics(40, 41, 0, 0, 125, 6.55, 0.57000000000000006, 19, 2.1899170913612949, 2.21816, 0),
+            new AreaCVGraphDataStatistics(0, 0, 1.7976931348623157E+308, 0, 0, 0, 0, 0, 0, 0, 0),
+            new AreaCVGraphDataStatistics(123, 123, 4.45, 7, 125, 6.63, 0.53, 2, 1.6731671213240806, 1.9080000000000001, 0),
+            new AreaCVGraphDataStatistics(111, 111, 3.7, 7, 125, 6.55, 0.57000000000000006, 3, 2.1899170913612949, 2.21816, 0),
+            new AreaCVGraphDataStatistics(0, 111, 1.7976931348623157E+308, 0, 0, 0, 0, 0, 0, 0, 0),
         };
 
         private bool RecordData { get { return false; } }
@@ -51,9 +55,9 @@ namespace TestPerf
         [TestMethod]
         public void TestAreaCVHistogramQValuesAndRatios()
         {
-//            RunPerfTests = true;
+            // RunPerfTests = true;
             TestFilesPersistent = new[] { "." };  // All persistent. No saving
-            TestFilesZip = @"http://proteome.gs.washington.edu/software/test/skyline-perf/AreaCVHistogramQValueAndRatioTest.zip";
+            TestFilesZip = @"https://panoramaweb.org/_webdav/MacCoss/software/%40files/perftests/AreaCVHistogramQValueAndRatioTest.zip";
             RunFunctionalTest();
         }
 
@@ -69,11 +73,13 @@ namespace TestPerf
 
             TestHistogramQValues<AreaCVHistogramGraphPane>(SkylineWindow.ShowPeakAreaCVHistogram, 0);
             TestHistogramQValues<AreaCVHistogram2DGraphPane>(SkylineWindow.ShowPeakAreaCVHistogram2D, 4);
+            TestRefinementQvalue();
 
             OpenDocument(TestFilesDir.GetTestPath(@"Site54_Study9-1_standardcurves_083011_v1.sky"));
 
             TestHistogramRatios<AreaCVHistogramGraphPane>(SkylineWindow.ShowPeakAreaCVHistogram, 8);
             TestHistogramRatios<AreaCVHistogram2DGraphPane>(SkylineWindow.ShowPeakAreaCVHistogram2D, 11);
+            TestRefinementRatios();
 
             Assert.IsFalse(RecordData, "Successfully recorded data");
         }
@@ -84,7 +90,7 @@ namespace TestPerf
             {
                 showHistogram();
                 SkylineWindow.SetAreaCVPointsType(PointsTypePeakArea.targets);
-                SkylineWindow.SetNormalizationMethod(AreaCVNormalizationMethod.none);
+                SkylineWindow.SetNormalizationMethod(NormalizationMethod.NONE);
             });
 
             WaitForGraphs();
@@ -132,7 +138,7 @@ namespace TestPerf
             WaitForConditionUI(() => (qvalue1Data = GetCurrentData(pane)) != null);
             AreaCVGraphDataStatistics qvalue1Statistics = null;
             RunUI(() => qvalue1Statistics = new AreaCVGraphDataStatistics(qvalue1Data, pane.GetTotalBars()));
-            OpenAndChangeAreaCVProperties(graph, p => p.QValueCutoff = double.NaN);
+            OpenAndChangeAreaCVProperties(graph, p => p.QValueCutoff = null);
             AreaCVGraphData qvalueNaNData = null;
             WaitForConditionUI(() => (qvalueNaNData = GetCurrentData(pane)) != null);
             AreaCVGraphDataStatistics qvalueNaNStatistics = null;
@@ -147,7 +153,7 @@ namespace TestPerf
             {
                 showHistogram();
                 SkylineWindow.SetAreaCVPointsType(PointsTypePeakArea.targets);
-                SkylineWindow.SetNormalizationMethod(AreaCVNormalizationMethod.ratio, 0);
+                SkylineWindow.SetNormalizationMethod(NormalizeOption.RatioToFirstStandard(SkylineWindow.Document.Settings));
             });
 
             WaitForGraphs();
@@ -157,22 +163,171 @@ namespace TestPerf
             Assert.IsNotNull(toolbar);
 
             RunUI(() => toolbar.SetMinimumDetections(2));
-            OpenAndChangeAreaCVProperties(graph, p => p.QValueCutoff = double.NaN);
+            OpenAndChangeAreaCVProperties(graph, p => p.QValueCutoff = null);
 
             // Make sure toolbar is there, combo box items are correct and data is correct
             T pane;
             Assert.IsTrue(graph.TryGetGraphPane(out pane));
             Assert.IsTrue(pane.HasToolbar);
-            CollectionAssert.AreEqual(new[] { "Light", "Heavy", "All 15N", Resources.AreaCVToolbar_UpdateUI_Medians, Resources.AreaCVToolbar_UpdateUI_None}, toolbar.NormalizationMethods.ToArray());
+            CollectionAssert.AreEqual(new[] { NormalizeOption.DEFAULT.Caption, "Light", "Heavy", "All 15N", NormalizationMethod.EQUALIZE_MEDIANS.NormalizeToCaption, NormalizationMethod.NONE.NormalizeToCaption}, toolbar.NormalizationMethods.ToArray());
             AssertDataCorrect(pane, statsStartIndex++); // Light
 
-            RunUI(() => SkylineWindow.SetNormalizationMethod(AreaCVNormalizationMethod.ratio, 1));
+            RunUI(() => SkylineWindow.SetNormalizationMethod(NormalizeOption.FromIsotopeLabelType(SkylineWindow.Document.Settings.PeptideSettings.Modifications.RatioInternalStandardTypes[1])));
             WaitForGraphs();
             AssertDataCorrect(pane, statsStartIndex++); // Heavy
 
-            RunUI(() => SkylineWindow.SetNormalizationMethod(AreaCVNormalizationMethod.ratio, 2));
+            RunUI(() => SkylineWindow.SetNormalizationMethod(NormalizeOption.FromIsotopeLabelType(SkylineWindow.Document.Settings.PeptideSettings.Modifications.RatioInternalStandardTypes[2])));
             WaitForGraphs();
-            AssertDataCorrect(pane, statsStartIndex++); // All 15N
+            AssertDataCorrect(pane, statsStartIndex++, allowInvalid: true); // All 15N
+        }
+
+        private void TestRefinementQvalue()
+        {
+            var graphStates = new[] {(3, 9791, 10343, 61383), (3, 10501, 11038, 65526), (3, 8658, 9185, 54526), (3, 9395, 10426, 61914)};
+
+            // Verify refinement statistics are same as graph statistics
+            //RunUI(SkylineWindow.Undo);
+            RefineDlg refineDlg = ShowDialog<RefineDlg>(() => SkylineWindow.ShowRefineDlg());
+            RunUI(() =>
+            {
+                refineDlg.CVCutoff = 20;
+                refineDlg.QValueCutoff = 0.02;
+            });
+            OkDialog(refineDlg, refineDlg.OkDialog);
+            WaitForCondition(() =>
+            {
+                var doc = SkylineWindow.Document;
+                var refineDocState = (doc.PeptideGroupCount, doc.PeptideCount, doc.PeptideTransitionGroupCount,
+                    doc.PeptideTransitionCount);
+                return Equals(graphStates[0], refineDocState);
+            });
+            RunUI(SkylineWindow.Undo);
+
+            // Verify that a qvalue cutoff of 1.0 has the same effect as no qvalue cutoff
+            refineDlg = ShowDialog<RefineDlg>(() => SkylineWindow.ShowRefineDlg());
+            RunUI(() =>
+            {
+                refineDlg.CVCutoff = 20;
+                refineDlg.QValueCutoff = 1.0;
+            });
+            OkDialog(refineDlg, refineDlg.OkDialog);
+            WaitForCondition(() =>
+            {
+                var doc = SkylineWindow.Document;
+                var qvalue1State = (doc.PeptideGroupCount, doc.PeptideCount, doc.PeptideTransitionGroupCount,
+                    doc.PeptideTransitionCount);
+                return Equals(graphStates[1], qvalue1State);
+            });
+            RunUI(SkylineWindow.Undo);
+
+            refineDlg = ShowDialog<RefineDlg>(() => SkylineWindow.ShowRefineDlg());
+            RunUI(() =>
+            {
+                refineDlg.CVCutoff = 20;
+                refineDlg.QValueCutoff = null;
+            });
+            OkDialog(refineDlg, refineDlg.OkDialog);
+            WaitForCondition(() =>
+            {
+                var doc = SkylineWindow.Document;
+                var qvalueNanState = (doc.PeptideGroupCount, doc.PeptideCount, doc.PeptideTransitionGroupCount,
+                    doc.PeptideTransitionCount);
+                return Equals(graphStates[1], qvalueNanState);
+            });
+            RunUI(SkylineWindow.Undo);
+
+            // Verify refinement with minimum detections is same as graph state
+            refineDlg = ShowDialog<RefineDlg>(() => SkylineWindow.ShowRefineDlg());
+            RunUI(() =>
+            {
+                refineDlg.CVCutoff = 20;
+                refineDlg.QValueCutoff = 0.02;
+                refineDlg.MinimumDetections = 3;
+            });
+            OkDialog(refineDlg, refineDlg.OkDialog);
+            WaitForCondition(() =>
+            {
+                var doc = SkylineWindow.Document;
+                var refineDocState = (doc.PeptideGroupCount, doc.PeptideCount, doc.PeptideTransitionGroupCount,
+                    doc.PeptideTransitionCount);
+                return Equals(graphStates[2], refineDocState);
+            });
+            RunUI(SkylineWindow.Undo);
+
+            // Verify refinement with only Q-value works.
+            refineDlg = ShowDialog<RefineDlg>(() => SkylineWindow.ShowRefineDlg());
+            RunUI(() =>
+            {
+                refineDlg.QValueCutoff = 0.01;
+                refineDlg.MinimumDetections = 3;
+            });
+            OkDialog(refineDlg, refineDlg.OkDialog);
+            WaitForCondition(() =>
+            {
+                var doc = SkylineWindow.Document;
+                var refineDocState = (doc.PeptideGroupCount, doc.PeptideCount, doc.PeptideTransitionGroupCount,
+                    doc.PeptideTransitionCount);
+                return Equals(graphStates[3], refineDocState);
+            });
+            RunUI(SkylineWindow.Undo);
+        }
+
+        private void TestRefinementRatios()
+        {
+            var graphStates = new[] { (34, 111, 111, 333), (34, 0, 0, 0), (34, 0, 0, 0) };
+
+            // Normalize to light reference type
+            var refineDlg = ShowDialog<RefineDlg>(() => SkylineWindow.ShowRefineDlg());
+            RunUI(() =>
+            {
+                refineDlg.CVCutoff = 250;
+                refineDlg.CVRefineLabelType = IsotopeLabelType.light;
+            });
+            OkDialog(refineDlg, refineDlg.OkDialog);
+            WaitForCondition(() =>
+            {
+                var doc = SkylineWindow.Document;
+                var refineDocState = (doc.PeptideGroupCount, doc.PeptideCount, doc.PeptideTransitionGroupCount,
+                    doc.PeptideTransitionCount);
+
+                return Equals(graphStates[0], refineDocState);
+            });
+            RunUI(SkylineWindow.Undo);
+
+            // Normalize to heave reference type
+            refineDlg = ShowDialog<RefineDlg>(() => SkylineWindow.ShowRefineDlg());
+            RunUI(() =>
+            {
+                refineDlg.CVCutoff = 20;
+                refineDlg.CVRefineLabelType = IsotopeLabelType.heavy;
+            });
+            OkDialog(refineDlg, refineDlg.OkDialog);
+            WaitForCondition(() =>
+            {
+                var doc = SkylineWindow.Document;
+                var refineDocState = (doc.PeptideGroupCount, doc.PeptideCount, doc.PeptideTransitionGroupCount, 
+                    doc.PeptideTransitionCount);
+
+                return Equals(graphStates[1], refineDocState);
+            });
+            RunUI(SkylineWindow.Undo);
+
+            // Normalize to all 15N reference type
+            refineDlg = ShowDialog<RefineDlg>(() => SkylineWindow.ShowRefineDlg());
+            RunUI(() =>
+            {
+                refineDlg.CVCutoff = 20;
+                refineDlg.CVRefineLabelType = new IsotopeLabelType("all 15N", 0);
+            });
+            OkDialog(refineDlg, refineDlg.OkDialog);
+            WaitForCondition(() =>
+            {
+                var doc = SkylineWindow.Document;
+                var refineDocState = (doc.PeptideGroupCount, doc.PeptideCount, doc.PeptideTransitionGroupCount,
+                    doc.PeptideTransitionCount);
+
+                return Equals(graphStates[2], refineDocState);
+            });
         }
 
         private static AreaCVGraphData GetCurrentData(SummaryGraphPane pane)
@@ -185,10 +340,10 @@ namespace TestPerf
             return null;
         }
 
-        private void AssertDataCorrect(SummaryGraphPane pane, int statsIndex, bool record = true)
+        private void AssertDataCorrect(SummaryGraphPane pane, int statsIndex, bool record = true, bool allowInvalid = false)
         {
             AreaCVGraphData data = null;
-            WaitForConditionUI(() => (data = GetCurrentData(pane)) != null && data.IsValid);
+            WaitForConditionUI(() => (data = GetCurrentData(pane)) != null && (allowInvalid || data.IsValid));
             WaitForGraphs();
 
             RunUI(() =>

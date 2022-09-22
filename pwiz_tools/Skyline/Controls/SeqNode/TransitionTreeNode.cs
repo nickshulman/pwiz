@@ -21,6 +21,7 @@ using System.Diagnostics;
 using System.Drawing;
 using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Model;
+using pwiz.Skyline.Model.GroupComparison;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
 using pwiz.Skyline.Util.Extensions;
@@ -49,16 +50,10 @@ namespace pwiz.Skyline.Controls.SeqNode
         {
         }
 
-        public TransitionDocNode DocNode { get { return (TransitionDocNode)Model; } }
-
-        public PeptideDocNode PepNode
-        {
-            get
-            {
-                return (Parent != null && Parent.Parent != null ?
-                    ((PeptideTreeNode) Parent.Parent).DocNode : null);
-            }
-        }
+        public TransitionDocNode DocNode => (TransitionDocNode)Model;
+        public TransitionGroupDocNode TransitionGroupNode => ((TransitionGroupTreeNode)Parent)?.DocNode;
+        public PeptideDocNode PepNode => ((PeptideTreeNode)Parent?.Parent)?.DocNode;
+        public PeptideGroupDocNode PepGroupNode => ((PeptideGroupTreeNode)Parent?.Parent?.Parent)?.DocNode;
 
         public override string Heading
         {
@@ -75,9 +70,10 @@ namespace pwiz.Skyline.Controls.SeqNode
             if (peakImageIndex != StateImageIndex)
                 StateImageIndex = peakImageIndex;
 // ReSharper restore RedundantCheckBeforeAssignment
-            string label = DisplayText(DocNode, SequenceTree.GetDisplaySettings(PepNode));
+            string label = DisplayText(SequenceTree.GetDisplaySettings(PepNode), DocNode);
             if (!Equals(label, Text))
                 Text = label;
+            ForeColor = DocNode.ExplicitQuantitative ? SystemColors.WindowText : SystemColors.GrayText;
         }
         
         public int TypeImageIndex
@@ -138,14 +134,14 @@ namespace pwiz.Skyline.Controls.SeqNode
             return (int)SequenceTree.StateImageId.peak;
         }
 
-        public static string DisplayText(TransitionDocNode nodeTran, DisplaySettings settings)
+        public static string DisplayText(DisplaySettings settings, TransitionDocNode nodeTran)
         {
-            return GetLabel(nodeTran, GetResultsText(nodeTran, settings.Index, settings.RatioIndex));
+            return GetLabel(nodeTran, GetResultsText(settings, nodeTran));
         }
 
-        private static string GetResultsText(TransitionDocNode nodeTran, int index, int indexRatio)
+        private static string GetResultsText(DisplaySettings displaySettings, TransitionDocNode nodeTran)
         {
-            int? rank = nodeTran.GetPeakRankByLevel(index);
+            int? rank = nodeTran.GetPeakRankByLevel(displaySettings.ResultsIndex);
             string label = string.Empty;
             if (rank.HasValue && rank > 0)
             {
@@ -153,7 +149,15 @@ namespace pwiz.Skyline.Controls.SeqNode
                 string rankText = (nodeTran.IsMs1 ? @"i " : string.Empty) + rank;
                 label = string.Format(Resources.TransitionTreeNode_GetResultsText__0__, rankText);
             }
-            float? ratio = nodeTran.GetPeakAreaRatio(index, indexRatio);
+
+            float? ratio = null;
+            if (!Equals(displaySettings.NormalizationMethod, NormalizationMethod.NONE))
+            {
+                ratio = (float?)displaySettings.NormalizedValueCalculator.GetTransitionValue(displaySettings.NormalizationMethod,
+                    displaySettings.NodePep, nodeTran,
+                    displaySettings.ResultsIndex,
+                    nodeTran.GetChromInfoEntry(displaySettings.ResultsIndex));
+            }
             if (!ratio.HasValue)
                 return label;
 
@@ -165,7 +169,11 @@ namespace pwiz.Skyline.Controls.SeqNode
             Transition tran = nodeTran.Transition;
             string labelPrefix;
             const string labelPrefixSpacer = " - ";
-            if (tran.IsPrecursor())
+            if (nodeTran.ComplexFragmentIon.IsCrosslinked)
+            {
+                labelPrefix = nodeTran.ComplexFragmentIon.GetTargetsTreeLabel() + labelPrefixSpacer;
+            }
+            else if (tran.IsPrecursor())
             {
                 labelPrefix = nodeTran.FragmentIonName + Transition.GetMassIndexText(tran.MassIndex) + labelPrefixSpacer;
             }

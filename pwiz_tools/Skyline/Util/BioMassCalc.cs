@@ -21,7 +21,6 @@ using System.Collections.Generic;
 using System.Diagnostics.Contracts;
 using System.Globalization;
 using System.Linq;
-using System.Text.RegularExpressions;
 using pwiz.Common.Chemistry;
 using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Model.DocSettings;
@@ -265,6 +264,7 @@ namespace pwiz.Skyline.Util
         public const string Fe = "Fe";  // Iron
         public const string Ni = "Ni";  // Nickle
         public const string Cu = "Cu";  // Copper
+        public const string Cu65 = "Cu'";  // Copper65
         public const string Zn = "Zn";  // Zinc
         public const string Br = "Br";  // Bromine
         public const string Br81 = "Br'";  // Bromine81
@@ -306,6 +306,7 @@ namespace pwiz.Skyline.Util
                     { S33, new KeyValuePair<double, double>(32.971456, 0.99) },  // N.B. No idea if this 0.99 a realistic value 
                     { S34, new KeyValuePair<double, double>(33.967866, 0.99) },  // N.B. No idea if this 0.99 a realistic value 
                     { H3, new KeyValuePair<double, double>(3.01604928199, 0.99) },  // N.B. No idea if this is a realistic value 
+                    { Cu65, new KeyValuePair<double, double>(64.92778970, 0.99) },  // N.B. No idea if this is a realistic value 
                 };
 
         public static bool IsSkylineHeavySymbol(string symbol)
@@ -334,6 +335,8 @@ namespace pwiz.Skyline.Util
                 .ToArray().Concat(DICT_HEAVYSYMBOL_NICKNAMES.ToDictionary(kvp => kvp.Key, kvp => kvp.Value).ToArray())
                     .ToDictionary(kvp => kvp.Key,
                         kvp => kvp.Value.Replace(@"'", string.Empty).Replace(@"""", string.Empty));
+
+        private static readonly char[] HEAVYSYMBOL_HINTS = new char[] {'\'', '"', 'D', 'T'}; // If a formula does not contain any of these, it's not heavy labeled
 
         /// <summary>
         /// A list of Skyline-style isotope symbols (e.g. H')
@@ -390,12 +393,6 @@ namespace pwiz.Skyline.Util
         }
 
         /// <summary>
-        /// Regular expression for possible characters that end an atomic
-        /// symbol: capital letters, numbers or a space.
-        /// </summary>
-        private static readonly Regex REGEX_END_SYM = new Regex(@"[A-Z0-9 \-]");
-
-        /// <summary>
         /// Find the first atomic symbol in a given expression.
         /// </summary>
         /// <param name="expression">The expression to search</param>
@@ -404,10 +401,16 @@ namespace pwiz.Skyline.Util
         {
             // Skip the first character, since it is always the start of
             // the symbol, and then look for the end of the symbol.
-            Match match = REGEX_END_SYM.Match(expression, 1);
-            if (!match.Success)
-                return expression;
-            return expression.Substring(0, match.Index);
+            var i = 1;
+            foreach (var c in expression.Skip(1))
+            {
+                if (!char.IsLower(c) && c != '\'' && c != '"')
+                {
+                    return expression.Substring(0, i);
+                }
+                i++;
+            }
+            return expression;
         }
 
         private readonly Dictionary<string, double> _atomicMasses =
@@ -451,6 +454,8 @@ namespace pwiz.Skyline.Util
             AddMass(Fe, 55.845); //Unimod
             AddMass(Ni, 58.6934); //Unimod
             AddMass(Cu, 63.546); //Unimod
+            var massCu65 = IsotopeAbundances.Default[Cu].Keys[1]; // Just be consistent with the isotope masses we already use
+            AddMass(Cu65, massCu65);
             AddMass(Zn, 65.409); //Unimod
             AddMass(Br, 79.904); //Unimod
             AddMass(Br81, 80.9162897); //NIST
@@ -475,13 +480,31 @@ namespace pwiz.Skyline.Util
                     continue;
                 }
                 AddMass(entry.Key, entry.Value.AverageMass);
-			}
+            }
 
             // Add entries for isotope synonyms like D (H') and T (H")
             foreach (var kvp in DICT_HEAVYSYMBOL_NICKNAMES) 
             {
                 _atomicMasses.Add(kvp.Key, _atomicMasses[kvp.Value]);
             }
+        }
+
+        /// <summary>
+        /// Ensure that the entries for D and T are the same as the entries for H' and H".
+        /// </summary>
+        public static IsotopeAbundances AddHeavyNicknames(IsotopeAbundances isotopeAbundances)
+        {
+            var changes = new Dictionary<string, MassDistribution>();
+            foreach (var kvp in DICT_HEAVYSYMBOL_NICKNAMES)
+            {
+                MassDistribution massDistribution;
+                if (isotopeAbundances.TryGetValue(kvp.Value, out massDistribution))
+                {
+                    changes.Add(kvp.Key, massDistribution);
+                }
+            }
+
+            return isotopeAbundances.SetAbundances(changes);
         }
 
         public MassType MassType { get; private set; }
@@ -505,6 +528,32 @@ namespace pwiz.Skyline.Util
         public static bool ContainsIsotopicElement(string desc)
         {
             return DICT_HEAVYSYMBOL_TO_MONOSYMBOL.Keys.Any(desc.Contains); // Look for Cl', O", D, T etc
+        }
+
+        public static bool TryParseFormula(string formula, out Molecule resultMolecule, out string errMessage)
+        {
+            try
+            {
+                var unprocessed = formula;
+                var resultDict = new Dictionary<string, int>();
+                // ParseMass checks for unknown symbols, so it's useful to us as a syntax checking parser even if we don't care about mass
+                // N.B. Monoisotopic vs Average doesn't actually matter here as we're just interested in the atom counts in resultDict
+                MONOISOTOPIC.ParseMass(ref unprocessed, resultDict); 
+                if (unprocessed.Length > 0)
+                {
+                    MONOISOTOPIC.ThrowArgumentException(formula); // Did not parse completely
+                }
+
+                resultMolecule = Molecule.FromDict(resultDict);
+                errMessage = string.Empty;
+                return true;
+            }
+            catch (ArgumentException e)
+            {
+                resultMolecule = Molecule.Empty;
+                errMessage = e.Message;
+                return false;
+            }
         }
 
         /// <summary>
@@ -547,14 +596,53 @@ namespace pwiz.Skyline.Util
         {
             if (string.IsNullOrEmpty(desc))
                 return null;
-            var parse = DICT_HEAVYSYMBOL_TO_MONOSYMBOL.Aggregate(desc, (current, kvp) => current.Replace(kvp.Key, kvp.Value));
+            if (desc.IndexOfAny(HEAVYSYMBOL_HINTS) == -1)
+            {
+                return desc; // Nothing there that looks like a heavy label
+            }
+            var parse = desc;
             var dictAtomCounts = new Dictionary<string, int>();
-            ParseCounts(ref parse, dictAtomCounts, false);
+            var atomOrder = new List<string>(); // Returned as the original order of elements - e.g. C3C'4H2O7 => C,C',H,O
+            ParseCounts(ref parse, dictAtomCounts, false, atomOrder);
             if (!string.IsNullOrEmpty(parse))
             {
                 return desc; // That wasn't understood as a formula
             }
-            return dictAtomCounts.Aggregate(string.Empty, (current, pair) => current + string.Format(CultureInfo.InvariantCulture, @"{0}{1}", pair.Key, (pair.Value>1) ? pair.Value.ToString() : string.Empty)); 
+
+            // Look for any heavy isotopes in the formula and replace them with unlabeled versions
+            foreach (var kvp in dictAtomCounts.ToArray())
+            {
+                // For each heavy isotope in the formula
+                if (DICT_HEAVYSYMBOL_TO_MONOSYMBOL.TryGetValue(kvp.Key, out var unlabeled))
+                {
+                    dictAtomCounts.TryGetValue(unlabeled, out var count); // Get current count of unlabeled version, if any
+                    dictAtomCounts[unlabeled] = count + kvp.Value; // Add the heavy version's count to the unlabeled version's count
+                    dictAtomCounts.Remove(kvp.Key); // And remove heavy isotope from the formula
+                    // Preserve order - e.g. C3C'4H2O3 comes out as C7H2O3 and not something dependent on dictionary implementation like H2O3C7 etc
+                    var index = atomOrder.IndexOf(kvp.Key);
+                    if (index >= 0)
+                    {
+                        if (atomOrder.Contains(unlabeled))
+                        {
+                            atomOrder.RemoveAt(index); // Formula was mixed heavy and light - e.g. C and C'
+                        }
+                        else
+                        {
+                            atomOrder[index] = unlabeled; // Formula was all heavy - e.g. C' but no C
+                        }
+                    }
+                }
+            }
+
+            if (!atomOrder.Any())
+            {
+                return null;
+            }
+            return string.Concat(atomOrder.Select(atom =>
+            {
+                var atomCount = dictAtomCounts[atom];
+                return atomCount > 1 ? $@"{atom}{atomCount.ToString(CultureInfo.InvariantCulture)}" : atom;
+            })); 
         }
 
         /// <summary>
@@ -704,48 +792,86 @@ namespace pwiz.Skyline.Util
         /// an expression that might contain a minus sign, use <see cref="ParseMassExpression"/>.
         /// </summary>
         /// <param name="desc">Input description, and remaining string after parsing</param>
+        /// <param name="molReturn">Optional dictionary for returning the atoms and counts</param>
         /// <returns>Total mass of formula parsed</returns>
-        public double ParseMass(ref string desc)
+        public double ParseMass(ref string desc, Dictionary<string, int> molReturn = null)
         {
             double totalMass = 0.0;
             desc = desc.Trim();
             Molecule mol;
             Adduct adduct;
             string neutralFormula;
+            Dictionary<string, int> dict = null;
             if (IonInfo.IsFormulaWithAdduct(desc, out mol, out adduct, out neutralFormula))
             {
                 totalMass += mol.Sum(p => p.Value*GetMass(p.Key));
                 desc = string.Empty; // Signal that we parsed the whole thing
-                return totalMass;
+                if (molReturn != null)
+                {
+                    dict = mol.Dictionary.ToDictionary(kvp=>kvp.Key, kvp=>kvp.Value);
+                }
             }
-            while (desc.Length > 0)
+            else
             {
-                string sym = NextSymbol(desc);
-                double massAtom = GetMass(sym);
-
-                // Stop if unrecognized atom found.
-                if (massAtom == 0)
+                if (molReturn != null)
                 {
-                    // CONSIDER: Throw with a useful message?
-                    break;
+                    dict = new Dictionary<string, int>();
                 }
-
-                desc = desc.Substring(sym.Length);
-                int endCount = 0;
-                while (endCount < desc.Length && Char.IsDigit(desc[endCount]))
-                    endCount++;
-
-                long count = 1;
-                if (endCount > 0)
+                while (desc.Length > 0)
                 {
-                    if (!long.TryParse(desc.Substring(0, endCount), out count))
-                        count = long.MaxValue; // We know at this point that it should parse, so it's probably just too big
-                }
-                totalMass += massAtom * count;
+                    string sym = NextSymbol(desc);
+                    double massAtom = GetMass(sym);
 
-                desc = desc.Substring(endCount).TrimStart();
+                    // Stop if unrecognized atom found.
+                    if (massAtom == 0)
+                    {
+                        // CONSIDER: Throw with a useful message?
+                        break;
+                    }
+
+                    desc = desc.Substring(sym.Length);
+                    int endCount = 0;
+                    while (endCount < desc.Length && Char.IsDigit(desc[endCount]))
+                        endCount++;
+
+                    var count = 1;
+                    if (endCount > 0)
+                    {
+                        if (!int.TryParse(desc.Substring(0, endCount), out count))
+                            count = int.MaxValue; // We know at this point that it should parse, so it's probably just too big
+                    }
+                    totalMass += massAtom * count;
+                    if (dict != null)
+                    {
+                        if (dict.TryGetValue(sym, out var oldCount))
+                        {
+                            dict[sym] = count + oldCount;
+                        }
+                        else
+                        {
+                            dict.Add(sym, count);
+                        }
+                    }
+                    desc = desc.Substring(endCount).TrimStart();
+                }
             }
 
+            if (molReturn != null)
+            {
+                foreach (var kvp in dict)
+                {
+                    var sym = kvp.Key;
+                    var count = kvp.Value;
+                    if (molReturn.TryGetValue(sym, out var oldCount))
+                    {
+                        molReturn[sym] = count + oldCount;
+                    }
+                    else
+                    {
+                        molReturn.Add(sym, count);
+                    }
+                }
+            }
             return totalMass;            
         }
 
@@ -789,7 +915,8 @@ namespace pwiz.Skyline.Util
         /// <param name="desc">Molecular formula</param>
         /// <param name="dictAtomCounts">Dictionary of atomic symbols and counts (may already contain counts from other formulas)</param>
         /// <param name="negative">True if counts should be subtracted</param>
-        public void ParseCounts(ref string desc, IDictionary<string, int> dictAtomCounts, bool negative)
+        /// <param name="atomOrder">If non-null, used to note order of appearance of atomic symbols in formula</param>
+        public void ParseCounts(ref string desc, IDictionary<string, int> dictAtomCounts, bool negative, IList<string> atomOrder=null)
         {
             if (string.IsNullOrEmpty(desc))
             {
@@ -802,7 +929,7 @@ namespace pwiz.Skyline.Util
                 {
                     // As is deprotonation description ie C12H8O2-H (=C12H7O2) or even C12H8O2-H2O (=C12H6O)
                     desc = desc.Substring(1);
-                    ParseCounts(ref desc, dictAtomCounts, !negative);
+                    ParseCounts(ref desc, dictAtomCounts, !negative, atomOrder);
                     break;
                 }
                 string sym = NextSymbol(desc);
@@ -828,9 +955,17 @@ namespace pwiz.Skyline.Util
                     count = -count;
 
                 if (dictAtomCounts.ContainsKey(sym))
+                {
                     dictAtomCounts[sym] += count;
+                }
                 else
+                {
                     dictAtomCounts.Add(sym, count);
+                    if (atomOrder != null)
+                    {
+                        atomOrder.Add(sym);
+                    }
+                }
 
                 if (dictAtomCounts[sym] == 0)
                     dictAtomCounts.Remove(sym);

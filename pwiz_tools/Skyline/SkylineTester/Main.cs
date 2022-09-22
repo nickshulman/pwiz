@@ -72,7 +72,7 @@ namespace SkylineTester
             AcceptButton = null;
 
             // Update elapsed time display.
-            _runStartTime = DateTime.Now;
+            ResetElapsedTime();
             commandShell.RunStartTime = _runStartTime;
             if (_runTimer != null)
             {
@@ -82,7 +82,7 @@ namespace SkylineTester
             _runTimer = new Timer { Interval = 1000 };
             _runTimer.Tick += (s, a) =>
             {
-                var elapsedTime = DateTime.Now - _runStartTime;
+                var elapsedTime = RunElapsedTime;
                 statusRunTime.Text = "{0}:{1:D2}:{2:D2}".With(elapsedTime.Hours, elapsedTime.Minutes, elapsedTime.Seconds);
             };
             _runTimer.Start();
@@ -123,12 +123,12 @@ namespace SkylineTester
 
         public TimeSpan RunElapsedTime
         {
-            get { return DateTime.Now - _runStartTime; }
+            get { return DateTime.UtcNow - _runStartTime; }  // Use UtcNow to avoid hiccups with tests running during DST changeover
         }
 
         public void ResetElapsedTime()
         {
-            _runStartTime = DateTime.Now;
+            _runStartTime = DateTime.UtcNow; // Use UtcNow to avoid hiccups with tests running during DST changeover
         }
 
         public void StopByTimer()
@@ -311,6 +311,7 @@ namespace SkylineTester
 
         public void Restart()
         {
+            commandShell.InsertPause();
             commandShell.NextCommand = 0;
             RunCommands();
         }
@@ -594,7 +595,7 @@ namespace SkylineTester
 
                 if (Devenv == null)
                 {
-                    MessageBox.Show("Visual Studio 2017 is required to build Skyline.");
+                    MessageBox.Show("Visual Studio " + MINIMUM_VISUAL_STUDIO + " (or newer) is required to build Skyline.");
                     return false;
                 }
 
@@ -614,20 +615,31 @@ namespace SkylineTester
             Devenv = GetExistingVsIdeFilePath("devenv.exe");
         }
 
+        public const int MINIMUM_VISUAL_STUDIO = 2017;
         public static string GetExistingVsIdeFilePath(string relativePath)
         {
-            string programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
+            var programFiles = new[]
+            {
+                Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
+                Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86)
+            };
             string[] pathTrials = 
             {
-                @"Microsoft Visual Studio\2017\Enterprise\Common7\IDE",  // Enterprise edition of VS 2017
-                @"Microsoft Visual Studio\2017\Community\Common7\IDE",  // Community edition of VS 2017
-                @"Microsoft Visual Studio 12.0\Common7\IDE" // Prior installation of VS 2013
+                @"Microsoft Visual Studio\{0}\Enterprise\Common7\IDE",  
+                @"Microsoft Visual Studio\{0}\Professional\Common7\IDE",
+                @"Microsoft Visual Studio\{0}\Community\Common7\IDE",   
             };
-            foreach (var pathTrial in pathTrials)
+            for (var version = 2040; version >= MINIMUM_VISUAL_STUDIO; version--) // 2040 is completely arbitrary
             {
-                string path = Path.Combine(Path.Combine(programFiles, pathTrial), relativePath);
-                if (File.Exists(path))
-                    return path;
+                foreach (var pathTrial in pathTrials)
+                {
+                    foreach (var programFilesDir in programFiles)
+                    {
+                        var path = Path.Combine(Path.Combine(programFilesDir, string.Format(pathTrial, version)), relativePath);
+                        if (File.Exists(path))
+                            return path;
+                    }
+                }
             }
 
             return null;

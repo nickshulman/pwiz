@@ -28,9 +28,11 @@ namespace TestPerf
         [TestMethod]
         public void TestMs3Chromatograms()
         {
+//            RunPerfTests = true;
+
             TestFilesZipPaths = new[]
             {
-                "https://skyline.gs.washington.edu/perftests/PerfMs3ChromatogramTest_v1.zip",
+                GetPerfTestDataURL(@"PerfMs3ChromatogramTest_v1.zip"),
                 @"TestPerf\PerfMs3ChromatogramTest.zip"
             };
             RunFunctionalTest();

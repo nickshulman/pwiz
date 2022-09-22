@@ -23,6 +23,7 @@ using System.Linq;
 using System.Text.RegularExpressions;
 using System.Windows.Forms;
 using System.IO;
+using pwiz.Common.Collections;
 using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Alerts;
 using pwiz.Skyline.Model.Results;
@@ -30,6 +31,7 @@ using pwiz.Skyline.Model.Results.RemoteApi;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
 using pwiz.Skyline.Util.Extensions;
+
 
 namespace pwiz.Skyline.FileUI
 {
@@ -83,7 +85,7 @@ namespace pwiz.Skyline.FileUI
                 (int) ImageIndex.MyNetworkPlaces);
             unifiNode.Tag = RemoteUrl.EMPTY;
             lookInComboBox.Items.Add(unifiNode);
-            chorusButton.Visible = true;
+            remoteAccountsButton.Visible = true;
             recentDocumentsButton.Visible = false;
 
             TreeNode desktopNode = tv.Nodes.Add(@"Desktop",
@@ -178,7 +180,7 @@ namespace pwiz.Skyline.FileUI
                 {
                     return;
                 }
-                ChorusContentsAvailable();
+                RemoteContentsAvailable();
             };
         }
 
@@ -427,7 +429,7 @@ namespace pwiz.Skyline.FileUI
                         Application.DoEvents();
                         if (_abortPopulateList)
                         {
-                            //MessageBox.Show( "abort" );
+                            //MessageDlg.Show( "abort" );
                             break;
                         }
                     }
@@ -440,7 +442,7 @@ namespace pwiz.Skyline.FileUI
                             Application.DoEvents();
                             if (_abortPopulateList)
                             {
-                                //MessageBox.Show( "abort" );
+                                //MessageDlg.Show( "abort" );
                                 break;
                             }
                         }
@@ -457,15 +459,29 @@ namespace pwiz.Skyline.FileUI
                 }
             }
 
+            listSourceInfo = listSourceInfo.Where(l => l != null).ToList(); // Ignore null entries in order to not confuse sort
+
+            // Sorts files and folders in natural order rather than lexicographically with folders being prioritized (sorted above files)
+            // e.g. (a1.txt, b10.folder, b2.folder, c6.txt --> b2.folder, b10.folder, a1.txt, c6.txt)
+            listSourceInfo.Sort((x, y) =>
+            {
+                // Check to see if one element is a folder. If so regardless of name it will always prioritized over a file.
+                if (x.isFolder != y.isFolder)
+                {
+                    return x.isFolder ? -1 : 1; 
+                }
+                return NaturalComparer.Compare(x.name, y.name); // Use normal compare if both elements are of the same type (folder vs folder, file vs file)
+            }); // Sorts by natural sort order for easier more natural readability e.g. (A1.raw, A22.raw, A5.raw --> A1.raw, A5.raw, A22.raw)
+
+
             // Populate the list
             var items = new List<ListViewItem>();
             foreach (var sourceInfo in listSourceInfo)
             {
-                if (sourceInfo != null &&
-                        (sourceTypeComboBox.SelectedIndex == 0 ||
+                if (sourceTypeComboBox.SelectedIndex == 0 ||
                             sourceTypeComboBox.SelectedItem.ToString() == sourceInfo.type ||
                             // Always show folders
-                            sourceInfo.isFolder))
+                            sourceInfo.isFolder)
                 {
                     ListViewItem item = new ListViewItem(sourceInfo.ToArray(), (int) sourceInfo.imageIndex)
                     {
@@ -480,7 +496,7 @@ namespace pwiz.Skyline.FileUI
             listView.Items.AddRange(items.ToArray());
         }
 
-        private void ChorusContentsAvailable()
+        private void RemoteContentsAvailable()
         {
             // ReSharper disable EmptyGeneralCatchClause
             try
@@ -505,13 +521,13 @@ namespace pwiz.Skyline.FileUI
             // ReSharper restore EmptyGeneralCatchClause
         }
 
-        private RemoteAccount GetRemoteAccount(RemoteUrl chorusUrl)
+        private RemoteAccount GetRemoteAccount(RemoteUrl remoteUrl)
         {
             return
                 _remoteAccounts.FirstOrDefault(
-                    chorusAccount =>
-                        Equals(chorusAccount.ServerUrl, chorusUrl.ServerUrl) &&
-                        Equals(chorusAccount.Username, chorusUrl.Username));
+                    remoteAccount =>
+                        Equals(remoteAccount.ServerUrl, remoteUrl.ServerUrl) &&
+                        Equals(remoteAccount.Username, remoteUrl.Username));
         }
 
         private static DateTime? GetSafeDateModified(FileSystemInfo dirInfo)
@@ -662,9 +678,14 @@ namespace pwiz.Skyline.FileUI
 
         private void OpenFolderItem(ListViewItem listViewItem)
         {
+            OpenFolder(((SourceInfo) listViewItem.Tag).MsDataFileUri);
+        }
+
+        private void OpenFolder(MsDataFileUri uri)
+        {
             if (_currentDirectory != null)
                 _previousDirectories.Push(_currentDirectory);
-            CurrentDirectory = ((SourceInfo) listViewItem.Tag).MsDataFileUri;
+            CurrentDirectory = uri;
             _abortPopulateList = true;
         }
 
@@ -741,11 +762,20 @@ namespace pwiz.Skyline.FileUI
                     fileOrDirName = Path.Combine(currentDirectoryPath.FilePath, fileOrDirName);
                     triedAddingDirectory = true;
                 }
-                if (exists && DataSourceUtil.IsDataSource(fileOrDirName))
+
+                if (exists)
                 {
-                    DataSources = new[] {MsDataFileUri.Parse(fileOrDirName)};
-                    DialogResult = DialogResult.OK;
-                    return;
+                    if (DataSourceUtil.IsDataSource(fileOrDirName))
+                    {
+                        DataSources = new[] {MsDataFileUri.Parse(fileOrDirName)};
+                        DialogResult = DialogResult.OK;
+                        return;
+                    }
+                    else if (Directory.Exists(fileOrDirName))
+                    {
+                        OpenFolder(new MsDataFilePath(fileOrDirName));
+                        return;
+                    }
                 }
             }
 // ReSharper disable once EmptyGeneralCatchClause
@@ -883,7 +913,7 @@ namespace pwiz.Skyline.FileUI
             }
         }
 
-        private void chorusButton_Click( object sender, EventArgs e )
+        private void remoteAccountsButton_Click( object sender, EventArgs e )
         {
             CurrentDirectory = RemoteUrl.EMPTY;
         }

@@ -20,6 +20,7 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Drawing;
 using System.Linq;
 using System.Windows.Forms;
 using pwiz.Common.Collections;
@@ -38,6 +39,8 @@ namespace pwiz.Skyline.Controls.Databinding
         private readonly SkylineWindow _skylineWindow;
         private IList<AnnotationDef> _annotations;
 
+        public DocumentGridForm() : this(null, null) {} // For designer
+
         public DocumentGridForm(SkylineViewContext viewContext) :
             this(viewContext, null)
         {
@@ -46,10 +49,12 @@ namespace pwiz.Skyline.Controls.Databinding
         public DocumentGridForm(SkylineViewContext viewContext, string text) 
         {
             InitializeComponent();
-            BindingListSource.QueryLock = viewContext.SkylineDataSchema.QueryLock;
             if (!string.IsNullOrEmpty(text))
                 Text = text;
             _originalFormTitle = Text;
+            if (viewContext == null)    // For designer
+                return;
+            BindingListSource.QueryLock = viewContext.SkylineDataSchema.QueryLock;
             BindingListSource.SetViewContext(viewContext);
             BindingListSource.ListChanged += BindingListSourceOnListChanged;
             _skylineWindow = viewContext.SkylineDataSchema.SkylineWindow;
@@ -124,6 +129,14 @@ namespace pwiz.Skyline.Controls.Databinding
             }
         }
 
+        public override DataGridId DataGridId
+        {
+            get
+            {
+                return new DataGridId(DataGridType.DOCUMENT_GRID, null);
+            }
+        }
+
         public bool ShowViewsMenu
         {
             get
@@ -187,6 +200,18 @@ namespace pwiz.Skyline.Controls.Databinding
             }
 
             return true;
+        }
+
+        //Adjusts column width to make sure the headers are displayed in a single line. Used for tutorials testing.
+        public void ExpandColumns()
+        {
+            using (Graphics g = DataGridView.CreateGraphics())
+            {
+                foreach (DataGridViewColumn col in DataGridView.Columns)
+                {
+                    col.Width = (int)g.MeasureString(col.HeaderText, DataGridView.Font).Width + 40;
+                }
+            }
         }
 
         private void DocumentGridForm_KeyDown(object sender, KeyEventArgs e)

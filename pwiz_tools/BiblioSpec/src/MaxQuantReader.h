@@ -74,10 +74,11 @@ public:
     double pep;
     double score;
     int labelingState;
+    int evidenceID; // index into evidence.txt file for ion mobility info
     string masses;
     string intensities;
 
-    MaxQuantLine() : scanNumber(0), mz(0), charge(0), retentionTime(0), score(0), labelingState(-1) {}
+    MaxQuantLine() : scanNumber(0), mz(0), charge(0), retentionTime(0), score(0), labelingState(-1), evidenceID(-1) {}
 
     static void insertRawFile(MaxQuantLine& le, const string& value)
     {
@@ -122,6 +123,10 @@ public:
     static void insertLabelingState(MaxQuantLine& le, const string& value)
     {
         le.labelingState = (value.empty()) ? -1 : lexical_cast<int>(value);
+    }
+    static void insertEvidenceID(MaxQuantLine& le, const string& value)
+    {
+        le.evidenceID = (value.empty()) ? -1 : lexical_cast<int>(value);
     }
     static void insertMasses(MaxQuantLine& le, const string& value)
     {
@@ -174,6 +179,7 @@ public:
     ~MaxQuantReader();
     
     bool parseFile();
+    vector<PSM_SCORE_TYPE> getScoreTypes();
     // these inherited from SpecFileReader
     virtual void openFile(const char*, bool);
     virtual void setIdType(SPEC_ID_TYPE);
@@ -192,6 +198,7 @@ private:
     string paramsPath_;
     double scoreThreshold_;
     int lineNum_;
+    int lineCount_;
     map< string, vector<MaxQuantPSM*> > fileMap_; // store psms by filename
     MaxQuantPSM* curMaxQuantPSM_; // use this instead of curPSM_
     vector<MaxQuantColumnTranslator> targetColumns_; // columns to extract
@@ -199,20 +206,25 @@ private:
     map<string, MaxQuantModification> modBank_;   // full mod name -> delta mass
     map< MaxQuantModification::MAXQUANT_MOD_POSITION, vector<const MaxQuantModification*> > fixedModBank_;
     vector<MaxQuantLabels> labelBank_;
+    vector<double> inverseK0_; // optionally parsed from evidence.txt
+    vector<double> CCS_; // optionally parsed from evidence.txt
 
     void initTargetColumns();
     void initModifications();
     void initFixedModifications();
     bool openFile();
     void parseHeader(std::string& line);
+    void getFilenamesAndLineCount();
     void collectPsms();
     void storeLine(MaxQuantLine& entry);
     void addDoublesToVector(vector<double>& v, const string& valueList);
-    void addModsToVector(vector<SeqMod>& v, const string& modifications, string modSequence);
+    void addModsToVector(vector<SeqMod>& v, const string& modifications, string modSequence, const string& unmodSequence);
     void addLabelModsToVector(vector<SeqMod>& v, const string& rawFile, const string& sequence, int labelingState);
     SeqMod searchForMod(vector<string>& modNames, const string& modSequence, int& posOpenParen);
     static int getModPosition(const string& modSeq, int posOpenParen);
+    void addFixedMods(vector<SeqMod>& v, const string& seq, const map< MaxQuantModification::MAXQUANT_MOD_POSITION, vector<const MaxQuantModification*> >& modsByPosition);
     vector<SeqMod> getFixedMods(char aa, int aaPosition, const vector<const MaxQuantModification*>& mods);
+    void initEvidence();  // optionally parse ion mobility info from evidence.txt
 
     const escaped_list_separator<char> separator_;
 };

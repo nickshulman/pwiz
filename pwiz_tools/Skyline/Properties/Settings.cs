@@ -19,6 +19,7 @@
 using System;
 using System.Collections.Generic;
 using System.Configuration;
+using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Xml.Serialization;
@@ -34,7 +35,6 @@ using pwiz.Skyline.Model.Irt;
 using pwiz.Skyline.Model.Lib;
 using pwiz.Skyline.Model.Optimization;
 using pwiz.Skyline.Model.Proteome;
-using pwiz.Skyline.Model.Results.RemoteApi;
 using pwiz.Skyline.Model.Results.Scoring;
 using pwiz.Skyline.Model.RetentionTimes;
 using pwiz.Skyline.Model.Tools;
@@ -50,6 +50,7 @@ using pwiz.Skyline.Controls.Graphs;
 using pwiz.Skyline.Model.DocSettings.AbsoluteQuantification;
 using pwiz.Skyline.Model.GroupComparison;
 using pwiz.Skyline.Model.Lists;
+using pwiz.Skyline.Model.Results;
 using pwiz.Skyline.Model.Themes;
 using pwiz.Skyline.Util.Extensions;
 
@@ -120,6 +121,18 @@ namespace pwiz.Skyline.Properties
             catch (Exception)
             {
                 // Ignore exceptions
+            }
+        }
+
+        /// <summary>
+        /// Clears internal cache of original serialized settings values and resets all settings to their default value.
+        /// </summary>
+        public new void Reset()
+        {
+            lock (this)
+            {
+                _originalSerializedValues.Clear();
+                base.Reset();
             }
         }
 
@@ -300,6 +313,32 @@ namespace pwiz.Skyline.Properties
                 };
 
                 this[@"AreaGraphTypes"] = value;
+            }
+        }
+
+        [UserScopedSettingAttribute]
+        public UniqueList<GraphTypeSummary> DetectionGraphTypes
+        {
+            get
+            {
+                if (this[@"DetectionGraphTypes"] == null)
+                {
+                    DetectionGraphTypes = ShowDetectionGraph
+                        ? new UniqueList<GraphTypeSummary> { Helpers.ParseEnum(DetectionGraphType, GraphTypeSummary.detections) }
+                        : new UniqueList<GraphTypeSummary>();
+                }
+
+                return (UniqueList<GraphTypeSummary>)this[@"DetectionGraphTypes"];
+            }
+            set
+            {
+                value.CollectionChanged += (sender, args) =>
+                {
+                    if (DetectionGraphTypes.Any())
+                        DetectionGraphType = DetectionGraphTypes.First().ToString();
+                };
+
+                this[@"DetectionGraphTypes"] = value;
             }
         }
 
@@ -488,6 +527,47 @@ namespace pwiz.Skyline.Properties
                 this[@"CustomMoleculeTransitionInsertColumnsList"] = value;
             }
         }
+
+        [UserScopedSettingAttribute]
+        // Used to make sure that last seen Transition List headers match the current headers
+        // before proceeding with using saved column locations
+        public List<string> CustomImportTransitionListHeaders
+        {
+            get
+            {
+                if (this[@"CustomImportTransitionListHeaders"] == null)
+                {
+                    var list = new List<string>();
+                    CustomImportTransitionListHeaders = list;
+                }
+                return (List<string>)this[@"CustomImportTransitionListHeaders"];
+            }
+            set
+            {
+                this[@"CustomImportTransitionListHeaders"] = value;
+            }
+        }
+
+        [UserScopedSettingAttribute]
+        // Saves column type positions between transition lists. This way when a user tell us the correct column positions they are carried
+        // on to the next transition list. Normally these are saved in invariant language (en) but we can read localized for backward compatibility
+        public List<string> CustomImportTransitionListColumnTypesList
+        {
+            get
+            {
+                if (this[@"CustomImportTransitionListColumnTypesList"] == null)
+                {
+                    var list = new List<string>();
+                    CustomImportTransitionListColumnTypesList = list;
+                }
+                return (List <string>)this[@"CustomImportTransitionListColumnTypesList"];
+            }
+            set
+            {
+                this[@"CustomImportTransitionListColumnTypesList"] = value;
+            }
+        }
+
         [UserScopedSettingAttribute]
         public EnzymeList EnzymeList
         {
@@ -772,8 +852,8 @@ namespace pwiz.Skyline.Properties
         {
             // Null return is valid for this list, and means no retention time
             // calculation should be applied.
-            RetentionTimeRegression regression;
-            if (RetentionTimeList.TryGetValue(name, out regression))
+            RetentionTimeRegression regression = null;
+            if (!string.IsNullOrEmpty(name) && RetentionTimeList.TryGetValue(name, out regression))
             {
                 if (regression.GetKey() == RetentionTimeList.GetDefault().GetKey())
                     regression = null;
@@ -837,48 +917,28 @@ namespace pwiz.Skyline.Properties
                 this[typeof(RTScoreCalculatorList).Name] = value;
             }
         }
-        
-        public IonMobilityPredictor GetDriftTimePredictorByName(string name)
-        {
-            // Null return is valid for this list, and means no ion mobility
-            // calculation should be applied.
-            IonMobilityPredictor predictor;
-            if (DriftTimePredictorList.TryGetValue(name, out predictor))
-            {
-                if (predictor.GetKey() == DriftTimePredictorList.GetDefault().GetKey())
-                    predictor = null;
-            }
-            return predictor;
-        }
 
         [UserScopedSettingAttribute]
-        public DriftTimePredictorList DriftTimePredictorList
+        public IrtStandardList IrtStandardList
         {
             get
             {
-                DriftTimePredictorList list = (DriftTimePredictorList)this[typeof(DriftTimePredictorList).Name];
+                var list = (IrtStandardList) this[typeof(IrtStandardList).Name];
+
                 if (list == null)
                 {
-                    list = new DriftTimePredictorList();
+                    list = new IrtStandardList();
                     list.AddDefaults();
-                    DriftTimePredictorList = list;
-                }
-                else
-                {
-                    list.EnsureDefault();
+                    IrtStandardList = list;
                 }
                 return list;
             }
-            set
-            {
-                this[typeof(DriftTimePredictorList).Name] = value;
-            }
+            set => this[typeof(IrtStandardList).Name] = value;
         }
 
-        public IonMobilityLibrarySpec GetIonMobilityLibraryByName(string name)
+        public IonMobilityLibrary GetIonMobilityLibraryByName(string name)
         {
-            IonMobilityLibrarySpec dtLib;
-            return !IonMobilityLibraryList.TryGetValue(name, out dtLib) ? null : dtLib;
+            return !IonMobilityLibraryList.TryGetValue(name, out var dtLib) ? null : dtLib;
         }
 
         [UserScopedSettingAttribute]
@@ -1150,21 +1210,6 @@ namespace pwiz.Skyline.Properties
         }
 
         [UserScopedSetting]
-        public bool EnableChorus
-        {
-            get
-            {
-                var value = this[@"EnableChorus"];
-                if (value == null)
-                {
-                    return false;
-                }
-                return (bool) value;
-            }
-            set { this[@"EnableChorus"] = value; }
-        }
-
-        [UserScopedSetting]
         public CalibrationCurveOptions CalibrationCurveOptions
         {
             get { 
@@ -1197,6 +1242,52 @@ namespace pwiz.Skyline.Properties
                 return colorSchemes;
             }
             set { this[@"ColorSchemes"] = value; }
+        }
+
+        [UserScopedSetting]
+        public MetadataRuleSetList MetadataRuleSets
+        {
+            get
+            {
+                var ruleSets = (MetadataRuleSetList) this[nameof(MetadataRuleSets)];
+                if (ruleSets == null)
+                {
+                    ruleSets = new MetadataRuleSetList();
+                    ruleSets.AddDefaults();
+                    MetadataRuleSets = ruleSets;
+                }
+
+                return ruleSets;
+            }
+            set
+            {
+                this[nameof(MetadataRuleSets)] = value;
+            }
+        }
+
+        [UserScopedSetting]
+        public string NormalizeOptionValue
+        {
+            get
+            {
+                return (string) this[nameof(NormalizeOptionValue)];
+            }
+            set
+            {
+                this[nameof(NormalizeOptionValue)] = value;
+            }
+        }
+
+        public NormalizeOption AreaNormalizeOption
+        {
+            get
+            {
+                return NormalizeOption.FromPersistedName(NormalizeOptionValue);
+            }
+            set
+            {
+                NormalizeOptionValue = value.PersistedName;
+            }
         }
     }
 
@@ -1875,7 +1966,7 @@ namespace pwiz.Skyline.Properties
 
     public sealed class DeclusterPotentialList : SettingsList<DeclusteringPotentialRegression>
     {
-        private static readonly DeclusteringPotentialRegression NONE =
+        public static readonly DeclusteringPotentialRegression NONE =
             new DeclusteringPotentialRegression(ELEMENT_NONE, 0, 0);
 
         public override int RevisionIndexCurrent { get { return 1; } }
@@ -1944,7 +2035,7 @@ namespace pwiz.Skyline.Properties
 
     public sealed class CompensationVoltageList : SettingsList<CompensationVoltageParameters>
     {
-        private static readonly CompensationVoltageParameters NONE = new CompensationVoltageParameters(ELEMENT_NONE, 0, 0, 0, 0, 0);
+        public static readonly CompensationVoltageParameters NONE = new CompensationVoltageParameters(ELEMENT_NONE, 0, 0, 0, 0, 0);
 
         public override int RevisionIndexCurrent { get { return 1; } }
 
@@ -2007,10 +2098,11 @@ namespace pwiz.Skyline.Properties
     
     public sealed class RTScoreCalculatorList : SettingsListNotifying<RetentionScoreCalculatorSpec>
     {
-        private static readonly RetentionScoreCalculator[] DEFAULTS =
+        public static readonly RetentionScoreCalculator[] DEFAULTS =
         {
             new RetentionScoreCalculator(RetentionTimeRegression.SSRCALC_100_A),
-            new RetentionScoreCalculator(RetentionTimeRegression.SSRCALC_300_A)
+            new RetentionScoreCalculator(RetentionTimeRegression.SSRCALC_300_A),
+            // new RetentionScoreCalculator(RetentionTimeRegression.PROSITRTCALC)
         };
 
         /// <summary>
@@ -2143,80 +2235,84 @@ namespace pwiz.Skyline.Properties
             return item != null && !GetDefaults().Contains(item);
         }
     }
-    
-    public sealed class IonMobilityLibraryList : SettingsListNotifying<IonMobilityLibrarySpec>
+
+    public sealed class IrtStandardList : SettingsList<IrtStandard>
     {
-        /// <summary>
-        /// <see cref="IonMobilityPredictor"/> objects depend on ion mobility libraries. If a user deletes or changes a library,
-        /// the <see cref="IonMobilityPredictor"/> objects that depend on it may need to be removed.
-        /// </summary>
-        public override bool AcceptList(Control owner, IList<IonMobilityLibrarySpec> listNew)
+        public override IrtStandard EditItem(Control owner, IrtStandard item, IEnumerable<IrtStandard> existing,
+            object tag)
         {
-            var listMissingLib = new List<IonMobilityPredictor>();
-            var listChangedLib = new List<IonMobilityPredictor>();
-            foreach (var driftTimePredictor in Settings.Default.DriftTimePredictorList.ToArray())
+            var updatePeptides = new DbIrtPeptide[0];
+            var editIrtCalcDlg = owner as EditIrtCalcDlg;
+            var recalibrate = item != null && editIrtCalcDlg != null;
+            if (recalibrate)
             {
-                var predictor = driftTimePredictor;
+                updatePeptides = editIrtCalcDlg.AllPeptides.ToArray();
+            }
 
-                // Not all ion mobility predictors use a library
-                if (predictor.IonMobilityLibrary == null)
-                    continue;
-
-                if (listNew.Contains(calc => Equals(calc, predictor.IonMobilityLibrary)))
+            using (var calibrateIrtDlg = new CalibrateIrtDlg(item, existing ?? this, updatePeptides))
+            {
+                if (calibrateIrtDlg.ShowDialog(owner) == DialogResult.OK)
                 {
-                    var libChanged = listNew.FirstOrDefault(calc =>
-                        Equals(calc, predictor.IonMobilityLibrary.ChangeName(calc.Name)));
-
-                    if (libChanged == null)
-                        listMissingLib.Add(predictor);
-                    else
-                        listChangedLib.Add(predictor.ChangeLibrary(libChanged));
+                    if (recalibrate)
+                    {
+                        editIrtCalcDlg.ResetPeptideListBindings();
+                    }
+                    return calibrateIrtDlg.IrtStandard;
                 }
+                return null;
             }
+        }
 
-            if (listMissingLib.Count > 0)
-            {
-                var message = TextUtil.LineSeparate(Resources.IonMobilityLibraryList_AcceptList_The_drift_time_predictors_,
-                                                    TextUtil.LineSeparate(listMissingLib.Select(reg => reg.Name)),
-                                                    Resources.IonMobilityLibraryList_AcceptList_will_be_deleted_because_the_libraries_they_depend_on_have_changed__Do_you_want_to_continue_);
-                if (DialogResult.Yes != MultiButtonMsgDlg.Show(owner, message, MultiButtonMsgDlg.BUTTON_YES, MultiButtonMsgDlg.BUTTON_NO, true))
-                {
-                    return false;
-                }
-            }
+        public override IrtStandard CopyItem(IrtStandard item)
+        {
+            return (IrtStandard) item.ChangeName(string.Empty);
+        }
 
-            foreach (var predictor in listChangedLib)
-            {
-                Settings.Default.DriftTimePredictorList.SetValue(predictor);
-            }
+        public override IEnumerable<IrtStandard> GetDefaults(int revisionIndex)
+        {
+            return IrtStandard.ALL;
+        }
 
+        public override string Title => Resources.IrtStandardList_Title_Edit_iRT_Standards;
+
+        public override string Label => Resources.IrtStandardList_Label_iRT_Standards;
+
+        public override int ExcludeDefaults => 1;
+    }
+
+    public sealed class IonMobilityLibraryList : SettingsListNotifying<IonMobilityLibrary>
+    {
+        public override bool AcceptList(Control owner, IList<IonMobilityLibrary> listNew)
+        {
             return true;
         }
 
-        public override IonMobilityLibrarySpec EditItem(Control owner, IonMobilityLibrarySpec item,
-            IEnumerable<IonMobilityLibrarySpec> existing, object tag)
+        public override string GetDisplayName(IonMobilityLibrary item)
         {
-            var calc = item as IonMobilityLibrary;
-            if (item == null || calc != null)
+            // Use the localized text in the UI
+            return Equals(item, IonMobilityLibrary.NONE) ? Resources.SettingsList_ELEMENT_NONE_None : base.GetDisplayName(item);
+        }
+
+        public override IonMobilityLibrary EditItem(Control owner, IonMobilityLibrary item,
+            IEnumerable<IonMobilityLibrary> existing, object tag)
+        {
+            using (var editIonMobilityLibraryDlg = new EditIonMobilityLibraryDlg(item, existing))
             {
-                using (var editIonMobilityLibraryDlg = new EditIonMobilityLibraryDlg(calc, existing))
+                if (editIonMobilityLibraryDlg.ShowDialog(owner) == DialogResult.OK)
                 {
-                    if (editIonMobilityLibraryDlg.ShowDialog(owner) == DialogResult.OK)
-                    {
-                        return editIonMobilityLibraryDlg.IonMobilityLibrary;
-                    }
+                    return editIonMobilityLibraryDlg.IonMobilityLibrary;
                 }
             }
 
             return null;
         }
 
-        public override IonMobilityLibrarySpec CopyItem(IonMobilityLibrarySpec item)
+        public override IonMobilityLibrary CopyItem(IonMobilityLibrary item)
         {
-            return (IonMobilityLibrarySpec)item.ChangeName(string.Empty);
+            return (IonMobilityLibrary)item.ChangeName(string.Empty);
         }
 
-        public override IEnumerable<IonMobilityLibrarySpec> GetDefaults(int revisionIndex)
+        public override IEnumerable<IonMobilityLibrary> GetDefaults(int revisionIndex)
         {
             return new[] { IonMobilityLibrary.NONE };
         }
@@ -2235,22 +2331,22 @@ namespace pwiz.Skyline.Properties
             }
         }
 
-        private static readonly IXmlElementHelper<IonMobilityLibrarySpec>[] DRIFT_TIME_HELPERS =
+        private static readonly IXmlElementHelper<IonMobilityLibrary>[] ION_MOBILITY_LIB_HELPERS =
         {
-            new XmlElementHelperSuper<IonMobilityLibrary, IonMobilityLibrarySpec>(),
+            new XmlElementHelperSuper<IonMobilityLibrary, IonMobilityLibrary>(),
         };
 
 
-        protected override IXmlElementHelper<IonMobilityLibrarySpec>[] GetXmlElementHelpers()
+        protected override IXmlElementHelper<IonMobilityLibrary>[] GetXmlElementHelpers()
         {
-            return DRIFT_TIME_HELPERS;
+            return ION_MOBILITY_LIB_HELPERS;
         }
 
         public override string Title { get { return Resources.IonMobilityLibraryList_Title_Edit_Ion_Mobility_Libraries; } }
 
         public override string Label { get { return Resources.IonMobilityLibraryList_Label_Ion_Mobility_Libraries_; } }
 
-        public bool CanEditItem(IonMobilityLibrarySpec item)
+        public bool CanEditItem(IonMobilityLibrary item)
         {
             return item != null && !GetDefaults().Contains(item);
         }
@@ -2379,59 +2475,6 @@ namespace pwiz.Skyline.Properties
         public override int ExcludeDefaults { get { return 1; } }
     }
 
-    public sealed class DriftTimePredictorList : SettingsList<IonMobilityPredictor>
-    {
-        private static readonly IonMobilityPredictor NONE =
-            new IonMobilityPredictor(ELEMENT_NONE, null, null, null, 0, 0, 0, 0);
-
-        public override string GetDisplayName(IonMobilityPredictor item)
-        {
-            // Use the localized text in the UI
-            return Equals(item, NONE) ? Resources.SettingsList_ELEMENT_NONE_None : base.GetDisplayName(item);
-        }
-
-        public static IonMobilityPredictor GetDefault()
-        {
-            return NONE;
-        }
-
-        public override IEnumerable<IonMobilityPredictor> GetDefaults(int revisionIndex)
-        {
-            return new[] { GetDefault() };
-        }
-
-        public void EnsureDefault()
-        {
-            // Make sure the choice of no ion mobility regression is present.
-            IonMobilityPredictor defaultElement = GetDefault();
-            if (Count == 0 || this[0].GetKey() != defaultElement.GetKey())
-                Insert(0, defaultElement);
-        }
-
-        public override IonMobilityPredictor EditItem(Control owner, IonMobilityPredictor item,
-            IEnumerable<IonMobilityPredictor> existing, object tag)
-        {
-            using (EditDriftTimePredictorDlg editDT = new EditDriftTimePredictorDlg(existing ?? this) { Predictor = item })
-            {
-                if (editDT.ShowDialog(owner) == DialogResult.OK)
-                    return editDT.Predictor;
-            }
-
-            return null;
-        }
-
-        public override IonMobilityPredictor CopyItem(IonMobilityPredictor item)
-        {
-            return (IonMobilityPredictor)item.ChangeName(string.Empty);
-        }
-
-        public override string Title { get { return Resources.DriftTimePredictorList_Title_Edit_Drift_Time_Predictors; } }
-
-        public override string Label { get { return Resources.DriftTimePredictorList_Label_Drift_Time_Predictor_; } }
-
-        public override int ExcludeDefaults { get { return 1; } }
-    }
-
     public sealed class MeasuredIonList : SettingsList<MeasuredIon>
     {
         public static readonly MeasuredIon NTERM_PROLINE =
@@ -2462,7 +2505,7 @@ namespace pwiz.Skyline.Properties
 
         private static MeasuredIon CreateMeasuredIon(string name, string formula)
         {
-            return new MeasuredIon(name, formula, null, null, Adduct.SINGLY_PROTONATED);
+            return new MeasuredIon(name, formula, null, null, Adduct.M_PLUS);
         }
 
         public override int RevisionIndexCurrent { get { return 1; } }
@@ -2888,7 +2931,7 @@ namespace pwiz.Skyline.Properties
                 (
                     EnzymeList.GetDefault(),
                     new DigestSettings(0, false),
-                    new PeptidePrediction(null, null, true, PeptidePrediction.DEFAULT_MEASURED_RT_WINDOW, false, IonMobilityWindowWidthCalculator.EMPTY),
+                    new PeptidePrediction(null, true, PeptidePrediction.DEFAULT_MEASURED_RT_WINDOW),
                     new PeptideFilter
                     (
                         25,  // ExcludeNTermAAs
@@ -2916,7 +2959,8 @@ namespace pwiz.Skyline.Properties
                         new[] {IsotopeLabelType.heavy}
                     ),
                     new PeptideIntegration(null), 
-                    BackgroundProteome.NONE
+                    BackgroundProteome.NONE,
+                    ProteinAssociation.ParsimonySettings.DEFAULT
                 ),
                 new TransitionSettings
                 (
@@ -2944,7 +2988,7 @@ namespace pwiz.Skyline.Properties
                         0,      // PrecursorMzWindow
                         false,  // ExclusionUseDIAWindow
                         true    // AutoSelect
-                    ),
+                    ), 
                     new TransitionLibraries
                     (
                         0.5,    // IonMatchTolerance
@@ -2964,7 +3008,8 @@ namespace pwiz.Skyline.Properties
                         null,  // MinTime
                         null   // MaxTime
                     ),
-                    TransitionFullScan.DEFAULT
+                    TransitionFullScan.DEFAULT,
+                    TransitionIonMobilityFiltering.EMPTY
                 ),
                 DataSettings.DEFAULT,
                 DocumentRetentionTimes.EMPTY
@@ -3023,6 +3068,10 @@ namespace pwiz.Skyline.Properties
 
     public class ReportSpecList : SerializableSettingsList<ReportSpec>, IItemEditor<ReportSpec>
     {
+        /// <summary>
+        /// OBSOLETE: replaced by  <see cref="Settings.PersistedViews"></see> for reports management/>
+        /// </summary>
+
         public const string EXT_REPORTS = ".skyr";
         // CONSIDER: Consider localizing tool report names which is not possible at the moment.
         public static string SRM_COLLIDER_REPORT_NAME
@@ -3220,6 +3269,161 @@ namespace pwiz.Skyline.Properties
         }
     }
 
+    public class ColorSchemeList : SettingsList<ColorScheme>, IListSerializer<ColorScheme>
+    {
+        // Great websites for generating/finding schemes
+        // http://vrl.cs.brown.edu/color
+        // http://colorbrewer2.org
+        public static readonly ColorScheme DEFAULT = new ColorScheme(Resources.ColorSchemeList_DEFAULT_Skyline_classic).ChangePrecursorColors(new[]
+            {
+                Color.Red,
+                Color.Blue,
+                Color.Maroon,
+                Color.Purple,
+                Color.Orange,
+                Color.Green,
+                Color.Yellow,
+                Color.LightBlue,
+            })
+            .ChangeTransitionColors(new[]
+            {
+                Color.Blue,
+                Color.BlueViolet,
+                Color.Brown,
+                Color.Chocolate,
+                Color.DarkCyan,
+                Color.Green,
+                Color.Orange,
+//                Color.Navy,
+                Color.FromArgb(0x75, 0x70, 0xB3),
+                Color.Purple,
+                Color.LimeGreen,
+                Color.Gold,
+                Color.Magenta,
+                Color.Maroon,
+                Color.OliveDrab,
+                Color.RoyalBlue,
+            });
+        public override IEnumerable<ColorScheme> GetDefaults(int revisionIndex)
+        {
+            yield return DEFAULT;
+            yield return DEFAULT.ChangeName(Resources.ColorSchemeList_GetDefaults_Eggplant_lemonade).ChangePrecursorColors(new[]
+            {
+                Color.FromArgb(213,62,79),
+                Color.FromArgb(102,194,165),
+                Color.FromArgb(253,174,97),
+                Color.FromArgb(210, 242, 53),
+                Color.FromArgb(50,136,189)
+            }).ChangeTransitionColors(new[]
+            {
+                Color.FromArgb(94,79,162),
+                Color.FromArgb(50,136,189),
+                Color.FromArgb(102,194,165),
+                Color.FromArgb(171,221,164),
+                Color.FromArgb(210, 242, 53), 
+//                Color.FromArgb(249, 249, 84), 
+                Color.FromArgb(247, 207, 98),
+                Color.FromArgb(253,174,97),
+                Color.FromArgb(244,109,67),
+                Color.FromArgb(213,62,79),
+                Color.FromArgb(158,1,66)
+            });
+            yield return DEFAULT.ChangeName(Resources.ColorSchemeList_GetDefaults_Distinct).ChangePrecursorColors(new[]
+            {
+                Color.FromArgb(249, 104, 87),
+                Color.FromArgb(49, 191, 167),
+                Color.FromArgb(249, 155, 49),
+                Color.FromArgb(109, 95, 211),
+                Color.FromArgb(75, 159, 216),
+                Color.FromArgb(163, 219, 67),
+                Color.FromArgb(247, 138, 194),
+                Color.FromArgb(183, 183, 183),
+                Color.FromArgb(184, 78, 186),
+                Color.FromArgb(239, 233, 57),
+                Color.FromArgb(133, 211, 116)
+            }).ChangeTransitionColors(new[]
+            {
+                Color.FromArgb(49, 191, 167),
+                Color.FromArgb(249, 155, 49),
+                Color.FromArgb(109, 95, 211),
+                Color.FromArgb(249, 104, 87),
+                Color.FromArgb(75, 159, 216),
+                Color.FromArgb(163, 219, 67),
+                Color.FromArgb(247, 138, 194),
+                Color.FromArgb(183, 183, 183),
+                Color.FromArgb(184, 78, 186),
+                Color.FromArgb(239, 233, 57),
+                Color.FromArgb(133, 211, 116)
+            });
+            yield return DEFAULT.ChangeName(Resources.ColorSchemeList_GetDefaults_High_contrast).ChangePrecursorColors(new[]
+            {
+                Color.FromArgb(179,70,126),
+                Color.FromArgb(146,181,64),
+                Color.FromArgb(90,58,142),
+                Color.FromArgb(205,156,46),
+                Color.FromArgb(109,131,218),
+                Color.FromArgb(200,115,197),
+                Color.FromArgb(69,192,151)
+            }).ChangeTransitionColors(new[]
+            {
+                Color.FromArgb(179,70,126),
+                Color.FromArgb(146,181,64),
+                Color.FromArgb(90,58,142),
+                Color.FromArgb(205,156,46),
+                Color.FromArgb(109,131,218),
+                Color.FromArgb(200,115,197),
+                Color.FromArgb(69,192,151),
+                Color.FromArgb(212,84,78),
+                Color.FromArgb(90,165,84),
+                Color.FromArgb(153,147,63),
+                Color.FromArgb(221,91,107),
+                Color.FromArgb(202,139,71),
+                Color.FromArgb(159,55,74),
+                Color.FromArgb(193,86,45),
+                Color.FromArgb(150,73,41)
+            });
+        }
+
+        public override string Title
+        {
+            get { return @"Color Scheme"; }
+        }
+
+        public override string Label
+        {
+            get { return @"Color Scheme"; }
+        }
+
+        public override ColorScheme EditItem(Control owner, ColorScheme item, IEnumerable<ColorScheme> existing, object tag)
+        {
+            // < Edit List.. > selected
+            using (var dlg = new EditCustomThemeDlg(item, existing ?? this))
+            {
+                if (dlg.ShowDialog(owner) == DialogResult.OK)
+                {
+                    return dlg.NewScheme;
+                }
+            }
+            return null;
+        }
+
+        public override ColorScheme CopyItem(ColorScheme item)
+        {
+            return item.ChangeName(string.Empty);
+        }
+
+        public Type SerialType { get { return typeof(ColorScheme); } }
+        public Type DeserialType
+        {
+            get { return typeof(ColorScheme); }
+        }
+
+        public ICollection<ColorScheme> CreateEmptyList()
+        {
+            return new ColorSchemeList();
+        }
+    }
+
     public abstract class SettingsListNotifying<TItem> : SettingsList<TItem>
         where TItem : IKeyContainer<string>, IXmlSerializable
     {
@@ -3330,7 +3534,8 @@ namespace pwiz.Skyline.Properties
 
         public static TItem DeserializeItem(string s)
         {
-            s = XmlUtil.XML_DIRECTIVE + s;
+            if (!s.StartsWith(XmlUtil.XML_DIRECTIVE.Split(' ')[0])) // Just match "<?xml" in <?xml version="1.0" encoding="utf-16"?>"
+                s = XmlUtil.XML_DIRECTIVE + s;
 
             XmlSerializer ser = new XmlSerializer(typeof(TItem));
             using (TextReader reader = new StringReader(s))

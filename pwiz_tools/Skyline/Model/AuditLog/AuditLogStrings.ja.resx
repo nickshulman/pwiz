@@ -357,10 +357,10 @@
     <value>「{0}」から注釈がインポートされました</value>
   </data>
   <data name="set_excluded_standard" xml:space="preserve">
-    <value>繰り返し測定{1}の校正でペプチド{0}を除外しています</value>
+    <value>校正曲線からペプチド{0}の繰り返し測定{1}を除外しています</value>
   </data>
   <data name="set_included_standard" xml:space="preserve">
-    <value>繰り返し測定{1}の校正でペプチド{0}を含めています</value>
+    <value>校正曲線にペプチド{0}の繰り返し測定{1}を含めています</value>
   </data>
   <data name="canceled_import" xml:space="preserve">
     <value>インポートがキャンセルされました</value>
@@ -416,7 +416,7 @@
   <data name="removed_peak_from" xml:space="preserve">
     <value>繰り返し測定「{1}」にある{0}からピークが削除されました</value>
   </data>
-  <data name="removed_peaks">
+  <data name="removed_peaks" xml:space="preserve">
     <value>{1}個のノードから{0}個のピークが削除されました。</value>
   </data>
   <data name="removed_all_peaks_from" xml:space="preserve">
@@ -530,11 +530,11 @@
   <data name="accepted_protein" xml:space="preserve">
     <value>タンパク質{0}が許可されました</value>
   </data>
-  <data name="associated_peptides_with_protein" xml:space="preserve">
-    <value>ペプチドが{0}と関連付けられました</value>
-  </data>
   <data name="associated_peptides_with_proteins" xml:space="preserve">
-    <value>ペプチドが{0}個のタンパク質と関連付けられました</value>
+    <value>タンパク質に関連付けられたペプチド</value>
+  </data>
+  <data name="associated_peptides_with_protein_groups" xml:space="preserve">
+    <value>タンパク質グループに関連付けられたペプチド</value>
   </data>
   <data name="drag_and_dropped_node" xml:space="preserve">
     <value>{0}が{1}にドラッグアンドドロップされました</value>
@@ -634,7 +634,7 @@
 ：{0}</value>
   </data>
   <data name="AuditLogList_Validate_Audit_log_is_corrupted__Audit_log_entry_time_stamps_and_indices_should_be_decreasing" xml:space="preserve">
-    <value>監査ログが壊れています。監査ログエントリのタイムスタンプとインデックスの値が小さくなるはずです。</value>
+    <value>監査ログが破損しています。監査ログエントリのタイムスタンプとインデックスの値が正しい順序である必要があります。エントリ番号{0}のタイムスタンプ{1:G}はエントリ番号{2}のタイムスタンプ{3:G} の前に発生します。</value>
   </data>
   <data name="test_only" xml:space="preserve">
     <value>{0}</value>
@@ -645,6 +645,10 @@
   <data name="start_log_existing_doc" xml:space="preserve">
     <value>既存ドキュメントの監査ログの開始</value>
   </data>
+  <data name="edited_ion_mobility_library" xml:space="preserve">
+    <value>移動度ライブラリ{0}（{1}）を編集しました</value>
+    <comment>{0} is library name, {1} is library file location</comment>
+  </data>
   <data name="AuditLogList_ReadFromFile_The_following_audit_log_entries_were_modified" xml:space="preserve">
     <value>次の監査ログエントリが変更されています：
 
@@ -653,8 +657,23 @@
   <data name="AuditLogList_ReadFromFile_An_exception_occured_while_reading_the_audit_log" xml:space="preserve">
     <value>監査ログを読み取り中に例外が発生しました。
 
-監査ログファイルを削除、名前の変更したり移動することによってこのエラーが発生しなくなります。またはSkylineチームに監査ログを送信することも可能で、チームはファイルの手動修正を試みます。
+監査ログファイルの削除、名前の変更や移動によってこのエラーが発生しなくなります。またはSkylineチームに監査ログを送信することも可能で、チームはファイルの手動修正を試みます。
 
 ご参考までに、監査ログの場所はここです：「{0}」</value>
+  </data>
+  <data name="AuditLogException_Error_when_loading_document_audit_log__0" xml:space="preserve">
+    <value>以下のドキュメントの監査ログを読み込み中にエラーが発生しました：{0}。</value>
+  </data>
+  <data name="changed_quantitative" xml:space="preserve">
+    <value>{0}で定量イオンを変更しました</value>
+  </data>
+  <data name="SkylineWindow_ChangeQuantitative_0_transitions" xml:space="preserve">
+    <value>{0}個のトランジション</value>
+  </data>
+  <data name="permuted_isotope_label_simple" xml:space="preserve">
+    <value>同位体修飾「{0}」の単純置換を追加</value>
+  </data>
+  <data name="permuted_isotope_label_complete" xml:space="preserve">
+    <value>同位体修飾「{0}」の完全置換を追加</value>
   </data>
 </root>

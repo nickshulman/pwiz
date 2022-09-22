@@ -150,7 +150,13 @@ namespace seems
         }
     }
 
-	/// <summary>
+    public class ManagedDockableForm : DockableForm
+    {
+        public ManagedDataSource Source { get; protected set; }
+        public Manager Manager { get; protected set; }
+    }
+
+    /// <summary>
 	/// Manages the application
 	/// Tracks data sources, their spectrum/chromatogram lists, and any associated graph forms
 	/// Handles events from sources, lists, and graph forms
@@ -264,37 +270,57 @@ namespace seems
             LoadDefaultAnnotationSettings();
         }
 
-        public void OpenFile( string filepath )
+        public bool OpenFile(string filepath, bool closeIfOpen = false )
         {
-            OpenFile( filepath, -1 );
+            return OpenFile(filepath, -1, closeIfOpen);
         }
 
-        public void OpenFile( string filepath, int index )
+        public bool OpenFile(string filepath, int index, bool closeIfOpen = false )
         {
-            OpenFile(filepath, index > 0 ? new List<object> { index } : null, null);
+            return OpenFile(filepath, index > 0 ? new List<object> { index } : null, null, closeIfOpen);
         }
 
-        public void OpenFile( string filepath, string id )
+        public bool OpenFile(string filepath, string id, bool closeIfOpen = false )
         {
-            OpenFile(filepath, new List<object> { id }, null);
+            return OpenFile(filepath, new List<object> { id }, null, closeIfOpen);
         }
 
-        public void OpenFile (string filepath, IList<object> idOrIndexList, IAnnotation annotation)
+        public bool OpenFile(string filepath, IList<object> idOrIndexList, IAnnotation annotation, bool closeIfOpen = false )
         {
-            OpenFile(filepath, idOrIndexList, annotation, "");
+            return OpenFile(filepath, idOrIndexList, annotation, "", closeIfOpen);
         }
 
-        public void OpenFile(string filepath, IList<object> idOrIndexList, IAnnotation annotation, string spectrumListFilters)
+        public bool OpenFile(string filepathOrMsDataRunPath, IList<object> idOrIndexList, IAnnotation annotation, string spectrumListFilters, bool closeIfOpen = false)
         {
+            var msDataRunPath = new OpenDataSourceDialog.MSDataRunPath(filepathOrMsDataRunPath);
+            string filepath = msDataRunPath.ToString();
+
 			try
 			{
-                OnLoadDataSourceProgress("Opening data source: " + Path.GetFileNameWithoutExtension(filepath), 0);
+                OnLoadDataSourceProgress("Opening data source: " + Path.GetFileNameWithoutExtension(msDataRunPath.Filepath), 0);
 
-                string[] spectrumListFilterList = spectrumListFilters.Split(';');
+                string[] spectrumListFilterList = spectrumListFilters.Split(';').Where(o => o.Length > 0).ToArray();
 
-                if (!dataSourceMap.ContainsKey(filepath))
+			    bool fileAlreadyOpen = dataSourceMap.ContainsKey(filepath);
+
+                if (closeIfOpen && fileAlreadyOpen)
                 {
-                    var newSource = new ManagedDataSource(new SpectrumSource(filepath));
+                    ManagedDataSource source = dataSourceMap[filepath];
+                    source.SpectrumListForm.Close();
+                    source.ChromatogramListForm.Close();
+                    foreach (var form in CurrentGraphFormList.Where(g => g.Sources.Any(s => s.Source == source.Source)))
+                        form.Close();
+                    foreach (var form in dockPanel.Contents.ToArray())
+                        if (((form as ManagedDockableForm)?.Source ?? null) == source)
+                            (form as DockableForm)?.Close();
+                    source.Source.MSDataFile.Dispose();
+                    dataSourceMap.Remove(filepath);
+                    fileAlreadyOpen = false;
+                }
+
+                if (!fileAlreadyOpen)
+                {
+                    var newSource = new ManagedDataSource(new SpectrumSource(msDataRunPath));
                     dataSourceMap.Add(filepath, newSource);
 
                     if (spectrumListFilters.Length > 0)
@@ -314,7 +340,7 @@ namespace seems
                     foreach (object idOrIndex in idOrIndexList)
                     {
                         Type indexType = typeof(MassSpectrum);
-                        int index = -1;
+                        //int index = -1;
                         if (idOrIndex is int)
                             indexListByType[indexType].Add((int)idOrIndex);
                         else if (idOrIndex is string)
@@ -391,16 +417,12 @@ namespace seems
                     }
 				}
 
+			    return true;
 			} catch( Exception ex )
 			{
-				string message = ex.Message;
-				if( ex.InnerException != null )
-					message += "\n\nAdditional information: " + ex.InnerException.Message;
-				MessageBox.Show( message,
-								"Error opening source file",
-								MessageBoxButtons.OK, MessageBoxIcon.Error, MessageBoxDefaultButton.Button1,
-								0, false );
+				Program.HandleException("Error opening source file", ex);
                 OnLoadDataSourceProgress("Failed to load data: " + ex.Message, 100);
+			    return false;
 			}
 		}
 
@@ -521,7 +543,7 @@ namespace seems
                     foreach (object idOrIndex in idOrIndexList)
                     {
                         Type indexType = typeof(MassSpectrum);
-                        int index = -1;
+                        //int index = -1;
                         if (idOrIndex is int)
                             indexListByType[indexType].Add((int)idOrIndex);
                         else if (idOrIndex is string)
@@ -600,13 +622,7 @@ namespace seems
 
 			} catch( Exception ex )
 			{
-                string message = "SeeMS encountered an error reading metadata from \"" + managedDataSource.Source.CurrentFilepath + "\" (" + ex.ToString() + ")";
-				if( ex.InnerException != null )
-                    message += "\n\nAdditional information: " + ex.InnerException.ToString();
-				MessageBox.Show( message,
-								"Error reading source metadata",
-								MessageBoxButtons.OK, MessageBoxIcon.Error, MessageBoxDefaultButton.Button1,
-								0, false );
+			    Program.HandleException("Error reading source metadata", ex);
 				OnLoadDataSourceProgress("Failed to load data: " + ex.Message, 100);
 			}
 		}
@@ -751,8 +767,7 @@ namespace seems
             spectrumListForm.EndBulkLoad();
             Application.DoEvents();
 
-            var ionMobilityColumn = spectrumListForm.GridView.Columns["IonMobility"];
-            if (ionMobilityColumn != null && ionMobilityColumn.Visible)
+            if (managedDataSource.SpectrumListForm.GetIonMobilityRows().Any())
             {
                 var heatmapForm = new HeatmapForm(this, managedDataSource);
                 heatmapForm.Show(DockPanel, DockState.Document);

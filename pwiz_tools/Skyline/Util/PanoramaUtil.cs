@@ -25,17 +25,20 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Windows.Forms;
 using System.Xml;
 using System.Xml.Schema;
 using System.Xml.Serialization;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Alerts;
 using pwiz.Skyline.Controls;
 using pwiz.Skyline.Model;
 using pwiz.Skyline.Model.Results;
+using pwiz.Skyline.Model.Serialization;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util.Extensions;
 
@@ -64,7 +67,7 @@ namespace pwiz.Skyline.Util
         {
             const string https = "https://";
             const string http = "http://";
-            
+
             var httpsIndex = serverName.IndexOf(https, StringComparison.Ordinal);
             var httpIndex = serverName.IndexOf(http, StringComparison.Ordinal);
 
@@ -72,6 +75,7 @@ namespace pwiz.Skyline.Util
             {
                 serverName = serverName.Insert(0, https);
             }
+
             return serverName;
         }
 
@@ -82,31 +86,43 @@ namespace pwiz.Skyline.Util
             switch (panoramaClient.GetServerState())
             {
                 case ServerState.missing:
-                    throw new PanoramaServerException(string.Format(Resources.EditServerDlg_VerifyServerInformation_The_server__0__does_not_exist, uriServer.AbsoluteUri));
+                    throw new PanoramaServerException(string.Format(
+                        Resources.EditServerDlg_VerifyServerInformation_The_server__0__does_not_exist,
+                        uriServer.AbsoluteUri));
                 case ServerState.unknown:
-                    throw new PanoramaServerException(string.Format(Resources.EditServerDlg_OkDialog_Unknown_error_connecting_to_the_server__0__, uriServer.AbsoluteUri));
+                    throw new PanoramaServerException(string.Format(
+                        Resources.EditServerDlg_OkDialog_Unknown_error_connecting_to_the_server__0__,
+                        uriServer.AbsoluteUri));
             }
 
             switch (panoramaClient.IsValidUser(username, password))
             {
                 case UserState.nonvalid:
-                    throw new PanoramaServerException(Resources.EditServerDlg_OkDialog_The_username_and_password_could_not_be_authenticated_with_the_panorama_server);
+                    throw new PanoramaServerException(Resources
+                        .EditServerDlg_OkDialog_The_username_and_password_could_not_be_authenticated_with_the_panorama_server);
                 case UserState.unknown:
-                    throw new PanoramaServerException(string.Format(Resources.EditServerDlg_OkDialog_Unknown_error_connecting_to_the_server__0__, uriServer.AbsoluteUri));
+                    throw new PanoramaServerException(string.Format(
+                        Resources.EditServerDlg_OkDialog_Unknown_error_connecting_to_the_server__0__,
+                        uriServer.AbsoluteUri));
             }
+
             switch (panoramaClient.IsPanorama())
             {
                 case PanoramaState.other:
-                    throw new PanoramaServerException(string.Format(Resources.EditServerDlg_OkDialog_The_server__0__is_not_a_Panorama_server, uriServer.AbsoluteUri));
+                    throw new PanoramaServerException(string.Format(
+                        Resources.EditServerDlg_OkDialog_The_server__0__is_not_a_Panorama_server,
+                        uriServer.AbsoluteUri));
                 case PanoramaState.unknown:
-                    throw new PanoramaServerException(string.Format(Resources.EditServerDlg_OkDialog_Unknown_error_connecting_to_the_server__0__, uriServer.AbsoluteUri));
+                    throw new PanoramaServerException(string.Format(
+                        Resources.EditServerDlg_OkDialog_Unknown_error_connecting_to_the_server__0__,
+                        uriServer.AbsoluteUri));
             }
         }
 
         public static UserState ValidateServerAndUser(ref Uri serverUri, string username, string password)
         {
             var pServer = new PanoramaServer(serverUri, username, password);
-           
+
             try
             {
                 var userState = EnsureLogin(pServer);
@@ -134,6 +150,7 @@ namespace pwiz.Skyline.Util
                         return TryEnsureLogin(pServer, ref serverUri);
                     }
                 }
+
                 return UserState.unknown;
             }
         }
@@ -142,10 +159,11 @@ namespace pwiz.Skyline.Util
         {
             var requestUri = new Uri(pServer.ServerUri, ENSURE_LOGIN_PATH);
             var request = (HttpWebRequest) WebRequest.Create(requestUri);
-            request.Headers.Add(HttpRequestHeader.Authorization, Server.GetBasicAuthHeader(pServer.Username, pServer.Password));
+            request.Headers.Add(HttpRequestHeader.Authorization,
+                Server.GetBasicAuthHeader(pServer.Username, pServer.Password));
             try
             {
-                using (var response = (HttpWebResponse)request.GetResponse())
+                using (var response = (HttpWebResponse) request.GetResponse())
                 {
                     return response.StatusCode == HttpStatusCode.OK ? UserState.valid : UserState.unknown;
                 }
@@ -166,8 +184,10 @@ namespace pwiz.Skyline.Util
                             return EnsureLogin(pServer);
                         }
                     }
+
                     return UserState.nonvalid; // User cannot be authenticated
                 }
+
                 throw;
             }
         }
@@ -198,7 +218,8 @@ namespace pwiz.Skyline.Util
                             panoramaFolder, panoramaClient.ServerUri));
                 case FolderState.nopermission:
                     throw new PanoramaServerException(string.Format(
-                        Resources.PanoramaUtil_VerifyFolder_User__0__does_not_have_permissions_to_upload_to_the_Panorama_folder__1_,
+                        Resources
+                            .PanoramaUtil_VerifyFolder_User__0__does_not_have_permissions_to_upload_to_the_Panorama_folder__1_,
                         server.Username, panoramaFolder));
                 case FolderState.notpanorama:
                     throw new PanoramaServerException(string.Format(
@@ -217,11 +238,12 @@ namespace pwiz.Skyline.Util
             if (folderJson != null)
             {
 
-                var folderType = (string)folderJson[@"folderType"];
+                var folderType = (string) folderJson[@"folderType"];
                 var modules = folderJson[@"activeModules"];
                 return modules != null && ContainsTargetedMSModule(modules) &&
                        Equals(@"Targeted MS", folderType);
             }
+
             return false;
         }
 
@@ -237,6 +259,7 @@ namespace pwiz.Skyline.Util
                 var userPermissions = folderJson.Value<int?>(@"userPermissions");
                 return userPermissions != null && Equals(userPermissions & 2, 2);
             }
+
             return false;
         }
 
@@ -247,6 +270,7 @@ namespace pwiz.Skyline.Util
                 if (string.Equals(module.ToString(), @"TargetedMS"))
                     return true;
             }
+
             return false;
         }
 
@@ -255,7 +279,8 @@ namespace pwiz.Skyline.Util
             return Call(serverUri, controller, folderPath, method, null, isApi);
         }
 
-        public static Uri Call(Uri serverUri, string controller, string folderPath, string method, string query, bool isApi = false)
+        public static Uri Call(Uri serverUri, string controller, string folderPath, string method, string query,
+            bool isApi = false)
         {
             string path = controller + @"/" + (folderPath ?? string.Empty) + @"/" +
                           method + (isApi ? @".api" : @".view");
@@ -268,12 +293,26 @@ namespace pwiz.Skyline.Util
             return new Uri(serverUri, path);
         }
 
+        public static Uri CallNewInterface(Uri serverUri, string controller, string folderPath, string method,
+            string query,
+            bool isApi = false)
+        {
+            string apiString = isApi ? @"api" : @"view";
+            string queryString = string.IsNullOrEmpty(query) ? "" : @"?" + query;
+            string path = $@"{folderPath}/{controller}-{method}.{apiString}{queryString}";
+
+            return new Uri(serverUri, path);
+        }
+
         public static Uri GetContainersUri(Uri serverUri, string folder, bool includeSubfolders)
         {
-            var queryString = string.Format(@"includeSubfolders={0}&moduleProperties=TargetedMS", includeSubfolders ? @"true" : @"false");
+            var queryString = string.Format(@"includeSubfolders={0}&moduleProperties=TargetedMS",
+                includeSubfolders ? @"true" : @"false");
             return Call(serverUri, @"project", folder, @"getContainers", queryString);
         }
 
+        public static IPanoramaClient CreatePanoramaClient(Uri serverUri)
+        { return new WebPanoramaClient(serverUri);}
     }
 
     [XmlRoot("server")]
@@ -431,6 +470,7 @@ namespace pwiz.Skyline.Util
     public enum PanoramaState { panorama, other, unknown }
     public enum UserState { valid, nonvalid, unknown }
     public enum FolderState { valid, notpanorama, nopermission, notfound }
+    public enum FolderOperationStatus{OK, notpanorama, nopermission, notfound, alreadyexists, error}
 
     public interface IPanoramaClient
     {
@@ -439,6 +479,17 @@ namespace pwiz.Skyline.Util
         PanoramaState IsPanorama();
         UserState IsValidUser(string username, string password);
         FolderState IsValidFolder(string folderPath, string username, string password);
+
+        /**
+         * Returns FolderOperationStatus.OK if created successfully, otherwise returns the reason
+         * why the folder was not created.
+         */
+        FolderOperationStatus CreateFolder(string parentPath, string folderName, string username, string password);
+        /**
+         * Returns FolderOperationStatus.OK if the folder was successfully deleted, otherwise returns the reason
+         * why the folder was not deleted.
+         */
+        FolderOperationStatus DeleteFolder(string folderPath, string username, string password);
     }
 
     class WebPanoramaClient : IPanoramaClient
@@ -515,19 +566,17 @@ namespace pwiz.Skyline.Util
         {
             try
             {
-                Uri uri = new Uri(ServerUri, @"project/home/getContainers.view");
+                // Use the LabKey AdminController.HealthCheckAction instead of ProjectController.GetContainersAction which does not return the expected
+                // JSON key if the "Home" container on the LabKey Server is not public.
+                // (https://www.labkey.org/home/Developer/issues/Secure/issues-details.view?issueId=20686)
+                Uri uri = new Uri(ServerUri, @"admin/home/healthCheck.view");
                 using (var webClient = new UTF8WebClient())
                 {
                     JObject jsonResponse = webClient.Get(uri);
-                    string type = (string)jsonResponse[@"type"];
-                    if (string.Equals(type, @"project"))
-                    {
-                        return PanoramaState.panorama;
-                    }
-                    else
-                    {
-                        return PanoramaState.other;
-                    }
+                    var panoramaState = jsonResponse.ContainsKey(@"healthy")
+                        ? PanoramaState.panorama
+                        : PanoramaState.other;
+                    return panoramaState;
                 }
             }
             catch (WebException ex)
@@ -597,6 +646,84 @@ namespace pwiz.Skyline.Util
             }
            return FolderState.valid;
         }
+
+        public FolderOperationStatus CreateFolder(string folderPath, string folderName, string username, string password)
+        {
+
+            if (IsValidFolder($@"{folderPath}/{folderName}", username, password) == FolderState.valid)
+                return FolderOperationStatus.alreadyexists;        //cannot create a folder with the same name
+            var parentFolderStatus = IsValidFolder(folderPath, username, password);
+            switch (parentFolderStatus)
+            {
+                case FolderState.nopermission:
+                    return FolderOperationStatus.nopermission;
+                case FolderState.notfound:
+                    return FolderOperationStatus.notfound;
+                case FolderState.notpanorama:
+                    return FolderOperationStatus.notpanorama;
+            }
+
+            //Create JSON body for the request
+            Dictionary<string, string> requestData = new Dictionary<string, string>();
+            requestData[@"name"] = folderName;
+            requestData[@"title"] = folderName;
+            requestData[@"description"] = folderName;
+            requestData[@"type"] = @"normal";
+            requestData[@"folderType"] = @"Targeted MS";
+            string createRequest = JsonConvert.SerializeObject(requestData);
+
+            try { 
+                using (var webClient = new WebClientWithCredentials(ServerUri, username, password))
+                {
+                    Uri requestUri = PanoramaUtil.CallNewInterface(ServerUri, @"core", folderPath, @"createContainer", "", true);
+                    JObject result = webClient.Post(requestUri, createRequest);
+                    return FolderOperationStatus.OK;
+                }
+            }
+            catch (WebException ex)
+            {
+                var response = ex.Response as HttpWebResponse;
+                if (response != null && response.StatusCode != HttpStatusCode.OK)
+                {
+                    return FolderOperationStatus.error;
+                }
+                else throw;
+            }
+        }
+
+        public FolderOperationStatus DeleteFolder(string folderPath, string username, string password)
+        {
+            var parentFolderStatus = IsValidFolder(folderPath, username, password);
+            switch (parentFolderStatus)
+            {
+                case FolderState.nopermission:
+                    return FolderOperationStatus.nopermission;
+                case FolderState.notfound:
+                    return FolderOperationStatus.notfound;
+                case FolderState.notpanorama:
+                    return FolderOperationStatus.notpanorama;
+            }
+
+            try
+            {
+                using (var webClient = new WebClientWithCredentials(ServerUri, username, password))
+                {
+                    Uri requestUri = PanoramaUtil.CallNewInterface(ServerUri, @"core", folderPath, @"deleteContainer", "", true);
+                    JObject result = webClient.Post(requestUri, "");
+                    return FolderOperationStatus.OK;
+                }
+            }
+            catch (WebException ex)
+            {
+                var response = ex.Response as HttpWebResponse;
+                if (response != null && response.StatusCode != HttpStatusCode.OK)
+                {
+                    return FolderOperationStatus.error;
+                }
+                else throw;
+            }
+        }
+
     }
 
     public interface IPanoramaPublishClient
@@ -605,7 +732,11 @@ namespace pwiz.Skyline.Util
         Uri SendZipFile(Server server, string folderPath, string zipFilePath, IProgressMonitor progressMonitor);
         JObject SupportedVersionsJson(Server server);
         void UploadSharedZipFile(Control parent, Server server, string zipFilePath, string folderPath);
-        ShareType DecideShareType(FolderInformation folderInfo, SrmDocument document);
+        ShareType DecideShareTypeVersion(FolderInformation folderInfo, SrmDocument document, ShareType shareType);
+        ShareType GetShareType(FolderInformation folderInfo, SrmDocument document, DocumentFormat? fileFormatOnDisk,
+            Control parent, ref bool cancelled);
+
+        Uri UploadedDocumentUri { get; }
     }
 
     public abstract class AbstractPanoramaPublishClient : IPanoramaPublishClient
@@ -613,6 +744,13 @@ namespace pwiz.Skyline.Util
         public abstract JToken GetInfoForFolders(Server server, string folder);
         public abstract Uri SendZipFile(Server server, string folderPath, string zipFilePath, IProgressMonitor progressMonitor);
         public abstract JObject SupportedVersionsJson(Server server);
+
+        private Uri _uploadedDocumentUri;
+
+        public Uri UploadedDocumentUri
+        {
+            get { return _uploadedDocumentUri; }
+        }
 
         public CacheFormatVersion GetSupportedSkydVersion(FolderInformation folderInfo)
         {
@@ -638,13 +776,9 @@ namespace pwiz.Skyline.Util
             return CacheFormatVersion.CURRENT;
         }
 
-        public ShareType DecideShareType(FolderInformation folderInfo, SrmDocument document)
+        public ShareType DecideShareTypeVersion(FolderInformation folderInfo, SrmDocument document, ShareType shareType)
         {
-            ShareType shareType = ShareType.DEFAULT;
-            
-            var settings = document.Settings;
-            Assume.IsTrue(document.IsLoaded);
-            var cacheVersion = settings.HasResults ? settings.MeasuredResults.CacheVersion : null;
+            var cacheVersion = GetDocumentCacheVersion(document);
 
             if (!cacheVersion.HasValue)
             {
@@ -652,18 +786,72 @@ namespace pwiz.Skyline.Util
                 return shareType;
             }
 
-            CacheFormatVersion supportedVersion = GetSupportedSkydVersion(folderInfo);
+            var supportedSkylineVersion = GetSupportedVersionForCacheFormat(folderInfo, cacheVersion);
+            CacheFormatVersion supportedVersion = supportedSkylineVersion.CacheFormatVersion;
             if (supportedVersion >= cacheVersion.Value)
             {
                 return shareType;
             }
-            var skylineVersion = SkylineVersion.SupportedForSharing().FirstOrDefault(ver => ver.CacheFormatVersion <= supportedVersion);
-            if (skylineVersion == null)
+            
+            return shareType.ChangeSkylineVersion(supportedSkylineVersion);
+        }
+
+
+        private SkylineVersion GetSupportedVersionForCacheFormat(FolderInformation folderInfo, CacheFormatVersion? cacheVersion)
+        {
+            var skydVersion = GetSupportedSkydVersion(folderInfo);
+            SkylineVersion skylineVersion;
+            if (!cacheVersion.HasValue || skydVersion >= cacheVersion)
             {
-                throw new PanoramaServerException(string.Format(
-                    Resources.PublishDocumentDlg_ServerSupportsSkydVersion_, (int) cacheVersion.Value));
+                // Either the document does not have any chromatograms or the server supports the document's cache version. 
+                // Since the cache version does not change when the document is shared, it can be shared as the latest Skyline
+                // version even if the cache version associated with that version is higher than what the server supports. 
+                // Example scenario:
+                // Document cache version is 14; max version supported by server is 14; current Skyline version is associated
+                // with cache version 15. In this case the document can be shared as the current Skyline version even though
+                // the cache version associated with the current version is higher than what the server supports. When the document
+                // is shared the cache format of the document will remain at 14. Only the document format (.sky XML) will change.
+                skylineVersion = SkylineVersion.SupportedForSharing().First();
             }
-            return shareType.ChangeSkylineVersion(skylineVersion);
+            else
+            {
+                // The server does not support the document's cache version.
+                // Find the highest Skyline version consistent with the cache version supported by the server.
+                skylineVersion = SkylineVersion.SupportedForSharing().FirstOrDefault(ver => ver.CacheFormatVersion <= skydVersion);
+                if (skylineVersion == null)
+                {
+                    throw new PanoramaServerException(string.Format(
+                        Resources.PublishDocumentDlg_ServerSupportsSkydVersion_, (int)cacheVersion.Value));
+                }
+            }
+
+            return skylineVersion;
+        }
+
+        private static CacheFormatVersion? GetDocumentCacheVersion(SrmDocument document)
+        {
+            var settings = document.Settings;
+            Assume.IsTrue(document.IsLoaded);
+            return settings.HasResults ? settings.MeasuredResults.CacheVersion : null;
+        }
+
+        public ShareType GetShareType(FolderInformation folderInfo, SrmDocument document, DocumentFormat? fileFormatOnDisk, Control parent, ref bool cancelled)
+        {
+            var cacheVersion = GetDocumentCacheVersion(document);
+            var supportedSkylineVersion = GetSupportedVersionForCacheFormat(folderInfo, cacheVersion);
+            
+            using (var dlgType = new ShareTypeDlg(document, fileFormatOnDisk, supportedSkylineVersion))
+            {
+                if (dlgType.ShowDialog(parent) == DialogResult.Cancel)
+                {
+                    cancelled = true;
+                    return null;
+                }
+                else
+                {
+                    return dlgType.ShareType;
+                }
+            }
         }
 
         public void UploadSharedZipFile(Control parent, Server server, string zipFilePath, string folderPath)
@@ -687,6 +875,7 @@ namespace pwiz.Skyline.Util
                 }
                 if (!isCanceled) // if user not canceled 
                 {
+                    _uploadedDocumentUri = result;
                     String message = Resources.AbstractPanoramaPublishClient_UploadSharedZipFile_Upload_succeeded__would_you_like_to_view_the_file_in_Panorama_;
                     if (MultiButtonMsgDlg.Show(parent, message, MultiButtonMsgDlg.BUTTON_YES, MultiButtonMsgDlg.BUTTON_NO, false)
                         == DialogResult.Yes)
@@ -698,7 +887,11 @@ namespace pwiz.Skyline.Util
                 var panoramaEx = x.InnerException as PanoramaImportErrorException;
                 if (panoramaEx != null)
                 {
-                    var message = Resources.AbstractPanoramaPublishClient_UploadSharedZipFile_An_error_occured_while_uploading_to_Panorama__would_you_like_to_go_to_Panorama_;
+                    var message = panoramaEx.JobCancelled
+                        ? Resources.AbstractPanoramaPublishClient_UploadSharedZipFile_Document_import_was_cancelled_on_the_server__Would_you_like_to_go_to_Panorama_
+                        : Resources
+                            .AbstractPanoramaPublishClient_UploadSharedZipFile_An_error_occured_while_uploading_to_Panorama__would_you_like_to_go_to_Panorama_;
+
                     if (MultiButtonMsgDlg.Show(parent, message, MultiButtonMsgDlg.BUTTON_YES, MultiButtonMsgDlg.BUTTON_NO, false)
                         == DialogResult.Yes)
                         Process.Start(panoramaEx.JobUrl.ToString());
@@ -725,6 +918,9 @@ namespace pwiz.Skyline.Util
         private WebClientWithCredentials _webClient;
         private IProgressMonitor _progressMonitor;
         private IProgressStatus _progressStatus;
+
+        private readonly Regex _runningStatusRegex = new Regex(@"RUNNING, (\d+)%");
+        private int _waitTime = 1;
 
         public void EnsureLogin(Server server)
         {
@@ -789,7 +985,7 @@ namespace pwiz.Skyline.Util
                     // Add a "Temporary" header so that LabKey marks this as a temporary file.
                     // https://www.labkey.org/issues/home/Developer/issues/details.view?issueId=19220
                     _webClient.Headers.Add(@"Temporary", @"T");
-                    _webClient.UploadFileAsync(tmpUploadUri, @"PUT", zipFilePath);
+                    _webClient.UploadFileAsync(tmpUploadUri, @"PUT", PathEx.SafePath(zipFilePath));
 
                     // Wait for the upload to complete
                     Monitor.Wait(this);
@@ -838,11 +1034,10 @@ namespace pwiz.Skyline.Util
                 var details = importResponse[@"UploadedJobDetails"];
                 int rowId = (int)details[0][@"RowId"];
                 Uri statusUri = PanoramaUtil.Call(server.URI, @"query", folderPath, @"selectRows",
-                                     @"query.queryName=job&schemaName=pipeline&query.rowId~eq=" + rowId);
-                bool complete = false;
+                    @"query.queryName=job&schemaName=pipeline&query.rowId~eq=" + rowId);
                 // Wait for import to finish before returning.
-                Uri result = null;
-                while (!complete)
+                var startTime = DateTime.Now;
+                while (true)
                 {
                     if (progressMonitor.IsCanceled)
                         return null;
@@ -853,23 +1048,93 @@ namespace pwiz.Skyline.Util
                     if (row == null)
                         continue;
 
-                    string status = (string)row[@"Status"];
-                    result = new Uri(server.URI, (string)row[@"_labkeyurl_Description"]);
-                    if (string.Equals(status, @"ERROR"))
+                    var status = new ImportStatus((string) row[@"Status"]);
+                    if (status.IsComplete)
                     {
-                        var jobUrl = new Uri(server.URI, (string)row[@"_labkeyurl_RowId"]);
-                        var e = new PanoramaImportErrorException(server.URI, jobUrl); 
+                        progressMonitor.UpdateProgress(_progressStatus.Complete());
+                        return new Uri(server.URI, (string)row[@"_labkeyurl_Description"]);
+                    }
+                  
+                    else if (status.IsError || status.IsCancelled)
+                    {
+                        var jobUrl = new Uri(server.URI, (string) row[@"_labkeyurl_RowId"]);
+                        var e = new PanoramaImportErrorException(server.URI, jobUrl, status.IsCancelled);
                         progressMonitor.UpdateProgress(
                             _progressStatus = _progressStatus.ChangeErrorException(e));
                         throw e;
                     }
 
-                    complete = string.Equals(status, @"COMPLETE");
+                    updateProgressAndWait(status, progressMonitor, _progressStatus, startTime);
                 }
-
-                progressMonitor.UpdateProgress(_progressStatus.Complete());
-                return result;
             }
+        }
+
+        private class ImportStatus
+        {
+            public string StatusString { get; }
+            public bool IsComplete => string.Equals(@"COMPLETE", StatusString);
+            public bool IsRunning => StatusString.Contains(@"RUNNING"); // "IMPORT RUNNING" pre LK19.3, RUNNING, x% in LK19.3
+            public bool IsError => string.Equals(@"ERROR", StatusString);
+            public bool IsCancelled => string.Equals(@"CANCELLED", StatusString);
+
+            public ImportStatus(string status)
+            {
+                StatusString = status;
+            }
+        }
+
+        private void updateProgressAndWait(ImportStatus jobStatus, IProgressMonitor progressMonitor, IProgressStatus status, DateTime startTime)
+        {
+            var match = _runningStatusRegex.Match(jobStatus.StatusString);
+            if (match.Success)
+            {
+                var currentProgress = _progressStatus.PercentComplete;
+
+                if (int.TryParse(match.Groups[1].Value, out var progress))
+                {
+                    progress = Math.Max(progress, currentProgress);
+                    _progressStatus = _progressStatus.ChangeMessage(string.Format(Resources.WebPanoramaPublishClient_updateProgressAndWait_Importing_data___0___complete_, progress));
+                    _progressMonitor.UpdateProgress(_progressStatus = _progressStatus.ChangePercentComplete(progress));
+
+                    var delta = progress - currentProgress;
+                    if (delta > 1)
+                    {
+                        // If progress is > 1% half the wait time
+                        _waitTime = Math.Max(1, _waitTime / 2);
+                    }
+                    else if (delta < 1)
+                    {
+                        // If progress is < 1% double the wait time, up to a max of 10 seconds.
+                        _waitTime = Math.Min(10, _waitTime * 2);
+                    }
+
+                    Thread.Sleep(_waitTime * 1000);
+                    return;
+                }
+            }
+
+            if (!jobStatus.IsRunning)
+            {
+                // Display the status since we don't recognize it.  This could be, for example, an "Import Waiting" status if another 
+                // Skyline document is currently being imported on the server. 
+                _progressMonitor.UpdateProgress(_progressStatus = _progressStatus =
+                    _progressStatus.ChangeMessage(string.Format(Resources.WebPanoramaPublishClient_SendZipFile_Status_on_server_is___0_, jobStatus.StatusString)));
+            }
+
+            else if (!_progressStatus.Message.Equals(Resources
+                .WebPanoramaPublishClient_SendZipFile_Waiting_for_data_import_completion___))
+            {
+                // Import is running now. Reset the progress message in case it had been set to something else (e.g. "Import Waiting") in a previous iteration.  
+                progressMonitor.UpdateProgress(_progressStatus =
+                    _progressStatus.ChangeMessage(Resources
+                        .WebPanoramaPublishClient_SendZipFile_Waiting_for_data_import_completion___));
+            }
+
+            // This is probably an older server (pre LK19.3) that does not include the progress percent in the status.
+            // Wait between 1 and 5 seconds before checking status again.
+            var elapsed = (DateTime.Now - startTime).TotalMinutes;
+            var sleepTime = elapsed > 5 ? 5 * 1000 : (int)(Math.Max(1, elapsed % 5) * 1000);
+            Thread.Sleep(sleepTime);
         }
 
         public override JObject SupportedVersionsJson(Server server)
@@ -1016,14 +1281,16 @@ namespace pwiz.Skyline.Util
 
     public class PanoramaImportErrorException : Exception
     {
-        public PanoramaImportErrorException(Uri serverUrl, Uri jobUrl)
+        public PanoramaImportErrorException(Uri serverUrl, Uri jobUrl, bool jobCancelled = false)
         {
             ServerUrl = serverUrl;
             JobUrl = jobUrl;
+            JobCancelled = jobCancelled;
         }
 
         public Uri ServerUrl { get; private set; }
         public Uri JobUrl { get; private set; }
+        public bool JobCancelled { get; private set; }
     }
 
     public class PanoramaServerException : Exception
@@ -1055,7 +1322,7 @@ namespace pwiz.Skyline.Util
         }
     }
 
-    class UTF8WebClient : WebClient
+    public class UTF8WebClient : WebClient
     {
         public UTF8WebClient()
         {
@@ -1069,7 +1336,7 @@ namespace pwiz.Skyline.Util
         }
     }
 
-    internal class WebClientWithCredentials : UTF8WebClient
+    public class WebClientWithCredentials : UTF8WebClient
     {
         private CookieContainer _cookies = new CookieContainer();
         private string _csrfToken;
@@ -1097,6 +1364,18 @@ namespace pwiz.Skyline.Util
             }
             var responseBytes = UploadValues(uri, PanoramaUtil.FORM_POST, postData);
             var response = Encoding.UTF8.GetString(responseBytes);
+            return JObject.Parse(response);
+        }
+
+        public JObject Post(Uri uri, string postData)
+        {
+            if (string.IsNullOrEmpty(_csrfToken))
+            {
+                // After this the client should have the X-LABKEY-CSRF token 
+                DownloadString(new Uri(_serverUri, PanoramaUtil.ENSURE_LOGIN_PATH));
+            }
+            Headers.Add(HttpRequestHeader.ContentType, "application/json");
+            var response = UploadString(uri, PanoramaUtil.FORM_POST, postData);
             return JObject.Parse(response);
         }
 

@@ -17,11 +17,13 @@
  * limitations under the License.
  */
 using System;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Alerts;
+using pwiz.Skyline.Controls.Graphs;
 using pwiz.Skyline.FileUI;
 using pwiz.Skyline.Model;
 using pwiz.Skyline.Model.DocSettings;
@@ -50,7 +52,6 @@ namespace pwiz.SkylineTestFunctional
 
         protected override void DoTest()
         {
-
             CreateDummyRTRegression();
 
             ThermoTsqTest();
@@ -69,6 +70,8 @@ namespace pwiz.SkylineTestFunctional
             BrukerTOFMethodTest();
 
             ABSciexShortNameTest();
+
+            SortByMzTest();
         }
 
         private static void ThermoTsqTest()
@@ -131,7 +134,11 @@ namespace pwiz.SkylineTestFunctional
                         Assert.IsFalse(exportMethodDlg.IsRunLengthVisible);
                         Assert.IsFalse(exportMethodDlg.IsDwellTimeVisible);
                     });
-
+                var exportMethodScheduleGraph =
+                    ShowDialog<ExportMethodScheduleGraph>(exportMethodDlg.ShowSchedulingGraph);
+                WaitForConditionUI(() => exportMethodScheduleGraph.GraphControl.GraphPane.CurveList.Count > 0);
+                OkDialog(exportMethodScheduleGraph, exportMethodScheduleGraph.Close);
+                
                 RunDlg<MessageDlg>(() => exportMethodDlg.MethodType = ExportMethodType.Triggered,
                     dlg =>
                     {
@@ -578,12 +585,48 @@ namespace pwiz.SkylineTestFunctional
             string brukerTemplateMeth = TestFilesDir.GetTestPath("Bruker Template Scheduled Precursor List.m");
             WaitForDocumentLoaded();
 
+            // Test order by m/z
+            {
+                var exportFile = TestFilesDir.GetTestPath("export-order-by-mz.txt");
+
+                RunDlg<ExportMethodDlg>(() => SkylineWindow.ShowExportMethodDialog(ExportFileType.List),
+                    exportMethodDlg =>
+                    {
+                        exportMethodDlg.SortByMz = true;
+                        exportMethodDlg.OkDialog(exportFile);
+                    });
+
+                using (var reader = new StreamReader(exportFile))
+                {
+                    double prevPrecursor = 0;
+                    double prevProduct = 0;
+                    while (!reader.EndOfStream)
+                    {
+                        var line = reader.ReadLine();
+                        Assert.IsNotNull(line);
+                        var values = line.Split(',');
+                        Assert.IsTrue(values.Length >= 2);
+                        Assert.IsTrue(double.TryParse(values[0], NumberStyles.Any, CultureInfo.InvariantCulture, out var precursor));
+                        Assert.IsTrue(double.TryParse(values[1], NumberStyles.Any, CultureInfo.InvariantCulture, out var product));
+                        Assert.IsTrue(prevPrecursor <= precursor);
+                        if (prevPrecursor != precursor)
+                        {
+                            prevProduct = 0;
+                        }
+                        Assert.IsTrue(prevProduct <= product);
+                        prevPrecursor = precursor;
+                        prevProduct = product;
+                    }
+                }
+            }
+
             // Export PRM method unscheduled
             RunDlg<ExportMethodDlg>(() => SkylineWindow.ShowExportMethodDialog(ExportFileType.Method),
                     exportMethodDlg =>
                     {
                         exportMethodDlg.InstrumentType = ExportInstrumentType.BRUKER_TOF;
                         exportMethodDlg.ExportStrategy = ExportStrategy.Single;
+                        exportMethodDlg.SortByMz = false;
                         exportMethodDlg.SetTemplateFile(brukerTemplateMeth);
                         exportMethodDlg.MethodType = ExportMethodType.Standard;
                         Assert.IsTrue(exportMethodDlg.IsRunLengthVisible);
@@ -690,6 +733,49 @@ namespace pwiz.SkylineTestFunctional
                 });
                 
                 OkDialog(exportMethodDlgDia, exportMethodDlgDia.CancelDialog);
+            }
+        }
+
+        private void SortByMzTest()
+        {
+            RunUI(() => SkylineWindow.OpenFile(TestFilesDir.GetTestPath("AA-oxylipin-mixture-optimazation_with_sample.sky")));
+            WaitForDocumentLoaded();
+
+            // Test order by m/z, including multiple precursors with same m/z
+            {
+                var exportFile = TestFilesDir.GetTestPath("export-order-by-mz.txt");
+
+                RunDlg<ExportMethodDlg>(() => SkylineWindow.ShowExportMethodDialog(ExportFileType.List),
+                    exportMethodDlg =>
+                    {
+                        exportMethodDlg.InstrumentType = ExportInstrumentType.ABI;
+                        exportMethodDlg.SortByMz = true;
+                        exportMethodDlg.OptimizeType = ExportOptimize.CE;
+                        exportMethodDlg.OkDialog(exportFile);
+                    });
+
+                using (var reader = new StreamReader(exportFile))
+                {
+                    double prevPrecursor = 0;
+                    double prevProduct = 0;
+                    while (!reader.EndOfStream)
+                    {
+                        var line = reader.ReadLine();
+                        Assert.IsNotNull(line);
+                        var values = line.Split(',');
+                        Assert.IsTrue(values.Length >= 2);
+                        Assert.IsTrue(double.TryParse(values[0], NumberStyles.Any, CultureInfo.InvariantCulture, out var precursor));
+                        Assert.IsTrue(double.TryParse(values[1], NumberStyles.Any, CultureInfo.InvariantCulture, out var product));
+                        Assert.IsTrue(prevPrecursor <= precursor);
+                        if (prevPrecursor != precursor)
+                        {
+                            prevProduct = 0;
+                        }
+                        Assert.IsTrue(prevProduct <= product);
+                        prevPrecursor = precursor;
+                        prevProduct = product;
+                    }
+                }
             }
         }
 

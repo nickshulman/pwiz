@@ -26,6 +26,7 @@
 
 #include "pwiz/utility/misc/Export.hpp"
 #include "pwiz/utility/misc/IterationListener.hpp"
+#include "pwiz/utility/chemistry/MzMobilityWindow.hpp"
 #include "MSData.hpp"
 #include <string>
 #include <stdexcept>
@@ -58,6 +59,9 @@ class PWIZ_API_DECL Reader
         /// when true, all drift bins/scans in a frame/block are written in combined form instead of as individual spectra
         bool combineIonMobilitySpectra;
 
+        /// when true, Waters SONAR data will use bin numbers instead of ion mobility values in combineIonMobilitySpectra mode
+        bool reportSonarBins;
+
         /// when true, if a reader cannot identify an instrument, an exception will be thrown asking users to report it
         bool unknownInstrumentIsError;
 
@@ -75,6 +79,15 @@ class PWIZ_API_DECL Reader
 
         /// when true, MS2 spectra without precursor/isolation information will be included in the output (currently only affects Bruker PASEF data)
         bool allowMsMsWithoutPrecursor;
+
+        /// temporary(?) variable to avoid needing to regenerate Bruker test data
+        bool sortAndJitter;
+
+        /// when non-empty, only scans from precursors matching one of the included m/z and/or mobility windows will be enumerated; MS1 scans are affected only by the mobility filter
+        std::vector<chemistry::MzMobilityWindow> isolationMzAndMobilityFilter;
+
+        /// when true, global TIC and BPC chromatograms consist of only MS1 spectra (thus the number of time points cannot be assumed to be equal to the number of spectra)
+        bool globalChromatogramsAreMs1Only;
 
         Config();
         Config(const Config& rhs);

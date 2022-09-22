@@ -49,6 +49,7 @@ namespace pwiz.SkylineTestFunctional
                 SkylineWindow.OpenFile(TestFilesDir.GetTestPath("DocumentGridChromatogramDataTest.sky"));
                 SkylineWindow.ShowDocumentGrid(true);
             });
+            WaitForDocumentLoaded();
             var documentGrid = FindOpenForm<DocumentGridForm>();
             RunUI(()=>
             {
@@ -119,8 +120,8 @@ namespace pwiz.SkylineTestFunctional
                     var replicate = (Replicate) row.Cells[colReplicate.Index].Value;
 
                     ChromatogramGroupInfo[] chromatogramGroupInfos;
-                    Assert.IsTrue(SkylineWindow.Document.MeasuredResults.TryLoadChromatogram(replicate.ChromatogramSet,
-                        transition.Precursor.Peptide.DocNode, transition.Precursor.DocNode, 0, true,
+                    Assert.IsTrue(SkylineWindow.DocumentUI.MeasuredResults.TryLoadChromatogram(replicate.ChromatogramSet,
+                        transition.Precursor.Peptide.DocNode, transition.Precursor.DocNode, 0,
                         out chromatogramGroupInfos));
                     Assert.AreEqual(1, chromatogramGroupInfos.Length);
                     var chromatogramGroup = chromatogramGroupInfos[0];
@@ -172,7 +173,7 @@ namespace pwiz.SkylineTestFunctional
             Assert.IsNotNull(strRawSpectrumIds);
             var rawSpectrumIds = strRawSpectrumIds.Split(csvSeparator).ToArray();
             var msDataFileScanIds = SkylineWindow.Document.Settings.MeasuredResults.LoadMSDataFileScanIds(
-                chromatogram.FilePath);
+                chromatogram.FilePath, out _);
             var expectedSpectrumIds = chromatogram.TimeIntensities.ScanIds
                 .Select(msDataFileScanIds.GetMsDataFileSpectrumId).ToArray();
             CollectionAssert.AreEqual(expectedSpectrumIds, rawSpectrumIds);

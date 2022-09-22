@@ -194,5 +194,39 @@ namespace pwiz.Common.SystemUtil
             }
             return path;
         }
+
+        /// <summary>
+        /// If path is null, throw an ArgumentException
+        /// </summary>
+        /// <param name="path"></param>
+        /// <returns>path</returns>
+        public static string SafePath(string path)
+        {
+            if (path == null)
+            {
+                throw new ArgumentException(@"null path name");
+            }
+            return path;
+        }
+    }
+
+    /// <summary>
+    /// Sets the current directory for the duration of the object's lifetime (typically within a using() block),
+    /// then restores it back to its original value
+    /// </summary>
+    public class CurrentDirectorySetter : IDisposable
+    {
+        private string PreviousDirectory { get; }
+
+        public CurrentDirectorySetter(string directory)
+        {
+            PreviousDirectory = Directory.GetCurrentDirectory();
+            Directory.SetCurrentDirectory(directory);
+        }
+
+        public void Dispose()
+        {
+            Directory.SetCurrentDirectory(PreviousDirectory);
+        }
     }
 }

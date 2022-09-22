@@ -115,17 +115,26 @@ PWIZ_API_DECL ChromatogramPtr ChromatogramList_Thermo::chromatogram(size_t index
                 if (detailLevel < DetailLevel_FullMetadata)
                     return result;
 
-                CVID intensityUnits = ci.controllerType == Controller_MS ? MS_number_of_detector_counts : UO_microampere;
-                ChromatogramDataPtr cd = rawfile_->getChromatogramData(Type_TIC, "", 0, 0, 0, rawfile_->getFirstScanTime(), rawfile_->getLastScanTime());
+                CVID intensityUnits = ci.controllerType == Controller_MS ? MS_number_of_detector_counts : UO_picoampere;
+                ChromatogramDataPtr cd = rawfile_->getChromatogramData(Type_TIC, ci.filter, 0, 0, 0, rawfile_->getFirstScanTime(), rawfile_->getLastScanTime());
                 if (getBinaryData)
                 {
                     result->setTimeIntensityArrays(cd->times(), cd->intensities(), UO_minute, intensityUnits);
 
-                    if (intensityUnits == UO_microampere)
+                    if (ci.controllerType == Controller_MS)
+                    {
+                        auto msLevelArray = boost::make_shared<IntegerDataArray>();
+                        result->integerDataArrayPtrs.emplace_back(msLevelArray);
+                        msLevelArray->set(MS_non_standard_data_array, "ms level", UO_dimensionless_unit);
+                        msLevelArray->data.resize(cd->times().size());
+                        for (size_t i = 0; i < cd->times().size(); ++i)
+                            msLevelArray->data[i] = rawfile_->getMSOrder(rawfile_->scanNumber(cd->times()[i]));
+                    }
+
+                    if (intensityUnits == UO_picoampere)
                     {
                         // Thermo seems to store CAD intensities as attoAmps but shows them as picoAmps in QualBrowser;
-                        // Convert atto to microamperes until UO gets picoampere
-                        boost::range::for_each(result->getIntensityArray()->data, [&](auto& v) {v *= 1e-12;});
+                        boost::range::for_each(result->getIntensityArray()->data, [&](auto& v) {v *= 1e-6;});
                     }
                 }
                 else result->defaultArrayLength = cd->size();
@@ -172,7 +181,7 @@ PWIZ_API_DECL ChromatogramPtr ChromatogramList_Thermo::chromatogram(size_t index
                 setActivationType(activationType, hasSupplemental ? scanInfo->supplementalActivationType() : ActivationType_Unknown, result->precursor.activation);
                 if (activationType == ActivationType_CID)
                     result->precursor.activation.set(MS_collision_energy, scanInfo->precursorActivationEnergy(0));
-                if (hasSupplemental && !scanInfo->supplementalActivationEnergy() > 0)
+                if (hasSupplemental && !(scanInfo->supplementalActivationEnergy() > 0))
                     result->precursor.activation.set(MS_supplemental_collision_energy, scanInfo->supplementalActivationEnergy());
 
                 result->product.isolationWindow.set(MS_isolation_window_target_m_z, ci.q3, MS_m_z);
@@ -277,7 +286,16 @@ PWIZ_API_DECL void ChromatogramList_Thermo::createIndex() const
         long numControllers = rawfile_->getNumberOfControllersOfType((ControllerType) controllerType);
         for (long n=1; n <= numControllers; ++n)
         {
-            rawfile_->setCurrentController((ControllerType) controllerType, n);
+            try
+            {
+                rawfile_->setCurrentController((ControllerType)controllerType, n);
+            }
+            catch (exception& e)
+            {
+                // TODO: add warn_once for chromatograms
+                cerr << "[ChromatogramList_Thermo::createIndex] error setting controller to " << ControllerTypeStrings[controllerType] << ": " << e.what() << endl;
+                continue;
+            }
 
             // skip this controller if it has no spectra
             if (rawfile_->getLastScanNumber() == 0)
@@ -288,7 +306,8 @@ PWIZ_API_DECL void ChromatogramList_Thermo::createIndex() const
                 case Controller_MS:
                 {
                     // support file-level TIC for all file types
-                    addChromatogram("TIC", (ControllerType) controllerType, n, MS_TIC_chromatogram, "");
+                    string globalFilter = config_.globalChromatogramsAreMs1Only ? "Full ms" : "";
+                    addChromatogram("TIC", (ControllerType) controllerType, n, MS_TIC_chromatogram, globalFilter);
 
                     // for certain filter types, support additional chromatograms
                     vector<string> filterArray = rawfile_->getFilters();
@@ -387,11 +406,11 @@ PWIZ_API_DECL void ChromatogramList_Thermo::createIndex() const
                 case Controller_UV:
                 {
                     auto instrumentData = rawfile_->getInstrumentData();
-                    if (bal::ends_with(instrumentData.Units, "AbsorbanceUnits") && instrumentData.AxisLabelY.empty())
+                    if (bal::ends_with(instrumentData.Units, "AbsorbanceUnits") && (instrumentData.AxisLabelY.empty() || bal::starts_with(instrumentData.AxisLabelY, "UV")))
                     {
                         addChromatogram("UV " + lexical_cast<string>(n), (ControllerType)controllerType, n, MS_emission_chromatogram, "");
                     }
-                    else if (instrumentData.AxisLabelY == "pA") // picoamperes?
+                    else if (bal::ends_with(instrumentData.AxisLabelY, "pA")) // picoamperes?
                     {
                         addChromatogram("CAD " + lexical_cast<string>(n), (ControllerType)controllerType, n, MS_TIC_chromatogram, "");
                     }
@@ -471,6 +490,7 @@ size_t ChromatogramList_Thermo::size() const {return 0;}
 const ChromatogramIdentity& ChromatogramList_Thermo::chromatogramIdentity(size_t index) const {return emptyIdentity;}
 size_t ChromatogramList_Thermo::find(const string& id) const {return 0;}
 ChromatogramPtr ChromatogramList_Thermo::chromatogram(size_t index, bool getBinaryData) const {return ChromatogramPtr();}
+ChromatogramPtr ChromatogramList_Thermo::chromatogram(size_t index, DetailLevel detailLevel) const {return ChromatogramPtr();}
 
 } // detail
 } // msdata

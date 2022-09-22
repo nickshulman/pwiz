@@ -29,7 +29,6 @@ using System.Net;
 using System.Reflection;
 using System.Text.RegularExpressions;
 using System.Threading;
-using System.Threading.Tasks;
 using System.Windows.Forms;
 using pwiz.Common.Collections;
 using pwiz.Common.SystemUtil;
@@ -296,6 +295,7 @@ namespace pwiz.Skyline.Util
             int i = RemoveExisting(item);
             if (i != -1 && i < index)
                 index--;
+            // ReSharper disable once PossibleNullReferenceException
             _dict.Add(item.GetKey(), item);
             base.InsertItem(index, item);
         }
@@ -314,6 +314,7 @@ namespace pwiz.Skyline.Util
             // from what is at this location currently, then any
             // existing value with the same key must be removed
             // from its current location.
+            // ReSharper disable once PossibleNullReferenceException
             if (!Equals(key, item.GetKey()))
             {
                 int i = RemoveExisting(item);
@@ -795,9 +796,10 @@ namespace pwiz.Skyline.Util
                 return true;
             if (values1 == null || values2 == null)
                 return false;
-            if (values1.Count != values2.Count)
+            int count = values1.Count;
+            if (count != values2.Count)
                 return false;
-            for (int i = 0; i < values1.Count; i++)
+            for (int i = 0; i < count; i++)
             {
                 if (!Equals(values1[i], values2[i]))
                     return false;
@@ -870,9 +872,10 @@ namespace pwiz.Skyline.Util
                 return true;
             if (values1 == null || values2 == null)
                 return false;
-            if (values1.Count != values2.Count)
+            int count = values1.Count;
+            if (count != values2.Count)
                 return false;
-            for (int i = 0; i < values1.Count; i++)
+            for (int i = 0; i < count; i++)
             {
                 if (!ReferenceEquals(values1[i], values2[i]))
                     return false;
@@ -898,7 +901,7 @@ namespace pwiz.Skyline.Util
             
         }
 
-    /// <summary>
+        /// <summary>
         /// Enumerates two lists assigning references from the second list to
         /// entries in the first list, where they are equal.  Useful for maintaining
         /// reference equality when recalculating values. Similar to <see cref="Helpers.AssignIfEquals{T}"/>.
@@ -934,16 +937,39 @@ namespace pwiz.Skyline.Util
         }
 
         /// <summary>
+        /// Use when you have more than just one other array to sort. Otherwise, consider using Linq
+        /// </summary>
+        public static void Sort<TItem>(TItem[] array, params TItem[][] secondaryArrays)
+        {
+            int[] sortIndexes;
+            Sort(array, out sortIndexes);
+            int len = array.Length;
+            TItem[] buffer = new TItem[len];
+            foreach (var secondaryArray in secondaryArrays.Where(a => a != null))
+                ApplyOrder(sortIndexes, secondaryArray, buffer);
+        }
+
+        /// <summary>
         /// Apply the ordering gotten from the sorting of an array (see Sort method above)
         /// to a new array.
         /// </summary>
         /// <typeparam name="TItem">Type of array elements</typeparam>
         /// <param name="sortIndexes">Array of indexes that recorded sort operations</param>
         /// <param name="array">Array to be reordered using the index array</param>
-        /// <returns></returns>
-        public static TItem[] ApplyOrder<TItem>(int[] sortIndexes, TItem[] array)
+        /// <param name="buffer">An optional buffer to use to avoid allocating a new array and force in-place sorting</param>
+        /// <returns>A sorted version of the original array</returns>
+        public static TItem[] ApplyOrder<TItem>(int[] sortIndexes, TItem[] array, TItem[] buffer = null)
         {
-            var ordered = new TItem[array.Length];
+            TItem[] ordered;
+            int len = array.Length;
+            if (buffer == null)
+                ordered = new TItem[len];
+            else
+            {
+                Array.Copy(array, buffer, len);
+                ordered = array;
+                array = buffer;
+            }
             for (int i = 0; i < array.Length; i++)
                 ordered[i] = array[sortIndexes[i]];
             return ordered;
@@ -969,6 +995,7 @@ namespace pwiz.Skyline.Util
     /// </summary>
     public class BlockedArray<TItem> : IReadOnlyList<TItem>
     {
+        public static readonly BlockedArray<TItem> EMPTY = new BlockedArray<TItem>();
         private readonly List<TItem[]> _blocks;
         private readonly int _itemCount;
 
@@ -1452,16 +1479,13 @@ namespace pwiz.Skyline.Util
         /// <param name="value">The string to parse</param>
         /// <param name="defaultValue">The value to return, if parsing fails</param>
         /// <returns>An enum value of type <see cref="TEnum"/></returns>
-        public static TEnum ParseEnum<TEnum>(string value, TEnum defaultValue)
+        public static TEnum ParseEnum<TEnum>(string value, TEnum defaultValue) where TEnum : struct
         {
-            try
+            if (Enum.TryParse(value, true, out TEnum result))
             {
-                return (TEnum)Enum.Parse(typeof(TEnum), value, true);
+                return result;
             }
-            catch (Exception)
-            {
-                return defaultValue;
-            }                            
+            return defaultValue;
         }
 
         /// <summary>
@@ -1628,6 +1652,24 @@ namespace pwiz.Skyline.Util
                     return i;
             }
             return 0;
+        }
+
+        public static List<string> EnsureUniqueNames(List<string> names, HashSet<string> reservedNames = null)
+        {
+            var setUsedNames = reservedNames ?? new HashSet<string>();
+            var result = new List<string>();
+            for (int i = 0; i < names.Count; i++)
+            {
+                string baseName = names[i];
+                // Make sure the next name added is unique
+                string name = (baseName.Length != 0 ? baseName : @"1");
+                for (int suffix = 2; setUsedNames.Contains(name); suffix++)
+                    name = baseName + suffix;
+                result.Add(name);
+                // Add this name to the used set
+                setUsedNames.Add(name);
+            }
+            return result;
         }
 
         /// <summary>
@@ -1810,16 +1852,71 @@ namespace pwiz.Skyline.Util
             return s.Length <= length ? s : s.Substring(0, length - ELIPSIS.Length) + ELIPSIS;
         }
 
+        private const int defaultLoopCount = 4;
+        private const int defaultMilliseconds = 500;
 
         /// <summary>
-        /// Try an action the might throw an IOException.  If it fails, sleep for 500 milliseconds and try
-        /// again.  See the comments above for more detail about why this is necessary.
+        /// Try an action that might throw an exception commonly related to a file move or delete.
+        /// If it fails, sleep for the indicated period and try again.
+        /// 
+        /// N.B. "TryTwice" is a historical misnomer since it actually defaults to trying four times,
+        /// but the intent is clear: try more than once. Further historical note: formerly this only
+        /// handled IOException, but in looping tests we also see UnauthorizedAccessException as a result
+        /// of file locks that haven't been released yet.
         /// </summary>
         /// <param name="action">action to try</param>
-        public static void TryTwice(Action action)
+        /// <param name="loopCount">how many loops to try before failing</param>
+        /// <param name="milliseconds">how long (in milliseconds) to wait before the action is retried</param>
+        /// <param name="hint">text to show in debug trace on failure</param>
+        public static void TryTwice(Action action, int loopCount = defaultLoopCount, int milliseconds = defaultMilliseconds, string hint = null)
         {
-            Try<IOException>(action);
+            for (int i = 1; i<loopCount; i++)
+            {
+                try
+                {
+                    action();
+                    return;
+                }
+                catch (IOException exIO)
+                {
+                    ReportExceptionForRetry(milliseconds, exIO, i, loopCount, hint);
+                }
+                catch (UnauthorizedAccessException exUA)
+                {
+                    ReportExceptionForRetry(milliseconds, exUA, i, loopCount, hint);
+                }
+            }
+            DetailedTrace.WriteLine(string.Format(@"Final attempt ({0} of {1}):", loopCount, loopCount), true);
+            // Try the last time, and let the exception go.
+            action();
         }
+
+        public static void TryTwice(Action action, string hint)
+        {
+            TryTwice(action, defaultLoopCount, defaultMilliseconds, hint);
+        }
+
+        private static void ReportExceptionForRetry(int milliseconds, Exception x, int loopCount, int maxLoopCount, string hint)
+        {
+            DetailedTrace.WriteLine(string.Format(@"Encountered the following exception on attempt {0} of {1}{2}:", loopCount, maxLoopCount,
+                string.IsNullOrEmpty(hint) ? string.Empty : (@" of action " + hint)));
+            DetailedTrace.WriteLine(x.Message);
+            if (RunningResharperAnalysis)
+            {
+                DetailedTrace.WriteLine($@"We're running under ReSharper analysis, which may throw off timing - adding some extra sleep time");
+                // Allow up to 5 sec extra time when running code coverage or other analysis
+                milliseconds += (5000 * (loopCount+1)) / maxLoopCount; // Each loop a little more desperate
+            }
+            DetailedTrace.WriteLine(string.Format(@"Sleeping {0} ms then retrying...", milliseconds));
+            Thread.Sleep(milliseconds);
+        }
+
+        // Detect the use of ReSharper code coverage, memory profiling etc, which may affect timing
+        //
+        // Per https://youtrack.jetbrains.com/issue/PROF-1093
+        // "Set JETBRAINS_DPA_AGENT_ENABLE=0 environment variable for user apps started from dotTrace, and JETBRAINS_DPA_AGENT_ENABLE=1
+        // in case of dotCover and dotMemory."
+        public static bool RunningResharperAnalysis => !string.IsNullOrEmpty(Environment.GetEnvironmentVariable(@"JETBRAINS_DPA_AGENT_ENABLE"));
 
         /// <summary>
         /// Try an action that might throw an exception.  If it does, sleep for a little while and
@@ -1831,7 +1928,8 @@ namespace pwiz.Skyline.Util
         /// <param name="action">action to try</param>
         /// <param name="loopCount">how many loops to try before failing</param>
         /// <param name="milliseconds">how long (in milliseconds) to wait before the action is retried</param>
-        public static void Try<TEx>(Action action, int loopCount = 4, int milliseconds = 500) where TEx : Exception
+        /// <param name="hint">text to show in debug trace on failure</param>
+        public static void Try<TEx>(Action action, int loopCount = defaultLoopCount, int milliseconds = defaultMilliseconds, string hint = null) where TEx : Exception
         {
             for (int i = 1; i < loopCount; i++)
             {
@@ -1842,11 +1940,10 @@ namespace pwiz.Skyline.Util
                 }
                 catch (TEx x)
                 {
-                    Trace.WriteLine(x.Message);
-                    Thread.Sleep(milliseconds);
+                    ReportExceptionForRetry(milliseconds, x, i, loopCount, hint);
                 }
             }
-
+            DetailedTrace.WriteLine(string.Format(@"Final attempt ({0} of {1}):", loopCount, loopCount), true);
             // Try the last time, and let the exception go.
             action();
         }
@@ -1876,7 +1973,7 @@ namespace pwiz.Skyline.Util
 
         public static string NullableDoubleToString(double? d)
         {
-            return d.HasValue ? d.Value.ToString(LocalizationHelper.CurrentCulture) : string.Empty;
+            return d.HasValue ? d.Value.ToString(LocalizationHelper.CurrentCulture) : String.Empty;
         }
     }
 
@@ -1885,6 +1982,24 @@ namespace pwiz.Skyline.Util
     /// </summary>
     public static class Assume
     {
+
+        public static bool InvokeDebuggerOnFail { get; private set; } // When set, we will invoke the debugger rather than fail.
+        public class DebugOnFail : IDisposable
+        {
+            private bool _pushPopInvokeDebuggerOnFail;
+
+            public DebugOnFail(bool invokeDebuggerOnFail = true)
+            {
+                _pushPopInvokeDebuggerOnFail = InvokeDebuggerOnFail; // Push
+                InvokeDebuggerOnFail = invokeDebuggerOnFail;
+            }
+
+            public void Dispose()
+            {
+                InvokeDebuggerOnFail = _pushPopInvokeDebuggerOnFail; // Pop
+            }
+        }
+
         public static void IsTrue(bool condition, string error = "")
         {
             if (!condition)
@@ -1929,6 +2044,39 @@ namespace pwiz.Skyline.Util
 
         public static void Fail(string error = "")
         {
+            if (InvokeDebuggerOnFail)
+            {
+                // Try to launch devenv with our solution sln so it presents in the list of debugger options.
+                // This makes for better code navigation and easier debugging.
+                try
+                {
+                    var path = @"\pwiz_tools\Skyline";
+                    var basedir = AppDomain.CurrentDomain.BaseDirectory;
+                    if (!string.IsNullOrEmpty(basedir))
+                    {
+                        var index = basedir.IndexOf(path, StringComparison.Ordinal);
+                        var solutionPath = basedir.Substring(0, index + path.Length);
+                        var skylineSln = Path.Combine(solutionPath, "Skyline.sln");
+                        // Try to give user a hint as to which debugger to pick
+                        var skylineTesterSln = Path.Combine(solutionPath, "USE THIS FOR ASSUME FAIL DEBUGGING.sln");
+                        if (File.Exists(skylineTesterSln))
+                            File.Delete(skylineTesterSln);
+                        File.Copy(skylineSln, skylineTesterSln);
+                        Process.Start(skylineTesterSln);
+                        Thread.Sleep(20000); // Wait for it to fire up sp it's offered in the list of debuggers
+                    }
+                }
+                // ReSharper disable once EmptyGeneralCatchClause
+                catch (Exception)
+                {
+                }
+
+                Console.WriteLine();
+                if (!string.IsNullOrEmpty(error))
+                    Console.WriteLine(error);
+                Console.WriteLine(@"error encountered, launching debugger as requested by Assume.DebugOnFail");
+                Debugger.Launch();
+            }
             throw new AssumptionException(error);
         }
 
@@ -1988,147 +2136,38 @@ namespace pwiz.Skyline.Util
             return ex.Message;
         }
 
-        public static string GetStackTraceText(Exception exception, StackTrace stackTraceExceptionCaughtAt = null, bool showMessage = true)
+        /// <summary>
+        /// Returns text to be used when reporting an unhandled exception to the Skyline.ms.
+        /// </summary>
+        public static string GetExceptionText(Exception exception, StackTrace stackTraceExceptionCaughtAt)
         {
-            StringBuilder stackTrace = new StringBuilder();
-            if (showMessage)
-                stackTrace.AppendLine(@"Stack trace:").AppendLine();
-
-            stackTrace.AppendLine(exception.StackTrace).AppendLine();
-
-            for (var x = exception.InnerException; x != null; x = x.InnerException)
+            StringBuilder stringBuilder = new StringBuilder();
+            stringBuilder.AppendLine(exception.ToString());
+            if (stackTraceExceptionCaughtAt != null)
             {
-                if (ReferenceEquals(x, exception.InnerException))
-                    stackTrace.AppendLine(@"Inner exceptions:");
-                else
-                    stackTrace.AppendLine(@"---------------------------------------------------------------");
-                stackTrace.Append(@"Exception type: ").Append(x.GetType().FullName).AppendLine();
-                stackTrace.Append(@"Error message: ").AppendLine(x.Message);
-                stackTrace.AppendLine(x.Message).AppendLine(x.StackTrace);
-            }
-            if (null != stackTraceExceptionCaughtAt)
-            {
-                stackTrace.AppendLine(@"Exception caught at: ");
-                stackTrace.AppendLine(stackTraceExceptionCaughtAt.ToString());
-            }
-            return stackTrace.ToString();
-        }
-    }
-
-    public static class ParallelEx
-    {
-        // This can be set to true to make debugging easier.
-        public static readonly bool SINGLE_THREADED = false;
-
-        private static readonly ParallelOptions PARALLEL_OPTIONS = new ParallelOptions
-        {
-            MaxDegreeOfParallelism = SINGLE_THREADED ? 1 : -1
-        };
-
-        private class IntHolder
-        {
-            public IntHolder(int theInt)
-            {
-                TheInt = theInt;
+                stringBuilder.AppendLine(@"Exception caught at: ");
+                stringBuilder.AppendLine(stackTraceExceptionCaughtAt.ToString());
             }
 
-            public int TheInt { get; private set; }
+            return stringBuilder.ToString();
         }
 
-        public static int GetThreadCount(int? maxThreads = null)
+        /// <summary>
+        /// Returns true if the exception is not something which could happen while trying to read
+        /// from disk.
+        /// Exception such as these should be displayed to the user with <see cref="Alerts.ReportErrorDlg"/>
+        /// so that they can report them as bugs.
+        /// </summary>
+        public static bool IsProgrammingDefect(Exception exception)
         {
-            if (SINGLE_THREADED)
-                return 1;
-            int threadCount = Environment.ProcessorCount;
-            int maxThreadCount = maxThreads ?? 8; // Trial with maximum of 8
-            if (threadCount > maxThreadCount)
-                threadCount = maxThreadCount;
-            return threadCount;
-        }
-
-        public static void For(int fromInclusive, int toExclusive, Action<int> body, Action<AggregateException> catchClause = null, int? maxThreads = null)
-        {
-            Action<int> localBody = i =>
+            if (exception is InvalidDataException 
+                || exception is IOException 
+                || exception is UnauthorizedAccessException)
             {
-                LocalizationHelper.InitThread(); // Ensure appropriate culture
-                body(i);
-            };
-            LoopWithExceptionHandling(() =>
-            {
-                using (var worker = new QueueWorker<IntHolder>(null, (h, i) => localBody(h.TheInt)))
-                {
-                    worker.RunAsync(GetThreadCount(maxThreads), typeof(ParallelEx).Name);
-                    for (int i = fromInclusive; i < toExclusive; i++)
-                    {
-                        if (worker.Exception != null)
-                            break;
-                        worker.Add(new IntHolder(i));
-                    }
-                    worker.DoneAdding(true);
-                    if (worker.Exception != null)
-                        throw new AggregateException(@"Exception in Parallel.For", worker.Exception);   
-                }
-            }, catchClause);
-//            LoopWithExceptionHandling(() => Parallel.For(fromInclusive, toExclusive, PARALLEL_OPTIONS, localBody), catchClause);
-        }
-
-        public static void ForEach<TSource>(IEnumerable<TSource> source, Action<TSource> body, Action<AggregateException> catchClause = null, int? maxThreads = null) where TSource : class
-        {
-            Action<TSource> localBody = o =>
-            {
-                LocalizationHelper.InitThread(); // Ensure appropriate culture
-                body(o);
-            };
-            LoopWithExceptionHandling(() =>
-            {
-                using (var worker = new QueueWorker<TSource>(null, (s, i) => localBody(s)))
-                {
-                    worker.RunAsync(GetThreadCount(maxThreads), typeof(ParallelEx).Name);
-                    foreach (TSource s in source)
-                    {
-                        if (worker.Exception != null)
-                            break;
-                        worker.Add(s);
-                    }
-                    worker.DoneAdding(true);
-                    if (worker.Exception != null)
-                        throw new AggregateException(@"Exception in Parallel.ForEx", worker.Exception); 
-                }
-            }, catchClause);
-//            LoopWithExceptionHandling(() => Parallel.ForEach(source, PARALLEL_OPTIONS, localBody), catchClause);
-        }
-
-        private static void LoopWithExceptionHandling(Action loop, Action<AggregateException> catchClause)
-        {
-            try
-            {
-                loop();
+                return false;
             }
-            catch (AggregateException x)
-            {
-                Exception ex = null;
-                x.Handle(inner =>
-                {
-                    if (inner is OperationCanceledException)
-                    {
-                        if (!(ex is OperationCanceledException))
-                            ex = inner;
-                        return true;
-                    }
-                    if (catchClause == null)
-                    {
-                        if (ex == null)
-                            ex = inner;
-                        return true;
-                    }
-                    return false;
-                });
 
-                if (ex != null)
-                    Helpers.WrapAndThrowException(ex);
-                if (catchClause != null)
-                    catchClause(x);
-            }
+            return true;
         }
     }
 
@@ -2184,11 +2223,84 @@ namespace pwiz.Skyline.Util
 
     public static class SecurityProtocolInitializer
     {
-        // Make sure we can negotiate with HTTPS servers that demand TLS 1.2 (default in dotNet 4.6, but has to be turned on in 4.5)
+        // Make sure we can negotiate with HTTPS servers that demand modern TLS levels
+        // The current recommendation from MSFT for future-proofing this https://docs.microsoft.com/en-us/dotnet/framework/network-programming/tls
+        // is don't specify TLS levels at all, let the OS decide. But we worry that this will mess up Win7 and Win8 installs, so we continue to specify explicitly.
         public static void Initialize()
         {
-            ServicePointManager.SecurityProtocol |= (SecurityProtocolType.Tls | SecurityProtocolType.Tls11 | SecurityProtocolType.Tls12);
+            try
+            {
+                var Tls13 = (SecurityProtocolType)12288; // From decompiled SecurityProtocolType - compiler has no definition for some reason
+                ServicePointManager.SecurityProtocol |= SecurityProtocolType.Tls | SecurityProtocolType.Tls11 | SecurityProtocolType.Tls12 | Tls13;
+            }
+            catch (NotSupportedException)
+            {
+                ServicePointManager.SecurityProtocol |= SecurityProtocolType.Tls | SecurityProtocolType.Tls11 | SecurityProtocolType.Tls12; // Probably an older Windows Server
+            }
         }
     }
 
+    /// <summary>
+    /// Creates a string representing a UTC time and offset to local time zone, per ISO 8601 standard
+    /// </summary>
+    public class TimeStampISO8601
+    {
+        public TimeStampISO8601(DateTime timeStampUTC)
+        {
+            Assume.IsTrue(timeStampUTC.Kind == DateTimeKind.Utc); // We only deal in UTC
+            TimeStampUTC = timeStampUTC;
+            TimeZoneOffset = TimeZoneInfo.Local.GetUtcOffset(TimeStampUTC); // UTC offset e.g. -8 for Seattle whn not on DST
+        }
+
+        public TimeStampISO8601() : this(DateTime.UtcNow)
+        {
+        }
+
+        public DateTime TimeStampUTC { get; } // UTC time of creation
+        public TimeSpan TimeZoneOffset { get; } // UTC offset at time of creation e.g. -8 for Seattle when not on DST, -7 when DST  
+
+        public override string ToString()
+        {
+            var localTime = TimeStampUTC + TimeZoneOffset;
+            var tzShift = TimeZoneOffset.TotalHours; // Decimal hours eg 8.5 or -0.5 etc
+            return localTime.ToString(@"s", DateTimeFormatInfo.InvariantInfo) +
+                   (tzShift == 0
+                       ? @"Z"
+                       : (tzShift < 0 ? @"-" : @"+") + TimeZoneOffset.ToString(@"hh\:mm"));
+        }
+    }
+
+
+    /// <summary>
+    /// Like Trace.WriteLine, but with considerable detail when running a test
+    /// </summary>
+    public class DetailedTrace
+    {
+        public static void WriteLine(string msg, bool showStackTrace = false)
+        {
+            if (string.IsNullOrEmpty(Program.TestName))
+            {
+                Trace.WriteLine(msg);
+            }
+            else
+            {
+                // Give more detail - useful in case of parallel test interactions
+                Trace.WriteLine(
+                    $@"{msg} [UTC: {DateTime.UtcNow:s} Test: {Program.TestName} PID: {Process.GetCurrentProcess().Id} Thread: {Thread.CurrentThread.ManagedThreadId})]");
+                if (showStackTrace)
+                {
+                    // per https://docs.microsoft.com/en-us/dotnet/api/system.diagnostics.stacktrace?view=net-6.0
+                    // Create a StackTrace that captures filename, line number and column information.
+                    var st = new StackTrace(true);
+                    var stackIndent = string.Empty;
+                    for (var i = 0; i < st.FrameCount; i++)
+                    {
+                        var sf = st.GetFrame(i);
+                        Trace.WriteLine($@"{stackIndent}{sf.GetMethod()} at {sf.GetFileName()}({sf.GetFileLineNumber()}:{sf.GetFileColumnNumber()})");
+                        stackIndent += @"  ";
+                    }
+                }
+            }
+        }
+    }
 }

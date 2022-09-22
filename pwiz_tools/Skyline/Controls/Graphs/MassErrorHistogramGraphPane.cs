@@ -93,14 +93,17 @@ namespace pwiz.Skyline.Controls.Graphs
                 data.Graph(this);
         }
 
+        public double Mean => Data.Mean;
+        public double StdDev => Data.StdDev;
+
         /// <summary>
         /// Holds the data currently displayed in the graph.
         /// </summary>
         sealed class GraphData : Immutable
         {
             // Cache variables for this data. Data only valid for this state
-            private readonly SrmDocument _document;	// Active document when data was created
-            private readonly int _resultIndex;	// Index to active replicate or -1 for everything
+            private readonly SrmDocument _document; // Active document when data was created
+            private readonly int _resultIndex; // Index to active replicate or -1 for everything
             private readonly DisplayTypeMassError _displayType; // Display type when data was created
             private readonly ReplicateDisplay _replicateDisplay; // Replicate dsiaply when data was created
 
@@ -161,6 +164,9 @@ namespace pwiz.Skyline.Controls.Graphs
                 _mean = statVals.Mean();
                 _stdDev = statVals.StdDev();
             }
+
+            public double Mean => _mean;
+            public double StdDev => _stdDev;
 
             private void AddChromInfo(TransitionGroupDocNode nodeGroup, TransitionDocNode nodeTran, int replicateIndex,
                 Dictionary<int, int> dictPpmBin2ToCount, List<double> vals)

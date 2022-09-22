@@ -71,6 +71,9 @@ enum PWIZ_API_DECL ControllerType
 };
 
 
+extern const char* ControllerTypeStrings[];
+
+
 struct PWIZ_API_DECL ControllerInfo
 {
     ControllerType type;
@@ -224,8 +227,12 @@ typedef shared_ptr<MassRange> MassRangePtr;
 
 struct PWIZ_API_DECL PrecursorInfo
 {
+    int msLevel;
     double monoisotopicMZ;
     double isolationMZ;
+    double isolationWidth;
+    double activationEnergy;
+    ActivationType activationType;
     int chargeState;
     int scanNumber;
 };
@@ -237,6 +244,8 @@ class PWIZ_API_DECL ScanInfo
     virtual void reinitialize(const std::string& filterString) = 0;
 
     virtual long scanNumber() const = 0;
+    virtual int scanSegmentNumber() const = 0;
+    virtual int scanEventNumber() const = 0;
 
     // info contained in filter string
     virtual std::string filter() const = 0;
@@ -260,7 +269,7 @@ class PWIZ_API_DECL ScanInfo
     virtual AccurateMassType accurateMassType() const = 0;
 
 
-    virtual std::vector<PrecursorInfo> precursorInfo() const = 0;
+    virtual const std::vector<PrecursorInfo>& precursorInfo() const = 0;
     virtual long precursorCount() const = 0;
     virtual long precursorCharge() const = 0;
     virtual double precursorMZ(long index, bool preferMonoisotope = true) const = 0;
@@ -436,6 +445,7 @@ class PWIZ_API_DECL RawFile
     // getDetectorType is obsolete?
     virtual double getIsolationWidth(int scanSegment, int scanEvent) const = 0;
     virtual double getDefaultIsolationWidth(int scanSegment, int msLevel)const = 0;
+    virtual double calculateIsolationMzWithOffset(long scanNumber, double isolationMzPossiblyWithOffset) const = 0;
 
     virtual ErrorLogItem getErrorLogItem(long itemNumber) const = 0;
     virtual std::vector<std::string> getInstrumentMethods() const = 0;
@@ -448,9 +458,9 @@ class PWIZ_API_DECL RawFile
     virtual const std::vector<DetectorType>& getDetectors() const = 0;
 
     virtual std::string getSampleID() const = 0;
-    virtual std::string getTrailerExtraValue(long scanNumber, const std::string& name) const = 0;
-    virtual double getTrailerExtraValueDouble(long scanNumber, const std::string& name) const = 0;
-    virtual long getTrailerExtraValueLong(long scanNumber, const std::string& name) const = 0;
+    virtual std::string getTrailerExtraValue(long scanNumber, const std::string& name, std::string valueIfMissing = "") const = 0;
+    virtual double getTrailerExtraValueDouble(long scanNumber, const std::string& name, double valueIfMissing = 0) const = 0;
+    virtual long getTrailerExtraValueLong(long scanNumber, const std::string& name, long valueIfMissing = 0) const = 0;
 
     virtual ChromatogramDataPtr
     getChromatogramData(ChromatogramType traceType,

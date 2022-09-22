@@ -49,6 +49,8 @@ namespace BiblioSpec {
         
         // BuildParser functions
         virtual bool parseFile();
+        vector<PSM_SCORE_TYPE> getScoreTypes();
+        static vector<PSM_SCORE_TYPE> getScoreTypesHelper();
         virtual void startElement(const XML_Char* name, const XML_Char** attr);
         virtual void endElement(const XML_Char* name);
         virtual void characters(const XML_Char *s, int len);
@@ -76,6 +78,8 @@ namespace BiblioSpec {
         vector<PEAK_T> curPeaks_;
         string peaksStr_;
         size_t expectedNumPeaks_;
+        int lastFilePosition_;
+        ProgressIndicator* readSpecProgress_; // each spec read from file
         double curSpecMz_;
         double probCutOff_;
         bool skipMods_;
@@ -102,6 +106,7 @@ namespace BiblioSpec {
         void saveMatch();
         void saveSpectrum();
         void getElementName();
+        void initializeMod();
         void getElementMass();
         void addElement(double& mass, string element, int count = 1);
         void getModName();

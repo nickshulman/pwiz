@@ -32,7 +32,6 @@ using System.Xml.Schema;
 using System.Xml.Serialization;
 using pwiz.Common.DataBinding;
 using pwiz.Common.SystemUtil;
-using pwiz.Skyline.Alerts;
 using pwiz.Skyline.Controls;
 using pwiz.Skyline.Model.Databinding;
 using pwiz.Skyline.Model.DocSettings;
@@ -217,10 +216,9 @@ namespace pwiz.Skyline.Model.Tools
             {
                 if (Equals(Title, ToolList.DEPRECATED_QUASAR.Title) && Equals(Command, ToolList.DEPRECATED_QUASAR.Command))
                 {
-                    MessageDlg.Show(parent, TextUtil.LineSeparate(
+                    throw new ToolDeprecatedException(TextUtil.LineSeparate(
                         Resources.ToolDescription_RunTool_Support_for_the_GenePattern_version_of_QuaSAR_has_been_discontinued_,
                         Resources.ToolDescription_RunTool_Please_check_the_External_Tools_Store_on_the_Skyline_web_site_for_the_most_recent_version_of_the_QuaSAR_external_tool_));
-                    return;
                 }
                 var webHelpers = WebHelpers ?? new WebHelpers();
 
@@ -468,6 +466,7 @@ namespace pwiz.Skyline.Model.Tools
                             throw new ToolExecutionException(
                                 TextUtil.LineSeparate(
                                     Resources.ToolDescription_RunTool_File_not_found_,
+                                    command,
                                     Resources
                                         .ToolDescription_RunTool_Please_check_the_command_location_is_correct_for_this_tool_),
                                 ex);
@@ -476,8 +475,7 @@ namespace pwiz.Skyline.Model.Tools
                         {
                             throw new ToolExecutionException(
                                 TextUtil.LineSeparate(
-                                    Resources
-                                        .ToolDescription_RunTool_Please_reconfigure_that_tool__it_failed_to_execute__,
+                                    Resources.ToolDescription_RunTool_Please_reconfigure_that_tool__it_failed_to_execute__,
                                     ex.Message),
                                 ex);
                         }
@@ -845,6 +843,13 @@ namespace pwiz.Skyline.Model.Tools
         public ToolExecutionException(string message, Exception innerException) : base(message, innerException){}
     }
 
+    public class ToolDeprecatedException : Exception
+    {
+        public ToolDeprecatedException(string message) : base(message) { }
+
+        public ToolDeprecatedException(string message, Exception innerException) : base(message, innerException) { }
+    }
+
     public static class ToolDescriptionHelpers
     {
         /// <summary>
@@ -876,21 +881,45 @@ namespace pwiz.Skyline.Model.Tools
                     reportTitle));
             progressMonitor.UpdateProgress(status);
             if (!viewContext.Export(CancellationToken.None, progressMonitor, ref status, viewInfo, writer,
-                viewContext.GetCsvWriter()))
+                    TextUtil.SEPARATOR_CSV))
             {
                 throw new OperationCanceledException();
             }
         }
 
+
+        // Long test names make for long Tools directory names, which can make for long command lines - maybe too long. So limit that directory name length by
+        // shortening to acronym and original length (e.g. "Foo7WithBar" => "F7WB10", "Foo7WithoutBar" => "F7WB13"))
+        private static string LimitDirectoryNameLength()
+        {
+            var testName = Program.TestName.Length > 10 // Arbitrary cutoff, but too little is likely to lead to ambiguous names
+                ? string.Concat(Program.TestName.Replace(@"Test", string.Empty).Where(c => char.IsUpper(c) || char.IsDigit(c))) + Program.TestName.Length
+                : Program.TestName;
+            return $@"{testName}_{Thread.CurrentThread.CurrentCulture.Name}";
+        }
+
+        /// <summary>
+        /// Get a name for the Skyline Tools directory - if we are running a test, make that name unique to the test in case tests are executing in parallel
+        /// </summary>
         public static string GetToolsDirectory()
         {
-            string skylinePath = Assembly.GetExecutingAssembly().Location;
-            if (string.IsNullOrEmpty(skylinePath))
-                return null;
-            string skylineDirPath = Path.GetDirectoryName(skylinePath);
-            if (string.IsNullOrEmpty(skylineDirPath))
-                return null;
-            return Path.Combine(skylineDirPath, @"Tools");
+            var skylineDirPath = GetSkylineInstallationPath();
+
+            // Use a unique tools path when running tests to allow tests to run in parallel
+            // ReSharper disable once AssignNullToNotNullAttribute
+            return Path.Combine(skylineDirPath, Program.UnitTest ? $@"Tools_{LimitDirectoryNameLength()}" : @"Tools");
+        }
+
+        /// <summary>
+        /// Gets the current installation directory, where we would expect to find Tools directory etc
+        /// </summary>
+        public static string GetSkylineInstallationPath()
+        {
+            var skylinePath = Assembly.GetExecutingAssembly().Location;
+            Assume.IsFalse(string.IsNullOrEmpty(skylinePath), @"Could not determine Skyline installation location");
+            var skylineDirPath = Path.GetDirectoryName(skylinePath);
+            Assume.IsFalse(string.IsNullOrEmpty(skylineDirPath), @"Could not determine Skyline installation directory name");
+            return skylineDirPath;
         }
     }
 }

@@ -48,7 +48,12 @@ PWIZ_API_DECL IntegerSet::Interval::Interval(int a, int b)
 
 PWIZ_API_DECL ostream& operator<<(ostream& os, const IntegerSet::Interval& interval)
 {
-    os << "[" << interval.begin << "," << interval.end << "]";
+    if (interval.end == numeric_limits<int>::max())
+        os << interval.begin << "-";
+    else if (interval.begin == numeric_limits<int>::min())
+        os << "-" << interval.end;
+    else
+        os << "[" << interval.begin << "," << interval.end << "]";
     return os;
 }
 
@@ -230,8 +235,13 @@ PWIZ_API_DECL size_t IntegerSet::size() const
 
 PWIZ_API_DECL ostream& operator<<(ostream& os, const IntegerSet& integerSet)
 {
-    copy(integerSet.intervals_.begin(), integerSet.intervals_.end(), 
-         ostream_iterator<IntegerSet::Interval>(os," "));
+    if (!integerSet.intervals_.empty())
+    {
+        auto itr = integerSet.intervals_.begin();
+        os << *itr;
+        for (++itr; itr != integerSet.intervals_.end(); ++itr)
+            os << " " << *itr;
+    }
     return os;
 }
 
@@ -307,6 +317,12 @@ PWIZ_API_DECL bool IntegerSet::Iterator::operator==(const Iterator& that) const
     return (it_!=end_ && that.it_!=that.end_ && it_==that.it_ && value_==that.value_ ||
             it_==end_ && that.it_==nothing_.end());
 }
+
+
+const IntegerSet IntegerSet::emptySet = IntegerSet();
+const IntegerSet IntegerSet::positive = IntegerSet(1, std::numeric_limits<int>::max());
+const IntegerSet IntegerSet::negative = IntegerSet(std::numeric_limits<int>::min(), -1);
+const IntegerSet IntegerSet::whole = IntegerSet(0, std::numeric_limits<int>::max());
 
 
 } // namespace util 

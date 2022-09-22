@@ -23,6 +23,7 @@ using System.Linq;
 using pwiz.Common.Collections;
 using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Controls.SeqNode;
+using pwiz.Skyline.Model.Crosslinking;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.GroupComparison;
 using pwiz.Skyline.Model.Irt;
@@ -82,15 +83,17 @@ namespace pwiz.Skyline.Model
 
             if (settings != null)
             {
-                var calcPre = settings.GetPrecursorCalc(IsotopeLabelType.light, ExplicitMods);
-                ModifiedTarget = calcPre.GetModifiedSequence(Peptide.Target, SequenceModFormatType.full_precision, false);
-                ModifiedSequenceDisplay = calcPre.GetModifiedSequence(Peptide.Target, true).DisplayName;
+                CalculateModifiedTarget(settings, out Target modifiedTarget, out string modifiedSequenceDisplay);
+                ModifiedTarget = modifiedTarget;
+                ModifiedSequenceDisplay = modifiedSequenceDisplay;
             }
             else
             {
                 ModifiedTarget = Peptide.Target;
                 ModifiedSequenceDisplay = Peptide.Target.DisplayName;
             }
+
+            ExplicitMods?.VerifyNoLegacyData();
         }
 
         public override string AuditLogText
@@ -117,6 +120,23 @@ namespace pwiz.Skyline.Model
 
         public Peptide Peptide { get { return (Peptide)Id; } }
 
+        public PeptideDocNode ChangeFastaSequence(FastaSequence newSequence)
+        {
+            int begin = newSequence.Sequence.IndexOf(Peptide.Target.Sequence, StringComparison.Ordinal);
+            Assume.IsTrue(begin >= 0);
+            int end = begin + Peptide.Target.Sequence.Length;
+            var newPeptide = new Peptide(newSequence, Peptide.Target.Sequence,
+                begin, end, Peptide.MissedCleavages);
+            return ChangePeptide(newPeptide, TransitionGroups.Select(tg => tg.ChangePeptide(newPeptide)));
+        }
+
+        public PeptideDocNode ChangePeptide(Peptide peptide, IEnumerable<TransitionGroupDocNode> newTransitionGroups)
+        {
+            var node = (PeptideDocNode)ChangeId(peptide);
+            node = (PeptideDocNode)node.ChangeChildren(newTransitionGroups.Cast<DocNode>().ToList());
+            return node;
+        }
+
         [TrackChildren(ignoreName:true, defaultValues: typeof(DefaultValuesNull))]
         public CustomMolecule CustomMolecule { get { return Peptide.CustomMolecule; } }
 
@@ -129,21 +149,20 @@ namespace pwiz.Skyline.Model
         private static IList<LoggableExplicitMod> EmptyIfDefault(ExplicitMods mods)
         {
             if (mods == null || mods.Equals(ExplicitMods.EMPTY))
-                return new LoggableExplicitMod[0];
+                return EMPTY_LOGGABLE;
 
             return null;
         }
+
+        private static LoggableExplicitMod[] EMPTY_LOGGABLE = new LoggableExplicitMod[0];
+        private static LoggableExplicitModList[] EMPTY_LOGGABLE_LIST = new LoggableExplicitModList[0];
 
         [TrackChildren(defaultValues:typeof(DefaultValuesNullOrEmpty))]
         public IList<LoggableExplicitMod> ExplicitModsStatic
         {
             get
             {
-                return EmptyIfDefault(ExplicitMods) ?? (ExplicitMods.StaticModifications == null
-                           ? new LoggableExplicitMod[0]
-                           : ExplicitMods.StaticModifications
-                               .Select(mod => new LoggableExplicitMod(mod, Peptide.Sequence))
-                               .ToArray());
+                return EmptyIfDefault(ExplicitMods) ?? GetLoggableMods(ExplicitMods.StaticModifications);
             }
         }
 
@@ -152,16 +171,46 @@ namespace pwiz.Skyline.Model
         {
             get
             {
-                return EmptyIfDefault(ExplicitMods) ?? (ExplicitMods.HeavyModifications == null
-                           ? new LoggableExplicitMod[0]
-                           : ExplicitMods.HeavyModifications
-                               .Select(mod => new LoggableExplicitMod(mod, Peptide.Sequence))
-                               .ToArray());
+                return EmptyIfDefault(ExplicitMods) ?? GetLoggableMods(ExplicitMods.HeavyModifications);
             }
+        }
+
+        [TrackChildren(defaultValues: typeof(DefaultValuesNullOrEmpty))]
+        public IList<LoggableExplicitModList> ExplicitModsTyped
+        {
+            get
+            {
+                if (ExplicitMods == null)
+                    return EMPTY_LOGGABLE_LIST;
+                var labeledNonHeavyMods = ExplicitMods.GetHeavyModifications()
+                    .Where(m => !ReferenceEquals(m.LabelType, IsotopeLabelType.heavy)).ToArray();
+                if (labeledNonHeavyMods.Length == 0)
+                    return EMPTY_LOGGABLE_LIST;
+
+                return labeledNonHeavyMods.Select(mods =>
+                        new LoggableExplicitModList(mods.LabelType, GetLoggableMods(mods.Modifications)))
+                    .ToArray();
+            }
+        }
+
+        private IList<LoggableExplicitMod> GetLoggableMods(IList<ExplicitMod> mods)
+        {
+            if (mods != null)
+                return mods.Select(mod => new LoggableExplicitMod(mod, Peptide.Sequence)).ToArray();
+            return EMPTY_LOGGABLE;
         }
 
         public ExplicitMods ExplicitMods { get; private set; }
 
+        public CrosslinkStructure CrosslinkStructure
+        {
+            get { return ExplicitMods?.CrosslinkStructure ?? CrosslinkStructure.EMPTY; }
+        }
+
+        public string GetCrosslinkedSequence()
+        {
+            return string.Join(@"-", CrosslinkStructure.LinkedPeptides.Prepend(Peptide).Select(pep => pep.Sequence));
+        }
         public ModifiedSequenceMods SourceKey { get; private set; }
 
         [TrackChildren(defaultValues:typeof(DefaultValuesNull))]
@@ -464,12 +513,36 @@ namespace pwiz.Skyline.Model
                 return -1;
 
             int iBest = -1;
-            double bestArea = Double.MinValue;
+            double? bestZScore = null;
+            double bestArea = double.MinValue;
             for (int i = 0; i < Results.Count; i++)
             {
-                double combinedScore = 0;
+                var i1 = i;
+                var zScores = Children.Cast<TransitionGroupDocNode>()
+                    .Where(nodeTranGroup => nodeTranGroup.HasResults)
+                    .SelectMany(nodeTranGroup => nodeTranGroup.Results[i1])
+                    .Where(ci => ci.ZScore.HasValue)
+                    .Select(ci => ci.ZScore.Value).ToArray();
+                var zScore = zScores.Length > 0 ? (float?) zScores.Max() : null;
+
+                if (zScore.HasValue)
+                {
+                    if (!bestZScore.HasValue || zScore.Value > bestZScore.Value)
+                    {
+                        iBest = i;
+                        bestZScore = zScore.Value;
+                    }
+                    continue;
+                }
+                else if (bestZScore.HasValue)
+                {
+                    continue;
+                }
+
+                double maxScore = 0;
                 foreach (TransitionGroupDocNode nodeGroup in Children)
                 {
+
                     double groupArea = 0;
                     double groupTranMeasured = 0;
                     bool isGroupIdentified = false;
@@ -478,7 +551,8 @@ namespace pwiz.Skyline.Model
                         if (!nodeTran.HasResults)
                             continue;
                         var result = nodeTran.Results[i];
-                        if (result.IsEmpty)
+                        int resultCount = result.Count;
+                        if (resultCount == 0)
                             continue;
                         // Use average area over all files in a replicate to avoid
                         // counting a replicate as best, simply because it has more
@@ -486,9 +560,10 @@ namespace pwiz.Skyline.Model
                         // file per precursor per replicate.
                         double tranArea = 0;
                         double tranMeasured = 0;
-                        foreach (var chromInfo in result)
+                        for (int iChromInfo = 0; iChromInfo < resultCount; iChromInfo++)
                         {
-                            if (chromInfo != null && chromInfo.Area > 0)
+                            var chromInfo = result[iChromInfo];
+                            if (chromInfo.Area > 0)
                             {
                                 tranArea += chromInfo.Area;
                                 tranMeasured++;
@@ -496,17 +571,17 @@ namespace pwiz.Skyline.Model
                                 isGroupIdentified = isGroupIdentified || chromInfo.IsIdentified;
                             }
                         }
-                        groupArea += tranArea/result.Count;
-                        groupTranMeasured += tranMeasured/result.Count;
+                        groupArea += tranArea/resultCount;
+                        groupTranMeasured += tranMeasured/resultCount;
                     }
-                    combinedScore += ChromDataPeakList.ScorePeak(groupArea,
-                        LegacyCountScoreCalc.GetPeakCountScore(groupTranMeasured, nodeGroup.Children.Count),
-                        isGroupIdentified);
+
+                    maxScore = Math.Max(maxScore, 
+                        ChromDataPeakList.ScorePeak(groupArea, LegacyCountScoreCalc.GetPeakCountScore(groupTranMeasured, nodeGroup.Children.Count), isGroupIdentified));
                 }
-                if (combinedScore > bestArea)
+                if (maxScore > bestArea)
                 {
                     iBest = i;
-                    bestArea = combinedScore;
+                    bestArea = maxScore;
                 }
             }
             return iBest;            
@@ -526,9 +601,7 @@ namespace pwiz.Skyline.Model
             if (!IsProteomic)
                 return this; // Settings have no effect on custom ions
 
-            var calcPre = settingsNew.GetPrecursorCalc(IsotopeLabelType.light, ExplicitMods);
-            var modifiedTarget = calcPre.GetModifiedSequence(Peptide.Target, SequenceModFormatType.full_precision, false);
-            string modifiedSequenceDisplay = calcPre.GetModifiedSequence(Peptide.Target, true).Sequence;
+            CalculateModifiedTarget(settingsNew, out Target modifiedTarget, out string modifiedSequenceDisplay);
             if (Equals(modifiedTarget, ModifiedTarget) &&
                 String.Equals(modifiedSequenceDisplay, ModifiedSequenceDisplay))
             {
@@ -539,6 +612,24 @@ namespace pwiz.Skyline.Model
                     im.ModifiedTarget = modifiedTarget;
                     im.ModifiedSequenceDisplay = modifiedSequenceDisplay;
                 });
+        }
+
+        private void CalculateModifiedTarget(SrmSettings srmSettings, out Target modifiedTarget,
+            out string modifiedSequenceDisplay)
+        {
+            if (ExplicitMods == null || !ExplicitMods.HasCrosslinks)
+            {
+                var calcPre = srmSettings.GetPrecursorCalc(IsotopeLabelType.light, ExplicitMods);
+
+                modifiedTarget =
+                    calcPre.GetModifiedSequence(Peptide.Target, SequenceModFormatType.full_precision, false);
+                modifiedSequenceDisplay = calcPre.GetModifiedSequence(Peptide.Target, true).DisplayName;
+            }
+            else
+            {
+                modifiedTarget = srmSettings.GetCrosslinkModifiedSequence(Peptide.Target, IsotopeLabelType.light, ExplicitMods);
+                modifiedSequenceDisplay = modifiedTarget.ToString();
+            }
         }
 
         public PeptideDocNode ChangeExplicitMods(ExplicitMods prop)
@@ -769,21 +860,32 @@ namespace pwiz.Skyline.Model
             // If the peptide has explicit modifications, and the modifications have
             // changed, see if any of the explicit modifications have changed
             var explicitMods = ExplicitMods;
-            if (HasExplicitMods &&
-                !diff.IsUnexplainedExplicitModificationAllowed &&
+            var sourceKey = SourceKey;
+            if (!diff.IsUnexplainedExplicitModificationAllowed &&
                 diff.SettingsOld != null &&
                 !ReferenceEquals(settingsNew.PeptideSettings.Modifications,
-                                 diff.SettingsOld.PeptideSettings.Modifications))
+                    diff.SettingsOld.PeptideSettings.Modifications))
             {
-                explicitMods = ExplicitMods.ChangeGlobalMods(settingsNew);
-                if (explicitMods == null || !ArrayUtil.ReferencesEqual(explicitMods.GetHeavyModifications().ToArray(),
-                                                                       ExplicitMods.GetHeavyModifications().ToArray()))
+                if (!ExplicitMods.IsNullOrEmpty(ExplicitMods))
                 {
-                    diff = new SrmSettingsDiff(diff, SrmSettingsDiff.ALL);                    
+                    explicitMods = ExplicitMods.ChangeGlobalMods(settingsNew);
+                    if (explicitMods == null || !ArrayUtil.ReferencesEqual(
+                            explicitMods.GetHeavyModifications().ToArray(),
+                            ExplicitMods.GetHeavyModifications().ToArray()) ||
+                        !ReferenceEquals(explicitMods.StaticModifications, ExplicitMods.StaticModifications)
+                       )
+                    {
+                        diff = new SrmSettingsDiff(diff, SrmSettingsDiff.ALL);
+                    }
                 }
-                else if (!ReferenceEquals(explicitMods.StaticModifications, ExplicitMods.StaticModifications))
+
+                if (sourceKey?.ExplicitMods != null)
                 {
-                    diff = new SrmSettingsDiff(diff, SrmSettingsDiff.PROPS);
+                    var sourceKeyExplicitMods = sourceKey.ExplicitMods.ChangeGlobalMods(settingsNew);
+                    if (!ReferenceEquals(sourceKeyExplicitMods, sourceKey.ExplicitMods))
+                    {
+                        sourceKey = new ModifiedSequenceMods(sourceKey.ModifiedSequence, sourceKeyExplicitMods);
+                    }
                 }
             }
 
@@ -791,6 +893,8 @@ namespace pwiz.Skyline.Model
             PeptideDocNode nodeResult = this;
             if (!ReferenceEquals(explicitMods, ExplicitMods))
                 nodeResult = nodeResult.ChangeExplicitMods(explicitMods);
+            if (!ReferenceEquals(sourceKey, SourceKey))
+                nodeResult = nodeResult.ChangeSourceKey(sourceKey);
             nodeResult = nodeResult.UpdateModifiedSequence(settingsNew);
 
             if (diff.DiffPeptideProps)
@@ -818,17 +922,26 @@ namespace pwiz.Skyline.Model
                 bool isPickedIntensityRank = useHighestRank &&
                                              ReferenceEquals(rankId, LibrarySpec.PEP_RANK_PICKED_INTENSITY);
 
-                Dictionary<Identity, DocNode> mapIdToChild = CreateIdContentToChildMap();
-                foreach (TransitionGroup tranGroup in GetTransitionGroups(settingsNew, explicitMods, true))
+                IEqualityComparer<TransitionGroup> transitionGroupEqualityComparer = null;
+                if (!IsProteomic)
                 {
-                    TransitionGroupDocNode nodeGroup;
+                    transitionGroupEqualityComparer = new IdentityEqualityComparer<TransitionGroup>();
+                }
+
+                ILookup<TransitionGroup, TransitionGroupDocNode> mapIdToChild =
+                    TransitionGroups.ToLookup(nodeGroup => nodeGroup.TransitionGroup, transitionGroupEqualityComparer);
+                foreach (TransitionGroup tranGroup in GetTransitionGroups(settingsNew, explicitMods, true)
+                    .Distinct(transitionGroupEqualityComparer))
+                {
+                    IList<TransitionGroupDocNode> nodeGroups;
                     SrmSettingsDiff diffNode = diff;
 
-                    DocNode existing;
                     // Add values that existed before the change, unless using picked intensity ranking,
                     // since this could bias the ranking, otherwise.
-                    if (!isPickedIntensityRank && mapIdToChild.TryGetValue(tranGroup, out existing))
-                        nodeGroup = (TransitionGroupDocNode)existing;
+                    if (!isPickedIntensityRank && mapIdToChild.Contains(tranGroup))
+                    {
+                        nodeGroups = mapIdToChild[tranGroup].ToArray();
+                    }
                     // Add new node
                     else
                     {
@@ -836,22 +949,30 @@ namespace pwiz.Skyline.Model
                             ? GetMatchingTransitions(tranGroup, settingsNew, explicitMods)
                             : null;
 
-                        nodeGroup = new TransitionGroupDocNode(tranGroup, transitions);
+                        nodeGroups = ImmutableList.Singleton(new TransitionGroupDocNode(tranGroup, transitions));
                         // If not recursing, then ChangeSettings will not be called on nodeGroup.  So, make
                         // sure its precursor m/z is set correctly.
                         if (!recurse)
-                            nodeGroup = nodeGroup.ChangePrecursorMz(settingsNew, explicitMods);
+                        {
+                            nodeGroups = ImmutableList.ValueOf(nodeGroups.Select(nodeGroup =>
+                                nodeGroup.ChangePrecursorMz(settingsNew, explicitMods)));
+                        }
                         diffNode = SrmSettingsDiff.ALL;
                     }
 
-                    if (nodeGroup != null)
+                    if (nodeGroups != null)
                     {
-                        nodeGroup = recurse
-                            ? nodeGroup.ChangeSettings(settingsNew, nodeResult, explicitMods, diffNode)
-                            : nodeGroup;
-                        if (settingsNew.TransitionSettings.Libraries.HasMinIonCount(nodeGroup) && transitionSettings.IsMeasurablePrecursor(nodeGroup.PrecursorMz))
+                        if (recurse)
                         {
-                            childrenNew.Add(nodeGroup);
+                            nodeGroups = nodeGroups.Select(nodeGroup =>
+                                nodeGroup.ChangeSettings(settingsNew, nodeResult, explicitMods, diffNode)).ToList();
+                        }
+                        foreach (var nodeGroup in nodeGroups)
+                        {
+                            if (settingsNew.TransitionSettings.Libraries.HasMinIonCount(nodeGroup) && transitionSettings.IsMeasurablePrecursor(nodeGroup.PrecursorMz))
+                            {
+                                childrenNew.Add(nodeGroup);
+                            }
                         }
                     }
                 }
@@ -868,10 +989,10 @@ namespace pwiz.Skyline.Model
                         for (int i = 0; i < childrenNew.Count; i++)
                         {
                             var nodeNew = (TransitionGroupDocNode) childrenNew[i];
-                            DocNode existing;
-                            if (mapIdToChild.TryGetValue(nodeNew.TransitionGroup, out existing))
+                            IList<TransitionGroupDocNode> existing = mapIdToChild[nodeNew.TransitionGroup].ToList();
+                            if (existing.Count == 1)
                             {
-                                childrenNew[i] = ((TransitionGroupDocNode) existing)
+                                childrenNew[i] = existing.First()
                                     .ChangeSettings(settingsNew, nodeResult, explicitMods, diff);
                             }
                         }
@@ -889,9 +1010,10 @@ namespace pwiz.Skyline.Model
                     IList<DocNode> childrenNew = new List<DocNode>();
                     foreach (TransitionGroupDocNode nodeGroup in nodeResult.Children)
                     {
-                        if (settingsNew.HasPrecursorCalc(nodeGroup.TransitionGroup.LabelType, explicitMods)
-                            || nodeGroup.IsCustomIon)
+                        if (settingsNew.SupportsPrecursor(nodeGroup, explicitMods))
+                        {
                             childrenNew.Add(nodeGroup);
+                        }
                     }
 
                     nodeResult = (PeptideDocNode)nodeResult.ChangeChildrenChecked(childrenNew);
@@ -902,7 +1024,7 @@ namespace pwiz.Skyline.Model
                     diff.DiffTransitions || diff.DiffTransitionProps ||
                     diff.DiffResults)
                 {
-                    IList<DocNode> childrenNew = new List<DocNode>();
+                    IList<DocNode> childrenNew = new List<DocNode>(nodeResult.Children.Count);
 
                     // Enumerate the nodes making necessary changes.
                     foreach (TransitionGroupDocNode nodeGroup in nodeResult.Children)
@@ -940,14 +1062,6 @@ namespace pwiz.Skyline.Model
         public IEnumerable<TransitionGroup> GetTransitionGroups(SrmSettings settings, ExplicitMods explicitMods, bool useFilter)
         {
             return Peptide.GetTransitionGroups(settings, this, explicitMods, useFilter);
-        }
-
-        public TransitionGroup[] GetNonProteomicChildren()
-        {
-            return
-                TransitionGroups.Where(tranGroup => tranGroup.TransitionGroup.IsCustomIon)
-                    .Select(groupNode => groupNode.TransitionGroup)
-                    .ToArray();
         }
 
         /// <summary>
@@ -1060,8 +1174,8 @@ namespace pwiz.Skyline.Model
                 }
             }
 
-            if (newExplicitStaticMods != null || newExplicitHeavyMods.Count > 0)
-                return ChangeExplicitMods(new ExplicitMods(Peptide, newExplicitStaticMods, newExplicitHeavyMods, preserveVariable));
+            if (newExplicitStaticMods != null || newExplicitHeavyMods.Count > 0 || !CrosslinkStructure.IsEmpty)
+                return ChangeExplicitMods(new ExplicitMods(Peptide, newExplicitStaticMods, newExplicitHeavyMods, preserveVariable).ChangeCrosslinkStructure(CrosslinkStructure));
             return ChangeExplicitMods(null);
         }
 
@@ -1115,6 +1229,13 @@ namespace pwiz.Skyline.Model
                 if (!HasResults)
                     return this;
                 return ChangeResults(null);
+            }
+            else if (!settingsNew.MeasuredResults.Chromatograms.Any(c => c.IsLoaded) &&
+                     (!HasResults || Results.All(r => r.IsEmpty)))
+            {
+                if (HasResults && Results.Count == settingsNew.MeasuredResults.Chromatograms.Count)
+                    return this;
+                return ChangeResults(settingsNew.MeasuredResults.EmptyPeptideResults);
             }
 
             var transitionGroupKeys = new HashSet<Tuple<IsotopeLabelType, Adduct>>();
@@ -1178,18 +1299,27 @@ namespace pwiz.Skyline.Model
 
         public PeptideDocNode ChangeExcludeFromCalibration(int replicateIndex, bool excluded)
         {
-            ChromInfoList<PeptideChromInfo>[] newResults = Results.ToArray();
-            var chromInfoList = newResults[replicateIndex];
-            var newChromInfos = chromInfoList.Select(
-                peptideChromInfo => null == peptideChromInfo ? null 
-                    : peptideChromInfo.ChangeExcludeFromCalibration(excluded)).ToArray();
-            newResults[replicateIndex] = new ChromInfoList<PeptideChromInfo>(newChromInfos);
-            return ChangeResults(new Results<PeptideChromInfo>(newResults));
+            var newChromInfos = new ChromInfoList<PeptideChromInfo>(Results[replicateIndex]
+                .Select(peptideChromInfo => peptideChromInfo.ChangeExcludeFromCalibration(excluded)));
+            return ChangeResults(Results.ChangeAt(replicateIndex, newChromInfos));
         }
 
         public bool HasPrecursorConcentrations
         {
             get { return TransitionGroups.Any(tg => tg.PrecursorConcentration.HasValue); }
+        }
+
+        /// <summary>
+        /// Return groups of TransitionGroups that should participate in peak finding with each other.
+        /// TransitionGroups whose RelativeRT are not Unknown are one group.
+        /// The rest of the TransitionGroups are grouped by LabelType.
+        /// </summary>
+        /// <returns></returns>
+        public IEnumerable<IEnumerable<TransitionGroupDocNode>> GetComparableGroups()
+        {
+            var lookup = TransitionGroups.ToLookup(group =>
+                group.RelativeRT == RelativeRT.Unknown ? group.LabelType : null);
+            return lookup;
         }
 
         private sealed class PeptideResultsCalculator
@@ -1241,12 +1371,9 @@ namespace pwiz.Skyline.Model
                     // Update transition group ratios
                     var nodeGroupConvert = nodeGroup;
                     bool isMatching = nodeGroup.RelativeRT == RelativeRT.Matching;
-                    var listGroupInfoList = _listResultCalcs.ConvertAll(
-                        calc => calc.UpdateTransitonGroupRatios(nodeGroupConvert,
-                                                                nodeGroupConvert.HasResults
-                                                                    ? nodeGroupConvert.Results[calc.ResultsIndex]
-                                                                    : default(ChromInfoList<TransitionGroupChromInfo>),
-                                                                isMatching));
+                    var listGroupInfoList = _listResultCalcs.ConvertAll(calc =>
+                        calc.UpdateTransitionGroupUserSetMatched(nodeGroupConvert.GetSafeChromInfo(calc.ResultsIndex),
+                            isMatching));
                     var resultsGroup = Results<TransitionGroupChromInfo>.Merge(nodeGroup.Results, listGroupInfoList);
                     var nodeGroupNew = nodeGroup;
                     if (!ReferenceEquals(resultsGroup, nodeGroup.Results))
@@ -1257,10 +1384,8 @@ namespace pwiz.Skyline.Model
                     {
                         // Update transition ratios
                         var nodeTranConvert = nodeTran;
-                        var listTranInfoList = _listResultCalcs.ConvertAll(
-                            calc => calc.UpdateTransitionRatios(nodeGroup,
-                                                               nodeTranConvert,
-                                                               nodeTranConvert.Results[calc.ResultsIndex], isMatching));
+                        var listTranInfoList = _listResultCalcs.ConvertAll(calc =>
+                            calc.UpdateTransitionUserSetMatched(nodeTranConvert.Results[calc.ResultsIndex], isMatching));
                         var resultsTran = Results<TransitionChromInfo>.Merge(nodeTran.Results, listTranInfoList);
                         listTransNew.Add(ReferenceEquals(resultsTran, nodeTran.Results)
                                              ? nodeTran
@@ -1279,7 +1404,7 @@ namespace pwiz.Skyline.Model
                 {
                     return results;
                 }
-                Dictionary<int, bool> excludeFromCalibrations = null;   // Delay allocation
+                Dictionary<int, Tuple<bool, double?>> peptideChromInfoAttributes = null;   // Delay allocation
                 foreach (var chromInfos in peptideDocNode.Results)
                 {
                     if (chromInfos.IsEmpty)
@@ -1288,16 +1413,20 @@ namespace pwiz.Skyline.Model
                     }
                     foreach (var chromInfo in chromInfos)
                     {
-                        if (chromInfo != null && chromInfo.ExcludeFromCalibration)
+                        if (chromInfo != null)
                         {
-                            if (excludeFromCalibrations == null)
-                                excludeFromCalibrations = new Dictionary<int, bool>();
-                            excludeFromCalibrations.Add(chromInfo.FileId.GlobalIndex,
-                                chromInfo.ExcludeFromCalibration);
+                            if (chromInfo.ExcludeFromCalibration || chromInfo.AnalyteConcentration.HasValue)
+                            {
+                                if (peptideChromInfoAttributes == null)
+                                {
+                                    peptideChromInfoAttributes = new Dictionary<int, Tuple<bool, double?>>();
+                                }
+                                peptideChromInfoAttributes.Add(chromInfo.FileId.GlobalIndex, Tuple.Create(chromInfo.ExcludeFromCalibration, chromInfo.AnalyteConcentration));
+                            }
                         }
                     }
                 }
-                if (excludeFromCalibrations == null)
+                if (peptideChromInfoAttributes == null)
                 {
                     return results;
                 }
@@ -1315,13 +1444,16 @@ namespace pwiz.Skyline.Model
                         foreach (var chromInfo in chromInfoList)
                         {
                             var chromInfoAdd = chromInfo;
-                            bool excludeFromCalibration;
-                            if (chromInfo != null &&
-                                excludeFromCalibrations.TryGetValue(chromInfo.FileId.GlobalIndex,
-                                    out excludeFromCalibration))
+                            if (chromInfo != null)
                             {
-                                chromInfoAdd = chromInfo.ChangeExcludeFromCalibration(excludeFromCalibration);
-                            }
+                                Tuple<bool, double?> attributes;
+                                if (peptideChromInfoAttributes.TryGetValue(chromInfoAdd.FileId.GlobalIndex,
+                                    out attributes))
+                                {
+                                    chromInfoAdd = chromInfoAdd.ChangeExcludeFromCalibration(attributes.Item1)
+                                        .ChangeAnalyteConcentration(attributes.Item2);
+                                }
+                            } 
                             if (newChromInfoList != null)
                                 newChromInfoList.Add(chromInfoAdd);
                             else
@@ -1411,7 +1543,7 @@ namespace pwiz.Skyline.Model
 
             public void AddChromInfoList(TransitionGroupDocNode nodeGroup, TransitionDocNode nodeTran)
             {
-                var listInfo = nodeTran.Results[ResultsIndex];
+                var listInfo = nodeTran.GetSafeChromInfo(ResultsIndex);
                 if (listInfo.IsEmpty)
                     return;
 
@@ -1449,7 +1581,7 @@ namespace pwiz.Skyline.Model
                     .ToArray();
             }
 
-            public IList<TransitionChromInfo> UpdateTransitionRatios(TransitionGroupDocNode nodeGroup, TransitionDocNode nodeTran, IList<TransitionChromInfo> listInfo, bool isMatching)
+            public IList<TransitionChromInfo> UpdateTransitionUserSetMatched(IList<TransitionChromInfo> listInfo, bool isMatching)
             {
                 if (CalculatorFirst == null || listInfo == null)
                     return null;
@@ -1457,145 +1589,57 @@ namespace pwiz.Skyline.Model
                 int countInfo = listInfo.Count;
                 // Delay allocation in the hope that nothing has changed for faster loading
                 TransitionChromInfo[] listInfoNew = null;
-                int changeStartIndex = -1;
-                var standardTypes = Settings.PeptideSettings.Modifications.RatioInternalStandardTypes;
                 for (int iInfo = 0; iInfo < countInfo; iInfo++)
                 {
                     var info = listInfo[iInfo];
 
                     PeptideChromInfoCalculator calc;
-                    if (!TryGetCalculator(info.FileIndex, out calc))
-                        Assume.Fail();    // Should never happen
-                    else
+                    if (TryGetCalculator(info.FileIndex, out calc))
                     {
-                        var ratios = GetRatios(nodeGroup, nodeTran, standardTypes, calc);
-                        // Label free data will produce lots of reference equal empty ratios, so check that
-                        // first as a shortcut
-                        var infoNew = info;
-                        if (!ReferenceEquals(ratios, info.Ratios) && !ArrayUtil.EqualsDeep(ratios, info.Ratios))
-                            infoNew = infoNew.ChangeRatios(ratios);
                         if (isMatching && calc.IsSetMatching && !info.IsUserSetMatched)
-                            infoNew = infoNew.ChangeUserSet(UserSet.MATCHED);
-                        if (!ReferenceEquals(info, infoNew) && listInfoNew == null)
+                            info = info.ChangeUserSet(UserSet.MATCHED);
+                        if (!ReferenceEquals(info, listInfo[iInfo]) && listInfoNew == null)
                         {
-                            listInfoNew = new TransitionChromInfo[countInfo];
-                            changeStartIndex = iInfo;
+                            listInfoNew = listInfo.ToArray();
                         }
-                        if (listInfoNew != null)
-                            listInfoNew[iInfo] = infoNew;
                     }
+
+                    if (listInfoNew != null)
+                        listInfoNew[iInfo] = info;
                 }
                 
                 if (listInfoNew == null)
                     return listInfo;
-
-                for (int i = 0; i < changeStartIndex; i++)
-                    listInfoNew[i] = listInfo[i];
                 return listInfoNew;
             }
 
-            private static readonly IList<float?> RATIOS_EMPTY1 = TransitionChromInfo.GetEmptyRatios(1);
-
-            private static IList<float?> GetRatios(TransitionGroupDocNode nodeGroup, TransitionDocNode nodeTran, IList<IsotopeLabelType> standardTypes,
-                PeptideChromInfoCalculator calc)
-            {
-                int count = standardTypes.Count;
-                if (calc.HasGlobalArea)
-                    count++;
-                // First handle the most likely cases for label free data where this can become a bottleneck
-                if (count == 0)
-                    return ImmutableList<float?>.EMPTY;
-                var labelType = nodeGroup.TransitionGroup.LabelType;
-                if (count == 1 && standardTypes.Count == 1)
-                {
-                    float? ratioFirst = calc.CalcTransitionRatio(nodeGroup, nodeTran, labelType, standardTypes[0]);
-                    if (ratioFirst == null)
-                        return RATIOS_EMPTY1;
-                    return new[] { ratioFirst };
-                }
-
-                // Handle more complex cases
-                var ratios = new float?[count];
-                for (int i = 0; i < standardTypes.Count; i++)
-                    ratios[i] = calc.CalcTransitionRatio(nodeGroup, nodeTran, labelType, standardTypes[i]);
-                if (calc.HasGlobalArea)
-                    ratios[count - 1] = calc.CalcTransitionGlobalRatio(nodeGroup, nodeTran, labelType);
-                return ratios;
-            }
-
-            private static readonly IList<RatioValue> GROUP_RATIOS_EMPTY1 = TransitionGroupChromInfo.GetEmptyRatios(1);
-
-            public IList<TransitionGroupChromInfo> UpdateTransitonGroupRatios(TransitionGroupDocNode nodeGroup,
-                                                                              IList<TransitionGroupChromInfo> listInfo,
-                                                                              bool isMatching)
+            public IList<TransitionGroupChromInfo> UpdateTransitionGroupUserSetMatched(IList<TransitionGroupChromInfo> listInfo, bool isMatching)
             {
                 if (CalculatorFirst == null || listInfo == null)
                     return null;
 
                 // Delay allocation in the hope that nothing has changed for faster loading
                 TransitionGroupChromInfo[] listInfoNew = null;
-                int changeStartIndex = -1;
-                var standardTypes = Settings.PeptideSettings.Modifications.RatioInternalStandardTypes;
                 for (int iInfo = 0; iInfo < listInfo.Count; iInfo++)
                 {
                     var info = listInfo[iInfo];
 
                     PeptideChromInfoCalculator calc;
-                    if (!TryGetCalculator(info.FileIndex, out calc))
-                        Assume.Fail();    // Should never happen
-                    else
+                    if (TryGetCalculator(info.FileIndex, out calc))
                     {
-                        var infoNew = info;
-                        var labelType = nodeGroup.TransitionGroup.LabelType;
-
-                        int count = standardTypes.Count;
-                        if (calc.HasGlobalArea)
-                            count++;
-                        IList<RatioValue> newRatios = null;
-                        // Optimize for label free, no normalization cases
-                        if (count == 0)
-                        {
-                            if (info.Ratios.Count != 0)
-                                newRatios = ImmutableList<RatioValue>.EMPTY;
-                        }
-                        if (count == 1 && standardTypes.Count == 1 && info.Ratios.Count == 1)
-                        {
-                            var ratio = calc.CalcTransitionGroupRatio(nodeGroup, labelType, standardTypes[0]);
-                            if (!Equals(ratio, info.Ratios[0]))
-                                newRatios = ratio != null ? ImmutableList.Singleton(ratio) : GROUP_RATIOS_EMPTY1;
-                        }
-                        else
-                        {
-                            var ratios = new RatioValue[count];
-                            for (int iType = 0; iType < standardTypes.Count; iType++)
-                                ratios[iType] = calc.CalcTransitionGroupRatio(nodeGroup, labelType, standardTypes[iType]);
-                            if (calc.HasGlobalArea)
-                                ratios[count - 1] = calc.CalcTransitionGroupGlobalRatio(nodeGroup, labelType);
-
-                            if (!ArrayUtil.EqualsDeep(ratios, info.Ratios))
-                                newRatios = ratios;
-                        }
-
-                        if (newRatios != null)
-                            infoNew = infoNew.ChangeRatios(newRatios);
-
-                        if (isMatching && calc.IsSetMatching && !infoNew.IsUserSetMatched)
-                            infoNew = infoNew.ChangeUserSet(UserSet.MATCHED);
-
-                        if (!ReferenceEquals(info, infoNew) && listInfoNew == null)
-                        {
-                            listInfoNew = new TransitionGroupChromInfo[listInfo.Count];
-                            changeStartIndex = iInfo;
-                        }
-                        if (listInfoNew != null)
-                            listInfoNew[iInfo] = infoNew;
+                        if (isMatching && calc.IsSetMatching && !info.IsUserSetMatched)
+                            info = info.ChangeUserSet(UserSet.MATCHED);
                     }
+                    if (listInfoNew == null && !ReferenceEquals(info, listInfo[iInfo]))
+                    {
+                        listInfoNew = listInfo.ToArray();
+                    }
+
+                    if (listInfoNew != null)
+                        listInfoNew[iInfo] = info;
                 }
                 if (listInfoNew == null)
                     return listInfo;
-
-                for (int i = 0; i < changeStartIndex; i++)
-                    listInfoNew[i] = listInfo[i];
                 return listInfoNew;
             }
         }
@@ -1700,6 +1744,10 @@ namespace pwiz.Skyline.Model
 
             public float? CalcTransitionRatio(TransitionGroupDocNode nodeGroup, TransitionDocNode nodeTran, IsotopeLabelType labelTypeNum, IsotopeLabelType labelTypeDenom)
             {
+                if (Settings.PeptideSettings.Quantification.SimpleRatios)
+                {
+                    return null;
+                }
                 // Avoid 1.0 ratios for self-to-self
                 if (ReferenceEquals(labelTypeNum, labelTypeDenom) || !TranTypes.Contains(labelTypeDenom) || !TranTypes.Contains(labelTypeNum))
                     return null;
@@ -1764,6 +1812,18 @@ namespace pwiz.Skyline.Model
                 // Delay allocation, which can be costly in DIA data with no ratios
                 List<double> numerators = null;
                 List<double> denominators = null;
+
+                if (Settings.PeptideSettings.Quantification.SimpleRatios)
+                {
+                    numerators = GetAreaPairs(labelTypeNum).Select(pair => (double) pair.Value).ToList();
+                    denominators = GetAreaPairs(labelTypeDenom).Select(pair => (double)pair.Value).ToList();
+                    if (numerators.Count == 0 || denominators.Count == 0)
+                    {
+                        return null;
+                    }
+
+                    return RatioValue.ValueOf(numerators.Sum() / denominators.Sum());
+                }
 
                 foreach (var pair in GetAreaPairs(labelTypeNum))
                 {
@@ -1945,9 +2005,9 @@ namespace pwiz.Skyline.Model
         #endregion
     }
 
-    public struct PeptidePrecursorPair
+    public class PeptidePrecursorPair
     {
-        public PeptidePrecursorPair(PeptideDocNode nodePep, TransitionGroupDocNode nodeGroup) : this()
+        public PeptidePrecursorPair(PeptideDocNode nodePep, TransitionGroupDocNode nodeGroup)
         {
             NodePep = nodePep;
             NodeGroup = nodeGroup;

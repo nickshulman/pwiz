@@ -26,10 +26,12 @@ using System.Linq;
 using System.Reflection;
 using System.Runtime;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Threading;
 using JetBrains.Annotations;
 using log4net;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using pwiz.Common.Collections;
 using pwiz.Common.SystemUtil;
 using Exception = System.Exception;
 
@@ -37,6 +39,8 @@ namespace TestRunnerLib
 {
     public class TestInfo
     {
+        private bool? _isAuditLogTest;
+
         public readonly Type TestClassType;
         public readonly MethodInfo TestMethod;
         public readonly MethodInfo SetTestContext;
@@ -44,6 +48,7 @@ namespace TestRunnerLib
         public readonly MethodInfo TestCleanup;
         public readonly bool IsPerfTest;
         public readonly int? MinidumpLeakThreshold;
+        public readonly bool DoNotRunInParallel;
 
         public TestInfo(Type testClass, MethodInfo testMethod, MethodInfo testInitializeMethod, MethodInfo testCleanupMethod)
         {
@@ -54,10 +59,44 @@ namespace TestRunnerLib
             TestCleanup = testCleanupMethod;
             IsPerfTest = (testClass.Namespace ?? String.Empty).Equals("TestPerf");
 
+            var noParallelTestAttr = RunTests.GetAttribute(testMethod, "NoParallelTestingAttribute");
+            DoNotRunInParallel = noParallelTestAttr != null;
+
             var minidumpAttr = RunTests.GetAttribute(testMethod, "MinidumpLeakThresholdAttribute");
             MinidumpLeakThreshold = minidumpAttr != null
                 ? (int?) minidumpAttr.GetType().GetProperty("ThresholdMB")?.GetValue(minidumpAttr)
                 : null;
+        }
+
+        /// <summary>
+        /// True if this test records audit logging. This property is delay loaded because it
+        /// can end up locking test DLLs which can be a problem for the nightly tests.
+        /// </summary>
+        public bool IsAuditLogTest
+        {
+            get
+            {
+                if (!_isAuditLogTest.HasValue)
+                {
+                    _isAuditLogTest = false;
+
+                    var auditLogProp = TestClassType.GetProperty("AuditLogCompareLogs");
+                    if (auditLogProp != null)
+                    {
+                        var testObj = Activator.CreateInstance(TestClassType);
+                        SetTestContext?.Invoke(testObj, new object[]
+                        {
+                            new TestRunnerContext
+                            {
+                                Properties = { ["TestName"] = TestMethod.Name }
+                            }
+                        });
+                        _isAuditLogTest = (bool)auditLogProp.GetValue(testObj);
+                    }
+                }
+
+                return _isAuditLogTest.Value;
+            }
         }
     }
 
@@ -84,11 +123,14 @@ namespace TestRunnerLib
         public long ManagedMemoryBytes { get; private set; }
         public bool AccessInternet { get; set; }
         public bool RunPerfTests { get; set; }
+        public bool RetryDataDownloads { get; set; }
         public bool RecordAuditLogs { get; set; }
         public bool RunsSmallMoleculeVersions { get; set; }
         public bool LiveReports { get; set; }
         public bool TeamCityTestDecoration { get; set; }
-      
+        public bool Verbose { get; set; }
+        public bool IsParallelClient { get; private set; }
+
         public bool ReportSystemHeaps
         {
             get { return !RunPerfTests; }   // 12-hour perf runs get much slower with system heap reporting
@@ -104,17 +146,22 @@ namespace TestRunnerLib
             bool buildMode,
             bool offscreen,
             bool internet,
+            bool originalURLs,
             bool showStatus,
             bool perftests,
             bool runsmallmoleculeversions,
             bool recordauditlogs,
             bool teamcityTestDecoration,
+            bool retrydatadownloads,
             IEnumerable<string> pauseForms,
             int pauseSeconds = 0,
+            int pauseStartingPage = 1,
             bool useVendorReaders = true,
             int timeoutMultiplier = 1,
             string results = null,
-            StreamWriter log = null)
+            StreamWriter log = null,
+            bool verbose = false,
+            bool isParallelClient = false)
         {
             _buildMode = buildMode;
             _log = log;
@@ -129,20 +176,25 @@ namespace TestRunnerLib
             Skyline.Set("FunctionalTest", true);
             Skyline.Set("SkylineOffscreen", !demoMode && offscreen);
             Skyline.Set("DemoMode", demoMode);
+            Skyline.Set("UseOriginalURLs", originalURLs);
             Skyline.Set("NoVendorReaders", !useVendorReaders);
             Skyline.Set("NoSaveSettings", true);
             Skyline.Set("UnitTestTimeoutMultiplier", timeoutMultiplier);
             Skyline.Set("PauseSeconds", pauseSeconds);
+            Skyline.Set("PauseStartingPage", pauseStartingPage);
             Skyline.Set("PauseForms", pauseForms != null ? pauseForms.ToList() : null);
             Skyline.Set("Log", (Action<string>)(s => Log(s)));
             Skyline.Run("Init");
 
             AccessInternet = internet;
             RunPerfTests = perftests;
+            RetryDataDownloads = retrydatadownloads; // When true, try re-downloading data files on test failure, in case the failure is due to stale data
             RunsSmallMoleculeVersions = runsmallmoleculeversions;  // Run the small molecule version of various tests?
             RecordAuditLogs = recordauditlogs; // Replace or create audit logs for tutorial tests
             LiveReports = true;
             TeamCityTestDecoration = teamcityTestDecoration;
+            Verbose = verbose;
+            IsParallelClient = isParallelClient;
 
             // Disable logging.
             LogManager.GetRepository().Threshold = LogManager.GetRepository().LevelMap["OFF"];
@@ -179,7 +231,7 @@ namespace TestRunnerLib
             return Path.Combine(runnerExeDirectory, assembly);
         }
 
-        public bool Run(TestInfo test, int pass, int testNumber, string dmpDir)
+        public bool Run(TestInfo test, int pass, int testNumber, string dmpDir, bool heapOutput)
         {
             TeamCityStartTest(test);
 
@@ -194,13 +246,19 @@ namespace TestRunnerLib
             }
             else
             {
+                string testName;
+                if (Verbose)
+                    testName = test.TestClassType.Name + "." + test.TestMethod.Name;
+                else
+                    testName = test.TestMethod.Name;
+
                 var time = DateTime.Now;
                 Log("[{0}:{1}] {2,3}.{3,-3} {4,-46} ({5}) ",
                     time.Hour.ToString("D2"),
                     time.Minute.ToString("D2"),
                     pass,
                     testNumber,
-                    test.TestMethod.Name,
+                    testName,
                     Language.TwoLetterISOLanguageName);
             }
 
@@ -244,6 +302,7 @@ namespace TestRunnerLib
                 // Set the TestContext.
                 TestContext.Properties["AccessInternet"] = AccessInternet.ToString();
                 TestContext.Properties["RunPerfTests"] = RunPerfTests.ToString();
+                TestContext.Properties["RetryDataDownloads"] = RetryDataDownloads.ToString();
                 TestContext.Properties["RunSmallMoleculeTestVersions"] = RunsSmallMoleculeVersions.ToString(); // Run the AsSmallMolecule version of tests when available?
                 TestContext.Properties["LiveReports"] = LiveReports.ToString();
                 TestContext.Properties["TestName"] = test.TestMethod.Name;
@@ -294,7 +353,9 @@ namespace TestRunnerLib
 
             MemoryManagement.FlushMemory();
             _process.Refresh();
-            var heapCounts = ReportSystemHeaps ? MemoryManagement.GetProcessHeapSizes() : new MemoryManagement.HeapAllocationSizes[1];
+            var heapCounts = ReportSystemHeaps
+                ? MemoryManagement.GetProcessHeapSizes(heapOutput ? dmpDir : null)
+                : new MemoryManagement.HeapAllocationSizes[1];
             var processBytes = heapCounts[0].Committed; // Process heap : useful for debugging - though included in committed bytes
             var managedBytes = GC.GetTotalMemory(true); // Managed heap
             var committedBytes = heapCounts.Sum(h => h.Committed);
@@ -358,6 +419,29 @@ namespace TestRunnerLib
                 if (crtLeakedBytes > CheckCrtLeaks)
                     Log("!!! {0} CRT-LEAKED {1} bytes\r\n", test.TestMethod.Name, crtLeakedBytes);
 
+                if (heapOutput && ReportSystemHeaps)
+                {
+                    const int sizeOutputs = 50;
+                    const int stringOutputs = 50;
+                    var allSizes = new List<Tuple<int, long, int>>();
+                    var allStrings = new List<Tuple<int, string, int>>();
+                    for (int i = 0; i < heapCounts.Length; i++)
+                    {
+                        var heapCount = heapCounts[i];
+                        allSizes.AddRange(heapCount.CommittedSizes.Take(sizeOutputs).Select(p =>
+                            new Tuple<int, long, int>(i, p.Key, p.Value)));
+                        allStrings.AddRange(heapCount.StringCounts.Take(stringOutputs).Select(p =>
+                            new Tuple<int, string, int>(i, p.Key, p.Value)));
+                    }
+
+                    var sizeText = allSizes.OrderByDescending(s => s.Item3).Take(sizeOutputs)
+                        .Select(s => string.Format("{0}:{1}:{2}", s.Item1, s.Item2, s.Item3));
+                    Log("# HEAP SIZES (top {0}) - {1}\r\n", sizeOutputs, string.Join(", ", sizeText));
+                    var stringText = allStrings.OrderByDescending(s => s.Item3).Take(stringOutputs)
+                        .Select(s => string.Format("{0}:\"{1}\":{2}", s.Item1, s.Item2, s.Item3));
+                    Log("# HEAP STRINGS (top {0}) - {1}\r\n", stringOutputs, string.Join(", ", stringText));
+                }
+
                 TeamCityFinishTest(test);
 
                 return true;
@@ -407,7 +491,7 @@ namespace TestRunnerLib
             public int LeakThresholdMB { get; private set; }
         }
 
-        static class MemoryManagement
+        public static class MemoryManagement
         {
             [DllImportAttribute("kernel32.dll", EntryPoint = "SetProcessWorkingSetSize", ExactSpelling = true, CharSet =
                 CharSet.Ansi, SetLastError = true)]
@@ -473,11 +557,16 @@ namespace TestRunnerLib
             [DllImport("kernel32.dll", SetLastError = true)]
             static extern bool HeapUnlock(IntPtr hHeap);
 
+            public static bool HeapDiagnostics { get; set; }
+
             public struct HeapAllocationSizes
             {
                 public long Committed { get; set; }
                 public long Reserved { get; set; }
                 public long Unknown { get; set; }
+
+                public List<KeyValuePair<long, int>> CommittedSizes { get; set; }
+                public List<KeyValuePair<string, int>> StringCounts { get; set; }
 
                 public override string ToString()
                 {
@@ -487,21 +576,142 @@ namespace TestRunnerLib
                         Unknown / (double)MB);
                 }
             }
-            public static HeapAllocationSizes[] GetProcessHeapSizes()
+
+            private static readonly SizeTracker[] TRACK_SIZES = {new SizeTracker(120), new SizeTracker(624)};
+
+            private class SizeTracker
             {
+                private static int _dumps;
+
+                public static void NextDump()
+                {
+                    _dumps++;
+                }
+
+                private readonly int _size;
+                private readonly HashSet<IntPtr> _seenAllocations = new HashSet<IntPtr>();
+                private TextWriter _currentDump;
+
+                public SizeTracker(int size)
+                {
+                    _size = size;
+                }
+
+                private string DumpFile => "SizeDump" + _size + "_" + _dumps + ".txt";
+
+                public void OpenDumpFile(string dmpDir)
+                {
+                    if (!Directory.Exists(dmpDir))
+                        Directory.CreateDirectory(dmpDir);
+                    _currentDump = new StreamWriter(new FileStream(Path.Combine(dmpDir, DumpFile), FileMode.Create));
+                }
+
+                public void CloseDumpFile()
+                {
+                    if (_currentDump != null)
+                    {
+                        _currentDump.Close();
+                        _currentDump = null;
+                    }
+                }
+
+                public void DumpUnseenSize(IntPtr pData, byte[] byteData)
+                {
+                    if (_currentDump != null && byteData.Length == _size && !_seenAllocations.Contains(pData))
+                    {
+                        DumpBytes(byteData);
+                        _currentDump.WriteLine();
+                        _seenAllocations.Add(pData);
+                    }
+                }
+
+                private const int DUMP_WIDTH = 16;
+
+                private void DumpBytes(byte[] byteData)
+                {
+                    int charPrintCount = Characters(byteData.Length);
+                    for (int i = 0; i < charPrintCount; i++)
+                    {
+                        if (i < byteData.Length)
+                        {
+                            var b = byteData[i];
+                            _currentDump.Write(b.ToString("X2"));
+                        }
+                        else
+                        {
+                            _currentDump.Write("  ");
+                        }
+                        _currentDump.Write(' ');
+                        if (i % DUMP_WIDTH == DUMP_WIDTH - 1)
+                        {
+                            for (int j = DUMP_WIDTH - 1; j >= 0; j--)
+                            {
+                                int byteIndex = i - j;
+                                var bc = byteIndex < byteData.Length ? byteData[byteIndex] : (byte) 0x20;
+                                if (IsPrintableLowerAscii(bc))
+                                    _currentDump.Write((char) bc);
+                                else
+                                    _currentDump.Write(".");
+                            }
+                            _currentDump.WriteLine();
+                        }
+                    }
+                }
+
+                private int Characters(int byteDataLength)
+                {
+                    return (Math.Max(0, byteDataLength-1) / DUMP_WIDTH + 1) * DUMP_WIDTH;
+                }
+            }
+
+            public static HeapAllocationSizes[] GetProcessHeapSizes(string dmpDir)
+            {
+                if (HeapDiagnostics && dmpDir != null)
+                {
+                    SizeTracker.NextDump();
+                    TRACK_SIZES.ForEach(t => t.OpenDumpFile(dmpDir));
+                }
                 var count = GetProcessHeaps(0, null);
                 var buffer = new IntPtr[count];
                 GetProcessHeaps(count, buffer);
                 var sizes = new HeapAllocationSizes[count];
                 for (int i = 0; i < count; i++)
                 {
+                    var committedSizes = HeapDiagnostics ? new Dictionary<long, int>() : null;
+                    var stringCounts = HeapDiagnostics ? new Dictionary<string, int>() : null;
+
                     var h = buffer[i];
                     HeapLock(h);
                     var e = new PROCESS_HEAP_ENTRY();
                     while (HeapWalk(h, ref e))
                     {
                         if ((e.wFlags & PROCESS_HEAP_ENTRY_WFLAGS.PROCESS_HEAP_ENTRY_BUSY) != 0)
+                        {
                             sizes[i].Committed += e.cbData + e.cbOverhead;
+
+                            if (committedSizes != null)
+                            {
+                                // Update count
+                                if (!committedSizes.ContainsKey(e.cbData))
+                                    committedSizes[e.cbData] = 0;
+                                committedSizes[e.cbData]++;
+                            }
+
+                            if (stringCounts != null)
+                            {
+                                // Find string(s)
+                                var byteData = new byte[e.cbData];
+                                IntPtr pData = e.lpData;
+                                Marshal.Copy(pData, byteData, 0, byteData.Length);
+                                TRACK_SIZES.ForEach(t => t.DumpUnseenSize(pData, byteData));
+                                foreach (var byteString in FindStrings(byteData))
+                                {
+                                    if (!stringCounts.ContainsKey(byteString))
+                                        stringCounts[byteString] = 0;
+                                    stringCounts[byteString]++;
+                                }
+                            }
+                        }
                         else if ((e.wFlags & PROCESS_HEAP_ENTRY_WFLAGS.PROCESS_HEAP_UNCOMMITTED_RANGE) != 0)
                             sizes[i].Reserved += e.cbData + e.cbOverhead;
                         else
@@ -509,9 +719,52 @@ namespace TestRunnerLib
 
                     }
                     HeapUnlock(h);
+
+                    if (committedSizes != null)
+                        sizes[i].CommittedSizes = committedSizes.OrderByDescending(p => p.Value).ToList();
+                    if (stringCounts != null)
+                        sizes[i].StringCounts = stringCounts.OrderByDescending(p => p.Value).ToList();
+                }
+                if (HeapDiagnostics)
+                    TRACK_SIZES.ForEach(t => t.CloseDumpFile());
+                return sizes;
+            }
+
+            private static IEnumerable<string> FindStrings(byte[] byteData)
+            {
+                const int MIN_STRING_LENGTH = 8;
+                var byteSb = new StringBuilder();
+                bool inString = false;
+                for (var j = 0; j < byteData.Length; j++)
+                {
+                    var b = byteData[j];
+                    if (IsPrintableLowerAscii(b))
+                    {
+                        inString = true;
+                        byteSb.Append((char) b);
+                    }
+                    else if (inString && b == 0)
+                    {
+                        // Support for Unicode strings where characters will
+                        // be alternating printable with zeros
+                        inString = false;   // If the next character is not printable, accumulation will end
+                    }
+                    else
+                    {
+                        if (byteSb.Length >= MIN_STRING_LENGTH)
+                            yield return byteSb.ToString();
+                        byteSb.Clear();
+                        inString = false;
+                    }
                 }
 
-                return sizes;
+                if (byteSb.Length >= MIN_STRING_LENGTH)
+                    yield return byteSb.ToString(); // Add the last string
+            }
+
+            private static bool IsPrintableLowerAscii(byte b)
+            {
+                return 32 <= b && b <= 126;
             }
 
             public static void FlushMemory()
@@ -588,8 +841,17 @@ namespace TestRunnerLib
 
         public void TeamCityStartTest(TestInfo test)
         {
-            if (TeamCityTestDecoration)
-                Console.WriteLine(@"##teamcity[testStarted name='{0}' captureStandardOutput='true']", test.TestMethod.Name + '-' + Language.TwoLetterISOLanguageName);
+            if (!TeamCityTestDecoration)
+                return;
+
+            string msg = string.Format(@"##teamcity[testStarted name='{0}' captureStandardOutput='true']", test.TestMethod.Name + '-' + Language.TwoLetterISOLanguageName);
+            Console.WriteLine(msg);
+            Console.Out.Flush();
+            if (IsParallelClient)
+            {
+                _log.WriteLine(msg);
+                _log.Flush();
+            }
         }
 
         public void TeamCityFinishTest(TestInfo test, string errorMessage = null)
@@ -600,23 +862,33 @@ namespace TestRunnerLib
             if (errorMessage?.Length > 0)
             {
                 // ReSharper disable LocalizableElement
-                var tcMessage = new System.Text.StringBuilder(errorMessage);
+                var tcMessage = new StringBuilder(errorMessage);
                 tcMessage.Replace("|", "||");
                 tcMessage.Replace("'", "|'");
                 tcMessage.Replace("\n", "|n");
                 tcMessage.Replace("\r", "|r");
                 tcMessage.Replace("[", "|[");
                 tcMessage.Replace("]", "|]");
-                Console.WriteLine("##teamcity[testFailed name='{0}' message='{1}']", test.TestMethod.Name + '-' + Language.TwoLetterISOLanguageName, tcMessage);
+                string failMsg = string.Format("##teamcity[testFailed name='{0}' message='{1}']", test.TestMethod.Name + '-' + Language.TwoLetterISOLanguageName, tcMessage);
+                Console.WriteLine(failMsg);
+                if (IsParallelClient)
+                    _log.WriteLine(failMsg);
                 // ReSharper restore LocalizableElement
             }
 
-            Console.WriteLine(@"##teamcity[testFinished name='{0}' duration='{1}']", test.TestMethod.Name + '-' + Language.TwoLetterISOLanguageName, LastTestDuration);
+            string msg = string.Format(@"##teamcity[testFinished name='{0}' duration='{1}']", test.TestMethod.Name + '-' + Language.TwoLetterISOLanguageName, LastTestDuration);
+            Console.WriteLine(msg);
+            Console.Out.Flush();
+            if (IsParallelClient)
+            {
+                _log.WriteLine(msg);
+                _log.Flush();
+            }
         }
 
         public static IEnumerable<TestInfo> GetTestInfos(string testDll)
         {
-            var assembly = Assembly.LoadFrom(GetAssemblyPath(testDll));
+            var assembly = LoadFromAssembly.Try(GetAssemblyPath(testDll));
             var types = assembly.GetTypes();
 
             foreach (var type in types)
@@ -624,9 +896,9 @@ namespace TestRunnerLib
                 if (type.IsClass && HasAttribute(type, "TestClassAttribute"))
                 {
                     if (!DerivesFromAbstractUnitTest(type))
-// ReSharper disable LocalizableElement
-                        Console.WriteLine("WARNING: " + type.Name + " does not derive from AbstractUnitTest!");
-// ReSharper restore LocalizableElement
+                    {
+                        Console.WriteLine($@"ERROR: {type.Name} does not derive from AbstractUnitTest!"); 
+                    }
                     MethodInfo testInitializeMethod = null;
                     MethodInfo testCleanupMethod = null;
                     var methods = type.GetMethods();
@@ -670,5 +942,65 @@ namespace TestRunnerLib
             return GetAttribute(info, attributeName) != null;
         }
 
+        public static string RunCommand(string command, string args, string message, bool useShellExecute = false, bool elevated = false)
+        {
+            var psi = new ProcessStartInfo(command, args)
+            {
+                RedirectStandardOutput = !useShellExecute,
+                RedirectStandardError = !useShellExecute,
+                UseShellExecute = useShellExecute,
+                CreateNoWindow = !useShellExecute
+            };
+            if (elevated)
+                psi.Verb = "runas";
+
+            var p = Process.Start(psi);
+
+            var output = new StringBuilder();
+
+            if (!useShellExecute)
+            {
+                var reader = new ProcessStreamReader(p);
+                string line;
+                while (!(line = reader.ReadLine()).IsNullOrEmpty())
+                    output.AppendLine(line);
+            }
+
+            p?.WaitForExit();
+            if (p == null || p.ExitCode != 0)
+                throw new InvalidOperationException($"{message}\r\n\r\nDetails:\r\n'{command} {args}' returned an error ({output});");
+             
+            return output.ToString();
+        }
+
+        public const string DOCKER_IMAGE_NAME = "chambm/always_up_runner";
+
+        public const string IS_DOCKER_RUNNING_MESSAGE = "Is Docker Desktop installed and is the daemon running? " +
+                                                        GETTING_PARALLEL_TESTING_WORKING;
+
+        public const string GETTING_PARALLEL_TESTING_WORKING =
+            "See the Skyline developer site to get parallel testing working with Skyline: " +
+            "https://skyline.ms/wiki/home/development/page.view?name=Running%20tests%20in%20parallel%20with%20Docker";
+
+        public static string ALWAYS_UP_RUNNER_REPO => Path.Combine(PathEx.GetDownloadsPath(), @"AlwaysUpRunner-master");
+        public static string ALWAYS_UP_SERVICE_EXE => Path.Combine(ALWAYS_UP_RUNNER_REPO, @"AlwaysUpService.exe");
+
+        public static IEnumerable<string> GetDockerWorkerNames()
+        {
+            string dockerPsOutput = RunCommand("docker", "ps --format \"{{.Names}}\" -f \"ancestor=chambm/always_up_runner\"", IS_DOCKER_RUNNING_MESSAGE);
+            foreach(var dockerWorkerName in dockerPsOutput.Split(new [] { Environment.NewLine }, StringSplitOptions.None))
+                yield return dockerWorkerName;
+        }
+
+        public static void SendDockerKill(string workerNames = null)
+        {
+            workerNames ??= string.Join(" ", GetDockerWorkerNames());
+
+            Console.WriteLine(@"Sending docker kill command to all workers.");
+            var psi = new ProcessStartInfo("docker", $@"kill {workerNames}");
+            psi.CreateNoWindow = true;
+            psi.UseShellExecute = false;
+            Process.Start(psi);
+        }
     }
 }

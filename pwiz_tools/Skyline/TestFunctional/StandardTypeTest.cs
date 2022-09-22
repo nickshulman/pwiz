@@ -29,6 +29,8 @@ using pwiz.Skyline.Controls.Databinding;
 using pwiz.Skyline.Controls.Graphs;
 using pwiz.Skyline.Model;
 using pwiz.Skyline.Model.Databinding;
+using pwiz.Skyline.Model.GroupComparison;
+using pwiz.Skyline.Model.Results;
 using pwiz.Skyline.Properties;
 using pwiz.SkylineTestUtil;
 
@@ -60,9 +62,8 @@ namespace pwiz.SkylineTestFunctional
 
         private void RunTestStandardType(bool asSmallMolecules)
         {
-            if (asSmallMolecules && !RunSmallMoleculeTestVersions)
+            if (asSmallMolecules && SkipSmallMoleculeTestVersions())
             {
-                System.Console.Write(MSG_SKIPPING_SMALLMOLECULE_TEST_VERSION);
                 return;
             }
 
@@ -133,25 +134,30 @@ namespace pwiz.SkylineTestFunctional
             }
             // Set Normalization type
             RunUI(() => SetPeptideStandardType(1, 0, 3, PeptideDocNode.STANDARD_TYPE_GLOBAL));
+            WaitForGraphs();
             RunUI(() =>
             {
                 AreaReplicateGraphPane pane;
-                Assert.IsTrue(SkylineWindow.GraphPeakArea.TryGetGraphPane(out pane));
-                Assert.IsTrue(pane.YAxis.Scale.Max > 3e+6);
-                Assert.IsTrue(pane.YAxis.Title.Text.StartsWith(Resources.AreaReplicateGraphPane_UpdateGraph_Peak_Area));
+                Assert.IsTrue(SkylineWindow.GraphPeakArea.TryGetGraphPane(out pane), "Missing peak area graph");
+                double yMax = pane.YAxis.Scale.Max;
+                Assert.IsTrue(yMax > 1.5e+6, string.Format("{0} not > 1.5e+6", yMax));  // Not L10N
+                Assert.IsTrue(pane.YAxis.Title.Text.StartsWith(Resources.AreaReplicateGraphPane_UpdateGraph_Peak_Area), 
+                    string.Format("Unexpected y-axis title {0}", pane.YAxis.Title.Text));
 
-                SkylineWindow.NormalizeAreaGraphTo(AreaNormalizeToView.area_global_standard_view);
+                SkylineWindow.NormalizeAreaGraphTo(NormalizeOption.GLOBAL_STANDARDS);
             });
             WaitForGraphs();
 
             var peptidePath = SkylineWindow.Document.GetPathTo((int) SrmDocument.Level.Molecules, SELECTED_PEPTIDE_INDEX);
+            string globalStandardAxisTitle = NormalizationMethod.GLOBAL_STANDARDS
+                .GetAxisTitle(Resources.AreaReplicateGraphPane_UpdateGraph_Peak_Area);
             RunUI(() =>
             {
                 AreaReplicateGraphPane pane;
                 Assert.IsTrue(SkylineWindow.GraphPeakArea.TryGetGraphPane(out pane));
-                Assert.IsTrue(pane.YAxis.Scale.Max < 0.12);
-                Assert.IsTrue(pane.YAxis.Scale.Max > 0.09);
-                Assert.IsTrue(pane.YAxis.Title.Text.StartsWith(Resources.AreaReplicateGraphPane_UpdateGraph_Peak_Area_Ratio_To_Global_Standards));
+                double yMax = pane.YAxis.Scale.Max;
+                Assert.IsTrue(0.07 <= yMax && yMax <= 0.12, string.Format("{0} not between 0.07 and 0.12", yMax));  // Not L10N
+                Assert.AreEqual(globalStandardAxisTitle, pane.YAxis.Title.Text);
                 Assert.AreEqual(5, SkylineWindow.GraphPeakArea.CurveCount);
 
                 // Select a peptide with both light and heavy precursors
@@ -170,8 +176,8 @@ namespace pwiz.SkylineTestFunctional
                 AreaReplicateGraphPane pane;
                 Assert.IsTrue(SkylineWindow.GraphPeakArea.TryGetGraphPane(out pane));
                 double yMax = pane.YAxis.Scale.Max;
-                Assert.IsTrue(0.14 <= yMax && yMax  <= 0.22, string.Format("{0} not between 0.14 and 0.22", yMax));  // Not L10N
-                Assert.IsTrue(pane.YAxis.Title.Text.StartsWith(Resources.AreaReplicateGraphPane_UpdateGraph_Peak_Area_Ratio_To_Global_Standards));
+                Assert.IsTrue(0.12 <= yMax && yMax  <= 0.22, string.Format("{0} not between 0.12 and 0.22", yMax));  // Not L10N
+                Assert.AreEqual(globalStandardAxisTitle, pane.YAxis.Title.Text);
                 Assert.AreEqual(2, SkylineWindow.GraphPeakArea.CurveCount);
             });
 
@@ -247,9 +253,14 @@ namespace pwiz.SkylineTestFunctional
             var exportReportDlg = ShowDialog<ExportLiveReportDlg>(SkylineWindow.ShowExportReportDialog);
             var editReportListDlg = ShowDialog<ManageViewsForm>(exportReportDlg.EditList);
             var viewEditor = ShowDialog<ViewEditor>(editReportListDlg.AddView);
-            var documentationViewer = ShowDialog<DocumentationViewer>(() => viewEditor.ShowColumnDocumentation(true));
-            Assert.IsNotNull(documentationViewer);
-            OkDialog(documentationViewer, documentationViewer.Close);
+
+            // don't launch browser when running as a service under AlwaysUp
+            if (System.IO.Directory.GetCurrentDirectory().Equals(System.Environment.SystemDirectory, System.StringComparison.CurrentCultureIgnoreCase))
+            {
+                var documentationViewer = ShowDialog<DocumentationViewer>(() => viewEditor.ShowColumnDocumentation(true));
+                Assert.IsNotNull(documentationViewer);
+                OkDialog(documentationViewer, documentationViewer.Close);
+            }
 
             var columnsToAdd = new[]
                     {
@@ -337,9 +348,9 @@ namespace pwiz.SkylineTestFunctional
                                 string labelType = row.Cells[iLabelType].Value.ToString();
                                 float precursorRatio = (float)(double)row.Cells[iPrecRatio].Value;
                                 if (string.Equals(labelType, IsotopeLabelType.light.Name))
-                                    Assert.AreEqual(peptideLightRatio, precursorRatio);
+                                    Assert.AreEqual(peptideLightRatio, precursorRatio, .000001);
                                 else
-                                    Assert.AreEqual(peptideHeavyRatio, precursorRatio);
+                                    Assert.AreEqual(peptideHeavyRatio.Value, precursorRatio, .000001);
                                 if (iPeptide == SELECTED_PEPTIDE_INDEX)
                                 {
                                     Assert.AreEqual(lightValues[i], peptideLightRatio);

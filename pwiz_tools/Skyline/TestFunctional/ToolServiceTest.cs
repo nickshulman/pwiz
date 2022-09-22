@@ -17,9 +17,6 @@
  * limitations under the License.
  */
 
-using System;
-using System.Diagnostics;
-using System.Globalization;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using pwiz.Skyline.Model;
@@ -38,16 +35,10 @@ namespace pwiz.SkylineTestFunctional
         private const string FILE_NAME = "TestToolAPI.sky";
         private TestToolClient _testToolClient;
 
-        [TestMethod]
+        [TestMethod, NoParallelTesting]
         public void TestToolService()
         {
-            if (Environment.MachineName.StartsWith("BSPRATT-UW", true, CultureInfo.CurrentCulture) && Environment.CommandLine.Contains("Nightly"))
-            {
-                // TODO(bspratt) investigate this after ASMS - only seems to fail on BSPRATT-UW1 and BSPRATT-UW2, with SkylineTool.dll being locked somehow
-                Console.Write(@"Skipping TestToolService on BSPRATT-UW1 and BSPRATT-UW2 pending further investigation");
-                return; 
-            }
-            Run(@"TestFunctional\ToolServiceTest.zip"); //Not L10N
+            Run(@"TestFunctional\ToolServiceTest.zip"); 
         }
 
         protected override void DoTest()
@@ -91,11 +82,11 @@ namespace pwiz.SkylineTestFunctional
 
                 // Select insert node.
                 SelectInsertNode();
-
                 // Test FASTA import.
                 AssertEx.IsDocumentState(SkylineWindow.Document, 1, 1, 20, 46, 138);
                 ImportFasta(TEXT_FASTA);
-                AssertEx.IsDocumentState(SkylineWindow.Document, 2, 2, 82, 46, 138);
+                WaitForProteinMetadataBackgroundLoaderCompletedUI();
+                AssertEx.IsDocumentState(SkylineWindow.Document, 3, 2, 82, 46, 138);
 
                 // Test addition of spectral library.
                 var docPreLibrary = SkylineWindow.Document;
@@ -116,39 +107,6 @@ namespace pwiz.SkylineTestFunctional
 
             // There is a race condition where undoing a change occasionally leaves the document in a dirty state.
             SkylineWindow.DiscardChanges = true;
-        }
-
-        private class ProcessKiller : IDisposable
-        {
-            private readonly string _processName;
-
-            public ProcessKiller(string processName)
-            {
-                _processName = processName;
-                KillNamedProcess();
-            }
-
-            public void Dispose()
-            {
-                KillNamedProcess();
-            }
-
-            private void KillNamedProcess()
-            {
-                var processList = Process.GetProcessesByName(_processName);
-                foreach (var process in processList)
-                {
-                    process.Kill();
-                    try
-                    {
-                        process.WaitForExit();
-                    }
-                    // ReSharper disable once EmptyGeneralCatchClause
-                    catch
-                    {
-                    }
-                }
-            }
         }
 
         private const string TEXT_FASTA = @"
@@ -275,11 +233,11 @@ TTDFDGYWVNHNWYSIYEST*
             Assert.AreEqual(0, DocumentChangeCount);
             RunUI(SkylineWindow.EditDelete);
             const int GRACE_PERIOD_MSEC = 5 * 1000; // Normally this takes less than 1/2 second, but not always, esp. under debugger
-            WaitForCondition(GRACE_PERIOD_MSEC, () => 1 == DocumentChangeCount, "timed out waiting for DocumentChangeCount==1");
-            Assert.AreEqual(1, DocumentChangeCount);
+            TryWaitForCondition(GRACE_PERIOD_MSEC, () => 1 == DocumentChangeCount);
+            AssertEx.AreEqual(1, DocumentChangeCount, "timed out waiting for DocumentChangeCount==1");
             RunUI(SkylineWindow.Undo);
-            WaitForCondition(GRACE_PERIOD_MSEC, () => 2 == DocumentChangeCount, "timed out waiting for DocumentChangeCount==2");
-            Assert.AreEqual(2, DocumentChangeCount);
+            TryWaitForCondition(GRACE_PERIOD_MSEC, () => 2 == DocumentChangeCount);
+            AssertEx.AreEqual(2, DocumentChangeCount, "timed out waiting for DocumentChangeCount==2");
         }
 
         private int DocumentChangeCount

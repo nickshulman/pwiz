@@ -109,7 +109,7 @@ namespace
     {
         int startingChargesCount = charges.size();
         CVParam chargeParam = si.cvParam(MS_charge_state);
-        CVParam massParam = si.cvParam(MS_accurate_mass_OBSOLETE);
+        UserParam massParam = si.userParam("accurate mass");
         double mz = si.cvParam(MS_selected_ion_m_z).valueAs<double>();
         if (!chargeParam.empty())
         {
@@ -138,10 +138,10 @@ namespace
         return (int)(charges.size() - startingChargesCount);
     }
     
-    int getScanNumber(SpectrumPtr s)
+    int getScanNumber(const SpectrumPtr& s, CVID nativeIdFormat)
     {
-        string scanNumber = id::translateNativeIDToScanNumber(MS_scan_number_only_nativeID_format, s->id);
-        int scanNum = 0;
+        string scanNumber = id::translateNativeIDToScanNumber(nativeIdFormat, s->id);
+        int scanNum = s->index + 1;
         if (!scanNumber.empty())
         {
             scanNum = lexical_cast<int>(scanNumber);
@@ -150,14 +150,27 @@ namespace
         return scanNum;
     }
 
-    void writeSpectrumText(SpectrumPtr s, ostream& os)
+    double getPrecursorScanTimeInMinutes(const SpectrumList& sl, const Precursor& p)
+    {
+        if (p.spectrumID.empty())
+            return 0;
+        size_t precursorScanIndex = sl.find(p.spectrumID);
+        if (precursorScanIndex == sl.size())
+            return 0;
+        auto precursorSpectrum = sl.spectrum(precursorScanIndex, DetailLevel_FastMetadata);
+        if (precursorSpectrum->scanList.scans.empty())
+            return 0;
+        return precursorSpectrum->scanList.scans[0].cvParam(MS_scan_start_time).timeInSeconds() / 60;
+    }
+
+    void writeSpectrumText(const SpectrumList& sl, const SpectrumPtr& s, ostream& os, CVID nativeIdFormat)
     {
         os << std::setprecision(7); // 123.4567
         bool ms1File = s->cvParam(MS_ms_level).valueAs<int>() == 1;
         
         // Write the scan numbers 
         os << "S\t";
-        int scanNum = getScanNumber(s);
+        int scanNum = getScanNumber(s, nativeIdFormat);
         os << scanNum <<  "\t" << scanNum;
 
         if (!ms1File)
@@ -168,7 +181,9 @@ namespace
             os << "\t" << mz;
         }
         os << "\n";
-        
+
+        os << "I\tNativeID\t" << s->id << "\n";
+
         // Write the scan time, if available
         if( !(s->scanList.empty()) && s->scanList.scans[0].cvParam(MS_scan_start_time).timeInSeconds() )
           os << "I\tRTime\t" << s->scanList.scans[0].cvParam(MS_scan_start_time).timeInSeconds()/60 << "\n";
@@ -214,10 +229,11 @@ namespace
             }
 
             // Write EZ lines if accurate masses are available
-            CVParam massParam = si.cvParam(MS_accurate_mass_OBSOLETE);
+            UserParam massParam = si.userParam("accurate mass");
             if( !massParam.empty() ){
-              for(int i=0; i < numChargeStates; i++){
-                os << "I\tEZ\t" << charges[i] << "\t" << masses[i] << "\t0\t0" << endl; // pad last two fields with 0
+                string precursorIntensity = precur.cvParam(MS_peak_intensity).value;
+                for(int i=0; i < numChargeStates; i++){
+                os << "I\tEZ\t" << charges[i] << "\t" << masses[i] << "\t" << getPrecursorScanTimeInMinutes(sl, precur) << "\t" << precursorIntensity << endl;
               }
             }
 
@@ -237,7 +253,7 @@ namespace
         }
     }
 
-    void writeCompressedPeaks(SpectrumPtr s, ostream& os)
+    void writeCompressedPeaks(const SpectrumPtr& s, ostream& os)
     {
         // Build arrays to hold peaks prior to compression
         int numPeaks = (int) s->defaultArrayLength;
@@ -293,11 +309,11 @@ namespace
         }
     }
 
-    void writeSpectrumBinary(SpectrumPtr s, int version, bool compress, ostream& os)
+    void writeSpectrumBinary(const SpectrumPtr& s, int version, bool compress, ostream& os, CVID nativeIdFormat)
     {
         bool ms1File = s->cvParam(MS_ms_level).valueAs<int>() == 1;
 
-        int scanNum = getScanNumber(s);
+        int scanNum = getScanNumber(s, nativeIdFormat);
         os.write(reinterpret_cast<char *>(&scanNum), sizeIntMSn);
         os.write(reinterpret_cast<char *>(&scanNum), sizeIntMSn); // Yes, there are two
 
@@ -363,7 +379,7 @@ namespace
         if (version == 3)
         {
           int numEzStates = 0;
-          CVParam massParam = si.cvParam(MS_accurate_mass_OBSOLETE);
+          UserParam massParam = si.userParam("accurate mass");
           if (!massParam.empty())
           {
             numEzStates = numChargeStates;
@@ -423,6 +439,8 @@ void Serializer_MSn::Impl::write(ostream& os, const MSData& msd,
     const pwiz::util::IterationListenerRegistry* iterationListenerRegistry,
     bool useWorkerThreads) const
 {
+    CVID nativeIdFormat = id::getDefaultNativeIDFormat(msd);
+
     // Write the header
     if ((MSn_Type_BMS1 == _filetype) ||
         (MSn_Type_CMS1 == _filetype) ||
@@ -452,22 +470,22 @@ void Serializer_MSn::Impl::write(ostream& os, const MSData& msd,
             switch (_filetype)
             {
             case MSn_Type_MS1:
-                writeSpectrumText(s, os);
+                writeSpectrumText(sl, s, os, nativeIdFormat);
                 break;
             case MSn_Type_CMS1:
-                writeSpectrumBinary(s, 3 /* version */, true, os);
+                writeSpectrumBinary(s, 3 /* version */, true, os, nativeIdFormat);
                 break;
             case MSn_Type_BMS1:
-                writeSpectrumBinary(s, 3 /* version */, false, os);
+                writeSpectrumBinary(s, 3 /* version */, false, os, nativeIdFormat);
                 break;
             case MSn_Type_MS2:
-                writeSpectrumText(s, os);
+                writeSpectrumText(sl, s, os, nativeIdFormat);
                 break;
             case MSn_Type_CMS2:
-                writeSpectrumBinary(s, 3 /* version */, true, os);
+                writeSpectrumBinary(s, 3 /* version */, true, os, nativeIdFormat);
                 break;
             case MSn_Type_BMS2:
-                writeSpectrumBinary(s, 3 /* version */, false, os);
+                writeSpectrumBinary(s, 3 /* version */, false, os, nativeIdFormat);
                 break;
             case MSn_Type_UNKNOWN:
                 throw runtime_error("[SpectrumList_MSn::Impl::write] Cannot create unknown MSn file type.");

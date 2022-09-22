@@ -123,8 +123,12 @@ Baf2SqlImpl::Baf2SqlImpl(const string& rawpath) : rawpath_(rawpath), bafFilepath
                         "ProfileMzId, ProfileIntensityId, LineMzId, LineIntensityId, "
                         "Parent, Mass, IsolationType, ReactionType, ScanMode "
                         ", IFNULL(iw.Value, 0) AS IsolationWidth "
+                        ", IFNULL(cs.Value, 0) AS ChargeState "
+                        ", IFNULL(ce.Value, 0) AS CollisionEnergy "
                         "FROM Spectra s, AcquisitionKeys ak "
                         "LEFT JOIN PerSpectrumVariables iw ON iw.Spectrum=s.Id AND iw.Variable=8 "
+                        "LEFT JOIN PerSpectrumVariables cs ON cs.Spectrum=s.Id AND cs.Variable=6 "
+                        "LEFT JOIN PerSpectrumVariables ce ON ce.Spectrum=s.Id AND ce.Variable=5 "
                         "LEFT JOIN Steps step ON s.Id=TargetSpectrum "
                         "WHERE ak.Id=s.AcquisitionKey "
                         "ORDER BY Rt");
@@ -135,6 +139,14 @@ Baf2SqlImpl::Baf2SqlImpl(const string& rawpath) : rawpath_(rawpath), bafFilepath
     tic_->intensities.reserve(numSpectra);
     bpi_->times.reserve(numSpectra);
     bpi_->intensities.reserve(numSpectra);
+
+    ticMs1_.reset(new Chromatogram);
+    bpiMs1_.reset(new Chromatogram);
+    ticMs1_->times.reserve(numSpectra / 2);
+    ticMs1_->intensities.reserve(numSpectra / 2);
+    bpiMs1_->times.reserve(numSpectra / 2);
+    bpiMs1_->intensities.reserve(numSpectra / 2);
+
     spectra_.reserve(numSpectra);
     for (sqlite::query::iterator itr = q.begin(); itr != q.end(); ++itr)
     {
@@ -160,17 +172,27 @@ Baf2SqlImpl::Baf2SqlImpl(const string& rawpath) : rawpath_(rawpath), bafFilepath
         optional<int> reactionMode(row.get<optional<int> >(++idx));
         int scanMode = row.get<int>(++idx);
         optional<double> isolationWidth(row.get<optional<double> >(++idx));
+        optional<int> precursorCharge(row.get<optional<int> >(++idx));
+        optional<double> collisionEnergy(row.get<optional<double> >(++idx));
 
         tic_->times.push_back(rt);
         bpi_->times.push_back(rt);
         tic_->intensities.push_back(tic);
         bpi_->intensities.push_back(bpi);
 
+        if (msLevel == 1)
+        {
+            ticMs1_->times.push_back(rt);
+            bpiMs1_->times.push_back(rt);
+            ticMs1_->intensities.push_back(tic);
+            bpiMs1_->intensities.push_back(bpi);
+        }
+
         spectra_.emplace_back(MSSpectrumPtr(new Baf2SqlSpectrum(bafStorage_, id,
                                                                 msLevel, rt, segment, ak, startMz, endMz,
                                                                 tic, bpi, polarity, scanMode,
                                                                 profileMzId, profileIntensityId, lineMzId, lineIntensityId,
-                                                                parentId, precursorMz, isolationMode, reactionMode, isolationWidth)));
+                                                                parentId, precursorMz, isolationMode, reactionMode, isolationWidth, precursorCharge, collisionEnergy)));
     }
 
     sqlite::query properties(db, "SELECT Key, Value FROM Properties");
@@ -208,8 +230,8 @@ size_t Baf2SqlImpl::getLCSpectrumCount(int source) const { return 0; }
 LCSpectrumSourcePtr Baf2SqlImpl::getLCSource(int source) const { return 0; }
 LCSpectrumPtr Baf2SqlImpl::getLCSpectrum(int source, int scan) const { return LCSpectrumPtr(); }
 
-ChromatogramPtr Baf2SqlImpl::getTIC() const { return tic_; }
-ChromatogramPtr Baf2SqlImpl::getBPC() const { return bpi_; }
+ChromatogramPtr Baf2SqlImpl::getTIC(bool ms1Only) const { return ms1Only ? ticMs1_ : tic_; }
+ChromatogramPtr Baf2SqlImpl::getBPC(bool ms1Only) const { return ms1Only ? bpiMs1_ : bpi_; }
 
 std::string Baf2SqlImpl::getOperatorName() const { return operatorName_; }
 std::string Baf2SqlImpl::getAnalysisName() const { return ""; }
@@ -248,13 +270,15 @@ Baf2SqlSpectrum::Baf2SqlSpectrum(BinaryStoragePtr storage, int index,
                                  const optional<uint64_t>& lineMzarrayId, const optional<uint64_t>& lineIntensityArrayId,
                                  const optional<uint64_t>& parentId, const optional<double>& precursorMz,
                                  const optional<int>& isolationMode, const optional<int>& reactionMode,
-                                 const optional<double>& isolationWidth)
+                                 const optional<double>& isolationWidth,
+                                 const optional<int>& precursorCharge,
+                                 const optional<double>& collisionEnergy)
     : index_(index), msLevel_(msLevel), rt_(rt), segment_(segment), acqKey_(acqKey), parentId_(parentId), tic_(tic), bpi_(bpi),
       profileMzArrayId_(profileMzArrayId), profileIntensityArrayId_(profileIntensityArrayId),
       lineMzArrayId_(lineMzarrayId), lineIntensityArrayId_(lineIntensityArrayId),
-      polarity_(polarity), scanRange_(startMz, endMz),
+      polarity_(polarity), scanRange_(startMz, endMz), chargeState_(precursorCharge),
       isolationMode_(isolationMode), reactionMode_(reactionMode), precursorMz_(precursorMz), scanMode_(scanMode),
-      isolationWidth_(isolationWidth),
+      isolationWidth_(isolationWidth), collisionEnergy_(collisionEnergy),
       storage_(storage)
 {
 	handleAllIons(); // Deal with all-ions MS1 data by presenting it as MS2 with a wide isolation window
@@ -265,13 +289,13 @@ bool Baf2SqlSpectrum::hasProfileData() const { return getProfileDataSize() > 0; 
 size_t Baf2SqlSpectrum::getLineDataSize() const { return lineIntensityArrayId_.is_initialized() ? storage_->getArrayNumElements(lineIntensityArrayId_.get()) : 0; }
 size_t Baf2SqlSpectrum::getProfileDataSize() const { return profileIntensityArrayId_.is_initialized() ? storage_->getArrayNumElements(profileIntensityArrayId_.get()) : 0; }
 
-void Baf2SqlSpectrum::readArray(uint64_t id, automation_vector<double> & result) const
+void Baf2SqlSpectrum::readArray(uint64_t id, pwiz::util::BinaryData<double> & result) const
 {
     size_t n = static_cast<size_t>(storage_->getArrayNumElements(id));
     readArray(id, result, n);
 }
 
-void Baf2SqlSpectrum::readArray(uint64_t id, automation_vector<double> & result, size_t n) const
+void Baf2SqlSpectrum::readArray(uint64_t id, pwiz::util::BinaryData<double> & result, size_t n) const
 {
 
     if (n > std::numeric_limits<size_t>::max())
@@ -279,7 +303,7 @@ void Baf2SqlSpectrum::readArray(uint64_t id, automation_vector<double> & result,
         BOOST_THROW_EXCEPTION(std::runtime_error("Array too large."));
     }
 
-    result.resize_no_initialize(n);
+    result.resize(n);
     if ((n>0) && (baf2sql_array_read_double(storage_->getHandle(), id, &result[0]) == 0))
     {
         baf2sql::throwLastBaf2SqlError();
@@ -287,7 +311,7 @@ void Baf2SqlSpectrum::readArray(uint64_t id, automation_vector<double> & result,
 }
 
 
-void Baf2SqlSpectrum::getLineData(automation_vector<double>& mz, automation_vector<double>& intensities) const
+void Baf2SqlSpectrum::getLineData(pwiz::util::BinaryData<double>& mz, pwiz::util::BinaryData<double>& intensities) const
 {
     if (!lineIntensityArrayId_.is_initialized())
     {
@@ -305,7 +329,7 @@ void Baf2SqlSpectrum::getLineData(automation_vector<double>& mz, automation_vect
     readArray(lineMzArrayId_.get(), mz, n);  // Assume mz and intensity arrays are same length, for best read speed
 }
 
-void Baf2SqlSpectrum::getProfileData(automation_vector<double>& mz, automation_vector<double>& intensities) const
+void Baf2SqlSpectrum::getProfileData(pwiz::util::BinaryData<double>& mz, pwiz::util::BinaryData<double>& intensities) const
 {
     if (!profileIntensityArrayId_.is_initialized())
     {
@@ -337,15 +361,11 @@ void Baf2SqlSpectrum::handleAllIons() // Deal with all-ions MS1 data by presenti
     }
 }
 
-void Baf2SqlSpectrum::getIsolationData(std::vector<double>& isolatedMZs, std::vector<IsolationMode>& isolationModes) const
+void Baf2SqlSpectrum::getIsolationData(std::vector<IsolationInfo>& isolationInfo) const
 {
-    isolatedMZs.clear();
-    isolationModes.clear();
+    isolationInfo.clear();
     if (precursorMz_.is_initialized())
-    {
-        isolatedMZs.resize(1, precursorMz_.get());
-        isolationModes.resize(1, IsolationMode_On);
-    }
+        isolationInfo.resize(1, IsolationInfo{ precursorMz_.get(), IsolationMode_On, collisionEnergy_.value_or(0) });
 }
 
 void Baf2SqlSpectrum::getFragmentationData(std::vector<double>& fragmentedMZs, std::vector<FragmentationMode>& fragmentationModes) const

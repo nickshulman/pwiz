@@ -64,9 +64,9 @@ namespace pwiz.Skyline.Model.Databinding.Entities
             {
                 return _chromatogramInfo.Value == null ? null : _chromatogramInfo.Value.ExtractionWidth;
             } }
-        [Format(NullValue = TextUtil.EXCEL_NA)]
+        [Format(Formats.RETENTION_TIME, NullValue = TextUtil.EXCEL_NA)]
         public double? ChromatogramIonMobility { get { return _chromatogramInfo.Value == null ? null : _chromatogramInfo.Value.IonMobility; } }
-        [Format(NullValue = TextUtil.EXCEL_NA)]
+        [Format(Formats.RETENTION_TIME, NullValue = TextUtil.EXCEL_NA)]
         public double? ChromatogramIonMobilityExtractionWidth { get { return _chromatogramInfo.Value == null ? null : _chromatogramInfo.Value.IonMobilityExtractionWidth; } }
         [Format(NullValue = TextUtil.EXCEL_NA)]
         public string ChromatogramIonMobilityUnits
@@ -129,12 +129,7 @@ namespace pwiz.Skyline.Model.Databinding.Entities
             float tolerance = (float) Transition.DataSchema.Document.Settings.TransitionSettings.Instrument.MzMatchTolerance;
             var chromatogramInfos = chromatogramGroupInfo.GetAllTransitionInfo(Transition.DocNode, tolerance,
                 ChromatogramGroup.PrecursorResult.GetResultFile().Replicate.ChromatogramSet.OptimizationFunction, TransformChrom.raw);
-            int index = chromatogramInfos.Length / 2 + ChromatogramGroup.PrecursorResult.OptStep;
-            if (index < 0 || index >= chromatogramInfos.Length)
-            {
-                return null;
-            }
-            return chromatogramInfos[index];
+            return chromatogramInfos.GetChromatogramForStep(0);
         }
 
         private Lazy<MsDataFileScanIds> GetLazyMsDataFileScanIds()

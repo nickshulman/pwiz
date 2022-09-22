@@ -85,16 +85,20 @@ namespace pwiz.Common.Collections
             {
                 return immutableList;
             }
-            var arrayValues = values.ToArray();
-            if (arrayValues.Length == 0)
+            var elements = values as IList<T>;
+            T[] arrayCopy = null;
+            if (elements == null)
+                elements = arrayCopy = values.ToArray();
+            int length = elements.Count;
+            if (length == 0)
             {
                 return EMPTY;
             }
-            if (arrayValues.Length == 1)
+            if (length == 1)
             {
-                return Singleton(arrayValues[0]);
+                return Singleton(elements[0]);
             }
-            return new Impl(arrayValues);
+            return new Impl(arrayCopy ?? elements.ToArray());
         }
 
         public static ImmutableList<T> ValueOf(T[] values, bool takeBuffer)
@@ -214,6 +218,11 @@ namespace pwiz.Common.Collections
 
         public abstract ImmutableList<T> ReplaceAt(int index, T value);
 
+        /// <summary>
+        /// Replaces the first item in the list that matches the predicate with the given value; throws IndexOutOfRange if no item is replaced.
+        /// </summary>
+        public abstract ImmutableList<T> ReplaceElement(T value, Func<T, bool> predicate);
+
         private class Impl : ImmutableList<T>
         {
             private readonly T[] _items;
@@ -261,6 +270,12 @@ namespace pwiz.Common.Collections
                 var newArray = (T[])_items.Clone();
                 newArray[index] = value;
                 return new Impl(newArray);
+            }
+
+            public override ImmutableList<T> ReplaceElement(T value, Func<T, bool> predicate)
+            {
+                int index = Array.FindIndex(_items, t => predicate(t));
+                return ReplaceAt(index, value);
             }
         }
 
@@ -316,6 +331,15 @@ namespace pwiz.Common.Collections
                     throw new IndexOutOfRangeException();
                 }
                 return new SingletonImpl(value);
+            }
+
+            public override ImmutableList<T> ReplaceElement(T value, Func<T, bool> predicate)
+            {
+                if (!predicate(_item))
+                {
+                    throw new IndexOutOfRangeException();
+                }
+                return ReplaceAt(0, value);
             }
         }
     }

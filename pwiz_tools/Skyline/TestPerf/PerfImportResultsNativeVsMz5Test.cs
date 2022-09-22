@@ -28,6 +28,8 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 using pwiz.Common.SystemUtil;
 using pwiz.ProteowizardWrapper;
 using pwiz.Skyline.Model;
+using pwiz.Skyline.Model.DocSettings;
+using pwiz.Skyline.Model.DocSettings.Extensions;
 using pwiz.Skyline.Model.Lib;
 using pwiz.Skyline.Model.Results;
 using pwiz.Skyline.Properties;
@@ -62,18 +64,11 @@ namespace TestPerf // Note: tests in the "TestPerf" namespace only run when the 
         private TestFilesDir _testFilesDir;
         private int _loopcount;
 
-        /*[TestInitialize]
-        public void Init()
-        {
-            RunPerfTests = true;
-        }*/
-
         /// <summary>
         /// compare various raw files and mz5 equivalents, 
         /// most with and without raw data centroiding with vendor algorithms.
         /// </summary>
         [TestMethod]
-        [Timeout(6000000)]  // These can take a long time
         public void zzzNativeVsMz5_WatersChromatogramPerformanceTest()
         {
             NativeVsMz5ChromatogramPerformanceTest(
@@ -84,7 +79,6 @@ namespace TestPerf // Note: tests in the "TestPerf" namespace only run when the 
         }
 
         [TestMethod]
-        [Timeout(6000000)]  // These can take a long time
         public void zzzNativeVsMz5_AbIdaChromatogramPerformanceTest()
         {
             NativeVsMz5ChromatogramPerformanceTest(
@@ -95,7 +89,6 @@ namespace TestPerf // Note: tests in the "TestPerf" namespace only run when the 
         }
 
         [TestMethod]
-        [Timeout(6000000)]  // These can take a long time
         public void zzzNativeVsMz5_AbDiaChromatogramPerformanceTest()
         {
             NativeVsMz5ChromatogramPerformanceTest(
@@ -106,7 +99,6 @@ namespace TestPerf // Note: tests in the "TestPerf" namespace only run when the 
         }
 
         [TestMethod]
-        [Timeout(6000000)]  // These can take a long time
         public void zzzNativeVsMz5_ThermoDdaVChromatogramPerformanceTest()
         {
             NativeVsMz5ChromatogramPerformanceTest(
@@ -117,7 +109,6 @@ namespace TestPerf // Note: tests in the "TestPerf" namespace only run when the 
         }
 
         [TestMethod]
-        [Timeout(6000000)]  // These can take a long time
         public void zzzNativeVsMz5_ThermoDiaChromatogramPerformanceTest()
         {
             NativeVsMz5ChromatogramPerformanceTest(
@@ -128,7 +119,6 @@ namespace TestPerf // Note: tests in the "TestPerf" namespace only run when the 
         }
 
         [TestMethod]
-        [Timeout(6000000)]  // These can take a long time
         public void zzzNativeVsMz5_AgilentDiaChromatogramPerformanceTest()
         {
             NativeVsMz5ChromatogramPerformanceTest(
@@ -139,7 +129,6 @@ namespace TestPerf // Note: tests in the "TestPerf" namespace only run when the 
         }
 
         [TestMethod]
-        [Timeout(6000000)]  // These can take a long time
         public void zzzNativeVsMz5_AgilentDdaChromatogramPerformanceTest()
         {
             NativeVsMz5ChromatogramPerformanceTest(
@@ -150,7 +139,6 @@ namespace TestPerf // Note: tests in the "TestPerf" namespace only run when the 
         }
 
         [TestMethod]
-        [Timeout(6000000)]  // These can take a long time
         public void zzzNativeVsMz5_BrukerFullScanMS1filteringPerformanceTest()
         {
             NativeVsMz5ChromatogramPerformanceTest(
@@ -161,7 +149,6 @@ namespace TestPerf // Note: tests in the "TestPerf" namespace only run when the 
         }
 
         [TestMethod]
-        [Timeout(6000000)]  // These can take a long time
         public void zzzNativeVsMz5_BrukerFullScanMSeDataPerformanceTest()
         {
             NativeVsMz5ChromatogramPerformanceTest(
@@ -172,7 +159,6 @@ namespace TestPerf // Note: tests in the "TestPerf" namespace only run when the 
         }
 
         [TestMethod]
-        [Timeout(6000000)]  // These can take a long time
         public void zzzNativeVsMz5_BrukerFullScanSWATHDataPerformanceTest()
         {
             NativeVsMz5ChromatogramPerformanceTest(
@@ -275,7 +261,7 @@ namespace TestPerf // Note: tests in the "TestPerf" namespace only run when the 
                 for (var loop = 0; loop < _loopcount + 1; loop++) // one extra initial loop for warmup
                 {
                     // compare mz5 and raw import times
-                    TestFilesZip = "https://skyline.gs.washington.edu/perftests/" + zipFile;
+                    TestFilesZip = GetPerfTestDataURL(zipFile);
                     var mz5File = Path.ChangeExtension(rawFile, "mz5");
                     TestFilesPersistent = new[] { rawFile, mz5File }; // list of files that we'd like to unzip alongside parent zipFile, and (re)use in place
                     _testFilesDir = new TestFilesDir(TestContext, TestFilesZip, null, TestFilesPersistent);
@@ -331,13 +317,19 @@ namespace TestPerf // Note: tests in the "TestPerf" namespace only run when the 
             Stopwatch loadStopwatch = new Stopwatch();
             loadStopwatch.Start();
             var doc = ResultsUtil.DeserializeDocument(_skyFile);
+            if (_centroided)
+            {
+                doc = doc.ChangeSettings(doc.Settings.ChangeTransitionFullScan(f =>
+                    f.ChangePrecursorResolution(FullScanMassAnalyzerType.centroided, 20, null)
+                        .ChangeProductResolution(FullScanMassAnalyzerType.centroided, 20, null)));
+            }
             doc = ConnectLibrarySpecs(doc, _skyFile);
             using (var docContainer = new ResultsTestDocumentContainer(doc, _skyFile))
             {
                 var chromSets = new[]
                 {
                     new ChromatogramSet(_replicateName, new[]
-                        { new MsDataFilePath(_dataFile, null, _centroided, _centroided),  }),
+                        { new MsDataFilePath(_dataFile),  }),
                 };
                 var docResults = doc.ChangeMeasuredResults(new MeasuredResults(chromSets));
                 Assert.IsTrue(docContainer.SetDocument(docResults, doc, true));

@@ -18,6 +18,7 @@
  */
 
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
@@ -25,6 +26,7 @@ using System.Text.RegularExpressions;
 using pwiz.Common.Chemistry;
 using pwiz.Common.Collections;
 using pwiz.Common.SystemUtil;
+using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Properties;
 
 namespace pwiz.Skyline.Util
@@ -86,6 +88,14 @@ namespace pwiz.Skyline.Util
 
         private int _hashCode; // We want comparisons to be on the same order as comparing ints, as when we used to just use integer charge instead of proper adducts
 
+        // We tend to see the same strings again and again, save some parsing time by maintaining a threadsafe lookup for each ADDUCT_TYPE
+        private static ConcurrentDictionary<string, Adduct>[] _knownAdducts = new ConcurrentDictionary<string, Adduct>[]
+        {
+            new ConcurrentDictionary<string, Adduct>(),
+            new ConcurrentDictionary<string, Adduct>(),
+            new ConcurrentDictionary<string, Adduct>()
+        };
+
         //
         // Note constructors are private - use FromCharge and FromString instead, which allow reuse
         //
@@ -103,7 +113,7 @@ namespace pwiz.Skyline.Util
             SetHashCode(); // For fast GetHashCode()
         }
 
-        private Adduct(string description, ADDUCT_TYPE integerMode, int? explicitCharge = null) // Description should have form similar to M+H, 2M+2NA-H etc, or it may be a text representation of a protonated charge a la "2", "-3" etc
+        private Adduct(string description, ADDUCT_TYPE integerMode, int? explicitCharge = null, bool strict = false) // Description should have form similar to M+H, 2M+2NA-H etc, or it may be a text representation of a protonated charge a la "2", "-3" etc
         {
             var input = (description ?? string.Empty).Trim();
             int chargeFromText;
@@ -125,11 +135,40 @@ namespace pwiz.Skyline.Util
                     input = @"[" + input + @"]";
                 }
 
+                // Watch for strange construction from Agilent MP system e.g. (M+H)+ and (M+H)+[-H2O]
+                if (input.StartsWith(@"(") && input.Contains(@")") && input.Contains(@"M"))
+                {
+                    var parts = input.Split('['); // Break off water loss etc, if any
+                    if (parts.Length == 1 || input.IndexOf(')') < input.IndexOf('['))
+                    {
+                        var constructed = parts[0].Replace(@"(", @"[").Replace(@")", @"]");
+                        if (parts.Length > 1) // Deal with water loss etc
+                        {
+                            // Rearrange (M+H)+[-H2O] as [M-H2O+H]+
+                            var mod = parts[1].Split(']')[0]; // Trim end
+                            var mPos = input.IndexOf('M');
+                            constructed = constructed.Substring(0, mPos+1) + mod + constructed.Substring(mPos + 1);
+                        }
+                        if (TryParse(constructed, out _))
+                        {
+                            input = constructed; // Constructed string is parseable
+                        }
+                    }
+                }
+
+
                 // Check for implied positive ion mode - we see "MH", "MH+", "MNH4+" etc in the wild
                 // Also watch for for label-only like  "[M2Cl37]"
                 var posNext = input.IndexOf('M') + 1;
                 if (posNext > 0 && posNext < input.Length)
                 {
+                    var posClose = input.IndexOf(']');
+                    if (posClose >= 0 && posClose < posNext)
+                    {
+                        // This isn't an adduct description, probably actually examining a modified peptide e.g. K[1Ac]IDGFGPMK
+                        throw new InvalidOperationException(
+                            string.Format(Resources.BioMassCalc_ApplyAdductToFormula_Failed_parsing_adduct_description___0__, input));
+                    }
                     if (input[posNext] != '+' && input[posNext] != '-') 
                     {
                         // No leading + or - : is it because description starts with a label, or because + mode is implied?
@@ -148,6 +187,14 @@ namespace pwiz.Skyline.Util
                             input = input.Replace(@"M", @"M+");
                         }
                     }
+                }
+
+                if (strict && !Equals(input, description))
+                {
+                    // Caller wanted no tidying, initialize as an empty adduct
+                    InitializeAsCharge(0, ADDUCT_TYPE.charge_only);
+                    SetHashCode(); 
+                    return;
                 }
                 ParseDescription(Description = input);
                 InitializeMasses();
@@ -181,7 +228,7 @@ namespace pwiz.Skyline.Util
                 {
                     // No leading + or - : is it because description starts with a label, or because + mode is implied?
                     var limit = input.IndexOfAny(new[] { '+', '-', ']' });
-                    if (limit < 0)
+                    if (limit < posNext)
                     {
                         return null;
                     }
@@ -215,7 +262,7 @@ namespace pwiz.Skyline.Util
 
         private static readonly Regex ADDUCT_OUTER_REGEX =
             new Regex(
-                @"\[?(?<multM>\d*)M(?<label>(\(.*\)|[^\+\-]*))?(?<adduct>[\+\-][^\]]*)(\](?<declaredChargeCount>\d*)(?<declaredChargeSign>[+-]*)?)?$",
+                @"\[?(?<multM>.*?)M(?<label>(\(.*\)|[^\+\-]*))?(?<adduct>[\+\-][^\]]*)(\](?<declaredChargeCount>\d*)(?<declaredChargeSign>[+-]*)?)?$",
                 RegexOptions.ExplicitCapture | RegexOptions.Singleline | RegexOptions.CultureInvariant);
         private static readonly Regex ADDUCT_INNER_REGEX = new Regex(@"(?<oper>\+|\-)(?<multM>\d+)?\(?(?<ion>[^-+\)]*)\)?",
             RegexOptions.ExplicitCapture | RegexOptions.Singleline | RegexOptions.CultureInvariant);
@@ -270,9 +317,14 @@ namespace pwiz.Skyline.Util
                 // Read the mass multiplier if any - the "2" in "[2M+..." if any such thing is there
                 var massMultiplier = 1;
                 var massMultiplierStr = match.Groups[@"multM"].Value;
-                if (!string.IsNullOrEmpty(massMultiplierStr))
+                if (!string.IsNullOrEmpty(massMultiplierStr) && !massMultiplierStr.StartsWith(@"("))
                 {
                     success = int.TryParse(massMultiplierStr, out massMultiplier);
+                    if (!success || massMultiplier <= 0)
+                    {
+                        throw new InvalidOperationException(
+                            string.Format(Resources.BioMassCalc_ApplyAdductToFormula_Failed_parsing_adduct_description___0__, input));
+                    }
                 }
                 MassMultiplier = massMultiplier;
 
@@ -428,7 +480,7 @@ namespace pwiz.Skyline.Util
             }
             AdductCharge = calculatedCharge ?? declaredCharge ?? 0;
             Composition = new ImmutableDictionary<string, int>(composition);
-            var resultMol = Molecule.FromDict(new ImmutableSortedList<string, int>(composition));
+            var resultMol = Molecule.FromDict(composition);
             if (!resultMol.Keys.All(k => BioMassCalc.MONOISOTOPIC.IsKnownSymbol(k)))
             {
                 throw new InvalidOperationException(
@@ -550,22 +602,32 @@ namespace pwiz.Skyline.Util
 
         /// <summary>
         /// Construct an adduct based on a string (probably serialized XML) of form "2" or "-3" or "[M+Na]" etc.
-        /// Minimizes memory thrash by reusing the more common adducts. 
+        /// Minimizes memory thrash by reusing the more common adducts.
+        /// In strict mode, won't attempt any syntax correction
         ///
         /// </summary>
-        public static Adduct FromString(string value, ADDUCT_TYPE parserMode, int? explicitCharge)
+        public static Adduct FromString(string value, ADDUCT_TYPE parserMode, int? explicitCharge, bool strict=false)
         {
             if (value == null)
                 return EMPTY;
+
+            // Quick check to see if we've encountered this description before
+            var dict = _knownAdducts[(int)parserMode];
+            if (dict.TryGetValue(value, out var knownAdduct))
+            {
+                return knownAdduct;
+            }
+
             int z;
             if (int.TryParse(value, out z))
             {
-                return FromCharge(z, parserMode);
+                var result = FromCharge(z, parserMode);
+                dict[value] = result; // Cache this on the likely chance that we'll see this representation again
             }
 
             // Reuse the more common non-proteomic adducts
             var testValue = value.StartsWith(@"M") ? @"[" + value + @"]" : value;
-            var testAdduct = new Adduct(testValue, parserMode, explicitCharge);
+            var testAdduct = new Adduct(testValue, parserMode, explicitCharge, strict);
             if (!testValue.EndsWith(@"]"))
             {
                 // Can we trim any trailing charge info to arrive at a standard form (ie use [M+H] instead of [M+H]+)?
@@ -586,8 +648,14 @@ namespace pwiz.Skyline.Util
             {
                 if (testAdduct.SameEffect(adduct))
                 {
+                    dict[value] = adduct;  // Cache this on the likely chance that we'll see this representation again
                     return adduct;
                 }
+            }
+            dict[value] = testAdduct;  // Cache this on the likely chance that we'll see this representation again
+            if (strict && !Equals(testAdduct.Description, value))
+            {
+                return EMPTY; // Caller wants no attempts at tidying up
             }
             return testAdduct;
         }
@@ -673,8 +741,7 @@ namespace pwiz.Skyline.Util
             var l = Molecule.Parse(left.Trim());
             var r = Molecule.Parse(right.Trim());
             var d = l.Difference(r);
-
-            if (d.Values.All(count => count == 0))
+            if (d.Values.Any(count => count < 0) || d.Values.All(count => count == 0))
             {
                 return NonProteomicProtonatedFromCharge(charge); // No difference in formulas, try straight protonation
             }
@@ -701,6 +768,24 @@ namespace pwiz.Skyline.Util
             return new Adduct(string.Format(@"[M{0}{1}{2}H]", sign, adductFormula, charge>0?@"+":@"-"), ADDUCT_TYPE.non_proteomic) { AdductCharge = charge };
         }
 
+        /// <summary>
+        /// Splits a string which might be a formula and adduct (e.g. C12H5[M+H] returns "C12H5" and sets adduct to Adduct.M_PLUS_H)
+        /// </summary>
+        public static string SplitFormulaAndTrailingAdduct(string formulaAndAdductText, ADDUCT_TYPE adductType, out Adduct adduct)
+        {
+            if (string.IsNullOrEmpty(formulaAndAdductText))
+            {
+                adduct = EMPTY;
+                return string.Empty;
+            }
+            var parts = formulaAndAdductText.Split('[');
+            if (!Adduct.TryParse(formulaAndAdductText.Substring(parts[0].Length), out adduct, adductType))
+            {
+                adduct = EMPTY;
+            }
+            return parts[0];
+        }
+        
         /// <summary>
         /// Replace, for example, the "2" in "[2M+H]"
         /// </summary>
@@ -776,6 +861,9 @@ namespace pwiz.Skyline.Util
         {
             if (Equals(newCharge, AdductCharge))
                 return this;
+            // If it is proteomic, simply create a new proteomic adduct with the new charge.
+            if (IsProteomic)
+                return FromChargeProtonated(newCharge);
 
             if (AdductCharge == 0)
             {
@@ -949,12 +1037,12 @@ namespace pwiz.Skyline.Util
             return list.Select(FromChargeProtonated).ToArray();
         }
 
-        public static bool TryParse(string s, out Adduct result, ADDUCT_TYPE assumeAdductType = ADDUCT_TYPE.non_proteomic)
+        public static bool TryParse(string s, out Adduct result, ADDUCT_TYPE assumeAdductType = ADDUCT_TYPE.non_proteomic, bool strict = false)
         {
             result = EMPTY;
             try
             {
-                result = FromString(s, assumeAdductType, null);
+                result = FromString(s, assumeAdductType, null, strict);
                 return result.AdductCharge != 0;
             }
             catch
@@ -1004,7 +1092,8 @@ namespace pwiz.Skyline.Util
                 {"C14", BioMassCalc.C14},
                 {"N15", BioMassCalc.N15},
                 {"O17", BioMassCalc.O17},
-                {"O18", BioMassCalc.O18}
+                {"O18", BioMassCalc.O18},
+                {"Cu65", BioMassCalc.Cu65},
                 // ReSharper restore LocalizableElement
             };
 
@@ -1085,6 +1174,7 @@ namespace pwiz.Skyline.Util
         };
 
         // All the adducts from http://fiehnlab.ucdavis.edu/staff/kind/Metabolomics/MS-Adduct-Calculator
+        // And a few more from XCMS public
         public static readonly string[] DEFACTO_STANDARD_ADDUCTS =
         {
             "[M+3H]",       
@@ -1126,7 +1216,9 @@ namespace pwiz.Skyline.Util
             "[M+Cl]",       
             "[M+K-2H]",     
             "[M+FA-H]",     
+            "[M+HCOO]", // Formate (synonym for deprotonated FA)  
             "[M+Hac-H]",    
+            "[M+CH3COO]", // Synonym for deprotonated Hac
             "[M+Br]",       
             "[M+TFA-H]",    
             "[2M-H]",       
@@ -1259,7 +1351,7 @@ namespace pwiz.Skyline.Util
                         {
                             resultDict[unlabeledSymbol] = unlabeledCount; // Number of remaining non-label atoms
                         }
-                        else if (unlabeledCount < 0) // Can't remove that which is not there
+                        else // Can't remove that which is not there
                         {
                             throw new InvalidOperationException(
                                 string.Format(Resources.Adduct_ApplyToMolecule_Adduct___0___calls_for_labeling_more__1__atoms_than_are_found_in_the_molecule__2_,
@@ -1693,6 +1785,17 @@ namespace pwiz.Skyline.Util
         public bool IsName
         {
             get { return true; }
+        }
+
+        public bool IsValidProductAdduct(Adduct precursorAdduct, TransitionLosses losses)
+        {
+            int precursorCharge = precursorAdduct.AdductCharge;
+            if (losses != null)
+            {
+                precursorCharge -= losses.TotalCharge;
+            }
+
+            return Math.Abs(AdductCharge) <= Math.Abs(precursorCharge);
         }
     }
 }

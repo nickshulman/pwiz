@@ -25,6 +25,7 @@ using System.Web;
 using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Model.Databinding;
 using pwiz.Skyline.Model.DocSettings;
+using pwiz.Skyline.Model.DocSettings.AbsoluteQuantification;
 using pwiz.Skyline.Model.Results;
 using pwiz.Skyline.Properties;
 
@@ -39,7 +40,28 @@ namespace pwiz.Skyline.Model.GroupComparison
         {
         }
 
-        public abstract override string ToString();
+        public override string ToString()
+        {
+            return Label;
+        }
+
+        public string NormalizationMethodCaption
+        {
+            get
+            {
+                return Label;
+            }
+        }
+
+        public virtual string NormalizeToCaption
+        {
+            get
+            {
+                return Label;
+            }
+        }
+
+        public abstract string GetAxisTitle(string plottedValue);
 
         public static NormalizationMethod FromName(string name)
         {
@@ -58,7 +80,7 @@ namespace pwiz.Skyline.Model.GroupComparison
             {
                 return ratioToSurrogate;
             }
-            foreach (var normalizationMethod in new[] {EQUALIZE_MEDIANS, QUANTILE, GLOBAL_STANDARDS})
+            foreach (var normalizationMethod in new[] {EQUALIZE_MEDIANS, GLOBAL_STANDARDS, TIC})
             {
                 if (Equals(normalizationMethod.Name, name))
                 {
@@ -68,25 +90,35 @@ namespace pwiz.Skyline.Model.GroupComparison
             return NONE;
         }
 
-        public virtual bool AllowTruncatedTransitions { get { return false; } }
-
-        // ReSharper disable LocalizableElement
-        public static readonly NormalizationMethod NONE
-            = new SingletonNormalizationMethod("none", () => GroupComparisonStrings.NormalizationMethod_NONE_None);
-        public static readonly NormalizationMethod EQUALIZE_MEDIANS 
-            = new SingletonNormalizationMethod("equalize_medians", 
-                () => GroupComparisonStrings.NormalizationMethod_EQUALIZE_MEDIANS_Equalize_Medians);
-        public static readonly NormalizationMethod QUANTILE 
-            = new SingletonNormalizationMethod("quantile", 
-                () => GroupComparisonStrings.NormalizationMethod_QUANTILE_Quantile);
-        public static readonly NormalizationMethod GLOBAL_STANDARDS 
-            = new SingletonNormalizationMethod("global_standards", 
-                () => GroupComparisonStrings.NormalizationMethod_GLOBAL_STANDARDS_Ratio_to_Global_Standards);
-        // ReSharper restore LocalizableElement
-
-        public static NormalizationMethod GetNormalizationMethod(IsotopeLabelType isotopeLabelType)
+        public static RatioToLabel FromIsotopeLabelTypeName(string name)
         {
-            return FromName(ratio_prefix + isotopeLabelType.Name);
+            return (RatioToLabel) FromName(ratio_prefix + name);
+        }
+
+        public static readonly NormalizationMethod NONE
+            = new SingletonNormalizationMethod(@"none", () => GroupComparisonStrings.NormalizationMethod_NONE_None, value=>value);
+
+        public static readonly NormalizationMethod EQUALIZE_MEDIANS
+            = new SingletonNormalizationMethod(@"equalize_medians",
+                () => GroupComparisonStrings.NormalizationMethod_EQUALIZE_MEDIANS_Equalize_Medians,
+                value => string.Format(
+                    GroupComparisonStrings.NormalizationMethod_EQUALIZE_MEDIANS_Median_Normalized__0_, value),
+                (settings, labelType) =>
+                    settings.PeptideSettings.Modifications.InternalStandardTypes.Contains(labelType));
+
+        public static readonly NormalizationMethod GLOBAL_STANDARDS
+            = new SingletonNormalizationMethod(@"global_standards",
+                () => GroupComparisonStrings.NormalizationMethod_GLOBAL_STANDARDS_Ratio_to_Global_Standards,
+                () => Resources.AreaCVToolbar_UpdateUI_Global_standards,
+                value=>string.Format(GroupComparisonStrings.NormalizationMethod_GLOBAL_STANDARDS__0__Ratio_to_Global_Standards, value));
+        public static readonly NormalizationMethod TIC
+            = new SingletonNormalizationMethod(@"tic",
+                () => GroupComparisonStrings.NormalizationMethod_TIC_Total_Ion_Current,
+                value=>string.Format(GroupComparisonStrings.NormalizationMethod_TIC_TIC_Normalized__0_, value));
+
+        public static RatioToLabel GetNormalizationMethod(IsotopeLabelType isotopeLabelType)
+        {
+            return (RatioToLabel) FromName(ratio_prefix + isotopeLabelType.Name);
         }
 
         private bool Equals(NormalizationMethod other)
@@ -119,17 +151,34 @@ namespace pwiz.Skyline.Model.GroupComparison
             var result = new List<NormalizationMethod>
             {
                 NONE,
-                EQUALIZE_MEDIANS,
+                EQUALIZE_MEDIANS
             };
             if (document.Settings.HasGlobalStandardArea)
             {
                 result.Add(GLOBAL_STANDARDS);
             }
-            foreach (var isotopeLabelType in document.Settings.PeptideSettings.Modifications.InternalStandardTypes)
+
+            if (document.Settings.HasTicArea)
             {
-                result.Add(GetNormalizationMethod(isotopeLabelType));
+                result.Add(TIC);
+            }
+
+            if (document.Settings.PeptideSettings.Modifications.HasHeavyModifications)
+            {
+                foreach (var isotopeLabelType in document.Settings.PeptideSettings.Modifications.RatioInternalStandardTypes)
+                {
+                    result.Add(GetNormalizationMethod(isotopeLabelType));
+                }
             }
             return result.AsReadOnly();
+        }
+
+        /// <summary>
+        /// Returns true if the label type should not be shown (because the label type is used for normalization)
+        /// </summary>
+        public virtual bool HideLabelType(SrmSettings settings, IsotopeLabelType labelType)
+        {
+            return false;
         }
 
         public class RatioToLabel : NormalizationMethod
@@ -138,7 +187,7 @@ namespace pwiz.Skyline.Model.GroupComparison
 
             public RatioToLabel(IsotopeLabelType isotopeLabelType) : base(ratio_prefix + isotopeLabelType.Name, null)
             {
-                _isotopeLabelType = new IsotopeLabelType(isotopeLabelType.Name, 0);
+                _isotopeLabelType = new IsotopeLabelType(isotopeLabelType.Name, isotopeLabelType.SortOrder);
             }
 
             public override string Label
@@ -150,6 +199,19 @@ namespace pwiz.Skyline.Model.GroupComparison
                 }
             }
 
+            public override string GetAxisTitle(string plottedValue)
+            {
+                return string.Format(QuantificationStrings.RatioToLabel_GetAxisTitle__0__Ratio_To__1_, plottedValue, _isotopeLabelType.Title);
+            }
+
+            public override string NormalizeToCaption
+            {
+                get
+                {
+                    return _isotopeLabelType.Title;
+                }
+            }
+
             public override string ToString()
             {
                 return Label;
@@ -157,19 +219,25 @@ namespace pwiz.Skyline.Model.GroupComparison
 
             public string IsotopeLabelTypeName { get { return _isotopeLabelType.Name; } }
 
-            public override bool AllowTruncatedTransitions
+            public bool Matches(IsotopeLabelType labelType)
             {
-                get { return true; }
+                return Equals(_isotopeLabelType.Name, labelType?.Name);
             }
 
             public static bool Matches(NormalizationMethod normalizationMethod, IsotopeLabelType isotopeLabelType)
             {
-                if (isotopeLabelType == null)
-                {
-                    return false;
-                }
-                RatioToLabel ratioToLabel = normalizationMethod as RatioToLabel;
-                return ratioToLabel != null && Equals(ratioToLabel.Name, isotopeLabelType.Name);
+                return (normalizationMethod as RatioToLabel)?.Matches(isotopeLabelType) ?? false;
+            }
+
+            public IsotopeLabelType FindIsotopeLabelType(SrmSettings settings)
+            {
+                return settings.PeptideSettings.Modifications.HeavyModifications
+                    .FirstOrDefault(mods => Matches(mods.LabelType))?.LabelType ?? _isotopeLabelType;
+            }
+
+            public override bool HideLabelType(SrmSettings settings, IsotopeLabelType labelType)
+            {
+                return Matches(labelType);
             }
         }
 
@@ -203,6 +271,19 @@ namespace pwiz.Skyline.Model.GroupComparison
                 }
             }
 
+            public override string NormalizeToCaption
+            {
+                get
+                {
+                    if (_isotopeLabelType == null)
+                    {
+                        return string.Format(QuantificationStrings.RatioToSurrogate_NormalizeToCaption_Surrogate__0_, _surrogateName);
+                    }
+
+                    return string.Format(QuantificationStrings.RatioToSurrogate_NormalizeToCaption_Surrogate__0____1__, _surrogateName, _isotopeLabelType.Title);
+                }
+            }
+
             public RatioToSurrogate(string surrogateName) : base(surrogate_prefix + Uri.EscapeUriString(surrogateName), null)
             {
                 _surrogateName = surrogateName;
@@ -215,6 +296,11 @@ namespace pwiz.Skyline.Model.GroupComparison
             public override string ToString()
             {
                 return Label;
+            }
+
+            public override string GetAxisTitle(string plottedValue)
+            {
+                return string.Format(QuantificationStrings.RatioToLabel_GetAxisTitle__0__Ratio_To__1_, plottedValue, NormalizeToCaption);
             }
 
             public static RatioToSurrogate ParseRatioToSurrogate(string name)
@@ -299,13 +385,42 @@ namespace pwiz.Skyline.Model.GroupComparison
 
         private class SingletonNormalizationMethod : NormalizationMethod
         {
-            public SingletonNormalizationMethod(string name, Func<string> getLabelFunc) : base(name, getLabelFunc)
+            private Func<string> _getNormalizeToCaptionFunc;
+            private Func<string, string> _getAxisTitleFunc;
+            private Func<SrmSettings, IsotopeLabelType, bool> _hideLabelFunc;
+            public SingletonNormalizationMethod(string name, Func<string> getNormalizationMethodCaptionFunc, Func<string, string> getAxisTitleFunc) 
+                : this(name, getNormalizationMethodCaptionFunc, getNormalizationMethodCaptionFunc, getAxisTitleFunc)
             {
+
             }
 
-            public override string ToString()
+            public SingletonNormalizationMethod(string name, Func<string> getNormalizationMethodCaptionFunc, Func<string> getNormalizeToCaptionFunc, Func<string, string> getAxisTitleFunc) 
+                : base(name, getNormalizationMethodCaptionFunc)
             {
-                return Label;
+                _getNormalizeToCaptionFunc = getNormalizeToCaptionFunc;
+                _getAxisTitleFunc = getAxisTitleFunc;
+            }
+
+            public SingletonNormalizationMethod(string name, Func<string> getNormalizationMethodCaptionFunc,
+                Func<string, string> getAxisTitleFunc, Func<SrmSettings, IsotopeLabelType, bool> hideLabelFunc)
+                : this(name, getNormalizationMethodCaptionFunc, getAxisTitleFunc)
+            {
+                _hideLabelFunc = hideLabelFunc;
+            }
+
+            public override string NormalizeToCaption
+            {
+                get { return _getNormalizeToCaptionFunc(); }
+            }
+
+            public override string GetAxisTitle(string plottedValue)
+            {
+                return _getAxisTitleFunc(plottedValue);
+            }
+
+            public override bool HideLabelType(SrmSettings settings, IsotopeLabelType labelType)
+            {
+                return _hideLabelFunc?.Invoke(settings, labelType) ?? false;
             }
         }
 
@@ -320,6 +435,39 @@ namespace pwiz.Skyline.Model.GroupComparison
             {
                 return FromName(text);
             }
+        }
+
+        /// <summary>
+        /// Given a list of IdentityPaths, returns the unique set of NormalizationMethods that the molecules
+        /// or peptides use.
+        /// </summary>
+        public static HashSet<NormalizationMethod> GetMoleculeNormalizationMethods(SrmDocument document,
+            IEnumerable<IdentityPath> identityPaths)
+        {
+            var defaultNormalizationMethod = document.Settings.PeptideSettings.Quantification.NormalizationMethod;
+            var normalizationMethods = new HashSet<NormalizationMethod>();
+            foreach (var path in identityPaths.Select(path => path.GetPathTo(Math.Min(1, path.Depth))).Distinct())
+            {
+                var docNode = document.FindNode(path);
+                IEnumerable<PeptideDocNode> molecules;
+                if (docNode is PeptideDocNode molecule)
+                {
+                    molecules = new[] { molecule };
+                }
+                else if (docNode is PeptideGroupDocNode peptideGroupDocNode)
+                {
+                    molecules = peptideGroupDocNode.Molecules;
+                }
+                else
+                {
+                    continue;
+                }
+
+                normalizationMethods.UnionWith(molecules.Select(mol =>
+                    mol.NormalizationMethod ?? defaultNormalizationMethod));
+            }
+
+            return normalizationMethods;
         }
     }
 }

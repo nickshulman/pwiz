@@ -72,7 +72,7 @@ namespace pwiz.Skyline.Controls.Graphs
 
         protected override IdentityPath GetIdentityPath(CurveItem curveItem, int barIndex)
         {
-            if (0 <= barIndex || barIndex < _graphData.XScalePaths.Length)
+            if (0 <= barIndex && barIndex < _graphData.XScalePaths.Length)
                 return _graphData.XScalePaths[barIndex];
             return null;
         }
@@ -590,9 +590,9 @@ namespace pwiz.Skyline.Controls.Graphs
                 return pointPair;
             }
 
-            protected RetentionTimeValues? ScaleRetentionTimeValues(ChromFileInfoId chromFileInfoId, RetentionTimeValues? retentionTimeValues)
+            protected RetentionTimeValues ScaleRetentionTimeValues(ChromFileInfoId chromFileInfoId, RetentionTimeValues retentionTimeValues)
             {
-                if (!retentionTimeValues.HasValue)
+                if (retentionTimeValues == null)
                 {
                     return null;
                 }
@@ -600,12 +600,12 @@ namespace pwiz.Skyline.Controls.Graphs
                 {
                     return retentionTimeValues;
                 }
-                IRegressionFunction regressionFunction;
+                RegressionLine regressionFunction;
                 if (!RetentionTimeTransformOp.TryGetRegressionFunction(chromFileInfoId, out regressionFunction))
                 {
                     return null;
                 }
-                return retentionTimeValues.Value.Scale(regressionFunction);
+                return retentionTimeValues.Scale(regressionFunction);
             }
 
             protected virtual bool AddBlankPointsForGraphPanes { get { return false; } }

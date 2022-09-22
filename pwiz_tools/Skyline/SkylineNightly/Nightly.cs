@@ -18,6 +18,7 @@
  */
 
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Imaging;
@@ -26,12 +27,14 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Reflection;
+using System.ServiceModel;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Windows.Forms;
 using System.Xml.Linq;
 using Ionic.Zip;
+using Microsoft.Win32.TaskScheduler;
 using SkylineNightly.Properties;
 
 namespace SkylineNightly
@@ -56,6 +59,7 @@ namespace SkylineNightly
         private const string LABKEY_SERVER_ROOT = "skyline.ms";
         private const string LABKEY_MODULE = "testresults";
         private const string LABKEY_ACTION = "post";
+        private const string LABKEY_EMAIL_NOTIFICATION_ACTION = "sendEmailNotification";
 
         private static string GetPostUrl(string path)
         {
@@ -74,7 +78,10 @@ namespace SkylineNightly
         private static string LABKEY_RELEASE_URL = GetPostUrl("home/development/Release%20Branch");
         private static string LABKEY_RELEASE_PERF_URL = GetPostUrl("home/development/Release%20Branch%20Performance%20Tests");
         private static string LABKEY_INTEGRATION_URL = GetPostUrl("home/development/Integration");
+        private static string LABKEY_INTEGRATION_PERF_URL = GetPostUrl("home/development/Integration%20With%20Perf%20Tests");
         private static string LABKEY_HOME_URL = GetUrl("home", "project", "begin");
+
+        public static string LABKEY_EMAIL_NOTIFICATION_URL = GetUrl("home/development/Nightly%20x64", LABKEY_MODULE, LABKEY_EMAIL_NOTIFICATION_ACTION);
 
         private static string LABKEY_CSRF = @"X-LABKEY-CSRF";
 
@@ -98,7 +105,6 @@ namespace SkylineNightly
                 return Path.Combine(_skylineTesterDir, "pwiz");
             }
         }
-        private TimeSpan _duration;
         private string _skylineTesterDir;
 
         public const int DEFAULT_DURATION_HOURS = 9;
@@ -120,24 +126,50 @@ namespace SkylineNightly
                 Directory.Delete(logDirScreengrabs, true);
             // First guess at working directory - distinguish between run types for machines that do double duty
             _skylineTesterDir = Path.Combine(nightlyDir, "SkylineTesterForNightly_"+runMode + (decorateSrcDirName ?? string.Empty));
-
-            // Default duration.
-            _duration = TimeSpan.FromHours(DEFAULT_DURATION_HOURS);
         }
 
         public static string NightlyTaskName { get { return NIGHTLY_TASK_NAME; } }
         public static string NightlyTaskNameWithUser { get { return string.Format("{0} ({1})", NIGHTLY_TASK_NAME, Environment.UserName);} }
+        public static Task NightlyTask
+        {
+            get
+            {
+                using (var ts = new TaskService())
+                    return ts.FindTask(NightlyTaskName) ?? ts.FindTask(NightlyTaskNameWithUser);
+            }
+        }
+
+        public bool WithPerfTests => _runMode != RunMode.trunk && _runMode != RunMode.integration && _runMode != RunMode.release;
+
+        public TimeSpan TargetDuration
+        {
+            get
+            {
+                if (_runMode == RunMode.stress)
+                {
+                    return TimeSpan.FromHours(168);  // Let it go as long as a week
+                }
+                else if (WithPerfTests)
+                {
+                    return TimeSpan.FromHours(PERF_DURATION_HOURS); // Let it go a bit longer than standard 9 hours
+                }
+                return TimeSpan.FromHours(DEFAULT_DURATION_HOURS);
+            }
+        }
 
         public void Finish(string message, string errMessage)
         {
             // Leave a note for the user, in a way that won't interfere with our next run
-            Log("Done.  Exit message:"); 
-            Log(message);
+            Log("Done.  Exit message: ");
+            Log(!string.IsNullOrEmpty(message) ? message : "none");
             if (!string.IsNullOrEmpty(errMessage))
                 Log(errMessage);
             if (string.IsNullOrEmpty(LogFileName))
             {
-                MessageBox.Show(message, @"SkylineNightly Help");    
+                if (!string.IsNullOrEmpty(message))
+                {
+                    MessageBox.Show(message, @"SkylineNightly Help");
+                }
             }
             else
             {
@@ -153,18 +185,27 @@ namespace SkylineNightly
             }
         }
 
-        public enum RunMode { parse, post, trunk, perf, release, stress, integration, release_perf }
+        public enum RunMode { parse, post, trunk, perf, release, stress, integration, release_perf, integration_perf }
 
-        private string SkylineTesterStoppedByUser = "SkylineTester stopped by user";
+        public static string SkylineTesterStoppedByUser = "SkylineTester stopped by user";
 
         public string RunAndPost()
         {
-            var runResult = Run() ?? string.Empty;
-            if (runResult.Equals(SkylineTesterStoppedByUser))
+            string runResult;
+            try
             {
-                Log("No results posted");
-                return runResult;
+                runResult = Run();
+                if (runResult.Equals(SkylineTesterStoppedByUser))
+                {
+                    Log("No results posted");
+                    return runResult;
+                }
             }
+            catch (Exception e)
+            {
+                runResult = QuitWithError(e.Message);
+            }
+
             Parse();
             var postResult = Post(_runMode);
             if (!string.IsNullOrEmpty(postResult))
@@ -176,27 +217,95 @@ namespace SkylineNightly
             return runResult;
         }
 
+        private const int RETRY_TIMEOUT_IN_MINUTES = 10;
+
+        private void WaitForRetry()
+        {
+            Thread.Sleep(60 * 1000 * RETRY_TIMEOUT_IN_MINUTES);
+        }
+
+        private int CalcAllowedRetries(int minutes)
+        {
+            return minutes / RETRY_TIMEOUT_IN_MINUTES;
+        }
+
         /// <summary>
         /// Run nightly build/test and report results to server.
         /// </summary>
-        public string Run()
+        private string Run()
         {
-            string result = string.Empty;
             // Locate relevant directories.
             var nightlyDir = GetNightlyDir();
             var skylineNightlySkytr = Path.Combine(nightlyDir, "SkylineNightly.skytr");
+            var skylineTesterZipName = _skylineTesterDir + ".zip";
 
-            bool withPerfTests = _runMode != RunMode.trunk && _runMode != RunMode.integration && _runMode != RunMode.release;
+            KillProcesses();
 
-            if (_runMode == RunMode.stress)
+            // Create place to put run logs
+            if (!Directory.Exists(_logDir))
+                Directory.CreateDirectory(_logDir);
+            // Start the nightly log file
+            StartLog(_runMode);
+
+            // Clean-up and create a place to run the tests
+            Delete(skylineNightlySkytr);
+            CreateSkylineTesterDirectory();
+
+            Log("buildRoot is " + PwizDir);
+
+            var branchUrl = DownloadSkylineTester(skylineTesterZipName);
+            var durationHours = CreateSkylineNightlySkytrFile(nightlyDir, branchUrl, skylineNightlySkytr);
+
+            // Start SkylineTester to do the build.
+            var processInfo = CreateSkylineTesterProcessInfo(skylineNightlySkytr);
+
+            Process skylineTesterProcess;
+            do
             {
-                _duration = TimeSpan.FromHours(168);  // Let it go as long as a week
+                using var logMonitor = new LogFileMonitor(_logDir, LogFileName, _runMode);
+
+                skylineTesterProcess = Process.Start(processInfo);
+                if (skylineTesterProcess == null)
+                    return QuitWithError("SkylineTester did not start");
+
+                Log("SkylineTester started");
+
+                string result = WaitForSkylineTester(skylineTesterProcess, logMonitor, durationHours);
+                if (!string.IsNullOrEmpty(result))
+                {
+                    // An error or user canceled, so return the result
+                    return result;
+                }
             }
-            else if (withPerfTests)
+            while (RetryTester(skylineTesterProcess, 60));
+
+            return string.Empty;
+        }
+
+        private bool RetryTester(Process skylineTesterProcess, int maxRetryMinutes)
+        {
+            // No retry if the wait time is already exceeded
+            var actualDuration = DateTime.UtcNow - skylineTesterProcess.StartTime.ToUniversalTime();
+            if (actualDuration.TotalMinutes > maxRetryMinutes)
+                return false;
+
+            // And not if there is a log file with tests run in it
+            string logFile = GetLatestLog();
+            if (logFile != null && File.Exists(logFile) &&
+                ParseTests(File.ReadAllText(logFile), false) > 0)
             {
-                _duration = TimeSpan.FromHours(PERF_DURATION_HOURS); // Let it go a bit longer than standard 9 hours
+                return false;
             }
 
+            // But if the log file is missing or lacking any tests, then wait and retry
+            Log("No tests run in " + Math.Round(actualDuration.TotalMinutes) + " minutes. Will try again in " +
+                RETRY_TIMEOUT_IN_MINUTES + " minutes.");
+            WaitForRetry();
+            return true;
+        }
+
+        private void KillProcesses()
+        {
             // Kill any other instance of SkylineNightly, unless this is
             // the StressTest mode, in which case assume that a previous invocation
             // is still running and just exit to stay out of its way.
@@ -206,7 +315,7 @@ namespace SkylineNightly
                 {
                     if (_runMode == RunMode.stress)
                     {
-                        Application.Exit();  // Just let the already (long!) running process do its thing
+                        Application.Exit(); // Just let the already (long!) running process do its thing
                     }
                     else
                     {
@@ -233,80 +342,151 @@ namespace SkylineNightly
                 {
                 }
             }
+        }
 
-            // Create place to put run logs
-            if (!Directory.Exists(_logDir))
-                Directory.CreateDirectory(_logDir);
-            // Start the nightly log file
-            StartLog(_runMode);
+        public void StartLog(RunMode runMode)
+        {
+            _startTime = DateTime.Now;
 
-            // Delete source tree and old SkylineTester.
-            Delete(skylineNightlySkytr);
-            Log("Delete SkylineTester");
-            var skylineTesterDirBasis = _skylineTesterDir; // Default name
-            const int maxRetry = 1000;  // Something would have to be very wrong to get here, but better not to risk a hang
+            // Create log file.
+            LogFileName = Path.Combine(_logDir, string.Format("SkylineNightly-{0}-{1}.log", runMode,
+                _startTime.ToString("yyyy-MM-dd-HH-mm", CultureInfo.InvariantCulture)));
+            Log(_startTime.ToShortDateString());
+        }
+
+        private void CreateSkylineTesterDirectory()
+        {
             string nextDir = _skylineTesterDir;
-            for (var retry = 1; retry < maxRetry; retry++)
+            int retry = 1;
+            for (;;)
             {
                 try
                 {
+                    // Stop when a directory is found that does not exist
                     if (!Directory.Exists(nextDir))
+                    {
+                        Log("SkylineTester folder " + nextDir + " ready for use");
                         break;
+                    }
 
-                    string deleteDir = nextDir;
-                    // Keep going until a directory is found that does not exist
-                    nextDir = skylineTesterDirBasis + "_" + retry;
-
-                    Delete(deleteDir);
+                    // Try deleting it, if it does exist
+                    Log("Deleting SkylineTester folder " + nextDir);
+                    Delete(nextDir);
                 }
                 catch (Exception e)
                 {
-                    if (Directory.Exists(_skylineTesterDir))
+                    if (Directory.Exists(nextDir))
                     {
-                        // Work around undeletable file that sometimes appears under Windows 10
-                        Log("Unable to delete " + _skylineTesterDir + "(" + e + "),  using " + nextDir + " instead.");
-                        _skylineTesterDir = nextDir;
+                        // Work around files that cannot be deleted
+                        var lastDir = nextDir;
+                        nextDir = _skylineTesterDir + "_" + retry++;
+                        Log("Unable to delete " + lastDir + "(" + e + "),  using " + nextDir + " instead.");
                     }
                 }
             }
-            Log("buildRoot is " + PwizDir);
 
-            // We used to put source tree alongside SkylineTesterDir instead of under it, delete that too
-            try
-            {
-                Delete(Path.Combine(nightlyDir, "pwiz"));
-            }
-            // ReSharper disable once EmptyGeneralCatchClause
-            catch
-            {
-            }
-
+            _skylineTesterDir = nextDir;
             Directory.CreateDirectory(_skylineTesterDir);
+        }
 
+        private double CreateSkylineNightlySkytrFile(string nightlyDir, string branchUrl, string skylineNightlySkytr)
+        {
+            // Create ".skytr" file to execute nightly build in SkylineTester.
+            var assembly = Assembly.GetExecutingAssembly();
+            const string resourceName = "SkylineNightly.SkylineNightly.skytr";
+            double durationHours;
+            using (var stream = assembly.GetManifestResourceStream(resourceName))
+            {
+                if (stream == null)
+                {
+                    throw new IOException(string.Format("Missing the embedded resource {0}", resourceName));
+                }
+
+                using (var reader = new StreamReader(stream))
+                {
+                    var skylineTester = Xml.FromString(reader.ReadToEnd());
+                    skylineTester.GetChild("nightlyStartTime").Set(DateTime.Now.ToShortTimeString());
+                    skylineTester.GetChild("nightlyRoot").Set(nightlyDir);
+                    skylineTester.GetChild("buildRoot").Set(_skylineTesterDir);
+                    skylineTester.GetChild("nightlyRunPerfTests").Set(WithPerfTests ? "true" : "false");
+                    skylineTester.GetChild("nightlyDuration").Set(((int)TargetDuration.TotalHours).ToString());
+                    skylineTester.GetChild("nightlyRepeat").Set(_runMode == RunMode.stress ? "100" : "1");
+                    skylineTester.GetChild("nightlyRandomize").Set(_runMode == RunMode.stress ? "true" : "false");
+                    if (!string.IsNullOrEmpty(branchUrl) && branchUrl.Contains("tree"))
+                    {
+                        skylineTester.GetChild("nightlyBuildTrunk").Set("false");
+                        skylineTester.GetChild("nightlyBranch").Set("true");
+                        skylineTester.GetChild("nightlyBranchUrl").Set(branchUrl);
+                        Log("Testing branch at " + branchUrl);
+                    }
+
+                    skylineTester.Save(skylineNightlySkytr);
+                    durationHours = double.Parse(skylineTester.GetChild("nightlyDuration").Value);
+                }
+            }
+
+            return durationHours;
+        }
+
+        private ProcessStartInfo CreateSkylineTesterProcessInfo(string skylineNightlySkytr)
+        {
+            var skylineTesterExe = Path.Combine(_skylineTesterDir, "SkylineTester Files", "SkylineTester.exe");
+            Log(string.Format("Starting {0} with config file {1}, which contains:", skylineTesterExe, skylineNightlySkytr));
+            Array.ForEach(File.ReadAllLines(skylineNightlySkytr), line => Log(line));
+
+            var processInfo = new ProcessStartInfo(skylineTesterExe, skylineNightlySkytr)
+            {
+                WorkingDirectory = Path.GetDirectoryName(skylineTesterExe) ?? string.Empty
+            };
+            return processInfo;
+        }
+
+        /// <summary>
+        /// Downloads and extracts SkylineTester ZIP file and determines the branch name.
+        /// </summary>
+        /// <param name="skylineTesterZipName">Name of the ZIP file to download</param>
+        /// <returns>Branch URL</returns>
+        /// <exception cref="IOException">Failure after 2 hours throws an exception with the reason</exception>
+        private string DownloadSkylineTester(string skylineTesterZipName)
+        {
             // Download most recent build of SkylineTester.
-            var skylineTesterZip = Path.Combine(_skylineTesterDir, skylineTesterDirBasis + ".zip");
-            const int attempts = 30;
-            string branchUrl = null;
+            var skylineTesterZip = Path.Combine(_skylineTesterDir, skylineTesterZipName);
+            int attempts = CalcAllowedRetries(120); // Retry for up to two hours
+            var useLastSuccessfulInsteadOfLastFinished = false;
+            string failedReason = "Unable to download SkylineTester";
             for (int i = 0; i < attempts; i++)
             {
                 try
                 {
-                    DownloadSkylineTester(skylineTesterZip, _runMode);
+                    DownloadSkylineTester(skylineTesterZip, _runMode, useLastSuccessfulInsteadOfLastFinished);
                 }
                 catch (Exception ex)
                 {
-                    Log("Exception while downloading SkylineTester: " + ex.Message + " (Probably still being built, will retry every 60 seconds for 30 minutes.)");
-                    if (i == attempts-1)
+                    failedReason = "Unable to download SkylineTester";
+
+                    // After 30 minutes, start trying for lastSuccessful build instead
+                    useLastSuccessfulInsteadOfLastFinished = i > CalcAllowedRetries(30);
+                    if (useLastSuccessfulInsteadOfLastFinished)
                     {
-                        LogAndThrow("Unable to download SkylineTester");
+                        Log("Exception while downloading SkylineTester: " + ex.Message +
+                            " (TeamCity outage? Retrying every 60 seconds for an additional 90 minutes, attempting download of lastSuccessful build instead of lastFinished.)");
                     }
-                    Thread.Sleep(60*1000);  // one minute
+                    else
+                    {
+                        Log("Exception while downloading SkylineTester: " + ex.Message +
+                            " (Retrying every 60 seconds for 30 minutes.)");
+                    }
+
+                    WaitForRetry();
                     continue;
                 }
 
                 // Install SkylineTester.
                 if (!InstallSkylineTester(skylineTesterZip, _skylineTesterDir))
-                    LogAndThrow("SkylineTester installation failed.");
+                {
+                    throw new IOException("SkylineTester installation failed.");
+                }
+
                 try
                 {
                     // Delete zip file.
@@ -314,7 +494,9 @@ namespace SkylineNightly
                     File.Delete(skylineTesterZip);
 
                     // Figure out which branch we're working in - there's a file in the downloaded SkylineTester zip that tells us.
-                    var branchLine = File.ReadAllLines(Path.Combine(_skylineTesterDir, "SkylineTester Files", "Version.cpp")).FirstOrDefault(l => l.Contains("Version::Branch"));
+                    var branchLine = File.ReadAllLines(Path.Combine(_skylineTesterDir, "SkylineTester Files", "Version.cpp"))
+                        .FirstOrDefault(l => l.Contains("Version::Branch"));
+                    string branchUrl = null;
                     if (!string.IsNullOrEmpty(branchLine))
                     {
                         // Looks like std::string Version::Branch()   {return "Skyline/skyline_9_7";}
@@ -328,159 +510,152 @@ namespace SkylineNightly
                             branchUrl = GIT_BRANCHES_URL + branch; // Looks like https://github.com/ProteoWizard/pwiz/tree/Skyline/skyline_9_7
                         }
                     }
-                        
-                    break;
+                    return branchUrl;   // success
                 }
                 catch (Exception ex)
                 {
-                    Log("Exception while unzipping SkylineTester: " + ex.Message + " (Probably still being built, will retry every 60 seconds for 30 minutes.)");
-                    if (i == attempts - 1)
-                    {
-                        LogAndThrow("Unable to identify branch from Version.cpp in SkylineTester");
-                    }
-                    Thread.Sleep(60 * 1000);  // one minute
-                }
-            }
-            // Create ".skytr" file to execute nightly build in SkylineTester.
-            var assembly = Assembly.GetExecutingAssembly();
-            const string resourceName = "SkylineNightly.SkylineNightly.skytr";
-            int durationSeconds;
-            using (var stream = assembly.GetManifestResourceStream(resourceName))
-            {
-                if (stream == null)
-                {
-                    LogAndThrow(result = "Embedded resource is broken");
-                    return result; 
-                }
-                using (var reader = new StreamReader(stream))
-                {
-                    var skylineTester = Xml.FromString(reader.ReadToEnd());
-                    skylineTester.GetChild("nightlyStartTime").Set(DateTime.Now.ToShortTimeString());
-                    skylineTester.GetChild("nightlyRoot").Set(nightlyDir);
-                    skylineTester.GetChild("buildRoot").Set(_skylineTesterDir);
-                    skylineTester.GetChild("nightlyRunPerfTests").Set(withPerfTests?"true":"false");
-                    skylineTester.GetChild("nightlyDuration").Set(((int)_duration.TotalHours).ToString());
-                    skylineTester.GetChild("nightlyRepeat").Set(_runMode == RunMode.stress ? "100" : "1");
-                    skylineTester.GetChild("nightlyRandomize").Set(_runMode == RunMode.stress ? "true" : "false");
-                    if (!string.IsNullOrEmpty(branchUrl) && branchUrl.Contains("tree"))
-                    {
-                        skylineTester.GetChild("nightlyBuildTrunk").Set("false");
-                        skylineTester.GetChild("nightlyBranch").Set("true");
-                        skylineTester.GetChild("nightlyBranchUrl").Set(branchUrl);
-                        Log("Testing branch at " + branchUrl);
-                    }
-                    skylineTester.Save(skylineNightlySkytr);
-                    var durationHours = double.Parse(skylineTester.GetChild("nightlyDuration").Value);
-                    durationSeconds = (int) (durationHours*60*60) + 30*60;  // 30 minutes grace before we kill SkylineTester
+                    failedReason = "Unable to identify branch from Version.cpp in SkylineTester";
+
+                    Log("Exception while unzipping SkylineTester: " + ex.Message +
+                        " (Probably still being built, will retry every 60 seconds for 30 minutes.)");
+
+                    WaitForRetry();
                 }
             }
 
-
-            // Start SkylineTester to do the build.
-            var skylineTesterExe = Path.Combine(_skylineTesterDir, "SkylineTester Files", "SkylineTester.exe");
-            Log(string.Format("Starting {0} with config file {1}, which contains:", skylineTesterExe, skylineNightlySkytr));
-            foreach (var line in File.ReadAllLines(skylineNightlySkytr))
-            {
-                Log(line);
-            }
-
-            var processInfo = new ProcessStartInfo(skylineTesterExe, skylineNightlySkytr)
-            {
-                WorkingDirectory = Path.GetDirectoryName(skylineTesterExe) ?? ""
-            };
-
-            var startTime = DateTime.Now;
-
-            bool retryTester;
-            const int maxRetryMinutes = 60;
-            do
-            {
-                var skylineTesterProcess = Process.Start(processInfo);
-                if (skylineTesterProcess == null)
-                {
-                    LogAndThrow(result = "SkylineTester did not start");
-                    return result;
-                }
-                Log("SkylineTester started");
-                if (!skylineTesterProcess.WaitForExit(durationSeconds * 1000))
-                {
-                    SaveErrorScreenshot();
-                    Log(result = "SkylineTester has exceeded its " + durationSeconds +
-                                 " second WaitForExit timeout.  You should investigate.");
-                }
-                else if (skylineTesterProcess.ExitCode == 0xDEAD)
-                {
-                    // User killed, don't post
-                    Log(result = SkylineTesterStoppedByUser);
-                    return result;
-                }
-                else
-                {
-                    Log("SkylineTester finished");
-                }
-
-                _duration = DateTime.Now - startTime;
-                retryTester = _duration.TotalMinutes < maxRetryMinutes;
-                if (retryTester)
-                {
-                    // Retry a very short test run if there is no log file or the log file does not contain any tests
-                    string logFile = GetLatestLog();
-                    if (logFile != null && File.Exists(logFile))
-                        retryTester = ParseTests(File.ReadAllText(logFile), false) == 0;
-                    if (retryTester)
-                    {
-                        Log("No tests run in " + Math.Round(_duration.TotalMinutes) + " minutes retrying.");
-                    }
-                }
-            }
-            while (retryTester);
-
-            return result;
+            throw new IOException(failedReason);
         }
 
-        public void StartLog(RunMode runMode)
+        private void DownloadSkylineTester(string skylineTesterZip, RunMode mode, bool desperate)
         {
-            _startTime = DateTime.Now;
-
-            // Create log file.
-            LogFileName = Path.Combine(_logDir, string.Format("SkylineNightly-{0}-{1}.log", runMode, _startTime.ToString("yyyy-MM-dd-HH-mm", CultureInfo.InvariantCulture)));
-            Log(_startTime.ToShortDateString());
-        }
-
-        private void DownloadSkylineTester(string skylineTesterZip, RunMode mode)
-        {
-            // Make sure we can negotiate with HTTPS servers that demand TLS 1.2 (default in dotNet 4.6, but has to be turned on in 4.5)
-            ServicePointManager.SecurityProtocol |= (SecurityProtocolType.Tls | SecurityProtocolType.Tls11 | SecurityProtocolType.Tls12);
-            using (var client = new WebClient())
+            // The current recommendation from MSFT for future-proofing HTTPS https://docs.microsoft.com/en-us/dotnet/framework/network-programming/tls
+            // is don't specify TLS levels at all, let the OS decide. But we worry that this will mess up Win7 and Win8 installs, so we continue to specify explicitly
+            try
             {
-                client.Credentials = new NetworkCredential(TEAM_CITY_USER_NAME, TEAM_CITY_USER_PASSWORD);
-                var isRelease = ((mode == RunMode.release) || (mode == RunMode.release_perf));
-                var isIntegration = mode == RunMode.integration;
-                var branchType = (isRelease||isIntegration) ? "" : "?branch=master"; // TC has a config just for release branch, and another for integration branch, but main config builds pull requests, other branches etc
-                var buildType = isIntegration ? TEAM_CITY_BUILD_TYPE_64_INTEGRATION : isRelease ? TEAM_CITY_BUILD_TYPE_64_RELEASE : TEAM_CITY_BUILD_TYPE_64_MASTER;
+                var Tls13 = (SecurityProtocolType)12288; // From decompiled SecurityProtocolType - compiler has no definition for some reason
+                ServicePointManager.SecurityProtocol |= SecurityProtocolType.Tls | SecurityProtocolType.Tls11 | SecurityProtocolType.Tls12 | Tls13;
+            }
+            catch (NotSupportedException)
+            {
+                ServicePointManager.SecurityProtocol |= SecurityProtocolType.Tls | SecurityProtocolType.Tls11 | SecurityProtocolType.Tls12; // Probably an older Windows Server
+            }
 
-                string zipFileLink = string.Format(TEAM_CITY_ZIP_URL, buildType, branchType);
+            using var client = new WebClient();
+
+            client.Credentials = new NetworkCredential(TEAM_CITY_USER_NAME, TEAM_CITY_USER_PASSWORD);
+            var isRelease = ((mode == RunMode.release) || (mode == RunMode.release_perf));
+            var isIntegration = mode == RunMode.integration || mode == RunMode.integration_perf;
+            var branchType = (isRelease || isIntegration) ? "" : "?branch=master"; // TC has a config just for release branch, and another for integration branch, but main config builds pull requests, other branches etc
+            var buildType = isIntegration ? TEAM_CITY_BUILD_TYPE_64_INTEGRATION : isRelease ? TEAM_CITY_BUILD_TYPE_64_RELEASE : TEAM_CITY_BUILD_TYPE_64_MASTER;
+
+            string zipFileLink = string.Format(TEAM_CITY_ZIP_URL, buildType, branchType);
+            if (desperate)
+            {
+                zipFileLink = zipFileLink.Replace(".lastFinished", ".lastSuccessful");
+                Log("In retry, download possibly stale (\".lastSuccessful\" rather than \".lastFinished\") SkylineTester zip file as " + zipFileLink);
+            }
+            else
+            {
                 Log("Download SkylineTester zip file as " + zipFileLink);
-                client.DownloadFile(zipFileLink, skylineTesterZip); // N.B. depending on caller to do try/catch
             }
+            client.DownloadFile(zipFileLink, skylineTesterZip); // N.B. depending on caller to do try/catch
         }
 
         private bool InstallSkylineTester(string skylineTesterZip, string skylineTesterDir)
         {
-            using (var zipFile = new ZipFile(skylineTesterZip))
+            using var zipFile = new ZipFile(skylineTesterZip);
+
+            try
             {
-                try
+                Log("Unzip SkylineTester");
+                zipFile.ExtractAll(skylineTesterDir, ExtractExistingFileAction.OverwriteSilently);
+            }
+            catch (Exception e)
+            {
+                Log("Error attempting to unzip SkylineTester: " + e);
+                return false;
+            }
+
+            return true;
+        }
+
+        private string WaitForSkylineTester(Process skylineTesterProcess, LogFileMonitor logMonitor, double durationHours)
+        {
+            // Calculate end time: convert to UTC, add the duration, then convert back to local time.
+            // Conversion to UTC before adding the duration avoids DST issues.
+            var endTime = skylineTesterProcess.StartTime.ToUniversalTime().AddHours(durationHours).ToLocalTime();
+            var originalEndTime = endTime;
+            while (DateTime.Now < endTime.AddMinutes(30))
+            {
+                if (skylineTesterProcess.HasExited)
                 {
-                    Log("Unzip SkylineTester");
-                    zipFile.ExtractAll(skylineTesterDir, ExtractExistingFileAction.OverwriteSilently);
+                    if (skylineTesterProcess.ExitCode == 0xDEAD)
+                    {
+                        // User killed, don't post
+                        return Log(SkylineTesterStoppedByUser);
+                    }
+
+                    Log("SkylineTester finished");
+                    return string.Empty;    // Success
                 }
-                catch (Exception)
+
+                endTime = CheckForHang(logMonitor, endTime, originalEndTime);
+
+                Thread.Sleep(1000);
+            }
+
+            SaveErrorScreenshot();
+            return Log("SkylineTester has exceeded its " + durationHours + " hour runtime.  You should investigate.");
+        }
+
+        private DateTime CheckForHang(LogFileMonitor logMonitor, DateTime endTime, DateTime originalEndTime)
+        {
+            if (endTime == originalEndTime)
+            {
+                if (logMonitor.IsHang)
                 {
-                    Log("Error attempting to unzip SkylineTester");
-                    return false;
+                    var now = DateTime.Now;
+                    if (9 <= now.Hour && now.Hour < 17)
+                    {
+                        // between 9am-5pm, set end time to 4 hours from now (unless scheduled end is already 4+ hours from now)
+                        var newEndTime = DateTime.Now.AddHours(4);
+                        if (newEndTime > originalEndTime && SetEndTime(newEndTime))
+                            endTime = newEndTime;
+                    }
+                    else
+                    {
+                        // extend the end time until 12pm to give us more time to attach a debugger
+                        var newEndTime = originalEndTime.AddHours(16);
+                        newEndTime = new DateTime(newEndTime.Year, newEndTime.Month, newEndTime.Day, 12, 0, 0);
+                        if (SetEndTime(newEndTime))
+                            endTime = newEndTime;
+                    }
                 }
             }
-            return true;
+            else if (!logMonitor.IsHang)
+            {
+                // If we get here, we've already extended the end time due to a hang and log file is now being modified again.
+                DateTime newEndTime;
+                if (logMonitor.IsDebugger)
+                {
+                    // Assume that the log file is being modified because someone has taken manual action, and extend the end time further
+                    // to prevent SkylineTester from being killed while someone is looking at it.
+                    newEndTime = originalEndTime.AddDays(2);
+                }
+                else
+                {
+                    // SkylineTester continued without a debugger being attached. Restore original end time.
+                    newEndTime = originalEndTime;
+                    var min = DateTime.Now.AddMinutes(1);
+                    if (newEndTime <= min)
+                        newEndTime = min;
+                }
+
+                if (endTime != newEndTime && SetEndTime(newEndTime))
+                    endTime = newEndTime;
+            }
+
+            return endTime;
         }
 
         public RunMode Parse(string logFile = null, bool parseOnlyNoXmlOut = false)
@@ -490,6 +665,7 @@ namespace SkylineNightly
             if (logFile == null || !File.Exists(logFile))
                 throw new Exception(string.Format("cannot locate {0}", logFile ?? "current log"));
             var log = File.ReadAllText(logFile);
+            var parsedDuration = TargetDuration;
 
             // Extract log start time from log contents
             var reStartTime = new Regex(@"\n\# Nightly started (.*)\r\n", RegexOptions.Compiled); // As in "# Nightly started Thursday, May 12, 2016 8:00 PM"
@@ -498,15 +674,20 @@ namespace SkylineNightly
             if (stMatch.Success)
             {
                 var dateTimeStr = stMatch.Groups[1].Value;
-                DateTime.TryParse(dateTimeStr, out _startTime);
+                if (DateTime.TryParse(dateTimeStr, out _startTime))
+                {
+                    _startTime = DateTime.SpecifyKind(_startTime, DateTimeKind.Local);
+                }
             }
             var endMatch = reStoppedTime.Match(log);
             if (endMatch.Success)
             {
                 var dateTimeEnd = endMatch.Groups[1].Value;
-                DateTime endTime;
-                if (DateTime.TryParse(dateTimeEnd, out endTime))
-                    _duration = (endTime - _startTime).Duration();
+                if (DateTime.TryParse(dateTimeEnd, out var endTime))
+                {
+                    endTime = DateTime.SpecifyKind(endTime, DateTimeKind.Local);
+                    parsedDuration = endTime.ToUniversalTime() - _startTime.ToUniversalTime();
+                }
             }
 
             // Extract all test lines.
@@ -560,7 +741,7 @@ namespace SkylineNightly
             _nightly["revision"] = revisionInfo ?? GetRevision(buildroot);
             _nightly["git_hash"] = gitHash ?? string.Empty;
             _nightly["start"] = _startTime;
-            int durationMinutes = (int)_duration.TotalMinutes;
+            int durationMinutes = (int)parsedDuration.TotalMinutes;
             // Round down or up by 1 minute to report even hours in this common case
             if (durationMinutes % 60 == 1)
                 durationMinutes--;
@@ -579,7 +760,7 @@ namespace SkylineNightly
             }
             return isTrunk
                 ? (hasPerftests ? RunMode.perf : RunMode.trunk)
-                : (isIntegration ? RunMode.integration :  (hasPerftests ? RunMode.release_perf : RunMode.release));
+                : (isIntegration ? (hasPerftests ? RunMode.integration_perf : RunMode.integration) :  (hasPerftests ? RunMode.release_perf : RunMode.release));
         }
 
         private class TestLogLineProperties
@@ -790,10 +971,18 @@ namespace SkylineNightly
                     xml = doc.ToString();
                 }
             }
+
+            if (string.IsNullOrEmpty(xml) || !xml.Contains("<test id"))
+            {
+                return @"No tests found in log. No results posted";
+            }
+
             string url;
             // Post to server.
             if (mode == RunMode.integration)
                 url = LABKEY_INTEGRATION_URL;
+            else if (mode == RunMode.integration_perf)
+                url = LABKEY_INTEGRATION_PERF_URL;
             else if (mode == RunMode.release_perf)
                 url = LABKEY_RELEASE_PERF_URL;
             else if (mode == RunMode.release)
@@ -813,11 +1002,16 @@ namespace SkylineNightly
 
         public string GetLatestLog()
         {
-            var directory = new DirectoryInfo(_logDir);
+            return GetLatestLog(_logDir);
+        }
+
+        public static string GetLatestLog(string logDir)
+        {
+            var directory = new DirectoryInfo(logDir);
             var logFile = directory.GetFiles()
                 .Where(f => f.Name.StartsWith(Environment.MachineName) && f.Name.EndsWith(".log"))
                 .OrderByDescending(f => f.LastWriteTime)
-                .First();
+                .FirstOrDefault();
             return logFile == null ? null : logFile.FullName;
         }
 
@@ -827,64 +1021,117 @@ namespace SkylineNightly
         private string PostToLink(string link, string postData, string filePath)
         {
             var errmessage = string.Empty;
-            Log("Posting results to " + link); 
+            Log("Posting results to " + link);
             for (var retry = 5; retry > 0; retry--)
             {
-                string boundary = "---------------------------" + DateTime.Now.Ticks.ToString("x"); 
-                byte[] boundarybytes = Encoding.ASCII.GetBytes("\r\n--" + boundary + "\r\n"); 
+                string boundary = "---------------------------" + DateTime.Now.Ticks.ToString("x");
+                byte[] boundarybytes = Encoding.ASCII.GetBytes("\r\n--" + boundary + "\r\n");
 
-                var wr = (HttpWebRequest) WebRequest.Create(link);
+                var wr = (HttpWebRequest)WebRequest.Create(link);
                 wr.ProtocolVersion = HttpVersion.Version10;
-                wr.ContentType = "multipart/form-data; boundary=" + boundary; 
-                wr.Method = "POST"; 
+                wr.ContentType = "multipart/form-data; boundary=" + boundary;
+                wr.Method = "POST";
                 wr.KeepAlive = true;
                 wr.Credentials = CredentialCache.DefaultCredentials;
 
-                SetCSRFToken(wr);
-
-                var rs = wr.GetRequestStream();
-
-                rs.Write(boundarybytes, 0, boundarybytes.Length);
-                const string headerTemplate = "Content-Disposition: form-data; name=\"{0}\"; filename=\"{1}\"\r\nContent-Type: {2}\r\n\r\n"; 
-                string header = string.Format(headerTemplate, "xml_file", filePath != null ? Path.GetFileName(filePath) : "xml_file", "text/xml");
-                byte[] headerbytes = Encoding.UTF8.GetBytes(header);
-                rs.Write(headerbytes, 0, headerbytes.Length);
-                var bytes = Encoding.UTF8.GetBytes(postData);
-                rs.Write(bytes, 0, bytes.Length);
-
-                byte[] trailer = Encoding.ASCII.GetBytes("\r\n--" + boundary + "--\r\n"); 
-                rs.Write(trailer, 0, trailer.Length);
-                rs.Close();
-
-                WebResponse wresp = null;
-                try
+                if (SetCSRFToken(wr, LogFileName))
                 {
-                    wresp = wr.GetResponse();
-                    var stream2 = wresp.GetResponseStream();
-                    if (stream2 != null)
+                    var rs = wr.GetRequestStream();
+
+                    rs.Write(boundarybytes, 0, boundarybytes.Length);
+                    const string headerTemplate = "Content-Disposition: form-data; name=\"{0}\"; filename=\"{1}\"\r\nContent-Type: {2}\r\n\r\n";
+                    string header = string.Format(headerTemplate, "xml_file", filePath != null ? Path.GetFileName(filePath) : "xml_file", "text/xml");
+                    byte[] headerbytes = Encoding.UTF8.GetBytes(header);
+                    rs.Write(headerbytes, 0, headerbytes.Length);
+                    var bytes = Encoding.UTF8.GetBytes(postData);
+                    rs.Write(bytes, 0, bytes.Length);
+
+                    byte[] trailer = Encoding.ASCII.GetBytes("\r\n--" + boundary + "--\r\n");
+                    rs.Write(trailer, 0, trailer.Length);
+                    rs.Close();
+
+                    WebResponse wresp = null;
+                    try
                     {
-                        var reader2 = new StreamReader(stream2);
-                        var result = reader2.ReadToEnd();
-                        return result;
+                        wresp = wr.GetResponse();
+                        var stream2 = wresp.GetResponseStream();
+                        if (stream2 != null)
+                        {
+                            var reader2 = new StreamReader(stream2);
+                            var result = reader2.ReadToEnd();
+                            return result;
+                        }
                     }
-                }
-                catch (Exception e)
-                {
-                    Log(errmessage = e.ToString());
-                    if (wresp != null)
+                    catch (Exception e)
                     {
-                        wresp.Close();
+                        Log(errmessage = e.ToString());
+                        if (wresp != null)
+                        {
+                            wresp.Close();
+                        }
                     }
                 }
                 if (retry > 1)
                 {
                     Thread.Sleep(30000);
-                    Log("Retrying post"); 
+                    Log("Retrying post");
                     errmessage = String.Empty;
                 }
             }
             Log(errmessage = "Failed to post results: " + errmessage); 
             return errmessage;
+        }
+
+        public static string SendEmailNotification(string to, string subject, string message)
+        {
+            var postParams = new List<string>();
+            if (!string.IsNullOrEmpty(to))
+                postParams.Add("to=" + Uri.EscapeDataString(to));
+            if (!string.IsNullOrEmpty(subject))
+                postParams.Add("subject=" + Uri.EscapeDataString(subject));
+            if (!string.IsNullOrEmpty(message))
+                postParams.Add("message=" + Uri.EscapeDataString(message));
+            var postData = Encoding.ASCII.GetBytes(string.Join("&", postParams));
+            for (var retry = 5; retry > 0; retry--)
+            {
+                var request = (HttpWebRequest) WebRequest.Create(LABKEY_EMAIL_NOTIFICATION_URL);
+                request.ProtocolVersion = HttpVersion.Version11;
+                request.ContentType = "application/x-www-form-urlencoded";
+                request.Method = "POST";
+                request.KeepAlive = false;
+                request.Credentials = CredentialCache.DefaultCredentials;
+                request.Timeout = 30000; // 30 second timeout
+
+                if (SetCSRFToken(request, null))
+                {
+                    try
+                    {
+                        using (var stream = request.GetRequestStream())
+                        {
+                            stream.Write(postData, 0, postData.Length);
+                        }
+
+                        using (var response = (HttpWebResponse)request.GetResponse())
+                        using (var responseStream = response.GetResponseStream())
+                        {
+                            if (responseStream != null)
+                            {
+                                using (var responseReader = new StreamReader(responseStream))
+                                {
+                                    return responseReader.ReadToEnd();
+                                }
+                            }
+                        }
+                    }
+                    catch (Exception)
+                    {
+                        // We will retry
+                    }
+                }
+                if (retry > 1)
+                    Thread.Sleep(30000);
+            }
+            return null;
         }
 
         private static string GetNightlyDir()
@@ -969,7 +1216,13 @@ namespace SkylineNightly
             }
         }
 
-        internal string Log(string message)
+        private string Log(string message)
+        {
+            Log(LogFileName, message);
+            return message;
+        }
+
+        public static string Log(string logFileName, string message)
         {
             var time = DateTime.Now;
             var timestampedMessage = string.Format(
@@ -978,17 +1231,16 @@ namespace SkylineNightly
                 time.Minute.ToString("D2"),
                 time.Second.ToString("D2"),
                 message);
-            if (LogFileName != null)
-                File.AppendAllText(LogFileName, timestampedMessage
-                              + Environment.NewLine);
+            if (!string.IsNullOrEmpty(logFileName))
+                File.AppendAllText(logFileName, timestampedMessage + Environment.NewLine);
             return timestampedMessage;
         }
 
-        private void LogAndThrow(string message)
+        private string QuitWithError(string message)
         {
-            var timestampedMessage = Log(message);
             SaveErrorScreenshot();
-            throw new Exception(timestampedMessage);
+            Finish("Quit with error", message);
+            return message;
         }
 
         private void SaveErrorScreenshot()
@@ -1028,7 +1280,7 @@ namespace SkylineNightly
             }
         }
 
-        private void SetCSRFToken(HttpWebRequest postReq)
+        private static bool SetCSRFToken(HttpWebRequest postReq, string logFileName)
         {
             var url = LABKEY_HOME_URL;
 
@@ -1049,14 +1301,44 @@ namespace SkylineNightly
                     }
                     else
                     {
-                        Log(@"CSRF token not found.");
+                        Log(logFileName, @"CSRF token not found.");
                     }
                 }
+                return true;
             }
             catch (Exception e)
             {
-                Log($@"Error establishing a session and getting a CSRF token: {e}");
+                Log(logFileName, $@"Error establishing a session and getting a CSRF token: {e}");
+                return false;
             }
+        }
+
+        private static readonly ChannelFactory<IEndTimeSetter> END_TIME_SETTER_FACTORY =
+            new ChannelFactory<IEndTimeSetter>(new NetNamedPipeBinding(), new EndpointAddress("net.pipe://localhost/Nightly/SetEndTime"));
+
+        // Set the end time of an already running nightly run (e.g. if there is a hang and we want to give more time for someone to attach a debugger)
+        public bool SetEndTime(DateTime endTime)
+        {
+            Exception exception = null;
+            try
+            {
+                END_TIME_SETTER_FACTORY.CreateChannel().SetEndTime(endTime);
+            }
+            catch (Exception x)
+            {
+                exception = x;
+            }
+            Log(string.Format("Setting nightly end time to {0} {1}: {2}",
+                endTime.ToShortDateString(), endTime.ToShortTimeString(), exception == null ? "OK" : exception.Message));
+            return exception == null;
+        }
+
+        // Allows SkylineNightly to change the stop time of a nightly run via IPC
+        [ServiceContract]
+        public interface IEndTimeSetter
+        {
+            [OperationContract]
+            void SetEndTime(DateTime endTime);
         }
     }
 

@@ -75,7 +75,11 @@ namespace pwiz.Skyline.Model.Databinding.Entities
 
         protected override TransitionDocNode CreateEmptyNode()
         {
-            return new TransitionDocNode(new Model.Transition(new TransitionGroup(new Model.Peptide(null, @"X", null, null, 0), Adduct.SINGLY_PROTONATED, IsotopeLabelType.light), 0), Annotations.EMPTY, null, TypedMass.ZERO_MONO_MASSH, TransitionDocNode.TransitionQuantInfo.DEFAULT, ExplicitTransitionValues.EMPTY, null);
+            var transitionGroup = new TransitionGroup(new Model.Peptide(null, @"X", null, null, 0),
+                Adduct.SINGLY_PROTONATED, IsotopeLabelType.light);
+            var transition = new Model.Transition(transitionGroup, 0, Adduct.SINGLY_PROTONATED);
+            return new TransitionDocNode(transition, Annotations.EMPTY, null, TypedMass.ZERO_MONO_MASSH,
+                TransitionDocNode.TransitionQuantInfo.DEFAULT, ExplicitTransitionValues.EMPTY, null);
         }
 
         [InvariantDisplayName("TransitionResultsSummary")]
@@ -351,12 +355,10 @@ namespace pwiz.Skyline.Model.Databinding.Entities
 
     public class TransitionResultSummary : SkylineObject
     {
+        private Transition _transition;
         public TransitionResultSummary(Transition transition, IEnumerable<TransitionResult> results)
-            : base(transition.DataSchema)
         {
-#pragma warning disable 612
-            Transition = transition;
-#pragma warning restore 612
+            _transition = transition;
             var retentionTimes = new List<double>();
             var fwhms = new List<double>();
             var areas = new List<double>();
@@ -408,10 +410,18 @@ namespace pwiz.Skyline.Model.Databinding.Entities
             }
         }
 
+        protected override SkylineDataSchema GetDataSchema()
+        {
+            return _transition.DataSchema;
+        }
+
         [Obsolete]
         public string ReplicatePath { get { return @"/"; } }
         [Obsolete]
-        public Transition Transition { get; private set; }
+        public Transition Transition
+        {
+            get { return _transition; }
+        }
         [ChildDisplayName("{0}RetentionTime")]
         public RetentionTimeSummary RetentionTime { get; private set; }
         [ChildDisplayName("{0}Fwhm")]

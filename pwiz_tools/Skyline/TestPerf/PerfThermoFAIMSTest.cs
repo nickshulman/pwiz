@@ -45,7 +45,7 @@ namespace TestPerf // Tests in this namespace are skipped unless the RunPerfTest
         [TestMethod]
         public void TestThermoFAIMS()
         {
-            TestFilesZip = @"https://skyline.gs.washington.edu/perftests/PerfThermoFAIMS.zip";
+            TestFilesZip = GetPerfTestDataURL(@"PerfThermoFAIMS.zip");
             TestFilesPersistent = new[] { "032818_Lumos_FAIMS_SILAC_3CVstep_fx_03.pdResult", "032818_Lumos_FAIMS_SILAC_3CVstep_fx_03.raw" }; // list of files that we'd like to unzip alongside parent zipFile, and (re)use in place
             RunFunctionalTest();
         }
@@ -75,10 +75,10 @@ namespace TestPerf // Tests in this namespace are skipped unless the RunPerfTest
                 .ChangeTransitionSettings(ts => ts.ChangeFilter(ts.Filter
                 .ChangePeptidePrecursorCharges(new[] { Adduct.DOUBLY_PROTONATED, Adduct.TRIPLY_PROTONATED })
                 .ChangePeptideProductCharges(new[] { Adduct.SINGLY_PROTONATED, Adduct.DOUBLY_PROTONATED })
-                .ChangePeptideIonTypes(new[] { IonType.y, IonType.precursor }))).
-                    ChangePeptideSettings(ps => ps.ChangePrediction(ps.Prediction
-                        .ChangeLibraryDriftTimesWindowWidthCalculator(new IonMobilityWindowWidthCalculator(IonMobilityWindowWidthCalculator.IonMobilityPeakWidthType.resolving_power, 20, 0, 0))
-                        .ChangeUseLibraryIonMobilityValues(true))))));
+                .ChangePeptideIonTypes(new[] { IonType.y, IonType.precursor })))
+                .ChangeTransitionSettings(ts => ts.ChangeIonMobilityFiltering(ts.IonMobilityFiltering.ChangeFilterWindowWidthCalculator(
+                        new IonMobilityWindowWidthCalculator(IonMobilityWindowWidthCalculator.IonMobilityWindowWidthType.resolving_power, 20, 0, 0, 0))
+                        .ChangeUseSpectralLibraryIonMobilityValues(true))))));
 
             TestWizardBuildDocumentLibraryAndFinish(documentFile);
 
@@ -120,12 +120,12 @@ namespace TestPerf // Tests in this namespace are skipped unless the RunPerfTest
             // Add all peptides
             var filterMatchedPeptidesDlg = ShowDialog<FilterMatchedPeptidesDlg>(viewLibUI.AddAllPeptides);
             var docBefore = WaitForProteinMetadataBackgroundLoaderCompletedUI();
-            RunDlg<MultiButtonMsgDlg>(filterMatchedPeptidesDlg.OkDialog, addLibraryPepsDlg =>
+            using (new CheckDocumentState(1, 8433, 10882, 43484))
             {
-                addLibraryPepsDlg.Btn1Click();
-            });
-            using (new CheckDocumentState(1, 8756, 10988, 43894))
-            {
+                RunDlg<MultiButtonMsgDlg>(filterMatchedPeptidesDlg.OkDialog, addLibraryPepsDlg =>
+                {
+                    addLibraryPepsDlg.Btn1Click();
+                });
                 WaitForDocumentChange(docBefore);
             }
 
@@ -145,11 +145,11 @@ namespace TestPerf // Tests in this namespace are skipped unless the RunPerfTest
             // build the document library.
             RunUI(() =>
             {
-                Assert.IsTrue(importPeptideSearchDlg.CurrentPage ==
-                            ImportPeptideSearchDlg.Pages.spectra_page);
+                Assert.IsTrue(importPeptideSearchDlg.CurrentPage == ImportPeptideSearchDlg.Pages.spectra_page);
                 importPeptideSearchDlg.BuildPepSearchLibControl.AddSearchFiles(SearchFiles);
-                Assert.IsTrue(importPeptideSearchDlg.ClickEarlyFinishButton());
             });
+            WaitForConditionUI(() => importPeptideSearchDlg.IsEarlyFinishButtonEnabled);
+            RunUI(() => Assert.IsTrue(importPeptideSearchDlg.ClickEarlyFinishButton()));
             WaitForClosedForm(importPeptideSearchDlg);
 
             VerifyDocumentLibraryBuilt(documentFile);

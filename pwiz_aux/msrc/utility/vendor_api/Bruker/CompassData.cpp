@@ -30,6 +30,7 @@
 #include "CompassData.hpp"
 #include "Baf2Sql.hpp"
 #include "TimsData.hpp"
+#include "TsfData.hpp"
 
 #pragma managed
 #include "pwiz/utility/misc/cpp_cli_utilities.hpp"
@@ -283,7 +284,7 @@ struct MSSpectrumImpl : public MSSpectrum
     virtual size_t getLineDataSize() const {return lineDataSize_;}
     virtual size_t getProfileDataSize() const {return profileDataSize_;}
 
-    virtual void getLineData(automation_vector<double>& mz, automation_vector<double>& intensities) const
+    virtual void getLineData(pwiz::util::BinaryData<double>& mz, pwiz::util::BinaryData<double>& intensities) const
     {
         try
         {
@@ -305,8 +306,8 @@ struct MSSpectrumImpl : public MSSpectrum
             }
 
             // we always get a copy of the arrays because they can be modified by the client
-            ToAutomationVector((cli::array<double>^) lineMzArray_, mz);
-            ToAutomationVector((cli::array<double>^) lineIntensityArray_, intensities);
+            ToBinaryData((cli::array<double>^) lineMzArray_, mz);
+            ToBinaryData((cli::array<double>^) lineIntensityArray_, intensities);
 
             // the automation vectors now own the arrays, so nullify the cached versions
             lineMzArray_ = nullptr;
@@ -315,7 +316,7 @@ struct MSSpectrumImpl : public MSSpectrum
         CATCH_AND_FORWARD
     }
 
-    virtual void getProfileData(automation_vector<double>& mz, automation_vector<double>& intensities) const
+    virtual void getProfileData(pwiz::util::BinaryData<double>& mz, pwiz::util::BinaryData<double>& intensities) const
     {
         try
         {
@@ -337,8 +338,8 @@ struct MSSpectrumImpl : public MSSpectrum
             }
 
             // we always get a copy of the arrays because they can be modified by the client
-            ToAutomationVector((cli::array<double>^) profileMzArray_, mz);
-            ToAutomationVector((cli::array<double>^) profileIntensityArray_, intensities);
+            ToBinaryData((cli::array<double>^) profileMzArray_, mz);
+            ToBinaryData((cli::array<double>^) profileIntensityArray_, intensities);
 
             // the automation vectors now own the arrays, so nullify the cached versions
             profileMzArray_ = nullptr;
@@ -354,19 +355,21 @@ struct MSSpectrumImpl : public MSSpectrum
 
     virtual double getRetentionTime() const {try {return spectrum_->RetentionTime;} CATCH_AND_FORWARD}
 
-    virtual void getIsolationData(std::vector<double>& isolatedMZs,
-                                  std::vector<IsolationMode>& isolationModes) const
+    virtual void getIsolationData(std::vector<IsolationInfo>& isolationInfo) const
     {
         try
         {
             System::Object^ mzArrayObject;
-            System::Array^ modeArray;
-            spectrum_->GetIsolationData(mzArrayObject, modeArray);
+            System::Array^ modeArrayObject;
+            spectrum_->GetIsolationData(mzArrayObject, modeArrayObject);
             cli::array<double,2>^ mzArray = (cli::array<double,2>^) mzArrayObject;
-            isolatedMZs.resize(mzArray->Length);
-            for (int i=0; i < mzArray->Length; ++i)
-                isolatedMZs[i] = mzArray[i,0];
-            ToStdVector((cli::array<EDAL::IsolationModes>^) modeArray, isolationModes);
+            cli::array<EDAL::IsolationModes>^ modeArray = (cli::array<EDAL::IsolationModes>^) modeArrayObject;
+            isolationInfo.resize(mzArray->Length, IsolationInfo{ 0, IsolationMode_Unknown, 0 });
+            for (int i = 0; i < mzArray->Length; ++i)
+            {
+                isolationInfo[i].isolationMz = mzArray[i, 0];
+                isolationInfo[i].isolationMode = (IsolationMode) modeArray[i];
+            }
         }
         CATCH_AND_FORWARD
     }
@@ -605,12 +608,12 @@ struct CompassDataImpl : public CompassData
         CATCH_AND_FORWARD
     }
 
-    virtual ChromatogramPtr getTIC() const
+    virtual ChromatogramPtr getTIC(bool ms1Only) const
     {
         return ChromatogramPtr();
     }
 
-    virtual ChromatogramPtr getBPC() const
+    virtual ChromatogramPtr getBPC(bool ms1Only) const
     {
         return ChromatogramPtr();
     }
@@ -696,12 +699,19 @@ struct CompassDataImpl : public CompassData
 PWIZ_API_DECL CompassDataPtr CompassData::create(const string& rawpath, bool combineIonMobilitySpectra,
                                                  Reader_Bruker_Format format,
                                                  int preferOnlyMsLevel, // when nonzero, caller only wants spectra at this ms level
-                                                 bool allowMsMsWithoutPrecursor) // when false, PASEF MS2 specta without precursor info will be excluded
+                                                 bool allowMsMsWithoutPrecursor, // when false, PASEF MS2 specta without precursor info will be excluded
+                                                 const vector<chemistry::MzMobilityWindow>& isolationMzFilter) // when non-empty, only scans from precursors matching one of the included m/zs (i.e. within a precursor isolation window) will be enumerated
 {
     if (format == Reader_Bruker_Format_BAF || format == Reader_Bruker_Format_BAF_and_U2)
         return CompassDataPtr(new Baf2SqlImpl(rawpath));
     else if (format == Reader_Bruker_Format_TDF)
-        return CompassDataPtr(new TimsDataImpl(rawpath, combineIonMobilitySpectra, preferOnlyMsLevel, allowMsMsWithoutPrecursor));
+        return CompassDataPtr(new TimsDataImpl(rawpath, combineIonMobilitySpectra, preferOnlyMsLevel, allowMsMsWithoutPrecursor, isolationMzFilter));
+    else if (format == Reader_Bruker_Format_TSF)
+#ifdef _WIN64
+        return CompassDataPtr(new TsfDataImpl(rawpath, preferOnlyMsLevel));
+#else
+        throw runtime_error("[CompassData::create] Bruker API does not support reading TSF data in 32-bit builds; use a 64-bit build");
+#endif
 
     try {return CompassDataPtr(new CompassDataImpl(rawpath, format));} CATCH_AND_FORWARD
 }
@@ -769,12 +779,19 @@ PWIZ_API_DECL const MSSpectrumParameter& MSSpectrumParameterIterator::dereferenc
 PWIZ_API_DECL CompassDataPtr CompassData::create(const string& rawpath, bool combineIonMobilitySpectra,
                                                  Reader_Bruker_Format format,
                                                  int preferOnlyMsLevel, // when nonzero, caller only wants spectra at this ms level
-                                                 bool allowMsMsWithoutPrecursor) // when false, PASEF MS2 specta without precursor info will be excluded
+                                                 bool allowMsMsWithoutPrecursor, // when false, PASEF MS2 specta without precursor info will be excluded
+                                                 const vector<chemistry::MzMobilityWindow>& isolationMzFilter) // when non-empty, only scans from precursors matching one of the included m/zs (i.e. within a precursor isolation window) will be enumerated
 {
     if (format == Reader_Bruker_Format_BAF || format == Reader_Bruker_Format_BAF_and_U2)
         return CompassDataPtr(new Baf2SqlImpl(rawpath));
     else if (format == Reader_Bruker_Format_TDF)
-        return CompassDataPtr(new TimsDataImpl(rawpath, combineIonMobilitySpectra, preferOnlyMsLevel, allowMsMsWithoutPrecursor));
+        return CompassDataPtr(new TimsDataImpl(rawpath, combineIonMobilitySpectra, preferOnlyMsLevel, allowMsMsWithoutPrecursor, isolationMzFilter));
+    else if (format == Reader_Bruker_Format_TSF)
+#ifdef _WIN64
+        return CompassDataPtr(new TsfDataImpl(rawpath, preferOnlyMsLevel));
+#else
+        throw runtime_error("[CompassData::create] Bruker API does not support reading TSF data in 32-bit builds; use a 64-bit build");
+#endif
     else
         throw runtime_error("[CompassData::create] Bruker API was built with only BAF and TDF support; YEP and FID files not supported in this build");
 }
@@ -783,7 +800,7 @@ PWIZ_API_DECL CompassDataPtr CompassData::create(const string& rawpath, bool com
 #endif // PWIZ_READER_BRUKER_WITH_COMPASSXTRACT
 
 
-PWIZ_API_DECL pair<size_t, size_t> CompassData::getFrameScanPair(int scanIndex) const
+PWIZ_API_DECL FrameScanRange CompassData::getFrameScanPair(int scanIndex) const
 {
     throw runtime_error("[getFrameScanPair()] only supported for TDF data");
 }

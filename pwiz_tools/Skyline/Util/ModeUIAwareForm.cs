@@ -23,6 +23,7 @@ using System.ComponentModel;
 using System.Drawing;
 using System.Linq;
 using System.Windows.Forms;
+using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Alerts;
 using pwiz.Skyline.Model;
 using pwiz.Skyline.Properties;
@@ -37,7 +38,7 @@ namespace pwiz.Skyline.Util
         /// </summary>
 
         [ProvideProperty("UIMode", typeof(Component))]   // Custom component property that appears in Designer (via IExtenderProvider)
-        public class ModeUIExtender : Component, ISupportInitialize, IExtenderProvider // Behaves like a ToolTip, in that its presence in a form allows us to tag components with ModeUI info in the designer
+        public class ModeUIExtender : Component, IExtenderProvider // Behaves like a ToolTip, in that its presence in a form allows us to tag components with ModeUI info in the designer
         {
             private Dictionary<IComponent, MODE_UI_HANDLING_TYPE> _handledComponents = new Dictionary<IComponent, MODE_UI_HANDLING_TYPE>();
             private Dictionary<IComponent, string> _originalToolStripText = new Dictionary<IComponent, string>();
@@ -103,17 +104,9 @@ namespace pwiz.Skyline.Util
             {
                 _handledComponents[component] = type;
             }
-
-            public void BeginInit() // Required by ISupportInitialize
-            {
-            }
-
-            public void EndInit() // Required by ISupportInitialize
-            {
-            }
         }
 
-        public class ModeUIAwareFormHelper // Assists in adapting the UI from its traditional proteomic language to small molecule language
+        public class ModeUIAwareFormHelper : IDisposable // Assists in adapting the UI from its traditional proteomic language to small molecule language
         {
             public static ModeUIAwareFormHelper DEFAULT = new ModeUIAwareFormHelper(null);
 
@@ -153,6 +146,15 @@ namespace pwiz.Skyline.Util
             }
 
             #endregion
+
+            public void Dispose()
+            {
+                if (_modeUIToolBarDropDownButton != null)
+                {
+                    _modeUIToolBarDropDownButton.DropDown.Dispose();
+                    _modeUIToolBarDropDownButton = null;
+                }
+            }
 
             public void SetModeUIToolStripButtons(ToolStripDropDownButton modeUIToolBarDropDownButton, Action<SrmDocument.DOCUMENT_TYPE> handler)
             {
@@ -271,7 +273,7 @@ namespace pwiz.Skyline.Util
             }
 
 
-            public static void SetComponentEnabledStateForModeUI(Component component, bool isDesired)
+            public static void SetComponentEnabledStateForModeUI(Component component, IList<ToolTip> toolTipControls, bool isDesired)
             {
                 if (component is ToolStripMenuItem item)
                 {
@@ -286,7 +288,7 @@ namespace pwiz.Skyline.Util
                     {
                         if (!isDesired)
                         {
-                            parent.TabPages.Remove(tabPage);
+                            FormUtil.RemoveTabPage(tabPage, toolTipControls);
                         }
                         return;
                     }

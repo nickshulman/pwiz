@@ -6,16 +6,16 @@
 //
 // Copyright 2012 University of Washington - Seattle, WA 98195
 //
-// Licensed under the Apache License, Version 2.0 (the "License"); 
-// you may not use this file except in compliance with the License. 
-// You may obtain a copy of the License at 
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
 //
 // http://www.apache.org/licenses/LICENSE-2.0
 //
-// Unless required by applicable law or agreed to in writing, software 
-// distributed under the License is distributed on an "AS IS" BASIS, 
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
-// See the License for the specific language governing permissions and 
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
 // limitations under the License.
 //
 
@@ -46,13 +46,14 @@ MzIdentMLReader::MzIdentMLReader
 
     lookUpBy_ = NAME_ID;
     scoreThreshold_ = 0;
+    isScoreLookup_ = false;
 }
 
 MzIdentMLReader::~MzIdentMLReader()
 {
     delete pwizReader_;
 }
-    
+
 /**
  * Implementation of BuildParser virtual method.  Reads the .mzid file,
  * stores psms, organized by spectrum file, and imports all spectra.
@@ -61,12 +62,12 @@ bool MzIdentMLReader::parseFile(){
     map<DBSequencePtr, Protein> proteins;
     Verbosity::debug("Reading psms from the file.");
     collectPsms(proteins);
-    
+
     // for each file
     if( fileMap_.size() > 1 ){
         initSpecFileProgress((int)fileMap_.size());
     }
-    
+
     map<string, string> mapSourceFiles;
     vector<pwiz::identdata::SourceFilePtr>& sourceFiles = pwizReader_->dataCollection.inputs.sourceFile;
     for(size_t i = 0; i < sourceFiles.size(); i++){
@@ -82,39 +83,21 @@ bool MzIdentMLReader::parseFile(){
         }
     }
 
-    PSM_SCORE_TYPE scoreType = UNKNOWN_SCORE_TYPE;
-    switch (analysisType_) {
-        case SCAFFOLD_ANALYSIS:
-            scoreType = SCAFFOLD_SOMETHING;
-            break;
-        case BYONIC_ANALYSIS:
-            scoreType = BYONIC_PEP;
-            break;
-        case MSGF_ANALYSIS:
-            scoreType = MSGF_SCORE;
-            break;
-        case PEPTIDESHAKER_ANALYSIS:
-            scoreType = PEPTIDE_SHAKER_CONFIDENCE;
-            break;
-        case MASCOT_ANALYSIS:
-            scoreType = MASCOT_IONS_SCORE;
-            break;
-        case PEAKS_ANALYSIS:
-            scoreType = PEAKS_CONFIDENCE_SCORE;
-            break;
-        case PROT_PILOT_ANALYSIS:
-            scoreType = PROTEIN_PILOT_CONFIDENCE;
-            break;
-        case GENERIC_QVALUE_ANALYSIS:
-            scoreType = GENERIC_QVALUE;
-            break;
-    }
+    PSM_SCORE_TYPE scoreType = analysisToScoreType(analysisType_);
 
     map<string, vector<PSM*> >::iterator fileIterator = fileMap_.begin();
     vector<std::string> specExtensions;
     specExtensions.push_back(".MGF");
     specExtensions.push_back(".mzXML");
     specExtensions.push_back(".mzML");
+    specExtensions.push_back(".mz5");
+    #ifdef VENDOR_READERS
+	    specExtensions.push_back(".raw"); // Waters/Thermo
+	    specExtensions.push_back(".wiff"); // Sciex
+	    specExtensions.push_back(".wiff2"); // Sciex
+	    specExtensions.push_back(".d"); // Bruker/Agilent
+	    specExtensions.push_back(".lcd"); // Shimadzu
+	#endif
     for(; fileIterator != fileMap_.end(); ++fileIterator) {
         vector<string> pathParts;
         boost::split(pathParts, fileIterator->first, boost::is_any_of(";"));
@@ -131,13 +114,24 @@ bool MzIdentMLReader::parseFile(){
 
         // move from map to psms_
         psms_ = fileIterator->second;
-        if (sourceFile.empty())
-            buildTables(scoreType);
-        else
-            buildTables(scoreType, sourceFile);
+        if (!isScoreLookup_) {
+            if (sourceFile.empty())
+                buildTables(scoreType);
+            else
+                buildTables(scoreType, sourceFile);
+        }
     }
 
     return true;
+}
+
+vector<PSM_SCORE_TYPE> MzIdentMLReader::getScoreTypes() {
+    isScoreLookup_ = true;
+    try {
+        parseFile();
+    } catch (SAXHandler::EndEarlyException) {
+    }
+    return vector<PSM_SCORE_TYPE>(1, analysisToScoreType(analysisType_));
 }
 
 /**
@@ -152,9 +146,9 @@ bool MzIdentMLReader::parseFile(){
 void MzIdentMLReader::collectPsms(map<DBSequencePtr, Protein>& proteins) {
     // 1 SpectrumIdentificationList = 1 .MGF file
     for(; list_iter_ != list_end_; ++list_iter_){
-        
+
         // 1 SpectrumIdentifiationResult = 1 spectrum
-        for(result_iter_ = (**list_iter_).spectrumIdentificationResult.begin(); 
+        for(result_iter_ = (**list_iter_).spectrumIdentificationResult.begin();
             result_iter_ != (**list_iter_).spectrumIdentificationResult.end();
             ++result_iter_)
         {
@@ -171,9 +165,9 @@ void MzIdentMLReader::collectPsms(map<DBSequencePtr, Protein>& proteins) {
             string idStr = result.spectrumID;
             filename += ";";
             filename += getFilenameFromID(idStr);
-            
+
             // 1 SpectrumIdentificationItem = 1 psm
-            for(item_iter_ = result.spectrumIdentificationItem.begin(); 
+            for(item_iter_ = result.spectrumIdentificationItem.begin();
                 item_iter_ != result.spectrumIdentificationItem.end();
                 ++item_iter_)
             {
@@ -239,13 +233,13 @@ void MzIdentMLReader::collectPsms(map<DBSequencePtr, Protein>& proteins) {
                     }
                 }
                 extractModifications(peptidePtr, curPSM_);
-                
+
                 // add the psm to the map
                 Verbosity::comment(V_DETAIL, "For file %s adding PSM: "
                                    "scan '%s', charge %d, sequence '%s'.",
                                    filename.c_str(), curPSM_->specName.c_str(),
                                    curPSM_->charge, curPSM_->unmodSeq.c_str());
-                map<string, vector<PSM*> >::iterator mapAccess = 
+                map<string, vector<PSM*> >::iterator mapAccess =
                     fileMap_.find(filename);
                 if( mapAccess == fileMap_.end() ){ // not found, add the file
                     vector<PSM*> tmpPsms(1, curPSM_);
@@ -266,8 +260,8 @@ void MzIdentMLReader::collectPsms(map<DBSequencePtr, Protein>& proteins) {
  */
 void MzIdentMLReader::extractModifications(PeptidePtr peptide, PSM* psm){
 
-    vector<ModificationPtr>::const_iterator itMod=peptide->modification.begin(); 
-    vector<SubstitutionModificationPtr>::const_iterator itSubst=peptide->substitutionModification.begin(); 
+    vector<ModificationPtr>::const_iterator itMod=peptide->modification.begin();
+    vector<SubstitutionModificationPtr>::const_iterator itSubst=peptide->substitutionModification.begin();
     while (itMod!=peptide->modification.end() || itSubst!=peptide->substitutionModification.end()){
 
         int location;
@@ -330,7 +324,7 @@ double MzIdentMLReader::getScore(const SpectrumIdentificationItem& item){
         {
             case MS_PeptideShaker_PSM_confidence:
                 if (analysisType_ == UNKNOWN_ANALYSIS) {
-                    analysisType_ = PEPTIDESHAKER_ANALYSIS;
+                    setAnalysisType(PEPTIDESHAKER_ANALYSIS);
                     scoreThreshold_ = getScoreThreshold(PEPTIDE_SHAKER);
                 }
                 if (analysisType_ == PEPTIDESHAKER_ANALYSIS)
@@ -339,7 +333,7 @@ double MzIdentMLReader::getScore(const SpectrumIdentificationItem& item){
 
             case MS_Scaffold_Peptide_Probability:
                 if (analysisType_ == UNKNOWN_ANALYSIS) {
-                    analysisType_ = SCAFFOLD_ANALYSIS;
+                    setAnalysisType(SCAFFOLD_ANALYSIS);
                     scoreThreshold_ = getScoreThreshold(SCAFFOLD);
                 }
                 if (analysisType_ == SCAFFOLD_ANALYSIS)
@@ -349,7 +343,7 @@ double MzIdentMLReader::getScore(const SpectrumIdentificationItem& item){
             case MS_Byonic__Peptide_AbsLogProb:
             case MS_Byonic__Peptide_AbsLogProb2D:
                 if (analysisType_ == UNKNOWN_ANALYSIS) {
-                    analysisType_ = BYONIC_ANALYSIS;
+                    setAnalysisType(BYONIC_ANALYSIS);
                     scoreThreshold_ = getScoreThreshold(BYONIC);
                 }
                 if (analysisType_ == BYONIC_ANALYSIS)
@@ -358,7 +352,7 @@ double MzIdentMLReader::getScore(const SpectrumIdentificationItem& item){
 
             case MS_MS_GF_QValue:
                 if (analysisType_ == UNKNOWN_ANALYSIS) {
-                    analysisType_ = MSGF_ANALYSIS;
+                    setAnalysisType(MSGF_ANALYSIS);
                     scoreThreshold_ = getScoreThreshold(MSGF);
                 }
                 if (analysisType_ == MSGF_ANALYSIS)
@@ -367,16 +361,16 @@ double MzIdentMLReader::getScore(const SpectrumIdentificationItem& item){
 
             case MS_Mascot_expectation_value:
                 if (analysisType_ == UNKNOWN_ANALYSIS) {
-                    analysisType_ = MASCOT_ANALYSIS;
+                    setAnalysisType(MASCOT_ANALYSIS);
                     scoreThreshold_ = getScoreThreshold(MASCOT);
                 }
                 if (analysisType_ == MASCOT_ANALYSIS)
                     return cvParam.valueAs<double>();
                 break;
-            
+
             case MS_PEAKS_peptideScore:
                 if (analysisType_ == UNKNOWN_ANALYSIS) {
-                    analysisType_ = PEAKS_ANALYSIS;
+                    setAnalysisType(PEAKS_ANALYSIS);
                     scoreThreshold_ = getScoreThreshold(PEAKS);
                 }
                 if (analysisType_ == PEAKS_ANALYSIS)
@@ -385,7 +379,7 @@ double MzIdentMLReader::getScore(const SpectrumIdentificationItem& item){
 
             case MS_Paragon_confidence:
                 if (analysisType_ == UNKNOWN_ANALYSIS) {
-                    analysisType_ = PROT_PILOT_ANALYSIS;
+                    setAnalysisType(PROT_PILOT_ANALYSIS);
                     scoreThreshold_ = getScoreThreshold(PROT_PILOT);
                 }
                 if (analysisType_ == PROT_PILOT_ANALYSIS)
@@ -395,7 +389,7 @@ double MzIdentMLReader::getScore(const SpectrumIdentificationItem& item){
             case MS_PSM_level_q_value:
             case MS_percolator_Q_value:
                 if (analysisType_ == UNKNOWN_ANALYSIS) {
-                    analysisType_ = GENERIC_QVALUE_ANALYSIS;
+                    setAnalysisType(GENERIC_QVALUE_ANALYSIS);
                     scoreThreshold_ = getScoreThreshold(GENERIC_QVALUE_INPUT);
                 }
                 if (analysisType_ == GENERIC_QVALUE_ANALYSIS)
@@ -414,17 +408,49 @@ double MzIdentMLReader::getScore(const SpectrumIdentificationItem& item){
         {
             case MS_MS_GF_EValue:
                 if (analysisType_ == UNKNOWN_ANALYSIS) {
-                    analysisType_ = MSGF_ANALYSIS;
+                    setAnalysisType(MSGF_ANALYSIS);
                     scoreThreshold_ = getScoreThreshold(MSGF);
                 }
                 if (analysisType_ == MSGF_ANALYSIS)
                     return cvParam.valueAs<double>();
+                break;
+            default:
                 break;
         }
     }
 
     Verbosity::error(".mzid file contains an unsupported score type");
     return 0;
+}
+
+void MzIdentMLReader::setAnalysisType(ANALYSIS analysisType) {
+    analysisType_ = analysisType;
+    if (isScoreLookup_) {
+        throw SAXHandler::EndEarlyException();
+    }
+}
+
+PSM_SCORE_TYPE MzIdentMLReader::analysisToScoreType(ANALYSIS analysisType) {
+    switch (analysisType) {
+        case SCAFFOLD_ANALYSIS:
+            return SCAFFOLD_SOMETHING;
+        case BYONIC_ANALYSIS:
+            return BYONIC_PEP;
+        case MSGF_ANALYSIS:
+            return MSGF_SCORE;
+        case PEPTIDESHAKER_ANALYSIS:
+            return PEPTIDE_SHAKER_CONFIDENCE;
+        case MASCOT_ANALYSIS:
+            return MASCOT_IONS_SCORE;
+        case PEAKS_ANALYSIS:
+            return PEAKS_CONFIDENCE_SCORE;
+        case PROT_PILOT_ANALYSIS:
+            return PROTEIN_PILOT_CONFIDENCE;
+        case GENERIC_QVALUE_ANALYSIS:
+            return GENERIC_QVALUE;
+        default:
+            return UNKNOWN_SCORE_TYPE;
+    }
 }
 
 bool MzIdentMLReader::passThreshold(double score)

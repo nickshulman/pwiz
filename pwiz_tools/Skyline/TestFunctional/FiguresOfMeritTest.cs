@@ -39,7 +39,6 @@ namespace pwiz.SkylineTestFunctional
     public class FiguresOfMeritTest : AbstractFunctionalTest
     {
         [TestMethod]
-        [Timeout(36000000)]  // These can take a long time in code coverage mode
         public void TestFiguresOfMerit()
         {
             TestFilesZip = @"TestFunctional\FiguresOfMeritTest.zip";
@@ -59,13 +58,14 @@ namespace pwiz.SkylineTestFunctional
             });
             var calibrationForm = ShowDialog<CalibrationForm>(()=>SkylineWindow.ShowCalibrationForm());
             Assert.IsNotNull(calibrationForm);
-            var results = new List<Tuple<FiguresOfMeritOptions, ModifiedSequence, FiguresOfMerit>>();
+            var results = new List<Tuple<FiguresOfMeritOptions, ProteomicSequence, FiguresOfMerit>>();
             int count = 0;
-            foreach (var options in EnumerateFiguresOfMeritOptions().OrderBy(x=>random.Next()))
+            foreach (var options in EnumerateFiguresOfMeritOptions().OrderBy(x=>random.Next()).Take(10))
             {
                 count++;
                 bool doFullTest = count < 5;
                 var newQuantification = SkylineWindow.Document.Settings.PeptideSettings.Quantification;
+                // ReSharper disable once PossibleNullReferenceException
                 newQuantification = newQuantification
                         .ChangeRegressionFit(options.RegressionFit)
                         .ChangeLodCalculation(options.LodCalculation)
@@ -231,7 +231,8 @@ namespace pwiz.SkylineTestFunctional
             }
             var calibrationCurve = peptideEntity.CalibrationCurve.Value;
             var concentrationMultiplier = peptideEntity.ConcentrationMultiplier.GetValueOrDefault(1);
-            foreach (var grouping in peptideResults.OrderBy(g => g.Key))
+            double? bestLoq = null;
+            foreach (var grouping in peptideResults.OrderByDescending(g => g.Key))
             {
                 if (options.MaxLoqBias.HasValue)
                 {
@@ -246,32 +247,33 @@ namespace pwiz.SkylineTestFunctional
                     var backCalculatedConcentration = calibrationCurve.GetFittedX(meanArea);
                     if (!backCalculatedConcentration.HasValue)
                     {
-                        continue;
+                        break;
                     }
                     var expectedConcentration = grouping.Key * concentrationMultiplier;
                     var error = Math.Abs(1.0 - backCalculatedConcentration.Value / expectedConcentration) * 100;
                     if (error > options.MaxLoqBias)
                     {
-                        continue;
+                        break;
                     }
                 }
+
                 if (options.MaxLoqCv.HasValue)
                 {
                     var stats = new Statistics(grouping.Select(peptideResult =>
                         peptideResult.Quantification.Value.NormalizedArea).OfType<double>());
-                    if (stats.Length <= 1)
+                    if (stats.Length > 1)
                     {
-                        continue;
-                    }
-                    var cv = stats.StdDev() / stats.Mean();
-                    if (double.IsNaN(cv) || cv * 100 > options.MaxLoqCv.Value)
-                    {
-                        continue;
+                        var cv = stats.StdDev() / stats.Mean();
+                        if (double.IsNaN(cv) || cv * 100 > options.MaxLoqCv.Value)
+                        {
+                            break;
+                        }
                     }
                 }
-                return grouping.Key * concentrationMultiplier;
+
+                bestLoq = grouping.Key;
             }
-            return null;
+            return bestLoq * concentrationMultiplier;
         }
 
         /// <summary>

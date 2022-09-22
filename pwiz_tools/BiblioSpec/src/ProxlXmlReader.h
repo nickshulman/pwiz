@@ -31,6 +31,7 @@ public:
     virtual ~ProxlXmlReader();
     
     virtual bool parseFile();
+    std::vector<PSM_SCORE_TYPE> getScoreTypes();
 
     virtual void startElement(const XML_Char* name, const XML_Char** attr);
     virtual void endElement(const XML_Char* name);
@@ -43,6 +44,14 @@ protected:
         PEPTIDES_STATE, PEPTIDE_STATE, MODIFICATIONS_STATE, LINKED_POSITIONS_STATE,
         PSMS_STATE, PSM_STATE, FILTERABLE_PSM_ANNOTATIONS_STATE,
         STATIC_MODIFICATIONS_STATE
+    };
+
+    enum class LinkType
+    {
+        Unlinked,
+        Crosslink,
+        Looplink,
+        Other
     };
 
     class ProxlPeptide {
@@ -64,21 +73,34 @@ protected:
     
     struct ProxlMatches {
         std::vector<ProxlPeptide> peptides_;
-        std::map< std::string, vector<ProxlPsm*> > psms_;        
+        std::map< std::string, vector<ProxlPsm*> > psms_;
+        LinkType linkType_;
+    };
+
+    enum ANALYSIS {
+        UNKNOWN_ANALYSIS,
+        PERCOLATOR_ANALYSIS,
+        BYONIC_ANALYSIS
     };
 
     static double aaMasses_[128];
     static double calcMass(const std::string& sequence, const std::vector<SeqMod>& mods);
+    static PSM_SCORE_TYPE analysisToScoreType(ANALYSIS analysisType);
 
     void calcPsms();
-    void applyStaticMods(const std::string& sequence, std::vector<SeqMod>& mods);
+    void applyStaticMods(const std::string& sequence, std::vector<SeqMod>& mods, int crosslinkPosition);
 
     std::vector<STATE> state_;
     std::map< std::string, vector<PSM*> > fileToPsms_;
     std::map< char, vector<double> > staticMods_;
+    bool isScoreLookup_;
 
+    std::vector<std::string> searchPrograms_;
+    ANALYSIS analysisType_;
     ProxlPsm* curProxlPsm_;
     std::vector<ProxlMatches> proxlMatches_;
+    vector<std::string> dirs_;       ///< directories where spec files might be
+    vector<std::string> extensions_; ///< possible extensions of spec files (.mzXML)
 };
 
 }

@@ -16,10 +16,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Text;
 using pwiz.Common.Collections;
 using pwiz.Common.DataBinding;
 using pwiz.Skyline.Model.DocSettings;
@@ -64,6 +67,42 @@ namespace pwiz.Skyline.Model.Lists
             return csvFileReader.ReadLine();
         }
 
+        protected static string ToCsvRow(IEnumerable<string> values)
+        {
+            StringBuilder stringBuilder = new StringBuilder();
+            bool anyValues = false;
+            foreach (var value in values)
+            {
+                if (anyValues)
+                {
+                    stringBuilder.Append(CSV_SEPARATOR_STRING);
+                }
+                anyValues = true;
+
+                if (!string.IsNullOrEmpty(value))
+                {
+                    stringBuilder.Append(DsvWriter.ToDsvField(CSV_SEPARATOR_CHAR, value));
+                }
+            }
+
+            if (!anyValues)
+            {
+                // Return the empty string if there are zero rows of data
+                return string.Empty;
+            }
+
+            if (stringBuilder.Length == 0)
+            {
+                // Return the empty quoted string if there is one row of blank data, to
+                // distinguish it from zero rows of data.
+                // ReSharper disable LocalizableElement
+                return "\"\"";
+                // ReSharper restore LocalizableElement
+            }
+
+            return stringBuilder.ToString();
+        }
+
         public abstract class AbstractColumnData<T> : ColumnData
         {
             protected readonly ImmutableList<T> _values;
@@ -82,6 +121,10 @@ namespace pwiz.Skyline.Model.Lists
 
             protected virtual T ConvertValue(object value)
             {
+                if (value is DBNull)
+                {
+                    return default(T);
+                }
                 return (T)value;
             }
             public override int RowCount
@@ -128,7 +171,6 @@ namespace pwiz.Skyline.Model.Lists
                 }
                 return ReplaceValues(_values.Concat(Enumerable.Repeat(default(T), rowCount - RowCount)));
             }
-
         }
 
         public class Doubles : AbstractColumnData<double?>
@@ -146,11 +188,10 @@ namespace pwiz.Skyline.Model.Lists
 
             public override string ToPersistedString()
             {
-                return string.Join(CSV_SEPARATOR_STRING,
-                    _values.Select(value =>
-                        value.HasValue
-                            ? value.Value.ToString(Formats.RoundTrip, CultureInfo.InvariantCulture)
-                            : string.Empty));
+                return ToCsvRow(_values.Select(value =>
+                    value.HasValue
+                        ? value.Value.ToString(Formats.RoundTrip, CultureInfo.InvariantCulture)
+                        : string.Empty));
             }
 
             public override ColumnData SetPersistedString(string persistedString)
@@ -181,7 +222,7 @@ namespace pwiz.Skyline.Model.Lists
 
             public override string ToPersistedString()
             {
-                return string.Join(CSV_SEPARATOR_STRING, _values.Select(value => DsvWriter.ToDsvField(CSV_SEPARATOR_CHAR, value)));
+                return ToCsvRow(_values);
             }
 
             public override ColumnData SetPersistedString(string persistedString)
@@ -222,7 +263,7 @@ namespace pwiz.Skyline.Model.Lists
 
             public override string ToPersistedString()
             {
-                return string.Join(CSV_SEPARATOR_STRING, _values.Select(value => value ? @"1" : @"0"));
+                return ToCsvRow(_values.Select(value => value ? @"1" : @"0"));
             }
 
             public override ColumnData SetPersistedString(string str)

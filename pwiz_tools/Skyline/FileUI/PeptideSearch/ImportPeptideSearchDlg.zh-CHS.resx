@@ -117,13 +117,16 @@
   <resheader name="writer">
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
+  <metadata name="modeUIHandler.TrayLocation" type="System.Drawing.Point, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a">
+    <value>17, 17</value>
+  </metadata>
   <assembly alias="System.Windows.Forms" name="System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089" />
   <data name="btnCancel.Anchor" type="System.Windows.Forms.AnchorStyles, System.Windows.Forms">
     <value>Bottom, Right</value>
   </data>
   <assembly alias="System.Drawing" name="System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a" />
   <data name="btnCancel.Location" type="System.Drawing.Point, System.Drawing">
-    <value>315, 511</value>
+    <value>497, 605</value>
   </data>
   <data name="btnCancel.Size" type="System.Drawing.Size, System.Drawing">
     <value>75, 23</value>
@@ -151,7 +154,7 @@
     <value>Bottom, Right</value>
   </data>
   <data name="btnNext.Location" type="System.Drawing.Point, System.Drawing">
-    <value>234, 511</value>
+    <value>416, 605</value>
   </data>
   <data name="btnNext.Size" type="System.Drawing.Size, System.Drawing">
     <value>75, 23</value>
@@ -160,7 +163,7 @@
     <value>3</value>
   </data>
   <data name="btnNext.Text" xml:space="preserve">
-    <value>下一个(&amp;N) &gt;</value>
+    <value>下一步(&amp;N) &gt;</value>
   </data>
   <data name="&gt;&gt;btnNext.Name" xml:space="preserve">
     <value>btnNext</value>
@@ -175,7 +178,7 @@
     <value>4</value>
   </data>
   <metadata name="helpTip.TrayLocation" type="System.Drawing.Point, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a">
-    <value>17, 17</value>
+    <value>155, 17</value>
   </metadata>
   <data name="cbMissedCleavages.Items" xml:space="preserve">
     <value>0</value>
@@ -488,7 +491,7 @@
     <value>False</value>
   </data>
   <data name="btnEarlyFinish.Location" type="System.Drawing.Point, System.Drawing">
-    <value>72, 511</value>
+    <value>254, 605</value>
   </data>
   <data name="btnEarlyFinish.Size" type="System.Drawing.Size, System.Drawing">
     <value>75, 23</value>
@@ -514,140 +517,50 @@
   <data name="wizardPagesImportPeptideSearch.Anchor" type="System.Windows.Forms.AnchorStyles, System.Windows.Forms">
     <value>Top, Bottom, Left, Right</value>
   </data>
-  <data name="&gt;&gt;buildSearchSpecLibPage.Name" xml:space="preserve">
-    <value>buildSearchSpecLibPage</value>
-  </data>
-  <data name="&gt;&gt;buildSearchSpecLibPage.Type" xml:space="preserve">
-    <value>System.Windows.Forms.TabPage, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
-  </data>
-  <data name="&gt;&gt;buildSearchSpecLibPage.Parent" xml:space="preserve">
-    <value>wizardPagesImportPeptideSearch</value>
-  </data>
-  <data name="&gt;&gt;buildSearchSpecLibPage.ZOrder" xml:space="preserve">
-    <value>0</value>
-  </data>
-  <data name="&gt;&gt;getChromatogramsPage.Name" xml:space="preserve">
-    <value>getChromatogramsPage</value>
-  </data>
-  <data name="&gt;&gt;getChromatogramsPage.Type" xml:space="preserve">
-    <value>System.Windows.Forms.TabPage, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
-  </data>
-  <data name="&gt;&gt;getChromatogramsPage.Parent" xml:space="preserve">
-    <value>wizardPagesImportPeptideSearch</value>
-  </data>
-  <data name="&gt;&gt;getChromatogramsPage.ZOrder" xml:space="preserve">
-    <value>1</value>
-  </data>
-  <data name="&gt;&gt;matchModificationsPage.Name" xml:space="preserve">
-    <value>matchModificationsPage</value>
-  </data>
-  <data name="&gt;&gt;matchModificationsPage.Type" xml:space="preserve">
-    <value>System.Windows.Forms.TabPage, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
-  </data>
-  <data name="&gt;&gt;matchModificationsPage.Parent" xml:space="preserve">
-    <value>wizardPagesImportPeptideSearch</value>
-  </data>
-  <data name="&gt;&gt;matchModificationsPage.ZOrder" xml:space="preserve">
-    <value>2</value>
-  </data>
-  <data name="&gt;&gt;transitionSettingsUiPage.Name" xml:space="preserve">
-    <value>transitionSettingsUiPage</value>
-  </data>
-  <data name="&gt;&gt;transitionSettingsUiPage.Type" xml:space="preserve">
-    <value>System.Windows.Forms.TabPage, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
-  </data>
-  <data name="&gt;&gt;transitionSettingsUiPage.Parent" xml:space="preserve">
-    <value>wizardPagesImportPeptideSearch</value>
-  </data>
-  <data name="&gt;&gt;transitionSettingsUiPage.ZOrder" xml:space="preserve">
-    <value>3</value>
-  </data>
-  <data name="&gt;&gt;ms1FullScanSettingsPage.Name" xml:space="preserve">
-    <value>ms1FullScanSettingsPage</value>
-  </data>
-  <data name="&gt;&gt;ms1FullScanSettingsPage.Type" xml:space="preserve">
-    <value>System.Windows.Forms.TabPage, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
-  </data>
-  <data name="&gt;&gt;ms1FullScanSettingsPage.Parent" xml:space="preserve">
-    <value>wizardPagesImportPeptideSearch</value>
-  </data>
-  <data name="&gt;&gt;ms1FullScanSettingsPage.ZOrder" xml:space="preserve">
-    <value>4</value>
-  </data>
-  <data name="&gt;&gt;importFastaPage.Name" xml:space="preserve">
-    <value>importFastaPage</value>
-  </data>
-  <data name="&gt;&gt;importFastaPage.Type" xml:space="preserve">
-    <value>System.Windows.Forms.TabPage, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
-  </data>
-  <data name="&gt;&gt;importFastaPage.Parent" xml:space="preserve">
-    <value>wizardPagesImportPeptideSearch</value>
-  </data>
-  <data name="&gt;&gt;importFastaPage.ZOrder" xml:space="preserve">
-    <value>5</value>
-  </data>
-  <data name="wizardPagesImportPeptideSearch.Location" type="System.Drawing.Point, System.Drawing">
-    <value>0, 0</value>
-  </data>
-  <data name="wizardPagesImportPeptideSearch.Size" type="System.Drawing.Size, System.Drawing">
-    <value>402, 505</value>
-  </data>
-  <data name="wizardPagesImportPeptideSearch.TabIndex" type="System.Int32, mscorlib">
-    <value>0</value>
-  </data>
-  <data name="&gt;&gt;wizardPagesImportPeptideSearch.Name" xml:space="preserve">
-    <value>wizardPagesImportPeptideSearch</value>
-  </data>
-  <data name="&gt;&gt;wizardPagesImportPeptideSearch.Type" xml:space="preserve">
-    <value>pwiz.Skyline.Controls.WizardPages, Skyline, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null</value>
-  </data>
-  <data name="&gt;&gt;wizardPagesImportPeptideSearch.Parent" xml:space="preserve">
-    <value>$this</value>
-  </data>
-  <data name="&gt;&gt;wizardPagesImportPeptideSearch.ZOrder" xml:space="preserve">
-    <value>2</value>
-  </data>
   <data name="buildSearchSpecLibPage.BackgroundImageLayout" type="System.Windows.Forms.ImageLayout, System.Windows.Forms">
     <value>None</value>
   </data>
-  <data name="&gt;&gt;buildSpectralLibraryTitlePanel.Name" xml:space="preserve">
-    <value>buildSpectralLibraryTitlePanel</value>
+  <data name="buildLibraryPanel.Dock" type="System.Windows.Forms.DockStyle, System.Windows.Forms">
+    <value>Fill</value>
   </data>
-  <data name="&gt;&gt;buildSpectralLibraryTitlePanel.Type" xml:space="preserve">
-    <value>System.Windows.Forms.Panel, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  <data name="buildLibraryPanel.Location" type="System.Drawing.Point, System.Drawing">
+    <value>3, 46</value>
   </data>
-  <data name="&gt;&gt;buildSpectralLibraryTitlePanel.Parent" xml:space="preserve">
-    <value>buildSearchSpecLibPage</value>
+  <data name="buildLibraryPanel.Size" type="System.Drawing.Size, System.Drawing">
+    <value>570, 524</value>
   </data>
-  <data name="&gt;&gt;buildSpectralLibraryTitlePanel.ZOrder" xml:space="preserve">
-    <value>0</value>
-  </data>
-  <data name="buildSearchSpecLibPage.Location" type="System.Drawing.Point, System.Drawing">
-    <value>4, 22</value>
-  </data>
-  <data name="buildSearchSpecLibPage.Padding" type="System.Windows.Forms.Padding, System.Windows.Forms">
-    <value>3, 3, 3, 3</value>
-  </data>
-  <data name="buildSearchSpecLibPage.Size" type="System.Drawing.Size, System.Drawing">
-    <value>394, 479</value>
-  </data>
-  <data name="buildSearchSpecLibPage.TabIndex" type="System.Int32, mscorlib">
-    <value>0</value>
-  </data>
-  <data name="buildSearchSpecLibPage.Text" xml:space="preserve">
+  <data name="buildLibraryPanel.TabIndex" type="System.Int32, mscorlib">
     <value>1</value>
   </data>
-  <data name="&gt;&gt;buildSearchSpecLibPage.Name" xml:space="preserve">
+  <data name="&gt;&gt;buildLibraryPanel.Name" xml:space="preserve">
+    <value>buildLibraryPanel</value>
+  </data>
+  <data name="&gt;&gt;buildLibraryPanel.Type" xml:space="preserve">
+    <value>System.Windows.Forms.Panel, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="&gt;&gt;buildLibraryPanel.Parent" xml:space="preserve">
     <value>buildSearchSpecLibPage</value>
   </data>
-  <data name="&gt;&gt;buildSearchSpecLibPage.Type" xml:space="preserve">
-    <value>System.Windows.Forms.TabPage, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
-  </data>
-  <data name="&gt;&gt;buildSearchSpecLibPage.Parent" xml:space="preserve">
-    <value>wizardPagesImportPeptideSearch</value>
-  </data>
-  <data name="&gt;&gt;buildSearchSpecLibPage.ZOrder" xml:space="preserve">
+  <data name="&gt;&gt;buildLibraryPanel.ZOrder" xml:space="preserve">
     <value>0</value>
+  </data>
+  <data name="label14.AutoSize" type="System.Boolean, mscorlib">
+    <value>True</value>
+  </data>
+  <data name="label14.Font" type="System.Drawing.Font, System.Drawing">
+    <value>Arial Rounded MT Bold, 12pt</value>
+  </data>
+  <data name="label14.Location" type="System.Drawing.Point, System.Drawing">
+    <value>8, 9</value>
+  </data>
+  <data name="label14.Size" type="System.Drawing.Size, System.Drawing">
+    <value>137, 18</value>
+  </data>
+  <data name="label14.TabIndex" type="System.Int32, mscorlib">
+    <value>0</value>
+  </data>
+  <data name="label14.Text" xml:space="preserve">
+    <value>谱图库</value>
   </data>
   <data name="&gt;&gt;label14.Name" xml:space="preserve">
     <value>label14</value>
@@ -668,7 +581,7 @@
     <value>3, 3</value>
   </data>
   <data name="buildSpectralLibraryTitlePanel.Size" type="System.Drawing.Size, System.Drawing">
-    <value>388, 43</value>
+    <value>570, 43</value>
   </data>
   <data name="buildSpectralLibraryTitlePanel.TabIndex" type="System.Int32, mscorlib">
     <value>0</value>
@@ -683,111 +596,33 @@
     <value>buildSearchSpecLibPage</value>
   </data>
   <data name="&gt;&gt;buildSpectralLibraryTitlePanel.ZOrder" xml:space="preserve">
-    <value>0</value>
+    <value>1</value>
   </data>
-  <data name="label14.AutoSize" type="System.Boolean, mscorlib">
-    <value>True</value>
-  </data>
-  <data name="label14.Font" type="System.Drawing.Font, System.Drawing">
-    <value>Arial Rounded MT Bold, 12pt</value>
-  </data>
-  <data name="label14.Location" type="System.Drawing.Point, System.Drawing">
-    <value>8, 9</value>
-  </data>
-  <data name="label14.Size" type="System.Drawing.Size, System.Drawing">
-    <value>181, 18</value>
-  </data>
-  <data name="label14.TabIndex" type="System.Int32, mscorlib">
-    <value>0</value>
-  </data>
-  <data name="label14.Text" xml:space="preserve">
-    <value>建立谱图库</value>
-  </data>
-  <data name="&gt;&gt;label14.Name" xml:space="preserve">
-    <value>label14</value>
-  </data>
-  <data name="&gt;&gt;label14.Type" xml:space="preserve">
-    <value>System.Windows.Forms.Label, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
-  </data>
-  <data name="&gt;&gt;label14.Parent" xml:space="preserve">
-    <value>buildSpectralLibraryTitlePanel</value>
-  </data>
-  <data name="&gt;&gt;label14.ZOrder" xml:space="preserve">
-    <value>0</value>
-  </data>
-  <data name="&gt;&gt;extractChromatogramsTitlePanel.Name" xml:space="preserve">
-    <value>extractChromatogramsTitlePanel</value>
-  </data>
-  <data name="&gt;&gt;extractChromatogramsTitlePanel.Type" xml:space="preserve">
-    <value>System.Windows.Forms.Panel, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
-  </data>
-  <data name="&gt;&gt;extractChromatogramsTitlePanel.Parent" xml:space="preserve">
-    <value>getChromatogramsPage</value>
-  </data>
-  <data name="&gt;&gt;extractChromatogramsTitlePanel.ZOrder" xml:space="preserve">
-    <value>0</value>
-  </data>
-  <data name="getChromatogramsPage.Location" type="System.Drawing.Point, System.Drawing">
+  <data name="buildSearchSpecLibPage.Location" type="System.Drawing.Point, System.Drawing">
     <value>4, 22</value>
   </data>
-  <data name="getChromatogramsPage.Padding" type="System.Windows.Forms.Padding, System.Windows.Forms">
+  <data name="buildSearchSpecLibPage.Padding" type="System.Windows.Forms.Padding, System.Windows.Forms">
     <value>3, 3, 3, 3</value>
   </data>
-  <data name="getChromatogramsPage.Size" type="System.Drawing.Size, System.Drawing">
-    <value>394, 479</value>
+  <data name="buildSearchSpecLibPage.Size" type="System.Drawing.Size, System.Drawing">
+    <value>576, 573</value>
   </data>
-  <data name="getChromatogramsPage.TabIndex" type="System.Int32, mscorlib">
-    <value>1</value>
-  </data>
-  <data name="getChromatogramsPage.Text" xml:space="preserve">
-    <value>2</value>
-  </data>
-  <data name="&gt;&gt;getChromatogramsPage.Name" xml:space="preserve">
-    <value>getChromatogramsPage</value>
-  </data>
-  <data name="&gt;&gt;getChromatogramsPage.Type" xml:space="preserve">
-    <value>System.Windows.Forms.TabPage, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
-  </data>
-  <data name="&gt;&gt;getChromatogramsPage.Parent" xml:space="preserve">
-    <value>wizardPagesImportPeptideSearch</value>
-  </data>
-  <data name="&gt;&gt;getChromatogramsPage.ZOrder" xml:space="preserve">
-    <value>1</value>
-  </data>
-  <data name="&gt;&gt;label20.Name" xml:space="preserve">
-    <value>label20</value>
-  </data>
-  <data name="&gt;&gt;label20.Type" xml:space="preserve">
-    <value>System.Windows.Forms.Label, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
-  </data>
-  <data name="&gt;&gt;label20.Parent" xml:space="preserve">
-    <value>extractChromatogramsTitlePanel</value>
-  </data>
-  <data name="&gt;&gt;label20.ZOrder" xml:space="preserve">
+  <data name="buildSearchSpecLibPage.TabIndex" type="System.Int32, mscorlib">
     <value>0</value>
   </data>
-  <data name="extractChromatogramsTitlePanel.Dock" type="System.Windows.Forms.DockStyle, System.Windows.Forms">
-    <value>Top</value>
+  <data name="buildSearchSpecLibPage.Text" xml:space="preserve">
+    <value>1</value>
   </data>
-  <data name="extractChromatogramsTitlePanel.Location" type="System.Drawing.Point, System.Drawing">
-    <value>3, 3</value>
+  <data name="&gt;&gt;buildSearchSpecLibPage.Name" xml:space="preserve">
+    <value>buildSearchSpecLibPage</value>
   </data>
-  <data name="extractChromatogramsTitlePanel.Size" type="System.Drawing.Size, System.Drawing">
-    <value>388, 43</value>
+  <data name="&gt;&gt;buildSearchSpecLibPage.Type" xml:space="preserve">
+    <value>System.Windows.Forms.TabPage, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </data>
-  <data name="extractChromatogramsTitlePanel.TabIndex" type="System.Int32, mscorlib">
-    <value>17</value>
+  <data name="&gt;&gt;buildSearchSpecLibPage.Parent" xml:space="preserve">
+    <value>wizardPagesImportPeptideSearch</value>
   </data>
-  <data name="&gt;&gt;extractChromatogramsTitlePanel.Name" xml:space="preserve">
-    <value>extractChromatogramsTitlePanel</value>
-  </data>
-  <data name="&gt;&gt;extractChromatogramsTitlePanel.Type" xml:space="preserve">
-    <value>System.Windows.Forms.Panel, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
-  </data>
-  <data name="&gt;&gt;extractChromatogramsTitlePanel.Parent" xml:space="preserve">
-    <value>getChromatogramsPage</value>
-  </data>
-  <data name="&gt;&gt;extractChromatogramsTitlePanel.ZOrder" xml:space="preserve">
+  <data name="&gt;&gt;buildSearchSpecLibPage.ZOrder" xml:space="preserve">
     <value>0</value>
   </data>
   <data name="label20.AutoSize" type="System.Boolean, mscorlib">
@@ -820,80 +655,56 @@
   <data name="&gt;&gt;label20.ZOrder" xml:space="preserve">
     <value>0</value>
   </data>
-  <data name="&gt;&gt;addModsTitlePanel.Name" xml:space="preserve">
-    <value>addModsTitlePanel</value>
-  </data>
-  <data name="&gt;&gt;addModsTitlePanel.Type" xml:space="preserve">
-    <value>System.Windows.Forms.Panel, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
-  </data>
-  <data name="&gt;&gt;addModsTitlePanel.Parent" xml:space="preserve">
-    <value>matchModificationsPage</value>
-  </data>
-  <data name="&gt;&gt;addModsTitlePanel.ZOrder" xml:space="preserve">
-    <value>0</value>
-  </data>
-  <data name="matchModificationsPage.Location" type="System.Drawing.Point, System.Drawing">
-    <value>4, 22</value>
-  </data>
-  <data name="matchModificationsPage.Padding" type="System.Windows.Forms.Padding, System.Windows.Forms">
-    <value>3, 3, 3, 3</value>
-  </data>
-  <data name="matchModificationsPage.Size" type="System.Drawing.Size, System.Drawing">
-    <value>394, 479</value>
-  </data>
-  <data name="matchModificationsPage.TabIndex" type="System.Int32, mscorlib">
-    <value>3</value>
-  </data>
-  <data name="matchModificationsPage.Text" xml:space="preserve">
-    <value>3</value>
-  </data>
-  <data name="&gt;&gt;matchModificationsPage.Name" xml:space="preserve">
-    <value>matchModificationsPage</value>
-  </data>
-  <data name="&gt;&gt;matchModificationsPage.Type" xml:space="preserve">
-    <value>System.Windows.Forms.TabPage, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
-  </data>
-  <data name="&gt;&gt;matchModificationsPage.Parent" xml:space="preserve">
-    <value>wizardPagesImportPeptideSearch</value>
-  </data>
-  <data name="&gt;&gt;matchModificationsPage.ZOrder" xml:space="preserve">
-    <value>2</value>
-  </data>
-  <data name="&gt;&gt;label16.Name" xml:space="preserve">
-    <value>label16</value>
-  </data>
-  <data name="&gt;&gt;label16.Type" xml:space="preserve">
-    <value>System.Windows.Forms.Label, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
-  </data>
-  <data name="&gt;&gt;label16.Parent" xml:space="preserve">
-    <value>addModsTitlePanel</value>
-  </data>
-  <data name="&gt;&gt;label16.ZOrder" xml:space="preserve">
-    <value>0</value>
-  </data>
-  <data name="addModsTitlePanel.Dock" type="System.Windows.Forms.DockStyle, System.Windows.Forms">
+  <data name="extractChromatogramsTitlePanel.Dock" type="System.Windows.Forms.DockStyle, System.Windows.Forms">
     <value>Top</value>
   </data>
-  <data name="addModsTitlePanel.Location" type="System.Drawing.Point, System.Drawing">
+  <data name="extractChromatogramsTitlePanel.Location" type="System.Drawing.Point, System.Drawing">
     <value>3, 3</value>
   </data>
-  <data name="addModsTitlePanel.Size" type="System.Drawing.Size, System.Drawing">
-    <value>388, 43</value>
+  <data name="extractChromatogramsTitlePanel.Size" type="System.Drawing.Size, System.Drawing">
+    <value>570, 43</value>
   </data>
-  <data name="addModsTitlePanel.TabIndex" type="System.Int32, mscorlib">
-    <value>0</value>
+  <data name="extractChromatogramsTitlePanel.TabIndex" type="System.Int32, mscorlib">
+    <value>17</value>
   </data>
-  <data name="&gt;&gt;addModsTitlePanel.Name" xml:space="preserve">
-    <value>addModsTitlePanel</value>
+  <data name="&gt;&gt;extractChromatogramsTitlePanel.Name" xml:space="preserve">
+    <value>extractChromatogramsTitlePanel</value>
   </data>
-  <data name="&gt;&gt;addModsTitlePanel.Type" xml:space="preserve">
+  <data name="&gt;&gt;extractChromatogramsTitlePanel.Type" xml:space="preserve">
     <value>System.Windows.Forms.Panel, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </data>
-  <data name="&gt;&gt;addModsTitlePanel.Parent" xml:space="preserve">
-    <value>matchModificationsPage</value>
+  <data name="&gt;&gt;extractChromatogramsTitlePanel.Parent" xml:space="preserve">
+    <value>getChromatogramsPage</value>
   </data>
-  <data name="&gt;&gt;addModsTitlePanel.ZOrder" xml:space="preserve">
+  <data name="&gt;&gt;extractChromatogramsTitlePanel.ZOrder" xml:space="preserve">
     <value>0</value>
+  </data>
+  <data name="getChromatogramsPage.Location" type="System.Drawing.Point, System.Drawing">
+    <value>4, 22</value>
+  </data>
+  <data name="getChromatogramsPage.Padding" type="System.Windows.Forms.Padding, System.Windows.Forms">
+    <value>3, 3, 3, 3</value>
+  </data>
+  <data name="getChromatogramsPage.Size" type="System.Drawing.Size, System.Drawing">
+    <value>576, 573</value>
+  </data>
+  <data name="getChromatogramsPage.TabIndex" type="System.Int32, mscorlib">
+    <value>1</value>
+  </data>
+  <data name="getChromatogramsPage.Text" xml:space="preserve">
+    <value>2</value>
+  </data>
+  <data name="&gt;&gt;getChromatogramsPage.Name" xml:space="preserve">
+    <value>getChromatogramsPage</value>
+  </data>
+  <data name="&gt;&gt;getChromatogramsPage.Type" xml:space="preserve">
+    <value>System.Windows.Forms.TabPage, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="&gt;&gt;getChromatogramsPage.Parent" xml:space="preserve">
+    <value>wizardPagesImportPeptideSearch</value>
+  </data>
+  <data name="&gt;&gt;getChromatogramsPage.ZOrder" xml:space="preserve">
+    <value>1</value>
   </data>
   <data name="label16.AutoSize" type="System.Boolean, mscorlib">
     <value>True</value>
@@ -925,74 +736,56 @@
   <data name="&gt;&gt;label16.ZOrder" xml:space="preserve">
     <value>0</value>
   </data>
-  <data name="&gt;&gt;panel1.Name" xml:space="preserve">
-    <value>panel1</value>
+  <data name="addModsTitlePanel.Dock" type="System.Windows.Forms.DockStyle, System.Windows.Forms">
+    <value>Top</value>
   </data>
-  <data name="&gt;&gt;panel1.Type" xml:space="preserve">
-    <value>System.Windows.Forms.Panel, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
-  </data>
-  <data name="&gt;&gt;panel1.Parent" xml:space="preserve">
-    <value>transitionSettingsUiPage</value>
-  </data>
-  <data name="&gt;&gt;panel1.ZOrder" xml:space="preserve">
-    <value>0</value>
-  </data>
-  <data name="transitionSettingsUiPage.Location" type="System.Drawing.Point, System.Drawing">
-    <value>4, 22</value>
-  </data>
-  <data name="transitionSettingsUiPage.Size" type="System.Drawing.Size, System.Drawing">
-    <value>394, 479</value>
-  </data>
-  <data name="transitionSettingsUiPage.TabIndex" type="System.Int32, mscorlib">
-    <value>6</value>
-  </data>
-  <data name="transitionSettingsUiPage.Text" xml:space="preserve">
-    <value>4</value>
-  </data>
-  <data name="&gt;&gt;transitionSettingsUiPage.Name" xml:space="preserve">
-    <value>transitionSettingsUiPage</value>
-  </data>
-  <data name="&gt;&gt;transitionSettingsUiPage.Type" xml:space="preserve">
-    <value>System.Windows.Forms.TabPage, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
-  </data>
-  <data name="&gt;&gt;transitionSettingsUiPage.Parent" xml:space="preserve">
-    <value>wizardPagesImportPeptideSearch</value>
-  </data>
-  <data name="&gt;&gt;transitionSettingsUiPage.ZOrder" xml:space="preserve">
-    <value>3</value>
-  </data>
-  <data name="&gt;&gt;label1.Name" xml:space="preserve">
-    <value>label1</value>
-  </data>
-  <data name="&gt;&gt;label1.Type" xml:space="preserve">
-    <value>System.Windows.Forms.Label, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
-  </data>
-  <data name="&gt;&gt;label1.Parent" xml:space="preserve">
-    <value>panel1</value>
-  </data>
-  <data name="&gt;&gt;label1.ZOrder" xml:space="preserve">
-    <value>0</value>
-  </data>
-  <data name="panel1.Location" type="System.Drawing.Point, System.Drawing">
+  <data name="addModsTitlePanel.Location" type="System.Drawing.Point, System.Drawing">
     <value>3, 3</value>
   </data>
-  <data name="panel1.Size" type="System.Drawing.Size, System.Drawing">
-    <value>388, 43</value>
+  <data name="addModsTitlePanel.Size" type="System.Drawing.Size, System.Drawing">
+    <value>570, 43</value>
   </data>
-  <data name="panel1.TabIndex" type="System.Int32, mscorlib">
-    <value>1</value>
+  <data name="addModsTitlePanel.TabIndex" type="System.Int32, mscorlib">
+    <value>0</value>
   </data>
-  <data name="&gt;&gt;panel1.Name" xml:space="preserve">
-    <value>panel1</value>
+  <data name="&gt;&gt;addModsTitlePanel.Name" xml:space="preserve">
+    <value>addModsTitlePanel</value>
   </data>
-  <data name="&gt;&gt;panel1.Type" xml:space="preserve">
+  <data name="&gt;&gt;addModsTitlePanel.Type" xml:space="preserve">
     <value>System.Windows.Forms.Panel, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </data>
-  <data name="&gt;&gt;panel1.Parent" xml:space="preserve">
-    <value>transitionSettingsUiPage</value>
+  <data name="&gt;&gt;addModsTitlePanel.Parent" xml:space="preserve">
+    <value>matchModificationsPage</value>
   </data>
-  <data name="&gt;&gt;panel1.ZOrder" xml:space="preserve">
+  <data name="&gt;&gt;addModsTitlePanel.ZOrder" xml:space="preserve">
     <value>0</value>
+  </data>
+  <data name="matchModificationsPage.Location" type="System.Drawing.Point, System.Drawing">
+    <value>4, 22</value>
+  </data>
+  <data name="matchModificationsPage.Padding" type="System.Windows.Forms.Padding, System.Windows.Forms">
+    <value>3, 3, 3, 3</value>
+  </data>
+  <data name="matchModificationsPage.Size" type="System.Drawing.Size, System.Drawing">
+    <value>576, 573</value>
+  </data>
+  <data name="matchModificationsPage.TabIndex" type="System.Int32, mscorlib">
+    <value>3</value>
+  </data>
+  <data name="matchModificationsPage.Text" xml:space="preserve">
+    <value>3</value>
+  </data>
+  <data name="&gt;&gt;matchModificationsPage.Name" xml:space="preserve">
+    <value>matchModificationsPage</value>
+  </data>
+  <data name="&gt;&gt;matchModificationsPage.Type" xml:space="preserve">
+    <value>System.Windows.Forms.TabPage, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="&gt;&gt;matchModificationsPage.Parent" xml:space="preserve">
+    <value>wizardPagesImportPeptideSearch</value>
+  </data>
+  <data name="&gt;&gt;matchModificationsPage.ZOrder" xml:space="preserve">
+    <value>2</value>
   </data>
   <data name="label1.AutoSize" type="System.Boolean, mscorlib">
     <value>True</value>
@@ -1027,80 +820,53 @@
   <data name="&gt;&gt;label1.ZOrder" xml:space="preserve">
     <value>0</value>
   </data>
-  <data name="&gt;&gt;ms1FullScanSettingsTitlePanel.Name" xml:space="preserve">
-    <value>ms1FullScanSettingsTitlePanel</value>
-  </data>
-  <data name="&gt;&gt;ms1FullScanSettingsTitlePanel.Type" xml:space="preserve">
-    <value>System.Windows.Forms.Panel, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
-  </data>
-  <data name="&gt;&gt;ms1FullScanSettingsTitlePanel.Parent" xml:space="preserve">
-    <value>ms1FullScanSettingsPage</value>
-  </data>
-  <data name="&gt;&gt;ms1FullScanSettingsTitlePanel.ZOrder" xml:space="preserve">
-    <value>0</value>
-  </data>
-  <data name="ms1FullScanSettingsPage.Location" type="System.Drawing.Point, System.Drawing">
-    <value>4, 22</value>
-  </data>
-  <data name="ms1FullScanSettingsPage.Padding" type="System.Windows.Forms.Padding, System.Windows.Forms">
-    <value>3, 3, 3, 3</value>
-  </data>
-  <data name="ms1FullScanSettingsPage.Size" type="System.Drawing.Size, System.Drawing">
-    <value>394, 479</value>
-  </data>
-  <data name="ms1FullScanSettingsPage.TabIndex" type="System.Int32, mscorlib">
-    <value>5</value>
-  </data>
-  <data name="ms1FullScanSettingsPage.Text" xml:space="preserve">
-    <value>5</value>
-  </data>
-  <data name="&gt;&gt;ms1FullScanSettingsPage.Name" xml:space="preserve">
-    <value>ms1FullScanSettingsPage</value>
-  </data>
-  <data name="&gt;&gt;ms1FullScanSettingsPage.Type" xml:space="preserve">
-    <value>System.Windows.Forms.TabPage, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
-  </data>
-  <data name="&gt;&gt;ms1FullScanSettingsPage.Parent" xml:space="preserve">
-    <value>wizardPagesImportPeptideSearch</value>
-  </data>
-  <data name="&gt;&gt;ms1FullScanSettingsPage.ZOrder" xml:space="preserve">
-    <value>4</value>
-  </data>
-  <data name="&gt;&gt;label19.Name" xml:space="preserve">
-    <value>label19</value>
-  </data>
-  <data name="&gt;&gt;label19.Type" xml:space="preserve">
-    <value>System.Windows.Forms.Label, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
-  </data>
-  <data name="&gt;&gt;label19.Parent" xml:space="preserve">
-    <value>ms1FullScanSettingsTitlePanel</value>
-  </data>
-  <data name="&gt;&gt;label19.ZOrder" xml:space="preserve">
-    <value>0</value>
-  </data>
-  <data name="ms1FullScanSettingsTitlePanel.Dock" type="System.Windows.Forms.DockStyle, System.Windows.Forms">
+  <data name="panel1.Dock" type="System.Windows.Forms.DockStyle, System.Windows.Forms">
     <value>Top</value>
   </data>
-  <data name="ms1FullScanSettingsTitlePanel.Location" type="System.Drawing.Point, System.Drawing">
-    <value>3, 3</value>
+  <data name="panel1.Location" type="System.Drawing.Point, System.Drawing">
+    <value>0, 0</value>
   </data>
-  <data name="ms1FullScanSettingsTitlePanel.Size" type="System.Drawing.Size, System.Drawing">
-    <value>388, 43</value>
+  <data name="panel1.Size" type="System.Drawing.Size, System.Drawing">
+    <value>576, 43</value>
   </data>
-  <data name="ms1FullScanSettingsTitlePanel.TabIndex" type="System.Int32, mscorlib">
-    <value>16</value>
+  <data name="panel1.TabIndex" type="System.Int32, mscorlib">
+    <value>1</value>
   </data>
-  <data name="&gt;&gt;ms1FullScanSettingsTitlePanel.Name" xml:space="preserve">
-    <value>ms1FullScanSettingsTitlePanel</value>
+  <data name="&gt;&gt;panel1.Name" xml:space="preserve">
+    <value>panel1</value>
   </data>
-  <data name="&gt;&gt;ms1FullScanSettingsTitlePanel.Type" xml:space="preserve">
+  <data name="&gt;&gt;panel1.Type" xml:space="preserve">
     <value>System.Windows.Forms.Panel, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </data>
-  <data name="&gt;&gt;ms1FullScanSettingsTitlePanel.Parent" xml:space="preserve">
-    <value>ms1FullScanSettingsPage</value>
+  <data name="&gt;&gt;panel1.Parent" xml:space="preserve">
+    <value>transitionSettingsUiPage</value>
   </data>
-  <data name="&gt;&gt;ms1FullScanSettingsTitlePanel.ZOrder" xml:space="preserve">
+  <data name="&gt;&gt;panel1.ZOrder" xml:space="preserve">
     <value>0</value>
+  </data>
+  <data name="transitionSettingsUiPage.Location" type="System.Drawing.Point, System.Drawing">
+    <value>4, 22</value>
+  </data>
+  <data name="transitionSettingsUiPage.Size" type="System.Drawing.Size, System.Drawing">
+    <value>576, 573</value>
+  </data>
+  <data name="transitionSettingsUiPage.TabIndex" type="System.Int32, mscorlib">
+    <value>6</value>
+  </data>
+  <data name="transitionSettingsUiPage.Text" xml:space="preserve">
+    <value>4</value>
+  </data>
+  <data name="&gt;&gt;transitionSettingsUiPage.Name" xml:space="preserve">
+    <value>transitionSettingsUiPage</value>
+  </data>
+  <data name="&gt;&gt;transitionSettingsUiPage.Type" xml:space="preserve">
+    <value>System.Windows.Forms.TabPage, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="&gt;&gt;transitionSettingsUiPage.Parent" xml:space="preserve">
+    <value>wizardPagesImportPeptideSearch</value>
+  </data>
+  <data name="&gt;&gt;transitionSettingsUiPage.ZOrder" xml:space="preserve">
+    <value>3</value>
   </data>
   <data name="label19.AutoSize" type="System.Boolean, mscorlib">
     <value>True</value>
@@ -1132,80 +898,56 @@
   <data name="&gt;&gt;label19.ZOrder" xml:space="preserve">
     <value>0</value>
   </data>
-  <data name="&gt;&gt;importFASTATitlePanel.Name" xml:space="preserve">
-    <value>importFASTATitlePanel</value>
-  </data>
-  <data name="&gt;&gt;importFASTATitlePanel.Type" xml:space="preserve">
-    <value>System.Windows.Forms.Panel, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
-  </data>
-  <data name="&gt;&gt;importFASTATitlePanel.Parent" xml:space="preserve">
-    <value>importFastaPage</value>
-  </data>
-  <data name="&gt;&gt;importFASTATitlePanel.ZOrder" xml:space="preserve">
-    <value>0</value>
-  </data>
-  <data name="importFastaPage.Location" type="System.Drawing.Point, System.Drawing">
-    <value>4, 22</value>
-  </data>
-  <data name="importFastaPage.Padding" type="System.Windows.Forms.Padding, System.Windows.Forms">
-    <value>3, 3, 3, 3</value>
-  </data>
-  <data name="importFastaPage.Size" type="System.Drawing.Size, System.Drawing">
-    <value>394, 479</value>
-  </data>
-  <data name="importFastaPage.TabIndex" type="System.Int32, mscorlib">
-    <value>4</value>
-  </data>
-  <data name="importFastaPage.Text" xml:space="preserve">
-    <value>6</value>
-  </data>
-  <data name="&gt;&gt;importFastaPage.Name" xml:space="preserve">
-    <value>importFastaPage</value>
-  </data>
-  <data name="&gt;&gt;importFastaPage.Type" xml:space="preserve">
-    <value>System.Windows.Forms.TabPage, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
-  </data>
-  <data name="&gt;&gt;importFastaPage.Parent" xml:space="preserve">
-    <value>wizardPagesImportPeptideSearch</value>
-  </data>
-  <data name="&gt;&gt;importFastaPage.ZOrder" xml:space="preserve">
-    <value>5</value>
-  </data>
-  <data name="&gt;&gt;lblFasta.Name" xml:space="preserve">
-    <value>lblFasta</value>
-  </data>
-  <data name="&gt;&gt;lblFasta.Type" xml:space="preserve">
-    <value>System.Windows.Forms.Label, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
-  </data>
-  <data name="&gt;&gt;lblFasta.Parent" xml:space="preserve">
-    <value>importFASTATitlePanel</value>
-  </data>
-  <data name="&gt;&gt;lblFasta.ZOrder" xml:space="preserve">
-    <value>0</value>
-  </data>
-  <data name="importFASTATitlePanel.Dock" type="System.Windows.Forms.DockStyle, System.Windows.Forms">
+  <data name="ms1FullScanSettingsTitlePanel.Dock" type="System.Windows.Forms.DockStyle, System.Windows.Forms">
     <value>Top</value>
   </data>
-  <data name="importFASTATitlePanel.Location" type="System.Drawing.Point, System.Drawing">
+  <data name="ms1FullScanSettingsTitlePanel.Location" type="System.Drawing.Point, System.Drawing">
     <value>3, 3</value>
   </data>
-  <data name="importFASTATitlePanel.Size" type="System.Drawing.Size, System.Drawing">
-    <value>388, 43</value>
+  <data name="ms1FullScanSettingsTitlePanel.Size" type="System.Drawing.Size, System.Drawing">
+    <value>570, 43</value>
   </data>
-  <data name="importFASTATitlePanel.TabIndex" type="System.Int32, mscorlib">
-    <value>15</value>
+  <data name="ms1FullScanSettingsTitlePanel.TabIndex" type="System.Int32, mscorlib">
+    <value>16</value>
   </data>
-  <data name="&gt;&gt;importFASTATitlePanel.Name" xml:space="preserve">
-    <value>importFASTATitlePanel</value>
+  <data name="&gt;&gt;ms1FullScanSettingsTitlePanel.Name" xml:space="preserve">
+    <value>ms1FullScanSettingsTitlePanel</value>
   </data>
-  <data name="&gt;&gt;importFASTATitlePanel.Type" xml:space="preserve">
+  <data name="&gt;&gt;ms1FullScanSettingsTitlePanel.Type" xml:space="preserve">
     <value>System.Windows.Forms.Panel, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </data>
-  <data name="&gt;&gt;importFASTATitlePanel.Parent" xml:space="preserve">
-    <value>importFastaPage</value>
+  <data name="&gt;&gt;ms1FullScanSettingsTitlePanel.Parent" xml:space="preserve">
+    <value>ms1FullScanSettingsPage</value>
   </data>
-  <data name="&gt;&gt;importFASTATitlePanel.ZOrder" xml:space="preserve">
+  <data name="&gt;&gt;ms1FullScanSettingsTitlePanel.ZOrder" xml:space="preserve">
     <value>0</value>
+  </data>
+  <data name="ms1FullScanSettingsPage.Location" type="System.Drawing.Point, System.Drawing">
+    <value>4, 22</value>
+  </data>
+  <data name="ms1FullScanSettingsPage.Padding" type="System.Windows.Forms.Padding, System.Windows.Forms">
+    <value>3, 3, 3, 3</value>
+  </data>
+  <data name="ms1FullScanSettingsPage.Size" type="System.Drawing.Size, System.Drawing">
+    <value>576, 573</value>
+  </data>
+  <data name="ms1FullScanSettingsPage.TabIndex" type="System.Int32, mscorlib">
+    <value>5</value>
+  </data>
+  <data name="ms1FullScanSettingsPage.Text" xml:space="preserve">
+    <value>5</value>
+  </data>
+  <data name="&gt;&gt;ms1FullScanSettingsPage.Name" xml:space="preserve">
+    <value>ms1FullScanSettingsPage</value>
+  </data>
+  <data name="&gt;&gt;ms1FullScanSettingsPage.Type" xml:space="preserve">
+    <value>System.Windows.Forms.TabPage, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="&gt;&gt;ms1FullScanSettingsPage.Parent" xml:space="preserve">
+    <value>wizardPagesImportPeptideSearch</value>
+  </data>
+  <data name="&gt;&gt;ms1FullScanSettingsPage.ZOrder" xml:space="preserve">
+    <value>4</value>
   </data>
   <data name="lblFasta.Font" type="System.Drawing.Font, System.Drawing">
     <value>Arial Rounded MT Bold, 12pt</value>
@@ -1234,6 +976,315 @@
   <data name="&gt;&gt;lblFasta.ZOrder" xml:space="preserve">
     <value>0</value>
   </data>
+  <data name="importFASTATitlePanel.Dock" type="System.Windows.Forms.DockStyle, System.Windows.Forms">
+    <value>Top</value>
+  </data>
+  <data name="importFASTATitlePanel.Location" type="System.Drawing.Point, System.Drawing">
+    <value>3, 3</value>
+  </data>
+  <data name="importFASTATitlePanel.Size" type="System.Drawing.Size, System.Drawing">
+    <value>570, 43</value>
+  </data>
+  <data name="importFASTATitlePanel.TabIndex" type="System.Int32, mscorlib">
+    <value>15</value>
+  </data>
+  <data name="&gt;&gt;importFASTATitlePanel.Name" xml:space="preserve">
+    <value>importFASTATitlePanel</value>
+  </data>
+  <data name="&gt;&gt;importFASTATitlePanel.Type" xml:space="preserve">
+    <value>System.Windows.Forms.Panel, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="&gt;&gt;importFASTATitlePanel.Parent" xml:space="preserve">
+    <value>importFastaPage</value>
+  </data>
+  <data name="&gt;&gt;importFASTATitlePanel.ZOrder" xml:space="preserve">
+    <value>0</value>
+  </data>
+  <data name="importFastaPage.Location" type="System.Drawing.Point, System.Drawing">
+    <value>4, 22</value>
+  </data>
+  <data name="importFastaPage.Padding" type="System.Windows.Forms.Padding, System.Windows.Forms">
+    <value>3, 3, 3, 3</value>
+  </data>
+  <data name="importFastaPage.Size" type="System.Drawing.Size, System.Drawing">
+    <value>576, 573</value>
+  </data>
+  <data name="importFastaPage.TabIndex" type="System.Int32, mscorlib">
+    <value>4</value>
+  </data>
+  <data name="importFastaPage.Text" xml:space="preserve">
+    <value>6</value>
+  </data>
+  <data name="&gt;&gt;importFastaPage.Name" xml:space="preserve">
+    <value>importFastaPage</value>
+  </data>
+  <data name="&gt;&gt;importFastaPage.Type" xml:space="preserve">
+    <value>System.Windows.Forms.TabPage, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="&gt;&gt;importFastaPage.Parent" xml:space="preserve">
+    <value>wizardPagesImportPeptideSearch</value>
+  </data>
+  <data name="&gt;&gt;importFastaPage.ZOrder" xml:space="preserve">
+    <value>5</value>
+  </data>
+  <data name="label2.Font" type="System.Drawing.Font, System.Drawing">
+    <value>Arial Rounded MT Bold, 12pt</value>
+  </data>
+  <data name="label2.ImeMode" type="System.Windows.Forms.ImeMode, System.Windows.Forms">
+    <value>NoControl</value>
+  </data>
+  <data name="label2.Location" type="System.Drawing.Point, System.Drawing">
+    <value>12, 9</value>
+  </data>
+  <data name="label2.Size" type="System.Drawing.Size, System.Drawing">
+    <value>350, 18</value>
+  </data>
+  <data name="label2.TabIndex" type="System.Int32, mscorlib">
+    <value>0</value>
+  </data>
+  <data name="label2.Text" xml:space="preserve">
+    <value>调整转换设置</value>
+  </data>
+  <data name="&gt;&gt;label2.Name" xml:space="preserve">
+    <value>label2</value>
+  </data>
+  <data name="&gt;&gt;label2.Type" xml:space="preserve">
+    <value>System.Windows.Forms.Label, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="&gt;&gt;label2.Parent" xml:space="preserve">
+    <value>converterSettingsTitlePanel</value>
+  </data>
+  <data name="&gt;&gt;label2.ZOrder" xml:space="preserve">
+    <value>0</value>
+  </data>
+  <data name="converterSettingsTitlePanel.Dock" type="System.Windows.Forms.DockStyle, System.Windows.Forms">
+    <value>Top</value>
+  </data>
+  <data name="converterSettingsTitlePanel.Location" type="System.Drawing.Point, System.Drawing">
+    <value>3, 3</value>
+  </data>
+  <data name="converterSettingsTitlePanel.Size" type="System.Drawing.Size, System.Drawing">
+    <value>570, 43</value>
+  </data>
+  <data name="converterSettingsTitlePanel.TabIndex" type="System.Int32, mscorlib">
+    <value>17</value>
+  </data>
+  <data name="&gt;&gt;converterSettingsTitlePanel.Name" xml:space="preserve">
+    <value>converterSettingsTitlePanel</value>
+  </data>
+  <data name="&gt;&gt;converterSettingsTitlePanel.Type" xml:space="preserve">
+    <value>System.Windows.Forms.Panel, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="&gt;&gt;converterSettingsTitlePanel.Parent" xml:space="preserve">
+    <value>converterSettingsPage</value>
+  </data>
+  <data name="&gt;&gt;converterSettingsTitlePanel.ZOrder" xml:space="preserve">
+    <value>0</value>
+  </data>
+  <data name="converterSettingsPage.Location" type="System.Drawing.Point, System.Drawing">
+    <value>4, 22</value>
+  </data>
+  <data name="converterSettingsPage.Padding" type="System.Windows.Forms.Padding, System.Windows.Forms">
+    <value>3, 3, 3, 3</value>
+  </data>
+  <data name="converterSettingsPage.Size" type="System.Drawing.Size, System.Drawing">
+    <value>576, 573</value>
+  </data>
+  <data name="converterSettingsPage.TabIndex" type="System.Int32, mscorlib">
+    <value>9</value>
+  </data>
+  <data name="converterSettingsPage.Text" xml:space="preserve">
+    <value>7</value>
+  </data>
+  <data name="&gt;&gt;converterSettingsPage.Name" xml:space="preserve">
+    <value>converterSettingsPage</value>
+  </data>
+  <data name="&gt;&gt;converterSettingsPage.Type" xml:space="preserve">
+    <value>System.Windows.Forms.TabPage, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="&gt;&gt;converterSettingsPage.Parent" xml:space="preserve">
+    <value>wizardPagesImportPeptideSearch</value>
+  </data>
+  <data name="&gt;&gt;converterSettingsPage.ZOrder" xml:space="preserve">
+    <value>6</value>
+  </data>
+  <data name="lblSearchSettings.Font" type="System.Drawing.Font, System.Drawing">
+    <value>Arial Rounded MT Bold, 12pt</value>
+  </data>
+  <data name="lblSearchSettings.ImeMode" type="System.Windows.Forms.ImeMode, System.Windows.Forms">
+    <value>NoControl</value>
+  </data>
+  <data name="lblSearchSettings.Location" type="System.Drawing.Point, System.Drawing">
+    <value>12, 9</value>
+  </data>
+  <data name="lblSearchSettings.Size" type="System.Drawing.Size, System.Drawing">
+    <value>350, 18</value>
+  </data>
+  <data name="lblSearchSettings.TabIndex" type="System.Int32, mscorlib">
+    <value>0</value>
+  </data>
+  <data name="lblSearchSettings.Text" xml:space="preserve">
+    <value>调整搜索设置</value>
+  </data>
+  <data name="&gt;&gt;lblSearchSettings.Name" xml:space="preserve">
+    <value>lblSearchSettings</value>
+  </data>
+  <data name="&gt;&gt;lblSearchSettings.Type" xml:space="preserve">
+    <value>System.Windows.Forms.Label, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="&gt;&gt;lblSearchSettings.Parent" xml:space="preserve">
+    <value>searchSettingsTitlePanel</value>
+  </data>
+  <data name="&gt;&gt;lblSearchSettings.ZOrder" xml:space="preserve">
+    <value>0</value>
+  </data>
+  <data name="searchSettingsTitlePanel.Dock" type="System.Windows.Forms.DockStyle, System.Windows.Forms">
+    <value>Top</value>
+  </data>
+  <data name="searchSettingsTitlePanel.Location" type="System.Drawing.Point, System.Drawing">
+    <value>0, 0</value>
+  </data>
+  <data name="searchSettingsTitlePanel.Size" type="System.Drawing.Size, System.Drawing">
+    <value>576, 43</value>
+  </data>
+  <data name="searchSettingsTitlePanel.TabIndex" type="System.Int32, mscorlib">
+    <value>16</value>
+  </data>
+  <data name="&gt;&gt;searchSettingsTitlePanel.Name" xml:space="preserve">
+    <value>searchSettingsTitlePanel</value>
+  </data>
+  <data name="&gt;&gt;searchSettingsTitlePanel.Type" xml:space="preserve">
+    <value>System.Windows.Forms.Panel, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="&gt;&gt;searchSettingsTitlePanel.Parent" xml:space="preserve">
+    <value>ddaSearchSettingsPage</value>
+  </data>
+  <data name="&gt;&gt;searchSettingsTitlePanel.ZOrder" xml:space="preserve">
+    <value>0</value>
+  </data>
+  <data name="ddaSearchSettingsPage.Location" type="System.Drawing.Point, System.Drawing">
+    <value>4, 22</value>
+  </data>
+  <data name="ddaSearchSettingsPage.Size" type="System.Drawing.Size, System.Drawing">
+    <value>576, 573</value>
+  </data>
+  <data name="ddaSearchSettingsPage.TabIndex" type="System.Int32, mscorlib">
+    <value>7</value>
+  </data>
+  <data name="ddaSearchSettingsPage.Text" xml:space="preserve">
+    <value>8</value>
+  </data>
+  <data name="&gt;&gt;ddaSearchSettingsPage.Name" xml:space="preserve">
+    <value>ddaSearchSettingsPage</value>
+  </data>
+  <data name="&gt;&gt;ddaSearchSettingsPage.Type" xml:space="preserve">
+    <value>System.Windows.Forms.TabPage, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="&gt;&gt;ddaSearchSettingsPage.Parent" xml:space="preserve">
+    <value>wizardPagesImportPeptideSearch</value>
+  </data>
+  <data name="&gt;&gt;ddaSearchSettingsPage.ZOrder" xml:space="preserve">
+    <value>7</value>
+  </data>
+  <data name="lblDDASearch.Font" type="System.Drawing.Font, System.Drawing">
+    <value>Arial Rounded MT Bold, 12pt</value>
+  </data>
+  <data name="lblDDASearch.ImeMode" type="System.Windows.Forms.ImeMode, System.Windows.Forms">
+    <value>NoControl</value>
+  </data>
+  <data name="lblDDASearch.Location" type="System.Drawing.Point, System.Drawing">
+    <value>12, 9</value>
+  </data>
+  <data name="lblDDASearch.Size" type="System.Drawing.Size, System.Drawing">
+    <value>350, 18</value>
+  </data>
+  <data name="lblDDASearch.TabIndex" type="System.Int32, mscorlib">
+    <value>0</value>
+  </data>
+  <data name="lblDDASearch.Text" xml:space="preserve">
+    <value>DDA 搜索</value>
+  </data>
+  <data name="&gt;&gt;lblDDASearch.Name" xml:space="preserve">
+    <value>lblDDASearch</value>
+  </data>
+  <data name="&gt;&gt;lblDDASearch.Type" xml:space="preserve">
+    <value>System.Windows.Forms.Label, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="&gt;&gt;lblDDASearch.Parent" xml:space="preserve">
+    <value>ddaSearchTitlePanel</value>
+  </data>
+  <data name="&gt;&gt;lblDDASearch.ZOrder" xml:space="preserve">
+    <value>0</value>
+  </data>
+  <data name="ddaSearchTitlePanel.Dock" type="System.Windows.Forms.DockStyle, System.Windows.Forms">
+    <value>Top</value>
+  </data>
+  <data name="ddaSearchTitlePanel.Location" type="System.Drawing.Point, System.Drawing">
+    <value>0, 0</value>
+  </data>
+  <data name="ddaSearchTitlePanel.Size" type="System.Drawing.Size, System.Drawing">
+    <value>576, 43</value>
+  </data>
+  <data name="ddaSearchTitlePanel.TabIndex" type="System.Int32, mscorlib">
+    <value>17</value>
+  </data>
+  <data name="&gt;&gt;ddaSearchTitlePanel.Name" xml:space="preserve">
+    <value>ddaSearchTitlePanel</value>
+  </data>
+  <data name="&gt;&gt;ddaSearchTitlePanel.Type" xml:space="preserve">
+    <value>System.Windows.Forms.Panel, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="&gt;&gt;ddaSearchTitlePanel.Parent" xml:space="preserve">
+    <value>ddaSearch</value>
+  </data>
+  <data name="&gt;&gt;ddaSearchTitlePanel.ZOrder" xml:space="preserve">
+    <value>0</value>
+  </data>
+  <data name="ddaSearch.Location" type="System.Drawing.Point, System.Drawing">
+    <value>4, 22</value>
+  </data>
+  <data name="ddaSearch.Size" type="System.Drawing.Size, System.Drawing">
+    <value>576, 573</value>
+  </data>
+  <data name="ddaSearch.TabIndex" type="System.Int32, mscorlib">
+    <value>8</value>
+  </data>
+  <data name="ddaSearch.Text" xml:space="preserve">
+    <value>9</value>
+  </data>
+  <data name="&gt;&gt;ddaSearch.Name" xml:space="preserve">
+    <value>ddaSearch</value>
+  </data>
+  <data name="&gt;&gt;ddaSearch.Type" xml:space="preserve">
+    <value>System.Windows.Forms.TabPage, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="&gt;&gt;ddaSearch.Parent" xml:space="preserve">
+    <value>wizardPagesImportPeptideSearch</value>
+  </data>
+  <data name="&gt;&gt;ddaSearch.ZOrder" xml:space="preserve">
+    <value>8</value>
+  </data>
+  <data name="wizardPagesImportPeptideSearch.Location" type="System.Drawing.Point, System.Drawing">
+    <value>0, 0</value>
+  </data>
+  <data name="wizardPagesImportPeptideSearch.Size" type="System.Drawing.Size, System.Drawing">
+    <value>584, 599</value>
+  </data>
+  <data name="wizardPagesImportPeptideSearch.TabIndex" type="System.Int32, mscorlib">
+    <value>0</value>
+  </data>
+  <data name="&gt;&gt;wizardPagesImportPeptideSearch.Name" xml:space="preserve">
+    <value>wizardPagesImportPeptideSearch</value>
+  </data>
+  <data name="&gt;&gt;wizardPagesImportPeptideSearch.Type" xml:space="preserve">
+    <value>pwiz.Skyline.Controls.WizardPages, Skyline, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null</value>
+  </data>
+  <data name="&gt;&gt;wizardPagesImportPeptideSearch.Parent" xml:space="preserve">
+    <value>$this</value>
+  </data>
+  <data name="&gt;&gt;wizardPagesImportPeptideSearch.ZOrder" xml:space="preserve">
+    <value>2</value>
+  </data>
   <data name="btnBack.Anchor" type="System.Windows.Forms.AnchorStyles, System.Windows.Forms">
     <value>Bottom, Right</value>
   </data>
@@ -1241,7 +1292,7 @@
     <value>NoControl</value>
   </data>
   <data name="btnBack.Location" type="System.Drawing.Point, System.Drawing">
-    <value>153, 511</value>
+    <value>335, 605</value>
   </data>
   <data name="btnBack.Size" type="System.Drawing.Size, System.Drawing">
     <value>75, 23</value>
@@ -1277,7 +1328,7 @@
     <value>6, 13</value>
   </data>
   <data name="$this.ClientSize" type="System.Drawing.Size, System.Drawing">
-    <value>402, 547</value>
+    <value>584, 641</value>
   </data>
   <data name="$this.MinimumSize" type="System.Drawing.Size, System.Drawing">
     <value>418, 585</value>
@@ -1286,7 +1337,13 @@
     <value>CenterParent</value>
   </data>
   <data name="$this.Text" xml:space="preserve">
-    <value>导入肽搜索</value>
+    <value>导入肽段搜索</value>
+  </data>
+  <data name="&gt;&gt;modeUIHandler.Name" xml:space="preserve">
+    <value>modeUIHandler</value>
+  </data>
+  <data name="&gt;&gt;modeUIHandler.Type" xml:space="preserve">
+    <value>pwiz.Skyline.Util.Helpers+ModeUIExtender, Skyline, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null</value>
   </data>
   <data name="&gt;&gt;helpTip.Name" xml:space="preserve">
     <value>helpTip</value>

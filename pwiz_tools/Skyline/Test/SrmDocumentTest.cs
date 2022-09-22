@@ -31,6 +31,7 @@ using pwiz.Skyline.Model.V01;
 using pwiz.Skyline.Util;
 using pwiz.Skyline.Util.Extensions;
 using pwiz.SkylineTestUtil;
+using pwiz.SkylineTestUtil.Schemas;
 
 namespace pwiz.SkylineTest
 {
@@ -159,7 +160,8 @@ namespace pwiz.SkylineTest
             Assert.AreEqual(BioMassCalc.CalculateIonMz(transition2.GetMass(MassType.Monoisotopic), fragmentAdduct), doc.MoleculeTransitions.ElementAt(1).Mz, 1E-5);
             Assert.IsTrue(doc.Molecules.ElementAt(0).Peptide.IsCustomMolecule);
             var nodeGroup = doc.MoleculeTransitionGroups.ElementAt(0);
-            Assert.AreEqual(4.704984, doc.MoleculeTransitions.ElementAt(0).ExplicitValues.CollisionEnergy);
+            Assert.AreEqual(4.704984, doc.MoleculeTransitionGroups.ElementAt(0).ExplicitValues.CollisionEnergy);
+            Assert.AreEqual(null, doc.MoleculeTransitions.ElementAt(0).ExplicitValues.CollisionEnergy); // Value is found at precursor level
             double expectedIonMobility = 2.34;
             double? expectedCV = imTypeIsDriftTime ? (double?) null : expectedIonMobility;
             Assert.AreEqual(expectedCV, doc.MoleculeTransitionGroups.ElementAt(0).ExplicitValues.CompensationVoltage);
@@ -305,9 +307,8 @@ namespace pwiz.SkylineTest
 
         public void DoDocumentExportImportTest(RefinementSettings.ConvertToSmallMoleculesMode asSmallMolecules)
         {
-            if (asSmallMolecules != RefinementSettings.ConvertToSmallMoleculesMode.none && !RunSmallMoleculeTestVersions)
+            if (asSmallMolecules != RefinementSettings.ConvertToSmallMoleculesMode.none && SkipSmallMoleculeTestVersions())
             {
-                Console.Write(MSG_SKIPPING_SMALLMOLECULE_TEST_VERSION);
                 return;
             }
 
@@ -398,7 +399,7 @@ namespace pwiz.SkylineTest
                 // Import the exported list
                 IdentityPath pathAdded;
                 var inputs = new MassListInputs(actualList, CultureInfo.InvariantCulture, TextUtil.SEPARATOR_CSV);
-                docImport = docImport.ImportMassList(inputs, IdentityPath.ROOT, out pathAdded);
+                docImport = docImport.ImportMassList(inputs, null, IdentityPath.ROOT, out pathAdded);
             }
 
             if (minTransition < 2)
@@ -454,7 +455,8 @@ namespace pwiz.SkylineTest
                 try
                 {
                     var inputs = new MassListInputs(actualList, CultureInfo.InvariantCulture, TextUtil.SEPARATOR_CSV);
-                    docImport = docImport.ImportMassList(inputs, IdentityPath.ROOT, out pathAdded);
+                    var importer = docImport.PreImportMassList(inputs, null, false);
+                    docImport = docImport.ImportMassList(inputs, importer, IdentityPath.ROOT, out pathAdded);
                 }
                 catch
                 {
@@ -467,7 +469,7 @@ namespace pwiz.SkylineTest
                             RefinementSettings.TestingConvertedFromProteomicPeptideNameDecorator, string.Empty);
                     }
                     var inputs = new MassListInputs(actualList, CultureInfo.InvariantCulture, TextUtil.SEPARATOR_CSV);
-                    docImport = docImport.ImportMassList(inputs, IdentityPath.ROOT, out pathAdded);
+                    docImport = docImport.ImportMassList(inputs, null, IdentityPath.ROOT, out pathAdded);
                 }
             }
             return exportedActual.Count;
@@ -1397,6 +1399,13 @@ namespace pwiz.SkylineTest
             "<srm_settings><selected_proteins>\n" +
             "  <peptide_list/>\n" +
             "</selected_proteins></srm_settings>",
+            // Protein group name and 2 proteins
+            "<srm_settings><selected_proteins>\n" +
+            "  <protein_group name=\"test1/test2\">\n" +
+            "    <protein name=\"test1\" description=\"desc1\" accession=\"test1\" preferred_name=\"test1\" websearch_status=\"X#test1\"><sequence>ABCDEFG HIJKLMNP QRSTUV WXYZ</sequence></protein>\n" +
+            "    <protein name=\"test2\" description=\"desc2\" accession=\"test2\" preferred_name=\"test2\" websearch_status=\"X#test2\"><sequence>ABCDEFG HIJKLMNP QRSTUV</sequence></protein>\n" +
+            "  </protein_group>\n" +
+            "</selected_proteins></srm_settings>",
         };
 
         private readonly string[] _peptideGroupInvalid =
@@ -1545,5 +1554,17 @@ namespace pwiz.SkylineTest
         "    </molecule>\n" +
         "  </peptide_list>\n" +
         "</srm_settings>";
+
+        [TestMethod]
+        public void TestDocumentSchemaDocuments()
+        {
+            foreach (var skylineVersion in SkylineVersion.SupportedForSharing())
+            {
+                var schemaFileName =
+                    SchemaDocuments.GetSkylineSchemaResourceName(skylineVersion.SrmDocumentVersion.ToString());
+                var resourceStream = typeof(SchemaDocuments).Assembly.GetManifestResourceStream(schemaFileName);
+                Assert.IsNotNull(resourceStream, "Unable to find schema document {0} for Skyline Version {1}", schemaFileName, skylineVersion);
+            }
+        }
     }
 }

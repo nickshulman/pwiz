@@ -23,7 +23,6 @@ using System.Drawing;
 using System.Linq;
 using System.Threading;
 using System.Windows.Forms;
-using pwiz.Common.DataAnalysis;
 using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Model.Results;
 using ZedGraph;
@@ -86,13 +85,19 @@ namespace pwiz.Skyline.Controls.Graphs
             }
             UpdateAll();
         }
+        protected override void OnClosing(CancelEventArgs e)
+        {
+            _cancellationTokenSource.Cancel();
+
+            base.OnClosing(e);
+        }
+
         protected override void OnHandleDestroyed(EventArgs e)
         {
             if (SkylineWindow != null)
             {
                 SkylineWindow.DocumentUIChangedEvent -= SkylineWindowOnDocumentUIChangedEvent;
             }
-            _cancellationTokenSource.Cancel();
             _rowUpdateQueue.Dispose();
             base.OnHandleDestroyed(e);
         }
@@ -205,7 +210,7 @@ namespace pwiz.Skyline.Controls.Graphs
                     dataRow.TargetTimes, dataRow.SourceTimes,
                     DocumentRetentionTimes.REFINEMENT_THRESHHOLD,
                     RegressionMethodRT.linear,
-                    new CustomCancellationToken(cancellationToken));
+                    cancellationToken);
 
                 if (!cancellationToken.IsCancellationRequested)
                 {
@@ -562,6 +567,7 @@ namespace pwiz.Skyline.Controls.Graphs
         public ComboBox ComboAlignAgainst { get { return comboAlignAgainst; } }
         public DataGridView DataGridView { get { return dataGridView1; } }
         public ZedGraphControl RegressionGraph { get { return zedGraphControl; } }
+        public SplitContainer Splitter { get { return splitContainer1; } }
 
         #endregion
     }

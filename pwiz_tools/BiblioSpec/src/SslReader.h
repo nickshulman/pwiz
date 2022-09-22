@@ -48,8 +48,12 @@ class sslPSM : public PSM {
         } else {
             try{// might be a scan number or a string identifier
                 psm.specKey = boost::lexical_cast<int>(trimLeadingZeros(value));
+                psm.specIndex = -1;
             } catch (bad_lexical_cast) {
-                psm.specName = value;
+                if (bal::istarts_with(value, "index="))
+                    psm.specIndex = boost::lexical_cast<int>(value.substr(6));
+                else
+                    psm.specName = value;
             }
         }
     }
@@ -165,7 +169,9 @@ class SslReader : public BuildParser, DelimitedFileConsumer<sslPSM>, public Pwiz
               const ProgressIndicator* parent_progress);
     ~SslReader();
 
+    void parse();
     virtual bool parseFile();  // inherited from BuildParser
+    vector<PSM_SCORE_TYPE> getScoreTypes(); // inherited from BuildParser
     virtual void addDataLine(sslPSM& data); // from DelimitedFileConsumer
 
     virtual bool getSpectrum(int identifier,

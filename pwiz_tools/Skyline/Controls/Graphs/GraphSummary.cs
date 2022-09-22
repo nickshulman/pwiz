@@ -25,6 +25,7 @@ using pwiz.Common.Collections;
 using pwiz.Common.Controls;
 using pwiz.Skyline.Controls.SeqNode;
 using pwiz.Skyline.Model;
+using pwiz.Skyline.Model.Results;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
 using ZedGraph;
@@ -55,7 +56,6 @@ namespace pwiz.Skyline.Controls.Graphs
             void OnDocumentChanged(SrmDocument oldDocument, SrmDocument newDocument);
             void OnActiveLibraryChanged();
             void OnResultsIndexChanged();
-            void OnRatioIndexChanged();
 
             void OnUpdateGraph();
 
@@ -76,6 +76,7 @@ namespace pwiz.Skyline.Controls.Graphs
 
         public class RTGraphView : IFormView {}
         public class AreaGraphView : IFormView {}
+        public class DetectionsGraphView : IFormView { }
 
         public interface IStateProvider
         {
@@ -93,6 +94,8 @@ namespace pwiz.Skyline.Controls.Graphs
             void ActivateSpectrum();
 
             void BuildGraphMenu(ZedGraphControl zedGraphControl, ContextMenuStrip menuStrip, Point mousPt, IController controller);
+
+            NormalizeOption AreaNormalizeOption { get; set; }
         }
 
         private class DefaultStateProvider : IStateProvider
@@ -109,6 +112,12 @@ namespace pwiz.Skyline.Controls.Graphs
             public PeptideGraphInfo GetPeptideGraphInfo(DocNode docNode)
             {
                 return null;
+            }
+
+            public NormalizeOption AreaNormalizeOption
+            {
+                get => NormalizeOption.NONE;
+                set { }
             }
         }
 
@@ -134,8 +143,6 @@ namespace pwiz.Skyline.Controls.Graphs
                 }
             }
         }
-
-        private int _ratioIndex;
 
         public GraphTypeSummary Type { get; set; }
 
@@ -203,22 +210,12 @@ namespace pwiz.Skyline.Controls.Graphs
                 _controller.OnResultsIndexChanged();
         }
 
-        /// <summary>
-        /// Not all summary graphs care about this value, but since the
-        /// peak area summary graph uses this class directly, this is the
-        /// only way to get it the ratio index value.
-        /// </summary>
-        public int RatioIndex
+        public NormalizeOption NormalizeOption
         {
-            get { return _ratioIndex; }
+            get { return StateProvider.AreaNormalizeOption; }
             set
             {
-                if (_ratioIndex != value)
-                {
-                    _ratioIndex = value;
-
-                    _controller.OnRatioIndexChanged();
-                }
+                StateProvider.AreaNormalizeOption = value;
             }
         }
 
@@ -272,7 +269,12 @@ namespace pwiz.Skyline.Controls.Graphs
         internal IEnumerable<SummaryGraphPane> GraphPanes
         {
             get { return graphControl.MasterPane.PaneList.OfType<SummaryGraphPane>(); }
-            set { graphControl.MasterPane.PaneList.Clear(); graphControl.MasterPane.PaneList.AddRange(value); }
+            set
+            {
+                graphControl.MasterPane.PaneList.OfType<SummaryGraphPane>().ForEach(panel => panel.OnClose(EventArgs.Empty));
+                graphControl.MasterPane.PaneList.Clear();
+                graphControl.MasterPane.PaneList.AddRange(value);
+            }
         }
 
         public bool TryGetGraphPane<TPane>(out TPane pane) where TPane : class
@@ -384,6 +386,12 @@ namespace pwiz.Skyline.Controls.Graphs
             if (sender != null && e.Button == sender.PanButtons && ModifierKeys == sender.PanModifierKeys)
                 graphPane.EnsureYMin();
             return graphPane.HandleMouseMoveEvent(sender, e);
+        }
+
+        private void graphControl_MouseOutEvent(object sender, EventArgs e)
+        {
+            foreach(var pane in graphControl.MasterPane.PaneList)
+                (pane as SummaryGraphPane)?.HandleMouseOutEvent(sender, e);
         }
 
         private bool graphControl_MouseDownEvent(ZedGraphControl sender, MouseEventArgs e)
@@ -537,13 +545,15 @@ namespace pwiz.Skyline.Controls.Graphs
     public enum GraphTypeSummary
     {
         invalid = 0,
-        replicate = 1 << 0,
+        replicate = 1,
         peptide = 1 << 1,
         score_to_run_regression = 1 << 2,
         schedule = 1 << 3,
         run_to_run_regression = 1 << 4,
         histogram = 1 << 5,
-        histogram2d = 1 << 6
+        histogram2d = 1 << 6,
+        detections = 1 << 7,
+        detections_histogram = 1 << 8
     }
 
     public static class Extensions
@@ -568,6 +578,10 @@ namespace pwiz.Skyline.Controls.Graphs
                     return Resources.Extensions_CustomToString_Histogram;
                 case GraphTypeSummary.histogram2d:
                     return Resources.Extensions_CustomToString__2D_Histogram;
+                case GraphTypeSummary.detections:
+                    return Resources.Extensions_CustomToString_Detections_Replicates;
+                case GraphTypeSummary.detections_histogram:
+                    return Resources.Extensions_CustomToString_Detections_Histogram;
                 default:
                     return string.Empty;
             }

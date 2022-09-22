@@ -28,17 +28,21 @@
         /// </summary>
         private void InitializeComponent()
         {
+            this.components = new System.ComponentModel.Container();
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(EditPepModsDlg));
             this.btnCancel = new System.Windows.Forms.Button();
             this.btnOk = new System.Windows.Forms.Button();
             this.label1 = new System.Windows.Forms.Label();
             this.labelHeavy1 = new System.Windows.Forms.Label();
-            this.comboStatic1 = new System.Windows.Forms.ComboBox();
-            this.comboHeavy1_1 = new System.Windows.Forms.ComboBox();
+            this.comboStatic1 = new pwiz.Common.Controls.LiteDropDownList();
+            this.comboHeavy1_1 = new pwiz.Common.Controls.LiteDropDownList();
             this.labelAA1 = new System.Windows.Forms.Label();
             this.panelMain = new System.Windows.Forms.Panel();
+            this.btnEditLink1 = new System.Windows.Forms.Button();
+            this.imageList1 = new System.Windows.Forms.ImageList(this.components);
             this.btnReset = new System.Windows.Forms.Button();
             this.cbCreateCopy = new System.Windows.Forms.CheckBox();
+            this.toolTip = new System.Windows.Forms.ToolTip(this.components);
             this.panelMain.SuspendLayout();
             this.SuspendLayout();
             // 
@@ -68,15 +72,11 @@
             // 
             // comboStatic1
             // 
-            this.comboStatic1.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
-            this.comboStatic1.FormattingEnabled = true;
             resources.ApplyResources(this.comboStatic1, "comboStatic1");
             this.comboStatic1.Name = "comboStatic1";
             // 
             // comboHeavy1_1
             // 
-            this.comboHeavy1_1.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
-            this.comboHeavy1_1.FormattingEnabled = true;
             resources.ApplyResources(this.comboHeavy1_1, "comboHeavy1_1");
             this.comboHeavy1_1.Name = "comboHeavy1_1";
             // 
@@ -88,12 +88,26 @@
             // panelMain
             // 
             resources.ApplyResources(this.panelMain, "panelMain");
+            this.panelMain.Controls.Add(this.btnEditLink1);
             this.panelMain.Controls.Add(this.comboHeavy1_1);
             this.panelMain.Controls.Add(this.labelAA1);
             this.panelMain.Controls.Add(this.comboStatic1);
             this.panelMain.Controls.Add(this.label1);
             this.panelMain.Controls.Add(this.labelHeavy1);
             this.panelMain.Name = "panelMain";
+            // 
+            // btnEditLink1
+            // 
+            resources.ApplyResources(this.btnEditLink1, "btnEditLink1");
+            this.btnEditLink1.ImageList = this.imageList1;
+            this.btnEditLink1.Name = "btnEditLink1";
+            this.btnEditLink1.UseVisualStyleBackColor = true;
+            // 
+            // imageList1
+            // 
+            this.imageList1.ImageStream = ((System.Windows.Forms.ImageListStreamer)(resources.GetObject("imageList1.ImageStream")));
+            this.imageList1.TransparentColor = System.Drawing.Color.Magenta;
+            this.imageList1.Images.SetKeyName(0, "EditLink.bmp");
             // 
             // btnReset
             // 
@@ -136,11 +150,14 @@
         private System.Windows.Forms.Button btnOk;
         private System.Windows.Forms.Label label1;
         private System.Windows.Forms.Label labelHeavy1;
-        private System.Windows.Forms.ComboBox comboStatic1;
-        private System.Windows.Forms.ComboBox comboHeavy1_1;
+        private pwiz.Common.Controls.LiteDropDownList comboStatic1;
+        private pwiz.Common.Controls.LiteDropDownList comboHeavy1_1;
         private System.Windows.Forms.Label labelAA1;
         private System.Windows.Forms.Panel panelMain;
         private System.Windows.Forms.Button btnReset;
         private System.Windows.Forms.CheckBox cbCreateCopy;
+        private System.Windows.Forms.Button btnEditLink1;
+        private System.Windows.Forms.ImageList imageList1;
+        private System.Windows.Forms.ToolTip toolTip;
     }
 }

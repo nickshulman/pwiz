@@ -21,20 +21,20 @@ using System;
 using System.ComponentModel;
 using pwiz.Common.DataBinding;
 using pwiz.Common.SystemUtil;
-using pwiz.Skyline.Model.AuditLog;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.ElementLocators;
 
 namespace pwiz.Skyline.Model.Databinding.Entities
 {
-    public class SkylineObject
+    public abstract class SkylineObject
     {
-        public SkylineObject(SkylineDataSchema dataSchema)
-        {
-            DataSchema = dataSchema;
-        }
         [Browsable(false)]
-        public SkylineDataSchema DataSchema { get; private set; }
+        public SkylineDataSchema DataSchema
+        {
+            get { return GetDataSchema(); }
+        }
+
+        protected abstract SkylineDataSchema GetDataSchema();
 
         [Browsable(false)]
         protected SrmDocument SrmDocument
@@ -64,9 +64,9 @@ namespace pwiz.Skyline.Model.Databinding.Entities
         public virtual void SetAnnotation(AnnotationDef annotationDef, object value)
         {
         }
-        protected void ModifyDocument(EditDescription editDescription, Func<SrmDocument, SrmDocument> action, Func<SrmDocumentPair, AuditLogEntry> logFunc = null)
+        protected void ModifyDocument(EditDescription editDescription, Func<SrmDocument, SrmDocument> action)
         {
-            DataSchema.ModifyDocument(editDescription, action, logFunc);
+            DataSchema.ModifyDocument(editDescription, action);
         }
 
         protected EditDescription EditColumnDescription(string propertyName, object value)
@@ -75,6 +75,24 @@ namespace pwiz.Skyline.Model.Databinding.Entities
             string auditLogParseString = AuditLogParseHelper.GetParseString(ParseStringType.column_caption, 
                 columnCaption.GetCaption(DataSchemaLocalizer.INVARIANT));
             return new EditDescription(columnCaption, auditLogParseString, GetElementRef(), value);
+        }
+    }
+
+    /// <summary>
+    /// <see cref="SkylineObject" /> which holds onto a reference to the <see cref="SkylineDataSchema"/>
+    /// and returns it in <see cref="GetDataSchema"/>.
+    /// </summary>
+    public class RootSkylineObject : SkylineObject
+    {
+        private SkylineDataSchema _dataSchema;
+        public RootSkylineObject(SkylineDataSchema dataSchema)
+        {
+            _dataSchema = dataSchema;
+        }
+
+        protected override SkylineDataSchema GetDataSchema()
+        {
+            return _dataSchema;
         }
     }
 }

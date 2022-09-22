@@ -21,9 +21,11 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using pwiz.Common.Collections;
 using pwiz.Common.DataBinding.Attributes;
 using pwiz.Common.DataBinding;
 using pwiz.Skyline.Controls.GroupComparison;
+using pwiz.Skyline.Model.Crosslinking;
 using pwiz.Skyline.Model.Databinding.Collections;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.DocSettings.AbsoluteQuantification;
@@ -42,16 +44,10 @@ namespace pwiz.Skyline.Model.Databinding.Entities
     [InvariantDisplayName("Molecule")]
     public class Peptide : SkylineDocNode<PeptideDocNode>
     {
-        private readonly CachedValue<CalibrationCurveFitter> _calibrationCurveFitter;
-        private readonly CachedValue<Precursor[]> _precursors;
-        private readonly CachedValue<IDictionary<ResultKey, PeptideResult>> _results;
+        private readonly CachedValues _cachedValues = new CachedValues();
         public Peptide(SkylineDataSchema dataSchema, IdentityPath identityPath)
             : base(dataSchema, identityPath)
         {
-            _calibrationCurveFitter = CachedValue.Create(dataSchema,
-                () => new CalibrationCurveFitter(GetPeptideQuantifier(), SrmDocument.Settings));
-            _precursors = CachedValue.Create(dataSchema, ()=>DocNode.Children.Select(child=>new Precursor(DataSchema, new IdentityPath(IdentityPath, child.Id))).ToArray());
-            _results = CachedValue.Create(dataSchema, MakeResults);
         }
 
         [OneToMany(ForeignKey = "Peptide")]
@@ -60,7 +56,7 @@ namespace pwiz.Skyline.Model.Databinding.Entities
         {
             get
             {
-                return _precursors.Value;
+                return _cachedValues.GetValue1(this);
             }
         }
 
@@ -70,7 +66,7 @@ namespace pwiz.Skyline.Model.Databinding.Entities
         [HideWhen(AncestorOfType = typeof(FoldChangeBindingSource.FoldChangeRow))]
         public IDictionary<ResultKey, PeptideResult> Results
         {
-            get { return _results.Value; }
+            get { return _cachedValues.GetValue2(this); }
         }
 
         private IDictionary<ResultKey, PeptideResult> MakeResults()
@@ -113,18 +109,18 @@ namespace pwiz.Skyline.Model.Databinding.Entities
             {
                 if (IsSmallMolecule())
                     return null;
-                return Sequence.Length;
+                return Sequence.Replace(@"-", string.Empty).Length;
             }
         }
 
         [InvariantDisplayName("PeptideModifiedSequence")]
         [ChildDisplayName("PeptideModifiedSequence{0}")]
         [Hidden(InUiMode = UiModes.SMALL_MOLECULES)]
-        public ModifiedSequence ModifiedSequence
+        public ProteomicSequence ModifiedSequence
         {
             get
             {
-                return ModifiedSequence.GetModifiedSequence(SrmDocument.Settings, DocNode, IsotopeLabelType.light);
+                return ProteomicSequence.GetProteomicSequence(SrmDocument.Settings, DocNode, IsotopeLabelType.light);
             }
         }
 
@@ -174,8 +170,9 @@ namespace pwiz.Skyline.Model.Databinding.Entities
                 }
                 else
                 {
-                    var molecule = RefinementSettings.ConvertToSmallMolecule(RefinementSettings.ConvertToSmallMoleculesMode.formulas, SrmDocument, DocNode);
-                    return molecule.Formula ?? string.Empty;
+                    var crosslinkBuilder = new CrosslinkBuilder(SrmDocument.Settings, DocNode.Peptide,
+                        DocNode.ExplicitMods, IsotopeLabelType.light);
+                    return crosslinkBuilder.GetPrecursorFormula().Molecule.ToString();
                 }
             }
         }
@@ -216,6 +213,27 @@ namespace pwiz.Skyline.Model.Databinding.Entities
 
         [Format(NullValue = TextUtil.EXCEL_NA)]
         [Hidden(InUiMode = UiModes.SMALL_MOLECULES)]
+        public int? FirstPosition
+        {
+            get
+            {
+                return DocNode.Peptide.Begin + 1;
+            }
+        }
+
+        [Format(NullValue = TextUtil.EXCEL_NA)]
+        [Hidden(InUiMode = UiModes.SMALL_MOLECULES)]
+        public int? LastPosition
+        {
+            get
+            {
+                return DocNode.Peptide.End;
+            }
+        }
+
+        [Format(NullValue = TextUtil.EXCEL_NA)]
+        [Hidden(InUiMode = UiModes.SMALL_MOLECULES)]
+        [Obsolete]
         public int? BeginPos
         {
             get { return DocNode.Peptide.Begin; }
@@ -223,6 +241,7 @@ namespace pwiz.Skyline.Model.Databinding.Entities
 
         [Format(NullValue = TextUtil.EXCEL_NA)]
         [Hidden(InUiMode = UiModes.SMALL_MOLECULES)]
+        [Obsolete]
         public int? EndPos
         {
             get { return DocNode.Peptide.End - 1; }
@@ -312,7 +331,7 @@ namespace pwiz.Skyline.Model.Databinding.Entities
         }
 
         [DataGridViewColumnType(typeof(NormalizationMethodDataGridViewColumn))]
-        [Importable]
+        [Importable(Formatter = typeof(NormalizationMethod.PropertyFormatter))]
         public NormalizationMethod NormalizationMethod
         {
             get { return DocNode.NormalizationMethod; }
@@ -343,10 +362,12 @@ namespace pwiz.Skyline.Model.Databinding.Entities
 
         public override string ToString()
         {
-            var peptide = DocNode.Peptide;
-            return peptide.IsCustomMolecule
-                ? DocNode.CustomMolecule.ToString()
-                : peptide.Target.Sequence;
+            if (DocNode.Peptide.IsCustomMolecule)
+            {
+                return DocNode.CustomMolecule.ToString();
+            }
+
+            return DocNode.GetCrosslinkedSequence();
         }
 
         [InvariantDisplayName("PeptideDocumentLocation")]
@@ -434,7 +455,7 @@ namespace pwiz.Skyline.Model.Databinding.Entities
 
         public CalibrationCurveFitter GetCalibrationCurveFitter()
         {
-            return _calibrationCurveFitter.Value;
+            return _cachedValues.GetValue(this);
         }
 
         public override string GetDeleteConfirmation(int nodeCount)
@@ -482,6 +503,12 @@ namespace pwiz.Skyline.Model.Databinding.Entities
             get { return IsSmallMolecule() ? DocNode.CustomMolecule.AccessionNumbers.GetSMILES() ?? string.Empty : string.Empty; }
         }
 
+        [Hidden(InUiMode = UiModes.PROTEOMIC)]
+        public string KEGG
+        {
+            get { return IsSmallMolecule() ? DocNode.CustomMolecule.AccessionNumbers.GetKEGG() ?? string.Empty : string.Empty; }
+        }
+
         [Importable]
         public bool AutoSelectPrecursors
         {
@@ -523,6 +550,31 @@ namespace pwiz.Skyline.Model.Databinding.Entities
         protected override Type SkylineDocNodeType
         {
             get { return typeof(Peptide); }
+        }
+
+        private class CachedValues : CachedValues<Peptide, CalibrationCurveFitter, ImmutableList<Precursor>,
+            IDictionary<ResultKey, PeptideResult>>
+        {
+            protected override SrmDocument GetDocument(Peptide owner)
+            {
+                return owner.SrmDocument;
+            }
+
+            protected override CalibrationCurveFitter CalculateValue(Peptide owner)
+            {
+                return new CalibrationCurveFitter(owner.GetPeptideQuantifier(), owner.SrmDocument.Settings);
+            }
+
+            protected override ImmutableList<Precursor> CalculateValue1(Peptide owner)
+            {
+                return ImmutableList.ValueOf(owner.DocNode.Children.Select(child =>
+                    new Precursor(owner.DataSchema, new IdentityPath(owner.IdentityPath, child.Id))));
+            }
+
+            protected override IDictionary<ResultKey, PeptideResult> CalculateValue2(Peptide owner)
+            {
+                return owner.MakeResults();
+            }
         }
     }
 }

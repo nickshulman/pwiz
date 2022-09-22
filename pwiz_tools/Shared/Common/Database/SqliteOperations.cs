@@ -35,5 +35,32 @@ namespace pwiz.Common.Database
                 }
             }
         }
+
+        public static bool ColumnExists(IDbConnection connection, string tableName, string columnName)
+        {
+            using (var cmd = connection.CreateCommand())
+            {
+                cmd.CommandText = @"PRAGMA table_info(" + tableName + ")";
+                using (var reader = cmd.ExecuteReader())
+                {
+                    while (reader.Read())
+                    {
+                        if (columnName.Equals(reader.GetString(1)))
+                            return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        public static void DropTable(IDbConnection connection, string tableName)
+        {
+            using (var cmd = connection.CreateCommand())
+            {
+                // Newly created IrtDbs start without IrtHistory table
+                cmd.CommandText = @"DROP TABLE IF EXISTS " + tableName;
+                cmd.ExecuteNonQuery();
+            }
+        }
     }
 }

@@ -24,6 +24,7 @@ using System.Linq;
 using System.Text;
 using pwiz.Common.Chemistry;
 using pwiz.Common.Collections;
+using pwiz.Skyline.Model.Crosslinking;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.Results;
 using pwiz.Skyline.Properties;
@@ -289,6 +290,10 @@ namespace pwiz.Skyline.Model
                 {
                     return @"[" + MassModification.FromMass(massDiff) + @"]";
                 }
+                case SequenceModFormatType.lib_precision:
+                {
+                    return @"[" + MassModification.FromMassForLib(massDiff) + @"]";
+                }
                 case SequenceModFormatType.mass_diff:
                 {
                     string formatString = @"[{0}{1:F0" + precisionRequired + @"}]";
@@ -444,6 +449,8 @@ namespace pwiz.Skyline.Model
         private readonly TypedMass _massDiffX;
         private readonly TypedMass _massDiffY;
         private readonly TypedMass _massDiffZ;
+        private readonly TypedMass _massDiffZH;
+        private readonly TypedMass _massDiffZHH;
         private readonly TypedMass _massCleaveC;
         private readonly TypedMass _massCleaveN;
 
@@ -475,6 +482,8 @@ namespace pwiz.Skyline.Model
             _massDiffY = _massCalc.CalculateMassFromFormula("H2O");
             _massDiffX = _massCalc.CalculateMassFromFormula("CO2");
             _massDiffZ = _massDiffY - _massCalc.CalculateMassFromFormula("NH3");
+            _massDiffZH = _massDiffY - _massCalc.CalculateMassFromFormula("NH2");
+            _massDiffZHH = _massDiffY - _massCalc.CalculateMassFromFormula("NH");
 
             _massCleaveN = _massCalc.CalculateMassFromFormula("H");
             _massCleaveC = _massCalc.CalculateMassFromFormula("OH");
@@ -724,6 +733,10 @@ namespace pwiz.Skyline.Model
 
          public static string NormalizeModifiedSequence(string rawModifiedSequence)
         {
+            if (CrosslinkSequenceParser.TryParseCrosslinkLibraryKey(rawModifiedSequence, 0) != null)
+            {
+                return rawModifiedSequence;
+            }
             var normalizedSeq = new StringBuilder();
             int ichLast = 0;
             for (int ichOpenBracket = rawModifiedSequence.IndexOf('[');
@@ -1081,8 +1094,10 @@ namespace pwiz.Skyline.Model
             var cTermMassY = (_massDiffY + modMasses._massModCleaveC + BioMassCalc.MassProton).ChangeIsMassH(true);
             var deltaX = _massDiffX - _massDiffY;
             var deltaZ = _massDiffZ - _massDiffY;
+            var deltaZH = _massDiffZH - _massDiffY;
+            var deltaZHH = _massDiffZHH - _massDiffY;
 
-            var masses = new IonTable<TypedMass>(IonType.z, len);
+            var masses = new IonTable<TypedMass>(IonType.zhh, len);
 
             int iN = 0, iC = len;
             nTermMassB += modMasses._aminoNTermModMasses[seq[iN]];
@@ -1106,6 +1121,8 @@ namespace pwiz.Skyline.Model
                 masses[x, iC] = cTermMassY + deltaX;
                 masses[y, iC] = cTermMassY;
                 masses[z, iC] = cTermMassY + deltaZ;
+                masses[IonType.zh, iC] = cTermMassY + deltaZH;
+                masses[IonType.zhh, iC] = cTermMassY + deltaZHH;
             }
 
             return masses;
@@ -1115,7 +1132,7 @@ namespace pwiz.Skyline.Model
         {
             int col = (int) type;
             int len = masses.GetLength(1);
-            if (Transition.IsNTerminal(type))
+            if (type.IsNTerminal())
             {
                 for (int i = 0; i < len; i++)
                     yield return masses[col, i];
@@ -1225,7 +1242,7 @@ namespace pwiz.Skyline.Model
 
             int len = seq.Length - 1;
 
-            bool nterm = Transition.IsNTerminal(type);
+            bool nterm = type.IsNTerminal();
             double mass = GetTermMass(nterm ? IonType.b : IonType.y, mods) + BioMassCalc.MassProton;
 
             int iA = (nterm ? 0 : len);
@@ -1261,6 +1278,8 @@ namespace pwiz.Skyline.Model
                 case IonType.x: return _massDiffX + modMasses._massModCleaveC;
                 case IonType.y: return _massDiffY + modMasses._massModCleaveC;
                 case IonType.z: return _massDiffZ + modMasses._massModCleaveC;
+                case IonType.zh: return _massDiffZH + modMasses._massModCleaveC;
+                case IonType.zhh: return _massDiffZHH + modMasses._massModCleaveC;
                 default:
                     throw new ArgumentException(@"Invalid ion type");
             }
@@ -1276,6 +1295,8 @@ namespace pwiz.Skyline.Model
                 case IonType.x: return _massDiffX - _massDiffY;
                 case IonType.y: return 0;
                 case IonType.z: return _massDiffZ - _massDiffY;
+                case IonType.zh: return _massDiffZH - _massDiffY;
+                case IonType.zhh: return _massDiffZHH - _massDiffY;
                 default:
                     throw new ArgumentException(@"Invalid ion type");
             }
@@ -1305,7 +1326,7 @@ namespace pwiz.Skyline.Model
             _aminoMasses['b'] = _aminoMasses['B'] =
                 (_massCalc.CalculateMassFromFormula(@"C4H5NO3") + _massCalc.CalculateMassFromFormula(@"C4H6N2O2")) / 2;
             _aminoMasses['j'] = _aminoMasses['J'] = 0.0;
-            _aminoMasses['x'] = _aminoMasses['X'] = 111.060000;	// Why?
+            _aminoMasses['x'] = _aminoMasses['X'] = 111.060000;    // Why?
             // Wikipedia says Glutamic acid or Glutamine
             _aminoMasses['z'] = _aminoMasses['Z'] =
                 (_massCalc.CalculateMassFromFormula(@"C5H6ON2") + _massCalc.CalculateMassFromFormula(@"C5H8N2O2")) / 2;
@@ -1350,7 +1371,7 @@ namespace pwiz.Skyline.Model
 
         public static Molecule GetAminoAcidFormula(char aa)
         {
-            return Molecule.FromDict(ImmutableSortedList.FromValues(AMINO_FORMULAS[aa]));
+            return Molecule.FromDict(AMINO_FORMULAS[aa]);
         }
 
         public static string GetHeavyFormula(char aa, LabelAtoms labelAtoms)
@@ -1373,7 +1394,7 @@ namespace pwiz.Skyline.Model
             Tuple.Create(LabelAtoms.Br81, BioMassCalc.Br, BioMassCalc.Br81),
             Tuple.Create(LabelAtoms.P32, BioMassCalc.P, BioMassCalc.P32),
             Tuple.Create(LabelAtoms.S34, BioMassCalc.S, BioMassCalc.S34),
-            Tuple.Create(LabelAtoms.H2, BioMassCalc.D, BioMassCalc.H2), // Accept "D" for Deuterium
+
         });
         public static string GetHeavyFormula(string formula, LabelAtoms labelAtoms)
         {

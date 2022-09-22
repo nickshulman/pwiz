@@ -176,7 +176,7 @@ namespace pwiz.Skyline.FileUI
                 {
                     if (comboName.SelectedIndex == -1)
                     {
-                        MessageBox.Show(this, Resources.ImportResultsDlg_OkDialog_You_must_select_an_existing_set_of_results_to_which_to_append_new_data, Program.Name);
+                        MessageDlg.Show(this, Resources.ImportResultsDlg_OkDialog_You_must_select_an_existing_set_of_results_to_which_to_append_new_data);
                         comboName.Focus();
                         return;
                     }
@@ -305,9 +305,9 @@ namespace pwiz.Skyline.FileUI
         {
             if (_warnOnMultiInjection && !IsOptimizing)
             {
-                if (MessageBox.Show(this,
+                if (MultiButtonMsgDlg.Show(this,
                                 Resources.ImportResultsDlg_CanCreateMultiInjectionMethods_The_current_document_does_not_appear_to_have_enough_transitions_to_require_multiple_injections,
-                                Program.Name, MessageBoxButtons.YesNo, MessageBoxIcon.None, MessageBoxDefaultButton.Button2) == DialogResult.No)
+                                 MessageBoxButtons.YesNo, DialogResult.No) == DialogResult.No)
                     return false;
             }
             return true;
@@ -378,7 +378,7 @@ namespace pwiz.Skyline.FileUI
                 {
                     var paths = GetWiffSubPaths(msDataFilePath.FilePath);
                     if (paths == null)
-                        return null;    // An error or user cancelation occurred
+                        return null;    // An error or user cancellation occurred
                     listPaths.AddRange(paths);
                 }
                 else
@@ -409,7 +409,7 @@ namespace pwiz.Skyline.FileUI
                         foreach (var path in paths)
                         {
                             listNamedPaths.Add(new KeyValuePair<string, MsDataFileUri[]>(
-                                                   path.SampleName, new MsDataFileUri[]{ path }));                            
+                                                   path.SampleName, new[]{ path }));
                         }
                         continue;
                     }
@@ -477,9 +477,8 @@ namespace pwiz.Skyline.FileUI
                 KeyValuePair<string, MsDataFileUri[]>[] namedPaths = DataSourceUtil.GetDataSourcesInSubdirs(dirRoot).ToArray();
                 if (namedPaths.Length == 0)
                 {
-                    MessageBox.Show(this,
-                        string.Format(Resources.ImportResultsDlg_GetDataSourcePathsDir_No_results_found_in_the_folder__0__, dirRoot),
-                        Program.Name);
+                    MessageDlg.Show(this,
+                        string.Format(Resources.ImportResultsDlg_GetDataSourcePathsDir_No_results_found_in_the_folder__0__, dirRoot));
                     return null;
                 }
                 return namedPaths;
@@ -496,30 +495,12 @@ namespace pwiz.Skyline.FileUI
             return false;
         }
 
-        public static List<string> EnsureUniqueNames(List<string> names, HashSet<string> reservedNames = null)
-        {
-            var setUsedNames = reservedNames ?? new HashSet<string>();
-            var result = new List<string>();
-            for (int i = 0; i < names.Count; i++)
-            {
-                string baseName = names[i];
-                // Make sure the next name added is unique
-                string name = (baseName.Length != 0 ? baseName : @"1");
-                for (int suffix = 2; setUsedNames.Contains(name); suffix++)
-                    name = baseName + suffix;
-                result.Add(name);
-                // Add this name to the used set
-                setUsedNames.Add(name);
-            }
-            return result;
-        }
-
         private void EnsureUniqueNames()
         {
             var setUsedNames = new HashSet<string>();
             foreach (var item in comboName.Items)
                 setUsedNames.Add(item.ToString());
-            var names = EnsureUniqueNames(NamedPathSets.Select(n => n.Key).ToList(), setUsedNames);
+            var names = Helpers.EnsureUniqueNames(NamedPathSets.Select(n => n.Key).ToList(), setUsedNames);
             for (int i = 0; i < NamedPathSets.Length; i++)
             {
                 var namedPathSet = NamedPathSets[i];

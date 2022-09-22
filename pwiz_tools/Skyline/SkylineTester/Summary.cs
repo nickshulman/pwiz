@@ -50,6 +50,7 @@ namespace SkylineTester
             // "[14:38] 2.2 AgilentMseChromatogramTestAsSmallMolecules (zh) (RunSmallMoleculeTestVersions=False, skipping.) 0 failures, 1.25/[4.51/]51.5 MB, 20/40 handles, 0 sec."
             var line = Regex.Replace(statusLine, @"\s+", " ").Trim();
             line = line.Replace(pwiz.SkylineTestUtil.AbstractUnitTest.MSG_SKIPPING_SMALLMOLECULE_TEST_VERSION, " ");
+            line = line.Replace(pwiz.SkylineTestUtil.AbstractUnitTest.MSG_SKIPPING_SLOW_RESHARPER_ANALYSIS_TEST, " ");
             var parts = line.Split(' ');
 
             var run = new Run { Date = DateTime.Now };
@@ -126,7 +127,7 @@ namespace SkylineTester
                 runElement.Add(new XElement("Failures", run.Failures));
                 runElement.Add(new XElement("Leaks", run.Leaks));
                 runElement.Add(new XElement("ManagedMemory", run.ManagedMemory));
-                runElement.Add(new XElement("CommittedMemory", run.ManagedMemory));
+                runElement.Add(new XElement("CommittedMemory", run.CommittedMemory));
                 runElement.Add(new XElement("TotalMemory", run.TotalMemory));
                 runElement.Add(new XElement("UserHandles", run.UserHandles));
                 runElement.Add(new XElement("GdiHandles", run.GdiHandles));

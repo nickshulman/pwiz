@@ -22,8 +22,9 @@ using System.Drawing;
 using System.Linq;
 using System.Threading;
 using System.Windows.Forms;
-using pwiz.Common.DataAnalysis;
+using pwiz.Common.Collections;
 using pwiz.Common.SystemUtil;
+using pwiz.Skyline.Alerts;
 using pwiz.Skyline.Controls.SeqNode;
 using pwiz.Skyline.Model;
 using pwiz.Skyline.Model.DocSettings;
@@ -57,6 +58,7 @@ namespace pwiz.Skyline.Controls.Graphs
         private GraphData _data;
         private NodeTip _tip;
         private CancellationTokenSource _cancellationTokenSource;
+        public IProgressBar _progressBar;
 
         private bool _pendingUpdate;
 
@@ -75,6 +77,7 @@ namespace pwiz.Skyline.Controls.Graphs
             Cancel(false);
             AllowDisplayTip = false;
             Settings.Default.RTScoreCalculatorList.ListChanged -= RTScoreCalculatorList_ListChanged;
+            ProgressMonitor.TerminateProgressBar(_cancellationTokenSource.Token);
         }
 
         public override bool HasToolbar { get { return RunToRun; } }
@@ -212,8 +215,8 @@ namespace pwiz.Skyline.Controls.Graphs
         public static PeptideDocNode[] CalcOutliers(SrmDocument document, double threshold, int? precision, bool bestResult)
         {
             var data = new GraphData(document, null, -1, threshold, precision, true, bestResult,
-                RTGraphController.PointsType, RTGraphController.RegressionMethod, -1, null, CustomCancellationToken.NONE);
-            return data.Refine(() => false).Outliers;
+                RTGraphController.PointsType, RTGraphController.RegressionMethod, -1, null, CancellationToken.None);
+            return data.Refine(CancellationToken.None).Outliers;
         }
 
         public RetentionTimeRegression RegressionRefined
@@ -263,7 +266,8 @@ namespace pwiz.Skyline.Controls.Graphs
         private GraphData Update(SrmDocument document, int targetIndex, double threshold, bool refine, PointsTypeRT pointsType, RegressionMethodRT regressionMethod, int origIndex, CancellationToken token)
         {
             bool bestResults = (ShowReplicate == ReplicateDisplay.best);
-            return new GraphData(document, Data, targetIndex, threshold, null, refine, bestResults, pointsType, regressionMethod, origIndex, this, new CustomCancellationToken(token));
+            return new GraphData(document, Data, targetIndex, threshold, null, refine, bestResults, 
+                pointsType, regressionMethod, origIndex, this, token);
             
         }
 
@@ -277,9 +281,11 @@ namespace pwiz.Skyline.Controls.Graphs
             get { return IsDataRefined(Data); }
         }
 
-        private GraphData Refine(GraphData currentData, Func<bool> isCanceled)
+        public bool RegressionRefinedNull => Data.RegressionRefinedNull;
+
+        private GraphData Refine(GraphData currentData, CancellationToken cancellationToken)
         {
-            GraphData dataNew = currentData != null ? currentData.Refine(isCanceled) : null;
+            GraphData dataNew = currentData != null ? currentData.Refine(cancellationToken) : null;
 
             // No refinement happened, if data did not change
             if (ReferenceEquals(dataNew, currentData))
@@ -290,8 +296,6 @@ namespace pwiz.Skyline.Controls.Graphs
 
         public override void Draw(Graphics g)
         {
-            GraphObjList.Clear();
-
             var data = Data;
             if (data != null && RTGraphController.PlotType == PlotTypeRT.correlation)
             {
@@ -357,12 +361,18 @@ namespace pwiz.Skyline.Controls.Graphs
                                        results.IsChromatogramSetLoaded(targetIndex);
             }
 
+            if (RunToRun && originalIndex < 0)
+            {
+                resultsAvailable = false;
+            }
+
             if (!resultsAvailable)
             {
                 Clear();
             }
             else
             {
+                GraphObjList.Clear();
                 var nodeTree = GraphSummary.StateProvider.SelectedNode as SrmTreeNode;
                 var nodePeptide = nodeTree as PeptideTreeNode;
                 while (nodePeptide == null && nodeTree != null)
@@ -390,7 +400,7 @@ namespace pwiz.Skyline.Controls.Graphs
 
                 PointsTypeRT pointsType = RTGraphController.PointsType;
                 RegressionMethodRT regressionMethod = RTGraphController.RegressionMethod;
-                    
+
                 if (!IsValidFor(document, targetIndex, originalIndex, bestResult, threshold, refine, pointsType,
                     regressionMethod))
                 {
@@ -404,12 +414,25 @@ namespace pwiz.Skyline.Controls.Graphs
                             // 
                             var ctx = _requestContext;
                             var token = _cancellationTokenSource.Token;
+                            var decoyCount = document.Molecules.Count((m) => m.IsDecoy);
+                            var calcCount = Settings.Default.RTCalculatorName.IsNullOrEmpty()
+                                ? Settings.Default.RTScoreCalculatorList.Count
+                                : 1;
+                            var maxCount = 0;
+                            if (calcCount == 1)
+                                maxCount = document.MoleculeCount + (document.MoleculeCount - decoyCount) * 2;
+                            else
+                                maxCount = document.MoleculeCount + (document.MoleculeCount - decoyCount) * calcCount;
+
+                            _progressBar = ProgressMonitor.RegisterProgressBar(token, maxCount
+                                , 1, new PaneProgressBar(this));
 
                             ActionUtil.RunAsync(() => UpdateAndRefine(ctx, token),
                                 @"Update and refine regression data");
                         }
                         Title.Text = Resources.RTLinearRegressionGraphPane_UpdateGraph_Calculating___;
                         shouldDrawGraph = false;
+                        Legend.IsVisible = false;
                     }
                 }
                 else
@@ -417,6 +440,9 @@ namespace pwiz.Skyline.Controls.Graphs
                     lock (_requestLock)
                     {
                         _requestContext = null;
+                        ProgressMonitor.TerminateProgressBar(_cancellationTokenSource.Token);
+                        _progressBar = null;
+                        Legend.IsVisible = true;
                     }
                 }
 
@@ -561,11 +587,14 @@ namespace pwiz.Skyline.Controls.Graphs
                 if (regressionSettings.Refine && !IsDataRefined(newData))
                 {
                     var data = newData;
-                    newData = Refine(newData, () => cancellationToken.IsCancellationRequested ||
-                                                    !IsValidFor(data, GraphSummary.DocumentUIContainer.Document));
+                    using (var cancellationTokenSource = new DocumentCancellationToken(cancellationToken,
+                        GraphSummary.DocumentUIContainer, doc => !IsValidFor(data, doc)))
+                    {
+                        newData = Refine(newData, cancellationTokenSource.Token);
+                    }
                 }
 
-                ThreadingHelper.CheckCanceled(cancellationToken);
+                cancellationToken.ThrowIfCancellationRequested();
 
                 // Update the graph on the UI thread.
                 lock (_requestLock)
@@ -621,6 +650,8 @@ namespace pwiz.Skyline.Controls.Graphs
         /// </summary>
         sealed class GraphData : Immutable
         {
+            public const int REPORTING_STEP = 3;
+
             private readonly SrmDocument _document;
             private readonly RTLinearRegressionGraphPane _graphPane;
             private readonly RegressionMethodRT _regressionMethod;
@@ -672,7 +703,7 @@ namespace pwiz.Skyline.Controls.Graphs
                 RegressionMethodRT regressionMethod,
                 int originalIndex,
                 RTLinearRegressionGraphPane graphPane,
-                CustomCancellationToken token
+                CancellationToken token
                 )
             {
                 _document = document;
@@ -698,12 +729,12 @@ namespace pwiz.Skyline.Controls.Graphs
                 // Only used if we are comparing two runs
                 var origTimesDict = IsRunToRun ? new Dictionary<Target, double>() : null;
                 var targetTimesDict = IsRunToRun ? new Dictionary<Target, double>() : null;
-                
+
+                var reportingStep = document.PeptideCount / (90 / REPORTING_STEP);
                 foreach (var nodePeptide in document.Molecules)
                 {
-                    ThreadingHelper.CheckCanceled(token);
+                    ProgressMonitor.CheckCanceled(token);
                     index++;
-
                     switch (RTGraphController.PointsType)
                     {
                         case PointsTypeRT.targets:
@@ -793,9 +824,9 @@ namespace pwiz.Skyline.Controls.Graphs
                 }
                 else
                 {
-                    RetentionScoreCalculatorSpec calc = !string.IsNullOrEmpty(_calculatorName)
-                            ? Settings.Default.GetCalculatorByName(Settings.Default.RTCalculatorName)
-                            : null;
+                    var calc = !string.IsNullOrEmpty(_calculatorName)
+                        ? Settings.Default.GetCalculatorByName(Settings.Default.RTCalculatorName)
+                        : null;
                     if (calc == null)
                     {
                         // Initialize all calculators
@@ -825,7 +856,7 @@ namespace pwiz.Skyline.Controls.Graphs
                             out unused,
                             token);
 
-                        ThreadingHelper.CheckCanceled(token);
+                        token.ThrowIfCancellationRequested();
                         _calculator = calc;
 
                         //If _regressionAll is null, it is safe to assume that the calculator is an iRT Calc with
@@ -837,7 +868,10 @@ namespace pwiz.Skyline.Controls.Graphs
                             if (dataPrevious != null && !ReferenceEquals(calc, dataPrevious.Calculator) &&
                                 tryIrtCalc != null)
                             {
-                                throw new DatabaseNotConnectedException(tryIrtCalc);
+                                MessageDlg.Show(Program.MainWindow, string.Format(
+                                    Resources.GraphData_GraphData_The_database_for_the_calculator__0__could_not_be_opened__Check_that_the_file__1__was_not_moved_or_deleted_,
+                                    tryIrtCalc.Name, tryIrtCalc.DatabasePath));
+                                return;
                             }
                         }
                     }
@@ -849,7 +883,7 @@ namespace pwiz.Skyline.Controls.Graphs
                                                               dataPrevious != null ? dataPrevious._scoreCache : null);
 
                     if (dataPrevious != null && !ReferenceEquals(_calculator, dataPrevious._calculator))
-                        _scoreCache.RecalculateCalcCache(_calculator);
+                        _scoreCache.RecalculateCalcCache(_calculator, token);
 
                     _scoresRefined = _statisticsAll.ListHydroScores.ToArray();
                     _timesRefined = _statisticsAll.ListRetentionTimes.ToArray();
@@ -935,6 +969,8 @@ namespace pwiz.Skyline.Controls.Graphs
                 get { return _statisticsRefined ?? _statisticsAll; }
             }
 
+            public bool RegressionRefinedNull => _regressionRefined == null;
+
             public bool IsRefined()
             {
                 // If refinement has been performed, or it doesn't need to be.
@@ -945,17 +981,17 @@ namespace pwiz.Skyline.Controls.Graphs
                 return RetentionTimeRegression.IsAboveThreshold(_statisticsAll.R, _threshold);
             }
 
-            public GraphData Refine(Func<bool> isCanceled)
+            public GraphData Refine(CancellationToken cancellationToken)
             {
                 if (IsRefined())
                     return this;
-                var result = ImClone(this).RefineCloned(_threshold, _thresholdPrecision, isCanceled);
+                var result = ImClone(this).RefineCloned(_threshold, _thresholdPrecision, cancellationToken);
                 if (result == null)
                     return this;
                 return result;
             }
 
-            private GraphData RefineCloned(double threshold, int? precision, Func<bool> isCanceled)
+            private GraphData RefineCloned(double threshold, int? precision, CancellationToken cancellationToken)
             {
                 // Create list of deltas between predicted and measured times
                 _outlierIndexes = new HashSet<int>();
@@ -1002,7 +1038,7 @@ namespace pwiz.Skyline.Controls.Graphs
                                                                          _calculator,
                                                                          _regressionMethod,
                                                                          _scoreCache,
-                                                                         new CustomCancellationToken(CancellationToken.None, isCanceled), 
+                                                                         cancellationToken, 
                                                                          ref _statisticsRefined,
                                                                          ref _outlierIndexes));
 
@@ -1329,18 +1365,21 @@ namespace pwiz.Skyline.Controls.Graphs
                 float yNext = ptTop.Y;
                 double scoreLeft = xAxis.Scale.ReverseTransform(ptTop.X + 8);
                 double timeTop = yAxis.Scale.ReverseTransform(yNext);
+
+                graphPane.GraphObjList.RemoveAll(o => o is TextObj);
+
                 if (!_refine)
                 {
                     yNext += AddRegressionLabel(graphPane, g, scoreLeft, timeTop,
-                                                _regressionAll, _statisticsAll, COLOR_LINE_REFINED);
+                        _regressionAll, _statisticsAll, COLOR_LINE_REFINED);
                 }
                 else
                 {
                     yNext += AddRegressionLabel(graphPane, g, scoreLeft, timeTop,
-                                                _regressionRefined, _statisticsRefined, COLOR_LINE_REFINED);
+                        _regressionRefined, _statisticsRefined, COLOR_LINE_REFINED);
                     timeTop = yAxis.Scale.ReverseTransform(yNext);
                     yNext += AddRegressionLabel(graphPane, g, scoreLeft, timeTop,
-                                                _regressionAll, _statisticsAll, COLOR_LINE_ALL);
+                        _regressionAll, _statisticsAll, COLOR_LINE_ALL);
                 }
 
                 if (_regressionPredict != null &&
@@ -1372,6 +1411,7 @@ namespace pwiz.Skyline.Controls.Graphs
                     label = regression.Conversion.GetRegressionDescription(statistics.R, regression.TimeWindow);
                 }
 
+
                 TextObj text = new TextObj(label, score, time,
                                            CoordType.AxisXYScale, AlignH.Left, AlignV.Top)
                                    {
@@ -1392,13 +1432,14 @@ namespace pwiz.Skyline.Controls.Graphs
                 {
                     if (IsRunToRun)
                     {
-                        return string.Format(Resources.GraphData_CorrelationLabel_Measured_Time___0__,
-                            _document.MeasuredResults.Chromatograms[_originalIndex].Name);
+                        if (_document.MeasuredResults != null && 0 <= _originalIndex && _originalIndex < _document.MeasuredResults.Chromatograms.Count)
+                        {
+                            return string.Format(Resources.GraphData_CorrelationLabel_Measured_Time___0__,
+                                _document.MeasuredResults.Chromatograms[_originalIndex].Name);
+                        }
+                        return string.Empty;
                     }
-                    else
-                    {
-                        return Calculator.Name;
-                    }
+                    return Calculator.Name;
                 }
             }
 

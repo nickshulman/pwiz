@@ -28,6 +28,9 @@ using pwiz.Skyline.Properties;
 
 namespace pwiz.Skyline
 {
+    ///
+    /// For testing and debugging Skyline command-line interface
+    ///
     public class CommandLineUI
     {
         private readonly CommandArgs _commandArgs;
@@ -70,10 +73,6 @@ namespace pwiz.Skyline
         {
             WaitForSkyline();
             OpenDocument(_commandArgs.SkylineFile);
-            foreach (var replicateFile in _commandArgs.ReplicateFile)
-            {
-                ImportResults(replicateFile);
-            }
             SkylineWindow.DiscardChanges = true;
             RunUI(SkylineWindow.Close);
         }

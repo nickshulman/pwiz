@@ -43,6 +43,9 @@ namespace pwiz.SkylineTestFunctional
         }
 
         const string C12H12 = "C12H12";
+        private static readonly Adduct ADDUCT_HEAVY_M_PLUS_H = Adduct.FromString(@"[M6C13+H]", Adduct.ADDUCT_TYPE.non_proteomic, null);
+        const string C12H12_HEAVY = "C6C'6H12";
+        const string C12H12_HEAVY_PLUS_H = "C6C'6H13"; // C12H12[M6C13+H]
         const string testNametextA = "moleculeA";
         const string COOO13H = "COOO13H";
         const double averageMass100 = 100;
@@ -51,7 +54,7 @@ namespace pwiz.SkylineTestFunctional
         const double testRTWindow = 4.56;
 
 
-        public static readonly ExplicitTransitionGroupValues TESTVALUES_GROUP = ExplicitTransitionGroupValues.Create(2.34, eIonMobilityUnits.drift_time_msec, 345.6); // Using this helps catch untested functionality as we add members
+        public static readonly ExplicitTransitionGroupValues TESTVALUES_GROUP = ExplicitTransitionGroupValues.Create(1.234, 2.34, eIonMobilityUnits.drift_time_msec, 345.6); // Using this helps catch untested functionality as we add members
         public static readonly ExplicitTransitionValues TESTVALUES_TRAN =  ExplicitTransitionValues.Create(1.23, -.345, 5.67, 6.78, 7.89);
 
         protected override void DoTest()
@@ -113,6 +116,8 @@ namespace pwiz.SkylineTestFunctional
             TestEditingSmallMolecule();
             docNext = WaitForDocumentChange(docNext);
             TestEditingTransition();
+            docNext = WaitForDocumentChange(docNext);
+            TestEditingMoleculeName(); // Test fix for double application of heavy labels in adduct
             docNext = WaitForDocumentChange(docNext);
             TestAddingSmallMoleculePrecursor();
             WaitForDocumentChange(docNext);
@@ -256,13 +261,45 @@ namespace pwiz.SkylineTestFunctional
             var editMoleculeDlgA = ShowDialog<EditCustomMoleculeDlg>(SkylineWindow.ModifySmallMoleculeTransitionGroup);
             RunUI(() =>
             {
+                editMoleculeDlgA.PrecursorCollisionEnergy = TESTVALUES_GROUP.CollisionEnergy.Value;
                 // Test the "set" part of "Issue 371: Small molecules: need to be able to import and/or set CE, RT and DT for individual precursors and products"
                 editMoleculeDlgA.IonMobility = TESTVALUES_GROUP.IonMobility.Value;
-                editMoleculeDlgA.IonMobilityUnits = TESTVALUES_GROUP.IonMobilityUnits;
+                editMoleculeDlgA.IonMobilityUnits = eIonMobilityUnits.none; // Simulate user forgets to declare units
                 editMoleculeDlgA.CollisionalCrossSectionSqA = TESTVALUES_GROUP.CollisionalCrossSectionSqA.Value;
+            });
+            ShowDialog<MessageDlg>(editMoleculeDlgA.OkDialog);
+            var errorDlg = WaitForOpenForm<MessageDlg>();
+            RunUI(() =>
+            {
+                Assert.IsTrue(errorDlg.Message.Contains(Resources.EditCustomMoleculeDlg_OkDialog_Please_specify_the_ion_mobility_units_));
+                errorDlg.OkDialog();
+                editMoleculeDlgA.IonMobilityUnits = TESTVALUES_GROUP.IonMobilityUnits;
             });
             OkDialog(editMoleculeDlgA, editMoleculeDlgA.OkDialog);
             var doc = WaitForDocumentChange(docA);
+
+            // Negative drift times not allowed
+            editMoleculeDlgA = ShowDialog<EditCustomMoleculeDlg>(SkylineWindow.ModifySmallMoleculeTransitionGroup);
+            RunUI(() =>
+            {
+                editMoleculeDlgA.IonMobility = -TESTVALUES_GROUP.IonMobility.Value;
+            });
+            ShowDialog<MessageDlg>(editMoleculeDlgA.OkDialog);
+            errorDlg = WaitForOpenForm<MessageDlg>();
+            RunUI(() =>
+            {
+                Assert.IsTrue(errorDlg.Message.Contains(
+                    string.Format(Resources.SmallMoleculeTransitionListReader_ReadPrecursorOrProductColumns_Invalid_ion_mobility_value__0_, 
+                        -TESTVALUES_GROUP.IonMobility.Value)));
+                errorDlg.OkDialog();
+                editMoleculeDlgA.IonMobilityUnits = eIonMobilityUnits.compensation_V; // But negative CoV is allowed
+            });
+            OkDialog(editMoleculeDlgA, editMoleculeDlgA.OkDialog);
+            var docB = WaitForDocumentChange(doc);
+            // Undo that last change
+            RunUI(() => SkylineWindow.Undo());
+            doc = WaitForDocumentChange(docB);
+
             var peptideDocNode = doc.Molecules.ElementAt(0);
             Assert.IsNotNull(peptideDocNode);
             Assert.IsTrue(peptideDocNode.EqualsId(docA.Molecules.ElementAt(0))); // No Id change
@@ -364,10 +401,24 @@ namespace pwiz.SkylineTestFunctional
             });
         }
 
-        private static void TestEditingTransition()
+        private void TestEditingTransition()
         {
             double massPrecisionTolerance = Math.Pow(10, -SequenceMassCalc.MassPrecision);
+            double displayPrecisionTolerance = 1.0E-3;
             var doc = SkylineWindow.Document;
+
+            // Use transition filter settings to set ion mobility filter width calculator
+            var transitionSettingsDlg = ShowTransitionSettings(TransitionSettingsUI.TABS.IonMobility);
+            RunUI(() =>
+            {
+                transitionSettingsDlg.IonMobilityControl.WindowWidthType =
+                    IonMobilityWindowWidthCalculator.IonMobilityWindowWidthType.resolving_power;
+                transitionSettingsDlg.IonMobilityControl.IonMobilityFilterResolvingPower = 30;
+            });
+            OkDialog(transitionSettingsDlg, transitionSettingsDlg.OkDialog);
+            doc = WaitForDocumentChange(doc);
+            AssertEx.AreEqual(30, doc.Settings.TransitionSettings.IonMobilityFiltering.FilterWindowWidthCalculator.ResolvingPower);
+
             RunUI(() =>
             {
                 SkylineWindow.ExpandPrecursors();
@@ -379,17 +430,29 @@ namespace pwiz.SkylineTestFunctional
             var monoMass = new TypedMass(805, MassType.Monoisotopic);
             RunUI(() =>
             {
-                Assert.AreEqual(C12H12 + Adduct.NonProteomicProtonatedFromCharge(1).AdductFormula, editMoleculeDlg.FormulaBox.Formula);
+                // Check neutral mass calculation
+                Assert.AreEqual(C12H12 + ADDUCT_HEAVY_M_PLUS_H.AdductFormula, editMoleculeDlg.FormulaBox.Formula);
                 Assert.AreEqual(BioMassCalc.MONOISOTOPIC.CalculateMassFromFormula(C12H12),
                     editMoleculeDlg.FormulaBox.MonoMass ?? -1, massPrecisionTolerance);
                 Assert.AreEqual(BioMassCalc.AVERAGE.CalculateMassFromFormula(C12H12),
                     editMoleculeDlg.FormulaBox.AverageMass ?? -1, massPrecisionTolerance);
-                Assert.AreEqual(Adduct.NonProteomicProtonatedFromCharge(1).AdductFormula, editMoleculeDlg.FormulaBox.Adduct.AdductFormula);
+
+                // Check m/z calculation
+                Assert.AreEqual(BioMassCalc.MONOISOTOPIC.CalculateMassFromFormula(C12H12_HEAVY_PLUS_H),
+                    double.Parse(editMoleculeDlg.FormulaBox.MonoText), displayPrecisionTolerance);
+                Assert.AreEqual(BioMassCalc.AVERAGE.CalculateMassFromFormula(C12H12_HEAVY_PLUS_H),
+                    double.Parse(editMoleculeDlg.FormulaBox.AverageText), displayPrecisionTolerance);
+
+                Assert.AreEqual(ADDUCT_HEAVY_M_PLUS_H.AdductFormula, editMoleculeDlg.FormulaBox.Adduct.AdductFormula);
                 editMoleculeDlg.FormulaBox.Formula = editMoleculeDlg.FormulaBox.Adduct.AdductFormula; // Remove neutral formula, should leave masses unchanged
-                Assert.AreEqual(BioMassCalc.MONOISOTOPIC.CalculateMassFromFormula(C12H12),
+                Assert.AreEqual(BioMassCalc.MONOISOTOPIC.CalculateMassFromFormula(C12H12_HEAVY),
                     editMoleculeDlg.FormulaBox.MonoMass ?? -1, massPrecisionTolerance);
-                Assert.AreEqual(BioMassCalc.AVERAGE.CalculateMassFromFormula(C12H12),
+                Assert.AreEqual(BioMassCalc.AVERAGE.CalculateMassFromFormula(C12H12_HEAVY),
                     editMoleculeDlg.FormulaBox.AverageMass ?? -1, massPrecisionTolerance);
+                Assert.AreEqual(BioMassCalc.MONOISOTOPIC.CalculateMassFromFormula(C12H12_HEAVY_PLUS_H),
+                    double.Parse(editMoleculeDlg.FormulaBox.MonoText), displayPrecisionTolerance);
+                Assert.AreEqual(BioMassCalc.AVERAGE.CalculateMassFromFormula(C12H12_HEAVY_PLUS_H),
+                    double.Parse(editMoleculeDlg.FormulaBox.AverageText), displayPrecisionTolerance);
                 editMoleculeDlg.FormulaBox.AverageMass = 800;
                 editMoleculeDlg.FormulaBox.MonoMass = monoMass.Value;
                 editMoleculeDlg.NameText = "Fragment";
@@ -407,14 +470,14 @@ namespace pwiz.SkylineTestFunctional
             Assert.AreEqual(BioMassCalc.CalculateIonMz(monoMass, editMoleculeDlg.Adduct), newdoc.MoleculeTransitions.ElementAt(0).Mz, massPrecisionTolerance);
             Assert.IsFalse(ReferenceEquals(doc.MoleculeTransitions.ElementAt(0).Id, newdoc.MoleculeTransitions.ElementAt(0).Id)); // Changing the mass changes the Id
 
-            // Verify that the explicitly set drift time overides any calculations
-            double windowDT;
+            // Verify that the explicitly set drift time overrides any calculations
             double driftTimeMax = 1000.0;
-            var centerDriftTime = newdoc.Settings.GetIonMobility(
-                newdoc.Molecules.First(), newdoc.MoleculeTransitionGroups.First(), newdoc.MoleculeTransitions.First(), null, null, driftTimeMax, out windowDT);
-            Assert.AreEqual(TESTVALUES_GROUP.IonMobility.Value, centerDriftTime.IonMobility.Mobility.Value, .0001);
-            Assert.AreEqual(TESTVALUES_GROUP.IonMobility.Value + TESTVALUES_TRAN.IonMobilityHighEnergyOffset.Value, centerDriftTime.GetHighEnergyDriftTimeMsec() ?? 0, .0001);
-            Assert.AreEqual(0, windowDT, .0001);
+            var centerDriftTime = newdoc.Settings.GetIonMobilityFilter(
+                newdoc.Molecules.First(), newdoc.MoleculeTransitionGroups.First(), newdoc.MoleculeTransitions.First(), 
+                null, null, driftTimeMax);
+            Assert.AreEqual(TESTVALUES_GROUP.IonMobility.Value, centerDriftTime.IonMobilityAndCCS.IonMobility.Mobility.Value, .0001);
+            Assert.AreEqual(TESTVALUES_TRAN.IonMobilityHighEnergyOffset.Value, centerDriftTime.HighEnergyIonMobilityOffset ?? 0, .0001);
+            Assert.AreEqual(0.156, centerDriftTime.IonMobilityExtractionWindowWidth??0, .0001);
 
             // Verify that tree selection doesn't change just because we changed an ID object
             // (formerly the tree node would collapse and focus would jump up a level)
@@ -440,6 +503,25 @@ namespace pwiz.SkylineTestFunctional
             {
                 Assert.AreEqual(SkylineWindow.SequenceTree.SelectedNode, SkylineWindow.SequenceTree.Nodes[0].FirstNode.FirstNode.FirstNode);
             });
+
+        }
+        // Verify the fix for the problem where a molecule rename would doubly apply label masses due to needlessly complicated mass-from-mz calculation
+        private static void TestEditingMoleculeName()
+        {
+            var doc = SkylineWindow.Document;
+            var editMoleculeDlg =
+                ShowDialog<EditCustomMoleculeDlg>(
+                    () => SkylineWindow.ModifyTransition((TransitionTreeNode)SkylineWindow.SequenceTree.SelectedNode));
+            RunUI(() => { editMoleculeDlg.FormulaBox.Formula = C12H12 + ADDUCT_HEAVY_M_PLUS_H.AdductFormula; });
+            OkDialog(editMoleculeDlg, editMoleculeDlg.OkDialog);
+            var newdoc = WaitForDocumentChange(doc);
+            RunUI(() => { SkylineWindow.SequenceTree.SelectedNode = SkylineWindow.SequenceTree.Nodes[0].FirstNode; });
+            editMoleculeDlg = ShowDialog<EditCustomMoleculeDlg>(() => SkylineWindow.ModifyPeptide());
+            RunUI(() => { editMoleculeDlg.NameText = "different_name";});
+            OkDialog(editMoleculeDlg, editMoleculeDlg.OkDialog);
+            newdoc = WaitForDocumentChange(doc);
+            Assert.AreEqual(BioMassCalc.MONOISOTOPIC.CalculateMassFromFormula(C12H12_HEAVY_PLUS_H),
+                newdoc.MoleculeTransitions.First().Mz, 1.0E-3);
         }
 
         private static void TestEditingTransitionAsMasses()
@@ -514,11 +596,11 @@ namespace pwiz.SkylineTestFunctional
             {
                 moleculeDlg.FormulaBox.Formula = C12H12;
                 moleculeDlg.NameText = testNametextA;
-                moleculeDlg.Adduct = Adduct.NonProteomicProtonatedFromCharge(1);
+                moleculeDlg.Adduct = ADDUCT_HEAVY_M_PLUS_H;
             });
             OkDialog(moleculeDlg, moleculeDlg.OkDialog);
             var newDoc = SkylineWindow.Document;
-            var compareIon = new CustomIon(C12H12, Adduct.NonProteomicProtonatedFromCharge(1), null, null, testNametextA);
+            var compareIon = new CustomIon(C12H12, ADDUCT_HEAVY_M_PLUS_H, null, null, testNametextA);
             Assert.AreEqual(compareIon,newDoc.MoleculeTransitions.ElementAt(0).Transition.CustomIon);
             Assert.AreEqual(1,newDoc.MoleculeTransitions.ElementAt(0).Transition.Charge);
 
@@ -883,7 +965,7 @@ namespace pwiz.SkylineTestFunctional
                 fullScanDlg.SelectedTab = TransitionSettingsUI.TABS.FullScan;
                 fullScanDlg.PrecursorIsotopesCurrent = FullScanPrecursorIsotopes.Count;
                 fullScanDlg.Peaks = 3;
-                fullScanDlg.AcquisitionMethod = FullScanAcquisitionMethod.Targeted;
+                fullScanDlg.AcquisitionMethod = FullScanAcquisitionMethod.PRM;
             });
             OkDialog(fullScanDlg, fullScanDlg.OkDialog);
             Assert.IsTrue(SkylineWindow.Document.Settings.TransitionSettings.Filter.SmallMoleculeIonTypes.Contains(IonType.custom));

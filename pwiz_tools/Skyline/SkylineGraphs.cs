@@ -3365,7 +3365,7 @@ namespace pwiz.Skyline
 
         private void peptideRTValueMenuItem_DropDownOpening(object sender, EventArgs e)
         {
-            RTPeptideValue rtValue = RTPeptideGraphPane.RTValue;
+            RTPeptideValue rtValue = RTPeptideGraphPane.GetRtPeptideValue();
             allRTValueContextMenuItem.Checked = (rtValue == RTPeptideValue.All);
             timeRTValueContextMenuItem.Checked = (rtValue == RTPeptideValue.Retention);
             fwhmRTValueContextMenuItem.Checked = (rtValue == RTPeptideValue.FWHM);

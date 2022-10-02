@@ -119,7 +119,7 @@ namespace pwiz.Skyline.Controls.Graphs
                     displayType = DisplayTypeChrom.all;
             }
             var rtTransformOp = GraphSummary.StateProvider.GetRetentionTimeTransformOperation();
-            var rtValue = RTPeptideGraphPane.RTValue;
+            var rtValue = RTPeptideGraphPane.GetRtPeptideValue();
             ReplicateGroupOp replicateGroupOp;
             if (rtValue == RTPeptideValue.All)
             {
@@ -415,7 +415,9 @@ namespace pwiz.Skyline.Controls.Graphs
                         }
                     }
                 }
-                if (RTPeptideValue.All == RTPeptideGraphPane.RTValue)
+
+                var peptideRtValue = RTPeptideGraphPane.GetRtPeptideValue();
+                if (RTPeptideValue.All == peptideRtValue)
                 {
                     var point = HiLowMiddleErrorBarItem.MakePointPair(iResult, 
                         new Statistics(endTimes).Mean(), 
@@ -425,7 +427,7 @@ namespace pwiz.Skyline.Controls.Graphs
                     return point.IsInvalid ? PointPairMissing(iResult) : point;
                 }
                 IEnumerable<double> values;
-                switch (RTPeptideGraphPane.RTValue)
+                switch (peptideRtValue)
                 {
                     case RTPeptideValue.FWB:
                         values = startTimes.Select((startTime, index) => endTimes[index] - startTime);

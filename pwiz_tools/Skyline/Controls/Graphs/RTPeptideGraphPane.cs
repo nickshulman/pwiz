@@ -34,12 +34,9 @@ namespace pwiz.Skyline.Controls.Graphs
 
     internal class RTPeptideGraphPane : SummaryPeptideGraphPane, IUpdateGraphPaneController
     {
-        public static RTPeptideValue RTValue
+        public static RTPeptideValue GetRtPeptideValue()
         {
-            get
-            {
-                return Helpers.ParseEnum(Settings.Default.RTPeptideValue, RTPeptideValue.All);
-            }
+            return Helpers.ParseEnum(Settings.Default.RTPeptideValue, RTPeptideValue.All);
         }
 
         public RTPeptideGraphPane(GraphSummary graphSummary)
@@ -63,21 +60,22 @@ namespace pwiz.Skyline.Controls.Graphs
             if (RTLinearRegressionGraphPane.ShowReplicate == ReplicateDisplay.single)
                 result = GraphSummary.ResultsIndex;
 
-            return new RTGraphData(document, selectedGroup, selectedProtein, result, displayType, GraphSummary.StateProvider.GetRetentionTimeTransformOperation());
+            return new RTGraphData(document, selectedGroup, selectedProtein, result, displayType, GraphSummary.StateProvider.GetRetentionTimeTransformOperation(), GetRtPeptideValue());
         }
 
         protected override void UpdateAxes()
         {
             string text;
             var transformOperation = GraphSummary.StateProvider.GetRetentionTimeTransformOperation();
+            var peptideRtValue = GetRtPeptideValue();
             if (null != transformOperation)
             {
-                text = transformOperation.GetAxisTitle(RTValue);
+                text = transformOperation.GetAxisTitle(peptideRtValue);
             }
             else
             {
-                if (RTValue != RTPeptideValue.All)
-                    text = TextUtil.SpaceSeparate(RTValue.ToString(), Resources.RTPeptideGraphPane_UpdateAxes_Time);
+                if (peptideRtValue != RTPeptideValue.All)
+                    text = TextUtil.SpaceSeparate(peptideRtValue.ToString(), Resources.RTPeptideGraphPane_UpdateAxes_Time);
                 else
                     text = Resources.RTPeptideGraphPane_UpdateAxes_Retention_Time;
             }
@@ -87,6 +85,7 @@ namespace pwiz.Skyline.Controls.Graphs
 
         internal class RTGraphData : GraphData
         {
+            private RTPeptideValue _rtPeptideValue;
             public static PointPair RTPointPairMissing(int xValue)
             {
                 return HiLowMiddleErrorBarItem.MakePointPair(xValue,
@@ -98,10 +97,12 @@ namespace pwiz.Skyline.Controls.Graphs
                                PeptideGroupDocNode selectedProtein,
                                int? result,
                                DisplayTypeChrom displayType,
-                               GraphValues.IRetentionTimeTransformOp retentionTimeTransformOp
+                               GraphValues.IRetentionTimeTransformOp retentionTimeTransformOp,
+                               RTPeptideValue rtPeptideValue
                 )
                 : base(document, selectedGroup, selectedProtein, result, displayType, retentionTimeTransformOp, PaneKey.DEFAULT)
             {
+                _rtPeptideValue = rtPeptideValue;
             }
 
             public override double MaxValueSetting { get { return Settings.Default.PeakTimeMax; } }
@@ -110,14 +111,14 @@ namespace pwiz.Skyline.Controls.Graphs
 
             protected override PointPair CreatePointPairMissing(int iGroup)
             {
-                if (RTValue != RTPeptideValue.All)
+                if (_rtPeptideValue != RTPeptideValue.All)
                     return base.CreatePointPairMissing(iGroup);
                 return RTPointPairMissing(iGroup);
             }
 
             protected override PointPair CreatePointPair(int iGroup, TransitionGroupDocNode nodeGroup, ref double maxY, ref double minY, int? resultIndex)
             {
-                if (RTValue != RTPeptideValue.All)
+                if (_rtPeptideValue != RTPeptideValue.All)
                     return base.CreatePointPair(iGroup, nodeGroup, ref maxY, ref minY, resultIndex);
 
                 if (!nodeGroup.HasResults)
@@ -157,7 +158,7 @@ namespace pwiz.Skyline.Controls.Graphs
                 {
                     return null;
                 }
-                switch (RTValue)
+                switch (_rtPeptideValue)
                 {
                     case RTPeptideValue.Retention:
                         return retentionTimeValues.RetentionTime;
@@ -171,7 +172,7 @@ namespace pwiz.Skyline.Controls.Graphs
 
             protected override PointPair CreatePointPair(int iGroup, TransitionDocNode nodeTran, ref double maxY, ref double minY, int? resultIndex)
             {
-                if (RTValue != RTPeptideValue.All)
+                if (_rtPeptideValue != RTPeptideValue.All)
                     return base.CreatePointPair(iGroup, nodeTran, ref maxY, ref minY, resultIndex);
 
                 if (!nodeTran.HasResults)
@@ -206,7 +207,7 @@ namespace pwiz.Skyline.Controls.Graphs
                 {
                     return 0;
                 }
-                switch (RTValue)
+                switch (_rtPeptideValue)
                 {
                     case RTPeptideValue.Retention:
                         return retentionTimeValues.RetentionTime;

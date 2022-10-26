@@ -1439,10 +1439,21 @@ namespace pwiz.Skyline.Model.AuditLog
         {
             var localTime = timeUTC + timezoneOffset;
             var tzShift = timezoneOffset.TotalHours; // Decimal hours eg 8.5 or -0.5 etc
-            return localTime.ToString(@"s", DateTimeFormatInfo.InvariantInfo) +
-                   (tzShift == 0
-                       ? @"Z"
-                       : (tzShift < 0 ? @"-" : @"+") + timezoneOffset.ToString(@"hh\:mm"));
+            var stringBuilder = new StringBuilder();
+            stringBuilder.Append(localTime.ToString(@"s", DateTimeFormatInfo.InvariantInfo));
+            stringBuilder.Append(@".");
+            stringBuilder.Append(localTime.ToString(@"fffffff", DateTimeFormatInfo.InvariantInfo));
+            if (tzShift == 0)
+            {
+                stringBuilder.Append(@"Z");
+            }
+            else
+            {
+                stringBuilder.Append(tzShift < 0 ? @"-" : @"+");
+                stringBuilder.Append(timezoneOffset.ToString(@"hh\:mm"));
+            }
+
+            return stringBuilder.ToString();
         }
 
         public static DateTime ParseSerializedTimeStamp(string timeStampSerializationString, out TimeSpan timezoneoffset)

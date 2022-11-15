@@ -130,7 +130,7 @@ namespace pwiz.SkylineTest
                 true, // Pattern is a regular expression
                 @"Skyline model code must not depend on UI code", // Explanation for prohibition, appears in report
                 null, // No explicit exceptions to this rule
-                9); // Number of existing known failures that we'll tolerate as warnings instead of errors, so no more get added while we wait to fix the rest
+                3); // Number of existing known failures that we'll tolerate as warnings instead of errors, so no more get added while we wait to fix the rest
             // Check for using DataGridView.
             AddTextInspection("*.designer.cs", Inspection.Forbidden, Level.Error, NonSkylineDirectories(), null,
                 "new System.Windows.Forms.DataGridView()", false,
@@ -348,21 +348,21 @@ namespace pwiz.SkylineTest
             {
                 typeof(FormEx),
                 typeof(CommonFormEx),
+                typeof(DockableFormEx),
                 typeof(PauseAndContinueForm),
             };
 
             try
             {
 
-                foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+                var assembly = Assembly.GetAssembly(typeof(FormEx));
+                var types = assembly.GetTypes().Where(t => t.IsClass && !t.IsAbstract && t.IsSubclassOf(typeof(Form)) && 
+                                                           !acceptableDirectUsesOfFormClass.Any(t.IsSubclassOf) &&
+                                                           !acceptableDirectUsesOfFormClass.Any(t.Equals) &&
+                                                           t.FullName != null && !t.FullName.StartsWith("System"));
+                foreach (var type in types)
                 {
-                    var types = assembly.GetTypes().Where(t => t.IsClass && t.BaseType == typeof(Form) &&
-                                                               t.FullName != null && t.FullName.StartsWith(@"pwiz.") &&
-                                                               !acceptableDirectUsesOfFormClass.Contains(t));
-                    foreach (var type in types)
-                    {
-                        bareForms.Add(type);
-                    }
+                    bareForms.Add(type);
                 }
             }
             catch (ReflectionTypeLoadException ex)
@@ -382,42 +382,6 @@ namespace pwiz.SkylineTest
             }
 
             results.AddRange(bareForms.Select(bareForm => $@"Error: class {bareForm.FullName} illegally inherits directly from Form instead of FormEx. Using FormEx ensures proper interaction with automated tests, small molecule interface operation, and other enhancements. If this really is intentional, add ""typeof({bareForm.Name})"" to the variable ""acceptableDirectUsesOfFormClass"" in method ""FindIllegalForms"" in CodeInspectionTest.cs"));
-        }
-
-        // Looking for tests that don't derive from AbstractUnitTest
-        private static void FindIllegalTests(List<string> results)
-        {
-            var bareTests = new HashSet<Type>();
-
-            try
-            {
-                foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
-                {
-                    var types = assembly.GetTypes().Where(t => t.IsClass && !typeof(AbstractUnitTest).IsAssignableFrom(t) &&
-                                                               t.GetCustomAttribute<TestClassAttribute>() != null);
-                    foreach (var type in types)
-                    {
-                        bareTests.Add(type);
-                    }
-                }
-            }
-            catch (ReflectionTypeLoadException ex)
-            {
-                var errMessage = new StringBuilder();
-                errMessage.AppendLine("Error in FindIllegalTests");
-                errMessage.AppendLine(ex.StackTrace);
-                errMessage.AppendLine();
-                errMessage.AppendLine(string.Format(ex.Message));
-                foreach (var loaderException in ex.LoaderExceptions)
-                {
-                    errMessage.AppendLine();
-                    errMessage.AppendLine(loaderException.Message);
-                }
-                Console.WriteLine(errMessage);
-                throw new Exception(errMessage.ToString(), ex);
-            }
-
-            results.AddRange(bareTests.Select(test => $@"Error: test class {test.FullName} does not inherit from AbstractUnitTest. Using AbstractUnitTest ensures proper interaction with Skyline's custom automated test system."));
         }
 
         private static HashSet<string> FindForms(Type[] inUseFormTypes,
@@ -533,9 +497,6 @@ namespace pwiz.SkylineTest
 
             // Looking for uses of Form where we should really be using FormEx
             FindIllegalForms(results);
-
-            // Looking for tests that don't derive from AbstractUnitTest
-            FindIllegalTests(results);
 
             // Make sure that anything that should start with the L10N equivalent of CommandStatusWriter.ERROR_MESSAGE_HINT (i.e. "Error:") does so
             InspectConsistentErrorMessages(results);
@@ -745,7 +706,7 @@ namespace pwiz.SkylineTest
                 results.Add(string.Empty);
                 results.Add(
                     "Help may be available on the Skyline developer Wiki at https://skyline.ms/wiki/home/development/page.view?name=Skyline%20Custom%20Code%20Inspections");
-                AssertEx.Fail(string.Join(Environment.NewLine+ Environment.NewLine, results));
+                AssertEx.Fail(string.Join(Environment.NewLine, results));
             }
         }
 
@@ -783,11 +744,11 @@ namespace pwiz.SkylineTest
             public Level FailureType;  // Is failure an error, or just a warning?
             public int NumberOfToleratedIncidents; // Some inspections we won't fix yet, but we don't want to see any new ones either
 
-            public PatternDetails(string cue,string reason, IEnumerable<string> ignoredFileMasks, Level failureType, int numberOfToleratedIncidents) 
+            public PatternDetails(string cue,string reason, string[] ignoredFileMasks, Level failureType, int numberOfToleratedIncidents) 
             {
                 Cue = cue;
                 Reason = reason;
-                IgnoredFileMasks = ignoredFileMasks?.ToArray();
+                IgnoredFileMasks = ignoredFileMasks;
                 FailureType = failureType;
                 NumberOfToleratedIncidents = numberOfToleratedIncidents;
             }
@@ -806,17 +767,10 @@ namespace pwiz.SkylineTest
 
         private HashSet<string> allFileMasks = new HashSet<string>();
 
-        // Return a list of directories that we don't care about from a strictly Skyline point of view.
-        // Caller can optionally provide a set of other strings which, if found in file path, cause the
-        // file to be ignored for the test in question
-        private IEnumerable<string> NonSkylineDirectories(IEnumerable<string> extras = null)
+        // Return a list of directories that we don't care about from a strictly Skyline point of view
+        private string[] NonSkylineDirectories()
         {
-            var pathHints = new List<string> {@"TestRunner", @"SkylineTester", @"SkylineNightly", "Executables", "CommonTest" };
-            if (extras != null)
-            {
-                pathHints.AddRange(extras);
-            }
-            return pathHints;
+            return new[] {@"TestRunner", @"SkylineTester", @"SkylineNightly", "Executables", "CommonTest" };
         }
 
         // Prepare a list of files that we never need to deal with for L10N
@@ -876,7 +830,7 @@ namespace pwiz.SkylineTest
         void AddTextInspection(string fileMask,  // Which files?
             Inspection inspectionType, // Required, or forbidden?
             Level failureType, // Is a failure an error, or a warning
-            IEnumerable<string> ignoredDirectories, // Areas to disregard
+            string[] ignoredDirectories, // Areas to disregard
             string cue, // If non-empty, only perform the inspection if file contains this cue
             string pattern,  // What we're looking out for (may contain \n)
             bool isRegEx, // Is the pattern a regular expression?

@@ -513,10 +513,7 @@ namespace pwiz.Skyline
             try
             {
                 var documentAnnotations = new DocumentAnnotations(_doc);
-                using (var streamReader = new StreamReader(commandArgs.ImportAnnotations))
-                {
-                    ModifyDocument(d => documentAnnotations.ReadAnnotationsFromFile(CancellationToken.None, commandArgs.ImportAnnotations));
-                }
+                ModifyDocument(d => documentAnnotations.ReadAnnotationsFromFile(CancellationToken.None, commandArgs.ImportAnnotations));
                 return true;
             }
             catch (Exception x)

@@ -236,7 +236,7 @@ namespace pwiz.SkylineTestFunctional
                 for (int i = 0; i < irtDlg1.StandardPeptideCount; i++)
                 {
                     Assert.AreEqual(standard[i].RetentionTime*skew + shift,
-                                    irtDlg1.StandardPeptides.Skip(i).First().Irt);
+                                    irtDlg1.StandardPeptides.ElementAt(i).Irt);
                 }
             });
             RunDlg<CalibrateIrtDlg>(irtDlg1.Calibrate, recalDlg =>
@@ -1371,7 +1371,7 @@ namespace pwiz.SkylineTestFunctional
             dlg.AddLibraryIrt(dlgPepIdx, irt);
             Assert.IsTrue(_peps.TryGetValue(target, out var histories));
             histories.Add(irt);
-            Assert.AreEqual(GetMedianIrt(target), dlg.LibraryPeptides.Skip(dlgPepIdx).First().Irt);
+            Assert.AreEqual(GetMedianIrt(target), dlg.LibraryPeptides.ElementAt(dlgPepIdx).Irt);
         }
 
         private void DeleteIrt(EditIrtCalcDlg dlg, string target)

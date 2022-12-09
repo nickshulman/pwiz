@@ -271,7 +271,6 @@ namespace pwiz.Common.DataBinding
         public void ExportToFile(Control owner, BindingListSource bindingListSource, String filename,
             char separator)
         {
-            var dsvWriter = CreateDsvWriter(separator, bindingListSource.ColumnFormats);
             SafeWriteToFile(owner, filename, stream =>
             {
                 var writer = new StreamWriter(stream, new UTF8Encoding(false));

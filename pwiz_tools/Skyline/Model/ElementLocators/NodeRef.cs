@@ -54,7 +54,7 @@ namespace pwiz.Skyline.Model.ElementLocators
             }
             var parentRef = Parent.ChangeIdentityPath(document, identityPath.Parent);
             return (NodeRef)
-                ((NodeRef)ChangeParent(parentRef)).EnumerateSiblings(document).Skip(index).FirstOrDefault();
+                ((NodeRef)ChangeParent(parentRef)).EnumerateSiblings(document).ElementAtOrDefault(index);
         }
     }
     public abstract class NodeRef<TDocNode> : NodeRef where TDocNode : DocNode

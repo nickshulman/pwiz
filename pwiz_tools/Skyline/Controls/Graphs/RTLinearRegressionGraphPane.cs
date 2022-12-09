@@ -730,7 +730,6 @@ namespace pwiz.Skyline.Controls.Graphs
                 var origTimesDict = IsRunToRun ? new Dictionary<Target, double>() : null;
                 var targetTimesDict = IsRunToRun ? new Dictionary<Target, double>() : null;
 
-                var reportingStep = document.PeptideCount / (90 / REPORTING_STEP);
                 foreach (var nodePeptide in document.Molecules)
                 {
                     ProgressMonitor.CheckCanceled(token);

@@ -408,7 +408,6 @@ namespace pwiz.Common.SystemUtil
         /// <returns>First occurrence of any keyword (or StringSearchResult.Empty if text doesn't contain any keyword)</returns>
         public StringSearchResult FindFirst(string text)
         {
-            ArrayList ret=new ArrayList();
             TreeNode ptr=_root;
             int index=0;
 

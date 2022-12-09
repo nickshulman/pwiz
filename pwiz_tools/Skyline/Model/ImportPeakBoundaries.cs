@@ -114,7 +114,7 @@ namespace pwiz.Skyline.Model
                     // Also recognize column captions in all supported display languages
                     foreach (var culture in CultureUtil.AvailableDisplayLanguages())
                     {
-                        using (var c = new CurrentCultureSetter(culture))
+                        using (new CurrentCultureSetter(culture))
                         {
                             headers.Add(ColumnCaptions.PeptideModifiedSequence);
                             headers.Add(ColumnCaptions.ModifiedSequence);
@@ -140,7 +140,7 @@ namespace pwiz.Skyline.Model
                     // Also recognize column captions in all supported display languages
                     foreach (var culture in CultureUtil.AvailableDisplayLanguages())
                     {
-                        using (var c = new CurrentCultureSetter(culture))
+                        using (new CurrentCultureSetter(culture))
                         {
                             headers.Add(ColumnCaptions.Molecule);
                             headers.Add(ColumnCaptions.MoleculeName);
@@ -167,7 +167,7 @@ namespace pwiz.Skyline.Model
                     var allFieldNames = new List<string []>();
                     foreach (var culture in CultureUtil.AvailableDisplayLanguages())
                     {
-                        using (var c = new CurrentCultureSetter(culture))
+                        using (new CurrentCultureSetter(culture))
                         {
                             var currentFieldNames = new[]
                             {

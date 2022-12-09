@@ -188,7 +188,7 @@ namespace pwiz.Skyline.Model.Databinding.Entities
         {
             var sibling = ResultFileRef.PROTOTYPE.ChangeParent(Replicate.GetElementRef());
             int fileIndex = Replicate.ChromatogramSet.IndexOfId(ChromFileInfoId);
-            return sibling.ListChildrenOfParent(SrmDocument).Skip(fileIndex).FirstOrDefault();
+            return sibling.ListChildrenOfParent(SrmDocument).ElementAtOrDefault(fileIndex);
         }
 
         [Format(Formats.PEAK_AREA)]

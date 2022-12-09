@@ -237,7 +237,7 @@ namespace pwiz.Common.DataBinding.Clustering
                     return null;
                 }
 
-                return GetRowValues(rowItem).Skip(pdIndex).FirstOrDefault();
+                return GetRowValues(rowItem).ElementAtOrDefault(pdIndex);
             }
         }
     }

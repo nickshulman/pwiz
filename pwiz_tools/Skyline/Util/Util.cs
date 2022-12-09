@@ -359,57 +359,6 @@ namespace pwiz.Skyline.Util
         #endregion // Collection<TValue> Overrides
     }
 
-    public class MultiMap<TKey, TValue>
-    {
-        readonly Dictionary<TKey, List<TValue>> _dict;
-
-        public MultiMap()            
-        {
-            _dict = new Dictionary<TKey, List<TValue>>();
-        }
-
-        public MultiMap(int capacity)
-        {
-            _dict = new Dictionary<TKey, List<TValue>>(capacity);
-        }
-
-        public void Add(TKey key, TValue value)
-        {
-            List<TValue> values;
-            if (_dict.TryGetValue(key, out values))
-                values.Add(value);
-            else
-                _dict[key] = new List<TValue> { value };
-        }
-
-        public IEnumerable<TKey> Keys { get { return _dict.Keys; } }
-
-        public IList<TValue> this[TKey key] { get { return _dict[key]; } }
-
-        public bool TryGetValue(TKey key, out IList<TValue> values)
-        {
-            List<TValue> listValues;
-            if (_dict.TryGetValue(key, out listValues))
-            {
-                values = listValues;
-                return true;
-            }
-            values = null;
-            return false;
-        }
-    }
-
-    public static class MapUtil
-    {
-        public static MultiMap<TKey, TValue> ToMultiMap<TKey, TValue>(this IEnumerable<TValue> values, Func<TValue, TKey> keySelector)
-        {
-            MultiMap<TKey, TValue> map = new MultiMap<TKey, TValue>();
-            foreach (TValue value in values)
-                map.Add(keySelector(value), value);
-            return map;
-        }
-    }
-
     /// <summary>
     /// A read-only list class for the case when a list most commonly contains a
     /// single entry, but must also support multiple entries.  This list may not

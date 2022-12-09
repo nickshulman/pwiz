@@ -1691,7 +1691,6 @@ namespace pwiz.Skyline.SettingsUI
 
         public void UpdateChargesMenu()
         {
-            var set = GraphSettings;
             if (chargesContextMenuItem.DropDownItems.Count > 0 && chargesContextMenuItem.DropDownItems[0] is MenuControl<ChargeSelectionPanel> chargeSelector)
             {
                 chargeSelector.Update(GraphSettings, _documentUiContainer.DocumentUI.Settings.PeptideSettings);

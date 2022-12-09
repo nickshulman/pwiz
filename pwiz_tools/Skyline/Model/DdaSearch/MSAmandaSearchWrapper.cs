@@ -83,7 +83,7 @@ namespace pwiz.Skyline.Model.DdaSearch
             AvailableSettings.AllEnzymes = new List<MSAmandaEnzyme>();
             AvailableSettings.AllModifications = new List<Modification>();
 
-            using (var d = new CurrentDirectorySetter(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)))
+            using (new CurrentDirectorySetter(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)))
             {
                 if (!AvailableSettings.ParseEnzymeFile(ENZYME_FILENAME, "", AvailableSettings.AllEnzymes))
                     throw new Exception(string.Format(Resources.DdaSearch_MSAmandaSearchWrapper_enzymes_file__0__not_found, ENZYME_FILENAME));
@@ -231,8 +231,8 @@ namespace pwiz.Skyline.Model.DdaSearch
             _success = true;
             try
             {
-                using (var c = new CurrentCultureSetter(CultureInfo.InvariantCulture))
-                using (var d = new CurrentDirectorySetter(_baseDir.DirPath))
+                using (new CurrentCultureSetter(CultureInfo.InvariantCulture))
+                using (new CurrentDirectorySetter(_baseDir.DirPath))
                 {
                     foreach (var rawFileName in SpectrumFileNames)
                     {

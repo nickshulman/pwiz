@@ -54,11 +54,6 @@ namespace pwiz.Skyline.Model
                 minDetections = _settings.MinimumDetections;
 
             MedianInfo medianInfo = null;
-            if (settings.NormalizeOption.IsRatioToLabel)
-            {
-                var isotopeLabelTypeName = (settings.NormalizeOption.NormalizationMethod as NormalizationMethod.RatioToLabel)
-                    ?.IsotopeLabelTypeName;
-            }
             if (_settings.NormalizeOption.Is(NormalizationMethod.EQUALIZE_MEDIANS))
                 medianInfo = CalculateMedianAreas(document);
             var normalizedValueCalculator = new NormalizedValueCalculator(document);

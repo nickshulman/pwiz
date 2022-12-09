@@ -494,7 +494,7 @@ namespace pwiz.Skyline.Model.Databinding.Entities
             {
                 return null;
             }
-            var peptideRankId = libInfo.RankValues.Skip(index).FirstOrDefault().Key;
+            var peptideRankId = libInfo.RankValues.ElementAtOrDefault(index).Key;
             if (null == peptideRankId)
             {
                 return null;

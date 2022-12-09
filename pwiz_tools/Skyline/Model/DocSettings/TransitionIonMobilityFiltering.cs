@@ -246,8 +246,6 @@ namespace pwiz.Skyline.Model.DocSettings
 
         public void ReadXml(XmlReader reader)
         {
-
-            var name = reader.Name;
             UseSpectralLibraryIonMobilityValues = reader.GetBoolAttribute(ATTR.use_spectral_library_ion_mobility_values, false);
             bool isBackwardCompatibility = !reader.IsStartElement(EL.ion_mobility_filtering);
             FilterWindowWidthCalculator = new IonMobilityWindowWidthCalculator(reader, false, isBackwardCompatibility); // Just reads attributes, does not advance reader

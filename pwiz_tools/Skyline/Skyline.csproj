@@ -660,7 +660,6 @@
     <Compile Include="Model\Lists\ListExceptionDetail.cs" />
     <Compile Include="Model\MassModification.cs" />
     <Compile Include="Model\DisplayModificationOption.cs" />
-    <Compile Include="Model\DdaSearch\MSAmandaSearchSettings.cs" />
     <Compile Include="Model\DdaSearch\MSAmandaSearchWrapper.cs" />
     <Compile Include="Model\DdaSearch\MSAmandaSpectrumParser.cs" />
     <Compile Include="Model\DdaSearch\MsgfPlusSearchEngine.cs" />

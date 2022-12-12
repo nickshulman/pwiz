@@ -2111,25 +2111,22 @@ namespace pwiz.SkylineTestFunctional
 
         public override PredictResponse Predict(PredictRequest request, CallOptions options)
         {
-            try
+            // Check to see if this is a request for the peptide "PING", and if so, bypass the recording/replay code.
+            int[] pingSequence = "PING".Select(aa => PrositConstants.AMINO_ACIDS[aa].PrositIndex)
+                .Concat(Enumerable.Repeat(0, PrositConstants.PEPTIDE_SEQ_LEN - 4)).ToArray();
+            if (request.ModelSpec.Name == PrositSkylineIntegrationTest.PING_QUERY_MS2.Model
+                && request.Inputs[PrositIntensityModel.PrositIntensityInput.PEPTIDES_KEY].IntVal
+                    .SequenceEqual(pingSequence))
             {
                 PrositSkylineIntegrationTest.PING_QUERY_MS2.AssertMatchesQuery(request);
-                // If this is a ping ms2 request, silently return and don't log
                 return PrositSkylineIntegrationTest.PING_QUERY_MS2.Response;
             }
-            catch(AssertFailedException)
+            if (request.ModelSpec.Name == PrositSkylineIntegrationTest.PING_QUERY_IRT.Model
+                && request.Inputs[PrositRetentionTimeModel.PrositRTInput.PEPTIDES_KEY].IntVal
+                    .SequenceEqual(pingSequence))
             {
-                try
-                {
-                    PrositSkylineIntegrationTest.PING_QUERY_IRT.AssertMatchesQuery(request);
-                    // If this is a ping irt request, silently return and don't log
-                    return PrositSkylineIntegrationTest.PING_QUERY_IRT.Response;
-                }
-                catch
-                {
-                    // ignore
-                }
-
+                PrositSkylineIntegrationTest.PING_QUERY_IRT.AssertMatchesQuery(request);
+                return PrositSkylineIntegrationTest.PING_QUERY_IRT.Response;
             }
 
             // Logging mode

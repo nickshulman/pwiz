@@ -224,12 +224,12 @@ namespace pwiz.Skyline.Model.Results
                                 _isSharedTime = false;
                             }
                         }
-                        if (canSchedule && peakBoundaries == null)
+                        if (canSchedule && (peakBoundaries == null || peakBoundaries.IsEmpty))
                         {
                             if (RetentionTimeFilterType.scheduling_windows == _fullScan.RetentionTimeFilterType)
                             {
                                 double? centerTime = null;
-                                double windowRT = 0;
+                                var windowRT = new PeptidePrediction.WindowRT(0, false);
                                 if (retentionTimePredictor != null)
                                 {
                                     centerTime = retentionTimePredictor.GetPredictedRetentionTime(nodePep);
@@ -248,7 +248,7 @@ namespace pwiz.Skyline.Model.Results
                                     centerTime = 0;
                                 if (_fullScan.RetentionTimeFilterLength != 0)
                                 {
-                                    windowRT = _fullScan.RetentionTimeFilterLength * 2;
+                                    windowRT.Window = _fullScan.RetentionTimeFilterLength * 2;
                                 }
                                 if (centerTime != null)
                                 {
@@ -288,8 +288,8 @@ namespace pwiz.Skyline.Model.Results
                         if (!EnabledMs)
                         {
                             filterCount += filter.AddQ3FilterValues((from TransitionDocNode nodeTran in nodeGroup.Children select nodeTran).
-                                Select(nodeTran => new SpectrumFilterValues(nodeTran.Mz, IsMseData() ?
-                                    nodeTran.ExplicitValues.IonMobilityHighEnergyOffset ?? ionMobilityFilter.HighEnergyIonMobilityOffset ?? 0 : 0)), calcWindowsQ3);
+                                Select(nodeTran => new SpectrumFilterValues(nodeTran.Mz,
+                                    nodeTran.ExplicitValues.IonMobilityHighEnergyOffset ?? ionMobilityFilter.HighEnergyIonMobilityOffset ?? 0)), calcWindowsQ3);
                         }
                         else if (!EnabledMsMs)
                         {
@@ -300,8 +300,8 @@ namespace pwiz.Skyline.Model.Results
                             filterCount += filter.AddQ1FilterValues(GetMS1MzValues(nodeGroup), calcWindowsQ1);
                             filterCount += filter.AddQ3FilterValues((from TransitionDocNode nodeTran in nodeGroup.Children
                                     where !nodeTran.IsMs1 select nodeTran).
-                                Select(nodeTran => new SpectrumFilterValues(nodeTran.Mz, IsMseData() ?
-                                    nodeTran.ExplicitValues.IonMobilityHighEnergyOffset ?? ionMobilityFilter.HighEnergyIonMobilityOffset ?? 0 : 0)), 
+                                Select(nodeTran => new SpectrumFilterValues(nodeTran.Mz,
+                                    nodeTran.ExplicitValues.IonMobilityHighEnergyOffset ?? ionMobilityFilter.HighEnergyIonMobilityOffset ?? 0)), 
                                 calcWindowsQ3);
                         }
                     }
@@ -704,10 +704,11 @@ namespace pwiz.Skyline.Model.Results
             return isSimSpectrum;
         }
 
+        public const int SIM_ISOLATION_CUTOFF = 500;
+
         private static bool IsSimIsolation(IsolationWindowFilter isoWin)
         {
             // Consider: Introduce a variable cut-off in the document settings
-            const int SIM_ISOLATION_CUTOFF = 500;
             return isoWin.IsolationMz.HasValue && isoWin.IsolationWidth.HasValue &&
                    isoWin.IsolationWidth.Value <= SIM_ISOLATION_CUTOFF;
         }
@@ -803,6 +804,9 @@ namespace pwiz.Skyline.Model.Results
             SpectrumFilterPair[] filterPairs;
             if (isSimSpectra)
             {
+                if (_fullScan.IgnoreSimScans)
+                    yield break;
+
                 filterPairs = FindMs1FilterPairs(precursors).ToArray();
             }
             else
@@ -820,7 +824,6 @@ namespace pwiz.Skyline.Model.Results
                     filterPairs = _filterMzValues;
                 }
             }
-            bool orderedByMz = firstSpectrum.IonMobilities == null; // 3D spectra may come ordered by ion mobility
             foreach (var filterPair in filterPairs)
             {
                 if (!filterPair.ContainsRetentionTime(retentionTime.Value))

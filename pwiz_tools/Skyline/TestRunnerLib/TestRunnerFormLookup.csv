@@ -23,11 +23,13 @@ AuditLogForm,*
 AuditLogExtraInfoForm,TestAuditLogSaving
 LongOperationRunner.BackgroundThreadLongWaitDlg,*
 BuildBackgroundProteomeDlg,TestBackgroundProteome
-BuildLibraryDlg,TestFullScanId
+BuildLibraryDlg.PropertiesPage,TestFullScanId
+BuildLibraryDlg.FilesPage,TestFullScanId
 BuildLibraryNotification,*
 CalculateIsolationSchemeDlg,TestCalculateIsolationWindows
 CalibrateIrtDlg,IrtFunctionalTest
 CalibrationForm,TestCalibration
+CandidatePeakForm,TestCandidatePeaks
 ChangeIrtPeptidesDlg,IrtFunctionalTest
 ChooseFormatDlg,TestGroupComparisonPivotEditor
 ChooseIrtStandardPeptidesDlg,TestAssayLibraryImport
@@ -158,7 +160,6 @@ PeptideSettingsUI.ModificationsTab,TestNeutralLoss
 PeptideSettingsUI.LabelsTab,UIModeSettingsTest
 PeptideSettingsUI.PredictionTab,IrtFunctionalTest
 PeptideSettingsUI.QuantificationTab,TestCalibration
-PeptidesPerProteinDlg,TestImportPeptideSearch
 PermuteIsotopeModificationsDlg,TestModificationPermuter
 PivotEditor,TestPivotEditor
 PopupPickList,TestPrecursorIon
@@ -189,6 +190,7 @@ SelectIrtStandardDlg,TestLibraryBuild
 SequenceTreeForm,*
 ShareListDlg`2,TestShareSettings
 ShareTypeDlg,TestDocumentSharing
+ShareResultsFilesDlg,TestDocumentSharing
 SkylineWindow,*
 SpectrumChartPropertyDlg,TestMs1Tutorial
 SpectrumLibraryInfoDlg,TestManageLibraryRuns

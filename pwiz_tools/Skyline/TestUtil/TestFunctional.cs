@@ -86,6 +86,15 @@ namespace pwiz.SkylineTestUtil
     }
 
     /// <summary>
+    /// Test method attribute which specifies a test is not suitable for parallel testing
+    /// (e.g. memory hungry or writes to the filesystem outside of the test's working directory)
+    /// </summary>
+    [AttributeUsage(AttributeTargets.Method, AllowMultiple = false)]
+    public sealed class NoParallelTestingAttribute : Attribute
+    {
+    }
+
+    /// <summary>
     /// All Skyline functional tests MUST derive from this base class.
     /// Perf tests (long running, huge-data-downloading) should be declared
     /// in the TestPerf namespace, where they receive special handling so as
@@ -169,7 +178,7 @@ namespace pwiz.SkylineTestUtil
             SkylineWindow.DocumentChangedEvent += OnDocumentChangedLogging;
         }
 
-        protected static TDlg ShowDialog<TDlg>([InstantHandle] Action act, int millis = -1) where TDlg : Form
+        protected static TDlg ShowDialog<TDlg>(Action act, int millis = -1) where TDlg : Form
         {
             var existingDialog = FindOpenForm<TDlg>();
             if (existingDialog != null)
@@ -201,7 +210,7 @@ namespace pwiz.SkylineTestUtil
         /// <summary>
         /// Brings up a dialog where the Type might be the same as a form which is already open.
         /// </summary>
-        protected static TDlg ShowNestedDlg<TDlg>([InstantHandle] Action act) where TDlg : Form
+        protected static TDlg ShowNestedDlg<TDlg>(Action act) where TDlg : Form
         {
             var existingDialogs = FormUtil.OpenForms.OfType<TDlg>().ToHashSet(new IdentityEqualityComparer<TDlg>());
             SkylineBeginInvoke(act);
@@ -254,27 +263,70 @@ namespace pwiz.SkylineTestUtil
             }
         }
 
-        protected static void RunDlg<TDlg>(Action show, [InstantHandle] Action<TDlg> act = null, bool pause = false, int millis = -1) where TDlg : Form
+        /// <summary>
+        /// Shows a dialog and executes a test action on the dialog.
+        /// </summary>
+        /// <param name="showDlgAction">Action which causes the dialog to be shown</param>
+        /// <param name="exerciseDlgAction">Action which can do some things and then must close the dialog.</param>
+        protected static void RunDlg<TDlg>([InstantHandle] Action showDlgAction,
+            [InstantHandle] [NotNull] Action<TDlg> exerciseDlgAction)
+            where TDlg : Form
         {
-            RunDlg(show, false, act, pause, millis);
+            bool showDlgActionCompleted = false;
+            TDlg dlg = ShowDialog<TDlg>(() =>
+            {
+                showDlgAction();
+                showDlgActionCompleted = true;
+            });
+            OkDialog(dlg, () => exerciseDlgAction(dlg));
+            WaitForConditionUI(() => showDlgActionCompleted);
         }
 
-        protected static void RunDlg<TDlg>(Action show, bool waitForDocument, Action<TDlg> act = null, bool pause = false, int millis = -1) where TDlg : Form
+        /// <summary>
+        /// Shows a dialog and tests the dialog by invoking an action on the test thread.
+        /// Unlike <see cref="RunDlg{TDlg}"/>, the test action runs on the test thread instead of the
+        /// event thread. This method can be used for testing dialogs which in turn bring up other dialogs,
+        /// or which for other reasons cannot be tested by RunDlg.
+        /// </summary>
+        /// <param name="showDlgAction">Action which runs on the UI thread and causes the dialog to be shown</param>
+        /// <param name="exerciseDlgAction">Action which runs on the test thread and interacts with the dialog</param>
+        /// <param name="closeDlgAction">Action which runs on the UI thread and closes the dialog</param>
+        protected static void RunLongDlg<TDlg>([InstantHandle] Action showDlgAction, [InstantHandle] Action<TDlg> exerciseDlgAction, Action<TDlg> closeDlgAction) where TDlg : Form
         {
-            var doc = SkylineWindow.Document;
-            TDlg dlg = ShowDialog<TDlg>(show, millis);
-            if (pause)
-                PauseTest();
-            RunUI(() =>
+            bool showDlgActionCompleted = false;
+            TDlg dlg = ShowDialog<TDlg>(() =>
             {
-                if (act != null)
-                    act(dlg);
-                else
-                    dlg.CancelButton.PerformClick();
+                showDlgAction();
+                showDlgActionCompleted = true;
             });
-            WaitForClosedForm(dlg);
-            if (waitForDocument)
-                WaitForDocumentChange(doc);
+            exerciseDlgAction(dlg);
+            OkDialog(dlg, ()=>closeDlgAction(dlg));
+            WaitForConditionUI(() => showDlgActionCompleted);
+        }
+
+        /// <summary>
+        /// Invoke an action that causes a dialog to appear, and then dismiss that dialog.
+        /// This method waits for the dialog to be closed, but, unlike <see cref="RunDlg{TDlg}"/>,
+        /// this does not wait until the action which displayed the dialog returns.
+        /// </summary>
+        /// <param name="showAction">Action which causes the dialog to appear</param>
+        /// <param name="dismissAction">Action which causes the dialog to close.</param>
+        protected static void ShowAndDismissDlg<TDlg>(Action showAction,
+            Action<TDlg> dismissAction) where TDlg : Form
+        {
+            TDlg dlg = ShowDialog<TDlg>(showAction);
+            OkDialog(dlg, () =>
+            {
+                dismissAction(dlg);
+            });
+        }
+
+        /// <summary>
+        /// Invoke an action which displays a dialog and then click that dialog's cancel button.
+        /// </summary>
+        protected static void ShowAndCancelDlg<TDlg>(Action showAction) where TDlg : Form
+        {
+            ShowAndDismissDlg<TDlg>(showAction, dlg=>dlg.CancelButton.PerformClick());
         }
 
         protected static void SelectNode(SrmDocument.Level level, int iNode)
@@ -531,33 +583,31 @@ namespace pwiz.SkylineTestUtil
 
         private static int GetWaitCycles(int millis = WAIT_TIME)
         {
-            int waitCycles = millis / SLEEP_INTERVAL;
-
-            // Wait a little longer for stress test.
-            if (Program.StressTest)
-            {
-                waitCycles = waitCycles * 2;
-            }
+            var waitMultiplier = 1; // Various conditions may require longer timeouts
 
             if (System.Diagnostics.Debugger.IsAttached)
             {
                 // When debugger is attached, some vendor readers are S-L-O-W!
-                waitCycles *= 10;
+                waitMultiplier = 10;
+            }
+            else if (ExtensionTestContext.IsDebugMode || Helpers.RunningResharperAnalysis)
+            {
+                // Wait a little longer for debug build.
+                waitMultiplier = 4;
+            }
+            else if (Program.StressTest)
+            {
+                // Wait a little longer for stress test.
+                waitMultiplier = 2;
             }
 
             // Wait longer if running multiple processes simultaneously.
-            if (Program.UnitTestTimeoutMultiplier != 0)
+            if (Program.UnitTestTimeoutMultiplier > 0)
             {
-                waitCycles *= Program.UnitTestTimeoutMultiplier;
+                waitMultiplier *= Program.UnitTestTimeoutMultiplier;
             }
 
-            // Wait a little longer for debug build. (This may also imply code coverage testing, slower yet)
-            if (ExtensionTestContext.IsDebugMode)
-            {
-                waitCycles = waitCycles * 4;
-            }
-
-            return waitCycles;
+            return  (millis * waitMultiplier) / SLEEP_INTERVAL; // Return the wait cycle count
         }
 
         public static TDlg TryWaitForOpenForm<TDlg>(int millis = WAIT_TIME, Func<bool> stopCondition = null) where TDlg : Form
@@ -783,12 +833,15 @@ namespace pwiz.SkylineTestUtil
         private static string GetOpenFormsString()
         {
             var result =  string.Join(", ", OpenForms.Select(form => string.Format("{0} ({1})", form.GetType().Name, GetTextForForm(form))));
-            if (SkylineWindow.Document != null)
+            RunUI(() =>
             {
-                var state = string.Join("\", \"", SkylineWindow.Document.NonLoadedStateDescriptions);
-                if (!string.IsNullOrEmpty(state))
-                   result += " Also, document is not fully loaded: \"" + state + "\"";
-            }
+                if (SkylineWindow.DocumentUI != null)
+                {
+                    var state = string.Join("\", \"", SkylineWindow.DocumentUI.NonLoadedStateDescriptions);
+                    if (!string.IsNullOrEmpty(state))
+                        result += " Also, SkylineWindow.DocumentUI is not fully loaded: \"" + state + "\"";
+                }
+            });
             // Without line numbers, this isn't terribly useful.  Disable for now.
             // result += GetAllThreadsStackTraces();
             return result;
@@ -1200,7 +1253,7 @@ namespace pwiz.SkylineTestUtil
                 formSeen.Saw(formType);
                 bool showMatchingPages = IsShowMatchingTutorialPages || Program.ShowMatchingPages;
 
-                PauseAndContinueForm.Show(description + string.Format(" - p. {0}", pageNum), LinkPage(pageNum), showMatchingPages, timeout);
+                PauseAndContinueForm.Show(description + string.Format(" - p. {0}", pageNum), LinkPage(pageNum), showMatchingPages, timeout, screenshotForm, _shotManager);
             }
             else
             {
@@ -1316,7 +1369,7 @@ namespace pwiz.SkylineTestUtil
                     {
                         try
                         {
-                            dir?.Dispose();
+                            dir?.Cleanup();
                         }
                         catch (Exception x)
                         {
@@ -1447,7 +1500,7 @@ namespace pwiz.SkylineTestUtil
 
         private string AuditLogDir
         {
-            get { return Path.Combine(TestContext.TestRunResultsDirectory ?? TestContext.TestDir, "AuditLog"); }
+            get { return TestContext.GetTestResultsPath("AuditLog"); }
         }
 
         private string AuditLogTutorialDir
@@ -1667,17 +1720,17 @@ namespace pwiz.SkylineTestUtil
 
         private string AuditLogEntryToString(AuditLogEntry entry)
         {
-            var result = string.Format("Undo Redo : {0}\r\n", entry.UndoRedo);
-            result += string.Format("Summary   : {0}\r\n", entry.Summary);
-            result += "All Info  :\r\n";
+            var result = new StringBuilder(string.Format("Undo Redo : {0}\r\n", entry.UndoRedo));
+            result.Append(string.Format("Summary   : {0}\r\n", entry.Summary));
+            result.Append("All Info  :\r\n");
 
             foreach (var allInfoItem in entry.AllInfo)
-                result += allInfoItem + "\r\n";
+                result.AppendLine(allInfoItem.ToString());
 
             if (entry.ExtraInfo != null)
-                result += string.Format("Extra Info: {0}\r\n", LogMessage.ParseLogString(entry.ExtraInfo, LogLevel.all_info, entry.DocumentType));
+                result.Append(string.Format("Extra Info: {0}\r\n", LogMessage.ParseLogString(entry.ExtraInfo, LogLevel.all_info, entry.DocumentType)));
 
-            return result;
+            return result.ToString();
         }
 
         private void WaitForSkyline()
@@ -2056,24 +2109,27 @@ namespace pwiz.SkylineTestUtil
             WaitForCondition(() => BackgroundProteomeManager.DocumentHasLoadedBackgroundProteomeOrNone(SkylineWindow.Document, true)); 
         }
 
-        public static void ImportAssayLibrarySkipColumnSelect(string csvPath, List<string> errorList = null)
+        public static void ImportAssayLibrarySkipColumnSelect(string csvPath, List<string> errorList = null, bool proceedWithErrors = true)
         {
-            ImportAssayLibraryOrTransitionList(csvPath, true, errorList);
+            ImportAssayLibraryOrTransitionList(csvPath, true, errorList, proceedWithErrors);
         }
 
         private static void ImportAssayLibraryOrTransitionList(string csvPath, bool isAssayLibrary, ICollection<string> errorList, bool proceedWithErrors = true)
         {
-            var transitionSelectDlg = isAssayLibrary ?
+            var columnSelectDlg = isAssayLibrary ?
                 ShowDialog<ImportTransitionListColumnSelectDlg>(() =>  SkylineWindow.ImportAssayLibrary(csvPath)) :
                 ShowDialog<ImportTransitionListColumnSelectDlg>(() => SkylineWindow.ImportMassList(csvPath));
+
+            VerifyExplicitUseInColumnSelect(isAssayLibrary, columnSelectDlg);
+
             if (errorList == null)
             {
-                OkDialog(transitionSelectDlg, transitionSelectDlg.OkDialog);
+                OkDialog(columnSelectDlg, columnSelectDlg.OkDialog);
             }
             else
             {
                 // We're expecting errors, collect them then move on
-                var errDlg = ShowDialog<ImportTransitionListErrorDlg>(transitionSelectDlg.OkDialog);
+                var errDlg = ShowDialog<ImportTransitionListErrorDlg>(columnSelectDlg.OkDialog);
                 errorList.Clear();
                 foreach (var err in errDlg.ErrorList)
                 {
@@ -2082,14 +2138,25 @@ namespace pwiz.SkylineTestUtil
                 if (proceedWithErrors)
                 {
                     OkDialog(errDlg, errDlg.AcceptButton.PerformClick);
-                    WaitForClosedForm(transitionSelectDlg);
+                    WaitForClosedForm(columnSelectDlg);
                 }
                 else
                 {
                     OkDialog(errDlg, errDlg.Close);
-                    OkDialog(transitionSelectDlg, transitionSelectDlg.CancelDialog); // Canceling the error dialog drops us back into the import dialog
+                    OkDialog(columnSelectDlg, columnSelectDlg.CancelDialog); // Canceling the error dialog drops us back into the import dialog
                 }
             }
+        }
+
+        private static void VerifyExplicitUseInColumnSelect(bool isAssayLibrary, ImportTransitionListColumnSelectDlg transitionSelectDlg)
+        {
+            // Verify that we don't use "Explicit*" language in dropdowns for assay library import
+            var expectedHeaderTypes = ImportTransitionListColumnSelectDlg.GetKnownHeaderTypes(isAssayLibrary);
+            var unexpectedHeaderTypes = ImportTransitionListColumnSelectDlg.GetKnownHeaderTypes(!isAssayLibrary);
+            var forbidden = unexpectedHeaderTypes.Where(t => !expectedHeaderTypes.Contains(t)).Select(t => t.Name).ToArray();
+            AssertEx.IsTrue(forbidden.Length > 0); // Headers should differ somewhat when importing assay library
+            var items = transitionSelectDlg.ComboBoxes.SelectMany(c => c.Items.Select(item => item.ToString())).Distinct();
+            AssertEx.IsTrue(!items.Any(forbidden.Contains));
         }
 
         public static void ImportTransitionListSkipColumnSelect(string csvPath, ICollection<string> errorList = null, bool proceedWithErrors = true)
@@ -2099,29 +2166,26 @@ namespace pwiz.SkylineTestUtil
 
         public static void PasteTransitionListSkipColumnSelect(bool expectColumnSelectDialog = true)
         {
-            if (expectColumnSelectDialog)
-            {
-                var columnSelectDlg = ShowDialog<ImportTransitionListColumnSelectDlg>(() => SkylineWindow.Paste());
-                WaitForConditionUI(() => columnSelectDlg.WindowShown); // Avoids possible race condition in code coverage tests
-                OkDialog(columnSelectDlg, columnSelectDlg.OkDialog);
-            }
-            else
-            {
-                RunUI(SkylineWindow.Paste);
-            }
+            PasteTransitionListSkipColumnSelect(SkylineWindow.Paste, expectColumnSelectDialog);
         }
 
         public static void PasteTransitionListSkipColumnSelect(string text, bool expectColumnSelectDialog = true)
         {
+            PasteTransitionListSkipColumnSelect(() => SkylineWindow.Paste(text), expectColumnSelectDialog);
+        }
+
+        private static void PasteTransitionListSkipColumnSelect(Action pasteAction, bool expectColumnSelectDialog)
+        {
             if (expectColumnSelectDialog)
             {
-                var columnSelectDlg = ShowDialog<ImportTransitionListColumnSelectDlg>(() => SkylineWindow.Paste(text));
+                var columnSelectDlg = ShowDialog<ImportTransitionListColumnSelectDlg>(pasteAction);
                 WaitForConditionUI(() => columnSelectDlg.WindowShown); // Avoids possible race condition in code coverage tests
+                VerifyExplicitUseInColumnSelect(false, columnSelectDlg);
                 OkDialog(columnSelectDlg, columnSelectDlg.OkDialog);
             }
             else
             {
-                RunUI(() => SkylineWindow.Paste(text));
+                RunUI(pasteAction);
             }
         }
 

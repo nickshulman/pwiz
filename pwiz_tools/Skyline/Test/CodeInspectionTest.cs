@@ -130,11 +130,16 @@ namespace pwiz.SkylineTest
                 true, // Pattern is a regular expression
                 @"Skyline model code must not depend on UI code", // Explanation for prohibition, appears in report
                 null, // No explicit exceptions to this rule
-                11); // Number of existing known failures that we'll tolerate as warnings instead of errors, so no more get added while we wait to fix the rest
+                3); // Number of existing known failures that we'll tolerate as warnings instead of errors, so no more get added while we wait to fix the rest
             // Check for using DataGridView.
             AddTextInspection("*.designer.cs", Inspection.Forbidden, Level.Error, NonSkylineDirectories(), null,
                 "new System.Windows.Forms.DataGridView()", false,
                 "Must use subclass CommonDataGridView or DataGridViewEx instead of DataGridView.");
+
+            AddTextInspection("*.cs", Inspection.Forbidden, Level.Error,
+                new[] {"TestFunctional", "TestTutorial", "TestPerf", "Executables", "UtilUIExtra.cs", "ClipboardEx.cs"}, 
+                null, "Clipboard(Ex)?\\.SetText", true, 
+                "Use ClipboardHelper.SetClipboardText instead since it handles exceptions");
 
             // A few lines of fake tests that can be useful in development of this mechanism
             // AddInspection(@"*.Designer.cs", Inspection.Required, Level.Error, null, "Windows Form Designer generated code", @"DetectionsToolbar", @"fake, debug purposes only"); // Uncomment for debug purposes
@@ -333,6 +338,52 @@ namespace pwiz.SkylineTest
             }
         }
 
+        // Looking for uses of Form where we should really be using FormEx
+        private static void FindIllegalForms(List<string> results) // Looks for uses of Form rather than FormEx
+        {
+            var bareForms = new HashSet<Type>();
+
+            // List of classes which actually do inherit directly from Form
+            var acceptableDirectUsesOfFormClass = new[]
+            {
+                typeof(FormEx),
+                typeof(CommonFormEx),
+                typeof(DockableFormEx),
+                typeof(PauseAndContinueForm),
+            };
+
+            try
+            {
+
+                var assembly = Assembly.GetAssembly(typeof(FormEx));
+                var types = assembly.GetTypes().Where(t => t.IsClass && !t.IsAbstract && t.IsSubclassOf(typeof(Form)) && 
+                                                           !acceptableDirectUsesOfFormClass.Any(t.IsSubclassOf) &&
+                                                           !acceptableDirectUsesOfFormClass.Any(t.Equals) &&
+                                                           t.FullName != null && !t.FullName.StartsWith("System"));
+                foreach (var type in types)
+                {
+                    bareForms.Add(type);
+                }
+            }
+            catch (ReflectionTypeLoadException ex)
+            {
+                var errMessage = new StringBuilder();
+                errMessage.AppendLine("Error in FindIllegalForms");
+                errMessage.AppendLine(ex.StackTrace);
+                errMessage.AppendLine();
+                errMessage.AppendLine(string.Format(ex.Message));
+                foreach (var loaderException in ex.LoaderExceptions)
+                {
+                    errMessage.AppendLine();
+                    errMessage.AppendLine(loaderException.Message);
+                }
+                Console.WriteLine(errMessage);
+                throw new Exception(errMessage.ToString(), ex);
+            }
+
+            results.AddRange(bareForms.Select(bareForm => $@"Error: class {bareForm.FullName} illegally inherits directly from Form instead of FormEx. Using FormEx ensures proper interaction with automated tests, small molecule interface operation, and other enhancements. If this really is intentional, add ""typeof({bareForm.Name})"" to the variable ""acceptableDirectUsesOfFormClass"" in method ""FindIllegalForms"" in CodeInspectionTest.cs"));
+        }
+
         private static HashSet<string> FindForms(Type[] inUseFormTypes,
             Type[] directParentTypes) // Types directly referenced in addition to their derived types
         {
@@ -444,12 +495,17 @@ namespace pwiz.SkylineTest
 
             var results = CheckFormsWithoutTestRunnerLookups();
 
+            // Looking for uses of Form where we should really be using FormEx
+            FindIllegalForms(results);
+
             // Make sure that anything that should start with the L10N equivalent of CommandStatusWriter.ERROR_MESSAGE_HINT (i.e. "Error:") does so
             InspectConsistentErrorMessages(results);
 
             InspectTutorialAuditLogs(root, results);
 
             var errorCounts = new Dictionary<PatternDetails, int>();
+
+            var inspected = new HashSet<string>();
 
             foreach (var fileMask in allFileMasks)
             {
@@ -463,7 +519,14 @@ namespace pwiz.SkylineTest
                         continue; // Can't inspect yourself!
                     }
 
-                    var lines = File.ReadAllLines(filename);
+                    if (!inspected.Add(filename))
+                    {
+                        continue; // Already inspected (matched multiple filemasks)
+                    }
+
+                    var content = File.ReadAllText(filename);
+                    var lines = content.Split('\n');
+
                     var lineNum = 0;
                     var requiredPatternsObservedInThisFile = requiredPatternsByFileMask.ContainsKey(fileMask)
                         ? requiredPatternsByFileMask[fileMask].Where(kvp =>
@@ -492,9 +555,15 @@ namespace pwiz.SkylineTest
                     var warnings = new List<string>();
                     var multiLinePatternFaults = new Dictionary<Pattern, string>();
                     var multiLinePatternFaultLocations = new Dictionary<Pattern, int>();
+                    var crlfCount = 0; // Look for inconsistent line endings
 
                     foreach (var line in lines)
                     {
+                        // Look for inconsistent line endings
+                        if (line.EndsWith("\r")) 
+                        {
+                            crlfCount++;
+                        }
                         lineNum++;
                         if (forbiddenPatternsForThisFile != null)
                         {
@@ -552,6 +621,11 @@ namespace pwiz.SkylineTest
                                 }
                             }
                         }
+                    }
+
+                    if (crlfCount != 0 && crlfCount < lines.Length-1)
+                    {
+                        results.Add($@"Inconsistent line endings in {filename}");
                     }
 
                     if (requiredPatternsObservedInThisFile != null)
@@ -645,7 +719,7 @@ namespace pwiz.SkylineTest
             public Pattern(string patternString, bool isRegEx, string patternExceptionString)
             {
                 PatternString = patternString;
-                RegExPattern = isRegEx ? new Regex(patternString, RegexOptions.CultureInvariant | RegexOptions.CultureInvariant) : null;
+                RegExPattern = isRegEx ? new Regex(patternString, RegexOptions.CultureInvariant | RegexOptions.CultureInvariant | RegexOptions.Compiled) : null;
                 PatternExceptionString = patternExceptionString;
             }
 

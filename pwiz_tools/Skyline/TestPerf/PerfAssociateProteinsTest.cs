@@ -168,78 +168,116 @@ namespace TestPerf
             OkDialog(transitionDlg, transitionDlg.OkDialog);
             WaitForDocumentChangeLoaded(docBeforeTransitionSettings);
 
+            TestAssociateProteinsWithBadPeptide();
+
             TestProteinReassignmentMessage();
 
-            // Try importing a transition list with a peptide matching multiple proteins
-            var multipleMatches = "VTTSTGASYSYDR, 709.327105, 1217.530841\n" +
-                                  "VTTSTGASYSYDR, 709.327105, 1116.483162\n" +
-                                  "AADD, 391.14600, 391.14600\n" +
-                                  "VTTSTGASYSYDR, 709.327105, 928.403455";
-            for (var i = 0; i < 2; i++)
+            foreach (var doErrorCheck in new[] { false, true })
             {
-                ImportTransitions(multipleMatches, BackgroundProteome.DuplicateProteinsFilter.AddToAll, true);
-                AssertEx.IsDocumentState(SkylineWindow.Document, null, 68, 68, 70);
+                // Try importing a transition list with a peptide matching multiple proteins
+                var multipleMatches = "VTTSTGASYSYDR, 709.327105, 1217.530841\n" +
+                                      "VTTSTGASYSYDR, 709.327105, 1116.483162\n" +
+                                      "AADD, 391.14600, 391.14600\n" +
+                                      "VTTSTGASYSYDR, 709.327105, 928.403455";
+                for (var i = 0; i < 2; i++)
+                {
+                    ImportTransitions(multipleMatches, BackgroundProteome.DuplicateProteinsFilter.AddToAll, true, doErrorCheck);
+                    AssertEx.IsDocumentState(SkylineWindow.Document, null, 68, 68, 70);
+                    RunUI(() => SkylineWindow.Undo());
+                    // Do that again without Associate Proteins
+                    ImportTransitions(multipleMatches, BackgroundProteome.DuplicateProteinsFilter.AddToAll, false, doErrorCheck);
+                    AssertEx.IsDocumentState(SkylineWindow.Document, null, 1, 3, 4);
+                    RunUI(() => SkylineWindow.Undo());
+                    // Paste the same list, but this time select "No duplicates" on peptides with multiple matches
+                    ImportTransitions(multipleMatches, BackgroundProteome.DuplicateProteinsFilter.NoDuplicates, true, doErrorCheck);
+                    AssertEx.IsDocumentState(SkylineWindow.Document, null, 1, 1, 3);
+                    RunUI(() => SkylineWindow.Undo());
+                    // Paste the same list, but this time select "Use first occurrence" on peptides with multiple matches
+                    ImportTransitions(multipleMatches, BackgroundProteome.DuplicateProteinsFilter.FirstOccurence, true, doErrorCheck);
+                    AssertEx.IsDocumentState(SkylineWindow.Document, null, 2, 2, 4);
+                    RunUI(() => SkylineWindow.Undo());
+                    // Now add headers and do everything again
+                    multipleMatches = multipleMatches.Insert(0, "Peptide Modified Sequence, Precursor m/z, Product m/z\n");
+                }
+                // Try importing a transition list with a transition that does not match anything from the 
+                // background proteome
+                var noMatchesCSV = "VTTSTGASYSYDR, 709.327105, 1217.530841\n" +
+                                   "VTTSTGADRAAAA, 1191.596, 1191.596\n" +
+                                   "VTTSTGASYSYDR, 709.327105, 1029.451134";
+                ImportTransitions(noMatchesCSV, BackgroundProteome.DuplicateProteinsFilter.AddToAll, true, doErrorCheck);
+                AssertEx.IsDocumentState(SkylineWindow.Document, null, 2, 2, 3);
                 RunUI(() => SkylineWindow.Undo());
-                // Do that again without Associate Proteins
-                ImportTransitions(multipleMatches, BackgroundProteome.DuplicateProteinsFilter.AddToAll, false);
-                AssertEx.IsDocumentState(SkylineWindow.Document, null, 1, 3, 4);
-                RunUI(() => SkylineWindow.Undo());
-                // Paste the same list, but this time select "No duplicates" on peptides with multiple matches
-                ImportTransitions(multipleMatches, BackgroundProteome.DuplicateProteinsFilter.NoDuplicates, true);
-                AssertEx.IsDocumentState(SkylineWindow.Document, null, 1, 1, 3);
-                RunUI(() => SkylineWindow.Undo());
-                // Paste the same list, but this time select "Use first occurrence" on peptides with multiple matches
-                ImportTransitions(multipleMatches, BackgroundProteome.DuplicateProteinsFilter.FirstOccurence, true);
-                AssertEx.IsDocumentState(SkylineWindow.Document, null, 2, 2, 4);
-                RunUI(() => SkylineWindow.Undo());
-                // Now add headers and do everything again
-                multipleMatches = multipleMatches.Insert(0, "Peptide Modified Sequence, Precursor m/z, Product m/z\n");
             }
-            // Try importing a transition list with a transition that does not match anything from the 
-            // background proteome
-            var noMatchesCSV = "VTTSTGASYSYDR, 709.327105, 1217.530841\n" +
-                               "VTTSTGADRAAAA, 1191.596, 1191.596\n" +
-                               "VTTSTGASYSYDR, 709.327105, 1029.451134";
-            ImportTransitions(noMatchesCSV, BackgroundProteome.DuplicateProteinsFilter.AddToAll, true);
-            AssertEx.IsDocumentState(SkylineWindow.Document, null, 2, 2, 3);
-
         }
 
-        
+
         private void ImportTransitions(string transitions,
             BackgroundProteome.DuplicateProteinsFilter filter, 
-            bool associateProteins,
-            bool addUnmatched = true, bool expectError = false)
+            bool associateProteins, bool checkForErrors)
         {
-            // Paste into the targets window
-            var importDialog = ShowDialog<InsertTransitionListDlg>(SkylineWindow.ShowPasteTransitionListDlg);
-            var colDlg = ShowDialog<ImportTransitionListColumnSelectDlg>(() => importDialog.textBox1.Text = transitions);
-
-            if (associateProteins)
+            using (new WaitDocumentChange())
             {
-                // FilterMatchedPeptidesDlg should appear
-                var filterMatchedDlg =
-                    ShowDialog<FilterMatchedPeptidesDlg>(() => colDlg.checkBoxAssociateProteins.Checked = true);
-                RunUI(() =>
+                // Paste into the targets window
+                var importDialog = ShowDialog<InsertTransitionListDlg>(SkylineWindow.ShowPasteTransitionListDlg);
+                var colDlg = ShowDialog<ImportTransitionListColumnSelectDlg>(() => importDialog.TransitionListText = transitions);
+                RunUI(() => colDlg.checkBoxAssociateProteins.Checked = associateProteins);
+                if (associateProteins)
                 {
-                    filterMatchedDlg.AddUnmatched = addUnmatched;
-                    filterMatchedDlg.DuplicateProteinsFilter = filter;
-                    filterMatchedDlg.OkDialog();
-                });
-            }
-            if (expectError)
-            {
-                // Ignore error dialog
-                var colErrorDlg = ShowDialog<ImportTransitionListErrorDlg>(() => colDlg.OkDialog());
-                OkDialog(colErrorDlg, colErrorDlg.AcceptButton.PerformClick);
-            }
-            else
-            {
-                RunUI(() =>colDlg.OkDialog());
-            }
+                    WaitForConditionUI(() => colDlg.AssociateProteinsPreviewCompleted); // Wait for initial associate proteins to complete
+                    if (checkForErrors)
+                    {
+                        // FilterMatchedPeptidesDlg should appear when user checks for errors
+                        var filterMatchedDlg = ShowDialog<FilterMatchedPeptidesDlg>(() => colDlg.CheckForErrors());
+                        RunUI(() =>
+                        {
+                            filterMatchedDlg.AddUnmatched = true;
+                            filterMatchedDlg.DuplicateProteinsFilter = filter;
+                        });
+                        var noErrorsMsgDlg = ShowDialog<MessageDlg>(() => filterMatchedDlg.OkDialog());
+                        OkDialog(noErrorsMsgDlg, noErrorsMsgDlg.OkDialog);
+                        // Should proceed without further user input
+                        OkDialog(colDlg, colDlg.OkDialog);
+                    }
+                    else
+                    {
+                        // If user doesn't check for errors first, then expect FilterMatchedPeptidesDlg on "OK"
+                        var filterMatchedDlg = ShowDialog<FilterMatchedPeptidesDlg>(() => colDlg.OkDialog());
+                        // Canceling the associate proteins dialog should return us to the import dialog and turn off associate proteins
+                        RunUI(() => filterMatchedDlg.CancelDialog());
+                        var isAssociateProteins = true;
+                        RunUI(() => isAssociateProteins = colDlg.checkBoxAssociateProteins.Checked);
+                        AssertEx.IsFalse(isAssociateProteins, "Expected associate proteins to be turned off after cancelation");
+                        RunUI(() => colDlg.checkBoxAssociateProteins.Checked = true); // Turn it on again
+                        filterMatchedDlg = ShowDialog<FilterMatchedPeptidesDlg>(() => colDlg.OkDialog());
+                        RunUI(() =>
+                        {
+                            filterMatchedDlg.AddUnmatched = true;
+                            filterMatchedDlg.DuplicateProteinsFilter = filter;
+                        });
+                        OkDialog(filterMatchedDlg, filterMatchedDlg.OkDialog);
+                    }
+                }
+                else
+                {
+                    OkDialog(colDlg, colDlg.OkDialog);
+                }
 
-            WaitForDocumentChange(SkylineWindow.Document);
-            WaitForClosedForm(importDialog);
+                WaitForClosedForm(importDialog);
+            }
+        }
+
+        private void TestAssociateProteinsWithBadPeptide()
+        {
+            var protColumnTSV = "VTTSTGASYSYDR, 709.327105, 1217.530841\n" +
+                                "_fish_, 719.327105, 1016.483162\n" +
+                                "VTTSTGASYSYDR, 709.327105, 1116.483162\n" +
+                                "AADD, 391.14600, 391.14600\n" +
+                                "VTTSTGASYSYDR, 709.327105, 928.403455";
+            // Without the fix, this will throw an exception due to handling of "_fish_" in associate proteins
+            var importDlg = ShowDialog<InsertTransitionListDlg>(SkylineWindow.ShowPasteTransitionListDlg);
+            var colDlg = ShowDialog<ImportTransitionListColumnSelectDlg>(() => importDlg.TransitionListText = protColumnTSV);
+            OkDialog(colDlg, colDlg.CancelDialog);
+            WaitForClosedForm(importDlg);
         }
 
         private void TestProteinReassignmentMessage()
@@ -248,34 +286,36 @@ namespace TestPerf
             var protColumnTSV = "VTTSTGASYSYDR, 709.327105, 1217.530841, Rv1812c_Rv1812c\n" +
                                 "VTTSTGASYSYDR, 709.327105, 1116.483162, Rv1812c_Rv1812c\n" +
                                 "VTTSTGASYSYDR, 709.327105, 1029.451134, Rv1812c_Rv1812c";
-            var importDlg = ShowDialog<InsertTransitionListDlg>(SkylineWindow.ShowPasteTransitionListDlg);
-            var colDlg = ShowDialog<ImportTransitionListColumnSelectDlg>(() => importDlg.textBox1.Text = protColumnTSV);
-            var proteinIndex = 0;
-            // Test our warning when the user associates proteins and then tries to reassign the protein name column
-            RunUI(() =>
+            using (new WaitDocumentChange())
             {
-                colDlg.checkBoxAssociateProteins.Checked = false;
-                AssertEx.AreEqual(4, colDlg.ComboBoxes.Count);
-                proteinIndex = colDlg.ComboBoxes[3].FindStringExact(Resources.ImportTransitionListColumnSelectDlg_PopulateComboBoxes_Protein_Name);
-                colDlg.ComboBoxes[3].SelectedIndex = proteinIndex; // Declare protein name
-            });
-            RunUI(() =>
-            {
-                colDlg.checkBoxAssociateProteins.Checked = true; // This should override the declared protein name
-            });
-            WaitForConditionUI(() => colDlg.ComboBoxes.Count == 5); // Associated protein column appears
-            WaitForConditionUI(() => colDlg.ComboBoxes[4].SelectedIndex == 0); // Former protein column goes to "Ignore Column"
-            // Try to set protein column back to "protein name" and you get an error message since Associate Proteins handles that
-            var messageDlg = ShowDialog<MessageDlg>(() =>
-            {
-                colDlg.ComboBoxes[4].SelectedIndex = proteinIndex;
-            });
-            OkDialog(messageDlg, messageDlg.CancelDialog); // Cancel, and column selection should be left alone 
-            WaitForConditionUI(() => colDlg.ComboBoxes[0].SelectedIndex == proteinIndex);
-            WaitForConditionUI(() => colDlg.ComboBoxes[4].SelectedIndex == 0); // Former protein column goes back to "Ignore Column"
-            RunUI(() =>  colDlg.OkDialog() );
-            WaitForDocumentChange(SkylineWindow.Document);
-            WaitForClosedForm(importDlg);
+                var importDlg = ShowDialog<InsertTransitionListDlg>(SkylineWindow.ShowPasteTransitionListDlg);
+                var colDlg = ShowDialog<ImportTransitionListColumnSelectDlg>(() => importDlg.TransitionListText = protColumnTSV);
+                var proteinIndex = 0;
+                // Test our warning when the user associates proteins and then tries to reassign the protein name column
+                RunUI(() =>
+                {
+                    colDlg.checkBoxAssociateProteins.Checked = false;
+                    AssertEx.AreEqual(4, colDlg.ComboBoxes.Count);
+                    proteinIndex = colDlg.ComboBoxes[3].FindStringExact(Resources.ImportTransitionListColumnSelectDlg_PopulateComboBoxes_Protein_Name);
+                    colDlg.ComboBoxes[3].SelectedIndex = proteinIndex; // Declare protein name
+                });
+                RunUI(() =>
+                {
+                    colDlg.checkBoxAssociateProteins.Checked = true; // This should override the declared protein name
+                });
+                WaitForConditionUI(() => colDlg.ComboBoxes.Count == 5); // Associated protein column appears
+                WaitForConditionUI(() => colDlg.ComboBoxes[4].SelectedIndex == 0); // Former protein column goes to "Ignore Column"
+                                                                                   // Try to set protein column back to "protein name" and you get an error message since Associate Proteins handles that
+                var messageDlg = ShowDialog<MessageDlg>(() =>
+                {
+                    colDlg.ComboBoxes[4].SelectedIndex = proteinIndex;
+                });
+                OkDialog(messageDlg, messageDlg.CancelDialog); // Cancel, and column selection should be left alone 
+                WaitForConditionUI(() => colDlg.ComboBoxes[0].SelectedIndex == proteinIndex);
+                WaitForConditionUI(() => colDlg.ComboBoxes[4].SelectedIndex == 0); // Former protein column goes back to "Ignore Column"
+                OkDialog(colDlg, colDlg.OkDialog);
+                WaitForClosedForm(importDlg);
+            }
             AssertEx.IsDocumentState(SkylineWindow.Document, null, 1, 1, 3);
             RunUI(() => SkylineWindow.Undo());
         }

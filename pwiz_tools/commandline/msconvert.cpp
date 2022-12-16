@@ -73,6 +73,7 @@ struct Config : public Reader::Config
         simAsSpectra = false;
         srmAsSpectra = false;
         combineIonMobilitySpectra = false;
+        ignoreCalibrationScans = false;
         reportSonarBins = false;
         unknownInstrumentIsError = true;
         stripLocationFromSourceFiles = false;
@@ -213,6 +214,7 @@ Config parseCommandLine(int argc, char** argv)
     string runIndexSet;
     bool detailedHelp = false;
     string helpForFilter;
+    bool showExamples = false;
 
     pair<int, int> consoleBounds = get_console_bounds(); // get platform-specific console bounds, or default values if an error occurs
 
@@ -335,6 +337,9 @@ Config parseCommandLine(int argc, char** argv)
         ("combineIonMobilitySpectra",
             po::value<bool>(&config.combineIonMobilitySpectra)->zero_tokens(),
             ": write all ion mobility or Waters SONAR bins/scans in a frame/block as one spectrum instead of individual spectra")
+        ("ignoreCalibrationScans",
+            po::value<bool>(&config.ignoreCalibrationScans)->zero_tokens(),
+            ": do not process calibration scans (currently only applies to Waters lockmass function)")
         ("acceptZeroLengthSpectra",
             po::value<bool>(&config.acceptZeroLengthSpectra)->zero_tokens(),
             ": some vendor readers have an efficient way of filtering out empty spectra, but it takes more time to open the file")
@@ -359,6 +364,9 @@ Config parseCommandLine(int argc, char** argv)
         ("help-filter",
             po::value<string>(&helpForFilter),
             ": name of a single filter to get detailed help for")
+        ("show-examples",
+            po::value<bool>(&showExamples)->zero_tokens(),
+            ": show examples of how to run msconvert.exe")
         ;
 
     // handle positional arguments
@@ -391,14 +399,8 @@ Config parseCommandLine(int argc, char** argv)
     {
         usage << SpectrumListFactory::usage(helpForFilter) << endl;
     }
-    else
+    else if (showExamples)
     {
-        // append options description to usage string
-        usage << od_config;
-
-        // extra usage
-        usage << SpectrumListFactory::usage(detailedHelp, "run this command with --help to see more detail", consoleBounds.first) << endl;
-
         usage << "Examples:\n"
               << endl
               << "# convert data.RAW to data.mzML\n"
@@ -461,9 +463,18 @@ Config parseCommandLine(int argc, char** argv)
               << "filter=\"index [3,7]\"\n"
               << "filter=\"precursorRecalculation\"\n"
               << endl
-              << endl
+              << endl;
+    }
+    else
+    {
+        // append options description to usage string
+        usage << od_config;
 
-              << "Questions, comments, and bug reports:\n"
+        // extra usage
+        usage << SpectrumListFactory::usage(detailedHelp, "(run this program with --help to see details for all filters)", consoleBounds.first);
+        usage << ChromatogramListFactory::usage(detailedHelp, nullptr, consoleBounds.first) << endl;
+
+        usage << "Questions, comments, and bug reports:\n"
               << "https://github.com/ProteoWizard\n"
               << "support@proteowizard.org\n"
               << "\n"
@@ -471,7 +482,7 @@ Config parseCommandLine(int argc, char** argv)
               << "Build date: " << __DATE__ << " " << __TIME__ << endl;
     }
 
-    if ((argc <= 1) || detailedHelp || !helpForFilter.empty())
+    if ((argc <= 1) || detailedHelp || !helpForFilter.empty() || showExamples)
         throw usage_exception(usage.str().c_str());
 
     // parse config file if required
@@ -842,14 +853,14 @@ int mergeFiles(const vector<string>& filenames, const Config& config, const Read
     {
         MSDataMerger msd(msdList);
 
-        *os_ << "calculating source file checksums" << endl;
-        calculateSHA1Checksums(msd);
-
         if (!config.contactFilename.empty())
             addContactInfo(msd, config.contactFilename);
 
         SpectrumListFactory::wrap(msd, config.filters, pILR);
         ChromatogramListFactory::wrap(msd, config.chromatogramFilters, pILR);
+
+        *os_ << "calculating source file checksums" << endl;
+        calculateSHA1Checksums(msd);
 
         // if config.singleThreaded is not explicitly set, determine whether to use worker threads by querying SpectrumListWrappers
         Config configCopy(config);
@@ -922,10 +933,6 @@ void processFile(const string& filename, const Config& config, const ReaderList&
         MSData& msd = *msdList[i];
         try
         {
-            *os_ << "calculating source file checksums" << endl;
-            os_->flush();
-            calculateSHA1Checksums(msd);
-
             // process the data 
 
             if (!config.contactFilename.empty())
@@ -933,6 +940,9 @@ void processFile(const string& filename, const Config& config, const ReaderList&
 
             SpectrumListFactory::wrap(msd, config.filters, pILR);
             ChromatogramListFactory::wrap(msd, config.chromatogramFilters, pILR);
+
+            *os_ << "calculating source file checksums" << endl;
+            calculateSHA1Checksums(msd);
 
             // if config.singleThreaded is not explicitly set, determine whether to use worker threads by querying SpectrumListWrappers
             Config configCopy(config);

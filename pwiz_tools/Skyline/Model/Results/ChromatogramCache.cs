@@ -325,8 +325,8 @@ namespace pwiz.Skyline.Model.Results
                 {
                     continue;
                 }
-
-                if (nodePep != null && !TextIdEqual(entry, nodePep))
+                // TODO
+                if (nodePep != null && !TextIdEqual((ChromGroupHeaderInfo) entry , nodePep))
                     continue;
                 yield return i;
             }

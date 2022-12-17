@@ -176,7 +176,7 @@ namespace pwiz.Skyline.Model.Skydb
             var result = new List<float>();
             foreach (var peakGroup in ChromatogramGroupData.CandidatePeakGroups)
             {
-                foreach (var scoreType in ChromatogramCache.ScoreTypes)
+                foreach (var scoreType in ChromatogramCache.ScoreTypes.AsCalculatorTypes())
                 {
                     result.Add((float?) peakGroup.GetScore(scoreType.FullName) ?? float.NaN);
                 }

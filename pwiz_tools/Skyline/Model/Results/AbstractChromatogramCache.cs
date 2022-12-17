@@ -6,6 +6,7 @@ using pwiz.Common.Chemistry;
 using pwiz.Common.Collections;
 using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Model.Lib;
+using pwiz.Skyline.Model.Results.Scoring;
 using pwiz.Skyline.Util;
 
 namespace pwiz.Skyline.Model.Results
@@ -13,16 +14,10 @@ namespace pwiz.Skyline.Model.Results
     public abstract class AbstractChromatogramCache : Immutable, IDisposable
     {
         LibKeyMap<int[]> _chromEntryIndex;
-        protected void Init(IEnumerable<Type> scoreTypes)
+        protected void Init(FeatureNames scoreTypeIndices)
         {
             _chromEntryIndex = MakeChromEntryIndex();
-            var scoreTypeIndexes = new Dictionary<Type, int>();
-            foreach (var type in scoreTypes)
-            {
-                scoreTypeIndexes.Add(type, scoreTypeIndexes.Count);
-            }
-
-            ScoreTypeIndices = scoreTypeIndexes;
+            ScoreTypes = scoreTypeIndices;
         }
 
         public virtual void Dispose()
@@ -67,15 +62,14 @@ namespace pwiz.Skyline.Model.Results
 
         public string CachePath {get; protected set; }
 
-        public IDictionary<Type, int> ScoreTypeIndices { get; private set; }
-        public virtual IEnumerable<Type> ScoreTypes { get {return ScoreTypeIndices.OrderBy(p => p.Value).Select(p => p.Key); } }
+        public FeatureNames ScoreTypes { get; private set; }
         public ImmutableList<MsDataFileUri> MsDataFilePaths
         {
             get { return ImmutableList.ValueOf(CachedFilePaths); }
         }
         public int ScoreTypesCount
         {
-            get { return ScoreTypeIndices.Count; }
+            get { return ScoreTypes.Count; }
         }
 
 

@@ -21,7 +21,7 @@ namespace pwiz.Skyline.Model.Skydb
             var scoreNameToIndex = new Dictionary<string, int>();
             foreach (var scoreType in _chromatogramCache.ScoreTypes)
             {
-                scoreNameToIndex.Add(scoreType.FullName, scoreNameToIndex.Count);
+                scoreNameToIndex.Add(scoreType, scoreNameToIndex.Count);
             }
 
             ScoreNameToIndex = scoreNameToIndex;
@@ -75,7 +75,7 @@ namespace pwiz.Skyline.Model.Skydb
                 }
             }
 
-            public IEnumerable<string> ScoreNames => Cache._chromatogramCache.ScoreTypes.Select(type=>type.FullName);
+            public IEnumerable<string> ScoreNames => Cache._chromatogramCache.ScoreTypes;
 
             public DateTime? LastWriteTime => ChromCachedFile.FileWriteTime;
 
@@ -434,7 +434,7 @@ namespace pwiz.Skyline.Model.Skydb
         {
             get
             {
-                return _chromatogramCache.ScoreTypes.Select(type => type.FullName);
+                return _chromatogramCache.ScoreTypes;
             }
         }
     }

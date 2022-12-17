@@ -5,6 +5,7 @@ using pwiz.Common.Chemistry;
 using pwiz.Common.Collections;
 using pwiz.ProteowizardWrapper;
 using pwiz.Skyline.Model.Results;
+using pwiz.Skyline.Model.Results.Scoring;
 using pwiz.Skyline.Util;
 using SkylineApi;
 
@@ -37,7 +38,7 @@ namespace pwiz.Skyline.Model.Skydb
                 Assume.IsNotNull(type, scoreTypeName);
                 scoreTypes.Add(type);
             }
-            Init(scoreTypes);
+            Init(FeatureNames.FromScoreTypes(scoreTypes));
         }
 
         public ImmutableList<IExtractedDataFile> ExtractedDataFiles { get; }
@@ -114,8 +115,10 @@ namespace pwiz.Skyline.Model.Skydb
             // TODO: ion mobility units, msInstrumentConfigInfo
             return new ChromCachedFile(MsDataFileUri.Parse(extractedDataFile.SourceFilePath), flagValues,
                 extractedDataFile.LastWriteTime.GetValueOrDefault(), extractedDataFile.RunStartTime,
+                null,
                 (float) extractedDataFile.MaxRetentionTime.GetValueOrDefault(),
                 (float) extractedDataFile.MaxIntensity.GetValueOrDefault(),
+                0, 0, null,
                 eIonMobilityUnits.unknown,
                 extractedDataFile.SampleId,
                 extractedDataFile.InstrumentSerialNumber,

@@ -1066,7 +1066,6 @@ namespace pwiz.Skyline.Model.Results
             return (short) Math.Round(f*10);
         }
 
-<<<<<<< HEAD
         public ChromPeak(ICandidatePeak candidatePeak) : this()
         {
             if (candidatePeak == null)
@@ -1095,10 +1094,10 @@ namespace pwiz.Skyline.Model.Results
             if (massError.HasValue)
             {
                 flagValues |= FlagValues.mass_error_known;
-                FlagBits = ((uint)To10x((float) massError)) << 16;
+                _massError = To10x((float)massError);
             }
 
-            FlagBits |= (uint) flagValues;
+            _flagValues = flagValues;
         }
 
         /// <summary>
@@ -2472,7 +2471,7 @@ namespace pwiz.Skyline.Model.Results
                         int startOptTran, endOptTran;
                         GetOptimizationBounds(productMz, i, startTran, endTran, out startOptTran, out endOptTran);
                         var chromatogramMzs = Enumerable.Range(startOptTran, endOptTran - startOptTran + 1)
-                            .Select(GetProductGlobal);
+                            .Select(i=>GetProductLocal(i - startTran));
                         iMiddle = startOptTran + OptStepChromatograms.IndexOfCenter(productMz, chromatogramMzs, regression.StepCount);
                     }
 

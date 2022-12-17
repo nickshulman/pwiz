@@ -149,7 +149,6 @@
     <Compile Include="OnDemandFeatureCalculatorTest.cs" />
     <Compile Include="FeatureTooltipTest.cs" />
     <Compile Include="LoadBlibSpeedTest.cs" />
-    <Compile Include="PeptideTest.cs" />
     <Compile Include="SkydFormatTest.cs" />
     <Compile Include="CommandLinePeakBoundaryTest.cs" />
     <Compile Include="PeptideTest.cs" />

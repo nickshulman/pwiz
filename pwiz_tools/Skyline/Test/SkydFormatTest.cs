@@ -21,56 +21,53 @@ namespace pwiz.SkylineTest
         [TestMethod]
         public void TestMemoryJoining()
         {
-            using (var testFilesDir = new TestFilesDir(TestContext, @"Test\SkydFormatTest.zip"))
+            DateTime start = DateTime.UtcNow;
+            //var inputFilePath = @"D:\skydb\BruderDIA2015_withdecoys.skyd";
+            //var inputFilePath = testFilesDir.GetTestPath("Bruder3Proteins.skyd");
+            var inputFilePath = @"D:\skydb\Bereman_5proteins_spikein.skyd";
+            var outputFile = Path.ChangeExtension(inputFilePath, ".skydb");
+            //var inputFilePath = testFilesDir.GetTestPath("Human_plasma.skyd");
+            //var inputFilePath = @"D:\skydata\20150501_Bruderer\delayloadingpeaks\delay.skyd";
+            //var inputFilePath = @"D:\skydata\20140318_Hasmik_QE_DIA\Study9_2_Curve_DIA_QE_5trans_withSpLib_Jan2014\Study9_2_Curve_DIA_QE_5trans_withSpLib_Jan2014.skyd";
+            // var inputFilePath = @"D:\skydata\20150501_Bruderer\3Proteins_delayloadingpeaks\Bruder3Proteins.skyd";
+            //var outputFile = testFilesDir.GetTestPath("joined.skydb");
+
+
+            using (var chromatogramCache = ChromatogramCache.Load(
+                inputFilePath,
+                new ProgressStatus(),
+                new DefaultFileLoadMonitor(new SilentProgressMonitor()), false))
             {
-                DateTime start = DateTime.UtcNow;
-                var inputFilePath = @"D:\skydata\20150501_Bruderer\delayloadingpeaks\BruderDIA2015_withdecoys.skyd";
-                //var inputFilePath = testFilesDir.GetTestPath("Bruder3Proteins.skyd");
-                //var inputFilePath = @"D:\skydata\20110215_MikeB\Bereman_5proteins_spikein.skyd";
-                var outputFile = Path.ChangeExtension(inputFilePath, ".skydb");
-                //var inputFilePath = testFilesDir.GetTestPath("Human_plasma.skyd");
-                //var inputFilePath = @"D:\skydata\20150501_Bruderer\delayloadingpeaks\delay.skyd";
-                //var inputFilePath = @"D:\skydata\20140318_Hasmik_QE_DIA\Study9_2_Curve_DIA_QE_5trans_withSpLib_Jan2014\Study9_2_Curve_DIA_QE_5trans_withSpLib_Jan2014.skyd";
-                // var inputFilePath = @"D:\skydata\20150501_Bruderer\3Proteins_delayloadingpeaks\Bruder3Proteins.skyd";
-                //var outputFile = testFilesDir.GetTestPath("joined.skydb");
-
-
-                using (var chromatogramCache = ChromatogramCache.Load(
-                    inputFilePath,
-                    new ProgressStatus(),
-                    new DefaultFileLoadMonitor(new SilentProgressMonitor()), false))
+                var schema = new SkydbSchema(chromatogramCache.ScoreTypes);
+                using (schema.CreateDatabase(outputFile))
                 {
-                    var schema = new SkydbSchema(chromatogramCache.ScoreTypes);
-                    using (schema.CreateDatabase(outputFile))
+                }
+                var lockObject = new object();
+                ParallelEx.For(0, chromatogramCache.CachedFiles.Count(), iPart =>
+                {
+                    using (var legacyChromatogramCache = new LegacyChromatogramCache(chromatogramCache))
                     {
-                    }
-                    var lockObject = new object();
-                    ParallelEx.For(0, chromatogramCache.CachedFiles.Count(), iPart =>
-                    {
-                        using (var legacyChromatogramCache = new LegacyChromatogramCache(chromatogramCache))
+                        using (var skydbConnection = schema.CreateDatabase(SkydbSchema.MEMORY_DATABASE_PATH))
                         {
-                            using (var skydbConnection = schema.CreateDatabase(SkydbSchema.MEMORY_DATABASE_PATH))
+                            var msDataFiles = legacyChromatogramCache.ExtractedDataFiles.ToList();
+                            skydbConnection.AddChromatogramData(msDataFiles[iPart]);
+                            lock (lockObject)
                             {
-                                var msDataFiles = legacyChromatogramCache.ExtractedDataFiles.ToList();
-                                skydbConnection.AddChromatogramData(msDataFiles[iPart]);
-                                lock (lockObject)
-                                {
-                                    skydbConnection.CopyDataToPath(outputFile);
-                                }
+                                skydbConnection.CopyDataToPath(outputFile);
                             }
                         }
-                    });
-                }
-
-                Console.Out.WriteLine("Elapsed time {0}", DateTime.UtcNow.Subtract(start).TotalMilliseconds);
-                Console.Out.WriteLine("Input File Size: {0:N0}", new FileInfo(inputFilePath).Length);
-                Console.Out.WriteLine("Output File Size: {0:N0}", new FileInfo(outputFile).Length);
-                Console.Out.WriteLine("File size difference: {0:N0}", new FileInfo(outputFile).Length - new FileInfo(inputFilePath).Length);
-                var targetFile =
-                    Path.Combine(Path.GetDirectoryName(Path.GetDirectoryName(Path.GetDirectoryName(outputFile))),
-                        Path.GetFileName(outputFile));
-                File.Copy(outputFile, targetFile, true);
+                    }
+                });
             }
+
+            Console.Out.WriteLine("Elapsed time {0}", DateTime.UtcNow.Subtract(start).TotalMilliseconds);
+            Console.Out.WriteLine("Input File Size: {0:N0}", new FileInfo(inputFilePath).Length);
+            Console.Out.WriteLine("Output File Size: {0:N0}", new FileInfo(outputFile).Length);
+            Console.Out.WriteLine("File size difference: {0:N0}", new FileInfo(outputFile).Length - new FileInfo(inputFilePath).Length);
+            // var targetFile =
+            //     Path.Combine(Path.GetDirectoryName(Path.GetDirectoryName(Path.GetDirectoryName(outputFile))),
+            //         Path.GetFileName(outputFile));
+            // File.Copy(outputFile, targetFile, true);
         }
 
         [TestMethod]

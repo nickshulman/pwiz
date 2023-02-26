@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using pwiz.Common.Collections;
+using pwiz.Skyline.Model.Databinding;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.DocSettings.AbsoluteQuantification;
 using pwiz.Skyline.Model.Results;
@@ -222,27 +223,32 @@ namespace pwiz.Skyline.Model.GroupComparison
             NormalizationMethod normalizationMethod,
             int replicateIndex,
             TransitionGroupDocNode transitionGroup, TransitionDocNode transition,
-            bool treatMissingAsZero)
+            bool treatMissingAsZero,
+            out DocNodeDataWarning dataWarning)
         {
             if (null == transition.Results)
             {
+                dataWarning = new DocNodeDataWarning(new IdentityPath())
                 return null;
             }
             if (replicateIndex >= transition.Results.Count)
             {
+                dataWarningType = DataWarningTypes.MISSING_TRANSITION;
                 return null;
             }
             var chromInfos = transition.Results[replicateIndex];
             if (chromInfos.IsEmpty)
             {
+                dataWarningType = DataWarningTypes.MISSING_TRANSITION;
                 return null;
             }
             var chromInfo = GetTransitionChromInfo(transition, replicateIndex);
             if (null == chromInfo)
             {
+                dataWarningType = DataWarningTypes.MISSING_TRANSITION;
                 return null;
             }
-            double? normalizedArea = GetArea(treatMissingAsZero, QValueCutoff, IncludeTruncatedPeaks, transitionGroup, transition, replicateIndex, chromInfo);
+            double? normalizedArea = GetArea(treatMissingAsZero, QValueCutoff, IncludeTruncatedPeaks, transitionGroup, transition, replicateIndex, chromInfo, out dataWarningType);
             if (!normalizedArea.HasValue)
             {
                 return null;
@@ -256,6 +262,7 @@ namespace pwiz.Skyline.Model.GroupComparison
                 {
                     if (peptideStandards.Count == 0)
                     {
+                        dataWarningType = DataWarningTypes.MISSING_TRANSITION;
                         return null;
                     }
 
@@ -266,6 +273,7 @@ namespace pwiz.Skyline.Model.GroupComparison
                     TransitionChromInfo chromInfoStandard;
                     if (!peptideStandards.TryGetValue(GetRatioTransitionKey(transitionGroup, transition), out chromInfoStandard))
                     {
+                        dataWarningType = DataWarningTypes.MISSING_TRANSITION;
                         return null;
                     }
                     else
@@ -278,6 +286,7 @@ namespace pwiz.Skyline.Model.GroupComparison
             {
                 if (chromInfo.IsTruncated.GetValueOrDefault())
                 {
+                    dataWarningType = DataWarningTypes.TRUNCATED_TRANSITION;
                     return null;
                 }
                 if (Equals(normalizationMethod, NormalizationMethod.GLOBAL_STANDARDS))
@@ -425,19 +434,22 @@ namespace pwiz.Skyline.Model.GroupComparison
         }
 
         public static double? GetArea(bool treatMissingAsZero, double? qValueCutoff, bool allowTruncated, TransitionGroupDocNode transitionGroup,
-            TransitionDocNode transition, int replicateIndex, TransitionChromInfo chromInfo)
+            TransitionDocNode transition, int replicateIndex, TransitionChromInfo chromInfo, out DataWarningType dataWarningType)
         {
+            dataWarningType = null;
             if (treatMissingAsZero && chromInfo.IsEmpty)
             {
                 return 0;
             }
             if (chromInfo.IsEmpty)
             {
+                dataWarningType = DataWarningTypes.MISSING_TRANSITION;
                 return null;
             }
 
             if (!allowTruncated && chromInfo.IsTruncated.GetValueOrDefault())
             {
+                dataWarningType = DataWarningTypes.TRUNCATED_TRANSITION;
                 return null;
             }
 
@@ -447,7 +459,13 @@ namespace pwiz.Skyline.Model.GroupComparison
                     replicateIndex, chromInfo.FileId);
                 if (transitionGroupChromInfo != null && transitionGroupChromInfo.QValue > qValueCutoff.Value)
                 {
-                    return treatMissingAsZero ? 0 : default(double?);
+                    if (treatMissingAsZero)
+                    {
+                        return 0;
+                    }
+
+                    dataWarningType = DataWarningTypes.MISSING_TRANSITION;
+                    return null;
                 }
             }
             return chromInfo.Area;

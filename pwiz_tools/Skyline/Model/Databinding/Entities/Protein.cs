@@ -234,61 +234,61 @@ namespace pwiz.Skyline.Model.Databinding.Entities
             var quantifiers = Peptides.Select(peptide => peptide.GetPeptideQuantifier()).ToList();
             int replicateCount = SrmDocument.Settings.HasResults
                 ? SrmDocument.Settings.MeasuredResults.Chromatograms.Count : 0;
-            var abundances = new Dictionary<int, Tuple<double, int>>();
+            var abundances = new Dictionary<int, Tuple<double, List<IdentityPath>>>();
             var srmSettings = SrmDocument.Settings;
             bool allowMissingTransitions =
                 srmSettings.PeptideSettings.Quantification.NormalizationMethod is NormalizationMethod.RatioToLabel;
             for (int iReplicate = 0; iReplicate < replicateCount; iReplicate++)
             {
                 double totalNumerator = 0;
-                double totalDenomicator = 0;
-                int transitionCount = 0;
+                double totalDenominator = 0;
+                List<IdentityPath> transitionIdentityPaths = new List<IdentityPath>();
                 foreach (var peptideQuantifier in quantifiers)
                 {
                     foreach (var entry in peptideQuantifier.GetTransitionIntensities(SrmDocument.Settings, iReplicate,
                         false))
                     {
                         totalNumerator += entry.Value.Intensity;
-                        totalDenomicator += entry.Value.Denominator;
+                        totalDenominator += entry.Value.Denominator;
                         allTransitionIdentityPaths.Add(entry.Key);
-                        transitionCount++;
+                        transitionIdentityPaths.Add(entry.Key);
                     }
                 }
 
-                if (transitionCount != 0)
+                if (transitionIdentityPaths.Count != 0)
                 {
-                    var abundance = totalNumerator / totalDenomicator;
-                    abundances.Add(iReplicate, Tuple.Create(abundance, transitionCount));
+                    var abundance = totalNumerator / totalDenominator;
+                    abundances.Add(iReplicate, Tuple.Create(abundance, transitionIdentityPaths));
                 }
             }
 
             var proteinAbundanceRecords = new Dictionary<int, AbundanceValue>();
             foreach (var entry in abundances)
             {
-                bool incomplete;
+                IList<IdentityPath> missingPaths;
                 if (allowMissingTransitions)
                 {
-                    incomplete = false;
+                    missingPaths = ImmutableList.Empty<IdentityPath>();
                 }
                 else
                 {
-                    incomplete = entry.Value.Item2 != allTransitionIdentityPaths.Count;
+                    missingPaths = ImmutableList.ValueOf(allTransitionIdentityPaths.Except(entry.Value.Item2));
                 }
-                proteinAbundanceRecords.Add(entry.Key, new AbundanceValue(entry.Value.Item1, incomplete));
+                proteinAbundanceRecords.Add(entry.Key, new AbundanceValue(entry.Value.Item1, missingPaths));
             }
 
             return proteinAbundanceRecords;
         }
 
-        public struct AbundanceValue
+        public class AbundanceValue
         {
-            public AbundanceValue(double abundance, bool incomplete)
+            public AbundanceValue(double abundance, IEnumerable<DocNodeDataWarning> missingValues) 
             {
                 Abundance = abundance;
-                Incomplete = incomplete;
+                MissingValues = ImmutableList.ValueOfOrEmpty(missingValues);
             }
             public double Abundance { get; }
-            public bool Incomplete { get; }
+            public ImmutableList<DocNodeDataWarning> MissingValues { get; }
         }
 
         private class CachedValues 

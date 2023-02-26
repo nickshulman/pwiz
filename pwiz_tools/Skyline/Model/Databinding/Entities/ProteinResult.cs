@@ -18,7 +18,10 @@
  */
 
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
+using System.Linq;
+using NHibernate.Util;
 using pwiz.Common.DataBinding;
 using pwiz.Common.DataBinding.Attributes;
 using pwiz.Skyline.Model.Hibernate;
@@ -28,7 +31,7 @@ namespace pwiz.Skyline.Model.Databinding.Entities
 {
     [ProteomicDisplayName(nameof(ProteinResult))]
     [InvariantDisplayName("MoleculeListResult")]
-    public class ProteinResult : SkylineObject, ILinkValue
+    public class ProteinResult : SkylineObject, ILinkValue, IErrorTextProvider
     {
         public ProteinResult(Protein protein, Replicate replicate)
         {
@@ -63,16 +66,19 @@ namespace pwiz.Skyline.Model.Databinding.Entities
         {
             get
             {
-                if (!Protein.GetProteinAbundances().TryGetValue(Replicate.ReplicateIndex, out var abundanceValue))
-                {
-                    return null;
-                }
-                if (abundanceValue.Incomplete)
+                var abundanceValue = GetAbundanceValue();
+                if (abundanceValue == null || abundanceValue.MissingValues.Any())
                 {
                     return null;
                 }
                 return abundanceValue.Abundance;
             }
+        }
+
+        private Protein.AbundanceValue GetAbundanceValue()
+        {
+            Protein.GetProteinAbundances().TryGetValue(Replicate.ReplicateIndex, out var abundanceValue);
+            return abundanceValue;
         }
 
         EventHandler ILinkValue.ClickEventHandler
@@ -90,6 +96,40 @@ namespace pwiz.Skyline.Model.Databinding.Entities
 
             skylineWindow.SelectedPath = Protein.IdentityPath;
             skylineWindow.SelectedResultsIndex = Replicate.ReplicateIndex;
+        }
+
+        public string GetErrorText(string columnName)
+        {
+            if (columnName == nameof(Abundance))
+            {
+                var abundanceValue = GetAbundanceValue();
+                if (abundanceValue == null || !abundanceValue.MissingValues.Any())
+                {
+                    return null;
+                }
+
+                var errorTextLines = new List<string>{"Missing values for the following:"};
+                foreach (var missingValue in abundanceValue.MissingValues)
+                {
+                    errorTextLines.Add(GetDescription(missingValue));
+                }
+
+                return TextUtil.LineSeparate(errorTextLines);
+            }
+
+            return null;
+        }
+
+        private string GetDescription(IdentityPath identityPath)
+        {
+            if (identityPath.Length == (int)SrmDocument.Level.Transitions)
+            {
+                var transition = new Transition(DataSchema, identityPath);
+                return TextUtil.SpaceSeparate(transition.Precursor.Peptide.ToString(), transition.Precursor.ToString(),
+                    transition.ToString());
+            }
+
+            return identityPath.ToString();
         }
     }
 }

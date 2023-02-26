@@ -312,7 +312,8 @@ namespace pwiz.Common.DataBinding.Controls
                     return;
                 }
 
-                var parentValue = parentColumn.GetPropertyValue((RowItem)bindingSource[e.RowIndex], null) as IErrorTextProvider;
+                var parentValue = parentColumn.GetPropertyValue((RowItem)bindingSource[e.RowIndex], propertyDescriptor.PivotKey) 
+                    as IErrorTextProvider;
                 if (parentValue != null)
                 {
                     e.ErrorText = parentValue.GetErrorText(propertyDescriptor.DisplayColumn.PropertyPath.Name);

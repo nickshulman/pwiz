@@ -212,9 +212,9 @@ namespace pwiz.Skyline.Controls.Graphs
             else
                 return t.Color;
         }
-        public void ShowSpectrum(IScanProvider scanProvider, int transitionIndex, int scanIndex)
+        public void ShowSpectrum(IScanProvider scanProvider, int transitionIndex, int scanIndex, int? optStep)
         {
-            _msDataFileScanHelper.UpdateScanProvider(scanProvider, transitionIndex, scanIndex);
+            _msDataFileScanHelper.UpdateScanProvider(scanProvider, transitionIndex, scanIndex, optStep);
             if (scanProvider != null)
             {
 
@@ -420,9 +420,6 @@ namespace pwiz.Skyline.Controls.Graphs
             }
 
             double retentionTime = _msDataFileScanHelper.MsDataSpectra[0].RetentionTime ?? _msDataFileScanHelper.ScanProvider.Times[_msDataFileScanHelper.ScanIndex];
-            var result = _documentContainer.DocumentUI.Settings.MeasuredResults.Chromatograms.FirstOrDefault(
-                chr => chr.IndexOfPath(_msDataFileScanHelper.ScanProvider.DataFilePath) >= 0);
-
             GraphPane.Title.Text = string.Format(Resources.GraphFullScan_CreateGraph__0_____1_F2__min_, _msDataFileScanHelper.FileName, retentionTime);
 
             if (Settings.Default.ShowFullScanNumber && _msDataFileScanHelper.MsDataSpectra.Any())
@@ -631,7 +628,7 @@ namespace pwiz.Skyline.Controls.Graphs
                     types = ImmutableList.ValueOf(types), charges = ImmutableList.ValueOf(charges),
                     rankTypes = ImmutableList.ValueOf(rankTypes), rankAdducts = ImmutableList.ValueOf(rankAdducts)};
 
-                if (_rmis == null || rankContext == null || !rankContext.Equals(newRankingContext))
+                if (_rmis == null || rankContext == null || !rankContext.Equals(newRankingContext) || !_rmis.Tolerance.Equals(settings.TransitionSettings.Libraries.IonMatchMzTolerance))
                 {
                     rankContext = newRankingContext;
                     _rmis = LibraryRankedSpectrumInfo.NewLibraryRankedSpectrumInfo(spectrumInfo,
@@ -936,19 +933,24 @@ namespace pwiz.Skyline.Controls.Graphs
         public void FireSelectedScanChanged(double retentionTime)
         {
             IsLoaded = true;
-            if (SelectedScanChanged != null)
-            {
-                if (_msDataFileScanHelper.MsDataSpectra != null)
-                    SelectedScanChanged(this, new SelectedScanEventArgs(_msDataFileScanHelper.ScanProvider.DataFilePath, retentionTime, _msDataFileScanHelper.ScanProvider.Transitions[_msDataFileScanHelper.TransitionIndex].Id));
-                else
-                    SelectedScanChanged(this, new SelectedScanEventArgs(null, 0, null));
-            }
+            SelectedScanChanged?.Invoke(this,
+                _msDataFileScanHelper.MsDataSpectra != null
+                    ? new SelectedScanEventArgs(_msDataFileScanHelper.ScanProvider.DataFilePath, retentionTime,
+                        _msDataFileScanHelper.ScanProvider.Transitions[_msDataFileScanHelper.TransitionIndex].Id,
+                        _msDataFileScanHelper.OptStep)
+                    : new SelectedScanEventArgs(null, 0, null, null));
         }
 
         public bool IsLoaded { get; private set; }
 
         public void OnDocumentUIChanged(object sender, DocumentChangedEventArgs e)
         {
+            if (ReferenceEquals(DocumentUI.Id, e.DocumentPrevious.Id) &&
+                !ReferenceEquals(e.DocumentPrevious?.Settings.TransitionSettings.Libraries, DocumentUI.Settings.TransitionSettings.Libraries))
+            {
+                LoadScan(true, true);
+                return;
+            }
             // If document changed, reload scan.
             // Also reload if ion mobility is in use (as implied by visibility of related controls), as changes to
             // the IM library don't cause a document ID change (similar to spectral libraries, its contents exist outside of Skyline)
@@ -1006,6 +1008,14 @@ namespace pwiz.Skyline.Controls.Graphs
 
             graphControl.Refresh();
         }
+
+        public void SetIntensityScale(double maxIntensity)
+        {
+            GraphPane.YAxis.Scale.MaxAuto = false;
+            GraphPane.YAxis.Scale.Max = maxIntensity;
+            GraphPane.AxisChange();
+        }
+
         public MzRange Range
         {
             get { return new MzRange(GraphPane.XAxis.Scale.Min, GraphPane.XAxis.Scale.Max); }
@@ -1154,7 +1164,7 @@ namespace pwiz.Skyline.Controls.Graphs
             if (_msDataFileScanHelper.ScanIndex + delta < 0 || _msDataFileScanHelper.ScanIndex + delta >= _msDataFileScanHelper.ScanProvider.Times.Count)
                 return;
 
-            var sourceScanIds = _msDataFileScanHelper.GetScanIndexes(_msDataFileScanHelper.Source);
+            var sourceScanIds = _msDataFileScanHelper.TimeIntensities.ScanIds;
             int scanId = sourceScanIds[_msDataFileScanHelper.ScanIndex];
             while ((delta < 0 && _msDataFileScanHelper.ScanIndex > 0) || (delta > 0 && _msDataFileScanHelper.ScanIndex < sourceScanIds.Count-1))
             {
@@ -1539,15 +1549,17 @@ namespace pwiz.Skyline.Controls.Graphs
 
     public sealed class SelectedScanEventArgs : EventArgs
     {
-        public SelectedScanEventArgs(MsDataFileUri dataFile, double retentionTime, Identity transitionId)
+        public SelectedScanEventArgs(MsDataFileUri dataFile, double retentionTime, Identity transitionId, int? optStep)
         {
             DataFile = dataFile;
             RetentionTime = retentionTime;
             TransitionId = transitionId;
+            OptStep = optStep;
         }
 
         public MsDataFileUri DataFile { get; private set; }
         public double RetentionTime { get; private set; }
         public Identity TransitionId { get; private set; }
+        public int? OptStep { get; }
     }
 }

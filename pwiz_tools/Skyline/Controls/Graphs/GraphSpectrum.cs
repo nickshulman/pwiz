@@ -1045,11 +1045,10 @@ namespace pwiz.Skyline.Controls.Graphs
                 ChromatogramInfo chromatogramInfo;
                 MakeChromatogramInfo(selection.NodeTranGroup.PrecursorMz, chromatogramData, chromData,
                     out chromatogramInfo, out tranPeakInfo);
-                var graphItem = new ChromGraphItem(selection.NodeTranGroup, matchingTransition,
-                    chromatogramInfo,
+                var graphItem = new ChromGraphItem(selection.NodeTranGroup, matchingTransition, chromatogramInfo,
                     iChromData == iChromDataPrimary ? tranPeakInfo : null, null,
-                    new[] { iChromData == iChromDataPrimary }, null, 0, false, false, null, 0,
-                    color, Settings.Default.ChromatogramFontSize, 1);
+                    new[] { iChromData == iChromDataPrimary }, null, 0, false, false, null, null, color,
+                    Settings.Default.ChromatogramFontSize, 1);
                 LineItem curve =
                     (LineItem)_graphHelper.AddChromatogram(PaneKey.DEFAULT, graphItem);
                 if (matchingTransition == null)
@@ -1315,7 +1314,7 @@ namespace pwiz.Skyline.Controls.Graphs
 
                             if (spectrum != null)
                                 dotp = PrositHelpers.CalculateSpectrumDotpMzMatch(GraphItem.SpectrumInfo, mirrorGraphItem.SpectrumInfo,
-                                    settings.TransitionSettings.Libraries.IonMatchTolerance);
+                                    settings.TransitionSettings.Libraries.IonMatchMzTolerance);
                         }
 
                         if (mirrorSpectrum != null && mirrorGraphItem != null) // one implies the other, but resharper..
@@ -1463,7 +1462,7 @@ namespace pwiz.Skyline.Controls.Graphs
             get {return new MzRange(GraphPane.XAxis.Scale.Min, GraphPane.XAxis.Scale.Max);}
         }
 
-        public LibraryRankedSpectrumInfo SpectrumInfo => GraphItem.SpectrumInfo;
+        public LibraryRankedSpectrumInfo SpectrumInfo => GraphItem?.SpectrumInfo;
 
         public Scale IntensityScale
         {
@@ -1614,7 +1613,7 @@ namespace pwiz.Skyline.Controls.Graphs
                 crawPeakFinder.GetPeak(
                     FindNearestIndex(chromGroup.Times, (float) chromGroup.StartTime),
                     FindNearestIndex(chromGroup.Times, (float) chromGroup.EndTime));
-            var chromPeak = new ChromPeak(crawPeakFinder, crawdadPeak, 0, timeIntensities, null);
+            var chromPeak = new ChromPeak(crawPeakFinder, crawdadPeak, 0, timeIntensities, null, null);
             var ionMobilityFilter = IonMobilityFilter.GetIonMobilityFilter(chromData.IonMobility,null, chromGroup.CCS);
             transitionChromInfo = new TransitionChromInfo(null, 0, chromPeak,
                 ionMobilityFilter,

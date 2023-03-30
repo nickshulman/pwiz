@@ -678,7 +678,10 @@ namespace pwiz.Skyline.Model.Results
                 // Explicitly set retention time overrides any predictor
                 peptideChromDataSets.PredictedRetentionTime =
                     new RetentionTimePrediction(nodePep.ExplicitRetentionTime.RetentionTime, nodePep.ExplicitRetentionTime.RetentionTimeWindow ?? 0);
-                peptideChromDataSets.RetentionTimes = new[] { nodePep.ExplicitRetentionTime.RetentionTime }; // Feed this information to the peak picker
+                if (!nodePep.ExplicitRetentionTime.RetentionTimeWindow.HasValue)
+                {
+                    peptideChromDataSets.RetentionTimes = new[] { nodePep.ExplicitRetentionTime.RetentionTime }; // Feed this information to the peak picker
+                }
                 return;
             }
             // N.B. No retention time prediction for small molecules (yet?), but may be able to pull from libraries

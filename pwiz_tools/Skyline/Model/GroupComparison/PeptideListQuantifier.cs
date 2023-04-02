@@ -3,6 +3,7 @@ using System.Linq;
 using pwiz.Common.Collections;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.DocSettings.AbsoluteQuantification;
+using pwiz.Skyline.Util.Extensions;
 using static pwiz.Skyline.Model.GroupComparison.PeptideQuantifier;
 
 namespace pwiz.Skyline.Model.GroupComparison
@@ -58,5 +59,64 @@ namespace pwiz.Skyline.Model.GroupComparison
         }
 
         public double? InternalStandardConcentration { get; }
+
+        public IList<IsotopeLabelType> MeasuredLabelTypes
+        {
+            get
+            {
+                return PeptideQuantifiers.SelectMany(q => q.MeasuredLabelTypes).Distinct().ToList();
+            }
+        }
+
+        public IsotopeLabelType RatioLabelType
+        {
+            get
+            {
+                if (NormalizationMethod is NormalizationMethod.RatioToLabel ratioToLabel)
+                {
+                    return new IsotopeLabelType(ratioToLabel.IsotopeLabelTypeName, 0);
+                }
+
+                return null;
+            }
+        }
+
+        public string ModifiedSequenceDisplay
+        {
+            get
+            {
+                if (PeptideQuantifiers.Count == 0)
+                {
+                    return string.Empty;
+                }
+                if (PeptideQuantifiers.Count == 1)
+                {
+                    return PeptideQuantifiers[0].PeptideDocNode.ModifiedSequenceDisplay;
+                }
+
+                var firstProtein = PeptideQuantifiers[0].PeptideGroupDocNode;
+                if (PeptideQuantifiers.Skip(1).All(q => ReferenceEquals(q.PeptideGroupDocNode.Id, firstProtein.Id)))
+                {
+                    return firstProtein.Name;
+                }
+
+                return TextUtil.SpaceSeparate(PeptideQuantifiers.Select(q => q.PeptideDocNode.ModifiedSequenceDisplay));
+            }
+        }
+
+        public double ConcentrationMultiplier
+        {
+            get
+            {
+                var multipliers = PeptideQuantifiers.Select(q => q.PeptideDocNode.ConcentrationMultiplier)
+                    .Distinct().ToList();
+                if (multipliers.Count == 1)
+                {
+                    return multipliers[0] ?? 1;
+                }
+
+                return 1;
+            }
+        }
     }
 }

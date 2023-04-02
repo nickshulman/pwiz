@@ -50,7 +50,6 @@ namespace pwiz.Skyline.Model.DocSettings.AbsoluteQuantification
         }
 
         public PeptideListQuantifier PeptideListQuantifier { get; private set; }
-
         public QuantificationSettings QuantificationSettings
         {
             get { return PeptideListQuantifier.QuantificationSettings; }
@@ -400,7 +399,7 @@ namespace pwiz.Skyline.Model.DocSettings.AbsoluteQuantification
                     continue;
                 }
 
-                var qualitativeIonRatio = PeptideListQuantifier.GetQualitativeIonRatio(SrmSettings, transitionGroupDocNode, replicateIndex);
+                var qualitativeIonRatio = PeptideListQuantifier.PeptideQuantifiers.Single().GetQualitativeIonRatio(SrmSettings, transitionGroupDocNode, replicateIndex);
                 if (qualitativeIonRatio.HasValue)
                 {
                     totalQualitativeIonRatio += qualitativeIonRatio.Value;
@@ -531,8 +530,8 @@ namespace pwiz.Skyline.Model.DocSettings.AbsoluteQuantification
             }
             if (null != calibrationPoint.LabelType)
             {
-                var transitionGroup = PeptideListQuantifier.PeptideDocNode.TransitionGroups.FirstOrDefault(tg =>
-                    Equals(tg.LabelType, calibrationPoint.LabelType) && tg.PrecursorConcentration.HasValue);
+                var transitionGroup = PeptideListQuantifier.PeptideQuantifiers.SelectMany(q=>q.PeptideDocNode.TransitionGroups)
+                    .FirstOrDefault(tg => Equals(tg.LabelType, calibrationPoint.LabelType) && tg.PrecursorConcentration.HasValue);
                 if (transitionGroup != null)
                 {
                     return transitionGroup.PrecursorConcentration / chromatogramSet.SampleDilutionFactor;
@@ -545,7 +544,7 @@ namespace pwiz.Skyline.Model.DocSettings.AbsoluteQuantification
             {
                 if (HasExternalStandards() && HasInternalStandardConcentration())
                 {
-                    return peptideConcentration / PeptideListQuantifier.PeptideDocNode.InternalStandardConcentration;
+                    return peptideConcentration / PeptideListQuantifier.InternalStandardConcentration;
                 }
                 return peptideConcentration;
             }
@@ -589,7 +588,7 @@ namespace pwiz.Skyline.Model.DocSettings.AbsoluteQuantification
         {
             if (HasExternalStandards() && HasInternalStandardConcentration())
             {
-                return xValue * PeptideListQuantifier.PeptideDocNode.InternalStandardConcentration;
+                return xValue * PeptideListQuantifier.InternalStandardConcentration;
             }
             return xValue;
         }
@@ -606,18 +605,10 @@ namespace pwiz.Skyline.Model.DocSettings.AbsoluteQuantification
             {
                 return false;
             }
-            var peptideResults = PeptideListQuantifier.PeptideDocNode.Results;
-            if (null == peptideResults)
-            {
-                return false;
-            }
-            if (replicateIndex >= peptideResults.Count)
-            {
-                return false;
-            }
-            var peptideChromInfos = peptideResults[replicateIndex];
-            return peptideChromInfos.Any(
-                peptideChromInfo => null != peptideChromInfo && peptideChromInfo.ExcludeFromCalibration);
+
+            return PeptideListQuantifier.PeptideQuantifiers.Any(q =>
+                q.PeptideDocNode.GetSafeChromInfo(replicateIndex)
+                    .Any(peptideChromInfo => peptideChromInfo.ExcludeFromCalibration));
         }
 
         public bool HasExternalStandards()
@@ -681,7 +672,7 @@ namespace pwiz.Skyline.Model.DocSettings.AbsoluteQuantification
             }
 
             var targetIonRatio = GetTargetIonRatio(transitionGroupDocNode);
-            var ionRatio = PeptideListQuantifier.GetQualitativeIonRatio(SrmSettings, transitionGroupDocNode, replicateIndex);
+            var ionRatio = PeptideListQuantifier.PeptideQuantifiers.Single().GetQualitativeIonRatio(SrmSettings, transitionGroupDocNode, replicateIndex);
             if (targetIonRatio.HasValue || ionRatio.HasValue)
             {
                 result = result ?? new PrecursorQuantificationResult();

@@ -467,7 +467,7 @@ namespace pwiz.Skyline.Controls.Graphs.Calibration
 
         private string GetFormTitle(CalibrationCurveFitter curveFitter)
         {
-            string title = TextUtil.SpaceSeparate(_originalFormTitle + ':', curveFitter.PeptideListQuantifier.PeptideDocNode.ModifiedSequenceDisplay);
+            string title = TextUtil.SpaceSeparate(_originalFormTitle + ':', curveFitter.PeptideListQuantifier.ModifiedSequenceDisplay);
             if (curveFitter.SingleBatchReplicateIndex.HasValue)
             {
                 var chromatogramSet = _skylineWindow.Document.Settings.MeasuredResults.Chromatograms[

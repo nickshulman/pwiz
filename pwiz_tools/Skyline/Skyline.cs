@@ -2868,7 +2868,7 @@ namespace pwiz.Skyline
                     if (_tool.OutputToImmediateWindow)
                     {
                         _parent.ShowImmediateWindow();
-                        _tool.RunTool(_parent.Document, _parent, _skylineTextBoxStreamWriterHelper, _parent, _parent);
+                        _tool.RunTool(_parent.Document, _parent, _parent._skylineTextBoxStreamWriterHelper, _parent, _parent);
                     }
                     else
                     {
@@ -2911,7 +2911,7 @@ namespace pwiz.Skyline
             }
         }
 
-        public static TextBoxStreamWriterHelper _skylineTextBoxStreamWriterHelper;
+        private TextBoxStreamWriterHelper _skylineTextBoxStreamWriterHelper;
 
         private ImmediateWindow CreateImmediateWindow()
         {
@@ -4444,7 +4444,7 @@ namespace pwiz.Skyline
 
         public bool HasProteomicMenuItems
         {
-            get { return GetModeUIHelper().MenuItemHasOriginalText(peptideSettingsMenuItem.Text); }
+            get { return GetModeUIHelper().MenuItemHasOriginalText(peptideSettingsMenuItem); }
         }
         #endregion
         /// <summary>

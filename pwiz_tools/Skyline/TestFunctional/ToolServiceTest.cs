@@ -39,7 +39,7 @@ namespace pwiz.SkylineTestFunctional
         private const string FILE_NAME = "TestToolAPI.sky";
         private TestToolClient _testToolClient;
 
-        [TestMethod, NoParallelTesting]
+        [TestMethod, NoParallelTesting(TestExclusionReason.SHARED_DIRECTORY_WRITE)]
         public void TestToolService()
         {
             Run(@"TestFunctional\ToolServiceTest.zip"); 
@@ -151,7 +151,7 @@ namespace pwiz.SkylineTestFunctional
                 _testToolClient.InsertSmallMoleculeTransitionList(GetSmallMoleculeTransitionsText());
 
                 // Exit the test tool.
-                _testToolClient.Exit();
+                Assert.IsTrue(_testToolClient.Exit());
 
                 // Make sure we got all the library info we expect.
                 Assert.IsTrue(docPreLibrary.Peptides.All(nodePep => !nodePep.HasLibInfo));

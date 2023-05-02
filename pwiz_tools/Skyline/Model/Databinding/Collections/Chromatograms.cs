@@ -1,42 +1,35 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
+﻿using System.Collections;
 using pwiz.Skyline.Model.Databinding.Entities;
-using pwiz.Skyline.Model.Results;
 
 namespace pwiz.Skyline.Model.Databinding.Collections
 {
-    public class Chromatograms : SkylineObjectList<Tuple<string, ChromGroupHeaderInfo>, ChromatogramGroup>
+    public class Chromatograms : SkylineObjectList<ChromatogramGroup>
     {
         public Chromatograms(SkylineDataSchema dataSchema) : base(dataSchema)
         {
         }
 
-        protected override ChromatogramGroup ConstructItem(Tuple<string, ChromGroupHeaderInfo> key)
+        public override IEnumerable GetItems()
         {
             var measuredResults = SrmDocument.Settings.MeasuredResults;
             if (measuredResults == null)
             {
-                return null;
+                yield break;
             }
-            var cache = measuredResults.GetChromatogramCache(key.Item1);
-            if (cache == null)
-            {
-                return null;
-            }
-            return new ChromatogramGroup(DataSchema, cache, cache.LoadChromatogramInfo(key.Item2));
-        }
 
-        protected override IEnumerable<Tuple<string, ChromGroupHeaderInfo>> ListKeys()
-        {
-            var measuredResults = SrmDocument.Settings.MeasuredResults;
-            if (measuredResults == null)
+            foreach (var cachePath in measuredResults.CachePaths)
             {
-                return new Tuple<string, ChromGroupHeaderInfo>[0];
+                var cache = measuredResults.GetChromatogramCache(cachePath);
+                if (cache == null)
+                {
+                    continue;
+                }
+
+                foreach (var headerInfo in cache.ChromGroupHeaderInfos)
+                {
+                    yield return new ChromatogramGroup(DataSchema, cache, cache.LoadChromatogramInfo(headerInfo));
+                }
             }
-            return measuredResults.CachePaths.Select(path =>
-                measuredResults.GetChromatogramCache(path)).SelectMany(cache =>
-                cache.ChromGroupHeaderInfos.Select(header => Tuple.Create(cache.CachePath, header)));
         }
     }
 }

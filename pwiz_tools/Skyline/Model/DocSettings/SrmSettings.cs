@@ -381,6 +381,10 @@ namespace pwiz.Skyline.Model.DocSettings
 
         }
 
+        /// <summary>
+        /// Returns the mass of the transition not including neutral losses.
+        /// Call <see cref="Transition.CalcMass"/> afterwards to apply losses.
+        /// </summary>
         public TypedMass RecalculateTransitionMass(ExplicitMods explicitMods, TransitionDocNode transition,
             IsotopeDistInfo isotopeDist)
         {
@@ -390,7 +394,7 @@ namespace pwiz.Skyline.Model.DocSettings
                     isotopeDist);
             }
 
-            return transition.ComplexFragmentIon.GetFragmentMass(this, explicitMods);
+            return transition.ComplexFragmentIon.GetFragmentMass(this, explicitMods) + transition.LostMass;
         }
 
         public ChromSource GetChromSource(TransitionDocNode nodeTran)

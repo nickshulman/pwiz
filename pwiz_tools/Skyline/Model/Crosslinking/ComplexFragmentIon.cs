@@ -104,31 +104,17 @@ namespace pwiz.Skyline.Model.Crosslinking
             return ChangeProp(ImClone(this), im => im.PrimaryTransition = transition);
         }
 
-        public CrosslinkBuilder GetCrosslinkBuilder(SrmSettings settings)
-        {
-            return GetCrosslinkBuilder(settings, null);
-        }
-
         private CrosslinkBuilder GetCrosslinkBuilder(SrmSettings settings, ExplicitMods explicitMods)
         {
             return new CrosslinkBuilder(settings, explicitMods?.GetPeptideStructure() ?? PeptideStructure, PrimaryTransition.Group.LabelType);
         }
         public TypedMass GetFragmentMass(SrmSettings settings, ExplicitMods explicitMods)
         {
-            return GetCrosslinkBuilder(settings).GetFragmentMass(NeutralFragmentIon);
+            return GetCrosslinkBuilder(settings, explicitMods).GetFragmentMass(NeutralFragmentIon);
         }
         public TransitionDocNode MakeTransitionDocNode(SrmSettings settings, ExplicitMods explicitMods, IsotopeDistInfo isotopeDist)
         {
             return MakeTransitionDocNode(settings, explicitMods, isotopeDist, Annotations.EMPTY, TransitionDocNode.TransitionQuantInfo.DEFAULT, ExplicitTransitionValues.EMPTY, null);
-        }
-
-        private void VerifySameExplicitMods(ExplicitMods explicitMods)
-        {
-            if (explicitMods == null)
-            {
-                return;
-            }
-            Assume.AreEqual(PeptideStructure.Crosslinks, explicitMods.CrosslinkStructure);
         }
 
         public TransitionDocNode MakeTransitionDocNode(SrmSettings settings, ExplicitMods explicitMods,

@@ -84,7 +84,7 @@ namespace pwiz.Skyline.Model.Lib
                 if (missingFiles.Any())
                 {
                     return TextUtil.LineSeparate(@"MIDAS library is missing files:",
-                        TextUtil.LineSeparate(missingFiles));
+                        TextUtil.LineSeparate(missingFiles.Select(f=>f.ToString())));
                 }
             }
             return !libraries.HasLibraries ? null : libraries.IsNotLoadedExplained;
@@ -107,10 +107,10 @@ namespace pwiz.Skyline.Model.Lib
             if (tag == null)
                 return false;
             PeptideLibraries libraries = container.Document.Settings.PeptideSettings.Libraries;
-            var missingMidasFiles = tag as string[];
+            var missingMidasFiles = tag as MsDataFileUri[];
             if (missingMidasFiles != null)
             {
-                return !missingMidasFiles.SequenceEqual(MidasLibrary.GetMissingFiles(container.Document, new Library[0]));
+                return !missingMidasFiles.SequenceEqual(MidasLibrary.GetMissingFiles(container.Document, Array.Empty<Library>()));
             }
             return !libraries.LibrarySpecs.Contains((LibrarySpec)tag);
         }
@@ -140,7 +140,7 @@ namespace pwiz.Skyline.Model.Lib
                 var midasLibSpec = libraries.MidasLibrarySpecs.FirstOrDefault(libSpec => Equals(libSpec.FilePath, midasLibPath));
                 var newMidasLibSpec = missingMidasFiles.Any() && midasLibSpec == null;
                 MidasLibrary midasLibrary = null;
-                var failedMidasFiles = new List<MsDataFilePath>();
+                var failedMidasFiles = new List<MsDataFileUri>();
                 if (missingMidasFiles.Any())
                 {
                     if (midasLibSpec == null)
@@ -148,7 +148,7 @@ namespace pwiz.Skyline.Model.Lib
                         // Need to add MIDAS LibSpec to document
                         midasLibSpec = (MidasLibSpec)LibrarySpec.CreateFromPath(MidasLibSpec.GetName(container.DocumentFilePath, libraries.LibrarySpecs), midasLibPath);
                     }
-                    MidasLibrary.AddSpectra(midasLibSpec, missingMidasFiles.Select(f => new MsDataFilePath(f)).ToArray(), docCurrent, new LoadMonitor(this, container, null), out failedMidasFiles);
+                    MidasLibrary.AddSpectra(midasLibSpec, missingMidasFiles, docCurrent, new LoadMonitor(this, container, null), out failedMidasFiles);
                     if (failedMidasFiles.Count < missingMidasFiles.Length)
                     {
                         if (!newMidasLibSpec)

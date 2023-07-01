@@ -121,7 +121,7 @@ namespace pwiz.Skyline.FileUI
                 get { return new MessageInfo(MessageType.managed_results, SrmDocument.DOCUMENT_TYPE.none); }
             }
 
-            public ManageResultsSettings(List<RenamedReplicate> renamedReplicates, List<string> removedReplicates, List<string> removedLibraryRuns,
+            public ManageResultsSettings(List<RenamedReplicate> renamedReplicates, List<FileNameAndSample> removedReplicates, List<string> removedLibraryRuns,
                 bool removedAllReplicates, bool removedAllLibraryRuns, bool removeCorrespondingReplicates, bool removeCorrespondingLibraryRuns)
             {
                 RenamedReplicates = renamedReplicates;
@@ -205,7 +205,7 @@ namespace pwiz.Skyline.FileUI
         public IDocumentUIContainer DocumentUIContainer { get; private set; }
         public List<LibrarySpec> DocumentLibrarySpecs { get; private set; }
         public List<Library> DocumentLibraries { get; private set; }
-        public List<string> LibraryRunsRemovedList { get; private set; }
+        public List<FileNameAndSample> LibraryRunsRemovedList { get; private set; }
         public IEnumerable<ChromatogramSet> ChromatogramsRemovedList { get; private set; } 
 
         public IEnumerable<ChromatogramSet> Chromatograms

@@ -147,21 +147,24 @@ namespace pwiz.Skyline.Model.Lib.Midas
             return Revision.CompareTo(((MidasLibrary) library).Revision);
         }
 
-        public static string[] GetMissingFiles(SrmDocument document, IEnumerable<Library> libraries)
+        public static MsDataFileUri[] GetMissingFiles(SrmDocument document, IEnumerable<Library> libraries)
         {
             var results = document.Settings.MeasuredResults;
             if (results == null)
-                return new string[0];
-            var midasFiles = results.MSDataFileInfos.Where(file => file.HasMidasSpectra).Select(file => file.FilePath.GetFilePath()).Distinct();
-            var libFiles = document.Settings.PeptideSettings.Libraries.MidasLibraries.SelectMany(lib => lib.ResultsFiles).Select(Path.GetFileName);
-            foreach (var lib in libraries.Where(lib => lib != null))
-                libFiles = libFiles.Concat(lib.LibraryFiles.FilePaths);
-            return midasFiles.Where(f => !libFiles.Contains(Path.GetFileName(f))).ToArray();
+                return Array.Empty<MsDataFileUri>();
+            var midasFiles = results.MSDataFileInfos.Where(file => file.HasMidasSpectra).Distinct();
+            var libFiles = document.Settings.PeptideSettings.Libraries.MidasLibraries.SelectMany(lib => lib.FileNameAndSamples).ToHashSet();
+            foreach (var library in libraries.OfType<MidasLibrary>())
+            {
+                libFiles.UnionWith(library.FileNameAndSamples);
+            }
+            return midasFiles.Select(f => f.FilePath)
+                .Where(f => !libFiles.Contains(FileNameAndSample.FromMsDataFileUri(f))).ToArray();
         }
 
-        public static IEnumerable<ChromatogramSet> UnflagFiles(IEnumerable<ChromatogramSet> chromatograms, IEnumerable<string> filenames)
+        public static IEnumerable<ChromatogramSet> UnflagFiles(IEnumerable<ChromatogramSet> chromatograms, IEnumerable<FileNameAndSample> filenames)
         {
-            var arrFiles = new HashSet<string>(filenames);
+            var arrFiles = new HashSet<FileNameAndSample>(filenames);
             if (!arrFiles.Any())
             {
                 foreach (var chromSet in chromatograms)
@@ -174,7 +177,7 @@ namespace pwiz.Skyline.Model.Lib.Midas
                 var infos = new List<ChromFileInfo>();
                 foreach (var info in chromSet.MSDataFileInfos)
                 {
-                    var infoToAdd = info.HasMidasSpectra && arrFiles.Contains(info.FilePath.GetFileName())
+                    var infoToAdd = info.HasMidasSpectra && arrFiles.Contains(FileNameAndSample.FromMsDataFileUri(info.FilePath))
                         ? info.ChangeHasMidasSpectra(false)
                         : info;
                     infos.Add(infoToAdd);
@@ -540,14 +543,22 @@ namespace pwiz.Skyline.Model.Lib.Midas
             }
         }
 
-        public IEnumerable<string> ResultsFiles
+        public IEnumerable<MsDataFileUri> ResultsFiles
         {
             get
             {
                 if (_spectra == null)
                     yield break;
                 foreach (var key in _spectra.Keys)
-                    yield return key.FilePath;
+                    yield return key.MsDataFileUri;
+            }
+        }
+
+        public IEnumerable<FileNameAndSample> FileNameAndSamples
+        {
+            get
+            {
+                return ResultsFiles.Select(FileNameAndSample.FromMsDataFileUri);
             }
         }
 
@@ -628,13 +639,13 @@ namespace pwiz.Skyline.Model.Lib.Midas
             }
         }
 
-        public static void AddSpectra(MidasLibSpec libSpec, MsDataFilePath[] resultsFiles, SrmDocument doc, ILoadMonitor monitor, out List<MsDataFilePath> failedFiles)
+        public static void AddSpectra(MidasLibSpec libSpec, MsDataFileUri[] resultsFiles, SrmDocument doc, ILoadMonitor monitor, out List<MsDataFileUri> failedFiles)
         {
             // Get spectra from results files
             var newSpectra = new List<DbSpectrum>();
             var progress = new ProgressStatus(string.Empty).ChangeMessage(Resources.MidasLibrary_AddSpectra_Reading_MIDAS_spectra);
             const int percentResultsFiles = 80;
-            failedFiles = new List<MsDataFilePath>();
+            failedFiles = new List<MsDataFileUri>();
             for (var i = 0; i < resultsFiles.Length; i++)
             {
                 var resultsFile = resultsFiles[i];

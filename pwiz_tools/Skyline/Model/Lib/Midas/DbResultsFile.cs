@@ -20,6 +20,8 @@
 using System;
 using System.IO;
 using pwiz.Skyline.Model.Hibernate;
+using pwiz.Skyline.Model.Results;
+
 // ReSharper disable VirtualMemberCallInConstructor
 
 namespace pwiz.Skyline.Model.Lib.Midas
@@ -34,8 +36,19 @@ namespace pwiz.Skyline.Model.Lib.Midas
         // public virtual long? ID { get; set; } // in DbEntity
         public virtual string FilePath { get; set; }
 
+        public virtual MsDataFileUri MsDataFileUri
+        {
+            get
+            {
+                return MsDataFileUri.Parse(FilePath);
+            }
+            set
+            {
+                FilePath = value?.ToString();
+            }
+        }
+
         public virtual string FileName { get { return Path.GetFileName(FilePath); } }
-        public virtual string BaseName { get { return Path.GetFileNameWithoutExtension(FilePath); } }
 
         /// <summary>
         /// For NHibernate only

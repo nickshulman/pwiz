@@ -1663,6 +1663,11 @@ namespace pwiz.Skyline
                 });
         }
 
+        private void editSpectrumFilterContextMenuItem_Click(object sender, EventArgs args)
+        {
+            EditMenu.EditSpectrumFilter();
+        }
+
         public void ShowUniquePeptidesDlg()
         {
             EditMenu.ShowUniquePeptidesDlg();
@@ -1768,7 +1773,8 @@ namespace pwiz.Skyline
             var nodeTranGroupTree = SequenceTree.SelectedNode as TransitionGroupTreeNode;
             addTransitionMoleculeContextMenuItem.Visible = enabled && nodeTranGroupTree != null &&
                 nodeTranGroupTree.PepNode.Peptide.IsCustomMolecule;
-
+            editSpectrumFilterContextMenuItem.Visible = SequenceTree.SelectedPaths
+                .SelectMany(path => DocumentUI.EnumeratePathsAtLevel(path, SrmDocument.Level.TransitionGroups)).Any();
             var selectedQuantitativeValues = SelectedQuantitativeValues();
             if (selectedQuantitativeValues.Length == 0)
             {

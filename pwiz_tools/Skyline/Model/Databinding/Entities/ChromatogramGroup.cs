@@ -37,18 +37,7 @@ namespace pwiz.Skyline.Model.Databinding.Entities
         {
             get
             {
-                var header = _chromatogramGroupInfo.Header;
-                if (header.TextIdLen == 0)
-                {
-                    return null;
-                }
-
-                var bytes = _chromatogramCache.GetTextIdBytes(header.TextIdIndex, header.TextIdLen);
-                if (bytes == null)
-                {
-                    return null;
-                }
-                return Encoding.UTF8.GetString(bytes);
+                return _chromatogramCache.GetChromatogramGroupId(_chromatogramGroupInfo.Header)?.ToString();
             }
         }
 

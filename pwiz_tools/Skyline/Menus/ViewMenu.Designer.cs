@@ -129,6 +129,7 @@
             this.defineNewListMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.auditLogMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.candidatePeaksToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.spectrumGridMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.toolStripSeparator36 = new System.Windows.Forms.ToolStripSeparator();
             this.toolBarToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.statusToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
@@ -802,9 +803,11 @@
             this.listsMenuItem,
             this.auditLogMenuItem,
             this.chromatogramsGridMenuItem,
-            this.candidatePeaksToolStripMenuItem});
+            this.candidatePeaksToolStripMenuItem,
+            this.spectrumGridMenuItem});
             this.otherGridsMenuItem.Name = "otherGridsMenuItem";
             resources.ApplyResources(this.otherGridsMenuItem, "otherGridsMenuItem");
+            this.otherGridsMenuItem.DropDownOpening += new System.EventHandler(this.otherGridsMenuItem_DropDownOpening);
             // 
             // resultsGridMenuItem
             // 
@@ -858,6 +861,12 @@
             this.candidatePeaksToolStripMenuItem.Name = "candidatePeaksToolStripMenuItem";
             resources.ApplyResources(this.candidatePeaksToolStripMenuItem, "candidatePeaksToolStripMenuItem");
             this.candidatePeaksToolStripMenuItem.Click += new System.EventHandler(this.candidatePeaksToolStripMenuItem_Click);
+            // 
+            // spectrumGridMenuItem
+            // 
+            this.spectrumGridMenuItem.Name = "spectrumGridMenuItem";
+            resources.ApplyResources(this.spectrumGridMenuItem, "spectrumGridMenuItem");
+            this.spectrumGridMenuItem.Click += new System.EventHandler(this.spectrumGridMenuItem_Click);
             // 
             // toolStripSeparator36
             // 
@@ -1007,5 +1016,6 @@
         private System.Windows.Forms.ToolStripMenuItem chromatogramsGridMenuItem;
         private System.Windows.Forms.ToolStripMenuItem candidatePeaksToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem viewTargetsMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem spectrumGridMenuItem;
     }
 }

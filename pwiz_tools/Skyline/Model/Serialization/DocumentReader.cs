@@ -210,7 +210,7 @@ namespace pwiz.Skyline.Model.Serialization
         public static Annotations ReadAnnotations(XmlReader reader)
         {
             string note = null;
-            int color = Annotations.EMPTY.ColorIndex;
+            int color = 0;
             var annotations = new Dictionary<string, string>();
             
             if (reader.IsStartElement(EL.note))
@@ -226,9 +226,7 @@ namespace pwiz.Skyline.Model.Serialization
                 annotations[name] = reader.ReadElementString();
             }
 
-            return note != null || annotations.Count > 0
-                ? new Annotations(note, annotations, color)
-                : Annotations.EMPTY;
+            return Annotations.FromValues(note, annotations, color);
         }
 
         /// <summary>
@@ -1009,7 +1007,6 @@ namespace pwiz.Skyline.Model.Serialization
                 : null;
             var annotations = Annotations.EMPTY;
             ExplicitMods mods = null, lookupMods = null;
-            CrosslinkStructure crosslinkStructure = null;
             Results<PeptideChromInfo> results = null;
             TransitionGroupDocNode[] children = null;
             Adduct adduct = Adduct.EMPTY;
@@ -1054,7 +1051,7 @@ namespace pwiz.Skyline.Model.Serialization
                     mods = ReadExplicitMods(reader, peptide)?.ConvertFromLegacyCrosslinkStructure();
                     SkipImplicitModsElement(reader);
                     lookupMods = ReadLookupMods(reader, lookupSequence);
-                    crosslinkStructure = ReadCrosslinkStructure(reader);
+                    var crosslinkStructure = ReadCrosslinkStructure(reader);
                     if (crosslinkStructure != null && !crosslinkStructure.IsEmpty)
                     {
                         mods = mods ?? new ExplicitMods(peptide, null, null);

@@ -1514,7 +1514,7 @@ namespace pwiz.SkylineTestUtil
             var threadTest = new Thread(WaitForSkyline) { Name = @"Functional test thread" };
             LocalizationHelper.InitThread(threadTest);
             threadTest.Start();
-            Program.Main();
+        Program.Main();
             threadTest.Join();
 
             // Were all windows disposed?
@@ -1818,7 +1818,7 @@ namespace pwiz.SkylineTestUtil
                     Assert.IsTrue(Program.MainWindow != null && Program.MainWindow.IsHandleCreated,
                         @"Timeout {0} seconds exceeded in WaitForSkyline", waitCycles * SLEEP_INTERVAL / 1000);
                 }
-                BeginAuditLogging();
+                BeginAuditLogging(); 
                 RunTest();
                 EndAuditLogging();
             }
@@ -1875,9 +1875,21 @@ namespace pwiz.SkylineTestUtil
                 RunUI(() => Clipboard.SetText(clipboardCheckText));
             }
 
-            DoTest();
+            DocumentSerializableVerifier documentSerializableVerifier = null;
+            if (ContinuouslyVerifyDocumentSerialization)
+            {
+                documentSerializableVerifier = new DocumentSerializableVerifier();
+            }
+            using (documentSerializableVerifier)
+            {
+                DoTest();
+            }
             if (null != SkylineWindow)
             {
+                if (VerifyDocumentSerializabilityAtEndOfTest)
+                {
+                    AssertEx.Serializable(SkylineWindow.Document);
+                }
                 AssertEx.ValidatesAgainstSchema(SkylineWindow.Document);
             }
 
@@ -2327,6 +2339,16 @@ namespace pwiz.SkylineTestUtil
             string slope = match.Groups["slope"].Value, intercept = match.Groups["intercept"].Value, sign = match.Groups["sign"].Value;
             if (sign == "+") sign = string.Empty;
             return $"IrtSlope = {slope},\r\nIrtIntercept = {sign}{intercept},\r\n";
+        }
+
+        protected virtual bool ContinuouslyVerifyDocumentSerialization
+        {
+            get { return false; }
+        }
+
+        protected virtual bool VerifyDocumentSerializabilityAtEndOfTest
+        {
+            get { return true; }
         }
 
         #region Modification helpers

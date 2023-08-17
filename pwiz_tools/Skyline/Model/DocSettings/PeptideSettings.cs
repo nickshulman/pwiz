@@ -183,6 +183,13 @@ namespace pwiz.Skyline.Model.DocSettings
 
         #endregion
 
+        public PeptideSettings Unload()
+        {
+            return ChangeLibraries(Libraries.Unload())
+                .ChangeBackgroundProteome(BackgroundProteome?.Unload())
+                .ChangePrediction(Prediction.Unload());
+        }
+
         public bool NeedsBackgroundProteomeUniquenessCheckProcessing
         {
             get
@@ -487,6 +494,11 @@ namespace pwiz.Skyline.Model.DocSettings
                 }
             }
             return predictedRT;
+        }
+
+        public PeptidePrediction Unload()
+        {
+            return ChangeRetentionTime(RetentionTime?.Unload());
         }
 
         public struct WindowRT
@@ -2685,6 +2697,48 @@ namespace pwiz.Skyline.Model.DocSettings
         }
 
         #endregion
+
+        public PeptideLibraries Unload()
+        {
+            var unloadedLibrarySpecs = new List<LibrarySpec>();
+            var unloadedLibraries = new List<Library>();
+            for (int i = 0; i < Libraries.Count; i++)
+            {
+                if (true == LibrarySpecs[i]?.IsDocumentLibrary)
+                {
+                    continue;
+                }
+
+                var library = Libraries[i];
+                if (library != null)
+                {
+                    unloadedLibrarySpecs.Add(null);
+                    unloadedLibraries.Add(library.Unload());
+                }
+                else
+                {
+                    unloadedLibrarySpecs.Add(LibrarySpecs[i]);
+                    unloadedLibraries.Add(null);
+                }
+            }
+
+            return ChangeProp(ImClone(this), im =>
+            {
+                if (_disconnectedLibraries != null && unloadedLibraries.Count == 0)
+                {
+                    im._libraries = ImmutableList.ValueOf(_disconnectedLibraries.Select(library=>library?.Unload()));
+                    im._librarySpecs = ImmutableList.ValueOf(new LibrarySpec[im._libraries.Count]);
+                }
+                else
+                {
+                    im._libraries = ImmutableList.ValueOf(unloadedLibraries);
+                    im._librarySpecs = ImmutableList.ValueOf(unloadedLibrarySpecs);
+                }
+                im._disconnectedLibraries = null;
+                im._rankIdName = im.RankId?.Value;
+                im.RankId = null;
+            });
+        }
 
         #region object overrides
 

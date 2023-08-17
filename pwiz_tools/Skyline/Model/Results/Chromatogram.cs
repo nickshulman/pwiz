@@ -816,7 +816,7 @@ namespace pwiz.Skyline.Model.Results
         {
             // Write tag attributes
             base.WriteXml(writer);
-            writer.WriteAttribute(ATTR.use_for_retention_time_prediction, false);
+            writer.WriteAttribute(ATTR.use_for_retention_time_prediction, UseForRetentionTimeFilter);
             writer.WriteAttributeNullable(ATTR.analyte_concentration, AnalyteConcentration);
             if (null != SampleType && !Equals(SampleType, SampleType.DEFAULT))
             {
@@ -968,6 +968,19 @@ namespace pwiz.Skyline.Model.Results
         }
 
         #endregion
+
+        public ChromatogramSet Unload()
+        {
+            var unloadedFileInfos = new List<ChromFileInfo>();
+            foreach (var fileInfo in MSDataFileInfos)
+            {
+                unloadedFileInfos.Add(fileInfo.Unload());
+            }
+            return ChangeProp(ImClone(ChangeMSDataFileInfos(unloadedFileInfos)), im =>
+            {
+                im._rescoreCount = 0;
+            });
+        }
     }
 
     /// <summary>
@@ -1073,6 +1086,29 @@ namespace pwiz.Skyline.Model.Results
         public ChromFileInfo ChangeImportTime(DateTime? importTime)
         {
             return ChangeProp(ImClone(this), im => im.ImportTime = importTime);
+        }
+
+        /// <summary>
+        /// Put the ChromFileInfo back in the state it was in when it was first deserialized from XML and
+        /// before <see cref="ChangeInfo"/> updated values from the skyd file.
+        /// </summary>
+        public ChromFileInfo Unload()
+        {
+            return ChangeProp(ImClone(this), im =>
+            {
+                im.FileWriteTime = null;
+                im.InstrumentInfoList = ImmutableList.Empty<MsInstrumentConfigInfo>();
+                if (im.InstrumentSerialNumber == string.Empty)
+                {
+                    im.InstrumentSerialNumber = null;
+                }
+                im.IsSrm = false;
+                im.RunStartTime = null;
+                im.UsedMs1Centroids = null;
+                im.UsedMs2Centroids = null;
+                im.MaxIntensity = 0;
+                im.MaxRetentionTime = 0;
+            });
         }
 
         public ChromFileInfo ChangeSampleId(string sampleId)

@@ -881,6 +881,11 @@ namespace pwiz.Skyline.Model.Lib
         }
 
         #endregion
+
+        public override Library Unload()
+        {
+            return ChangeProp(ImClone((XHunterLibrary)base.Unload()), im => im.FilePath = null);
+        }
     }
 
     public struct XHunterSpectrumInfo : ICachedSpectrumInfo

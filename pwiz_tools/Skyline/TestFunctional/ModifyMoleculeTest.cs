@@ -34,6 +34,8 @@ namespace pwiz.SkylineTestFunctional
             RunFunctionalTest();
         }
 
+        protected override bool ContinuouslyVerifyDocumentSerialization => true;
+
         protected override void DoTest()
         {
             RunUI(()=>

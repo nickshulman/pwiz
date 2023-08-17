@@ -642,6 +642,18 @@ namespace pwiz.Skyline.Model.DocSettings
             return standardPeptides;
         }
 
+        public SrmSettings UpdateScoreQValueMap(IEnumerable<PeptideGroupDocNode> peptideGroupDocNodes)
+        {
+            var newScoreQValueMap = ScoreQValueMap.FromMoleculeGroups(peptideGroupDocNodes);
+            if (Equals(newScoreQValueMap, PeptideSettings.Integration.ScoreQValueMap))
+            {
+                return this;
+            }
+
+            return ChangePeptideSettings(
+                PeptideSettings.ChangeIntegration(PeptideSettings.Integration.ChangeScoreQValueMap(newScoreQValueMap)));
+        }
+
         public SrmSettings CachePeptideStandards(IList<DocNode> peptideGroupDocNodesOrig,
                                                  IList<DocNode> peptideGroupDocNodes)
         {
@@ -2091,6 +2103,18 @@ namespace pwiz.Skyline.Model.DocSettings
 
             return infoSet.FirstOrDefault(chromatogramGroupInfo =>
                 Equals(chromatogramGroupInfo.FilePath, dataFilePath));
+        }
+
+        /// <summary>
+        /// Return a SrmSettings with all of the chromatograms, libraries, and other external files unloaded
+        /// </summary>
+        public SrmSettings Unload()
+        {
+            var srmSettings = this;
+            srmSettings = srmSettings.ChangeMeasuredResults(srmSettings.MeasuredResults?.Unload());
+            srmSettings = srmSettings.ChangePeptideSettings(srmSettings.PeptideSettings.Unload());
+            srmSettings = srmSettings.ChangeTransitionSettings(srmSettings.TransitionSettings.Unload());
+            return srmSettings;
         }
 
         #region Implementation of IXmlSerializable

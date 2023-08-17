@@ -1035,6 +1035,20 @@ namespace pwiz.Skyline.Model.DocSettings
                 return -Delta.CompareTo(other.Delta);
             }
         }
+
+        public RetentionTimeRegression Unload()
+        {
+            return ChangeProp(ImClone(this), im =>
+            {
+                im._isMissingStandardPeptides = false;
+                im.Calculator = im.Calculator?.Unload();
+                if (IsAutoCalculated)
+                {
+                    im.Conversion = null;
+                    im._listFileIdToConversion = null;
+                }
+            });
+        }
     }
 
     public sealed class RetentionTimeScoreCache
@@ -1182,6 +1196,11 @@ namespace pwiz.Skyline.Model.DocSettings
         public virtual string PersistMinimized(string pathDestDir, SrmDocument document)
         {
             return null;
+        }
+
+        public virtual RetentionScoreCalculatorSpec Unload()
+        {
+            return this;
         }
 
         #region Implementation of IXmlSerializable

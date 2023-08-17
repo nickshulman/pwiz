@@ -179,8 +179,13 @@ namespace pwiz.Skyline.Model
                 {
                     moleculeMass = nodeTran.GetMoleculeMass();
                 }
+
+                var quantInfo = TransitionDocNode.TransitionQuantInfo
+                    .GetTransitionQuantInfo(ComplexFragmentIon.Simple(tranNew, nodeTran.Losses),
+                        nodeGroupTemp.IsotopeDist, moleculeMass, null)
+                    .UseValuesFrom(nodeTran.QuantInfo);
                 var nodeTranNew = new TransitionDocNode(tranNew, nodeTran.Annotations, nodeTran.Losses,
-                    moleculeMass, nodeTran.QuantInfo, nodeTran.ExplicitValues, nodeTran.Results);
+                    moleculeMass, quantInfo, nodeTran.ExplicitValues, nodeTran.Results);
                 children.Add(nodeTranNew);
             }
             return new TransitionGroupDocNode(groupNew, Annotations, settings, null, LibInfo, ExplicitValues, Results, children.ToArray(), AutoManageChildren);
@@ -1569,6 +1574,14 @@ namespace pwiz.Skyline.Model
                                         peak = info.GetPeak(bestIndex);
                                 }
                                 ionMobility = info.GetIonMobilityFilter();
+                                if (ionMobility?.CollisionalCrossSectionSqA != null)
+                                {
+                                    // The TransitionChromInfo never remembers the Collisional Cross Section when
+                                    // serializing to XML, so if it's set here, then remove it
+                                    ionMobility = IonMobilityFilter.GetIonMobilityFilter(
+                                        ionMobility.IonMobilityAndCCS.ChangeCollisionalCrossSection(null),
+                                        ionMobility.IonMobilityExtractionWindowWidth);
+                                }
                             }
 
                             // Avoid creating new info objects that represent the same data
@@ -2139,7 +2152,7 @@ namespace pwiz.Skyline.Model
                                 rankByLevel = pair.IsMs1 ? ++iRankMs : ++iRankMsMs;
                         }
                             if (pair.Info.Rank != rank || pair.Info.RankByLevel != rankByLevel)
-                                pair.Result = pair.Info.ChangeRank(false, rank, rankByLevel);
+                                pair.Result = pair.Info.ChangeRank(rank, rankByLevel);
                         }
 
                         foreach (var pair in arrayRanked)

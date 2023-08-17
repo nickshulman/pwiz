@@ -31,6 +31,7 @@ using System.Xml.Serialization;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using pwiz.Skyline.Model;
 using pwiz.Skyline.Model.DocSettings;
+using pwiz.Skyline.Model.Results.Scoring;
 using pwiz.Skyline.Model.Serialization;
 using pwiz.Skyline.Util;
 using pwiz.Skyline.Properties;
@@ -399,7 +400,8 @@ namespace pwiz.SkylineTestUtil
 
         public static void Serializable(SrmDocument doc)
         {
-            Serializable(doc, DocumentCloned, DocumentFormat.CURRENT);
+            AreEqual(doc.Settings.PeptideSettings.Integration.ScoreQValueMap, ScoreQValueMap.FromDocument(doc));
+            Serializable(doc, UnloadedDocumentCloned, DocumentFormat.CURRENT);
             VerifyModifiedSequences(doc);
             // Skyline uses a format involving protocol buffers if the document is very large.
             // Make sure to serialize the document the other way, and make sure it's still the same.
@@ -410,11 +412,52 @@ namespace pwiz.SkylineTestUtil
                 Settings.Default.CompactFormatOption =
                     (wasCompactFormat ? CompactFormatOption.NEVER : CompactFormatOption.ALWAYS).Name;
                 Assert.AreNotEqual(wasCompactFormat, CompactFormatOption.FromSettings().UseCompactFormat(doc));
-                Serializable(doc, DocumentCloned);
+                Serializable(doc, UnloadedDocumentCloned);
             }
             finally
             {
                 Settings.Default.CompactFormatOption = oldSetting;
+            }
+        }
+
+        private static void UnloadedDocumentCloned(SrmDocument originalDocument, SrmDocument roundTripDocument)
+        {
+            var expected = originalDocument.UnloadDocument();
+            SettingsCloned(expected.Settings, roundTripDocument.Settings);
+            EnumerableCloned(originalDocument.MoleculeTransitions, roundTripDocument.MoleculeTransitions);
+            EnumerableCloned(originalDocument.MoleculeTransitionGroups, roundTripDocument.MoleculeTransitionGroups);
+            EnumerableCloned(originalDocument.Molecules, roundTripDocument.Molecules);
+            EnumerableCloned(originalDocument.MoleculeGroups, roundTripDocument.MoleculeGroups);
+            DocumentCloned(originalDocument.UnloadDocument(), roundTripDocument);
+        }
+
+        private static void EnumerableCloned<T>(IEnumerable<T> expected, IEnumerable<T> actual)
+        {
+            int i = 0;
+            using var expectedEnumerator = expected.GetEnumerator();
+            using var actualEnumerator = actual.GetEnumerator();
+            while (true)
+            {
+                if (!expectedEnumerator.MoveNext())
+                {
+                    if (actualEnumerator.MoveNext())
+                    {
+                        Assert.Fail("Actual has more than {0} elements", i);
+                    }
+                    return;
+                }
+
+                i++;
+                if (!actualEnumerator.MoveNext())
+                {
+                    Assert.Fail("Actual has fewer than {0} elements", i);
+                }
+
+                if (!Equals(expectedEnumerator.Current, actualEnumerator.Current))
+                {
+                    string message = string.Format("Elements at position {0} differ", i);
+                    AreEqual(expectedEnumerator.Current, actualEnumerator.Current, message);
+                }
             }
         }
 

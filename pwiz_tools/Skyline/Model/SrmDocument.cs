@@ -762,7 +762,9 @@ namespace pwiz.Skyline.Model
             if (!DeferSettingsChanges)
             {
                 // Make sure peptide standards lists are up to date
-                docClone.Settings = docClone.Settings.CachePeptideStandards(Children, docClone.Children);
+                docClone.Settings = docClone.Settings
+                    .UpdateScoreQValueMap(docClone.MoleculeGroups)
+                    .CachePeptideStandards(Children, docClone.Children);
             }
 
             // Note protein metadata readiness
@@ -2159,7 +2161,9 @@ namespace pwiz.Skyline.Model
                 var children = documentReader.Children;
 
                 // Make sure peptide standards lists are up to date
-                Settings = Settings.CachePeptideStandards(new PeptideGroupDocNode[0], children);
+                Settings = Settings
+                    .UpdateScoreQValueMap(children)
+                    .CachePeptideStandards(new PeptideGroupDocNode[0], children);
 
                 SetChildren(UpdateResultsSummaries(children, new Dictionary<int, PeptideDocNode>()));
 
@@ -2704,6 +2708,16 @@ namespace pwiz.Skyline.Model
             }
 
             return docNodeTuples.Select(tuple => tuple.Item1);
+        }
+
+        /// <summary>
+        /// Unloads all chromatograms, libraries, etc. so that the document is in the same
+        /// state it was right after the XML was deserialized and before any files were loaded
+        /// </summary>
+        /// <returns></returns>
+        public SrmDocument UnloadDocument()
+        {
+            return ChangeSettingsNoDiff(Settings.Unload());
         }
 
         #region object overrides

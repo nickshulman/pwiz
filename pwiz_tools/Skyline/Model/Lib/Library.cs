@@ -939,6 +939,11 @@ namespace pwiz.Skyline.Model.Lib
             }
         }
 
+        public virtual Library Unload()
+        {
+            return this;
+        }
+
         #region Implementation of IXmlSerializable
 
         /// <summary>
@@ -1767,15 +1772,17 @@ namespace pwiz.Skyline.Model.Lib
             return float.MinValue;
         }
 
-        public virtual IEnumerable<KeyValuePair<PeptideRankId, string>> RankValues
+        public abstract IEnumerable<KeyValuePair<PeptideRankId, string>> RankValues { get; }
+        private string _protein;
+        // Some .blib and .clib files provide a protein accession (or Molecule List Name for small molecules)
+        public string Protein
         {
-            get
+            get { return _protein;}
+            protected set
             {
-                return Array.Empty<KeyValuePair<PeptideRankId, string>>();
+                _protein = string.IsNullOrEmpty(value) ? null : value;
             }
-        }
-
-        public string Protein { get; protected set; } // Some .blib and .clib files provide a protein accession (or Molecule List Name for small molecules)
+        } 
 
         #region Implementation of IXmlSerializable
 
@@ -1824,25 +1831,31 @@ namespace pwiz.Skyline.Model.Lib
 
         #region object overrides
 
-        public bool Equals(SpectrumHeaderInfo obj)
+        protected bool Equals(SpectrumHeaderInfo other)
         {
-            if (ReferenceEquals(null, obj)) return false;
-            if (ReferenceEquals(this, obj)) return true;
-            return Equals(obj.LibraryName, LibraryName) &&
-                   Equals(obj.Protein, Protein);
+            return _protein == other._protein && 
+                   LibraryName == other.LibraryName && Nullable.Equals(Score, other.Score) &&
+                   ScoreType == other.ScoreType;
         }
 
         public override bool Equals(object obj)
         {
             if (ReferenceEquals(null, obj)) return false;
             if (ReferenceEquals(this, obj)) return true;
-            if (obj.GetType() != typeof (SpectrumHeaderInfo)) return false;
-            return Equals((SpectrumHeaderInfo) obj);
+            if (obj.GetType() != this.GetType()) return false;
+            return Equals((SpectrumHeaderInfo)obj);
         }
 
         public override int GetHashCode()
         {
-            return LibraryName.GetHashCode();
+            unchecked
+            {
+                var hashCode = (_protein != null ? _protein.GetHashCode() : 0);
+                hashCode = (hashCode * 397) ^ (LibraryName != null ? LibraryName.GetHashCode() : 0);
+                hashCode = (hashCode * 397) ^ Score.GetHashCode();
+                hashCode = (hashCode * 397) ^ (ScoreType != null ? ScoreType.GetHashCode() : 0);
+                return hashCode;
+            }
         }
 
         #endregion

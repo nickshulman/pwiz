@@ -33,6 +33,7 @@ namespace pwiz.Skyline.Model.GroupComparison
     [XmlRoot("group_comparison")]
     public sealed class GroupComparisonDef : XmlNamedElement
     {
+        private ImmutableList<MatchRgbHexColor> _colors;
         public static readonly GroupComparisonDef EMPTY = new GroupComparisonDef
         {
             NormalizationMethod = NormalizeOption.NONE,
@@ -192,7 +193,16 @@ namespace pwiz.Skyline.Model.GroupComparison
         }
 
         [TrackChildren]
-        public IList<MatchRgbHexColor> ColorRows { get; private set; }
+        public IEnumerable<MatchRgbHexColor> ColorRows {
+            get
+            {
+                return _colors.Select(color => (MatchRgbHexColor) color.Clone());
+            }
+            set
+            {
+                _colors = ImmutableList.ValueOf(value.Select(color => (MatchRgbHexColor) color.Clone()));
+            }
+        }
 
         public GroupComparisonDef ChangeColorRows(IEnumerable<MatchRgbHexColor> value)
         {

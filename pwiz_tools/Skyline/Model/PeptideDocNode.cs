@@ -637,6 +637,10 @@ namespace pwiz.Skyline.Model
 
         public PeptideDocNode ChangeExplicitMods(ExplicitMods prop)
         {
+            if (prop == null && !Peptide.Target.IsProteomic)
+            {
+                prop = ExplicitMods.EMPTY;
+            }
             return ChangeProp(ImClone(this), im => im.ExplicitMods = prop);
         }
 
@@ -662,11 +666,17 @@ namespace pwiz.Skyline.Model
 
         public PeptideDocNode ChangeResults(Results<PeptideChromInfo> prop)
         {
-            return ChangeProp(ImClone(this), im =>
-                                                 {
-                                                     im.Results = prop;
-                                                     im.BestResult = im.CalcBestResult();
-                                                 });
+            var newPeptide = ChangeProp(ImClone(this), im =>
+            {
+                im.Results = prop;
+                im.BestResult = im.CalcBestResult();
+            });
+            if (ReferenceEquals(newPeptide.Results, Results) && newPeptide.BestResult == BestResult)
+            {
+                return this;
+            }
+
+            return newPeptide;
         }
 
         public PeptideDocNode ChangeExplicitRetentionTime(ExplicitRetentionTimeInfo prop)
@@ -1059,9 +1069,17 @@ namespace pwiz.Skyline.Model
                 }                
             }
 
+            var penultimateNodeResult = nodeResult;
             if (diff.DiffResults || ChangedResults(nodeResult))
+            {
                 nodeResult = nodeResult.UpdateResults(settingsNew /*, diff*/);
-
+            }
+#if DEBUG
+            if (nodeResult.BestResult != nodeResult.CalcBestResult())
+            {
+                nodeResult = penultimateNodeResult;
+            }
+#endif
             return nodeResult;
         }
 
@@ -1365,11 +1383,11 @@ namespace pwiz.Skyline.Model
 
             public PeptideDocNode UpdateResults(PeptideDocNode nodePeptide)
             {
+                var originalPeptide = nodePeptide;
                 var listChromInfoList = _listResultCalcs.ConvertAll(calc => calc.CalcChromInfoList(TransitionGroupCount));
                 listChromInfoList = CopyChromInfoAttributes(nodePeptide, listChromInfoList);
                 var results = Results<PeptideChromInfo>.Merge(nodePeptide.Results, listChromInfoList);
-                if (!ReferenceEquals(results, nodePeptide.Results))
-                    nodePeptide = nodePeptide.ChangeResults(results);
+                nodePeptide = nodePeptide.ChangeResults(results);
 
                 var listGroupsNew = new List<DocNode>();
                 foreach (TransitionGroupDocNode nodeGroup in nodePeptide.Children)

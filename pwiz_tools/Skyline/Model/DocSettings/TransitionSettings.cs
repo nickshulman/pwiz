@@ -234,9 +234,7 @@ namespace pwiz.Skyline.Model.DocSettings
             writer.WriteElement(Libraries);
             writer.WriteElement(Integration);
             writer.WriteElement(Instrument);
-            // Avoid breaking documents for older versions, if no full-scan
-            // filtering is in use.
-            if (FullScan.IsEnabled)
+            if (!Equals(FullScan, TransitionFullScan.DEFAULT))
                 writer.WriteElement(FullScan);
         }
 
@@ -290,6 +288,15 @@ namespace pwiz.Skyline.Model.DocSettings
         }
 
         #endregion
+
+        public TransitionSettings Unload()
+        {
+            return ChangeProp(ImClone(this), im =>
+            {
+                im.IonMobilityFiltering =
+                    im.IonMobilityFiltering?.ChangeLibrary(im.IonMobilityFiltering.IonMobilityLibrary?.Unload());
+            });
+        }
     }
 
 // ReSharper disable InconsistentNaming
@@ -3032,10 +3039,7 @@ namespace pwiz.Skyline.Model.DocSettings
             if (RetentionTimeFilterType != RetentionTimeFilterType.none)
             {
                 writer.WriteAttribute(ATTR.retention_time_filter_type, RetentionTimeFilterType);
-                if (RetentionTimeFilterType != RetentionTimeFilterType.none)
-                {
-                    writer.WriteAttribute(ATTR.retention_time_filter_length, RetentionTimeFilterLength);
-                }
+                writer.WriteAttribute(ATTR.retention_time_filter_length, RetentionTimeFilterLength);
             }
             if (IsotopeEnrichments != null)
                 writer.WriteElement(IsotopeEnrichments);
@@ -3128,7 +3132,7 @@ namespace pwiz.Skyline.Model.DocSettings
         {
             return ChangeProp(ImClone(this), im =>
             {
-                im.SynchronizedIntegrationGroupBy = groupBy;
+                im.SynchronizedIntegrationGroupBy = string.IsNullOrEmpty(groupBy) ? null : groupBy;
                 im.SynchronizedIntegrationAll = all;
                 im.SynchronizedIntegrationTargets = !all && targets.Length > 0 ? targets : Array.Empty<string>();
             });
@@ -3176,7 +3180,11 @@ namespace pwiz.Skyline.Model.DocSettings
 
             if (reader.IsStartElement(EL.synchronize_integration))
             {
-                SynchronizedIntegrationGroupBy = reader.GetAttribute(ATTR.group_by) ?? string.Empty;
+                SynchronizedIntegrationGroupBy = reader.GetAttribute(ATTR.group_by);
+                if (string.IsNullOrEmpty(SynchronizedIntegrationGroupBy))
+                {
+                    SynchronizedIntegrationGroupBy = null;
+                }
                 SynchronizedIntegrationAll = reader.GetBoolAttribute(ATTR.all);
                 SynchronizedIntegrationTargets = Array.Empty<string>();
 
@@ -3208,7 +3216,7 @@ namespace pwiz.Skyline.Model.DocSettings
             writer.WriteAttribute(ATTR.integrate_all, IsIntegrateAll);
 
             // Write synchronize_integration
-            var hasGroupBy = SynchronizedIntegrationGroupBy != null;
+            var hasGroupBy = !string.IsNullOrEmpty(SynchronizedIntegrationGroupBy);
             var hasSyncTargets = SynchronizedIntegrationTargets != null && SynchronizedIntegrationTargets.Length > 0;
             if (hasGroupBy || SynchronizedIntegrationAll || hasSyncTargets)
             {

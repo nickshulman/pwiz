@@ -81,7 +81,6 @@ Clearcore2.Utility.dll (included automatically from ProteoWizard; DO NOT ADD TO 
 Clearcore2.XmlHelpers.dll (included automatically from ProteoWizard; DO NOT ADD TO THE WXS TEMPLATE!)
 CLFIO32.dll (included automatically from ProteoWizard; DO NOT ADD TO THE WXS TEMPLATE!)
 CRHAKEI2.dll (included automatically from ProteoWizard; DO NOT ADD TO THE WXS TEMPLATE!)
-DataReader.dll
 de\ZedGraph.resources.dll
 DigitalRune.Windows.Docking.dll
 DotNetZip.dll
@@ -118,6 +117,9 @@ MassCalcWrapObject.dll (included automatically from ProteoWizard; DO NOT ADD TO 
 MassLynxRaw.dll (included automatically from ProteoWizard; DO NOT ADD TO THE WXS TEMPLATE!)
 MassSpecDataReader.dll (included automatically from ProteoWizard; DO NOT ADD TO THE WXS TEMPLATE!)
 MathNet.Numerics.dll
+Method\AbSciex\SciexOS\BuildSciexMethod.exe
+Method\AbSciex\SciexOS\Microsoft.IO.RecyclableMemoryStream.dll
+Method\AbSciex\SciexOS\SCIEX.Apis.Control.v1.dll
 Method\AbSciex\TOF\BuildAnalystFullScanMethod.exe
 Method\AbSciex\TOF\BuildAnalystMethod.dll
 Method\AbSciex\TOF\Interop.AcqMethodDir.dll
@@ -152,6 +154,10 @@ Method\Agilent\MethodCreator.dll
 Method\Bruker\BDal.Submethod.Wrapper.dll
 Method\Bruker\BdalRetentionTimeMassList.dll
 Method\Bruker\BuildBrukerMethod.exe
+Method\Shimadzu\BuildShimadzuMethod.exe
+Method\Shimadzu\MethodConverter.dll
+Method\Shimadzu\MethodWriter.dll
+Method\Shimadzu\Shimadzu.LabSolutions.IO.IoModule.dll
 Method\Thermo\BuildLTQMethod.exe
 Method\Thermo\BuildThermoMethod.exe
 Method\Thermo\BuildTSQEZMethod.exe
@@ -167,6 +173,7 @@ Microsoft.Practices.Unity.Configuration.dll (included automatically from ProteoW
 Microsoft.Practices.Unity.dll (included automatically from ProteoWizard; DO NOT ADD TO THE WXS TEMPLATE!)
 MIDAC.dll (included automatically from ProteoWizard; DO NOT ADD TO THE WXS TEMPLATE!)
 modifications.xml
+msconvert.exe
 MSGraph.dll
 MSGraph.pdb
 MSMSDBCntl.dll (included automatically from ProteoWizard; DO NOT ADD TO THE WXS TEMPLATE!)
@@ -202,10 +209,10 @@ pwiz.Common.pdb
 pwiz.CommonUtil.dll
 pwiz.CommonUtil.pdb
 pwiz_data_cli.dll
+PanoramaClient.dll
+PanoramaClient.pdb
 QTFLDebugLog.dll (included automatically from ProteoWizard; DO NOT ADD TO THE WXS TEMPLATE!)
 QTFLProtoCS.dll (included automatically from ProteoWizard; DO NOT ADD TO THE WXS TEMPLATE!)
-quantitation_1.xsd (included automatically from ProteoWizard; DO NOT ADD TO THE WXS TEMPLATE!)
-quantitation_2.xsd (included automatically from ProteoWizard; DO NOT ADD TO THE WXS TEMPLATE!)
 Remotion.Linq.dll
 Remotion.Linq.EagerFetching.dll
 ru\ZedGraph.resources.dll
@@ -243,8 +250,6 @@ tr\ZedGraph.resources.dll
 ucrtbase.dll (included automatically from ProteoWizard; DO NOT ADD TO THE WXS TEMPLATE!)
 UIMFLibrary.dll (included automatically from ProteoWizard; DO NOT ADD TO THE WXS TEMPLATE!)
 unimod.obo (included automatically from ProteoWizard; DO NOT ADD TO THE WXS TEMPLATE!)
-unimod.xml
-unimod_2.xsd (included automatically from ProteoWizard; DO NOT ADD TO THE WXS TEMPLATE!)
 vcomp110.dll (included automatically from ProteoWizard; DO NOT ADD TO THE WXS TEMPLATE!)
 vcomp140.dll (included automatically from ProteoWizard; DO NOT ADD TO THE WXS TEMPLATE!)
 vcruntime140.dll (included automatically from ProteoWizard; DO NOT ADD TO THE WXS TEMPLATE!)

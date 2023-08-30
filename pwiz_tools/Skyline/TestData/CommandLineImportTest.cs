@@ -21,6 +21,7 @@ using System.IO;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using pwiz.Skyline;
+using pwiz.Skyline.Model;
 using pwiz.Skyline.Model.Irt;
 using pwiz.Skyline.Model.Lib;
 using pwiz.Skyline.Properties;
@@ -37,11 +38,11 @@ namespace pwiz.SkylineTestData
         [TestMethod]
         public void ConsoleImportPeptideSearchTest()
         {
-            var testFilesDir = new TestFilesDir(TestContext, ZIP_FILE);
-            var docPath = testFilesDir.GetTestPath("blank.sky");
-            var outPath = testFilesDir.GetTestPath("import-search.sky");
-            var searchFilePath = testFilesDir.GetTestPath("CAexample.pep.xml");
-            var fastaPath = testFilesDir.GetTestPath("bov-5-prot.fasta");
+            TestFilesDir = new TestFilesDir(TestContext, ZIP_FILE);
+            var docPath = TestFilesDir.GetTestPath("blank.sky");
+            var outPath = TestFilesDir.GetTestPath("import-search.sky");
+            var searchFilePath = TestFilesDir.GetTestPath("CAexample.pep.xml");
+            var fastaPath = TestFilesDir.GetTestPath("bov-5-prot.fasta");
 
             // with mods and invalid cutoff score
             const double badCutoff = 1.1;
@@ -77,7 +78,7 @@ namespace pwiz.SkylineTestData
             Assert.AreEqual(78, doc.PeptideTransitionCount);
 
             // without mods
-            var outPath2 = testFilesDir.GetTestPath("import-search2.sky");
+            var outPath2 = TestFilesDir.GetTestPath("import-search2.sky");
             output = RunCommand("--in=" + docPath,
                 "--out=" + outPath2,
                 "--import-search-file=" + searchFilePath,
@@ -107,7 +108,7 @@ namespace pwiz.SkylineTestData
 
 
             // MaxQuant embedding error
-            searchFilePath = testFilesDir.GetTestPath("yeast-wiff-msms.txt");
+            searchFilePath = TestFilesDir.GetTestPath("yeast-wiff-msms.txt");
             output = RunCommand("--in=" + docPath,
                 "--out=" + outPath2,
                 "--import-search-file=" + searchFilePath,
@@ -133,8 +134,8 @@ namespace pwiz.SkylineTestData
             Assert.IsTrue(!output.Contains(Resources.CommandLine_ShowLibraryMissingExternalSpectraError_Description));
 
             // iRTs
-            File.Copy(testFilesDir.GetTestPath("cirts.mqpar.xml"), testFilesDir.GetTestPath("mqpar.xml"), true);
-            searchFilePath = testFilesDir.GetTestPath("cirts.msms.txt");
+            File.Copy(TestFilesDir.GetTestPath("cirts.mqpar.xml"), TestFilesDir.GetTestPath("mqpar.xml"), true);
+            searchFilePath = TestFilesDir.GetTestPath("cirts.msms.txt");
             // test setting num cirts and recalibrate when no irts
             output = RunCommand("--in=" + docPath,
                 "--import-search-file=" + searchFilePath,
@@ -153,7 +154,7 @@ namespace pwiz.SkylineTestData
                 "--import-search-file=" + searchFilePath,
                 "--import-search-irts=CiRT (iRT-C18)",
                 "--import-search-num-cirts=10");
-            var libIrts = IrtDb.GetIrtDb(testFilesDir.GetTestPath("blank.blib"), null).StandardPeptides.ToArray();
+            var libIrts = IrtDb.GetIrtDb(TestFilesDir.GetTestPath("blank.blib"), null).StandardPeptides.ToArray();
             AssertEx.AreEqual(10, libIrts.Length);
             foreach (var libIrt in libIrts)
                 AssertEx.IsTrue(IrtStandard.CIRT.Contains(libIrt));
@@ -162,10 +163,10 @@ namespace pwiz.SkylineTestData
         [TestMethod]
         public void ConsoleImportSmallMoleculesTest()
         {
-            var testFilesDir = new TestFilesDir(TestContext, ZIP_FILE);
-            var docPath = testFilesDir.GetTestPath("blank.sky");
-            var smallmolPath = testFilesDir.GetTestPath("smallmolecules.txt");
-            var outPath = testFilesDir.GetTestPath("import-smallmol.sky");
+            TestFilesDir = new TestFilesDir(TestContext, ZIP_FILE);
+            var docPath = TestFilesDir.GetTestPath("blank.sky");
+            var smallmolPath = TestFilesDir.GetTestPath("smallmolecules.txt");
+            var outPath = TestFilesDir.GetTestPath("import-smallmol.sky");
             var output = RunCommand("--in=" + docPath,
                 "--out=" + outPath,
                 "--import-transition-list=" + smallmolPath);
@@ -174,6 +175,37 @@ namespace pwiz.SkylineTestData
             var doc = ResultsUtil.DeserializeDocument(outPath);
             Assert.AreEqual(2, doc.MoleculeGroupCount);
             Assert.AreEqual(4, doc.MoleculeCount);
+
+            // Test how we categorize transition lists as small molecule or peptide in command line context
+            // when those transition lists do not contain defining features such as a peptide sequence column or small molecule headers
+            // Load a proteomic document
+            docPath = TestFilesDir.GetTestPath("proteomics.sky");
+            var ambiguousListPath = TestFilesDir.GetTestPath("DrugX.txt");
+
+            // Import a transition list that cannot be read either way
+            output = RunCommand("--in=" + docPath,
+                "--out=" + outPath,
+                "--import-transition-list=" + ambiguousListPath);
+
+            // We should rely on the type of the document and categorize it as a proteomics transition list
+            // so verify that we get a proteomics error message
+            AssertEx.Contains(output, Resources.MassListImporter_Import_Failed_to_find_peptide_column);
+
+            // Load a small molecule document
+            docPath = TestFilesDir.GetTestPath("smallmolecule.sky");
+
+            // Import the same transition list that cannot be read either way
+            output = RunCommand("--in=" + docPath,
+                "--out=" + outPath,
+                "--import-transition-list=" + ambiguousListPath);
+
+            // We should rely on the type of the document and categorize it as a small molecule transition list
+            // so verify that we get a small molecule error message
+            var smallMoleculeErrorMessage = string.Format(Resources.SmallMoleculeTransitionListReader_SmallMoleculeTransitionListReader_,
+                TextUtil.LineSeparate(new[] { "DrugX","Drug","light","283.04","1","129.96","1","26","16","2.7", string.Empty
+                }),
+                TextUtil.LineSeparate(SmallMoleculeTransitionListColumnHeaders.KnownHeaderSynonyms.Keys));
+            AssertEx.Contains(output, smallMoleculeErrorMessage);
         }
     }
 }

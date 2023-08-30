@@ -72,14 +72,12 @@ namespace pwiz.Skyline.FileUI
 
         public void OkDialog()
         {
-            using (var dlg = new SaveFileDialog
+            using (var dlg = new SaveFileDialog())
             {
-                Title = Resources.MProphetFeaturesDlg_OkDialog_Export_mProphet_Features,
-                OverwritePrompt = true,
-                DefaultExt = EXT,
-                Filter = TextUtil.FileDialogFilterAll(Resources.MProphetFeaturesDlg_OkDialog_mProphet_Feature_Files, EXT),
-            })
-            {
+                dlg.Title = Resources.MProphetFeaturesDlg_OkDialog_Export_mProphet_Features;
+                dlg.OverwritePrompt = true;
+                dlg.DefaultExt = EXT;
+                dlg.Filter = TextUtil.FileDialogFilterAll(Resources.MProphetFeaturesDlg_OkDialog_mProphet_Feature_Files, EXT);
                 if (!string.IsNullOrEmpty(DocumentFilePath))
                 {
                     dlg.InitialDirectory = Path.GetDirectoryName(DocumentFilePath);
@@ -100,17 +98,15 @@ namespace pwiz.Skyline.FileUI
 //                }
                 var resultsHandler = new MProphetResultsHandler(Document, mProphetScoringModel);
 
-                using (var longWaitDlg = new LongWaitDlg
+                using (var longWaitDlg = new LongWaitDlg())
                 {
-                    Text = Resources.SkylineWindow_OpenSharedFile_Extracting_Files,
-                })
-                {
+                    longWaitDlg.Text = Resources.SkylineWindow_OpenSharedFile_Extracting_Files;
                     try
                     {
                         longWaitDlg.PerformWork(this, 1000, b =>
                                                             WriteFeatures(dlg.FileName,
                                                                           resultsHandler,
-                                                                          displayCalcs,
+                                                                          new FeatureCalculators(displayCalcs),
                                                                           LocalizationHelper.CurrentCulture,
                                                                           checkBoxBestOnly.Checked,
                                                                           !checkBoxTargetsOnly.Checked,
@@ -132,7 +128,7 @@ namespace pwiz.Skyline.FileUI
 
         public static void WriteFeatures(string filePath, 
                                          MProphetResultsHandler resultsHandler,
-                                         IList<IPeakFeatureCalculator> calcs,
+                                         FeatureCalculators calcs,
                                          CultureInfo cultureInfo,
                                          bool bestOnly,
                                          bool includeDecoys,

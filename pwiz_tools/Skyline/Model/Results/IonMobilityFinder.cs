@@ -53,6 +53,7 @@ namespace pwiz.Skyline.Model.Results
         private double _maxHighEnergyDriftOffsetMsec;
         private bool _useHighEnergyOffset;
         private IonMobilityValue _ms1IonMobilityBest;
+        private double _ms2IonMobilityFilterLow, _ms2IonMobilityFilterHigh; // For rejecting extreme MS2 high energy offset values
 
         private struct IonMobilityIntensityPair
         {
@@ -103,6 +104,17 @@ namespace pwiz.Skyline.Model.Results
             if (_totalSteps == 0)
                 return measured;
 
+            // Before we do anything else, make sure the raw files are present
+            foreach (var f in fileInfos)
+            {
+                if (!ScanProvider.FileExists(_documentFilePath, f.FilePath))
+                {
+                    throw new FileNotFoundException(TextUtil.LineSeparate(Resources.IonMobilityFinder_ProcessMSLevel_Failed_using_results_to_populate_ion_mobility_library_,
+                        string.Format(Resources.ScanProvider_GetScans_The_data_file__0__could_not_be_found__either_at_its_original_location_or_in_the_document_or_document_parent_folder_,
+                            f.FilePath)));
+                }
+            }
+
             using (_msDataFileScanHelper = new MsDataFileScanHelper(SetScans, HandleLoadScanException, true))
             {
                 //
@@ -130,17 +142,18 @@ namespace pwiz.Skyline.Model.Results
                     // Choose the ion mobility which gave the largest signal
                     // CONSIDER: average IM and CCS values that fall "near" the IM of largest signal? Or consider them multiple conformers?
                     var ms1IonMobility = dt.Value.OrderByDescending(p => p.Intensity).First().IonMobility;
+                    double highEnergyIonMobilityValueOffset = 0;
+                    if (_useHighEnergyOffset)
+                    {
                     // Check for MS2 data to use for high energy offset
                     List<IonMobilityIntensityPair> listDt;
                     var ms2IonMobility = _ms2IonMobilities.TryGetValue(dt.Key, out listDt)
                         ? listDt.OrderByDescending(p => p.Intensity).First().IonMobility
                         : ms1IonMobility;
-                    var highEnergyIonMobilityValueOffset = Math.Round(ms2IonMobility.IonMobility.Mobility.Value - ms1IonMobility.IonMobility.Mobility.Value, 6); // Excessive precision is just distracting noise TODO(bspratt) ask vendors what "excessive" means here
+                        highEnergyIonMobilityValueOffset = Math.Round(ms2IonMobility.IonMobility.Mobility.Value - ms1IonMobility.IonMobility.Mobility.Value, 6); // Excessive precision is just distracting noise TODO(bspratt) ask vendors what "excessive" means here
+                    }
                     var value =  IonMobilityAndCCS.GetIonMobilityAndCCS(ms1IonMobility.IonMobility, ms1IonMobility.CollisionalCrossSectionSqA, highEnergyIonMobilityValueOffset);
-                    if (!measured.ContainsKey(dt.Key))
-                        measured.Add(dt.Key, value);
-                    else
-                        measured[dt.Key] = value;
+                    measured[dt.Key] = value;
                 }
                 // Check for data for which we have only MS2 to go on
                 foreach (var im in _ms2IonMobilities)
@@ -162,10 +175,7 @@ namespace pwiz.Skyline.Model.Results
                             }
                         }
 
-                        if (!measured.ContainsKey(im.Key))
-                            measured.Add(im.Key, value);
-                        else
-                            measured[im.Key] = value;
+                        measured[im.Key] = value;
                     }
                 }
             }
@@ -212,7 +222,7 @@ namespace pwiz.Skyline.Model.Results
                         return false;
 
                     ChromatogramGroupInfo[] chromGroupInfos;
-                    results.TryLoadChromatogram(i, nodePep, nodeGroup, tolerance, true, out chromGroupInfos);
+                    results.TryLoadChromatogram(i, nodePep, nodeGroup, tolerance, out chromGroupInfos);
                     foreach (var chromInfo in chromGroupInfos.Where(c => Equals(filePath, c.FilePath)))
                     {
                         if (!ProcessChromInfo(fileInfo, chromInfo, pair, nodeGroup, tolerance, libKey)) 
@@ -314,7 +324,7 @@ namespace pwiz.Skyline.Model.Results
             // Across all spectra at the peak retention time, find the one with max total 
             // intensity for the mz's of interest (ie the isotopic distribution) and note its ion mobility.
             var scanIndex = MsDataFileScanHelper.FindScanIndex(times, apexRT.Value);
-            _msDataFileScanHelper.UpdateScanProvider(scanProvider, 0, scanIndex);
+            _msDataFileScanHelper.UpdateScanProvider(scanProvider, 0, scanIndex, null);
             _msDataFileScanHelper.MsDataSpectra = null; // Reset
             scanIndex = _msDataFileScanHelper.GetScanIndex();
             _msDataFileScanHelper.ScanProvider.SetScanForBackgroundLoad(scanIndex);
@@ -348,12 +358,26 @@ namespace pwiz.Skyline.Model.Results
             double maxIntensity = 0;
 
             // Avoid picking MS2 ion mobility values wildly different from MS1 values
-            if ((msLevel == 2) && _ms1IonMobilities.ContainsKey(libKey))
+            if ((msLevel == 2) && _ms1IonMobilities.TryGetValue(libKey, out var mobility))
             {
                 _ms1IonMobilityBest =
-                    _ms1IonMobilities[libKey].OrderByDescending(p => p.Intensity)
+                    mobility.OrderByDescending(p => p.Intensity)
                         .FirstOrDefault()
                         .IonMobility.IonMobility;
+                var imMS1 = _ms1IonMobilityBest.Mobility ?? 0;
+                switch (_ms1IonMobilityBest.Units)
+                {
+                    case eIonMobilityUnits.drift_time_msec:
+                        _ms2IonMobilityFilterHigh = imMS1; // Fragments go faster, not slower
+                        _ms2IonMobilityFilterLow = imMS1 - _maxHighEnergyDriftOffsetMsec; // But not a lot faster
+                        break;
+                    case eIonMobilityUnits.inverse_K0_Vsec_per_cm2:
+                        // Within 5% - arbitrary value, normally not used with Bruker data, anyway
+                        _ms2IonMobilityFilterHigh = imMS1*1.05;
+                        _ms2IonMobilityFilterLow = imMS1*.95;
+                        break;
+                    // case eIonMobilityUnits.compensation_V: Not a meaningful concept for FAIMS
+                }
             }
             else
             {
@@ -462,11 +486,21 @@ namespace pwiz.Skyline.Model.Results
             return mzHigh;
         }
 
+        // Ignore proposed fragment IM values that are too far away from the parent IM
         private bool IsExtremeMs2Value(double im)
         {
-            return _ms1IonMobilityBest.HasValue &&
-                   (im < _ms1IonMobilityBest.Mobility - _maxHighEnergyDriftOffsetMsec ||
-                    im > _ms1IonMobilityBest.Mobility + _maxHighEnergyDriftOffsetMsec);
+            if ((_ms1IonMobilityBest.Mobility ?? 0) == 0)
+            {
+                return false; // No MS1 to compare with
+            }
+
+            if (_ms1IonMobilityBest.Units == eIonMobilityUnits.compensation_V)
+            {
+                return false;  // Makes no sense in FAIMS
+            }
+
+            // These limits are set in EvaluateBestIonMobilityValue()
+            return im <_ms2IonMobilityFilterLow || im > _ms2IonMobilityFilterHigh;
         }
 
         private void HandleLoadScanException(Exception ex)

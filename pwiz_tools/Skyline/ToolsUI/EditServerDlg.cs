@@ -19,7 +19,9 @@
 
 using System;
 using System.Collections.Generic;
+using System.Net.Mail;
 using System.Windows.Forms;
+using pwiz.PanoramaClient;
 using pwiz.Skyline.Controls;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
@@ -77,7 +79,7 @@ namespace pwiz.Skyline.ToolsUI
         {
             MessageBoxHelper helper = new MessageBoxHelper(this);
             string serverName;
-            if (!helper.ValidateNameTextBox(textServerURL, out serverName))
+            if (!helper.ValidateNotEmptyTextBox(textServerURL, out serverName))
                 return;
 
             Uri uriServer = PanoramaUtil.ServerNameToUri(serverName);
@@ -87,10 +89,24 @@ namespace pwiz.Skyline.ToolsUI
                 return;
             }
 
+            if (!(helper.ValidateNotEmptyTextBox(textUsername, out _) && helper.ValidateNotEmptyTextBox(textPassword, out _)))
+                return;
+
+            try
+            {
+                var unused = new MailAddress(textUsername.Text);
+            }
+            catch (Exception)
+            {
+                helper.ShowTextBoxError(textServerURL, Resources.EditServerDlg_OkDialog__0__is_not_a_valid_email_address_, textUsername.Text);
+                return;
+            }
+
             var panoramaClient = PanoramaClient ?? new WebPanoramaClient(uriServer);
 
-            using (var waitDlg = new LongWaitDlg { Text = Resources.EditServerDlg_OkDialog_Verifying_server_information })
+            using (var waitDlg = new LongWaitDlg())
             {
+                waitDlg.Text = Resources.EditServerDlg_OkDialog_Verifying_server_information;
                 try
                 {
                     waitDlg.PerformWork(this, 1000, () => PanoramaUtil.VerifyServerInformation( panoramaClient, Username, Password));
@@ -117,6 +133,11 @@ namespace pwiz.Skyline.ToolsUI
         private void btnOK_Click(object sender, EventArgs e)
         {
             OkDialog();
+        }
+
+        public string GetTextServerUrlControlLabel()
+        {
+            return new MessageBoxHelper(this).GetControlMessage(textServerURL);
         }
     }
 }

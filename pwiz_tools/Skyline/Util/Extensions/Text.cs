@@ -338,9 +338,8 @@ namespace pwiz.Skyline.Util.Extensions
                 string fieldConverted = field
                     .Replace(CultureInfo.InvariantCulture.NumberFormat.NumberDecimalSeparator,
                              CultureInfo.CurrentCulture.NumberFormat.NumberDecimalSeparator);
-                double fieldValue;
                 // Convert if the field is numeric or contains modifications
-                if (double.TryParse(fieldConverted, out fieldValue) || new Regex(@"\[[+-]\d+\.\d\]").IsMatch(field))
+                if (double.TryParse(fieldConverted, out _) || new Regex(@"\[[+-]\d+\.\d\]").IsMatch(field))
                     fields[i] = fieldConverted;
             }
             return string.Join(separator.ToString(), fields);
@@ -427,6 +426,26 @@ namespace pwiz.Skyline.Util.Extensions
         }
 
         /// <summary>
+        /// Like SpaceSeparate but allows arbitrary separator, and ignores empty strings, accepts IEnumerable
+        /// </summary>
+        public static string TextSeparate(string sep, IEnumerable<string> values)
+        {
+            var sb = new StringBuilder();
+            foreach (string value in values)
+            {
+                if (!string.IsNullOrEmpty(value))
+                {
+                    if (sb.Length > 0)
+                    {
+                        sb.Append(sep);
+                    }
+                    sb.Append(value);
+                }
+            }
+            return sb.ToString();
+        }
+
+        /// <summary>
         /// This function can be used as a replacement for String.Join(" ", ...)
         /// </summary>
         /// <param name="values">A set of strings to be separated by spaces</param>
@@ -434,6 +453,22 @@ namespace pwiz.Skyline.Util.Extensions
         public static string SpaceSeparate(params string[] values)
         {
             return SpaceSeparate(values.AsEnumerable());
+        }
+
+        /// <summary>
+        /// Append the localized colon character to a string.
+        /// </summary>
+        public static string AppendColon(string left)
+        {
+            return left + Resources.ColonEndOfLine;
+        }
+
+        /// <summary>
+        /// Separate two strings with the localized colon character and a space.
+        /// </summary>
+        public static string ColonSeparate(string left, string right)
+        {
+            return string.Format(Resources.ColonSeparator, left, right);
         }
 
         /// <summary>
@@ -651,6 +686,73 @@ namespace pwiz.Skyline.Util.Extensions
             }
             return commonFix != null && commonFix.Length >= minLen ? commonFix : String.Empty;
         }
+
+        // https://docs.microsoft.com/en-us/dotnet/standard/base-types/how-to-verify-that-strings-are-in-valid-email-format
+        public static bool IsValidEmail(this string email)
+        {
+            if (string.IsNullOrWhiteSpace(email))
+                return false;
+
+            try
+            {
+                // Normalize the domain
+                email = Regex.Replace(email, @"(@)(.+)$", DomainMapper,
+                    RegexOptions.None, TimeSpan.FromMilliseconds(200));
+
+                // Examines the domain part of the email and normalizes it.
+                string DomainMapper(Match match)
+                {
+                    // Use IdnMapping class to convert Unicode domain names.
+                    var idn = new IdnMapping();
+
+                    // Pull out and process domain name (throws ArgumentException on invalid)
+                    string domainName = idn.GetAscii(match.Groups[2].Value);
+
+                    return match.Groups[1].Value + domainName;
+                }
+            }
+            catch (RegexMatchTimeoutException)
+            {
+                return false;
+            }
+            catch (ArgumentException)
+            {
+                return false;
+            }
+
+            try
+            {
+                return Regex.IsMatch(email,
+                    @"^[^@\s]+@[^@\s]+\.[^@\s]+$",
+                    RegexOptions.IgnoreCase, TimeSpan.FromMilliseconds(250));
+            }
+            catch (RegexMatchTimeoutException)
+            {
+                return false;
+            }
+        }
+
+        // Try to read a string as a double in InvariantCulture, failing that try to read it as a double using "," as the decimal separator
+        public static bool TryParseDoubleUncertainCulture(string valString, out double dval)
+        {
+            if (!double.TryParse(valString, NumberStyles.Float, CultureInfo.InvariantCulture, out dval) &&
+                !double.TryParse(valString.Replace(',', '.'), NumberStyles.Float, CultureInfo.InvariantCulture, out dval))
+            {
+                return false;
+            }
+            return true;
+        }
+
+        // Try to read a string as a float in InvariantCulture, failing that try to read it as a float using "," as the decimal separator
+        public static bool TryParseFloatUncertainCulture(string valString, out float fval)
+        {
+            if (!float.TryParse(valString, NumberStyles.Float, CultureInfo.InvariantCulture, out fval) &&
+                !float.TryParse(valString.Replace(',', '.'), NumberStyles.Float, CultureInfo.InvariantCulture, out fval))
+            {
+                return false;
+            }
+            return true;
+        }
     }
 
     /// <summary>
@@ -681,8 +783,10 @@ namespace pwiz.Skyline.Util.Extensions
         private char _separator;
         private string[] _currentFields;
         private string _titleLine;
+        private string userHeaders;
         private bool _rereadTitleLine; // set true for first readline if the file didn't actually have a header line
         private TextReader _reader;
+        private int _linesRead;
         
         public int NumberOfFields { get; private set; }
         public Dictionary<string, int> FieldDict { get; private set; }
@@ -698,22 +802,29 @@ namespace pwiz.Skyline.Util.Extensions
             Initialize(reader, separator, hasHeaders);
         }
 
-        public DsvFileReader(TextReader reader, char separator, IReadOnlyDictionary<string, string> headerSynonyms)
+        public DsvFileReader(TextReader reader, char separator, IReadOnlyDictionary<string, string> headerSynonyms, List<string> columnPositions = null, bool hasHeaders = true)
         {
-            Initialize(reader, separator, true, headerSynonyms);
+            Initialize(reader, separator, hasHeaders, headerSynonyms, columnPositions);
         }
 
-        public void Initialize(TextReader reader, char separator, bool hasHeaders = true, IReadOnlyDictionary<string, string> headerSynonyms = null)
+        public void Initialize(TextReader reader, char separator, bool hasHeaders = true, IReadOnlyDictionary<string, string> headerSynonyms = null, List<string> columnPositions = null)
         {
             _separator = separator;
             _reader = reader;
             FieldNames = new List<string>();
             FieldDict = new Dictionary<string, int>();
             _titleLine = _reader.ReadLine(); // we will re-use this if it's not actually a header line
+            string saveTitleLine = _titleLine; // because we can overwrite the first line and might want to use it later, save it
             _rereadTitleLine = !hasHeaders; // tells us whether or not to reuse the supposed header line on first read
+            if (columnPositions != null)
+            {
+                userHeaders = TextUtil.TextSeparate(separator.ToString(), columnPositions);
+                // userHeaders = userHeaders.Replace(@" ", string.Empty);
+                _titleLine = userHeaders;
+            }
             var fields = _titleLine.ParseDsvFields(separator);
             NumberOfFields = fields.Length;
-            if (!hasHeaders)
+            if (!hasHeaders && columnPositions == null)
             {
                 // that wasn't really the header line, we just used it to get column count
                 // replace with made up column names
@@ -742,6 +853,7 @@ namespace pwiz.Skyline.Util.Extensions
                     }
                 }
             }
+            _titleLine = saveTitleLine;
         }
 
         /// <summary>
@@ -755,10 +867,27 @@ namespace pwiz.Skyline.Util.Extensions
             _rereadTitleLine = false; // we no longer need to re-use that first line
             if (line == null)
                 return null;
+            _linesRead++;
             _currentFields = line.ParseDsvFields(_separator);
-            if (_currentFields.Length != NumberOfFields)
+            if (_currentFields.Length > NumberOfFields)
             {
-                throw new IOException(string.Format(Resources.DsvFileReader_ReadLine_Line__0__has__1__fields_when__2__expected_, line, _currentFields.Length, NumberOfFields));
+                throw new LineColNumberedIoException(string.Format(Resources.DsvFileReader_ReadLine_Line__0__has__1__fields_when__2__expected_,
+                    line, _currentFields.Length, NumberOfFields), _linesRead, 0);
+            }
+            else if (_currentFields.Length < NumberOfFields)
+            {
+                // Tolerate missing trailing columns
+                var val = new string[NumberOfFields];
+                var index = 0;
+                foreach (var seen in _currentFields)
+                {
+                    val[index++] = seen;
+                }
+                while (index < NumberOfFields)
+                {
+                    val[index++] = string.Empty;
+                }
+                return val;
             }
             return _currentFields;
         }
@@ -806,5 +935,44 @@ namespace pwiz.Skyline.Util.Extensions
             _reader.Dispose();
         }
 
+    }
+
+    public class LineColNumberedIoException : IOException
+    {
+        public LineColNumberedIoException(string message, long lineNum, int colIndex)
+            : base(FormatMessage(message, lineNum, colIndex))
+        {
+            PlainMessage = message;
+            LineNumber = lineNum;
+            ColumnIndex = colIndex;
+        }
+
+        public LineColNumberedIoException(string message, string suggestion, long lineNum, int colIndex)
+            : base(TextUtil.LineSeparate(FormatMessage(message, lineNum, colIndex), suggestion))
+        {
+            PlainMessage = TextUtil.LineSeparate(message, suggestion);
+            LineNumber = lineNum;
+            ColumnIndex = colIndex;
+        }
+
+        public LineColNumberedIoException(string message, long lineNum, int colIndex, Exception inner)
+            : base(FormatMessage(message, lineNum, colIndex), inner)
+        {
+            PlainMessage = message;
+            LineNumber = lineNum;
+            ColumnIndex = colIndex;
+        }
+
+        private static string FormatMessage(string message, long lineNum, int colIndex)
+        {
+            if (colIndex == -1)
+                return string.Format(Resources.LineColNumberedIoException_FormatMessage__0___line__1__, message, lineNum);
+            else
+                return string.Format(Resources.LineColNumberedIoException_FormatMessage__0___line__1___col__2__, message, lineNum, colIndex + 1);
+        }
+
+        public string PlainMessage { get; private set; }
+        public long LineNumber { get; private set; }
+        public int ColumnIndex { get; private set; }
     }
 }

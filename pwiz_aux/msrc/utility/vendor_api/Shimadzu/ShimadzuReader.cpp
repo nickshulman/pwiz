@@ -53,6 +53,7 @@ namespace Shimadzu {
 
 // constants for converting integer representations of mass and time to double
 static const double MASS_MULTIPLIER = 1.0 / ShimadzuUtil::MASSNUMBER_UNIT;
+static const double PRECURSOR_MZ_MULTIPLIER = 1.0 / 1e9; // determined empirically: no constant provided by Shimadzu AFAIK
 static const double TIME_MULTIPLIER = 0.001;
 
 
@@ -290,7 +291,7 @@ class ShimadzuReaderImpl : public ShimadzuReader
                             case ShimadzuGeneric::Charges::Charge6: charge = 6; break;
                             case ShimadzuGeneric::Charges::Charge7: charge = 7; break;
                         }
-                        precursorInfoByScan_[scan] = make_pair(dependent->PrecursorMass * MASS_MULTIPLIER, charge);
+                        precursorInfoByScan_[scan] = make_pair(dependent->PrecursorMass * PRECURSOR_MZ_MULTIPLIER, charge);
                     }
         }
         CATCH_AND_FORWARD
@@ -458,7 +459,7 @@ TOFChromatogramImpl::TOFChromatogramImpl(const ShimadzuReaderImpl& reader, DataO
 
     auto result = chromatogramMng->GetChromatogrambyEvent(tofChromatogram, %mzTransition, true, true);
     if (ShimadzuUtil::Failed(result))
-        throw runtime_error("failed to get TOF chromatogram for segment " + lexical_cast<string>(transition.segment) + ", event " + lexical_cast<string>(transition.event));
+        throw gcnew System::Exception(ToSystemString("failed to get TOF chromatogram for segment " + lexical_cast<string>(transition.segment) + ", event " + lexical_cast<string>(transition.event)));
 
     x_.reserve(tofChromatogram->ChromIntList->Length);
     y_.reserve(tofChromatogram->ChromIntList->Length);
@@ -482,7 +483,7 @@ TICChromatogramImpl::TICChromatogramImpl(const ShimadzuReaderImpl& reader, DataO
         {
             auto result = chromatogramMng->GetTICChromatogram(eventTIC, i, eventNumber);
             if (ShimadzuUtil::Failed(result))
-                throw runtime_error("failed to get TIC chromatogram for segment " + lexical_cast<string>(i) + ", event " + lexical_cast<string>(eventNumber));
+                throw gcnew System::Exception(ToSystemString("failed to get TIC chromatogram for segment " + lexical_cast<string>(i) + ", event " + lexical_cast<string>(eventNumber)));
             for (int j = 0, end = eventTIC->ChromIntList->Length; j < end; ++j)
             {
                 int rt = eventTIC->RetTimeList[j];

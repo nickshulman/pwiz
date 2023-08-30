@@ -505,6 +505,10 @@ bool MaxQuantReader::parseFile()
     return true;
 }
 
+vector<PSM_SCORE_TYPE> MaxQuantReader::getScoreTypes() {
+    return vector<PSM_SCORE_TYPE>(1, MAXQUANT_SCORE);
+}
+
 bool MaxQuantReader::openFile()
 {
     Verbosity::debug("Opening TSV file.");
@@ -525,10 +529,13 @@ bool MaxQuantReader::openFile()
  */
 void MaxQuantReader::parseHeader(string& line)
 {
+    // remove UTF-8 byte order mark
+    bal::replace_first(line, "\xEF\xBB\xBF", "");
+
     LineParser lineParser(line, separator_);
     int colNumber = 0;
     size_t numColumns = targetColumns_.size();
-    
+
     // for each token in the line
     for (LineParser::iterator token = lineParser.begin();
          token != lineParser.end();
@@ -721,6 +728,7 @@ void MaxQuantReader::storeLine(MaxQuantLine& entry)
     {
         Verbosity::comment(V_DETAIL, "Not saving PSM %d with PEP %f (line %d)",
                            entry.scanNumber, entry.pep, lineNum_);
+        ++filteredOutPsmCount_;
         return;
     }
     else if (entry.masses.empty() || entry.intensities.empty())

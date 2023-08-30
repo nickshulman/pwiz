@@ -22,9 +22,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
-using System.Windows.Forms;
 using pwiz.Common.SystemUtil;
-using pwiz.Skyline.Alerts;
 using pwiz.Skyline.Model.Databinding.Entities;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.Results;
@@ -46,15 +44,15 @@ namespace pwiz.Skyline.Model
         public HashSet<string> UnrecognizedPeptides { get; private set; }
         public HashSet<string> UnrecognizedFiles { get; private set; }
         public HashSet<UnrecognizedChargeState> UnrecognizedChargeStates { get; private set; } 
-	    
+        
         public PeakBoundaryImporter(SrmDocument document)
-	    {
+        {
             Document = document;
             AnnotationsAdded = new List<string>();
             UnrecognizedFiles = new HashSet<string>();
             UnrecognizedPeptides = new HashSet<string>();
             UnrecognizedChargeStates = new HashSet<UnrecognizedChargeState>();
-	    }
+        }
 
         public struct UnrecognizedChargeState
         {
@@ -99,26 +97,109 @@ namespace pwiz.Skyline.Model
         public static int[] REQUIRED_NO_CHROM { get { return REQUIRED_FIELDS.Take(2).ToArray(); }}
 
         // ReSharper disable LocalizableElement
+
+        private static string[] _peptide_synonyms; // Cache for performance reasons (L10N stuff is expensive)
+        public static string[] PEPTIDE_SYNONYMS
+        {
+            get
+            {
+                if (_peptide_synonyms == null)
+                {
+                    var headers = new List<string>()
+                    {
+                        "PeptideModifiedSequence", "ModifiedSequence", "FullPeptideName", "EG.ModifiedSequence",
+                    };
+                    // Also recognize column captions in all supported display languages
+                    foreach (var culture in CultureUtil.AvailableDisplayLanguages())
+                    {
+                        using (var c = new CurrentCultureSetter(culture))
+                        {
+                            headers.Add(ColumnCaptions.PeptideModifiedSequence);
+                            headers.Add(ColumnCaptions.ModifiedSequence);
+                        }
+                    }
+                    _peptide_synonyms = headers.ToArray();
+                }
+                return _peptide_synonyms;
+            }
+        }
+
+        private static string[] _molecule_synonyms; // Cache for performance reasons (L10N stuff is expensive)
+        public static string[] MOLECULE_SYNONYMS
+        {
+            get
+            {
+                if (_molecule_synonyms == null) 
+                {
+                    var headers = new List<string>()
+                    {
+                        "MoleculeName"
+                    };
+                    // Also recognize column captions in all supported display languages
+                    foreach (var culture in CultureUtil.AvailableDisplayLanguages())
+                    {
+                        using (var c = new CurrentCultureSetter(culture))
+                        {
+                            headers.Add(ColumnCaptions.Molecule);
+                            headers.Add(ColumnCaptions.MoleculeName);
+                        }
+                    }
+                    _molecule_synonyms = headers.ToArray();
+                }
+                return _molecule_synonyms;
+            }
+        }
+
         // NOTE: The first name is what appears in error messages about missing required fields
+        private static string[][] _field_names; // Cache for performance reasons (L10N stuff is expensive)
         public static string[][] FIELD_NAMES
         {
             get
             {
                 // Since tests may change localized versions of column captions and reading
                 // a whole file dwarfs newing up this array.
-                return new[]
+
+                if (_field_names == null)
                 {
-                    new[] {"PeptideModifiedSequence", "ModifiedSequence", "FullPeptideName", "EG.ModifiedSequence", ColumnCaptions.PeptideModifiedSequence, ColumnCaptions.ModifiedSequence},
-                    new[] {"FileName", "filename", "align_origfilename", "R.FileName", ColumnCaptions.FileName},
-                    new[] {"Apex", "RetentionTime", "BestRetentionTime", "RT", ColumnCaptions.RetentionTime, ColumnCaptions.BestRetentionTime},
-                    new[] {"MinStartTime", "leftWidth", ColumnCaptions.MinStartTime},
-                    new[] {"MaxEndTime", "rightWidth", ColumnCaptions.MaxEndTime},
-                    new[] {"PrecursorCharge", "Charge", "FG.Charge", ColumnCaptions.PrecursorCharge},
-                    new[] {"PrecursorIsDecoy", "Precursor Is Decoy", "IsDecoy", "decoy", ColumnCaptions.IsDecoy},
-                    new[] {"SampleName", ColumnCaptions.SampleName},
-                    new[] {"DetectionQValue", "m_score", ColumnCaptions.DetectionQValue},
-                    new[] {"DetectionZScore", "d_score", ColumnCaptions.DetectionZScore},
-                };
+                    // Recognize column captions in all supported display languages
+                    var allFieldNames = new List<string []>();
+                    foreach (var culture in CultureUtil.AvailableDisplayLanguages())
+                    {
+                        using (var c = new CurrentCultureSetter(culture))
+                        {
+                            var currentFieldNames = new[]
+                            {
+                                PEPTIDE_SYNONYMS.Concat(MOLECULE_SYNONYMS).ToArray(),
+                                new[] {"FileName", "filename", "align_origfilename", "R.FileName", ColumnCaptions.FileName},
+                                new[] {"Apex", "RetentionTime", "BestRetentionTime", "RT", ColumnCaptions.RetentionTime, ColumnCaptions.BestRetentionTime},
+                                new[] {"MinStartTime", "leftWidth", ColumnCaptions.MinStartTime},
+                                new[] {"MaxEndTime", "rightWidth", ColumnCaptions.MaxEndTime},
+                                new[] {"PrecursorCharge", "Charge", "FG.Charge", ColumnCaptions.PrecursorCharge,
+                                    "Adduct", "PrecursorAdduct", ColumnCaptions.PrecursorAdduct},
+                                new[] {"PrecursorIsDecoy", "Precursor Is Decoy", "IsDecoy", "decoy", ColumnCaptions.IsDecoy},
+                                new[] {"SampleName", ColumnCaptions.SampleName},
+                                new[] {"DetectionQValue", "m_score", ColumnCaptions.DetectionQValue},
+                                new[] {"DetectionZScore", "d_score", ColumnCaptions.DetectionZScore},
+                            };
+                            for (var field = 0; field < currentFieldNames.Length; field++)
+                            {
+                                if (field == allFieldNames.Count)
+                                {
+                                    allFieldNames.Add(currentFieldNames[field]);
+                                }
+                                else
+                                {
+                                    var seen = allFieldNames[field];
+                                    var newNames = currentFieldNames[field].Where(header => !seen.Contains(header));
+                                    allFieldNames[field] = allFieldNames[field].Concat(newNames).ToArray();
+                                }
+                            }
+                        }
+                    }
+                    _field_names = allFieldNames.ToArray();
+                }
+
+                return _field_names;
             }
         }
         // ReSharper restore LocalizableElement
@@ -163,8 +244,7 @@ namespace pwiz.Skyline.Model
             var peakTimes = new List<double>();
             string line = reader.ReadLine();
             int[] fieldIndices;
-            int fieldsTotal;
-            char correctSeparator = ReadFirstLine(line, FIELD_NAMES, REQUIRED_FIELDS, out fieldIndices, out fieldsTotal);
+            char correctSeparator = ReadFirstLine(line, FIELD_NAMES, REQUIRED_FIELDS, out fieldIndices, out _);
             // Find the first 50 peak times that are not #N/A, if any is larger than the maxRT, then times are in seconds
             while (peakTimes.Count < 50)
             {
@@ -221,6 +301,11 @@ namespace pwiz.Skyline.Model
             var requiredFields = changePeaks ? REQUIRED_FIELDS : REQUIRED_NO_CHROM;
             char correctSeparator = ReadFirstLine(line, allFieldNames, requiredFields, out fieldIndices, out fieldsTotal);
 
+            // Determine whether the input list is proteomic or small molecule
+            var header = new DataFields(fieldIndices, line.ParseDsvFields(correctSeparator), allFieldNames);
+            var peptideColumnName = header.GetField(Field.modified_peptide);
+            var listIsProteomic = !MOLECULE_SYNONYMS.Any(s => string.Equals(s, peptideColumnName, StringComparison.CurrentCultureIgnoreCase));
+
             while ((line = reader.ReadLine()) != null)
             {
                 linesRead++;
@@ -246,7 +331,20 @@ namespace pwiz.Skyline.Model
                 bool isDecoy = dataFields.IsDecoy(linesRead);
                 IList<IdentityPath> pepPaths;
 
-                if (!sequenceToNode.TryGetValue(Tuple.Create(modifiedPeptideString, isDecoy), out pepPaths))
+                // When used in a mixed peptide/molecule document, the "molecule peak boundaries" report will set the molecule name
+                // field for peptide "PEPTIDER" as "pep_PEPTIDER". But our "as small molecules" tests use the same convention converting
+                // peptides to molecules, so it might be an actual named node in the document, so check that first before stripping "pep_".
+                var nodeFound = sequenceToNode.TryGetValue(Tuple.Create(modifiedPeptideString, isDecoy), out pepPaths);
+                var lineIsProteomic = listIsProteomic;
+                if (!listIsProteomic && !nodeFound && 
+                    modifiedPeptideString.StartsWith(RefinementSettings.TestingConvertedFromProteomicPeptideNameDecorator))
+                {
+                    modifiedPeptideString = modifiedPeptideString.Substring(RefinementSettings.TestingConvertedFromProteomicPeptideNameDecorator.Length);
+                    nodeFound = sequenceToNode.TryGetValue(Tuple.Create(modifiedPeptideString, isDecoy), out pepPaths);
+                    lineIsProteomic = true;
+                }
+
+                if (lineIsProteomic && !nodeFound)
                 {
                     string canonicalSequence;
                     if (!canonicalSequenceDict.TryGetValue(modifiedPeptideString, out canonicalSequence))
@@ -280,7 +378,7 @@ namespace pwiz.Skyline.Model
                     continue;
                 }
                 Adduct charge;
-                bool chargeSpecified = dataFields.TryGetCharge(linesRead, out charge);
+                bool chargeSpecified = dataFields.TryGetCharge(linesRead, out charge, lineIsProteomic);
                 string sampleName = dataFields.GetField(Field.sample_name);
 
                 double? apexTime = dataFields.GetTime(Field.apex_time, timeConversionFactor,
@@ -429,7 +527,7 @@ namespace pwiz.Skyline.Model
                             idPathList = new List<IdentityPath> { peptidePath };
                             sequenceToNode.Add(peptidePair, idPathList);
                         }
-                   }
+                    }
                 }
             }
             return sequenceToNode;
@@ -442,11 +540,22 @@ namespace pwiz.Skyline.Model
         /// </summary>
         private IEnumerable<string> ListSequenceKeys(PeptideDocNode peptideDocNode)
         {
-            yield return peptideDocNode.ModifiedTarget.Sequence;
-            if (!string.IsNullOrEmpty(peptideDocNode.ModifiedSequenceDisplay) &&
-                peptideDocNode.ModifiedSequenceDisplay != peptideDocNode.ModifiedTarget.Sequence)
+            if (peptideDocNode.IsProteomic)
             {
-                yield return peptideDocNode.ModifiedSequenceDisplay;
+                yield return peptideDocNode.ModifiedTarget.Sequence;
+                if (!string.IsNullOrEmpty(peptideDocNode.ModifiedSequenceDisplay) &&
+                    peptideDocNode.ModifiedSequenceDisplay != peptideDocNode.ModifiedTarget.Sequence)
+                {
+                    yield return peptideDocNode.ModifiedSequenceDisplay;
+                }
+            }
+            else
+            {
+                yield return peptideDocNode.CustomMolecule.DisplayName;
+                if (!Equals(peptideDocNode.CustomMolecule.DisplayName, peptideDocNode.CustomMolecule.InvariantName))
+                {
+                    yield return peptideDocNode.CustomMolecule.InvariantName;
+                }
             }
         }
 
@@ -594,108 +703,6 @@ namespace pwiz.Skyline.Model
             return null;
         }
 
-        /// <summary>
-        /// UI for warning about unrecognized peptides in imported file
-        /// </summary>
-        /// <param name="parent"></param>
-        /// <returns></returns>
-        public bool UnrecognizedPeptidesCancel(IWin32Window parent)
-        {
-            const int itemsToShow = 10;
-            if (!ShowMissingMessage(parent, itemsToShow, UnrecognizedPeptides, p => p.ToString(), PeptideMessages))
-                return false;
-            if (!ShowMissingMessage(parent, itemsToShow, UnrecognizedFiles, f => f.ToString(), FileMessages))
-                return false;
-            if (!ShowMissingMessage(parent, itemsToShow, UnrecognizedChargeStates, c => c.PrintLine(' '), ChargeMessages))
-                return false;
-            return true;
-        }
-
-        private class MissingMessageLines
-            {
-            public MissingMessageLines(string first, string last)
-                {
-                First = first;
-                Last = last;
-                }
-
-            public string First { get; private set; }
-            public string Last { get; private set; }
-        }
-
-        private MissingMessageLines PeptideMessages(int count)
-                {
-            if (count == 1)
-            {
-                return new MissingMessageLines(
-                    Resources.PeakBoundaryImporter_UnrecognizedPeptidesCancel_The_following_peptide_in_the_peak_boundaries_file_was_not_recognized_,
-                    Resources.PeakBoundaryImporter_UnrecognizedPeptidesCancel_Continue_peak_boundary_import_ignoring_this_peptide_);
-                }
-            else
-                {
-                return new MissingMessageLines(
-                    string.Format(Resources.SkylineWindow_ImportPeakBoundaries_The_following__0__peptides_in_the_peak_boundaries_file_were_not_recognized__, count),
-                    Resources.SkylineWindow_ImportPeakBoundaries_Continue_peak_boundary_import_ignoring_these_peptides_);
-                }
-            }
-
-        private MissingMessageLines FileMessages(int count)
-            {
-            if (count == 1)
-                {
-                return new MissingMessageLines(
-                    Resources.PeakBoundaryImporter_UnrecognizedPeptidesCancel_The_following_file_name_in_the_peak_boundaries_file_was_not_recognized_,
-                    Resources.PeakBoundaryImporter_UnrecognizedPeptidesCancel_Continue_peak_boundary_import_ignoring_this_file_);
-                }
-            else
-                {
-                return new MissingMessageLines(
-                    string.Format(Resources.SkylineWindow_ImportPeakBoundaries_The_following__0__file_names_in_the_peak_boundaries_file_were_not_recognized_, count),
-                    Resources.SkylineWindow_ImportPeakBoundaries_Continue_peak_boundary_import_ignoring_these_files_);
-                }
-        }
-
-        private MissingMessageLines ChargeMessages(int count)
-                {
-            if (count == 1)
-            {
-                return new MissingMessageLines(
-                    Resources.PeakBoundaryImporter_UnrecognizedPeptidesCancel_The_following_peptide__file__and_charge_state_combination_was_not_recognized_,
-                    Resources.PeakBoundaryImporter_UnrecognizedPeptidesCancel_Continue_peak_boundary_import_ignoring_these_charge_states_);
-                }
-            else
-            {
-                return new MissingMessageLines(
-                    string.Format(Resources.PeakBoundaryImporter_UnrecognizedPeptidesCancel_The_following__0__peptide__file__and_charge_state_combinations_were_not_recognized_, count),
-                    Resources.PeakBoundaryImporter_UnrecognizedPeptidesCancel_Continue_peak_boundary_import_ignoring_this_charge_state_);
-            }
-        }
-
-        private bool ShowMissingMessage<TItem>(IWin32Window parent, int maxItems, HashSet<TItem> items, Func<TItem, string> printLine, Func<int, MissingMessageLines> getMessageLines)
-            {
-            if (items.Any())
-            {
-                var sb = new StringBuilder();
-                var messageLines = getMessageLines(items.Count);
-                sb.AppendLine(messageLines.First);
-                sb.AppendLine();
-                int itemsToShow = Math.Min(items.Count, maxItems);
-                var itemsList = items.ToList();
-                for (int i = 0; i < itemsToShow; ++i)
-                    sb.AppendLine(printLine(itemsList[i]));
-                if (itemsToShow < items.Count)
-                    sb.AppendLine(@"...");
-                sb.AppendLine();
-                sb.Append(messageLines.Last);
-                var dlgFiles = MultiButtonMsgDlg.Show(parent, sb.ToString(), MultiButtonMsgDlg.BUTTON_OK);
-                if (dlgFiles == DialogResult.Cancel)
-                {
-                    return false;
-                }
-            }
-            return true;
-        }
-
         private class ResultsKey
         {
             private int FileId { get; set; }
@@ -747,7 +754,11 @@ namespace pwiz.Skyline.Model
             private string GetField(int i)
             {
                 int fieldIndex = _fieldIndices[i];
-                return fieldIndex != -1 ? _dataFields[fieldIndex] : null;
+                if (fieldIndex == -1 || fieldIndex >= _dataFields.Length)
+                {
+                    return null;
+                }
+                return _dataFields[fieldIndex];
             }
 
             public string GetField(Field field)
@@ -824,7 +835,7 @@ namespace pwiz.Skyline.Model
                 return isDecoy;
             }
 
-            public bool TryGetCharge(long linesRead, out Adduct charge)
+            public bool TryGetCharge(long linesRead, out Adduct charge, bool assumeProteomic)
             {
                 string chargeString = GetField(Field.charge);
                 if (chargeString == null)
@@ -833,7 +844,7 @@ namespace pwiz.Skyline.Model
                     return false;
                 }
 
-                if (!Adduct.TryParse(chargeString, out charge, Adduct.ADDUCT_TYPE.proteomic)) // Read, for example, "2" as Adduct.DOUBLY_PROTONATED
+                if (!Adduct.TryParse(chargeString, out charge, assumeProteomic ? Adduct.ADDUCT_TYPE.proteomic : Adduct.ADDUCT_TYPE.non_proteomic)) // If proteomic, read (for example) "2" as Adduct.DOUBLY_PROTONATED
                 {
                     throw new IOException(string.Format(Resources.PeakBoundaryImporter_Import_The_value___0___on_line__1__is_not_a_valid_charge_state_, chargeString, linesRead));
                 }

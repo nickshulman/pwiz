@@ -31,14 +31,34 @@ using System.Windows.Forms;
 
 namespace MSConvertGUI
 {
-    public partial class LoginForm : Form
+    public partial class LoginForm : BaseForm
     {
-        public LoginForm()
+        public enum ApiVersion
+        {
+            Version3 = 3,
+            Version4
+        }
+
+        public LoginForm(ApiVersion apiVersion)
         {
             InitializeComponent();
             base.AcceptButton = okButton;
             base.CancelButton = cancelButton;
             advancedOptionLabelPanel.Visible = advancedOptionPanel.Visible = false;
+
+            switch(apiVersion)
+            {
+                case ApiVersion.Version3:
+                    identityServerTextBox.Text = "<HostURL>:50333";
+                    clientScopeTextBox.Text = "unifi";
+                    break;
+                case ApiVersion.Version4:
+                    identityServerTextBox.Text = "<HostURL>:48333";
+                    clientScopeTextBox.Text = "webapi";
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(apiVersion), apiVersion, null);
+            }
         }
 
         private void okButton_Click(object sender, EventArgs e)

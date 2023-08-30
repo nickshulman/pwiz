@@ -19,6 +19,7 @@
 
 using System.Collections.Generic;
 using System.Linq;
+using pwiz.Common.Collections;
 using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Model.RetentionTimes;
 
@@ -27,8 +28,8 @@ namespace pwiz.Skyline.Model.Results.Scoring.Tric
     class TricStarTree : TricTree
     {
         public TricStarTree(IEnumerable<PeptideFileFeatureSet> peptides,
-                            IDictionary<int, string> fileNames, 
-                            IList<int> fileIndexes,
+                            IDictionary<ReferenceValue<ChromFileInfoId>, string> fileNames, 
+                            IList<ChromFileInfoId> fileIndexes,
                             double testAnchorCutoof,
                             RegressionMethodRT regressionMethod,
                             IProgressMonitor progressMonitor,
@@ -65,9 +66,9 @@ namespace pwiz.Skyline.Model.Results.Scoring.Tric
 
         private void LearnStarTree(IProgressMonitor progressMonitor, ref IProgressStatus status)
         {
-            int maxScoreFileIndex = -1;
+            ChromFileInfoId maxScoreFileIndex = null;
             double maxScore = double.MinValue;
-            foreach(var index in _fileIndexes)
+            foreach(var index in _fileIds)
             {
                 if (_vertices[index].Score > maxScore)
                 {
@@ -79,7 +80,7 @@ namespace pwiz.Skyline.Model.Results.Scoring.Tric
 
             foreach(var vertex in _vertices.Values)
             {
-                if(vertex.FileIndex != maxScoreFileIndex)
+                if(!ReferenceEquals(vertex.FileId, maxScoreFileIndex))
                 {
                     _tree.Add(new Edge(_vertices[maxScoreFileIndex],vertex,0));    
                 }
@@ -87,8 +88,8 @@ namespace pwiz.Skyline.Model.Results.Scoring.Tric
 
             foreach (var edge in _tree)
             {
-                edge.AVertex.NeighborRuns.Add(edge.BVertex.FileIndex);
-                edge.BVertex.NeighborRuns.Add(edge.AVertex.FileIndex);
+                edge.AVertex.NeighborRuns.Add(edge.BVertex.FileId);
+                edge.BVertex.NeighborRuns.Add(edge.AVertex.FileId);
                 edge.AVertex.Connections.Add(edge);
                 edge.BVertex.Connections.Add(edge);
             }

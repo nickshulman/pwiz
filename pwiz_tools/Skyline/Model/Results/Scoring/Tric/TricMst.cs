@@ -21,6 +21,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using pwiz.Common.Collections;
 using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Model.RetentionTimes;
 using pwiz.Skyline.Properties;
@@ -41,8 +42,8 @@ namespace pwiz.Skyline.Model.Results.Scoring.Tric
     public sealed class TricMst : TricTree
     {
         public TricMst(IEnumerable<PeptideFileFeatureSet>  peptides,
-                        IDictionary<int,string> fileNames,
-                        IList<int> fileIndexes,
+                        IDictionary<ReferenceValue<ChromFileInfoId>, string> fileNames,
+                        IList<ChromFileInfoId> fileIndexes,
                         double anchorCutoff,
                         RegressionMethodRT regressionMethod,
                         IProgressMonitor progressMonitor,
@@ -69,15 +70,15 @@ namespace pwiz.Skyline.Model.Results.Scoring.Tric
                     if (pm != null)
                     {
                         pm.UpdateProgress(
-                            status = status.ChangePercentComplete(startPercent + percentRange*edgesAdded/_fileIndexes.Count));
+                            status = status.ChangePercentComplete(startPercent + percentRange*edgesAdded/_fileIds.Count));
                     }
-                    if (edgesAdded >= _fileIndexes.Count - 1)
+                    if (edgesAdded >= _fileIds.Count - 1)
                     {
                         break;
                     }
                 }
             }
-            if (edgesAdded < _fileIndexes.Count - 1)
+            if (edgesAdded < _fileIds.Count - 1)
             {
                 throw new Exception(
                         Resources.TricMst_FindMst_Insufficient_high_quality_identifications_to_make_a_quality_alignment);
@@ -85,8 +86,8 @@ namespace pwiz.Skyline.Model.Results.Scoring.Tric
             }
             foreach (var edge in _tree)
             {
-                edge.AVertex.NeighborRuns.Add(edge.BVertex.FileIndex);
-                edge.BVertex.NeighborRuns.Add(edge.AVertex.FileIndex);
+                edge.AVertex.NeighborRuns.Add(edge.BVertex.FileId);
+                edge.BVertex.NeighborRuns.Add(edge.AVertex.FileId);
                 edge.AVertex.Connections.Add(edge);
                 edge.BVertex.Connections.Add(edge);
             }
@@ -107,15 +108,15 @@ namespace pwiz.Skyline.Model.Results.Scoring.Tric
             // The weigths are 1 - r^2 of a simple linear regression, because it is too
             // slow to calculate correlation with non-linear regressions, which may be used
             // for the actual alignment.
-            _edges = new List<Edge>(_fileIndexes.Count*(_fileIndexes.Count - 1));
+            _edges = new List<Edge>(_fileIds.Count*(_fileIds.Count - 1));
             var depList = new List<double>();
             var indList = new List<double>();
             int regressionsCounter = 0;
-            foreach(var fileIndexFrom in _fileIndexes)
+            foreach(var fileIndexFrom in _fileIds)
             {
-                foreach (var fileIndexTo in _fileIndexes)
+                foreach (var fileIndexTo in _fileIds)
                 {
-                    if(fileIndexTo == fileIndexFrom)
+                    if(ReferenceEquals(fileIndexTo, fileIndexFrom))
                         continue;
                     GetAnchorPoints(fileIndexFrom, fileIndexTo, indList, depList);
                     var depStats = new Statistics(depList);
@@ -131,7 +132,7 @@ namespace pwiz.Skyline.Model.Results.Scoring.Tric
                 }
                 regressionsCounter++;
                 if (pm != null)
-                    pm.UpdateProgress(status = status.ChangePercentComplete(startPercent + regressionsCounter*percentRange/_fileIndexes.Count));
+                    pm.UpdateProgress(status = status.ChangePercentComplete(startPercent + regressionsCounter*percentRange/_fileIds.Count));
             }
         }
 

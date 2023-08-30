@@ -27,6 +27,7 @@ using pwiz.Common.Collections;
 using pwiz.ProteowizardWrapper;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.Lib;
+using pwiz.Skyline.Model.Optimization;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
 
@@ -37,6 +38,7 @@ namespace pwiz.Skyline.Model.Results
         bool IsWatersFile { get; }
         bool IsAgilentFile { get; }
         IEnumerable<MsInstrumentConfigInfo> ConfigInfoList { get; }
+        bool HasDeclaredMSnSpectra { get; }
     }
 
     public interface IIonMobilityFunctionsProvider
@@ -80,16 +82,16 @@ namespace pwiz.Skyline.Model.Results
         private int _mseLevel;
         private MsDataSpectrum _mseLastSpectrum;
         private int _mseLastSpectrumLevel; // for averaging Agilent stepped CE spectra
-        private bool _sourceHasDeclaredMS2Scans; // Used in all-ions mode to discern low and high energy scans for Bruker
+        private bool _sourceHasDeclaredMSnSpectra; // Used in all-ions mode to discern low and high energy scans for Bruker
 
-        private static readonly PrecursorTextId TIC_KEY = new PrecursorTextId(SignedMz.ZERO, null, null, ChromExtractor.summed);
-        private static readonly PrecursorTextId BPC_KEY = new PrecursorTextId(SignedMz.ZERO, null, null, ChromExtractor.base_peak);
+        private static readonly PrecursorTextId TIC_KEY = new PrecursorTextId(SignedMz.ZERO, null, null, null, null, ChromExtractor.summed);
+        private static readonly PrecursorTextId BPC_KEY = new PrecursorTextId(SignedMz.ZERO, null, null, null, null, ChromExtractor.base_peak);
 
         public IEnumerable<SpectrumFilterPair> FilterPairs { get { return _filterMzValues; } }
         public bool HasRangeRT { get; private set; }
 
-        public SpectrumFilter(SrmDocument document, MsDataFileUri msDataFileUri, IFilterInstrumentInfo instrumentInfo, 
-            double? maxObservedIonMobilityValue = null,
+        public SpectrumFilter(SrmDocument document, MsDataFileUri msDataFileUri, IFilterInstrumentInfo instrumentInfo,
+            OptimizableRegression optimization = null, double? maxObservedIonMobilityValue = null,
             IRetentionTimePredictor retentionTimePredictor = null, bool firstPass = false, GlobalChromatogramExtractor gce = null)
         {
             _fullScan = document.Settings.TransitionSettings.FullScan;
@@ -101,6 +103,7 @@ namespace pwiz.Skyline.Model.Results
                 _isWatersFile = instrumentInfo.IsWatersFile;
                 _isWatersSonar = instrumentInfo.IsWatersSonarData;
                 _configInfoList = instrumentInfo.ConfigInfoList;
+                _sourceHasDeclaredMSnSpectra = instrumentInfo.HasDeclaredMSnSpectra;
             }
             IsFirstPass = firstPass;
 
@@ -193,6 +196,10 @@ namespace pwiz.Skyline.Model.Results
                 //       times can be shared for MS1 without SIM scans
                 _isSharedTime = !canSchedule && !_isIonMobilityFiltered;
 
+                var ceSteps = Equals(optimization?.OptType, OptimizationType.collision_energy)
+                    ? Enumerable.Range(-optimization.StepCount, optimization.StepCount * 2 + 1).Cast<int?>().ToArray()
+                    : new[] { (int?)null };
+
                 int filterCount = 0;
                 foreach (var nodePep in moleculesThisPass)
                 {
@@ -222,12 +229,12 @@ namespace pwiz.Skyline.Model.Results
                                 _isSharedTime = false;
                             }
                         }
-                        if (canSchedule && peakBoundaries == null)
+                        if (canSchedule && (peakBoundaries == null || peakBoundaries.IsEmpty))
                         {
                             if (RetentionTimeFilterType.scheduling_windows == _fullScan.RetentionTimeFilterType)
                             {
                                 double? centerTime = null;
-                                double windowRT = 0;
+                                var windowRT = new PeptidePrediction.WindowRT(0, false);
                                 if (retentionTimePredictor != null)
                                 {
                                     centerTime = retentionTimePredictor.GetPredictedRetentionTime(nodePep);
@@ -246,7 +253,7 @@ namespace pwiz.Skyline.Model.Results
                                     centerTime = 0;
                                 if (_fullScan.RetentionTimeFilterLength != 0)
                                 {
-                                    windowRT = _fullScan.RetentionTimeFilterLength * 2;
+                                    windowRT.Window = _fullScan.RetentionTimeFilterLength * 2;
                                 }
                                 if (centerTime != null)
                                 {
@@ -267,40 +274,43 @@ namespace pwiz.Skyline.Model.Results
                             }
                         }
 
-                        SpectrumFilterPair filter;
-                        var textId = nodePep.ModifiedTarget; // Modified Sequence for peptides, or some other string for custom ions
                         var mz = new SignedMz(nodeGroup.PrecursorMz, nodeGroup.PrecursorCharge < 0);
-                        var key = new PrecursorTextId(mz, ionMobilityFilter, textId, ChromExtractor.summed);
-                        if (!dictPrecursorMzToFilter.TryGetValue(key, out filter))
-                        {
-                            filter = new SpectrumFilterPair(key, nodePep.Color, dictPrecursorMzToFilter.Count, minTime, maxTime,
-                                _isHighAccMsFilter, _isHighAccProductFilter);
-                            if (_instrument.TriggeredAcquisition)
-                            {
-                                filter.ScanDescriptionFilter =
-                                    GetSureQuantScanDescription(document.Settings, nodePep, nodeGroup);
-                            }
-                            dictPrecursorMzToFilter.Add(key, filter);
-                        }
 
-                        if (!EnabledMs)
+                        foreach (var step in ceSteps)
                         {
-                            filterCount += filter.AddQ3FilterValues((from TransitionDocNode nodeTran in nodeGroup.Children select nodeTran).
-                                Select(nodeTran => new SpectrumFilterValues(nodeTran.Mz, IsMseData() ?
-                                    nodeTran.ExplicitValues.IonMobilityHighEnergyOffset ?? ionMobilityFilter.HighEnergyIonMobilityOffset ?? 0 : 0)), calcWindowsQ3);
-                        }
-                        else if (!EnabledMsMs)
-                        {
-                            filterCount += filter.AddQ1FilterValues(GetMS1MzValues(nodeGroup), calcWindowsQ1);
-                        }
-                        else
-                        {
-                            filterCount += filter.AddQ1FilterValues(GetMS1MzValues(nodeGroup), calcWindowsQ1);
-                            filterCount += filter.AddQ3FilterValues((from TransitionDocNode nodeTran in nodeGroup.Children
-                                    where !nodeTran.IsMs1 select nodeTran).
-                                Select(nodeTran => new SpectrumFilterValues(nodeTran.Mz, IsMseData() ?
-                                    nodeTran.ExplicitValues.IonMobilityHighEnergyOffset ?? ionMobilityFilter.HighEnergyIonMobilityOffset ?? 0 : 0)), 
-                                calcWindowsQ3);
+                            var ce = step.HasValue
+                                ? document.GetCollisionEnergy(nodePep, nodeGroup, null, step.Value)
+                                : (double?)null;
+                            var key = new PrecursorTextId(mz, step, ce, ionMobilityFilter,
+                                ChromatogramGroupId.ForPeptide(nodePep, nodeGroup), ChromExtractor.summed);
+
+                            if (!dictPrecursorMzToFilter.TryGetValue(key, out var filter))
+                            {
+                                filter = new SpectrumFilterPair(key, nodePep.Color, dictPrecursorMzToFilter.Count, minTime, maxTime,
+                                    _isHighAccMsFilter, _isHighAccProductFilter);
+                                if (_instrument.TriggeredAcquisition)
+                                {
+                                    filter.ScanDescriptionFilter = GetSureQuantScanDescription(document.Settings, nodePep, nodeGroup);
+                                }
+                                dictPrecursorMzToFilter.Add(key, filter);
+                            }
+
+                            if (EnabledMs)
+                            {
+                                filterCount += filter.AddQ1FilterValues(GetMS1MzValues(nodeGroup), calcWindowsQ1);
+                            }
+
+                            if (EnabledMsMs)
+                            {
+                                var transitions = EnabledMs
+                                    ? nodeGroup.Transitions.Where(nodeTran => !nodeTran.IsMs1)
+                                    : nodeGroup.Transitions;
+
+                                var values = transitions.Select(nodeTran => new SpectrumFilterValues(nodeTran.Mz,
+                                    nodeTran.ExplicitValues.IonMobilityHighEnergyOffset ?? ionMobilityFilter.HighEnergyIonMobilityOffset ?? 0));
+
+                                filterCount += filter.AddQ3FilterValues(values, calcWindowsQ3);
+                            }
                         }
                     }
                 }
@@ -535,9 +545,19 @@ namespace pwiz.Skyline.Model.Results
             get { return _isWatersMse; }
         }
 
+        public bool IsElectronIonizationMse
+        {
+            get { return _isElectronIonizationMse; }
+        }
+
         public bool IsAgilentFile
         {
             get { return _isAgilentMse; }
+        }
+
+        public bool HasDeclaredMSnSpectra
+        {
+            get { return _sourceHasDeclaredMSnSpectra; }
         }
 
         public IEnumerable<MsInstrumentConfigInfo> ConfigInfoList
@@ -697,10 +717,11 @@ namespace pwiz.Skyline.Model.Results
             return isSimSpectrum;
         }
 
+        public const int SIM_ISOLATION_CUTOFF = 500;
+
         private static bool IsSimIsolation(IsolationWindowFilter isoWin)
         {
             // Consider: Introduce a variable cut-off in the document settings
-            const int SIM_ISOLATION_CUTOFF = 500;
             return isoWin.IsolationMz.HasValue && isoWin.IsolationWidth.HasValue &&
                    isoWin.IsolationWidth.Value <= SIM_ISOLATION_CUTOFF;
         }
@@ -709,7 +730,7 @@ namespace pwiz.Skyline.Model.Results
         {
             if (!EnabledMsMs)
                 return false;
-            _sourceHasDeclaredMS2Scans |= (dataSpectrum.Level == 2);
+            _sourceHasDeclaredMSnSpectra |= (dataSpectrum.Level == 2);
             if (_mseLevel > 0)
                 return UpdateMseLevel(dataSpectrum) == 2;
             return dataSpectrum.Level > 1;
@@ -730,7 +751,12 @@ namespace pwiz.Skyline.Model.Results
                 // Agilent MSe is a series of MS1 scans with ramped CE (SpectrumList_Agilent returns these as MS1,MS2,MS2,...) 
                 //    but with ion mobility, as of June 2014, it's just a series of MS2 scans with a single nonzero CE, or MS1 scans with 0 CE
                 // Electron Ionization "MSe" is all MS1 data, but contains only fragments
-                if (_isAgilentMse)
+                if (_isElectronIonizationMse)
+                {
+                    _mseLevel = 2; // EI data is all fragments
+                    returnval = 2; // Report as MS2 even though its recorded as MS1
+                }
+                else if (_isAgilentMse)
                 {
                     if (1 == dataSpectrum.Level)
                     {
@@ -748,15 +774,10 @@ namespace pwiz.Skyline.Model.Results
                         returnval = 0; // Not useful - probably the file started off mid-cycle, with MS2 CE>0
                     }
                 }
-                else if (_isElectronIonizationMse)
-                {
-                    _mseLevel = 2; // EI data is all fragments
-                    returnval = 2; // Report as MS2 even though its recorded as MS1
-                }
                 else if (!_isWatersMse)
                 {
                     // Bruker - Alternate between 1 and 2 if everything is declared as MS1, assume first is low energy
-                    _mseLevel = _mseLastSpectrum == null || _sourceHasDeclaredMS2Scans 
+                    _mseLevel = _mseLastSpectrum == null || _sourceHasDeclaredMSnSpectra
                         ? dataSpectrum.Level  
                         : (_mseLevel % 2) + 1;
                     returnval = _mseLevel;
@@ -796,6 +817,9 @@ namespace pwiz.Skyline.Model.Results
             SpectrumFilterPair[] filterPairs;
             if (isSimSpectra)
             {
+                if (_fullScan.IgnoreSimScans)
+                    yield break;
+
                 filterPairs = FindMs1FilterPairs(precursors).ToArray();
             }
             else
@@ -813,13 +837,22 @@ namespace pwiz.Skyline.Model.Results
                     filterPairs = _filterMzValues;
                 }
             }
-            bool orderedByMz = firstSpectrum.IonMobilities == null; // 3D spectra may come ordered by ion mobility
             foreach (var filterPair in filterPairs)
             {
                 if (!filterPair.ContainsRetentionTime(retentionTime.Value))
                     continue;
+                var matchingSpectra = spectra;
+                if (false == filterPair.SpectrumClassFilter.IsEmpty)
+                {
+                    matchingSpectra = spectra.Where(spectrum => filterPair.MatchesSpectrum(spectrum.Metadata))
+                        .ToArray();
+                    if (matchingSpectra.Length == 0)
+                    {
+                        continue;
+                    }
+                }
 
-                var filteredSrmSpectrum = filterPair.FilterQ1SpectrumList(spectra, isSimSpectra);
+                var filteredSrmSpectrum = filterPair.FilterQ1SpectrumList(matchingSpectra, isSimSpectra);
                 if (filteredSrmSpectrum != null)
                     yield return filteredSrmSpectrum;
             }
@@ -859,8 +892,17 @@ namespace pwiz.Skyline.Model.Results
                         }
                     }
 
+                    var matchingSpectra = spectra;
+                    if (!filterPair.SpectrumClassFilter.IsEmpty)
+                    {
+                        matchingSpectra = spectra.Where(spectrum => filterPair.MatchesSpectrum(spectrum.Metadata))
+                            .ToArray();
+                        if (matchingSpectra.Length == 0)
+                            continue;
+                    }
+
                     // This line does the bulk of the work of pulling chromatogram points from spectra
-                    var filteredSrmSpectrum = filterPair.FilterQ3SpectrumList(spectra, UseDriftTimeHighEnergyOffset());
+                    var filteredSrmSpectrum = filterPair.FilterQ3SpectrumList(matchingSpectra, UseDriftTimeHighEnergyOffset());
 
                     filteredSrmSpectrum = pasefAwareFilter.Filter(filteredSrmSpectrum, filterPair, isoWin);
                     if (filteredSrmSpectrum != null)
@@ -1165,7 +1207,7 @@ namespace pwiz.Skyline.Model.Results
                     }
                 }
             }
-            else
+            else if (acquisitionMethod == FullScanAcquisitionMethod.DDA)
             {
                 foreach (var filterPair in _filterMzValues)
                 {
@@ -1174,6 +1216,11 @@ namespace pwiz.Skyline.Model.Results
                         filterPairs.Add(filterPair);
                     }
                 }
+            }
+            else // PRM or SureQuant
+            {
+                return FindFilterPairs(new IsolationWindowFilter(isoWin.IsolationMz, 2 * _instrument.MzMatchTolerance),
+                    FullScanAcquisitionMethod.DIA, true);
             }
 
             _filterPairDictionary[isoWinKey] = filterPairs;
@@ -1228,7 +1275,10 @@ namespace pwiz.Skyline.Model.Results
             {
                 isolationWidthValue = isolationWidth.Value - (isolationScheme.PrecursorFilter ?? 0)*2;
             }
-
+            else if (isolationScheme.IsAllIons)
+            {
+                isolationWidthValue = Double.MaxValue;
+            }
                 // No defined isolation scheme?
             else
             {

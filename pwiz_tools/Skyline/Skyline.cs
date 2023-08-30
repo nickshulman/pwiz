@@ -70,6 +70,7 @@ using pwiz.Skyline.Model.GroupComparison;
 using pwiz.Skyline.Model.Lists;
 using pwiz.Skyline.Model.Prosit.Communication;
 using pwiz.Skyline.Model.Prosit.Models;
+using pwiz.Skyline.Model.Results.Scoring;
 using pwiz.Skyline.Model.Serialization;
 using pwiz.Skyline.SettingsUI;
 using pwiz.Skyline.SettingsUI.Irt;
@@ -115,7 +116,7 @@ namespace pwiz.Skyline
         private readonly LibraryManager _libraryManager;
         private readonly LibraryBuildNotificationHandler _libraryBuildNotificationHandler;
         private readonly ChromatogramManager _chromatogramManager;
-        private readonly ImportPeptideSearchManager _importPeptideSearchManager;
+        private readonly AutoTrainManager _autoTrainManager;
 
         public event EventHandler<DocumentChangedEventArgs> DocumentChangedEvent;
         public event EventHandler<DocumentChangedEventArgs> DocumentUIChangedEvent;
@@ -181,14 +182,14 @@ namespace pwiz.Skyline
             _proteinMetadataManager = new ProteinMetadataManager();
             _proteinMetadataManager.ProgressUpdateEvent += UpdateProgress;
             _proteinMetadataManager.Register(this);
-            _importPeptideSearchManager = new ImportPeptideSearchManager();
-            _importPeptideSearchManager.ProgressUpdateEvent += UpdateProgress;
-            _importPeptideSearchManager.Register(this);
+            _autoTrainManager = new AutoTrainManager();
+            _autoTrainManager.ProgressUpdateEvent += UpdateProgress;
+            _autoTrainManager.Register(this);
 
             // RTScoreCalculatorList.DEFAULTS[2].ScoreProvider
             //    .Attach(this);
 
-            DocumentUIChangedEvent += ShowAutoTrainResults;
+            DocumentUIChangedEvent += AutoTrainCompleted;
 
             checkForUpdatesMenuItem.Visible =
                 checkForUpdatesSeparator.Visible = ApplicationDeployment.IsNetworkDeployed;
@@ -302,12 +303,10 @@ namespace pwiz.Skyline
 
         public void OpenPasteFileDlg(PasteFormat pf)
         {
-            using (var pasteDlg = new PasteDlg(this)
+            using (var pasteDlg = new PasteDlg(this))
             {
-                SelectedPath = SelectedPath,
-                PasteFormat = pf
-            })
-            {
+                pasteDlg.SelectedPath = SelectedPath;
+                pasteDlg.PasteFormat = pf;
                 if (pasteDlg.ShowDialog(this) == DialogResult.OK)
                     SelectedPath = pasteDlg.SelectedPath;
             }
@@ -434,9 +433,9 @@ namespace pwiz.Skyline
             get { return _ionMobilityLibraryManager; }
         }
 
-        public ImportPeptideSearchManager ImportPeptideSearchManager
+        public AutoTrainManager AutoTrainManager
         {
-            get { return _importPeptideSearchManager; }
+            get { return _autoTrainManager; }
         }
 
         private bool _useKeysOverride;
@@ -608,13 +607,18 @@ namespace pwiz.Skyline
             ViewMenu.DocumentUiChanged();
         }
 
-        public void ShowAutoTrainResults(object sender, DocumentChangedEventArgs e)
+        private void AutoTrainCompleted(object sender, DocumentChangedEventArgs e)
         {
-            if (!PeptideIntegration.AutoTrainCompleted(DocumentUI, e.DocumentPrevious))
+            var trainedType = AutoTrainManager.CompletedType(DocumentUI, e.DocumentPrevious);
+            if (Equals(trainedType, PeptideIntegration.AutoTrainType.none))
                 return;
 
             var model = DocumentUI.Settings.PeptideSettings.Integration.PeakScoringModel;
             Settings.Default.PeakScoringModelList.Add(model);
+
+            if (Equals(trainedType, PeptideIntegration.AutoTrainType.default_model))
+                return; // don't show dialog when auto trained model is the default model
+
             var modelIndex = Settings.Default.PeakScoringModelList.IndexOf(model);
             var newModel = Settings.Default.PeakScoringModelList.EditItem(this, model, Settings.Default.PeakScoringModelList, null);
             if (newModel == null || model.Equals(newModel))
@@ -627,8 +631,9 @@ namespace pwiz.Skyline
                 docCurrent = DocumentUI;
                 docNew = docCurrent.ChangeSettings(docCurrent.Settings.ChangePeptideIntegration(i => i.ChangePeakScoringModel(newModel)));
                 var resultsHandler = new MProphetResultsHandler(docNew, newModel);
-                using (var longWaitDlg = new LongWaitDlg {Text = Resources.ReintegrateDlg_OkDialog_Reintegrating})
+                using (var longWaitDlg = new LongWaitDlg())
                 {
+                    longWaitDlg.Text = Resources.ReintegrateDlg_OkDialog_Reintegrating;
                     try
                     {
                         longWaitDlg.PerformWork(this, 1000, pm =>
@@ -927,6 +932,7 @@ namespace pwiz.Skyline
             private readonly IdentityPath _treeSelection;
             private readonly IList<IdentityPath> _treeSelections;
             private readonly string _resultName;
+            private IDictionary<DataGridId, DataboundGridForm.UndoState> _gridStates;
 
             public UndoState(SkylineWindow window)
             {
@@ -935,16 +941,18 @@ namespace pwiz.Skyline
                 _treeSelections = window.SequenceTree.SelectedPaths;
                 _treeSelection = window.SequenceTree.SelectedPath;
                 _resultName = ResultNameCurrent;
+                _gridStates = DataboundGridForm.GetUndoStates();
             }
 
             private UndoState(SkylineWindow window, SrmDocument document, IList<IdentityPath> treeSelections,
-                IdentityPath treeSelection, string resultName)
+                IdentityPath treeSelection, string resultName, IDictionary<DataGridId, DataboundGridForm.UndoState> gridStates)
             {
                 _window = window;
                 _document = document;
                 _treeSelections = treeSelections;
                 _treeSelection = treeSelection;
                 _resultName = resultName;
+                _gridStates = gridStates;
             }
 
             private string ResultNameCurrent
@@ -967,6 +975,8 @@ namespace pwiz.Skyline
                 // Get results name
                 string resultName = ResultNameCurrent;
 
+                var gridStates = DataboundGridForm.GetUndoStates();
+
                 // Restore document state
                 SrmDocument docReplaced = _window.RestoreDocument(_document);
 
@@ -982,9 +992,12 @@ namespace pwiz.Skyline
                 if (_resultName != null)
                     _window.ComboResults.SelectedItem = _resultName;
 
+                if (_gridStates != null)
+                    DataboundGridForm.RestoreUndoStates(_gridStates);
+
                 // Return a record that can be used to restore back to the state
                 // before this action.
-                return new UndoState(_window, docReplaced, treeSelections, treeSelection, resultName);
+                return new UndoState(_window, docReplaced, treeSelections, treeSelection, resultName, gridStates);
             }
         }
 
@@ -1082,10 +1095,13 @@ namespace pwiz.Skyline
             _retentionTimeManager.ProgressUpdateEvent -= UpdateProgress;
             _ionMobilityLibraryManager.ProgressUpdateEvent -= UpdateProgress;
             _proteinMetadataManager.ProgressUpdateEvent -= UpdateProgress;
-            _importPeptideSearchManager.ProgressUpdateEvent -= UpdateProgress;
+            _autoTrainManager.ProgressUpdateEvent -= UpdateProgress;
             
             DestroyAllChromatogramsGraph();
             base.OnClosing(e);
+
+            foreach (var control in new IMenuControlImplementer[] { _graphFullScan, _graphSpectrum, ViewMenu })
+                control?.DisconnectHandlers();
         }
 
         protected override void OnClosed(EventArgs e)
@@ -1351,11 +1367,30 @@ namespace pwiz.Skyline
                 var liveResultsGrid = _resultsGridForm;
                 if (null != liveResultsGrid)
                 {
-                    bookmark = bookmark.ChangeChromFileInfoId(liveResultsGrid.GetCurrentChromFileInfoId());
+                    var replicateIndex = liveResultsGrid.GetReplicateIndex();
+                    var chromFileInfoId = liveResultsGrid.GetCurrentChromFileInfoId();
+                    if (replicateIndex.HasValue && chromFileInfoId != null)
+                    {
+                        bookmark = bookmark.ChangeResult(replicateIndex.Value, chromFileInfoId, 0);
+                    }
+                    
                 }
-            }            
-            var findResult = DocumentUI.SearchDocument(bookmark,
-                findOptions, displaySettings);
+            }
+
+            FindResult findResult = null;
+            var document = DocumentUI;
+            using (var longWaitDlg = new LongWaitDlg())
+            {
+                longWaitDlg.PerformWork(this, 1000, progressMonitor =>
+                {
+                    findResult = document.SearchDocument(bookmark,
+                        findOptions, displaySettings, progressMonitor);
+                });
+                if (longWaitDlg.IsCanceled)
+                {
+                    return;
+                }
+            }
 
             if (findResult == null)
             {
@@ -1365,9 +1400,9 @@ namespace pwiz.Skyline
                 DisplayFindResult(null, findResult);
         }
 
-        private IEnumerable<FindResult> FindAll(ILongWaitBroker longWaitBroker, FindPredicate findPredicate)
+        private IEnumerable<FindResult> FindAll(IProgressMonitor progressMonitor, FindPredicate findPredicate)
         {
-            return findPredicate.FindAll(longWaitBroker, Document);
+            return findPredicate.FindAll(progressMonitor, Document);
         }
 
         public void FindAll(Control parent, FindOptions findOptions = null)
@@ -1375,10 +1410,13 @@ namespace pwiz.Skyline
             if (findOptions == null)
                 findOptions = FindOptions.ReadFromSettings(Settings.Default);
             var findPredicate = new FindPredicate(findOptions, SequenceTree.GetDisplaySettings(null));
-            IList<FindResult> results = null;
+            List<FindResult> results = new List<FindResult>();
             using (var longWaitDlg = new LongWaitDlg(this))
             {
-                longWaitDlg.PerformWork(parent, 2000, lwb => results = FindAll(lwb, findPredicate).ToArray());
+                longWaitDlg.PerformWork(parent, 2000, progressMonitor =>
+                {
+                    results.AddRange(FindAll(progressMonitor, findPredicate));
+                });
                 if (results.Count == 0)
                 {
                     if (!longWaitDlg.IsCanceled)
@@ -1623,6 +1661,11 @@ namespace pwiz.Skyline
                 });
         }
 
+        private void editSpectrumFilterContextMenuItem_Click(object sender, EventArgs args)
+        {
+            EditMenu.EditSpectrumFilter();
+        }
+
         public void ShowUniquePeptidesDlg()
         {
             EditMenu.ShowUniquePeptidesDlg();
@@ -1645,7 +1688,7 @@ namespace pwiz.Skyline
 
         public void ShowPasteTransitionListDlg()
         {
-            EditMenu.ShowPasteTransitionListDlg();
+            EditMenu.ShowInsertTransitionListDlg();
         }
 
         public void ShowRefineDlg()
@@ -1728,7 +1771,8 @@ namespace pwiz.Skyline
             var nodeTranGroupTree = SequenceTree.SelectedNode as TransitionGroupTreeNode;
             addTransitionMoleculeContextMenuItem.Visible = enabled && nodeTranGroupTree != null &&
                 nodeTranGroupTree.PepNode.Peptide.IsCustomMolecule;
-
+            editSpectrumFilterContextMenuItem.Visible = SequenceTree.SelectedPaths
+                .SelectMany(path => DocumentUI.EnumeratePathsAtLevel(path, SrmDocument.Level.TransitionGroups)).Any();
             var selectedQuantitativeValues = SelectedQuantitativeValues();
             if (selectedQuantitativeValues.Length == 0)
             {
@@ -2093,8 +2137,7 @@ namespace pwiz.Skyline
                 list.Clear();
                 list.Add(settingsDefault); // Add back default settings.
                 list.AddRange(listNew);
-                SrmSettings settings;
-                if (!list.TryGetValue(settingsCurrent.GetKey(), out settings))
+                if (!list.TryGetValue(settingsCurrent.GetKey(), out _))
                 {
                     // If the current settings were removed, then make
                     // them the default, and use them to avoid a shift
@@ -2247,11 +2290,12 @@ namespace pwiz.Skyline
                     }
                 }
             }
-            if (newDoc != null)
+
+            var standardPepGroup = firstAdded != null ? (PeptideGroupDocNode)newDoc?.FindNode(firstAdded) : null;
+            if (standardPepGroup != null)
             {
                 ModifyDocument(Resources.SkylineWindow_AddStandardsToDocument_Add_standard_peptides, _ =>
                 {
-                    var standardPepGroup = newDoc.PeptideGroups.First(nodePepGroup => new IdentityPath(nodePepGroup.Id).Equals(firstAdded));
                     var pepList = new List<DocNode>();
                     foreach (var nodePep in standardPepGroup.Peptides.Where(pep => missingPeptides.ContainsKey(pep.ModifiedTarget)))
                     {
@@ -2443,13 +2487,11 @@ namespace pwiz.Skyline
                 {
                     var newSettings = changeSettings(Document.Settings);
                     bool success = false;
-                    using (var longWaitDlg = new LongWaitDlg(this)
+                    using (var longWaitDlg = new LongWaitDlg(this))
                     {
-                        Text = Text,    // Same as dialog box
-                        Message = message,
-                        ProgressValue = 0
-                    })
-                    {
+                        longWaitDlg.Text = Text; // Same as dialog box
+                        longWaitDlg.Message = message;
+                        longWaitDlg.ProgressValue = 0;
                         var undoState = GetUndoState();
                         longWaitDlg.PerformWork(parent, 800, progressMonitor =>
                         {
@@ -2463,6 +2505,7 @@ namespace pwiz.Skyline
                                     {
                                         return;
                                     }
+
                                     // Looping here in case some other agent interrupts us with a change to Document
                                     while (newSettings.PeptideSettings.NeedsBackgroundProteomeUniquenessCheckProcessing)
                                     {
@@ -2491,6 +2534,15 @@ namespace pwiz.Skyline
                 {
                     // Canceled mid-change due to background document change
                     documentChanged = true;
+                }
+                catch (Exception exception)
+                {
+                    if (ExceptionUtil.IsProgrammingDefect(exception))
+                    {
+                        throw;
+                    }
+                    MessageDlg.ShowWithException(this, TextUtil.LineSeparate(Resources.ShareListDlg_OkDialog_An_error_occurred, exception.Message), exception);
+                    return false;
                 }
                 finally
                 {
@@ -2833,7 +2885,7 @@ namespace pwiz.Skyline
                     if (_tool.OutputToImmediateWindow)
                     {
                         _parent.ShowImmediateWindow();
-                        _tool.RunTool(_parent.Document, _parent, _skylineTextBoxStreamWriterHelper, _parent, _parent);
+                        _tool.RunTool(_parent.Document, _parent, _parent._skylineTextBoxStreamWriterHelper, _parent, _parent);
                     }
                     else
                     {
@@ -2876,7 +2928,7 @@ namespace pwiz.Skyline
             }
         }
 
-        public static TextBoxStreamWriterHelper _skylineTextBoxStreamWriterHelper;
+        private TextBoxStreamWriterHelper _skylineTextBoxStreamWriterHelper;
 
         private ImmediateWindow CreateImmediateWindow()
         {
@@ -3403,15 +3455,14 @@ namespace pwiz.Skyline
 
             protected virtual void OnMenuItemClick()
             {
-                _skyline.SequenceTree.NormalizeOption = _ratioIndex;
-                _skyline._listGraphPeakArea.ForEach(g => g.NormalizeOption = _ratioIndex);
+                _skyline.AreaNormalizeOption = _ratioIndex;
             }
 
             public static void Create(SkylineWindow skylineWindow, ToolStripMenuItem menu, string text, NormalizeOption i)
             {
                 var handler = new SelectRatioHandler(skylineWindow, i);
                 var item = new ToolStripMenuItem(text, null, handler.ToolStripMenuItemClick)
-                { Checked = (skylineWindow.SequenceTree.NormalizeOption == i) };
+                    { Checked = skylineWindow.SequenceTree.NormalizeOption == i };
                 menu.DropDownItems.Add(item);
             }
         }
@@ -4314,15 +4365,23 @@ namespace pwiz.Skyline
                 }
                 return;
             }
-            var bookmark = new Bookmark();
+            var bookmark = Bookmark.ROOT;
             var resultRef = elementRef as ResultRef;
             if (resultRef != null)
             {
-                var chromFileInfo = resultRef.FindChromFileInfo(document);
+                if (measuredResults == null)
+                {
+                    return;
+                }
+                int replicateIndex = resultRef.FindReplicateIndex(document);
+                if (replicateIndex < 0)
+                {
+                    return;
+                }
+                var chromFileInfo = resultRef.FindChromFileInfo(measuredResults.Chromatograms[replicateIndex]);
                 if (chromFileInfo != null)
                 {
-                    bookmark = bookmark.ChangeChromFileInfoId(chromFileInfo.FileId)
-                        .ChangeOptStep(resultRef.OptimizationStep);
+                    bookmark = bookmark.ChangeResult(replicateIndex, chromFileInfo.FileId, resultRef.OptimizationStep);
                 }
                 elementRef = elementRef.Parent;
             }
@@ -4361,7 +4420,6 @@ namespace pwiz.Skyline
                     SelectedResultsIndex = resultsIndex;
                 }
             }
-            
         }
 
         public sealed override void SetUIMode(SrmDocument.DOCUMENT_TYPE mode)
@@ -4396,7 +4454,7 @@ namespace pwiz.Skyline
 
         public bool HasProteomicMenuItems
         {
-            get { return GetModeUIHelper().MenuItemHasOriginalText(peptideSettingsMenuItem.Text); }
+            get { return GetModeUIHelper().MenuItemHasOriginalText(peptideSettingsMenuItem); }
         }
         #endregion
         /// <summary>
@@ -4620,6 +4678,34 @@ namespace pwiz.Skyline
                     modeUIHandler.AddHandledComponent(entry.Key, entry.Value);
                 }
             }
+        }
+
+        private void helpToolStripMenuItem_DropDownOpening(object sender, EventArgs e)
+        {
+            // The "Submit Error Report" menu item should only be shown if the user was holding down the Shift key when they dropped the Help menu
+            submitErrorReportMenuItem.Visible = 0 != (ModifierKeys & Keys.Shift);
+            // The "Crash Skyline" menu item only appears if they hold down both Ctrl and Shift
+            crashSkylineMenuItem.Visible = (Keys.Shift | Keys.Control) == (ModifierKeys & (Keys.Shift | Keys.Control));
+        }
+
+        private void submitErrorReportMenuItem_Click(object sender, EventArgs e)
+        {
+            Program.ReportException(new ApplicationException(Resources.SkylineWindow_submitErrorReportMenuItem_Click_Submitting_an_unhandled_error_report));
+        }
+
+        private void crashSkylineMenuItem_Click(object sender, EventArgs e)
+        {
+            if (DialogResult.OK !=
+                new AlertDlg(Resources.SkylineWindow_crashSkylineMenuItem_Click_Are_you_sure_you_want_to_abruptly_terminate_Skyline__You_will_lose_all_unsaved_work_,
+                    MessageBoxButtons.OKCancel, DialogResult.Cancel).ShowAndDispose(this))
+            {
+                return;
+            }
+
+            new Thread(() =>
+            {
+                throw new ApplicationException(@"Crash Skyline Menu Item Clicked");
+            }).Start();
         }
     }
 }

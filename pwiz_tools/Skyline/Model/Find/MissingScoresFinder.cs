@@ -58,15 +58,15 @@ namespace pwiz.Skyline.Model.Find
             var nodePep = bookmarkEnumerator.CurrentDocNode as PeptideDocNode;
             if (nodePep == null)
                 return null;
-            if (bookmarkEnumerator.CurrentChromInfo == null)
+            if (bookmarkEnumerator.ResultsIndex < 0)
             {
                 _isLastNodeMatch = IsMatch(nodePep);
                 if (_isLastNodeMatch)
-                    return new FindMatch(string.Format(Resources.MissingScoresFinder_Match__0__missing_from_peptide, _calculatorName));
+                    return new FindMatch(bookmarkEnumerator.Current, string.Format(Resources.MissingScoresFinder_Match__0__missing_from_peptide, _calculatorName));
             }
             else if (IsMatch(bookmarkEnumerator.CurrentChromInfo, nodePep) && !_isLastNodeMatch)
             {
-                return new FindMatch(string.Format(Resources.MissingScoresFinder_Match__0__missing_from_chromatogram_peak, _calculatorName));
+                return new FindMatch(bookmarkEnumerator.Current, string.Format(Resources.MissingScoresFinder_Match__0__missing_from_chromatogram_peak, _calculatorName));
             }
             return null;
         }
@@ -80,7 +80,7 @@ namespace pwiz.Skyline.Model.Find
 
         private bool IsMatch(ChromInfo chromInfo, PeptideDocNode nodePep)
         {
-            var key = new PeakTransitionGroupIdKey(nodePep.Id.GlobalIndex, chromInfo.FileId.GlobalIndex);
+            var key = new PeakTransitionGroupIdKey(nodePep.Peptide, chromInfo.FileId);
             if (!_featureDictionary.ContainsKey(key))
                 return false;
             var listFeatures = _featureDictionary[key];

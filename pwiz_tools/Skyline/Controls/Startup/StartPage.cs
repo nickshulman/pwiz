@@ -23,7 +23,6 @@ using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Windows.Forms;
-using pwiz.Common.Controls;
 using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Alerts;
 using pwiz.Skyline.Model;
@@ -263,6 +262,8 @@ namespace pwiz.Skyline.Controls.Startup
 
         private void PopulateTutorialPanel()
         {
+            Tutorial = TutorialAction;
+
             var labelFont = new Font(@"Arial", 12F, FontStyle.Regular, GraphicsUnit.Point, 0);
             var labelAnchor = AnchorStyles.Left | AnchorStyles.Right;
             var labelWidth = flowLayoutPanelTutorials.ClientRectangle.Width - SystemInformation.VerticalScrollBarWidth;
@@ -339,6 +340,17 @@ namespace pwiz.Skyline.Controls.Startup
                 },
                 new TutorialActionBoxControl
                 {
+                    Caption = TutorialTextResources.DDASearch_Caption,
+                    Icon = TutorialImageResources.DDASearch_start,
+                    EventAction = () => Tutorial(
+                        TutorialLinkResources.DDASearch_zip,
+                        TutorialLinkResources.DDSearch_pdf,
+                        string.Empty
+                    ),
+                    Description = TutorialTextResources.MS1Filtering_Description
+                },
+                new TutorialActionBoxControl
+                {
                     Caption = TutorialTextResources.TargetedMSMS_Caption,
                     Icon = TutorialImageResources.TargetedMSMS_start,
                     EventAction = () => Tutorial(
@@ -369,6 +381,17 @@ namespace pwiz.Skyline.Controls.Startup
                         string.Empty
                     ),
                     Description = TutorialTextResources.DIA_SWATH_Description
+                },
+                new TutorialActionBoxControl
+                {
+                    Caption = TutorialTextResources.DIA_PASEF_Caption,
+                    Icon = TutorialImageResources.DIA_PASEF_start,
+                    EventAction = () => Tutorial(
+                        TutorialLinkResources.DIA_PASEF_zip,
+                        TutorialLinkResources.DIA_PASEF_pdf,
+                        string.Empty
+                    ),
+                    Description = TutorialTextResources.DIA_PASEF_Description
                 }
             };
             var tutorialSmallMoleculeBoxPanels = new Control[]
@@ -610,8 +633,10 @@ namespace pwiz.Skyline.Controls.Startup
         {
             DoAction(new ActionImport(type).DoStartupAction);
         }
-        
-        private void Tutorial(string skyFileLocation, string pdfFileLocation, string zipSkyFileLocation)
+
+        public Action<string, string, string> Tutorial { get; set; }
+
+        private void TutorialAction(string skyFileLocation, string pdfFileLocation, string zipSkyFileLocation)
         {
             Assume.IsNotNull(skyFileLocation);
 
@@ -628,12 +653,10 @@ namespace pwiz.Skyline.Controls.Startup
 
         private string OpenFileDlg()
         {
-            using (var openNewFileDlg = new OpenFileDialog
+            using (var openNewFileDlg = new OpenFileDialog())
             {
-                Filter = TextUtil.FileDialogFiltersAll(SrmDocument.FILTER_DOC_AND_SKY_ZIP, SrmDocumentSharing.FILTER_SHARING, SkypFile.FILTER_SKYP),
-                FilterIndex = 1
-            })
-            {
+                openNewFileDlg.Filter = TextUtil.FileDialogFiltersAll(SrmDocument.FILTER_DOC_AND_SKY_ZIP, SrmDocumentSharing.FILTER_SHARING, SkypFile.FILTER_SKYP);
+                openNewFileDlg.FilterIndex = 1;
                 if (openNewFileDlg.ShowDialog() != DialogResult.OK)
                     return null;
 
@@ -782,6 +805,12 @@ namespace pwiz.Skyline.Controls.Startup
                 TutorialLinkResources.LibraryExplorer_pdf,
                 string.Empty
                 );
+        }
+
+        public void ClickWizardAction(string actionName)
+        {
+            flowLayoutPanelWizard.Controls.Cast<ActionBoxControl>().First(c => Equals(c.Caption, actionName))
+                .EventAction();
         }
     }
 }

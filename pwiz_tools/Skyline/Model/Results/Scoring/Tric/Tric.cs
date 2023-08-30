@@ -22,6 +22,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using pwiz.Common.Collections;
 using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Model.RetentionTimes;
 using pwiz.Skyline.Properties;
@@ -158,15 +159,15 @@ namespace pwiz.Skyline.Model.Results.Scoring.Tric
         private readonly double _extensionCutoff;
         private readonly IEnumerable<PeptideFileFeatureSet> _peptides;
         private readonly int _fileCount;
-        private readonly IList<int> _fileIndexes;
+        private readonly IList<ChromFileInfoId> _fileIndexes;
         private readonly int _featureStatCount;
         private readonly RegressionMethodRT _regressionMethod;
         public TricTree _tree;
-        private readonly IDictionary<int, string> _fileNames;
+        private readonly IDictionary<ReferenceValue<ChromFileInfoId>, string> _fileNames;
 
         public Tric(IEnumerable<PeptideFileFeatureSet> peptides,
             IList<string> fileNames,
-            IList<int> fileIndexes,
+            IList<ChromFileInfoId> fileIndexes,
             int featureStatCount,
             double alignmentCutoff,
             double seedCutoff,
@@ -175,7 +176,7 @@ namespace pwiz.Skyline.Model.Results.Scoring.Tric
         {
             _fileCount = fileIndexes.Count;
             Assume.IsTrue(fileIndexes.Count == fileNames.Count);
-            _fileNames = new Dictionary<int, string>();
+            _fileNames = new Dictionary<ReferenceValue<ChromFileInfoId>, string>();
             _fileIndexes = fileIndexes;
             for (int i = 0; i < _fileIndexes.Count; i++)
             {
@@ -195,7 +196,7 @@ namespace pwiz.Skyline.Model.Results.Scoring.Tric
             Dictionary<PeakTransitionGroupIdKey, PeakFeatureStatistics> statDict,
             PeakTransitionGroupFeatureSet featureSet,
             IList<string> fileNames,
-            IList<int> fileIndexes,
+            IList<ChromFileInfoId> fileIndexes,
             IList<double> origScores,
             IList<double> origQValues,
             IProgressMonitor progressMonitor,
@@ -216,8 +217,8 @@ namespace pwiz.Skyline.Model.Results.Scoring.Tric
             if (RESCORE_PICKED_PEAKS)
             {
                 // Collect up the feature scores for the best run for each peptide.
-                var targets = new List<IList<float[]>>(featureSet.TargetCount);
-                var decoys = new List<IList<float[]>>(featureSet.DecoyCount);
+                var targets = new List<IList<FeatureScores>>(featureSet.TargetCount);
+                var decoys = new List<IList<FeatureScores>>(featureSet.DecoyCount);
 
                 var targetIds = new List<PeakTransitionGroupIdKey>(featureSet.TargetCount);
 
@@ -256,9 +257,9 @@ namespace pwiz.Skyline.Model.Results.Scoring.Tric
                         var featureArray = featureScoreCalculator.GetFeatureArray(tricStat, prediction);
 
                         if (isDecoy)
-                            decoys.Add(new SingletonList<float[]>(featureArray));
+                            decoys.Add(ImmutableList.Singleton(featureArray));
                         else
-                            targets.Add(new SingletonList<float[]>(featureArray));
+                            targets.Add(ImmutableList.Singleton(featureArray));
                     }
                 }
 
@@ -282,8 +283,8 @@ namespace pwiz.Skyline.Model.Results.Scoring.Tric
                 {
                     var names = featureScoreCalculator.GetFeatureNames();
                     var weights = finalModel.Parameters.Weights;
-                    Assume.IsTrue(names.Length == weights.Count);
-                    for (int i = 0; i < names.Length; i++)
+                    Assume.IsTrue(names.Count == weights.Count);
+                    for (int i = 0; i < names.Count; i++)
                     {
                         output.WriteLine("{0}: {1:F04}", names[i], weights[i]); // Not L10N
                     }
@@ -354,7 +355,7 @@ namespace pwiz.Skyline.Model.Results.Scoring.Tric
         private static Tric InitializeAndRunTric(Dictionary<PeakTransitionGroupIdKey, PeakFeatureStatistics> statDict,
             PeakTransitionGroupFeatureSet featureSet,
             IList<string> fileNames,
-            IList<int> fileIndexes,
+            IList<ChromFileInfoId> fileIndexes,
             IList<double> origScores,
             IList<double> origQValues,
             IProgressMonitor progressMonitor)
@@ -408,7 +409,7 @@ namespace pwiz.Skyline.Model.Results.Scoring.Tric
         }
 
 
-        private static void CalcScores(List<IList<float[]>> targets, MProphetPeakScoringModel finalModel,
+        private static void CalcScores(List<IList<FeatureScores>> targets, MProphetPeakScoringModel finalModel,
             out List<double> scores, out List<double> pValues)
         {
             pValues = new List<double>();
@@ -416,7 +417,7 @@ namespace pwiz.Skyline.Model.Results.Scoring.Tric
             //Iterate through all points, order matters
             foreach (var featureArray in targets.SelectMany(p => p))
             {
-                var score = finalModel.Score(featureArray);
+                var score = finalModel.Score(featureArray.Values);
                 var pValue = 1 - Statistics.PNorm(score);
                 pValues.Add(pValue);
                 scores.Add(score);
@@ -452,7 +453,7 @@ namespace pwiz.Skyline.Model.Results.Scoring.Tric
                 }
             }
 
-            return bag.GroupBy(tricStat => tricStat.Features.Key.PepIndex)
+            return bag.GroupBy(tricStat => ReferenceValue.Of(tricStat.Features.Key.Peptide))
                 .Select(g => new PeptideFileFeatureSet(g)).ToArray();
         }
         /// <summary>
@@ -521,21 +522,21 @@ namespace pwiz.Skyline.Model.Results.Scoring.Tric
                 }
                 seed.AlignedPeakIndex = seed.FeatureStats.BestScoreIndex;
 
-                var seedIndex = seed.FileIndex;
+                var seedIndex = seed.FileId;
                 var seedPredElement = new PredictionElement
                 {
                     Score = seed.FeatureStats.BestScore,
                     RetentionTime =
                         seed.Features.PeakGroupFeatures[seed.FeatureStats.BestScoreIndex].MedianRetentionTime
                 };
-                var predictions = new Dictionary<int, PredictionElement>(_fileCount);
+                var predictions = new Dictionary<ReferenceValue<ChromFileInfoId>, PredictionElement>(_fileCount);
                 predictions[seedIndex] = seedPredElement;
 
                 float squaredRtErrorSum = 0;
                 var extensions = 0;
 
                 //Traverse alignment tree starting from seed and try to find peaks in other files
-                foreach (var directionalEdge in _tree.Traverse(seed.Features.Key.FileIndex, _fileNames))
+                foreach (var directionalEdge in _tree.Traverse(seed.Features.Key.FileId, _fileNames))
                 {
                     var sourceFileIndex = directionalEdge.SourceFileIndex;
                     var targetFileIndex = directionalEdge.TargetFileIndex;
@@ -692,35 +693,35 @@ namespace pwiz.Skyline.Model.Results.Scoring.Tric
 
     public class PeptideFileFeatureSet
     {
-        public PeptideFileFeatureSet(IGrouping<int, TricFileFeatureStatistics> grouping)
+        public PeptideFileFeatureSet(IGrouping<ReferenceValue<Peptide>, TricFileFeatureStatistics> grouping)
         {
-            PeptideIndex = grouping.Key;
-            FileFeatures = new Dictionary<int, TricFileFeatureStatistics>();
+            Peptide = grouping.Key.Value;
+            FileFeatures = new Dictionary<ReferenceValue<ChromFileInfoId>, TricFileFeatureStatistics>();
             GlobalBestScore = float.MinValue;
             foreach (var fileFeatures in grouping)
             {
-                FileFeatures.Add(fileFeatures.FileIndex, fileFeatures);
+                FileFeatures.Add(fileFeatures.FileId, fileFeatures);
                 if (fileFeatures.IsDecoy)
                     IsDecoy = true;
                 if (GlobalBestScore < fileFeatures.BestScore)
                 {
                     GlobalBestScore = fileFeatures.BestScore;
-                    BestFileIndex = fileFeatures.FileIndex;
+                    BestFileId = fileFeatures.FileId;
                 }
             }
         }
 
-        public int PeptideIndex { get; private set; }
+        public Peptide Peptide { get; private set; }
 
         public bool IsDecoy { get; private set; }
 
-        public int BestFileIndex { get; private set; }
+        public ChromFileInfoId BestFileId { get; private set; }
 
         public double GlobalBestScore { get; private set; }
 
         public double GlobalQValue { get; internal set; }
 
-        public IDictionary<int, TricFileFeatureStatistics> FileFeatures { get; private set; }
+        public IDictionary<ReferenceValue<ChromFileInfoId>, TricFileFeatureStatistics> FileFeatures { get; private set; }
 
         public int Count
         {
@@ -738,7 +739,7 @@ namespace pwiz.Skyline.Model.Results.Scoring.Tric
         public TricFileFeatureStatistics GetSeed(double seedCutoff)
         {
             // Search interpolated q values, since they may have changed the ordering
-            var best = FileFeatures[BestFileIndex];
+            var best = FileFeatures[BestFileId];
             if (best.FeatureStats.BestScore > seedCutoff)
                 return best;
             return null;
@@ -758,9 +759,9 @@ namespace pwiz.Skyline.Model.Results.Scoring.Tric
             get { return Features.IsDecoy; }
         }
 
-        public int FileIndex
+        public ChromFileInfoId FileId
         {
-            get { return Features.Key.FileIndex; }
+            get { return Features.Key.FileId; }
         }
 
         public float BestScore
@@ -789,7 +790,9 @@ namespace pwiz.Skyline.Model.Results.Scoring.Tric
         private readonly int _originalMprophetFeaturesCount;
         private readonly IPeakScoringModel _originalModel;
 
-        private List<TricScoreCalculator> _scoreCalculators;
+        private readonly ImmutableList<TricScoreCalculator> _scoreCalculators;
+        private readonly FeatureNames _featureNames;
+
 
 
         public TricFeatureScoreCalculator(Tric.SeedScores seedScoresUsed, bool useDotProductCorrelation,
@@ -799,37 +802,34 @@ namespace pwiz.Skyline.Model.Results.Scoring.Tric
             _useDotProductCorrelation = useDotProductCorrelation;
             _originalModel = originalModel;
             _originalMprophetFeaturesCount = originalModel.PeakFeatureCalculators.Count;
-            SetScoreCalculators();
-        }
-
-        private void SetScoreCalculators()
-        {
-            _scoreCalculators = new List<TricScoreCalculator>();
+            var scoreCalculators = new List<TricScoreCalculator>();
             if (_seedScoresUsed == Tric.SeedScores.all)
             {
                 for (int i = 0; i < _originalMprophetFeaturesCount; i++)
                 {
                     var calc = _originalModel.PeakFeatureCalculators[i];
-                    _scoreCalculators.Add(new SeedMProphetCopyScore(i, calc));
+                    scoreCalculators.Add(new SeedMProphetCopyScore(i, calc));
                 }
             }
             else if (_seedScoresUsed == Tric.SeedScores.single)
             {
-                _scoreCalculators.Add(new SeedSingleScoreCalculator());
+                scoreCalculators.Add(new SeedSingleScoreCalculator());
             }
             for (int i = 0; i < _originalMprophetFeaturesCount; i++)
             {
                 var calc = _originalModel.PeakFeatureCalculators[i];
-                _scoreCalculators.Add(new MProphetCopyScore(i, calc));
+                scoreCalculators.Add(new MProphetCopyScore(i, calc));
             }
             if (_useDotProductCorrelation)
-                _scoreCalculators.Add(new DotProductCorrelationCalculator());
+                scoreCalculators.Add(new DotProductCorrelationCalculator());
+            _scoreCalculators = ImmutableList.ValueOf(scoreCalculators);
+            _featureNames = new FeatureNames(scoreCalculators.Select(calc => calc.Name));
         }
 
 
-        public float[] GetFeatureArray(TricFileFeatureStatistics alignedStat, Tric.TricPeptide peptide)
+        public FeatureScores GetFeatureArray(TricFileFeatureStatistics alignedStat, Tric.TricPeptide peptide)
         {
-            return _scoreCalculators.Select(calc => calc.GetScore(alignedStat, peptide)).ToArray();
+            return new FeatureScores(_featureNames, _scoreCalculators.Select(calc => calc.GetScore(alignedStat, peptide)));
         }
 
         public double[] GetInitialFeatureWeights()
@@ -837,9 +837,9 @@ namespace pwiz.Skyline.Model.Results.Scoring.Tric
             return _scoreCalculators.Select(calc => calc.GetInitialWeight(_originalModel)).ToArray();
         }
 
-        public string[] GetFeatureNames()
+        public FeatureNames GetFeatureNames()
         {
-            return _scoreCalculators.Select(calc => calc.Name).ToArray();
+            return _featureNames;
         }
 
         public abstract class TricScoreCalculator

@@ -17,8 +17,9 @@
  * limitations under the License.
  */
 
+using pwiz.Skyline.Model.Results;
 using System;
-using pwiz.Common.DataAnalysis;
+using System.Threading;
 
 namespace pwiz.Skyline.Model.RetentionTimes
 {
@@ -29,9 +30,9 @@ namespace pwiz.Skyline.Model.RetentionTimes
     public abstract class Aligner
     {
         //The index of the the run that the independent values came from
-        protected int _origXFileIndex;
+        protected ChromFileInfoId _origXFileIndex;
         //The index of the the run that the Y values came from
-        protected int _origYFileIndex;
+        protected ChromFileInfoId _origYFileIndex;
         
         public bool CanCalculateReverseRegression { get; private set; }
 
@@ -40,7 +41,7 @@ namespace pwiz.Skyline.Model.RetentionTimes
         /// </summary>
         /// <param name="origXFileIndex">Index of the run from which the independent values come from</param>
         /// <param name="origYFileIndex">Index of the run from which the Y values come from</param>
-        protected Aligner(int origXFileIndex, int origYFileIndex)
+        protected Aligner(ChromFileInfoId origXFileIndex, ChromFileInfoId origYFileIndex)
         {
             _origXFileIndex = origXFileIndex;
             _origYFileIndex = origYFileIndex;
@@ -52,12 +53,12 @@ namespace pwiz.Skyline.Model.RetentionTimes
         /// </summary>
         protected Aligner()
         {
-            _origXFileIndex = -1;
-            _origYFileIndex = -1;
+            _origXFileIndex = null;
+            _origYFileIndex = null;
             CanCalculateReverseRegression = false;
         }
 
-        public abstract void Train(double[] xArr, double[] yArr, CustomCancellationToken token);
+        public abstract void Train(double[] xArr, double[] yArr, CancellationToken token);
 
         /// <summary>
         /// Gets complementary run's retention time given a retention time.
@@ -65,7 +66,7 @@ namespace pwiz.Skyline.Model.RetentionTimes
         /// <param name="dependent">The retention time we know</param>
         /// <param name="dependentFileIndex">The run index that the value x comes from</param>
         /// <returns>The retention time from the complementary run using the precalculated alignment</returns>
-        public double GetValueFor(double dependent, int dependentFileIndex)
+        public double GetValueFor(double dependent, ChromFileInfoId dependentFileIndex)
         {
             if (!CanCalculateReverseRegression)
             {
@@ -73,13 +74,13 @@ namespace pwiz.Skyline.Model.RetentionTimes
             }
             // If x comes from the the same run as the original independent retention times
             // Calculate complement in normal order of alignment
-            if (dependentFileIndex == _origXFileIndex)
+            if (ReferenceEquals(dependentFileIndex, _origXFileIndex))
             {
                 return GetValue(dependent);
             }
             // If x comes from the same run as the x retention times
             // Calculate in reverse order
-            else if (dependentFileIndex == _origYFileIndex)
+            else if (ReferenceEquals(dependentFileIndex, _origYFileIndex))
             {
                 return GetValueReversed(dependent);
             }

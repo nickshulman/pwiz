@@ -23,7 +23,6 @@ using System.Drawing;
 using System.Linq;
 using System.Threading;
 using System.Windows.Forms;
-using pwiz.Common.DataAnalysis;
 using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Model.Results;
 using ZedGraph;
@@ -136,10 +135,10 @@ namespace pwiz.Skyline.Controls.Graphs
             for (int i = 0; i < peptideTimes.Count; i++)
             {
                 var peptideTime = peptideTimes[i];
-                var xTime = alignedFile.OriginalTimes[peptideTime.PeptideSequence];
+                var xTime = alignedFile.OriginalTimes[peptideTime.PeptideSequence].RetentionTime;
                 var yTime = peptideTime.RetentionTime;
                 if (PlotType == PlotTypeRT.residuals)
-                    yTime = (double) (alignedFile.Regression.GetRetentionTime(xTime, true) - yTime);
+                    yTime = (double) (alignedFile.Regression.GetRetentionTime(xTime) - yTime);
                 var point = new PointPair(xTime, yTime, peptideTime.PeptideSequence.Sequence);
                 if (alignedFile.OutlierIndexes.Contains(i))
                 {
@@ -211,7 +210,7 @@ namespace pwiz.Skyline.Controls.Graphs
                     dataRow.TargetTimes, dataRow.SourceTimes,
                     DocumentRetentionTimes.REFINEMENT_THRESHHOLD,
                     RegressionMethodRT.linear,
-                    new CustomCancellationToken(cancellationToken));
+                    cancellationToken);
 
                 if (!cancellationToken.IsCancellationRequested)
                 {

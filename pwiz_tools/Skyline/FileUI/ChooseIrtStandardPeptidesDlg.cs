@@ -59,7 +59,7 @@ namespace pwiz.Skyline.FileUI
             _irtAdd = new List<MeasuredRetentionTime>();
             _irtTargets = null;
 
-            comboExisting.Items.AddRange(IrtStandard.ALL.Where(standard => !standard.Name.Equals(IrtStandard.EMPTY.Name) && !standard.Name.Equals(IrtStandard.AUTO.Name))
+            comboExisting.Items.AddRange(IrtStandard.ALL.Where(standard => !standard.IsEmpty && !standard.IsAuto)
                 .Cast<object>().ToArray());
             comboExisting.SelectedIndex = 0;
 
@@ -261,14 +261,12 @@ namespace pwiz.Skyline.FileUI
 
         private void ImportTextFile()
         {
-            using (var dlg = new OpenFileDialog
+            using (var dlg = new OpenFileDialog())
             {
-                Title = Resources.ChooseIrtStandardPeptides_ImportTextFile_Import_Transition_List__iRT_standards_,
-                InitialDirectory = Path.GetDirectoryName(_documentFilePath),
-                DefaultExt = TextUtil.EXT_CSV,
-                Filter = TextUtil.FileDialogFiltersAll(TextUtil.FileDialogFilter(Resources.ChooseIrtStandardPeptides_ImportTextFile_Transition_List, TextUtil.EXT_CSV, TextUtil.EXT_TSV))
-            })
-            {
+                dlg.Title = Resources.ChooseIrtStandardPeptides_ImportTextFile_Import_Transition_List__iRT_standards_;
+                dlg.InitialDirectory = Path.GetDirectoryName(_documentFilePath);
+                dlg.DefaultExt = TextUtil.EXT_CSV;
+                dlg.Filter = TextUtil.FileDialogFiltersAll(TextUtil.FileDialogFilter(Resources.ChooseIrtStandardPeptides_ImportTextFile_Transition_List, TextUtil.EXT_CSV, TextUtil.EXT_TSV));
                 if (dlg.ShowDialog(this) == DialogResult.OK)
                 {
                     Settings.Default.ActiveDirectory = Path.GetDirectoryName(dlg.FileName);

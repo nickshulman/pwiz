@@ -36,6 +36,8 @@
             this.applyPeakGroupGraphMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.groupApplyToByGraphMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.removePeakGraphMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.toolStripSeparator1 = new System.Windows.Forms.ToolStripSeparator();
+            this.synchronizeIntegrationContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.toolStripSeparator33 = new System.Windows.Forms.ToolStripSeparator();
             this.legendChromContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.peakBoundariesContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
@@ -73,7 +75,6 @@
             this.transformChromNoneContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.transformChromInterpolatedContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.secondDerivativeContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-            this.firstDerivativeContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.smoothSGChromContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.toolStripSeparator17 = new System.Windows.Forms.ToolStripSeparator();
             this.autoZoomContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
@@ -99,6 +100,8 @@
             this.applyPeakGroupGraphMenuItem,
             this.groupApplyToByGraphMenuItem,
             this.removePeakGraphMenuItem,
+            this.toolStripSeparator1,
+            this.synchronizeIntegrationContextMenuItem,
             this.toolStripSeparator33,
             this.legendChromContextMenuItem,
             this.peakBoundariesContextMenuItem,
@@ -151,6 +154,18 @@
             resources.ApplyResources(this.removePeakGraphMenuItem, "removePeakGraphMenuItem");
             this.removePeakGraphMenuItem.DropDownOpening += new System.EventHandler(this.removePeakMenuItem_DropDownOpening);
             this.removePeakGraphMenuItem.Click += new System.EventHandler(this.removePeakMenuItem_Click);
+            // 
+            // toolStripSeparator1
+            // 
+            this.toolStripSeparator1.Name = "toolStripSeparator1";
+            resources.ApplyResources(this.toolStripSeparator1, "toolStripSeparator1");
+            // 
+            // synchronizeIntegrationContextMenuItem
+            // 
+            this.synchronizeIntegrationContextMenuItem.CheckOnClick = true;
+            this.synchronizeIntegrationContextMenuItem.Name = "synchronizeIntegrationContextMenuItem";
+            resources.ApplyResources(this.synchronizeIntegrationContextMenuItem, "synchronizeIntegrationContextMenuItem");
+            this.synchronizeIntegrationContextMenuItem.Click += new System.EventHandler(this.synchronizeIntegrationContextMenuItem_Click);
             // 
             // toolStripSeparator33
             // 
@@ -383,7 +398,6 @@
             this.transformChromNoneContextMenuItem,
             this.transformChromInterpolatedContextMenuItem,
             this.secondDerivativeContextMenuItem,
-            this.firstDerivativeContextMenuItem,
             this.smoothSGChromContextMenuItem});
             this.transformChromContextMenuItem.Name = "transformChromContextMenuItem";
             resources.ApplyResources(this.transformChromContextMenuItem, "transformChromContextMenuItem");
@@ -406,12 +420,6 @@
             this.secondDerivativeContextMenuItem.Name = "secondDerivativeContextMenuItem";
             resources.ApplyResources(this.secondDerivativeContextMenuItem, "secondDerivativeContextMenuItem");
             this.secondDerivativeContextMenuItem.Click += new System.EventHandler(this.secondDerivativeMenuItem_Click);
-            // 
-            // firstDerivativeContextMenuItem
-            // 
-            this.firstDerivativeContextMenuItem.Name = "firstDerivativeContextMenuItem";
-            resources.ApplyResources(this.firstDerivativeContextMenuItem, "firstDerivativeContextMenuItem");
-            this.firstDerivativeContextMenuItem.Click += new System.EventHandler(this.firstDerivativeMenuItem_Click);
             // 
             // smoothSGChromContextMenuItem
             // 
@@ -554,7 +562,6 @@
         private System.Windows.Forms.ToolStripMenuItem transformChromNoneContextMenuItem;
         private System.Windows.Forms.ToolStripMenuItem transformChromInterpolatedContextMenuItem;
         private System.Windows.Forms.ToolStripMenuItem secondDerivativeContextMenuItem;
-        private System.Windows.Forms.ToolStripMenuItem firstDerivativeContextMenuItem;
         private System.Windows.Forms.ToolStripMenuItem smoothSGChromContextMenuItem;
         private System.Windows.Forms.ToolStripSeparator toolStripSeparator17;
         private System.Windows.Forms.ToolStripMenuItem autoZoomContextMenuItem;
@@ -569,5 +576,7 @@
         private System.Windows.Forms.ToolStripSeparator toolStripSeparator19;
         private System.Windows.Forms.ToolStripMenuItem zoomChromContextMenuItem;
         private System.Windows.Forms.ToolStripSeparator toolStripSeparator26;
+        private System.Windows.Forms.ToolStripSeparator toolStripSeparator1;
+        private System.Windows.Forms.ToolStripMenuItem synchronizeIntegrationContextMenuItem;
     }
 }

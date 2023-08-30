@@ -93,7 +93,7 @@ namespace pwiz.SkylineTestUtil
                 else if (shotNode.Attributes[SHOT_TYPE_ATTRIBUTE].Value == SHOT_TYPE_VAL_CUSTOM_AREA)
                     return new CustomAreaShot(pSkylineWindow, shotNode);
                 else  throw new InvalidDataException("Unsupported screenshot type");
-                // ReSharper enable PossibleNullReferenceException
+                // ReSharper restore PossibleNullReferenceException
             }
 
             public SkylineScreenshot(ShotType pShotType, SkylineWindow pSkylineWindow)
@@ -120,7 +120,7 @@ namespace pwiz.SkylineTestUtil
                 Rectangle snapshotBounds = Rectangle.Empty;
 
                 DockState[] dockedStates = new DockState[]{DockState.DockBottom, DockState.DockLeft, DockState.DockBottom, DockState.DockTop, DockState.Document};
-                if (frm is DockableForm && dockedStates.Any((state) => ((frm as DockableForm).DockState == state) )  )
+                if (frm is DockableForm && dockedStates.Any((state) => ((frm as DockableForm)?.DockState == state) )  )
                 {
                     Point origin = Point.Empty;
                     frm.Invoke(new Action(() => { origin = frm.PointToScreen(new Point(0, 0)); }));
@@ -192,12 +192,14 @@ namespace pwiz.SkylineTestUtil
             [NotNull]
             public override XmlNode Serialize(XmlDocument pDoc)
             {
+                // ReSharper disable PossibleNullReferenceException
                 XmlNode node = pDoc.CreateElement(SHOT_ELEMENT);
                 XmlAttribute typeAttr = pDoc.CreateAttribute(SHOT_TYPE_ATTRIBUTE);
                 typeAttr.Value = SHOT_TYPE_VAL_ACTIVE_FORM;
                 node.Attributes.Append(typeAttr);
                 pDoc.DocumentElement.AppendChild(node);
                 return node;
+                // ReSharper restore PossibleNullReferenceException
             }
 
         }
@@ -209,7 +211,9 @@ namespace pwiz.SkylineTestUtil
             {
                 if (pNode.FirstChild != null && pNode.FirstChild.LocalName == SHOT_FRAME_ELEMENT)
                 {
-                    XmlAttributeCollection rAtts = pNode.FirstChild.Attributes;
+                    XmlAttributeCollection rAtts = pNode.FirstChild.Attributes ??
+                                                   throw new NullReferenceException(
+                                                       nameof(pNode.FirstChild.Attributes));
                     _shotFrame = new Rectangle(Int16.Parse(rAtts[SHOT_FRAME_LEFT_ATTRIBUTE].Value),
                         Int16.Parse(rAtts[SHOT_FRAME_TOP_ATTRIBUTE].Value),
                         Int16.Parse(rAtts[SHOT_FRAME_RIGHT_ATTRIBUTE].Value),
@@ -277,6 +281,7 @@ namespace pwiz.SkylineTestUtil
             {
                 _storage.Load(FilePath);
                 XmlNode root = _storage.DocumentElement;
+                // ReSharper disable once PossibleNullReferenceException
                 if (root.HasChildNodes)
                 {
                     foreach (XmlNode shotNode in root.ChildNodes)
@@ -309,6 +314,7 @@ namespace pwiz.SkylineTestUtil
                 _shotSequence.Add(newShot);
                 _currentShotIndex = _shotSequence.Count - 1;
                 shotPic = _shotSequence.Last().Take(activeWindow);
+                // ReSharper disable once PossibleNullReferenceException
                 _storage.DocumentElement.AppendChild(newShot.Serialize(_storage));
                 SaveToFile();
             }
@@ -316,6 +322,8 @@ namespace pwiz.SkylineTestUtil
             if (shotPic != null)
             {
                 processShot?.Invoke(shotPic);
+                CleanupBorder(shotPic); // Tidy up annoying variations in screen shot boarder due to underlying windows
+
                 if (scale.HasValue)
                 {
                     shotPic = new Bitmap(shotPic,
@@ -337,6 +345,52 @@ namespace pwiz.SkylineTestUtil
             }
 
             return shotPic;
+        }
+
+        private static void CleanupBorder(Bitmap shotPic)
+        {
+            // Determine border color, then make it consistently that color
+            var stats = new Dictionary<Color, int>();
+
+            void UpdateStats(int x, int y)
+            {
+                var c = shotPic.GetPixel(x, y);
+                if (stats.ContainsKey(c))
+                {
+                    stats[c]++;
+                }
+                else
+                {
+                    stats[c] = 1;
+                }
+            }
+
+            for (var x = 0; x < shotPic.Width; x++)
+            {
+                UpdateStats(x, 0);
+                UpdateStats(x, shotPic.Height - 1);
+            }
+
+            for (var y = 0; y < shotPic.Height; y++)
+            {
+                UpdateStats(0, y);
+                UpdateStats(shotPic.Width - 1, y);
+            }
+
+            var color = stats.FirstOrDefault(kvp => kvp.Value == stats.Values.Max()).Key;
+
+            // Enforce a clean border
+            for (var x = 0; x < shotPic.Width; x++)
+            {
+                shotPic.SetPixel(x, 0, color);
+                shotPic.SetPixel(x, shotPic.Height - 1, color);
+            }
+
+            for (var y = 0; y < shotPic.Height; y++)
+            {
+                shotPic.SetPixel(0, y, color);
+                shotPic.SetPixel(shotPic.Width - 1, y, color);
+            }
         }
 
         private void SaveToFile(string filePath, Bitmap bmp)

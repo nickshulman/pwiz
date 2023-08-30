@@ -25,6 +25,7 @@ using System.Linq;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
+using JetBrains.Annotations;
 using MSAmanda.Core;
 using MSAmanda.Utils;
 using MSAmanda.InOutput;
@@ -67,10 +68,13 @@ namespace pwiz.Skyline.Model.DdaSearch
         private const string MAX_LOADED_SPECTRA_AT_ONCE = "MaxLoadedSpectraAtOnce";
         private const string CONSIDERED_CHARGES = "ConsideredCharges";
 
-        private readonly TemporaryDirectory _baseDir = new TemporaryDirectory(tempPrefix: @"~SK_MSAmanda/");
+        public const string MS_AMANDA_TMP = @"~SK_MSAmanda";
+        private readonly TemporaryDirectory _baseDir; // Created as %TMP%/~SK_MSAmanda/<random dirname>
+        // TODO(MattC): tidy up MSAmanda implementation so that we can distinguish intentional uses of tmp dir (caching potentially re-used files) from accidental directory creation and/or not-reused files within
 
         public MSAmandaSearchWrapper()
         {
+            _baseDir = new TemporaryDirectory(tempPrefix: MS_AMANDA_TMP + @"/"); // Creates %TMP%/~SK_MSAmanda/<random dirname>
             Settings = new MSAmandaSettings();
             helper = new MSHelper();
             helper.InitLogWriter(_baseDir.DirPath);
@@ -156,15 +160,10 @@ namespace pwiz.Skyline.Model.DdaSearch
             }
         }
 
-        public override string[] FragmentIons
-        {
-            get { return Settings.ChemicalData.Instruments.Keys.ToArray(); }
-        }
-        public override string EngineName { get { return @"MS Amanda"; } }
-        public override Bitmap SearchEngineLogo
-        {
-            get { return Resources.MSAmandaLogo; }
-        }
+        public override string[] FragmentIons => Settings.ChemicalData.Instruments.Keys.ToArray();
+        public override string[] Ms2Analyzers => new[] { @"Default" };
+        public override string EngineName => @"MS Amanda";
+        public override Bitmap SearchEngineLogo => Resources.MSAmandaLogo;
 
         public override void SetPrecursorMassTolerance(MzTolerance tol)
         {
@@ -178,10 +177,15 @@ namespace pwiz.Skyline.Model.DdaSearch
 
         public override void SetFragmentIons(string ions)
         {
-            if (Settings.ChemicalData.Instruments.ContainsKey(ions))
+            if (Settings.ChemicalData.Instruments.TryGetValue(ions, out var instrument))
             {
-                Settings.ChemicalData.CurrentInstrumentSetting = Settings.ChemicalData.Instruments[ions];
+                Settings.ChemicalData.CurrentInstrumentSetting = instrument;
             }
+        }
+
+        public override void SetMs2Analyzer(string analyzer)
+        {
+            // MS2 analyzer is not relevant in MS Amanda
         }
 
         private List<FastaDBFile> GetFastaFileList()
@@ -197,7 +201,8 @@ namespace pwiz.Skyline.Model.DdaSearch
             return files;
         }
 
-        private void InitializeEngine(CancellationTokenSource token, string spectrumFileName)
+        [NotNull]
+        private MSAmandaSearch InitializeEngine(CancellationTokenSource token, string spectrumFileName)
         {
             _outputParameters = new OutputParameters();
             _outputParameters.FastaFiles = FastaFileNames.ToList();
@@ -212,16 +217,17 @@ namespace pwiz.Skyline.Model.DdaSearch
                 Settings.ConsideredCharges.Add(Convert.ToInt32(chargeStr));
             Settings.ChemicalData.UseMonoisotopicMass = true;
             Settings.ReportBothBestHitsForTD = false;
-            Settings.CombineConsideredCharges = false;
-            //Settings.WriteResultsTwice = true;
-            //Settings.ForceTargetDecoyMode = false;
+            Settings.CombineConsideredCharges = true;
+            Settings.WriteResultsTwice = true;
+            Settings.ForceTargetDecoyMode = false;
             //Console.WriteLine("\nReportBothBestHitsForTD CombineConsideredCharges WriteResultsTwice ForceTargetDecoyMode");
             //Console.WriteLine($@"{Settings.ReportBothBestHitsForTD}       {Settings.CombineConsideredCharges}        {Settings.WriteResultsTwice}       {Settings.ForceTargetDecoyMode}");
             mzID.Settings = Settings;
-            SearchEngine = new MSAmandaSearch(helper, _baseDir.DirPath, _outputParameters, Settings, token);
-            SearchEngine.InitializeOutputMZ(mzID);
+            var searchEngine = new MSAmandaSearch(helper, _baseDir.DirPath, _outputParameters, Settings, token);
+            searchEngine.InitializeOutputMZ(mzID);
             Settings.LoadedProteinsAtOnce = (int) AdditionalSettings[MAX_LOADED_PROTEINS_AT_ONCE].Value;
             Settings.LoadedSpectraAtOnce = (int) AdditionalSettings[MAX_LOADED_SPECTRA_AT_ONCE].Value;
+            return searchEngine;
         }
     
         public override bool Run(CancellationTokenSource tokenSource, IProgressStatus status)
@@ -257,7 +263,7 @@ namespace pwiz.Skyline.Model.DdaSearch
                                 FileEx.SafeDelete(outputFilepath);
                             }
 
-                            InitializeEngine(tokenSource, rawFileName.GetSampleLocator());
+                            SearchEngine = InitializeEngine(tokenSource, rawFileName.GetSampleLocator());
                             amandaInputParser = new MSAmandaSpectrumParser(rawFileName.GetSampleLocator(), Settings.ConsideredCharges, true);
                             SearchEngine.SetInputParser(amandaInputParser);
                             SearchEngine.PerformSearch(_outputParameters.DBFile);
@@ -304,7 +310,7 @@ namespace pwiz.Skyline.Model.DdaSearch
             return _success;
         }
 
-        public override void SetModifications(IEnumerable<StaticMod> modifications, int maxVariableMods)
+        public override void SetModifications(IEnumerable<StaticMod> modifications, int maxVariableMods_)
         {
             Settings.SelectedModifications.Clear();
             foreach (var item in modifications)
@@ -320,6 +326,10 @@ namespace pwiz.Skyline.Model.DdaSearch
                         {
                             Modification modClone = new Modification(elem);
                             modClone.Fixed = !item.IsVariable && item.LabelAtoms == LabelAtoms.None;
+                            if (item.Terminus == ModTerminus.C)
+                                modClone.CTerminal = true;
+                            else if (item.Terminus == ModTerminus.N)
+                                modClone.NTerminal = true;
                             Settings.SelectedModifications.Add(modClone);
                         }
                         else
@@ -339,6 +349,12 @@ namespace pwiz.Skyline.Model.DdaSearch
         public override string GetSearchResultFilepath(MsDataFileUri searchFilepath)
         {
             return Path.ChangeExtension(searchFilepath.GetFilePath(), @".mzid.gz");
+        }
+
+        public override bool GetSearchFileNeedsConversion(MsDataFileUri searchFilepath, out AbstractDdaConverter.MsdataFileFormat requiredFormat)
+        {
+            requiredFormat = AbstractDdaConverter.MsdataFileFormat.mzML;
+            return false;
         }
 
         private List<Modification> GenerateNewModificationsForEveryAA(StaticMod mod)

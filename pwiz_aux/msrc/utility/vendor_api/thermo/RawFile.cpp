@@ -375,7 +375,8 @@ RawFileImpl::RawFileImpl(const string& filename)
 #endif
         }
 
-        instrumentModel_ = parseInstrumentModelType(modelString);
+        if (instrumentModel_ == InstrumentModelType_Unknown)
+            instrumentModel_ = parseInstrumentModelType(modelString);
         if (instrumentModel_ == InstrumentModelType_Unknown)
             instrumentModel_ = parseInstrumentModelType(nameString);
 
@@ -584,7 +585,7 @@ void RawFileImpl::setCurrentController(ControllerType type, long controllerNumbe
     }
     CATCH_AND_FORWARD
 #else
-    raw_->SelectInstrument((Thermo::Device) type, controllerNumber);
+    try { raw_->SelectInstrument((Thermo::Device)type, controllerNumber); } CATCH_AND_FORWARD
     getRawByThread(0)->setCurrentController(type, controllerNumber);
 #endif
 }
@@ -1079,6 +1080,8 @@ class ScanInfoImpl : public ScanInfo
     void reinitialize(const std::string& filter);
 
     virtual long scanNumber() const {return scanNumber_;}
+    virtual int scanSegmentNumber() const { return scanSegment_; }
+    virtual int scanEventNumber() const { return scanEvent_; }
 
 #ifndef _WIN64
     virtual std::string filter() const {return filter_;}
@@ -1158,6 +1161,8 @@ class ScanInfoImpl : public ScanInfo
     private:
 
     long scanNumber_;
+    int scanSegment_;
+    int scanEvent_;
 #ifndef _WIN64
     const RawFileImpl* rawfile_;
     string filter_;
@@ -1265,8 +1270,11 @@ void ScanInfoImpl::reinitialize(const string& filter)
 
 void ScanInfoImpl::initialize()
 {
+    bool goodFilter = false;
     try
     {
+        scanSegment_ = 0;
+        scanEvent_ = 0;
         massAnalyzerType_ = (MassAnalyzerType_Unknown);
         ionizationType_ = (IonizationType_Unknown);
         activationType_ = (ActivationType_Unknown);
@@ -1330,6 +1338,7 @@ void ScanInfoImpl::initialize()
                 filter_ = rawfile_->raw_->GetFilterForScanNumber(scanNumber_);
 #endif
             }
+            goodFilter = true;
 
 #ifndef _WIN64
             long isUniformTime = 0;
@@ -1348,6 +1357,8 @@ void ScanInfoImpl::initialize()
                 checkResult(rawfile_->raw_->GetStartTime(&startTime_));
 #else
             auto scanStats = rawfile_->raw_->GetScanStatsForScanNumber(scanNumber_);
+            scanSegment_ = scanStats->SegmentNumber;
+            scanEvent_ = scanStats->ScanEventNumber;
             packetCount_ = scanStats->PacketCount;
             startTime_ = scanStats->StartTime;
             lowMass_ = scanStats->LowMass;
@@ -1388,7 +1399,7 @@ void ScanInfoImpl::initialize()
             }
         }
     }
-    CATCH_AND_FORWARD_EX(filter())
+    CATCH_AND_FORWARD_EX((goodFilter ? filter() : ("corrupt scan filter for scan " + lexical_cast<string>(scanNumber_))))
 }
 
 void ScanInfoImpl::initStatusLog() const
@@ -1492,6 +1503,7 @@ void ScanInfoImpl::initTrailerExtraHelper() const
             trailerExtraMap_[trailerExtraLabels_.back()] = trailerExtraValues_.back();
         }
 #endif
+        trailerExtraSize_ = trailerExtraLabels_.size();
     }
     CATCH_AND_FORWARD
 
@@ -1685,8 +1697,9 @@ const vector<PrecursorInfo>& ScanInfoImpl::precursorInfo() const
 long ScanInfoImpl::precursorCharge() const
 {
     // "Charge State" header item for SPS spectra refers to MS2's precursor charge;
+    // however, I have seen spectra with a single SPS mass that have real MS3 precursor charge states
     // CONSIDER: real charge states might be available in the instrument method
-    if (!spsMasses_.empty())
+    if (spsMasses_.size() > 1)
         return 0;
 
     try
@@ -1905,6 +1918,7 @@ void RawFileImpl::parseInstrumentMethod()
     sregex isolationMzOffsetRegex = sregex::compile("\\s*Isolation m/z Offset =\\s*(\\S+)\\s*");
     sregex reportedMassRegex = sregex::compile("\\s*Reported Mass =\\s*(\\S+) Mass\\s*");
     sregex scanDescriptionRegex = sregex::compile("\\s*Scan Description =\\s*(\\S+)\\s*");
+    sregex statusLogInstrumentModelRegex = sregex::compile("\\s*Instrument model\\s*-\\s*(.+)\\s*");
 
     smatch what;
     string line;
@@ -1917,6 +1931,12 @@ void RawFileImpl::parseInstrumentMethod()
         if (regex_match(line, what, scanSegmentRegex))
         {
             scanSegment = lexical_cast<int>(what[1]);
+            continue;
+        }
+
+        if (regex_match(line, what, statusLogInstrumentModelRegex))
+        {
+            instrumentModel_ = parseInstrumentModelType(what[1]);
             continue;
         }
 
@@ -2260,7 +2280,7 @@ vector<string> RawFileImpl::getInstrumentMethods() const
             checkResult(raw_->GetInstMethodNames(&size, &variantLabels));
             InstrumentMethodLabelValueArray methods(variantLabels, size, raw_);
             for (int i = 0; i < size; ++i)
-                result.push_back(methods.value(i));
+                result.emplace_back(methods.value(i));
         }
         catch (exception&)
         {
@@ -2268,7 +2288,10 @@ vector<string> RawFileImpl::getInstrumentMethods() const
         }
 #else
         for (int i = 0; i < raw_->InstrumentMethodsCount; ++i)
-            result.push_back(ToStdString(raw_->GetInstrumentMethod(i)));
+            result.emplace_back(ToStdString(raw_->GetInstrumentMethod(i)));
+        auto firstStatusLog = raw_->GetStatusLogForRetentionTime(0);
+        for (int i = 0; i < firstStatusLog->Length; ++i)
+            result.emplace_back(ToStdString(firstStatusLog->Labels[i] + " " + firstStatusLog->Values[i]));
 #endif
         return result;
     }

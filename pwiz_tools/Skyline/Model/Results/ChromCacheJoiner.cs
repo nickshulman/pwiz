@@ -20,8 +20,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.IO;
-using pwiz.Common.Collections;
 using pwiz.Common.SystemUtil;
+using pwiz.Skyline.Model.Results.Spectra;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
 
@@ -31,21 +31,15 @@ namespace pwiz.Skyline.Model.Results
     {
         private int _currentPartIndex = -1;
         private int _scoreTypesCount = -1;
-        private readonly bool _assumeNegativeChargeInPreV11Caches;
 
         private readonly byte[] _buffer = new byte[0x40000];  // 256K
-        private readonly Dictionary<Target, int> _dictTextIdToByteIndex = new Dictionary<Target, int>();
 
-        public ChromCacheJoiner(string cachePath, IPooledStream streamDest,
-                                IList<string> cacheFilePaths, ILoadMonitor loader, ProgressStatus status,
-                                Action<ChromatogramCache, IProgressStatus> completed,
-                                bool assumeNegativeChargeInPreV11Caches)
-            : base(cachePath, loader, status, completed)
+        public ChromCacheJoiner(string cachePath, IPooledStream streamDest, IList<string> cacheFilePaths,
+            ILoadMonitor loader, IProgressStatus status, Action<ChromatogramCache, IProgressStatus> completed) : base(cachePath, loader, status, completed)
         {
             _destinationStream = streamDest;
 
             CacheFilePaths = cacheFilePaths;
-            _assumeNegativeChargeInPreV11Caches = assumeNegativeChargeInPreV11Caches; // Deal with older cache formats where we did not record polarity
         }
 
         private IList<string> CacheFilePaths { get; set; }
@@ -95,7 +89,7 @@ namespace pwiz.Skyline.Model.Results
                         _fs.Stream = _loader.StreamManager.CreateStream(_fs.SafeName, FileMode.Create, true);
 
                     ChromatogramCache.RawData rawData;
-                    long bytesData = ChromatogramCache.LoadStructs(inStream, out rawData, _assumeNegativeChargeInPreV11Caches);
+                    long bytesData = ChromatogramCache.LoadStructs(inStream, null, null, out rawData);
 
                     // If joining, then format version should have already been checked.
                     Assume.IsTrue(ChromatogramCache.IsVersionCurrent(rawData.FormatVersion) ||
@@ -111,20 +105,27 @@ namespace pwiz.Skyline.Model.Results
                     // Scan ids
                     long offsetScanIds = _fsScans.Stream.Position;
                     _listCachedFiles.AddRange(rawData.ChromCacheFiles.Select(f => f.RelocateScanIds(f.LocationScanIds + offsetScanIds)));
+                    if (null != rawData.ResultFileDatas)
+                    {
+                        _listResultFileDatas.AddRange(rawData.ResultFileDatas);
+                    }
+                    else
+                    {
+                        _listResultFileDatas.AddRange(new ResultFileMetaData[rawData.ChromCacheFiles.Count]);
+                    }
                     if (rawData.CountBytesScanIds > 0)
                     {
                         inStream.Seek(rawData.LocationScanIds, SeekOrigin.Begin);
                         inStream.TransferBytes(_fsScans.Stream, rawData.CountBytesScanIds);
                     }
 
-                    _peakCount += rawData.ChromatogramPeaks.Length;
-                    var chromPeakSerializer = CacheFormat.ChromPeakSerializer();
-                    rawData.ChromatogramPeaks.WriteArray(block => chromPeakSerializer.WriteItems(_fsPeaks.FileStream, block));
+                    _peakCount += rawData.NumPeaks;
+                    rawData.TransferPeaks(inStream, CacheFormat, 0, rawData.NumPeaks, _fsPeaks.FileStream);
                     _listTransitions.AddRange(rawData.ChromTransitions);
                     // Initialize the score types the first time through
                     if (_scoreTypesCount == -1)
                     {
-                        _listScoreTypes.AddRange(rawData.ScoreTypes);
+                        _listScoreTypes = rawData.ScoreTypes;
                         _scoreTypesCount = _listScoreTypes.Count;
                     }
                     else if (!ArrayUtil.EqualsDeep(_listScoreTypes, rawData.ScoreTypes))
@@ -133,19 +134,18 @@ namespace pwiz.Skyline.Model.Results
                         if (_listScoreTypes.Intersect(rawData.ScoreTypes).Count() != _listScoreTypes.Count)
                             throw new InvalidDataException(@"Data cache files with different score types cannot be joined.");
                     }
-                    _scoreCount += rawData.Scores.Length;
-                    rawData.Scores.WriteArray(block => PrimitiveArrays.Write(_fsScores.Stream, block));
-
+                    _scoreCount += rawData.NumScores;
+                    inStream.Seek(rawData.LocationScoreValues, SeekOrigin.Begin);
+                    inStream.TransferBytes(_fsScores.FileStream, rawData.NumScores * ChromatogramCache.SCORE_VALUE_SIZE);
                     for (int i = 0; i < rawData.ChromatogramEntries.Length; i++)
                     {
-                        _listGroups.Add(new ChromGroupHeaderEntry(i, rawData.RecalcEntry(i,
+                        AddChromGroup(new ChromGroupHeaderEntry(i, rawData.RecalcEntry(i,
                                             offsetFiles,
                                             offsetTransitions,
                                             offsetPeaks,
                                             offsetScores,
                                             offsetPoints,
-                                            _dictTextIdToByteIndex,
-                                            _listTextIdBytes)));
+                                            _chromatogramGroupIds)));
                     }
 
                     inStream.Seek(0, SeekOrigin.Begin);

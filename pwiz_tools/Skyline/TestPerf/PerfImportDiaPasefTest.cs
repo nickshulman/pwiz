@@ -43,8 +43,7 @@ namespace TestPerf // Note: tests in the "TestPerf" namespace only run when the 
     {
         private bool IsRecordMode { get { return false; } }
 
-        [TestMethod]
-        [Timeout(6000000)]  // Initial download can take a long time
+        [TestMethod, NoParallelTesting(TestExclusionReason.VENDOR_FILE_LOCKING)] // No parallel testing as Bruker reader locks the files it reads
         public void BrukerDiaPasefImportTest()
         {
             // RunPerfTests = true; // Uncomment this to force test to run in IDE
@@ -72,7 +71,7 @@ namespace TestPerf // Note: tests in the "TestPerf" namespace only run when the 
             
             // Update the paths to the .d files mentioned in the skyline doc
             string text = File.ReadAllText(skyfile);
-            text = text.Replace(@"PerfImportBrukerDiaPasef", TestFilesDir.PersistentFilesDir);
+            text = text.Replace(@"PerfImportBrukerDiaPasef", PathEx.EscapePathForXML(TestFilesDir.PersistentFilesDir));
             text = RemoveReplicateReference(text, @"diagonalSWATH_MSMS_Slot1-10_1_3420"); // Remove reference to replicate with file type that we don't need to handle at this time
             text = RemoveReplicateReference(text, @"SWATHlike_MSMS_Slot1-10_1_3421"); // Remove reference to replicate with file type that we don't need to handle at this time
             File.WriteAllText(skyfile, text);
@@ -97,7 +96,7 @@ namespace TestPerf // Note: tests in the "TestPerf" namespace only run when the 
             foreach (var pair in doc1.PeptidePrecursorPairs)
             {
                 AssertEx.IsTrue(results.TryLoadChromatogram(0, pair.NodePep, pair.NodeGroup,
-                    tolerance, true, out var chromGroupInfo));
+                    tolerance, out var chromGroupInfo));
 
                 foreach (var chromGroup in chromGroupInfo)
                 {

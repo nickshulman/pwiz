@@ -21,11 +21,13 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Threading;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using pwiz.Skyline.Model.Results;
 using pwiz.Skyline.Model.RetentionTimes;
 using pwiz.SkylineTestUtil;
 
-namespace pwiz.SkylineTestA
+namespace pwiz.SkylineTest
 {
     /// <summary>
     /// Summary description for TricAlignersTest
@@ -33,7 +35,7 @@ namespace pwiz.SkylineTestA
     [TestClass]
     public class TricAlignersTest : AbstractUnitTest
     {
-        const string TEST_ZIP_FILE = @"TestA\TricAlignerTest.zip";
+        const string TEST_ZIP_FILE = @"Test\TricAlignersTest.zip";
 
         [TestMethod]
         public void TestKDE()
@@ -55,8 +57,8 @@ namespace pwiz.SkylineTestA
                 }    
             }
 
-            var kde = new KdeAligner(0,1);
-            kde.Train(xList.ToArray(), yList.ToArray());
+            var kde = new KdeAligner(new ChromFileInfoId(),new ChromFileInfoId());
+            kde.Train(xList.ToArray(), yList.ToArray(), CancellationToken.None);
             var meanSqError = 0d;
             var n = xList.Count;
 

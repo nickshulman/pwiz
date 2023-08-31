@@ -62,6 +62,10 @@ namespace pwiz.Skyline.Model
         }
     }
 
+    public enum AreaCVTransitions { all, best, count }
+
+    public enum AreaCVMsLevel { precursors, products }
+
     public sealed class RefinementSettings : AuditLogOperationSettings<RefinementSettings>, IAuditLogComparable
     {
         private bool _removeDuplicatePeptides;
@@ -207,7 +211,7 @@ namespace pwiz.Skyline.Model
         public double? QValueCutoff { get; set; }
         [Track]
         public int? MinimumDetections { get; set; }
-        [Track]
+        [Track(defaultValues: typeof(NormalizeOption.DefaultNone))]
         public NormalizeOption NormalizationMethod { get; set; }
         [Track]
         public AreaCVTransitions Transitions { get; set; }
@@ -881,8 +885,7 @@ namespace pwiz.Skyline.Model
             SrmDocument document, PeptideDocNode nodePep,
             Dictionary<LibKey, LibKey> smallMoleculeConversionPrecursorMap = null)
         {
-            Adduct adduct;
-            return ConvertToSmallMolecule(mode, document, nodePep, out adduct, 0, null, smallMoleculeConversionPrecursorMap);
+            return ConvertToSmallMolecule(mode, document, nodePep, out _, 0, null, smallMoleculeConversionPrecursorMap);
         }
 
         public static CustomMolecule ConvertToSmallMolecule(ConvertToSmallMoleculesMode mode, 
@@ -891,6 +894,11 @@ namespace pwiz.Skyline.Model
         {
             // We're just using this masscalc to get the ion formula, so mono vs average doesn't matter
             isotopeLabelType = isotopeLabelType ?? IsotopeLabelType.light;
+            if (nodePep == null) // Can happen when called from document grid handler when doc changes
+            {
+                adduct = Adduct.EMPTY;
+                return CustomMolecule.EMPTY;
+            }
             var peptideTarget = nodePep.Peptide.Target;
             var masscalc = document.Settings.TryGetPrecursorCalc(isotopeLabelType, nodePep.ExplicitMods);
             if (masscalc == null)
@@ -901,8 +909,15 @@ namespace pwiz.Skyline.Model
             // Determine the molecular formula of the charged/labeled peptide
             var moleculeFormula = masscalc.GetMolecularFormula(peptideTarget.Sequence); // Get molecular formula, possibly with isotopes in it (as with iTraq)
             adduct = 
-                Adduct.NonProteomicProtonatedFromCharge(precursorCharge, BioMassCalc.MONOISOTOPIC.FindIsotopeLabelsInFormula(moleculeFormula));
-            var customMolecule = new CustomMolecule(moleculeFormula, TestingConvertedFromProteomicPeptideNameDecorator + masscalc.GetModifiedSequence(peptideTarget, false)); // Make sure name isn't a valid peptide seq
+                Adduct.NonProteomicProtonatedFromCharge(precursorCharge, BioMassCalc.FindIsotopeLabelsInFormula(moleculeFormula.Molecule));
+            if (BioMassCalc.ContainsIsotopicElement(moleculeFormula.Molecule))
+            {
+                // Isotopes are already accounted for in the adduct
+                moleculeFormula = BioMassCalc.StripLabelsFromFormula(moleculeFormula);
+            }
+
+            var mol = ParsedMolecule.Create(moleculeFormula); // Convert to ParsedMolecule
+            var customMolecule = new CustomMolecule(mol, TestingConvertedFromProteomicPeptideNameDecorator + masscalc.GetModifiedSequence(peptideTarget, false)); // Make sure name isn't a valid peptide seq
 
             if (mode == ConvertToSmallMoleculesMode.masses_only)
             {
@@ -1224,8 +1239,28 @@ namespace pwiz.Skyline.Model
             // No retention time prediction for small molecules (yet?)
             newdoc = newdoc.ChangeSettings(newdoc.Settings.ChangePeptideSettings(newdoc.Settings.PeptideSettings.ChangePrediction(
                 newdoc.Settings.PeptideSettings.Prediction.ChangeRetentionTime(null))));
+            newdoc = ForceReloadChromatograms(newdoc);
             CloseLibraryStreams(newdoc);
             return newdoc;
+        }
+
+        /// <summary>
+        /// Force TransitionGroupDocNode.UpdateResults to look at all of the chromatogram data again,
+        /// and make sure that it matches what is in the document.
+        /// This is accomplished by changing "mzMatchTolerance" to a slightly different value and
+        /// changing it back again.
+        /// </summary>
+        private SrmDocument ForceReloadChromatograms(SrmDocument document)
+        {
+            double mzMatchToleranceOld = document.Settings.TransitionSettings.Instrument.MzMatchTolerance;
+            // Find the double value which is the smallest step away from the current value
+            double mzMatchToleranceNew =
+                BitConverter.Int64BitsToDouble(BitConverter.DoubleToInt64Bits(mzMatchToleranceOld) - 1);
+            document = document.ChangeSettings(document.Settings.ChangeTransitionInstrument(instrument =>
+                instrument.ChangeMzMatchTolerance(mzMatchToleranceNew)));
+            return document.ChangeSettings(document.Settings.ChangeTransitionInstrument(instrument =>
+                instrument.ChangeMzMatchTolerance(mzMatchToleranceOld)));
+
         }
 
         /// <summary>

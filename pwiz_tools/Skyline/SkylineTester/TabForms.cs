@@ -22,7 +22,6 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
 using System.Linq;
-using System.Reflection;
 using System.Text;
 using System.Windows.Forms;
 using TestRunnerLib;
@@ -145,6 +144,10 @@ namespace SkylineTester
 
         public void CreateFormsGrid()
         {
+            // Avoid doing this twice
+            if (MainWindow.FormsGrid.RowCount > 0)
+                return;
+
             // Remove excessive underlines from Form and Test links.
             ((DataGridViewLinkColumn) MainWindow.FormsGrid.Columns[0]).LinkBehavior = LinkBehavior.NeverUnderline;
             ((DataGridViewLinkColumn) MainWindow.FormsGrid.Columns[1]).LinkBehavior = LinkBehavior.NeverUnderline;
@@ -152,11 +155,14 @@ namespace SkylineTester
             var skylinePath = Path.Combine(MainWindow.ExeDir, "Skyline.exe");
             var skylineDailyPath = Path.Combine(MainWindow.ExeDir, "Skyline-daily.exe"); // Keep -daily
             skylinePath = File.Exists(skylinePath) ? skylinePath : skylineDailyPath;
-            var assembly = Assembly.LoadFrom(skylinePath);
+            var assembly = LoadFromAssembly.Try(skylinePath);
             var types = assembly.GetTypes().ToList();
-            var commonPath = Path.Combine(MainWindow.ExeDir, "pwiz.Common.dll");
-            var dll = Assembly.LoadFrom(commonPath);
-            types.AddRange(dll.GetTypes());
+            foreach (var dllName in new[] { "pwiz.Common.dll", "PanoramaClient.dll" })
+            {
+                var dllPath = Path.Combine(MainWindow.ExeDir, dllName);
+                var dllAssembly = LoadFromAssembly.Try(dllPath);
+                types.AddRange(dllAssembly.GetTypes());
+            }
             var formLookup = new FormLookup();
 
             foreach (var type in types)

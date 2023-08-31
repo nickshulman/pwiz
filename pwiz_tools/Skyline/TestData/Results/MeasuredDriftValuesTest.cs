@@ -17,8 +17,8 @@
  * limitations under the License.
  */
 
-using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using pwiz.Common.Chemistry;
@@ -52,19 +52,26 @@ namespace pwiz.SkylineTestData.Results
             PerformTestMeasuredDriftValues(true);
         }
 
-        private void PerformTestMeasuredDriftValues(bool asSmallMolecules) 
+        [TestMethod]
+        public void TestMeasuredDriftValuesNoRawData()
+        {
+            PerformTestMeasuredDriftValues(false, true);
+        }
+
+        private void PerformTestMeasuredDriftValues(bool asSmallMolecules, bool provokeError = false) 
         {
             if (asSmallMolecules)
             {
-                if (!RunSmallMoleculeTestVersions)
+                if (SkipSmallMoleculeTestVersions())
                 {
-                    Console.Write(MSG_SKIPPING_SMALLMOLECULE_TEST_VERSION);
                     return;
                 }
             }
-            var testFilesDir = new TestFilesDir(TestContext, @"TestData\Results\BlibDriftTimeTest.zip"); // Re-used from BlibDriftTimeTest
+
+            TestFilesDir = new TestFilesDir(TestContext, @"TestData\Results\BlibDriftTimeTest.zip"); // Re-used from BlibDriftTimeTest
+
             // Open document with some peptides but no results
-            var docPath = testFilesDir.GetTestPath("BlibDriftTimeTest.sky");
+            var docPath = TestFilesDir.GetTestPath("BlibDriftTimeTest.sky");
             // This was a malformed document, which caused problems after a fix to not recalculate
             // document library settings on open. To avoid rewriting this test for the document
             // which now contains 2 precursors, the first precursor is removed immediately.
@@ -75,7 +82,7 @@ namespace pwiz.SkylineTestData.Results
             if (asSmallMolecules)
             {
                 var refine = new RefinementSettings();
-                docOriginal = refine.ConvertToSmallMolecules(docOriginal, testFilesDir.FullPath);
+                docOriginal = refine.ConvertToSmallMolecules(docOriginal, TestFilesDir.FullPath);
             }
             using (var docContainer = new ResultsTestDocumentContainer(docOriginal, docPath))
             {
@@ -83,10 +90,11 @@ namespace pwiz.SkylineTestData.Results
 
                 // Import an mz5 file that contains drift info
                 const string replicateName = "ID12692_01_UCA168_3727_040714";
+                var rawFilePath = TestFilesDir.GetTestPath("ID12692_01_UCA168_3727_040714" + ExtensionTestContext.ExtMz5);
                 var chromSets = new[]
                                 {
                                     new ChromatogramSet(replicateName, new[]
-                                        { new MsDataFilePath(testFilesDir.GetTestPath("ID12692_01_UCA168_3727_040714" + ExtensionTestContext.ExtMz5)),  }),
+                                        { new MsDataFilePath(rawFilePath),  }),
                                 };
                 var docResults = doc.ChangeMeasuredResults(new MeasuredResults(chromSets));
                 Assert.IsTrue(docContainer.SetDocument(docResults, docOriginal, true));
@@ -98,15 +106,32 @@ namespace pwiz.SkylineTestData.Results
 
                 // Verify ability to extract predictions from raw data
                 var libraryName0 = "test0";
-                var dbPath0 = testFilesDir.GetTestPath(libraryName0 + IonMobilityDb.EXT);
-                var newIMFiltering = document.Settings.TransitionSettings.IonMobilityFiltering.ChangeLibrary(
-                    IonMobilityLibrary.CreateFromResults(
-                        document, docContainer.DocumentFilePath, true,
-                        libraryName0, dbPath0));
+                var dbPath0 = TestFilesDir.GetTestPath(libraryName0 + IonMobilityDb.EXT);
+                if (provokeError)
+                {
+                    File.Delete(rawFilePath);
+                }
+
+                TransitionIonMobilityFiltering newIMFiltering = null;
+                try
+                {
+                    newIMFiltering = document.Settings.TransitionSettings.IonMobilityFiltering.ChangeLibrary(
+                        IonMobilityLibrary.CreateFromResults(
+                            document, docContainer.DocumentFilePath, true,
+                            libraryName0, dbPath0));
+                }
+                catch (FileNotFoundException) // If we catch the missing file early, we get this unwrapped exception. If caught deeper in the process it's wrapped in a IOException
+                {
+                    if (provokeError)
+                    {
+                        return; // Expected
+                    }
+                }
+                // ReSharper disable once PossibleNullReferenceException
                 var result = newIMFiltering.IonMobilityLibrary.GetIonMobilityLibKeyMap().AsDictionary();
                 Assert.AreEqual(1, result.Count);
                 var expectedDT = 4.0019;
-                var expectedOffset = .4829;
+                var expectedOffset = -0.137998;
                 Assert.AreEqual(expectedDT, result.Values.First().First().IonMobility.Mobility.Value, .001);
                 Assert.AreEqual(expectedOffset, result.Values.First().First().HighEnergyIonMobilityValueOffset??0, .001);
 
@@ -116,11 +141,11 @@ namespace pwiz.SkylineTestData.Results
                 revised.Add(new PrecursorIonMobilities(libKey, IonMobilityAndCCS.GetIonMobilityAndCCS(IonMobilityValue.GetIonMobilityValue(expectedDT=4, eIonMobilityUnits.drift_time_msec), null, expectedOffset=0.234)));  // N.B. CCS handling would require actual raw data in this test, it's covered in a perf test
                 var pepSequence = "DEADEELS";
                 var libKey2 = asSmallMolecules ?
-                    new LibKey(SmallMoleculeLibraryAttributes.Create(pepSequence, "C12H5", null, null, null, null), Adduct.M_PLUS_2H) : 
+                    new LibKey(SmallMoleculeLibraryAttributes.Create(pepSequence, "C12H5", null, string.Empty), Adduct.M_PLUS_2H) : 
                     new LibKey(pepSequence, Adduct.DOUBLY_PROTONATED);
                 revised.Add(new PrecursorIonMobilities(libKey2, IonMobilityAndCCS.GetIonMobilityAndCCS(IonMobilityValue.GetIonMobilityValue(5, eIonMobilityUnits.drift_time_msec), null, 0.123)));
                 var libraryName = "test";
-                var dbPath = testFilesDir.GetTestPath(libraryName+IonMobilityDb.EXT);
+                var dbPath = TestFilesDir.GetTestPath(libraryName+IonMobilityDb.EXT);
                 var imsdb = IonMobilityDb.CreateIonMobilityDb(dbPath, libraryName, false, revised);
                 var newLibIM = new IonMobilityLibrary(libraryName, dbPath, imsdb);
                 var ionMobilityWindowWidthCalculator = new IonMobilityWindowWidthCalculator(

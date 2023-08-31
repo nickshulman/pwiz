@@ -19,6 +19,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.DocSettings.AbsoluteQuantification;
 using pwiz.Skyline.Model.GroupComparison;
@@ -31,7 +32,7 @@ namespace pwiz.Skyline.Model.Results
     /// DEFAULT: whatever the normalization method for the currently selected peptide is
     /// CALIBRATED: use the calibration curve
     /// </summary>
-    public abstract class NormalizeOption
+    public abstract class NormalizeOption : LabeledValues<string>
     {
         public static readonly NormalizeOption NONE = new Simple(NormalizationMethod.NONE);
         private static Dictionary<string, Special> _specialOptions 
@@ -44,6 +45,9 @@ namespace pwiz.Skyline.Model.Results
         public static readonly NormalizeOption GLOBAL_STANDARDS =
             FromNormalizationMethod(NormalizationMethod.GLOBAL_STANDARDS);
 
+        protected NormalizeOption(string name, Func<string> getLabel, Func<string> getInvariantName = null) : base(name, getLabel, getInvariantName)
+        {
+        }
 
         public abstract string PersistedName { get; }
 
@@ -161,6 +165,10 @@ namespace pwiz.Skyline.Model.Results
             var normalizationMethod = (this as Simple)?.NormalizationMethod;
             if (normalizationMethod is NormalizationMethod.RatioToLabel ratioToLabel)
             {
+                if (!settings.PeptideSettings.Modifications.HasHeavyModifications)
+                {
+                    return DEFAULT;
+                }
                 if (settings.PeptideSettings.Modifications.RatioInternalStandardTypes
                     .All(item => item.Name != ratioToLabel.IsotopeLabelTypeName))
                 {
@@ -170,8 +178,11 @@ namespace pwiz.Skyline.Model.Results
 
             if (Equals(normalizationMethod, NormalizationMethod.GLOBAL_STANDARDS) && !settings.HasGlobalStandardArea)
             {
-                return RatioToFirstStandard(settings);
+                return DEFAULT;
             }
+
+            if (Equals(normalizationMethod, NormalizationMethod.TIC) && !settings.HasTicArea)
+                return FromNormalizationMethod(NormalizationMethod.NONE);
 
             return this;
         }
@@ -181,12 +192,17 @@ namespace pwiz.Skyline.Model.Results
             return (currentNormalizeOption ?? RatioToFirstStandard(settings)).Constrain(settings);
         }
 
+        public bool HideLabelType(SrmSettings settings, IsotopeLabelType labelType)
+        {
+            return NormalizationMethod?.HideLabelType(settings, labelType) ?? false;
+        }
+
         /// <summary>
         /// NormalizeOptions which are wrappers around NormalizationMethod values
         /// </summary>
         public class Simple : NormalizeOption
         {
-            public Simple(NormalizationMethod normalizationMethod)
+            public Simple(NormalizationMethod normalizationMethod) : base(normalizationMethod.Name, ()=>normalizationMethod.NormalizationMethodCaption)
             {
                 NormalizationMethod = normalizationMethod;
             }
@@ -205,7 +221,8 @@ namespace pwiz.Skyline.Model.Results
         {
             private readonly string _persistedName;
             private readonly Func<string> _getCaptionFunc;
-            public Special(string persistedName, Func<string> getCaptionFunc)
+            public Special(string persistedName, Func<string> getCaptionFunc) 
+                : base(persistedName, getCaptionFunc)
             {
                 _specialOptions.Add(persistedName, this);
                 _persistedName = persistedName;
@@ -217,6 +234,19 @@ namespace pwiz.Skyline.Model.Results
             public override string Caption => _getCaptionFunc();
 
             public override NormalizationMethod NormalizationMethod => null;
+        }
+
+        public class DefaultNone : DefaultValues
+        {
+            protected override IEnumerable<object> _values
+            {
+                get { yield return NONE; }
+            }
+
+            public override bool IgnoreIfDefault
+            {
+                get { return true; }
+            }
         }
     }
 }

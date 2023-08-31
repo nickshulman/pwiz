@@ -27,7 +27,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 using pwiz.Common.Chemistry;
 using pwiz.Common.SystemUtil;
 using pwiz.ProteowizardWrapper;
-using pwiz.Skyline.Alerts;
+using pwiz.Skyline.EditUI;
 using pwiz.Skyline.FileUI;
 using pwiz.Skyline.FileUI.PeptideSearch;
 using pwiz.Skyline.Model.DocSettings;
@@ -50,15 +50,13 @@ namespace TestPerf // Note: tests in the "TestPerf" namespace only run when the 
     {
         private int _testCase;
 
-        [TestMethod]
-        [Timeout(6000000)]  // Initial download can take a long time
+        [TestMethod, NoParallelTesting(TestExclusionReason.VENDOR_FILE_LOCKING)] // No parallel testing as Agilent reader locks the files it reads
         public void AgilentSpectrumMillSpectralLibTest()
         {
             AgilentSpectrumMillTest(2);
         }
 
-        [TestMethod]
-        [Timeout(6000000)]  // Initial download can take a long time
+        [TestMethod, NoParallelTesting(TestExclusionReason.VENDOR_FILE_LOCKING)] // No parallel testing as Agilent reader locks the files it reads
         public void AgilentSpectrumMillRampedIMSImportTest()
         {
             AgilentSpectrumMillTest(1);
@@ -160,9 +158,8 @@ namespace TestPerf // Note: tests in the "TestPerf" namespace only run when the 
                 {
                     transitionSettingsDlg.IonMobilityControl.SetUseSpectralLibraryIonMobilities(false);
                     transitionSettingsDlg.IonMobilityControl.SelectedIonMobilityLibrary = Resources.SettingsList_ELEMENT_NONE_None;
-                    transitionSettingsDlg.OkDialog();
                 });
-                WaitForClosedForm(transitionSettingsDlg);
+                OkDialog(transitionSettingsDlg, transitionSettingsDlg.OkDialog);
             }
 
             
@@ -171,12 +168,11 @@ namespace TestPerf // Note: tests in the "TestPerf" namespace only run when the 
             var searchResultsList = new[] {searchResults};
             RunUI(() =>
             {
-                AssertEx.IsTrue(importPeptideSearchDlg.CurrentPage ==
-                                ImportPeptideSearchDlg.Pages.spectra_page);
+                AssertEx.IsTrue(importPeptideSearchDlg.CurrentPage == ImportPeptideSearchDlg.Pages.spectra_page);
                 importPeptideSearchDlg.BuildPepSearchLibControl.AddSearchFiles(searchResultsList);
-                importPeptideSearchDlg.BuildPepSearchLibControl.CutOffScore = 0.95;
                 importPeptideSearchDlg.BuildPepSearchLibControl.FilterForDocumentPeptides = false;
             });
+            WaitForConditionUI(() => importPeptideSearchDlg.IsNextButtonEnabled);
 
             var doc = SkylineWindow.Document;
             RunUI(() => AssertEx.IsTrue(importPeptideSearchDlg.ClickNextButton()));
@@ -230,7 +226,7 @@ namespace TestPerf // Note: tests in the "TestPerf" namespace only run when the 
                 AssertEx.IsTrue(importPeptideSearchDlg.CurrentPage == ImportPeptideSearchDlg.Pages.import_fasta_page);
                 importPeptideSearchDlg.ImportFastaControl.SetFastaContent(GetTestPath("SwissProt.bsa-mature"));
             });
-            var peptidesPerProteinDlg = ShowDialog<PeptidesPerProteinDlg>(importPeptideSearchDlg.ClickNextButtonNoCheck);
+            var peptidesPerProteinDlg = ShowDialog<AssociateProteinsDlg>(importPeptideSearchDlg.ClickNextButtonNoCheck);
             WaitForCondition(() => peptidesPerProteinDlg.DocumentFinalCalculated);
             OkDialog(peptidesPerProteinDlg, peptidesPerProteinDlg.OkDialog);
 
@@ -263,14 +259,9 @@ namespace TestPerf // Note: tests in the "TestPerf" namespace only run when the 
                     editIonMobilityLibraryDlg.LibraryName = "test";
                     editIonMobilityLibraryDlg.CreateDatabaseFile(TestFilesDir.GetTestPath(editIonMobilityLibraryDlg.LibraryName + IonMobilityDb.EXT)); // Simulate user clicking Create button
                     editIonMobilityLibraryDlg.GetIonMobilitiesFromResults();
-                    editIonMobilityLibraryDlg.OkDialog();
                 });
-                WaitForClosedForm(editIonMobilityLibraryDlg);
-                RunUI(() =>
-                {
-                    transitionSettingsDlg.OkDialog();
-                });
-                WaitForClosedForm(transitionSettingsDlg);
+                OkDialog(editIonMobilityLibraryDlg, editIonMobilityLibraryDlg.OkDialog);
+                OkDialog(transitionSettingsDlg, transitionSettingsDlg.OkDialog);
 
                 var document = SkylineWindow.Document;
                 var measuredDTs = document.Settings.TransitionSettings.IonMobilityFiltering.IonMobilityLibrary;
@@ -293,9 +284,9 @@ namespace TestPerf // Note: tests in the "TestPerf" namespace only run when the 
                     string errMsg = string.Empty;
                     var key = new LibKey(pair.NodePep.ModifiedSequence, pair.NodeGroup.PrecursorAdduct);
                     double tolerCCS = 5;
-                    if (expectedDiffs.ContainsKey(key))
+                    if (expectedDiffs.TryGetValue(key, out var diff))
                     {
-                        tolerCCS = expectedDiffs[key] + .1;
+                        tolerCCS = diff + .1;
                     }
                     if (!explicitDTs.ContainsKey(key))
                     {
@@ -371,8 +362,8 @@ namespace TestPerf // Note: tests in the "TestPerf" namespace only run when the 
             foreach (var pair in doc1.PeptidePrecursorPairs)
             {
                 ChromatogramGroupInfo[] chromGroupInfo;
-                AssertEx.IsTrue(results.TryLoadChromatogram(0, pair.NodePep, pair.NodeGroup,
-                    tolerance, true, out chromGroupInfo));
+                AssertEx.IsTrue(results.TryLoadChromatogram(0, pair.NodePep, pair.NodeGroup, tolerance,
+                    out chromGroupInfo));
 
                 foreach (var chromGroup in chromGroupInfo)
                 {

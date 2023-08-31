@@ -41,9 +41,19 @@ namespace detail {
 using namespace Waters;
 
 SpectrumList_Waters::SpectrumList_Waters(MSData& msd, RawDataPtr rawdata, const Reader::Config& config)
-    : msd_(msd), rawdata_(rawdata), config_(config)
+    : msd_(msd), rawdata_(rawdata), config_(config), lockmassFunction_(LOCKMASS_FUNCTION_UNINIT)
 {
-    createIndex();
+    useDDAProcessor_ = config_.ddaProcessing;
+    rawdata_->EnableProcessing(useDDAProcessor_);
+
+    if (useDDAProcessor_)
+    {       
+        createDDAIndex();
+    }
+    else
+    {
+        createIndex();
+    }
 }
 
 
@@ -96,6 +106,36 @@ PWIZ_API_DECL SpectrumPtr SpectrumList_Waters::spectrum(size_t index, bool getBi
     return spectrum(index, getBinaryData ? DetailLevel_FullData : DetailLevel_FullMetadata, lockmassMzPosScans, lockmassMzNegScans, lockmassTolerance, msLevelsToCentroid);
 }
 
+PWIZ_API_DECL bool SpectrumList_Waters::isLockMassFunction(int function) const
+{
+    if (lockmassFunction_ == LOCKMASS_FUNCTION_UNINIT) // See if we can figure out which is the lockmass function
+    {
+        bool hasChromMS = false;
+        const set<int>& functionsWithChromFiles = rawdata_->FunctionsWithChromFiles();
+        int apparentLockmassFunction = LOCKMASS_FUNCTION_UNINIT;
+        BOOST_FOREACH(int tryFunction, rawdata_->FunctionIndexList())
+        {
+            int msLevel;
+            CVID spectrumType;
+            translateFunctionType(WatersToPwizFunctionType(rawdata_->Info.GetFunctionType(tryFunction)), msLevel, spectrumType);
+            if (cv::cvIsA(spectrumType, MS_mass_spectrum))
+            {
+                // Function has MS data - but does it have a _CHRO*.dat file? We've observed that lockmass functions don't
+                if (functionsWithChromFiles.find(tryFunction) == functionsWithChromFiles.end())
+                {
+                    apparentLockmassFunction = tryFunction; // No _CHRO*.DAT file, might be lockmass (value is 0-based)
+                }
+                else
+                {
+                    hasChromMS = true; // At least one function does have a _CHRO*.dat file
+                }
+            }
+        }
+        lockmassFunction_ = hasChromMS ? apparentLockmassFunction : LOCKMASS_FUNCTION_UNKNOWN;
+    }
+    return function == lockmassFunction_;
+}
+
 PWIZ_API_DECL SpectrumPtr SpectrumList_Waters::spectrum(size_t index, DetailLevel detailLevel, double lockmassMzPosScans, double lockmassMzNegScans, double lockmassTolerance, const pwiz::util::IntegerSet& msLevelsToCentroid) const
 {
     boost::lock_guard<boost::mutex> lock(readMutex);  // lock_guard will unlock mutex when out of scope or when exception thrown (during destruction)
@@ -143,10 +183,10 @@ PWIZ_API_DECL SpectrumPtr SpectrumList_Waters::spectrum(size_t index, DetailLeve
     double collisionEnergy = 0;
     string collisionEnergyStr = isMS ? rawdata_->GetScanStat(ie.function, scanStatIndex, MassLynxScanItem::COLLISION_ENERGY) : "";
     if (!collisionEnergyStr.empty())
-        collisionEnergy = lexical_cast<double>(collisionEnergyStr);
+        collisionEnergy = abs(lexical_cast<double>(collisionEnergyStr));
 
     // heuristic to detect high-energy MSe function (must run for DetailLevel_InstantMetadata so that msLevel is the same at all detail levels)
-    if (msLevel == 1 && ie.function == 1 && collisionEnergy > 0)
+    if (msLevel == 1 && ie.function == 1 && collisionEnergy > 0 && !isLockMassFunction(ie.function))
     {
         double collisionEnergyFunction1 = 0;
         string collisionEnergyStrFunction1 = rawdata_->GetScanStat(0, scanStatIndex, MassLynxScanItem::COLLISION_ENERGY);
@@ -180,7 +220,7 @@ PWIZ_API_DECL SpectrumPtr SpectrumList_Waters::spectrum(size_t index, DetailLeve
         double lockmassMz = (polarityType == PolarityType_Negative) ? lockmassMzNegScans : lockmassMzPosScans;
         if (lockmassMz != 0.0)
         {
-            if (detailLevel == DetailLevel_FullData && !rawdata_->ApplyLockMass(lockmassMz, lockmassTolerance)) // TODO: if false (cannot apply lockmass), log a warning
+            if (detailLevel == DetailLevel_FullData && !rawdata_->ApplyLockMass(lockmassMz, lockmassTolerance))
                 warn_once("[SpectrumList_Waters] failed to apply lockmass correction");
         }
         else
@@ -201,43 +241,50 @@ PWIZ_API_DECL SpectrumPtr SpectrumList_Waters::spectrum(size_t index, DetailLeve
         doCentroid = false;
     }
 
-    boost::weak_ptr<RawData> binaryDataSource = rawdata_;
     if (doCentroid)
     {
-        if (detailLevel >= DetailLevel_FullMetadata)
-        {
-            rawdata_->Centroid();
-            binaryDataSource = rawdata_->CentroidRawDataFile();
-        }
         result->set(MS_centroid_spectrum);
     }
-    
-    // block >= 0 is ion mobility
-    if (ie.block < 0 || config_.combineIonMobilitySpectra)
+    else // the following metadata values are only set for profile data
     {
-        int scan = ie.block < 0 ? ie.scan : ie.block;
-        // scanStats values don't match the ion mobility data arrays
-        // CONSIDER: in the ion mobility case, get these values from the actual data arrays
-        result->set(MS_base_peak_m_z, binaryDataSource.lock()->GetScanStat<double>(ie.function, scan, MassLynxScanItem::BASE_PEAK_MASS));
-        result->set(MS_base_peak_intensity, binaryDataSource.lock()->GetScanStat<double>(ie.function, scan, MassLynxScanItem::BASE_PEAK_INTENSITY));
-        result->set(MS_total_ion_current, binaryDataSource.lock()->GetScanStat<double>(ie.function, scan, MassLynxScanItem::TOTAL_ION_CURRENT));
-        result->defaultArrayLength = binaryDataSource.lock()->GetScanStat<int>(ie.function, scan, MassLynxScanItem::PEAKS_IN_SCAN);
-    }
-    else
-    {
-        result->set(MS_total_ion_current, rawdata_->TicByFunctionIndex()[ie.function].at(ie.block));
-        result->defaultArrayLength = 0;
+        // block >= 0 is ion mobility
+        if (ie.block < 0 || config_.combineIonMobilitySpectra)
+        {
+            int scan = ie.block < 0 ? ie.scan : ie.block;
+            // scanStats values don't match the ion mobility data arrays
+            // CONSIDER: in the ion mobility case, get these values from the actual data arrays
+            result->set(MS_base_peak_m_z, rawdata_->GetScanStat<double>(ie.function, scan, MassLynxScanItem::BASE_PEAK_MASS));
+            result->set(MS_base_peak_intensity, rawdata_->GetScanStat<double>(ie.function, scan, MassLynxScanItem::BASE_PEAK_INTENSITY));
+            result->set(MS_total_ion_current, rawdata_->GetScanStat<double>(ie.function, scan, MassLynxScanItem::TOTAL_ION_CURRENT));
+            result->defaultArrayLength = rawdata_->GetScanStat<int>(ie.function, scan, MassLynxScanItem::PEAKS_IN_SCAN);
+        }
+        else
+        {
+            result->set(MS_total_ion_current, rawdata_->TicByFunctionIndex()[ie.function].at(ie.block));
+            result->defaultArrayLength = 0;
+        }
     }
 
-    float minMZ, maxMZ;
-    rawdata_->Info.GetAcquisitionMassRange(ie.function, minMZ, maxMZ);
-    scan.scanWindows.push_back(ScanWindow(minMZ, maxMZ, xUnit));
+    float minMZ = 0, maxMZ = 0;
+    if (isMS)
+    {
+        rawdata_->Info.GetAcquisitionMassRange(ie.function, minMZ, maxMZ);
+        scan.scanWindows.push_back(ScanWindow(minMZ, maxMZ, xUnit));
+
+        if (!config_.combineIonMobilitySpectra && hasSonarFunctions())
+        {
+            float minQuadMz, maxQuadMz;
+            rawdata_->Info.GetPrecursorMassRange(ie.function, ie.scan, minQuadMz, maxQuadMz); // Get the quadrupole filter range this spectrum
+            scan.userParams.emplace_back("scanning quadrupole position lower bound", toString(minQuadMz), "xsd:float", MS_m_z);
+            scan.userParams.emplace_back("scanning quadrupole position upper bound", toString(maxQuadMz), "xsd:float", MS_m_z);
+        }
+    }
 
     if (detailLevel < DetailLevel_FastMetadata)
         return result;
 
     // block >= 0 is ion mobility or SONAR
-    if (ie.block >= 0)
+    if (ie.block >= 0 && !hasSonarFunctions())
     {
         double driftTime = rawdata_->GetDriftTime(ie.function, ie.scan);
         scan.set(MS_ion_mobility_drift_time, driftTime, UO_millisecond);
@@ -245,18 +292,33 @@ PWIZ_API_DECL SpectrumPtr SpectrumList_Waters::spectrum(size_t index, DetailLeve
 
     if (msLevel > 1 && isMS)
     {
-        string setMassStr = rawdata_->GetScanStat(ie.function, scanStatIndex, MassLynxScanItem::SET_MASS);
-
         double setMass = 0;
-        if (!setMassStr.empty())
-            setMass = lexical_cast<double>(setMassStr);
+        if (useDDAProcessor_)
+        {
+            setMass = ie.setMass;
+        }
+        else if (!hasSonarFunctions())
+        {
+            string setMassStr = rawdata_->GetScanStat(ie.function, scanStatIndex, MassLynxScanItem::SET_MASS);
+            if (!setMassStr.empty())
+                setMass = lexical_cast<double>(setMassStr);
+        }
 
         Precursor precursor;
+
+        float lowerIsolationWindowOffset, maxIsolationWindowOffset;
+        bool offsetsPresent = useDDAProcessor_ ? rawdata_->GetIsolationWindow(lowerIsolationWindowOffset, maxIsolationWindowOffset) : false;
+        
         if (setMass == 0)
         {
             setMass = (maxMZ + minMZ) / 2;
             precursor.isolationWindow.set(MS_isolation_window_upper_offset, maxMZ - setMass, xUnit);
             precursor.isolationWindow.set(MS_isolation_window_lower_offset, maxMZ - setMass, xUnit);
+        }
+        else if (offsetsPresent)
+        {
+            precursor.isolationWindow.set(MS_isolation_window_lower_offset, lowerIsolationWindowOffset, xUnit);
+            precursor.isolationWindow.set(MS_isolation_window_upper_offset, maxIsolationWindowOffset, xUnit);
         }
         precursor.isolationWindow.set(MS_isolation_window_target_m_z, setMass, xUnit);
 
@@ -265,7 +327,10 @@ PWIZ_API_DECL SpectrumPtr SpectrumList_Waters::spectrum(size_t index, DetailLeve
         if (collisionEnergy > 0)
             precursor.activation.set(MS_collision_energy, collisionEnergy, UO_electronvolt);
 
-        SelectedIon selectedIon(setMass);
+
+        double precursorMass = useDDAProcessor_ ? ie.precursorMass : setMass;
+        SelectedIon selectedIon(precursorMass);
+
         precursor.selectedIons.push_back(selectedIon);
         result->precursors.push_back(precursor);
     }
@@ -282,32 +347,49 @@ PWIZ_API_DECL SpectrumPtr SpectrumList_Waters::spectrum(size_t index, DetailLeve
             if (detailLevel == DetailLevel_FullMetadata)
                 return result;
 
-            auto mobilityArray = boost::make_shared<BinaryDataArray>();
-            getCombinedSpectrumData(ie.function, ie.block, mzArray, intensityArray, mobilityArray->data, doCentroid);
+            auto mobilityOrQuadLowArray = boost::make_shared<BinaryDataArray>();
+            auto quadHighArray = boost::make_shared<BinaryDataArray>();
+            getCombinedSpectrumData(ie.function, ie.block, mzArray, intensityArray, mobilityOrQuadLowArray->data, quadHighArray->data, doCentroid);
             result->defaultArrayLength = mzArray.size();
 
             result->swapMZIntensityArrays(mzArray, intensityArray, MS_number_of_detector_counts); // Donate mass and intensity buffers to result vectors
 
-            mobilityArray->set(MS_raw_ion_mobility_array);
-            result->binaryDataArrayPtrs.push_back(mobilityArray);
+            if (hasSonarFunctions())
+            {
+                mobilityOrQuadLowArray->set(MS_scanning_quadrupole_position_lower_bound_m_z_array);
+                result->binaryDataArrayPtrs.push_back(mobilityOrQuadLowArray);
+                quadHighArray->set(MS_scanning_quadrupole_position_upper_bound_m_z_array);
+                result->binaryDataArrayPtrs.push_back(quadHighArray);
+            }
+            else
+            {
+                 mobilityOrQuadLowArray->set(MS_raw_ion_mobility_array);
+                 result->binaryDataArrayPtrs.push_back(mobilityOrQuadLowArray);
+            }
         }
         else
         {
             vector<float> masses, intensities;
 
-            if (ie.block >= 0 && !doCentroid)
+            if (useDDAProcessor_)
             {
-                MassLynxRawScanReader& scanReader = binaryDataSource.lock()->GetCompressedDataClusterForBlock(ie.function, ie.block);
+                getDDAScan(index, masses, intensities);
+            }
+            else if (ie.block >= 0 && !doCentroid && !isLockMassFunction(ie.function)) // Lockmass won't have IMS
+            {
+                MassLynxRawScanReader& scanReader = rawdata_->GetCompressedDataClusterForBlock(ie.function, ie.block);
                 scanReader.ReadScan(ie.function, ie.block, ie.scan, masses, intensities);
                 result->defaultArrayLength = masses.size();
 
                 if (detailLevel == DetailLevel_FullMetadata)
                     return result;
             }
-            else // not ion mobility or getting data from centroid.raw: defaultArrayLength set by PEAKS_IN_SCAN
+            else // not ion mobility
             {
-                if (detailLevel != DetailLevel_FullMetadata)
-                    binaryDataSource.lock()->Reader.ReadScan(ie.function, ie.scan, masses, intensities);
+                rawdata_->ReadScan(ie.function, ie.scan, doCentroid, masses, intensities);
+                if (doCentroid)
+                    calculatePeakMetadata(result, masses, intensities);
+                result->defaultArrayLength = masses.size();
             }
 
             if (detailLevel == DetailLevel_FullData)
@@ -393,8 +475,6 @@ PWIZ_API_DECL void SpectrumList_Waters::initializeCoefficients() const
             throw runtime_error("[SpectrumList_Waters::spectrum()] error parsing calibration coefficients: " + coefficients);
         }
     }
-
-
 }
 
 PWIZ_API_DECL double SpectrumList_Waters::calibrate(const double& mz) const
@@ -454,34 +534,48 @@ PWIZ_API_DECL pwiz::analysis::Spectrum3DPtr SpectrumList_Waters::spectrum3d(doub
     return result;
 }
 
-PWIZ_API_DECL void SpectrumList_Waters::getCombinedSpectrumData(int function, int block, BinaryData<double>& mz, BinaryData<double>& intensity, BinaryData<double>& driftTime, bool doCentroid) const
+PWIZ_API_DECL void SpectrumList_Waters::getCombinedSpectrumData(int function, int block, BinaryData<double>& mz, BinaryData<double>& intensity,
+    BinaryData<double>& driftTimeOrSonarRangeLow, BinaryData<double>& sonarRangeHigh, bool doCentroid) const
 {
-    MassLynxRawScanReader& scanReader = doCentroid ? rawdata_->CentroidRawDataFile()->Reader : (MassLynxRawScanReader&) rawdata_->GetCompressedDataClusterForBlock(function, block);
+    MassLynxRawScanReader& scanReader = rawdata_->GetCompressedDataClusterForBlock(function, block);
     vector<float>& imsMasses = imsMasses_;
     vector<float>& imsIntensities = imsIntensities_;
+    const bool wantBins = config_.reportSonarBins && hasSonarFunctions();
 
-    int numScansInBlock = rawdata_->Info.GetDriftScanCount(function);
+    const int numScansInBlock = rawdata_->Info.GetDriftScanCount(function);
 
     // NB: there's currently no way to know how many points the final array will have; PEAKS_IN_SCAN is a useful heuristic with a bit of expansion factored in
-    int totalPoints = (doCentroid ? rawdata_->CentroidRawDataFile() : rawdata_)->GetScanStat<int>(function, block, MassLynxScanItem::PEAKS_IN_SCAN) * 1.5;
+    int totalPoints = rawdata_->GetScanStat<int>(function, block, MassLynxScanItem::PEAKS_IN_SCAN) * 1.5;
     mz.resize(totalPoints);
     intensity.resize(totalPoints);
-    driftTime.resize(totalPoints);
+    driftTimeOrSonarRangeLow.resize(totalPoints);
+    const bool wantSonarRanges = !wantBins && hasSonarFunctions();
+    if (wantSonarRanges)
+    {
+        sonarRangeHigh.resize(totalPoints);
+    }
     int currentPoints = 0;
-    auto mzItr = &mz[0], intensityItr = &intensity[0], driftTimeItr = &driftTime[0];
-    bool wantBins = config_.reportSonarBins && hasSonarFunctions();
+    auto mzItr = &mz[0], intensityItr = &intensity[0], driftTimeItr = &driftTimeOrSonarRangeLow[0];
+    auto srhItr = wantSonarRanges ? &sonarRangeHigh[0] : nullptr;
     for (int scan = 0; scan < numScansInBlock; ++scan)
     {
-        double dt;
+        double driftTimeOrQuadLow, quadHigh;
         if (wantBins)
         {
-            dt = scan;
+            driftTimeOrQuadLow = scan;
+        }
+        else if (wantSonarRanges) // using the four array format mz,intensity,quadRangeLow,quadRangeHIgh
+        {
+            float quadrupoleRangeLow, quadrupoleRangeHigh;
+            rawdata_->SonarBinToPrecursorMzRange(scan, quadrupoleRangeLow, quadrupoleRangeHigh);
+            driftTimeOrQuadLow = quadrupoleRangeLow;
+            quadHigh = quadrupoleRangeHigh;
         }
         else
         {
-            dt = rawdata_->GetDriftTime(function, scan);
+            driftTimeOrQuadLow = rawdata_->GetDriftTime(function, scan);
 
-            if (!chemistry::MzMobilityWindow::mobilityValueInBounds(config_.isolationMzAndMobilityFilter, dt))
+            if (!chemistry::MzMobilityWindow::mobilityValueInBounds(config_.isolationMzAndMobilityFilter, driftTimeOrQuadLow))
                 continue;
         }
 
@@ -496,22 +590,64 @@ PWIZ_API_DECL void SpectrumList_Waters::getCombinedSpectrumData(int function, in
                 totalPoints = currentPoints * 1.5;
                 mz.resize(totalPoints);
                 intensity.resize(totalPoints);
-                driftTime.resize(totalPoints);
+                driftTimeOrSonarRangeLow.resize(totalPoints);
                 mzItr = &mz[currentPoints];
                 intensityItr = &intensity[currentPoints];
-                driftTimeItr = &driftTime[currentPoints];
+                driftTimeItr = &driftTimeOrSonarRangeLow[currentPoints];
+                if (wantSonarRanges)
+                {
+                    sonarRangeHigh.resize(totalPoints);
+                    srhItr = &sonarRangeHigh[currentPoints];
+                }
             }
             *mzItr++ = imsMasses[i];
             *intensityItr++ = imsIntensities[i];
-            *driftTimeItr++ = dt;
+            *driftTimeItr++ = driftTimeOrQuadLow;
+            if (wantSonarRanges)
+            {
+                *srhItr++ = quadHigh;
+            }
             ++currentPoints;
         }
     }
     mz.resize(currentPoints);
     intensity.resize(currentPoints);
-    driftTime.resize(currentPoints);
+    driftTimeOrSonarRangeLow.resize(currentPoints);
+    if (wantSonarRanges)
+    {
+        sonarRangeHigh.resize(currentPoints);
+    }
 }
 
+PWIZ_API_DECL void SpectrumList_Waters::calculatePeakMetadata(SpectrumPtr& spectrum, const vector<float>& mz, const vector<float>& intensity)
+{
+    double tic = 0;
+    if (!mz.empty())
+    {
+        double bpmz, bpi = -1;
+        for (size_t i = 0, end = mz.size(); i < end; ++i)
+        {
+            tic += intensity[i];
+            if (bpi < intensity[i])
+            {
+                bpi = intensity[i];
+                bpmz = mz[i];
+            }
+        }
+
+        spectrum->set(MS_base_peak_intensity, bpi, MS_number_of_detector_counts);
+        spectrum->set(MS_base_peak_m_z, bpmz, MS_m_z);
+        spectrum->set(MS_lowest_observed_m_z, mz.front(), MS_m_z);
+        spectrum->set(MS_highest_observed_m_z, mz.back(), MS_m_z);
+    }
+
+    spectrum->set(MS_TIC, tic, MS_number_of_detector_counts);
+}
+
+PWIZ_API_DECL bool SpectrumList_Waters::calibrationSpectraAreOmitted() const
+{
+    return config_.ignoreCalibrationScans && lockmassFunction_ >= 0;
+}
 
 PWIZ_API_DECL void SpectrumList_Waters::createIndex()
 {
@@ -523,6 +659,10 @@ PWIZ_API_DECL void SpectrumList_Waters::createIndex()
 
     for(int function : rawdata_->FunctionIndexList())
     {
+        if (config_.ignoreCalibrationScans && isLockMassFunction(function))
+        {
+            continue;
+        }
         int msLevel;
         CVID spectrumType;
 
@@ -630,6 +770,58 @@ PWIZ_API_DECL void SpectrumList_Waters::createIndex()
     size_ = index_.size();
 }
 
+PWIZ_API_DECL void SpectrumList_Waters::getDDAScan(unsigned int index, vector<float>& masses, vector<float>& intensities) const
+{
+    using namespace boost::spirit::karma;
+    
+    float setMass, precursorMass, retentionTime;
+    int function, startScan, endScan;
+    bool isMS1;
+    rawdata_->GetDDAScan(index, retentionTime, function, startScan, endScan, isMS1, setMass, precursorMass, masses, intensities);
+}
+
+PWIZ_API_DECL void SpectrumList_Waters::createDDAIndex()
+{
+    using namespace boost::spirit::karma;
+
+    size_ = rawdata_->GetDDAScanCount();
+    index_.resize(size_);
+
+    for (auto i = 0; i < size_; ++i)
+    {
+        IndexEntry& ie = index_[i];
+
+        float setMass, precursorMass, retentionTime;
+        int function, startScan, endScan;
+        vector<float> masses, intensities;
+        bool isMS1;
+        rawdata_->GetDDAScan(i, retentionTime, function, startScan, endScan, isMS1, setMass, precursorMass, masses, intensities);
+
+        ie.function = function;
+        ie.process = 0;
+        ie.block = -1; // The SDK DDA processor doesn't yet support ion mobility data
+        ie.scan = startScan; // While it might combine multiple scans, use the first for getting the metadata
+        ie.index = i;
+        ie.setMass = setMass;
+        ie.precursorMass = precursorMass;
+
+        std::back_insert_iterator<std::string> sink(ie.id);
+        if (startScan == endScan)
+        {
+            generate(sink,
+                    "function=" << int_ << " process=" << int_ << " scan=" << int_,
+                    ie.function + 1, ie.process, ie.scan + 1);
+        } 
+        else
+        {
+            generate(sink,
+                    "merged=" << int_ << " function=" << int_ << " process=" << int_ << " scans=" << int_ << "-" << int_,
+                    ie.index, ie.function + 1, ie.process, startScan + 1, endScan + 1);
+        }
+        idToIndexMap_[ie.id] = ie.index;
+    }
+}
+
 
 } // detail
 } // msdata
@@ -655,6 +847,8 @@ bool SpectrumList_Waters::hasCombinedIonMobility() const {return false;}
 bool SpectrumList_Waters::canConvertIonMobilityAndCCS() const {return false;}
 double SpectrumList_Waters::ionMobilityToCCS(double ionMobility, double mz, int charge) const {return 0;}
 double SpectrumList_Waters::ccsToIonMobility(double ccs, double mz, int charge) const {return 0;}
+bool SpectrumList_Waters::isLockMassFunction(int function) const {return false;}
+bool SpectrumList_Waters::calibrationSpectraAreOmitted() const {return false;}
 SpectrumPtr SpectrumList_Waters::spectrum(size_t index, bool getBinaryData) const {return SpectrumPtr();}
 SpectrumPtr SpectrumList_Waters::spectrum(size_t index, DetailLevel detailLevel) const { return SpectrumPtr(); }
 SpectrumPtr SpectrumList_Waters::spectrum(size_t index, bool getBinaryData, const pwiz::util::IntegerSet& msLevelsToCentroid) const { return SpectrumPtr(); }

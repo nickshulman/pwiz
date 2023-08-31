@@ -381,12 +381,13 @@ namespace pwiz.Skyline.SettingsUI
                             {
                                 MessageDlg.Show(TopMostApplicationForm, buildState.ExtraMessage);
                             }
-                            if (buildState.IrtStandard != null && !buildState.IrtStandard.Name.Equals(IrtStandard.EMPTY.Name))
+                            if (buildState.IrtStandard != null && !buildState.IrtStandard.IsEmpty)
                             {
                                 // Load library
                                 Library lib = null;
-                                using (var longWait = new LongWaitDlg {Text = Resources.LibraryBuildNotificationHandler_AddIrts_Loading_library})
+                                using (var longWait = new LongWaitDlg())
                                 {
+                                    longWait.Text = Resources.LibraryBuildNotificationHandler_AddIrts_Loading_library;
                                     var status = longWait.PerformWork(TopMostApplicationForm, 800, monitor =>
                                     {
                                         lib = NotificationContainer.LibraryManager.TryGetLibrary(buildState.LibrarySpec) ??
@@ -419,18 +420,19 @@ namespace pwiz.Skyline.SettingsUI
         public static bool AddIrts(IrtRegressionType regressionType, Library lib, LibrarySpec libSpec, IrtStandard standard, Control parent, bool useTopMostForm, out IrtStandard outStandard)
         {
             outStandard = standard;
-            if (lib == null || !lib.IsLoaded || standard == null || standard.Name.Equals(IrtStandard.EMPTY.Name))
+            if (lib == null || !lib.IsLoaded || standard == null || standard.IsEmpty)
                 return false;
 
             Control GetParent() { return useTopMostForm ? FormUtil.FindTopLevelOpenForm(f => f is BuildLibraryNotification) ?? parent : parent; }
 
             IRetentionTimeProvider[] irtProviders = null;
-            var isAuto = ReferenceEquals(standard, IrtStandard.AUTO);
+            var isAuto = standard.IsAuto;
             List<IrtStandard> autoStandards = null;
             var cirtPeptides = new DbIrtPeptide[0];
 
-            using (var longWait = new LongWaitDlg {Text = Resources.LibraryBuildNotificationHandler_AddIrts_Loading_retention_time_providers})
+            using (var longWait = new LongWaitDlg())
             {
+                longWait.Text = Resources.LibraryBuildNotificationHandler_AddIrts_Loading_retention_time_providers;
                 var standard1 = standard;
                 var status = longWait.PerformWork(GetParent(), 800, monitor =>
                 {
@@ -477,8 +479,9 @@ namespace pwiz.Skyline.SettingsUI
             }
 
             ProcessedIrtAverages processed = null;
-            using (var longWait = new LongWaitDlg {Text = Resources.LibraryBuildNotificationHandler_AddIrts_Processing_retention_times})
+            using (var longWait = new LongWaitDlg())
             {
+                longWait.Text = Resources.LibraryBuildNotificationHandler_AddIrts_Processing_retention_times;
                 try
                 {
                     var status = longWait.PerformWork(GetParent(), 800, monitor =>
@@ -527,8 +530,9 @@ namespace pwiz.Skyline.SettingsUI
             if (!processed.DbIrtPeptides.Any())
                 return false;
 
-            using (var longWait = new LongWaitDlg {Text = Resources.LibraryBuildNotificationHandler_AddIrts_Adding_iRTs_to_library})
+            using (var longWait = new LongWaitDlg())
             {
+                longWait.Text = Resources.LibraryBuildNotificationHandler_AddIrts_Adding_iRTs_to_library;
                 try
                 {
                     var status = longWait.PerformWork(GetParent(), 800, monitor =>

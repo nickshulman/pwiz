@@ -23,7 +23,6 @@ using System.IO;
 using System.Linq;
 using System.Windows.Forms;
 using pwiz.Common.Collections;
-using pwiz.Common.Controls;
 using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Alerts;
 using pwiz.Skyline.Controls;
@@ -82,6 +81,9 @@ namespace pwiz.Skyline.SettingsUI
         private readonly LabelTypeComboDriver _driverLabelType;
         private static readonly IList<int?> _quantMsLevels = ImmutableList.ValueOf(new int?[] {null, 1, 2});
         private readonly LabelTypeComboDriver _driverSmallMolInternalStandardTypes;
+        private string _staticModsOriginalTooltip;
+        private string _heavyModsOriginalTooltip;
+        private string _librariesOriginalTooltip;
 
         public PeptideSettingsUI(SkylineWindow parent, LibraryManager libraryManager, TABS? selectTab)
         {
@@ -177,12 +179,6 @@ namespace pwiz.Skyline.SettingsUI
 
             IsShowLibraryExplorer = false;
             FormUtil.RemoveTabPage(tabIntegration, helpTip);
-            comboNormalizationMethod.Items.AddRange(
-                NormalizationMethod.ListNormalizationMethods(parent.DocumentUI).ToArray());
-            if (!comboNormalizationMethod.Items.Contains(_peptideSettings.Quantification.NormalizationMethod))
-            {
-                comboNormalizationMethod.Items.Add(_peptideSettings.Quantification.NormalizationMethod);
-            }
             comboNormalizationMethod.SelectedItem = _peptideSettings.Quantification.NormalizationMethod;
             comboWeighting.Items.AddRange(RegressionWeighting.All.Cast<object>().ToArray());
             comboWeighting.SelectedItem = _peptideSettings.Quantification.RegressionWeighting;
@@ -197,6 +193,7 @@ namespace pwiz.Skyline.SettingsUI
             tbxMaxLoqCv.Text = _peptideSettings.Quantification.MaxLoqCv.ToString();
             tbxIonRatioThreshold.Text = _peptideSettings.Quantification.QualitativeIonRatioThreshold.ToString();
             cbxSimpleRatios.Checked = _peptideSettings.Quantification.SimpleRatios;
+            UpdateComboNormalizationMethod();
         }
 
         /// <summary>
@@ -565,7 +562,7 @@ namespace pwiz.Skyline.SettingsUI
 
             quantification = quantification.ChangeSimpleRatios(cbxSimpleRatios.Checked);
 
-            return new PeptideSettings(enzyme, digest, prediction, filter, libraries, modifications, integration, backgroundProteome)
+            return new PeptideSettings(enzyme, digest, prediction, filter, libraries, modifications, integration, backgroundProteome, _peptideSettings.ProteinAssociationSettings)
                     .ChangeAbsoluteQuantification(quantification);
         }
 
@@ -731,14 +728,16 @@ namespace pwiz.Skyline.SettingsUI
 
             // Libraries built for full-scan filtering can have important retention time information,
             // and the redundant libraries are more likely to be desirable for showing spectra.
-            using (var dlg = new BuildLibraryDlg(_parent) { LibraryKeepRedundant = _parent.DocumentUI.Settings.TransitionSettings.FullScan.IsEnabled })
+            using (var dlg = new BuildLibraryDlg(_parent))
             {
+                dlg.LibraryKeepRedundant = _parent.DocumentUI.Settings.TransitionSettings.FullScan.IsEnabled;
                 if (dlg.ShowDialog(this) == DialogResult.OK)
                 {
                     if (!string.IsNullOrEmpty(dlg.AddLibraryFile))
                     {
-                        using (var editLibDlg = new EditLibraryDlg(Settings.Default.SpectralLibraryList) {LibraryPath = dlg.AddLibraryFile})
+                        using (var editLibDlg = new EditLibraryDlg(Settings.Default.SpectralLibraryList))
                         {
+                            editLibDlg.LibraryPath = dlg.AddLibraryFile;
                             if (editLibDlg.ShowDialog(this) == DialogResult.OK)
                             {
                                 _driverLibrary.List.Add(editLibDlg.LibrarySpec);
@@ -815,14 +814,21 @@ namespace pwiz.Skyline.SettingsUI
                 if (filterDlg.ShowDialog(this) == DialogResult.OK)
                 {
                     MidasLibrary midasLib = null;
-                    using (var longWait = new LongWaitDlg
+                    using (var longWait = new LongWaitDlg())
                     {
-                        Text = Resources.PeptideSettingsUI_ShowFilterMidasDlg_Loading_MIDAS_Library,
-                        Message = string.Format(Resources.PeptideSettingsUI_ShowFilterMidasDlg_Loading__0_, Path.GetFileName(midasLibSpec.FilePath))
-                    })
-                    {
-                        longWait.PerformWork(this, 800, monitor => midasLib = _libraryManager.LoadLibrary(midasLibSpec, () => new DefaultFileLoadMonitor(monitor)) as MidasLibrary);
+                        longWait.Text = Resources.PeptideSettingsUI_ShowFilterMidasDlg_Loading_MIDAS_Library;
+                        longWait.Message = string.Format(Resources.PeptideSettingsUI_ShowFilterMidasDlg_Loading__0_, Path.GetFileName(midasLibSpec.FilePath));
+                        longWait.PerformWork(this, 800, monitor => midasLib =
+                            _libraryManager.LoadLibrary(midasLibSpec, () => new DefaultFileLoadMonitor(monitor)) as MidasLibrary);
                     }
+
+                    if (midasLib == null)
+                    {
+                        MessageDlg.Show(this, string.Format(
+                            Resources.PeptideSettingsUI_ShowFilterMidasDlg_Failed_loading_MIDAS_library__0__, Path.GetFileName(midasLibSpec.FilePath)));
+                        return;
+                    }
+
                     var builder = new MidasBlibBuilder(_parent.Document, midasLib, filterDlg.LibraryName, filterDlg.FileName);
                     builder.BuildLibrary(null);
                     Settings.Default.SpectralLibraryList.Add(builder.LibrarySpec);
@@ -1124,6 +1130,59 @@ namespace pwiz.Skyline.SettingsUI
             _driverPeakScoringModel.SelectedIndexChangedEvent(sender, e);
         }
 
+        /// <summary>
+        /// Update the Items in comboNormalizationMethod to include not only the options that were available when this dialog
+        /// first came up, but also those options that would be available if the user were to OK the dialog right now.
+        /// </summary>
+        private void UpdateComboNormalizationMethod()
+        {
+            var currentNormalizationMethod = 
+                comboNormalizationMethod.SelectedItem as NormalizationMethod 
+                ?? _parent.DocumentUI.Settings.PeptideSettings.Quantification.NormalizationMethod
+                ?? NormalizationMethod.NONE;
+
+            IEnumerable<NormalizationMethod> availableNormalizationMethods = NormalizationMethod.ListNormalizationMethods(_parent.DocumentUI);
+
+            // If the user has checked any isotope modifications, then some new ratio to label options may be available
+            if (_driverLabelType != null && _driverLabelType.GetHeavyModifications().Any(mods=>mods.Modifications.Count > 0))
+            {
+                IEnumerable<IsotopeLabelType> ratioInternalStandardTypes = SmallMoleculeLabelsTabEnabled
+                    ? _driverSmallMolInternalStandardTypes.InternalStandardTypes
+                    : _driverLabelType.InternalStandardTypes;
+                if (!ratioInternalStandardTypes.Any())
+                {
+                    // Duplicate the logic of "PeptideModifications.RatioInternalStandardTypes": if none of the isotope label types are internal standards,
+                    // then all heavy label types are available for normalization
+                    ratioInternalStandardTypes = _driverLabelType.GetHeavyModifications().Select(mods => mods.LabelType);
+                }
+
+                availableNormalizationMethods = availableNormalizationMethods.Concat(
+                    ratioInternalStandardTypes.Select(NormalizationMethod.GetNormalizationMethod));
+            }
+
+            var newComboItems = availableNormalizationMethods.Distinct().ToList();
+            if (!newComboItems.Contains(currentNormalizationMethod))
+            {
+                newComboItems.Add(currentNormalizationMethod);
+            }
+
+            if (newComboItems.SequenceEqual(comboNormalizationMethod.Items.OfType<object>()))
+            {
+                return;
+            }
+
+            comboNormalizationMethod.Items.Clear();
+            comboNormalizationMethod.Items.AddRange(newComboItems.ToArray());
+            comboNormalizationMethod.SelectedItem = currentNormalizationMethod;
+        }
+
+        private void tabControl1_TabIndexChanged(object sender, EventArgs e)
+        {
+            if (tabControl1.SelectedTab == tabQuantification)
+            {
+                UpdateComboNormalizationMethod();
+            }
+        }
         #region Functional testing support
 
         public IFormView ShowingFormView
@@ -1646,7 +1705,8 @@ namespace pwiz.Skyline.SettingsUI
                 {
                     for (int i = 0; i < Combo.Items.Count; i++)
                     {
-                        if (Equals(value, ((TypedModifications)Combo.Items[i]).LabelType.Name))
+                        if (Combo.Items[i] is TypedModifications && // Watch out for "Edit List"
+                            Equals(value, ((TypedModifications)Combo.Items[i]).LabelType.Name))
                         {
                             Combo.SelectedIndex = i;
                             break;
@@ -1666,7 +1726,8 @@ namespace pwiz.Skyline.SettingsUI
                     }
                     for (int i = 1; i < ComboIS.Items.Count; i++)
                     {
-                        if (Equals(value, ((IsotopeLabelType)ComboIS.Items[i]).Name))
+                        if (ComboIS.Items[i] is IsotopeLabelType && // Watch out for "Edit List"
+                            Equals(value, ((IsotopeLabelType)ComboIS.Items[i]).Name))
                         {
                             ComboIS.SelectedIndex = i;
                             break;
@@ -1743,12 +1804,10 @@ namespace pwiz.Skyline.SettingsUI
             public void EditList()
             {
                 var heavyMods = GetHeavyModifications().ToArray();
-                using (var dlg = new EditLabelTypeListDlg
-                              {
-                                  LabelTypes = from typedMods in heavyMods
-                                               select typedMods.LabelType
-                              })
+                using (var dlg = new EditLabelTypeListDlg())
                 {
+                    dlg.LabelTypes = from typedMods in heavyMods
+                        select typedMods.LabelType;
                     if (dlg.ShowDialog(Combo.TopLevelControl) == DialogResult.OK)
                     {
                         // Store existing values in dictionary by lowercase name.
@@ -1790,6 +1849,64 @@ namespace pwiz.Skyline.SettingsUI
         {
             get { return (PeptidePick) comboMatching.SelectedIndex; }
             set { comboMatching.SelectedIndex = (int) value; }
+        }
+        private void ChangeTooltip(Control control, string newToolTip)
+        {
+            if (helpTip.GetToolTip(control) != newToolTip)
+            {
+                helpTip.SetToolTip(control, newToolTip);
+            }
+        }
+        
+        private void listStaticMods_MouseMove(object sender, MouseEventArgs e)
+        {
+            var itemIndex = listStaticMods.IndexFromPoint(e.Location);
+            StaticMod staticMod = null;
+            if (itemIndex >= 0 && itemIndex < _driverStaticMod.Choices.Length)
+            {
+                staticMod = _driverStaticMod.Choices[itemIndex];
+            }
+            // Remember the original tooltips which were set in the form designer.
+            // The original tooltip is displayed when the mouse is not pointing at any item in the list
+            if (string.IsNullOrEmpty(_staticModsOriginalTooltip))
+            {
+                _staticModsOriginalTooltip = helpTip.GetToolTip(listStaticMods);
+            }
+            ChangeTooltip(listStaticMods, staticMod?.ItemDescription.ToString() ?? _staticModsOriginalTooltip);
+        }
+
+        private void listHeavyMods_MouseMove(object sender, MouseEventArgs e)
+        {
+            var itemIndex = listHeavyMods.IndexFromPoint(e.Location);
+            StaticMod heavyMod = null;
+            if (itemIndex >= 0 && itemIndex < _driverHeavyMod.Choices.Length)
+            {
+                heavyMod = _driverHeavyMod.Choices[itemIndex];
+            }
+            // Remember the original tooltips which were set in the form designer.
+            // The original tooltip is displayed when the mouse is not pointing at any item in the list
+            if (string.IsNullOrEmpty(_heavyModsOriginalTooltip))
+            {
+                _heavyModsOriginalTooltip = helpTip.GetToolTip(listHeavyMods);
+            }
+            ChangeTooltip(listHeavyMods, heavyMod?.ItemDescription.ToString() ?? _heavyModsOriginalTooltip);
+        }
+
+        private void listLibraries_MouseMove(object sender, MouseEventArgs e)
+        {
+            var itemIndex = listLibraries.IndexFromPoint(e.Location);
+            LibrarySpec librarySpec = null;
+            if (itemIndex >= 0 && itemIndex < _driverLibrary.Choices.Length)
+            {
+                librarySpec = _driverLibrary.Choices[itemIndex];
+            }
+            // Remember the original tooltips which were set in the form designer.
+            // The original tooltip is displayed when the mouse is not pointing at any item in the list
+            if (string.IsNullOrEmpty(_librariesOriginalTooltip))
+            {
+                _librariesOriginalTooltip = helpTip.GetToolTip(listLibraries);
+            }
+            ChangeTooltip(listLibraries, librarySpec?.ItemDescription?.ToString() ?? _librariesOriginalTooltip);
         }
     }
 }

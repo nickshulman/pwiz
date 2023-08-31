@@ -169,7 +169,9 @@ class SslReader : public BuildParser, DelimitedFileConsumer<sslPSM>, public Pwiz
               const ProgressIndicator* parent_progress);
     ~SslReader();
 
+    void parse();
     virtual bool parseFile();  // inherited from BuildParser
+    vector<PSM_SCORE_TYPE> getScoreTypes(); // inherited from BuildParser
     virtual void addDataLine(sslPSM& data); // from DelimitedFileConsumer
 
     virtual bool getSpectrum(int identifier,
@@ -191,7 +193,7 @@ class SslReader : public BuildParser, DelimitedFileConsumer<sslPSM>, public Pwiz
 
     void parseModSeq(vector<SeqMod>& mods, string& modSeq);
     void unmodifySequence(string& seq);
-
+    string parseCrosslinkedSequence(vector<SeqMod>& mods, const string& modSeq);
   };
 
 } // namespace

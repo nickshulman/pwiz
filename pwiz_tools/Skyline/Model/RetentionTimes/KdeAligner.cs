@@ -19,8 +19,9 @@
 
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using MathNet.Numerics.Statistics;
-using pwiz.Common.DataAnalysis;
+using pwiz.Skyline.Model.Results;
 
 namespace pwiz.Skyline.Model.RetentionTimes
 {
@@ -68,7 +69,7 @@ namespace pwiz.Skyline.Model.RetentionTimes
         private double[] _smoothedY;
         private double[] _xArr;
 
-        public KdeAligner(int origXFileIndex, int origYFileIndex, int resolution = 1000) : base(origXFileIndex, origYFileIndex)
+        public KdeAligner(ChromFileInfoId origXFileIndex, ChromFileInfoId origYFileIndex, int resolution = 1000) : base(origXFileIndex, origYFileIndex)
         {
             _resolution = resolution;
         }
@@ -78,7 +79,7 @@ namespace pwiz.Skyline.Model.RetentionTimes
             _resolution = resolution;
         }
 
-        public override void Train(double[] xArr, double[] yArr, CustomCancellationToken token)
+        public override void Train(double[] xArr, double[] yArr, CancellationToken token)
         {
             Array.Sort(xArr,yArr);
             _xArr = xArr;
@@ -258,11 +259,11 @@ namespace pwiz.Skyline.Model.RetentionTimes
             }
         }
 
-        private void StampOutHistogram(float[,] histogram, float[,] stamp, double[] xArr, double[] yArr, CustomCancellationToken token)
+        private void StampOutHistogram(float[,] histogram, float[,] stamp, double[] xArr, double[] yArr, CancellationToken token)
         {
             for (int p = 0; p < xArr.Length; p ++)
             {
-                ThreadingHelper.CheckCanceled(token);
+                token.ThrowIfCancellationRequested();
                 int x = (int)xArr[p];
                 int y = (int) yArr[p];
                 Stamp(histogram,stamp,x,y);

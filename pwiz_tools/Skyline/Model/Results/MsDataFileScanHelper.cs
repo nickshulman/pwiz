@@ -31,6 +31,14 @@ namespace pwiz.Skyline.Model.Results
     public class MsDataFileScanHelper : IDisposable
     {
         private ChromSource _chromSource;
+
+        public enum PeakType : byte
+        {
+            chromDefault,
+            centroided,
+            profile
+        };
+
         public MsDataFileScanHelper(Action<MsDataSpectrum[]> successAction, Action<Exception> failureAction, bool ignoreZeroIntensityPoints)
         {
             ScanProvider = new BackgroundScanProvider(successAction, failureAction, ignoreZeroIntensityPoints);
@@ -38,6 +46,11 @@ namespace pwiz.Skyline.Model.Results
             SourceNames[(int) ChromSource.ms1] = Resources.GraphFullScan_GraphFullScan_MS1;
             SourceNames[(int) ChromSource.fragment] = Resources.GraphFullScan_GraphFullScan_MS_MS;
             SourceNames[(int) ChromSource.sim] = Resources.GraphFullScan_GraphFullScan_SIM;
+
+            PeakTypeNames = new string[Helpers.CountEnumValues<PeakType>()];
+            PeakTypeNames[(int) PeakType.chromDefault] = Resources.GraphFullScan_PeakType_ChromDefault;
+            PeakTypeNames[(int)PeakType.centroided] = Resources.GraphFullScan_PeakType_Centroided;
+            PeakTypeNames[(int)PeakType.profile] = Resources.GraphFullScan_PeakType_Profile;
         }
 
         public BackgroundScanProvider ScanProvider { get; private set; }
@@ -48,9 +61,23 @@ namespace pwiz.Skyline.Model.Results
 
         public int TransitionIndex { get; set; }
 
+        public TransitionFullScanInfo CurrentTransition
+        {
+            get
+            {
+                if (ScanProvider.Transitions.Length > TransitionIndex)
+                    return ScanProvider.Transitions[TransitionIndex];
+                return null;
+            }
+        }
+
         public int ScanIndex { get; set; }
 
+        public int? OptStep { get; private set; }
+
         public string[] SourceNames { get; set; }
+
+        public string[] PeakTypeNames { get; set; }
 
         public ChromSource Source
         {
@@ -62,9 +89,9 @@ namespace pwiz.Skyline.Model.Results
                     return;
                 }
 
-                var oldTimeIntensities = GetTimeIntensities(Source);
+                var oldTimeIntensities = TimeIntensities;
                 _chromSource = value;
-                var newTimeIntensities = GetTimeIntensities(Source);
+                var newTimeIntensities = TimeIntensities;
                 if (newTimeIntensities != null)
                 {
                     if (oldTimeIntensities != null && ScanIndex >= 0 && ScanIndex < oldTimeIntensities.Times.Count)
@@ -83,6 +110,24 @@ namespace pwiz.Skyline.Model.Results
         public ChromSource SourceFromName(string name)
         {
             return (ChromSource) SourceNames.IndexOf(e => e == name);
+        }
+
+        public PeakType PeakTypeFromLocalizedName(string name)
+        {
+            return (PeakType) PeakTypeNames.IndexOf(e => e == name);
+        }
+
+        public PeakType ParsePeakTypeEnumName(string enumName)
+        {
+            if (Enum.TryParse<PeakType>(enumName, out var peakType))
+                return peakType;
+            else
+                return PeakType.chromDefault;
+        }
+
+        public string GetPeakTypeLocalizedName(PeakType peakType)
+        {
+            return PeakTypeNames[(int) peakType];
         }
 
         public string NameFromSource(ChromSource source)
@@ -141,7 +186,7 @@ namespace pwiz.Skyline.Model.Results
                     maxIonMobility = Math.Max(maxIonMobility, mzHigh); 
                     hasIonMobilityInfo = true; // Well, not really ion mobility info - the drift time dimension is really precursor m/z space
                 }
-                else if (!transition._ionMobilityInfo.HasIonMobilityValue || !transition._ionMobilityInfo.IonMobilityExtractionWindowWidth.HasValue)
+                else if (!transition.IonMobilityInfo.HasIonMobilityValue || !transition.IonMobilityInfo.IonMobilityExtractionWindowWidth.HasValue)
                 {
                     // Accept all values
                     minIonMobility = double.MinValue;
@@ -150,9 +195,9 @@ namespace pwiz.Skyline.Model.Results
                 else if (sourceType == ChromSource.unknown || (transition.Source == sourceType && i == TransitionIndex))
                 {
                     // Products and precursors may have different expected ion mobility values in Waters MsE
-                    double startIM = transition._ionMobilityInfo.IonMobility.Mobility.Value -
-                                        transition._ionMobilityInfo.IonMobilityExtractionWindowWidth.Value / 2;
-                    double endIM = startIM + transition._ionMobilityInfo.IonMobilityExtractionWindowWidth.Value;
+                    double startIM = transition.IonMobilityInfo.IonMobility.Mobility.Value -
+                                        transition.IonMobilityInfo.IonMobilityExtractionWindowWidth.Value / 2;
+                    double endIM = startIM + transition.IonMobilityInfo.IonMobilityExtractionWindowWidth.Value;
                     minIonMobility = Math.Min(minIonMobility, startIM);
                     maxIonMobility = Math.Max(maxIonMobility, endIM);
                     hasIonMobilityInfo = true;
@@ -210,27 +255,12 @@ namespace pwiz.Skyline.Model.Results
             }
         }
 
-        public TimeIntensities GetTimeIntensities(ChromSource source)
-        {
-            if (ScanProvider != null)
-            {
-                foreach (var transition in ScanProvider.Transitions)
-                {
-                    if (transition.Source == source)
-                        return transition.TimeIntensities;
-                }
-            }
-            return null;
-        }
-
-        public IList<int> GetScanIndexes(ChromSource source)
-        {
-            return GetTimeIntensities(source)?.ScanIds;
-        }
+        public TimeIntensities TimeIntensities => ScanProvider?.Transitions
+            .FirstOrDefault(transition => transition.Source == Source)?.TimeIntensities;
 
         public int GetScanIndex()
         {
-            var scanIndexes = GetScanIndexes(Source);
+            var scanIndexes = TimeIntensities?.ScanIds;
             var result = scanIndexes != null ? scanIndexes[ScanIndex] : -1;
             if (result < 0)
                 MsDataSpectra = null;
@@ -260,15 +290,17 @@ namespace pwiz.Skyline.Model.Results
                 : FindScanIndex(times, retentionTime, index, endIndex);
         }
 
-        public void UpdateScanProvider(IScanProvider scanProvider, int transitionIndex, int scanIndex)
+        public void UpdateScanProvider(IScanProvider scanProvider, int transitionIndex, int scanIndex, int? optStep)
         {
             ScanProvider.SetScanProvider(scanProvider);
             if (scanProvider != null)
             {
                 Source = scanProvider.Transitions[transitionIndex].Source;
-                Assume.IsTrue(Source == ScanProvider.Source);
+                if (Source != ScanProvider.Source)
+                    Assume.Fail($@"unexpected ChromSource '{ScanProvider.Source}' in transition {transitionIndex} ({scanProvider.Transitions[transitionIndex]})");
                 TransitionIndex = transitionIndex;
                 ScanIndex = scanIndex;
+                OptStep = optStep;
                 FileName = scanProvider.DataFilePath.GetFileName();
             }
             else
@@ -276,7 +308,6 @@ namespace pwiz.Skyline.Model.Results
                 MsDataSpectra = null;
                 FileName = null;
             }
-            
         }
         /// <summary>
         /// Provides a constant background thread with responsibility for all interactions
@@ -289,6 +320,7 @@ namespace pwiz.Skyline.Model.Results
 
             private bool _disposing;
             private int _scanIndexNext;
+            private bool? _centroidedMs1, _centroidedMs2;
             private IScanProvider _scanProvider;
             private readonly List<IScanProvider> _cachedScanProviders;
             private readonly List<IScanProvider> _oldScanProviders;
@@ -402,7 +434,8 @@ namespace pwiz.Skyline.Model.Results
                         {
                             try
                             {
-                                var msDataSpectra = scanProvider.GetMsDataFileSpectraWithCommonRetentionTime(internalScanIndex, _ignoreZeroIntensityPoints); // Get a collection of scans with changing ion mobility but same retention time, or single scan if no ion mobility info
+                                // Get a collection of scans with changing ion mobility but same retention time, or single scan if no ion mobility info
+                                var msDataSpectra = scanProvider.GetMsDataFileSpectraWithCommonRetentionTime(internalScanIndex, _ignoreZeroIntensityPoints, _centroidedMs1, _centroidedMs2); 
                                 _successAction(msDataSpectra);
                             }
                             catch (Exception ex)
@@ -479,11 +512,14 @@ namespace pwiz.Skyline.Model.Results
                 }
             }
 
-            public void SetScanForBackgroundLoad(int scanIndex)
+            public void SetScanForBackgroundLoad(int scanIndex, bool? centroidedMs1 = null, bool? centroidedMs2 = null)
             {
                 lock (this)
                 {
                     _scanIndexNext = scanIndex;
+                    _centroidedMs1 = _centroidedMs2 = null;
+                    _centroidedMs2 = centroidedMs2;
+                    _centroidedMs1 = centroidedMs1;
 
                     if (_scanIndexNext != -1)
                         Monitor.PulseAll(this);

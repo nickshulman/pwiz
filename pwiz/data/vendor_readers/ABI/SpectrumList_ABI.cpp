@@ -268,6 +268,14 @@ PWIZ_API_DECL void SpectrumList_ABI::createIndex() const
             ExperimentPtr msExperiment = experimentsMap_.find(pair<int, int>(period, experiment))->second;
 
             ExperimentType experimentType = msExperiment->getExperimentType();
+
+            if (bal::iends_with(wifffile_->getWiffPath(), "wiff2") &&
+                (experimentType == MRM || experimentType == SIM))
+            {
+                warn_once("WARNING: the WIFF2 reader does not support SIM/MRM chromatograms or spectra; point at the WIFF file instead");
+                continue;
+            }
+
             if ((experimentType == MRM && !config_.srmAsSpectra) ||
                 (experimentType == SIM && !config_.simAsSpectra))
                 continue;
@@ -277,7 +285,8 @@ PWIZ_API_DECL void SpectrumList_ABI::createIndex() const
                 msExperiment->getTIC(times, intensities);
 
                 for (int i = 0, end = (int) times.size(); i < end; ++i)
-                    if (!wiff2 || intensities[i] > 0)
+                    if ((!wiff2 || intensities[i] > 0) &&
+                        (experimentType != ABI::Product || wifffile_->getSpectrum(msExperiment, i+1)->getHasPrecursorInfo()))
                         experimentAndCycleByTime.insert(make_pair(times[i], make_pair(msExperiment, i + 1)));
             }
             else

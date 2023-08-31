@@ -19,7 +19,9 @@
 
 using System;
 using System.Linq;
+using System.Threading;
 using pwiz.Common.DataAnalysis;
+using pwiz.Skyline.Model.Results;
 
 namespace pwiz.Skyline.Model.RetentionTimes
 {
@@ -41,7 +43,7 @@ namespace pwiz.Skyline.Model.RetentionTimes
         private readonly double _bandwidth;
         private readonly int _robustIters;
 
-        public LoessAligner(int origXFileIndex, int origYFileIndex, 
+        public LoessAligner(ChromFileInfoId origXFileIndex, ChromFileInfoId origYFileIndex, 
             double bandwidth = LoessInterpolator.DEFAULT_BANDWIDTH, int robustIters = LoessInterpolator.DEFAULT_ROBUSTNESS_ITERS)
             : base(origXFileIndex, origYFileIndex)
         {
@@ -55,7 +57,7 @@ namespace pwiz.Skyline.Model.RetentionTimes
             _robustIters = robustIters;
         }
 
-        public override void Train(double[] xArr, double[] yArr, CustomCancellationToken token) 
+        public override void Train(double[] xArr, double[] yArr, CancellationToken token) 
         {
             //Calculate lowess
             Array.Sort(xArr, yArr);

@@ -18,8 +18,9 @@
  */
 
 using System;
-using pwiz.Common.DataAnalysis;
+using System.Threading;
 using pwiz.Skyline.Model.DocSettings;
+using pwiz.Skyline.Model.Results;
 using pwiz.Skyline.Util;
 
 namespace pwiz.Skyline.Model.RetentionTimes
@@ -30,12 +31,12 @@ namespace pwiz.Skyline.Model.RetentionTimes
         private RegressionLine _reverseRegressionLine;
         private double _rmsd;
 
-        public LinearAligner(int origXFileIndex, int origYFileIndex)
+        public LinearAligner(ChromFileInfoId origXFileIndex, ChromFileInfoId origYFileIndex)
             : base(origXFileIndex, origYFileIndex)
         {
         }
 
-        public override void Train(double[] xArr, double[] yArr, CustomCancellationToken token)
+        public override void Train(double[] xArr, double[] yArr, CancellationToken token)
         {
             var statX = new Statistics(xArr);
             var statY = new Statistics(yArr);

@@ -55,6 +55,11 @@ namespace pwiz.Skyline.Controls.Graphs
             return ((TransitionNode != null) && (predictedMz == TransitionNode.Mz));
         }
 
+        protected override bool IsProteomic()
+        {
+            return PeptideDocNode.IsProteomic;
+        }
+
         public static string GetLibraryPrefix(string libraryName)
         {
             return !string.IsNullOrEmpty(libraryName) ? libraryName + @" - " : string.Empty;
@@ -118,12 +123,13 @@ namespace pwiz.Skyline.Controls.Graphs
         public ICollection<IonType> ShowTypes { get; set; }
         public ICollection<int> ShowCharges { get; set; } // List of absolute charge values to display CONSIDER(bspratt): may want finer per-adduct control for small mol use
         public bool ShowRanks { get; set; }
-        public bool ShowScores { get; set; }
         public bool ShowMz { get; set; }
         public bool ShowObservedMz { get; set; }
+        public bool ShowMassError { get; set; }
         public bool ShowDuplicates { get; set; }
         public float FontSize { get; set; }
         public bool Invert { get; set; }
+        public ICollection<string> ShowLosses { get; set; }
 
         // ReSharper disable InconsistentNaming
         private FontSpec _fontSpecA;
@@ -136,10 +142,19 @@ namespace pwiz.Skyline.Controls.Graphs
         private FontSpec FONT_SPEC_Y { get { return GetFontSpec(IonTypeExtension.GetTypeColor(IonType.y), ref _fontSpecY); } }
         private FontSpec _fontSpecC;
         private FontSpec FONT_SPEC_C { get { return GetFontSpec(IonTypeExtension.GetTypeColor(IonType.c), ref _fontSpecC); } }
-        private FontSpec _fontSpecZ;
-        private FontSpec FONT_SPEC_PRECURSOR { get { return GetFontSpec(IonTypeExtension.GetTypeColor(IonType.precursor), ref _fontSpecPrecursor); } }
         private FontSpec _fontSpecPrecursor;
+        private FontSpec FONT_SPEC_PRECURSOR { get { return GetFontSpec(IonTypeExtension.GetTypeColor(IonType.precursor), ref _fontSpecPrecursor); } }
+
+        private FontSpec _fontSpecZ;
         private FontSpec FONT_SPEC_Z { get { return GetFontSpec(IonTypeExtension.GetTypeColor(IonType.z), ref _fontSpecZ); } }
+
+        private FontSpec _fontSpecZH;
+        private FontSpec FONT_SPEC_ZH { get { return GetFontSpec(IonTypeExtension.GetTypeColor(IonType.zh), ref _fontSpecZH); } }
+
+        private FontSpec _fontSpecZHH;
+        private FontSpec FONT_SPEC_ZHH { get { return GetFontSpec(IonTypeExtension.GetTypeColor(IonType.zhh), ref _fontSpecZHH); } }
+
+
         private FontSpec _fontSpecOtherIons;
         private FontSpec _fontSpecNone;
         private FontSpec FONT_SPEC_NONE { get { return GetFontSpec(IonTypeExtension.GetTypeColor(null), ref _fontSpecNone); } }
@@ -167,6 +182,7 @@ namespace pwiz.Skyline.Controls.Graphs
         }
 
         protected abstract bool IsMatch(double predictedMz);
+        protected abstract bool IsProteomic();
 
         private static FontSpec CreateFontSpec(Color color, float size)
         {
@@ -236,19 +252,6 @@ namespace pwiz.Skyline.Controls.Graphs
                 annotations.Add(stick);
             }
             //ReSharper restore UseObjectOrCollectionInitializer
-
-            if (ShowScores && SpectrumInfo.Score.HasValue)
-            {
-                var text = new TextObj(
-                    string.Format(LocalizationHelper.CurrentCulture, Resources.AbstractSpectrumGraphItem_AddAnnotations_, SpectrumInfo.Score),
-                    0.01, 0, CoordType.ChartFraction, AlignH.Left, AlignV.Top)
-                {
-                    IsClippedToChartRect = true,
-                    ZOrder = ZOrder.E_BehindCurves,
-                    FontSpec = GraphSummary.CreateFontSpec(Color.Black),
-                };
-                annotations.Add(text);
-            }
         }
 
         public override PointAnnotation AnnotatePoint(PointPair point)
@@ -269,9 +272,11 @@ namespace pwiz.Skyline.Controls.Graphs
                 case IonType.y: fontSpec = FONT_SPEC_Y; break;
                 case IonType.c: fontSpec = FONT_SPEC_C; break;
                 case IonType.z: fontSpec = FONT_SPEC_Z; break;
+                case IonType.zh: fontSpec = FONT_SPEC_ZH; break;
+                case IonType.zhh: fontSpec = FONT_SPEC_ZHH; break;
                 case IonType.custom:
                     {
-                    if (rmi.Rank == 0 && !rmi.HasAnnotations)
+                    if (rmi.Rank == 0 && !rmi.HasAnnotations && !IsProteomic())
                         return null; // Small molecule fragments - only force annotation if ranked
                     fontSpec = GetOtherIonsFontSpec(rmi.Rank);
                     }
@@ -326,6 +331,14 @@ namespace pwiz.Skyline.Controls.Graphs
             {
                 sb.AppendLine().Append(GetDisplayMz(rmi.ObservedMz));
             }
+
+            if (ShowMassError)
+            {
+                var massError = rmi.MatchedIons.First().PredictedMz - rmi.ObservedMz;
+                massError = SequenceMassCalc.GetPpm(rmi.MatchedIons.First().PredictedMz, massError);
+                massError = Math.Round(massError, 1);
+                sb.AppendLine().Append(string.Format(Resources.GraphSpectrum_MassErrorFormat_ppm, (massError > 0 ? @"+" : string.Empty), massError));
+            }
             return sb.ToString();
         }
 
@@ -352,7 +365,7 @@ namespace pwiz.Skyline.Controls.Graphs
         {
             // Try to show enough decimal places to distinguish by tolerance
             int places = 1;
-            while (places < 4 && ((int) (SpectrumInfo.Tolerance*Math.Pow(10, places))) == 0)
+            while (places < 4 && ((int) (SpectrumInfo.Tolerance.GetMzTolerance(mz)*Math.Pow(10, places))) == 0)
                 places++;
             return Math.Round(mz, places);
         }
@@ -369,7 +382,7 @@ namespace pwiz.Skyline.Controls.Graphs
         {
             // Show precursor ions when they are supposed to be shown, regardless of charge
             // N.B. for fragments, we look at abs value of charge. CONSIDER(bspratt): for small mol libs we may want finer per-adduct control
-            return mfi.Ordinal > 0 && ShowTypes.Contains(mfi.IonType) &&
+            return ((mfi.Ordinal > 0 || IonType.custom.Equals(mfi.IonType)) && ShowTypes.Contains(mfi.IonType)) && mfi.HasVisibleLoss(ShowLosses) &&
                 (mfi.IonType == IonType.precursor || ShowCharges.Contains(Math.Abs(mfi.Charge.AdductCharge)));
         }
     }

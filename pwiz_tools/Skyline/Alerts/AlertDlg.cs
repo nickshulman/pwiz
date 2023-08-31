@@ -117,9 +117,16 @@ namespace pwiz.Skyline.Alerts
                 }
                 else
                 {
-                    DetailMessage = value.ToString();
+                    DetailMessage = FormatExceptionDetailMessage(value);
                 }
             }
+        }
+
+        public static string FormatExceptionDetailMessage(Exception value)
+        {
+            return Install.ProgramNameAndVersion + // Show the Skyline version 
+                   Environment.NewLine + Environment.NewLine + 
+                   value.ToString();
         }
 
         public DialogResult ShowAndDispose(IWin32Window parent)
@@ -145,8 +152,7 @@ namespace pwiz.Skyline.Alerts
 
         public void CopyMessage()
         {
-            Clipboard.Clear();
-            Clipboard.SetText(GetTitleAndMessageDetail());
+            ClipboardHelper.SetSystemClipboardText(this, GetTitleAndMessageDetail());
         }
 
         public override string DetailedMessage

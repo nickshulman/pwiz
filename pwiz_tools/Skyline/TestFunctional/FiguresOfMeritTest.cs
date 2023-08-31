@@ -39,7 +39,6 @@ namespace pwiz.SkylineTestFunctional
     public class FiguresOfMeritTest : AbstractFunctionalTest
     {
         [TestMethod]
-        [Timeout(36000000)]  // These can take a long time in code coverage mode
         public void TestFiguresOfMerit()
         {
             TestFilesZip = @"TestFunctional\FiguresOfMeritTest.zip";
@@ -216,7 +215,7 @@ namespace pwiz.SkylineTestFunctional
             var actualLoq = peptideEntity.FiguresOfMerit.LimitOfQuantification;
             if (expectedLoq != actualLoq)
             {
-                Assert.AreEqual(expectedLoq, actualLoq);
+                Assert.AreEqual(expectedLoq, actualLoq, "Options: {0}", options);
             }
         }
 
@@ -230,7 +229,7 @@ namespace pwiz.SkylineTestFunctional
             {
                 return null;
             }
-            var calibrationCurve = peptideEntity.CalibrationCurve.Value;
+            var calibrationCurve = peptideEntity.GetCalibrationCurveFitter().GetCalibrationCurve();
             var concentrationMultiplier = peptideEntity.ConcentrationMultiplier.GetValueOrDefault(1);
             double? bestLoq = null;
             foreach (var grouping in peptideResults.OrderByDescending(g => g.Key))
@@ -245,7 +244,7 @@ namespace pwiz.SkylineTestFunctional
                         continue;
                     }
                     var meanArea = areas.Average();
-                    var backCalculatedConcentration = calibrationCurve.GetFittedX(meanArea);
+                    var backCalculatedConcentration = calibrationCurve.GetXValueForLimitOfDetection(meanArea);
                     if (!backCalculatedConcentration.HasValue)
                     {
                         break;
@@ -307,6 +306,12 @@ namespace pwiz.SkylineTestFunctional
             public LodCalculation LodCalculation;
             public double? MaxLoqBias;
             public double? MaxLoqCv;
+
+            public override string ToString()
+            {
+                return string.Format("RegressionFit: {0} LodCalculation: {1} MaxLoqBias: {2} MaxLoqCv: {3}",
+                    RegressionFit, LodCalculation, MaxLoqBias, MaxLoqCv);
+            }
         }
     }
 }

@@ -21,6 +21,8 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
+using System.Net;
+using System.Reflection;
 using System.Windows.Forms;
 using pwiz.Skyline.Alerts;
 using pwiz.Skyline.Controls;
@@ -121,8 +123,9 @@ namespace pwiz.Skyline.ToolsUI
             ICollection<ToolUpdateInfo> successfulDownloads = null;
             ICollection<string> failedDownloads = null;
 
-            using (var dlg = new LongWaitDlg {Message = Resources.ToolUpdatesDlg_GetToolsToUpdate_Downloading_Updates})
+            using (var dlg = new LongWaitDlg())
             {
+                dlg.Message = Resources.ToolUpdatesDlg_GetToolsToUpdate_Downloading_Updates;
                 dlg.PerformWork(this, 1000,
                                 longWaitBroker =>
                                 DownloadTools(longWaitBroker, toolsToDownload, out successfulDownloads,
@@ -155,6 +158,13 @@ namespace pwiz.Skyline.ToolsUI
                 catch (ToolExecutionException)
                 {
                     failedDownloads.Add(tool._packageName);
+                }
+                catch (TargetInvocationException ex)
+                {
+                    if (ex.InnerException is WebException)
+                        failedDownloads.Add(tool._packageName);
+                    else
+                        throw;
                 }
             }
         }

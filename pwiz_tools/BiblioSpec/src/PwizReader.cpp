@@ -37,6 +37,7 @@ PwizReader::PwizReader() : curPositionInIndexMzPairs_(0)  {
                                    "Creating PwizReader.");
     fileReader_ = NULL;
     idType_ = BiblioSpec::SCAN_NUM_ID;
+    idNotFoundWarnLevel_ = BiblioSpec::V_WARN;
 }
 
 PwizReader::~PwizReader(){
@@ -58,12 +59,13 @@ void PwizReader::openFile(const char* filename, bool mzSort){
     try {
         fileName_ = filename;
         delete fileReader_;
+        fileReader_ = new MSData();
+        Reader::Config readerConfig;
+        readerConfig.combineIonMobilitySpectra = true;
+        readers_.read(fileName_, *fileReader_, 0, readerConfig);
         #ifdef VENDOR_READERS
-        fileReader_ = new MSDataFile(fileName_, &allReaders_);
         if (SpectrumList_PeakPicker::supportsVendorPeakPicking(fileName_))
             SpectrumListFactory::wrap(*fileReader_, "peakPicking true 1-");
-        #else
-        fileReader_ = new MSDataFile(fileName_);
         #endif
         allSpectra_ = fileReader_->run.spectrumListPtr;
 
@@ -74,7 +76,7 @@ void PwizReader::openFile(const char* filename, bool mzSort){
         BiblioSpec::Verbosity::debug("Found %d spectra in %s.",
                                      allSpectra_->size(), filename);
         nativeIdFormat_ = id::getDefaultNativeIDFormat(*fileReader_);
-        if (nativeIdFormat_ == MS_no_nativeID_format)   // This never works
+        if (nativeIdFormat_ == MS_no_nativeID_format || nativeIdFormat_ == CVID_Unknown) // These never work
             nativeIdFormat_ = MS_scan_number_only_nativeID_format;
         
         const auto& nativeIdFormatInfo = cvTermInfo(nativeIdFormat_);
@@ -85,7 +87,7 @@ void PwizReader::openFile(const char* filename, bool mzSort){
         // With this block, I get errors for getSpectrum(n,data,SCAN_NUM_ID)
         // TODO: find out why look-up by index breaks when
         // non-sequential and remove this
-        if( idType_ == BiblioSpec::INDEX_ID ){ 
+        if( idType_ == BiblioSpec::INDEX_ID ){
             for(size_t i=0; i < allSpectra_->size(); i++){
                 SpectrumPtr spec = allSpectra_->spectrum(i, false);
                 if( spec == NULL ){
@@ -94,7 +96,8 @@ void PwizReader::openFile(const char* filename, bool mzSort){
                                  "opening file %s for lookup by index.",
                                  i, fileName_.c_str());
                 } 
-                if(lexical_cast<int>(spec->cvParam(MS_ms_level).value) != 2){
+                if(lexical_cast<int>(spec->cvParam(MS_ms_level).value) != 2 ||
+                                     spec->precursors.size() == 0){
                     continue;
                 }
                 double mz = spec->precursors[0].selectedIons[0].cvParam(MS_selected_ion_m_z).valueAs<double>();
@@ -185,7 +188,7 @@ int PwizReader::getSpecIndex(const string& identifier){
     int foundIndex = -1;
     while( timesLooked < 2 && foundIndex == -1 ){
         switch(lookUpByNative){
-        case(1):
+        case true:
             if (identifier.find('=') == string::npos){
                 foundIndex = -1;
                 lookUpByNative = !lookUpByNative; // try other method
@@ -199,7 +202,7 @@ int PwizReader::getSpecIndex(const string& identifier){
             timesLooked++;
             break;
             
-        case(0):
+        case false:
             IndexList list = allSpectra_->findSpotID(identifier);
             if( list.size() == 1 ){        // found
                 foundIndex = list[0];
@@ -213,6 +216,16 @@ int PwizReader::getSpecIndex(const string& identifier){
             timesLooked++;
             break;
         }
+    }
+
+    if (foundIndex == -1)
+    {
+        BiblioSpec::Verbosity::comment(idNotFoundWarnLevel_, "Could not find native id or title '%s' in %s.", identifier.c_str(), fileName_.c_str());
+        const auto& firstId = allSpectra_->spectrumIdentity(0).id;
+        if (contains(identifier, "=") && !allSpectra_->checkNativeIdMatch(firstId, identifier))
+            BiblioSpec::Verbosity::comment(idNotFoundWarnLevel_, "Mismatch between spectrum id format of the spectrum file (%s) and the spectrum id (%s)", firstId.c_str(), identifier.c_str());
+        if(idNotFoundWarnLevel_ == BiblioSpec::V_WARN)
+            idNotFoundWarnLevel_ = BiblioSpec::V_DEBUG;
     }
 
     return foundIndex;
@@ -363,15 +376,24 @@ size_t PwizReader::getSpecIndex(int identifier,
     // turn the scan number into a nativeId string
     string idString = id::translateScanNumberToNativeID(nativeIdFormat_,
                                   boost::lexical_cast<string>(identifier));
-    
+
+    if (idString.empty())
+    {
+        const auto& nativeIdFormatInfo = cvTermInfo(nativeIdFormat_);
+        BiblioSpec::Verbosity::warn("Could not translate integer %d to native id format %s in %s", identifier, nativeIdFormatInfo.shortName().c_str(), fileName_.c_str());
+        return -1;
+    }
+
     // find the index of the spectrum with this scan number
     size_t foundIndex = allSpectra_->find(idString);
     
     if( foundIndex == allSpectra_->size() ){
-        BiblioSpec::Verbosity::comment(BiblioSpec::V_DETAIL,
+        BiblioSpec::Verbosity::comment(idNotFoundWarnLevel_,
                                        "Could not find scan number %d, "
                                        "native id '%s' in %s.", identifier,
                                        idString.c_str(), fileName_.c_str());
+        if (idNotFoundWarnLevel_ == BiblioSpec::V_WARN)
+            idNotFoundWarnLevel_ = BiblioSpec::V_DEBUG;
     }
     return foundIndex;
 }

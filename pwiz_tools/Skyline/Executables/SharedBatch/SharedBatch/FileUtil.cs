@@ -5,6 +5,7 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using System.Threading;
+using System.Windows.Forms;
 using Ionic.Zip;
 using Microsoft.Win32;
 using SharedBatch.Properties;
@@ -15,7 +16,7 @@ namespace SharedBatch
     {
 
         public const string DOWNLOADS_FOLDER = "\\Downloads";
-        public const int ONE_GB = 1000000000;
+        public const long ONE_GB = 1000000000;
 
 
         public static void ValidateNotEmptyPath(string input, string name)
@@ -219,8 +220,12 @@ namespace SharedBatch
         [DllImport("shell32.dll", CharSet = CharSet.Auto, SetLastError = true)]
         public static extern void SHChangeNotify(uint wEventId, uint uFlags, IntPtr dwItem1, IntPtr dwItem2);
 
+        public static long? SimulatedDriveSpace { get; set; }
         public static long GetTotalFreeSpace(string driveName)
         {
+            if (SimulatedDriveSpace.HasValue)
+                return SimulatedDriveSpace.Value;
+
             foreach (DriveInfo drive in DriveInfo.GetDrives())
             {
                 if (drive.IsReady && drive.Name == driveName)
@@ -480,6 +485,48 @@ namespace SharedBatch
         public void Dispose()
         {
             Directory.Delete(DirPath);
+        }
+    }
+
+    public class UiFileUtil
+    {
+
+        public static string OpenFile(string initialDirectory, string filter, bool saveFileDialog)
+        {
+            FileDialog dialog = saveFileDialog ? (FileDialog)new SaveFileDialog() : new OpenFileDialog();
+            dialog.InitialDirectory = initialDirectory;
+            dialog.Filter = filter;
+            DialogResult result = dialog.ShowDialog();
+            return result == DialogResult.OK ? dialog.FileName : null;
+        }
+
+        public static string OpenFolder(string initialPath)
+        {
+            var dialog = new FolderBrowserDialog();
+            dialog.SelectedPath = initialPath;
+            var dialogOpenedTime = DateTime.Now;
+            if (dialog.ShowDialog() == DialogResult.OK)
+            {
+                var folderDirectory = Path.GetDirectoryName(dialog.SelectedPath);
+                if (!Directory.Exists(dialog.SelectedPath) && folderDirectory != null)
+                {
+                    var folders = Directory.GetDirectories(folderDirectory);
+                    var lastCreatedFolder = folders[0];
+                    var lastCreationTime = Directory.GetCreationTime(lastCreatedFolder);
+                    foreach (var folder in folders)
+                    {
+                        if (Directory.GetCreationTime(folder) > lastCreationTime)
+                        {
+                            lastCreatedFolder = folder;
+                            lastCreationTime = Directory.GetCreationTime(folder);
+                        }
+                    }
+                    if (lastCreationTime > dialogOpenedTime)
+                        dialog.SelectedPath = lastCreatedFolder;
+                }
+                return dialog.SelectedPath;
+            }
+            return null;
         }
     }
 

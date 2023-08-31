@@ -22,6 +22,7 @@ using System.Drawing;
 using System.Linq;
 using System.Windows.Forms;
 using pwiz.Skyline.Properties;
+using pwiz.Skyline.Util;
 
 namespace pwiz.Skyline.Alerts
 {
@@ -34,9 +35,9 @@ namespace pwiz.Skyline.Alerts
         /// the exception message and the invalid textbox value will be returned to its previous value.
         /// </summary>
         public static void Show<TValue>(string title, IDictionary<string, TValue> gridValues, Func<TValue, string> valueToString,
-            Action<string, TValue> stringToValue, Action<string, TValue> validateValue = null)
+            Action<string, TValue> stringToValue, Action<string, TValue> validateValue = null, Func<TValue, IEnumerable<string>> validValuesForValue = null)
         {
-            Show(null, title, gridValues, valueToString, stringToValue, validateValue);
+            Show(null, title, gridValues, valueToString, stringToValue, validateValue, validValuesForValue);
         }
 
         /// <summary>
@@ -46,14 +47,14 @@ namespace pwiz.Skyline.Alerts
         /// the exception message and the invalid textbox value will be returned to its previous value.
         /// </summary>
         public static void Show<TValue>(IWin32Window parent, string title, IDictionary<string, TValue> gridValues, Func<TValue, string> valueToString,
-            Action<string, TValue> stringToValue, Action<string, TValue> validateValue = null)
+            Action<string, TValue> stringToValue, Action<string, TValue> validateValue = null, Func<TValue, IEnumerable<string>> validValuesForValue = null)
         {
             var layout = new TableLayoutPanel
             {
                 Anchor = AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right | AnchorStyles.Top,
                 AutoScroll = true
             };
-            layout.RowCount = gridValues.Count; // empty last row
+            layout.RowCount = gridValues.Count + 2; // empty first and last row
             layout.ColumnCount = 2; // key and value
             foreach (ColumnStyle style in layout.ColumnStyles)
             {
@@ -61,9 +62,17 @@ namespace pwiz.Skyline.Alerts
                 style.SizeType = SizeType.Percent;
             }
 
+            layout.Controls.Add(new Label
+            {
+                //Text = kvp.Key,
+                Dock = DockStyle.Fill,
+                AutoSize = true,
+                TextAlign = ContentAlignment.MiddleCenter
+            }, 0, 0);
+
             var keyToControl = new Dictionary<string, Control>();
             var controlToSetting = new Dictionary<object, TValue>();
-            int row = 0;
+            int row = 1;
             foreach (var kvp in gridValues.OrderBy(kvp => kvp.Key))
             {
                 var lbl = new Label
@@ -85,6 +94,22 @@ namespace pwiz.Skyline.Alerts
                     };
                     valueControl.Margin = new Padding(valueControl.Margin.Left, 0, 0, 0);
                 }
+                else
+                {
+                    var validValues = validValuesForValue?.Invoke(kvp.Value)?.ToArray();
+                    if (validValues != null && validValues.Length > 0)
+                    {
+                        var comboBox = new ComboBox
+                        {
+                            Dock = DockStyle.Fill,
+                            Height = lbl.Height,
+                            DropDownStyle = ComboBoxStyle.DropDownList
+                        };
+                        comboBox.Items.AddRange(validValues.Cast<object>().ToArray());
+                        comboBox.SelectedIndex = validValues.IndexOf(s => s == valueToString(kvp.Value));
+                        valueControl = comboBox;
+                    }
+                }
 
                 if (valueControl == null)
                 {
@@ -92,8 +117,10 @@ namespace pwiz.Skyline.Alerts
                     {
                         Text = valueToString(kvp.Value),
                         Dock = DockStyle.Fill,
-                        Height = lbl.Height
+                        Height = lbl.Height,
+                        UseSystemPasswordChar = kvp.Key.ToLowerInvariant().Contains(@"password")
                     };
+
                     valueControl.LostFocus += (o, args) =>
                     {
                         if (validateValue != null && o is TextBox tb)
@@ -119,12 +146,12 @@ namespace pwiz.Skyline.Alerts
             var activeScreen = parent == null ? Screen.PrimaryScreen : Screen.FromHandle(parent.Handle); 
             int defaultHeight = Math.Min(3 * activeScreen.Bounds.Height / 4, layout.GetRowHeights().Sum() + 50);
 
-            using (var dlg = new MultiButtonMsgDlg(layout, Resources.OK)
+            using (var dlg = new MultiButtonMsgDlg(layout, Resources.OK))
             {
-                Text = title,
-                ClientSize = new Size(300, defaultHeight)
-            })
-            {
+                dlg.Text = title;
+                dlg.ClientSize = new Size(400, defaultHeight);
+                dlg.StartPosition = FormStartPosition.CenterParent;
+                dlg.ShowInTaskbar = false;
                 dlg.MinimumSize = dlg.Size;
                 layout.Size = dlg.ClientSize;
                 layout.Height -= 35;
@@ -139,6 +166,8 @@ namespace pwiz.Skyline.Alerts
                         stringToValue(tb.Text, gridValues[kvp.Key]);
                     else if (kvp.Value is CheckBox cb)
                         stringToValue(cb.Checked.ToString(), gridValues[kvp.Key]);
+                    else if (kvp.Value is ComboBox cmb)
+                        stringToValue(cmb.SelectedItem.ToString(), gridValues[kvp.Key]);
                     else
                         throw new InvalidOperationException();
                 }

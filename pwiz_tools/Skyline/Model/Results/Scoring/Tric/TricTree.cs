@@ -19,7 +19,8 @@
 
 using System;
 using System.Collections.Generic;
-using pwiz.Common.DataAnalysis;
+using System.Threading;
+using pwiz.Common.Collections;
 using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Model.RetentionTimes;
 using pwiz.Skyline.Properties;
@@ -28,24 +29,24 @@ namespace pwiz.Skyline.Model.Results.Scoring.Tric
 {
     public abstract class TricTree
     {
-        protected IDictionary<int, string> _fileNames;
-        protected IList<int> _fileIndexes;
+        protected IDictionary<ReferenceValue<ChromFileInfoId>, string> _fileNames;
+        protected IList<ChromFileInfoId> _fileIds;
         protected List<Edge> _edges;
-        protected Dictionary<int, Vertex> _vertices;
+        protected Dictionary<ReferenceValue<ChromFileInfoId>, Vertex> _vertices;
         protected List<Edge> _tree;
         protected double _anchorCutoff;
         protected IEnumerable<PeptideFileFeatureSet> _peptides;
         private readonly RegressionMethodRT _regressionMethod;
 
-        protected TricTree(IEnumerable<PeptideFileFeatureSet> peptides, IDictionary<int,string> fileNames, IList<int> fileIndexes, double anchorCutoff,
+        protected TricTree(IEnumerable<PeptideFileFeatureSet> peptides, IDictionary<ReferenceValue<ChromFileInfoId>, string> fileNames, IList<ChromFileInfoId> fileIndexes, double anchorCutoff,
             RegressionMethodRT regressionMethod, IProgressMonitor progressMonitor, ref IProgressStatus status, bool verbose = false)
         {
             _fileNames = fileNames;
-            _fileIndexes = fileIndexes;
+            _fileIds = fileIndexes;
             _peptides = peptides;
             _anchorCutoff = anchorCutoff;
             _regressionMethod = regressionMethod;
-            _vertices = new Dictionary<int, Vertex>();
+            _vertices = new Dictionary<ReferenceValue<ChromFileInfoId>, Vertex>();
 
             Initialize(progressMonitor, ref status, verbose);
         }
@@ -54,10 +55,10 @@ namespace pwiz.Skyline.Model.Results.Scoring.Tric
         {
             if (progressMonitor != null)
                 status = status.ChangeMessage(Resources.TricTree_TricTree_Calculating_retention_time_alignment_edges);
-            foreach (var fileIndex in _fileIndexes)
+            foreach (var fileId in _fileIds)
             {
                 //Runs are not zero based
-                _vertices.Add(fileIndex, new Vertex(fileIndex));
+                _vertices.Add(fileId, new Vertex(fileId));
             }
             CalculateEdgeWeights(progressMonitor, ref status, Tric.PERCENT_EDGE_WEIGHTS);
             ScoreFiles();
@@ -74,7 +75,7 @@ namespace pwiz.Skyline.Model.Results.Scoring.Tric
         //much time
         protected abstract void ScoreFiles();
        
-        protected void GetAnchorPoints(int indFileIndex, int depFileIndex, List<double> indList, List<double> depList)
+        protected void GetAnchorPoints(ChromFileInfoId indFileIndex, ChromFileInfoId depFileIndex, List<double> indList, List<double> depList)
         {
             indList.Clear();
             depList.Clear();
@@ -131,15 +132,15 @@ namespace pwiz.Skyline.Model.Results.Scoring.Tric
             var bList = new List<double>();
             foreach (var edge in _tree)
             {
-                GetAnchorPoints(edge.AVertex.FileIndex, edge.BVertex.FileIndex, aList, bList);
-                edge.Aligner = GetAligner(edge.AVertex.FileIndex, edge.BVertex.FileIndex);
-                edge.Aligner.Train(aList.ToArray(), bList.ToArray(), CustomCancellationToken.NONE);
+                GetAnchorPoints(edge.AVertex.FileId, edge.BVertex.FileId, aList, bList);
+                edge.Aligner = GetAligner(edge.AVertex.FileId, edge.BVertex.FileId);
+                edge.Aligner.Train(aList.ToArray(), bList.ToArray(), CancellationToken.None);
                 edgesCompleted++;
 
                 if (verbose)
                 {
-                    var nameA = _fileNames[edge.AVertex.FileIndex];
-                    var nameB = _fileNames[edge.BVertex.FileIndex];
+                    var nameA = _fileNames[edge.AVertex.FileId];
+                    var nameB = _fileNames[edge.BVertex.FileId];
                     Console.WriteLine(Resources.TricTree_TrainAligners__0______1__RMSD__2_, nameA, nameB,
                         edge.Aligner.GetRmsd() * 60);
                 }
@@ -152,7 +153,7 @@ namespace pwiz.Skyline.Model.Results.Scoring.Tric
             }
         }
 
-        private Aligner GetAligner(int aFileIndex, int bFileIndex)
+        private Aligner GetAligner(ChromFileInfoId aFileIndex, ChromFileInfoId bFileIndex)
         {
             switch (_regressionMethod)
             {
@@ -167,23 +168,23 @@ namespace pwiz.Skyline.Model.Results.Scoring.Tric
             }
         }
 
-        public List<DirectionalEdge> Traverse(int startFileIndex,IDictionary<int, string> fileNames, bool verbose = false)
+        public List<DirectionalEdge> Traverse(ChromFileInfoId startFileIndex, IDictionary<ReferenceValue<ChromFileInfoId>, string> fileNames, bool verbose = false)
         {
             var traversal = new List<DirectionalEdge>();
-            var visited = new HashSet<int>();
+            var visited = new HashSet<ReferenceValue<ChromFileInfoId>>();
             var q = new Queue<Vertex>();
             q.Enqueue(_vertices[startFileIndex]);
             while (q.Count > 0)
             {
                 var cur = q.Dequeue();
-                visited.Add(cur.FileIndex);
+                visited.Add(cur.FileId);
                 for (int i = 0; i < cur.NeighborRuns.Count; i ++)
                 {
                     var fileIndex = cur.NeighborRuns[i];
                     if (!visited.Contains(fileIndex))
                     {
                         q.Enqueue(_vertices[fileIndex]);
-                        traversal.Add(new DirectionalEdge(cur.FileIndex, fileIndex, cur.Connections[i]));
+                        traversal.Add(new DirectionalEdge(cur.FileId, fileIndex, cur.Connections[i]));
                     }
                 }
             }
@@ -203,18 +204,18 @@ namespace pwiz.Skyline.Model.Results.Scoring.Tric
         public class DirectionalEdge
         {
             private readonly Edge _edge;
-            private readonly int _sourceFileIndex;
-            private readonly int _targetFileIndex;
+            private readonly ChromFileInfoId _sourceFileIndex;
+            private readonly ChromFileInfoId _targetFileIndex;
 
-            public DirectionalEdge(int sourceFileIndex, int targetFileIndex, Edge edge)
+            public DirectionalEdge(ChromFileInfoId sourceFileIndex, ChromFileInfoId targetFileIndex, Edge edge)
             {
                 _sourceFileIndex = sourceFileIndex;
                 _targetFileIndex = targetFileIndex;
                 _edge = edge;
                 Rmsd = edge.Aligner.GetRmsd();
             }
-            public int SourceFileIndex { get { return _sourceFileIndex; } }
-            public int TargetFileIndex { get { return _targetFileIndex; } }
+            public ChromFileInfoId SourceFileIndex { get { return _sourceFileIndex; } }
+            public ChromFileInfoId TargetFileIndex { get { return _targetFileIndex; } }
             public double Rmsd { get; private set; }
 
             public double Transform(double sourceRT)
@@ -241,16 +242,16 @@ namespace pwiz.Skyline.Model.Results.Scoring.Tric
         {
             private int _rank;
             private Vertex _parent;
-            public Vertex(int fileIndex)
+            public Vertex(ChromFileInfoId fileId)
             {
-                FileIndex = fileIndex;
-                NeighborRuns = new List<int>();
+                FileId = fileId;
+                NeighborRuns = new List<ChromFileInfoId>();
                 Connections = new List<Edge>();
                 Score = 0;
             }
 
-            public int FileIndex { get; private set; }
-            public IList<int> NeighborRuns { get; private set; }
+            public ChromFileInfoId FileId { get; private set; }
+            public IList<ChromFileInfoId> NeighborRuns { get; private set; }
             public IList<Edge> Connections { get; private set; }
             
             //Score for a vertice. Used for tric star tree

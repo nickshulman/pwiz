@@ -23,7 +23,6 @@ using System.Drawing;
 using System.Globalization;
 using System.IO;
 using System.Linq;
-using System.Text.RegularExpressions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using pwiz.Common.Chemistry;
 using pwiz.Common.DataBinding;
@@ -93,7 +92,6 @@ namespace TestPerf
             public string IrtFilterText;
             public int? MinPeptidesPerProtein;
             public bool RemoveDuplicates;
-            public int[] TargetCounts;
             public int[] FinalTargetCounts;
             public string ScoringModelCoefficients;
             public PointF ChromatogramClickPoint;
@@ -117,8 +115,7 @@ namespace TestPerf
         }
         private string RootName { get; set; }
 
-        [TestMethod]
-        [Timeout(int.MaxValue)] // These can take a long time
+        [TestMethod, NoParallelTesting(TestExclusionReason.RESOURCE_INTENSIVE), NoUnicodeTesting(TestExclusionReason.MZ5_UNICODE_ISSUES)]
         public void TestDiaTtofDiaUmpireTutorial()
         {
             //IsPauseForScreenShots = true;
@@ -126,32 +123,29 @@ namespace TestPerf
             {
                 KeepPrecursors = false,
                 ChromatogramClickPoint = new PointF(23.02F, 150.0F),
-                LibraryPeptideCount = 18125,
-                IrtSlope = 3.005,
-                IrtIntercept = -67.215,
+                LibraryPeptideCount = 20377,
+                IrtSlope = 3.017,
+                IrtIntercept = -67.652,
 
-                TargetCounts = new[] { 14, 213, 277, 1661 },
-                FinalTargetCounts = new[] { 10, 213, 277, 1661 },
-                ScoringModelCoefficients = "0.3350|-0.4802|5.7227|-1.0901|-0.4986|1.0273|0.0885|-0.0186",
+                FinalTargetCounts = new[] { 11, 215, 279, 1673 },
+                ScoringModelCoefficients = "-0.1511|-0.5825|5.5995|-0.5757|-0.4500|0.7592|0.4174|-0.0851",
                 MassErrorStats = new[]
                 {
-                    new[] {3.3, 4},
-                    new[] {3.1, 3.6},
-                    new[] {3.4, 4.3},
+                    new[] {3.3, 3.7},
+                    new[] {3.2, 3.4},
+                    new[] {3.5, 4.1},
                 },
             };
 
             TestTtofData();
         }
 
-        [TestMethod]
-        [Timeout(int.MaxValue)] // These can take a long time
+        [TestMethod, 
+         NoParallelTesting(TestExclusionReason.RESOURCE_INTENSIVE), 
+         NoUnicodeTesting(TestExclusionReason.MZ5_UNICODE_ISSUES),
+         NoNightlyTesting(TestExclusionReason.EXCESSIVE_TIME)]
         public void TestDiaTtofDiaUmpireTutorialFullFileset()
         {
-            // do not run full filesets for nightly tests
-            if (Program.SkylineOffscreen)
-                return;
-
             _analysisValues = new AnalysisValues
             {
                 KeepPrecursors = false,
@@ -160,22 +154,21 @@ namespace TestPerf
                 MinPeptidesPerProtein = 2,
                 RemoveDuplicates = true,
                 ChromatogramClickPoint = new PointF(23.02F, 150.0F),
-                LibraryPeptideCount = 28370,
-                IrtSlope = 3.006,
-                IrtIntercept = -67.212,
+                LibraryPeptideCount = 33997,
+                IrtSlope = 3.023,
+                IrtIntercept = -67.902,
 
-                TargetCounts = new[] { 7075, 42626, 47137, 282822 },
-                FinalTargetCounts = new[] { 2691, 28270, 31644, 189864 },
-                ScoringModelCoefficients = "0.1750|-0.6318|3.9940|0.1965|-0.1755|0.5792|0.1594|-0.0447",
+                FinalTargetCounts = new[] { 2855, 29310, 32713, 196278 },
+                ScoringModelCoefficients = "0.1985|-0.6148|4.3467|-0.0062|-0.1611|0.5597|0.0893|-0.0411",
                 MassErrorStats = new[]
                 {
-                    new[] {2.7, 5.1},
-                    new[] {2.6, 4.7},
-                    new[] {3.6, 5.0},
-                    new[] {4.9, 4.7},
-                    new[] {4.0, 5.0},
-                    new[] {-0.1, 4.5},
-                    new[] {1.1, 4.8},
+                    new[] {2.6, 5.2},
+                    new[] {2.5, 4.8},
+                    new[] {3.4, 5.1},
+                    new[] {4.7, 4.8},
+                    new[] {3.9, 5.2},
+                    new[] {-0.2, 4.5},
+                    new[] {1.0, 4.9},
                 },
             };
 
@@ -209,27 +202,25 @@ namespace TestPerf
             RunTest();
         }
 
-        [TestMethod]
-        [Timeout(int.MaxValue)] // These can take a long time
+        [TestMethod, NoParallelTesting(TestExclusionReason.RESOURCE_INTENSIVE), NoUnicodeTesting(TestExclusionReason.MSFRAGGER_UNICODE_ISSUES)]
         public void TestDiaQeDiaUmpireTutorial()
         {
             _analysisValues = new AnalysisValues
             {
                 KeepPrecursors = false,
                 IrtFilterText = "standard",
-                ChromatogramClickPoint = new PointF(18.19f, 1.8e6f),
-                LibraryPeptideCount = 9698,
-                IrtSlope = 2.606,
-                IrtIntercept = -45.948,
+                ChromatogramClickPoint = new PointF(18.13f, 5.51e5f),
+                LibraryPeptideCount = 10048,
+                IrtSlope = 2.605,
+                IrtIntercept = -45.890,
 
-                TargetCounts = new[] { 14, 185, 215, 1289 },
-                FinalTargetCounts = new[] { 10, 185, 215, 1289 },
-                ScoringModelCoefficients = "0.2778|-0.7533|4.2037|1.0772|-0.0866|0.6578|0.1913|-0.0693",
+                FinalTargetCounts = new[] { 11, 177, 209, 1253 },
+                ScoringModelCoefficients = "0.2358|-0.6932|3.1396|0.6093|-0.0724|0.7662|0.2178|-0.0990",
                 MassErrorStats = new[]
                 {
-                    new[] {2, 3.4},
-                    new[] {1.6, 3.3},
-                    new[] {2.4, 3.5},
+                    new[] {1.9, 3.9},
+                    new[] {1.5, 3.8},
+                    new[] {2.4, 3.9},
                 },
             };
 
@@ -237,13 +228,12 @@ namespace TestPerf
                 TestQeData();
         }
 
-        [TestMethod]
-        [Timeout(int.MaxValue)] // These can take a long time
+        [TestMethod, 
+         NoParallelTesting(TestExclusionReason.RESOURCE_INTENSIVE), 
+         NoUnicodeTesting(TestExclusionReason.MZ5_UNICODE_ISSUES),
+         NoNightlyTesting(TestExclusionReason.EXCESSIVE_TIME)] // do not run full filesets for nightly tests
         public void TestDiaQeDiaUmpireTutorialFullFileset()
         {
-            // do not run full filesets for nightly tests
-            if (Program.SkylineOffscreen)
-                return;
 
             _analysisValues = new AnalysisValues
             {
@@ -252,22 +242,22 @@ namespace TestPerf
                 IrtFilterText = "iRT",
                 MinPeptidesPerProtein = 2,
                 RemoveDuplicates = true,
-                ChromatogramClickPoint = new PointF(18.19f, 1.8e6f),
-                LibraryPeptideCount = 14541,
-                IrtSlope = 2.599,
-                IrtIntercept = -45.630,
-                TargetCounts = new[] { 5130, 28562, 30791, 184746 },
-                FinalTargetCounts = new[] { 1741, 17404, 18953, 113718 },
-                ScoringModelCoefficients = "0.1684|-0.8487|3.8097|1.1177|-0.0577|0.7095|0.1366|-0.0444",
+                ChromatogramClickPoint = new PointF(18.13f, 5.51e5f),
+                LibraryPeptideCount = 15770,
+                IrtSlope = 2.598,
+                IrtIntercept = -45.600,
+
+                FinalTargetCounts = new[] { 1642, 16242, 17798, 106788 },
+                ScoringModelCoefficients = "0.2335|-0.7919|2.8837|1.3237|-0.0724|0.7121|0.0970|-0.0746",
                 MassErrorStats = new[]
                 {
-                    new[] {1.8, 4},
-                    new[] {1.3, 3.9},
-                    new[] {1.9, 4.1},
-                    new[] {2, 3.8},
-                    new[] {2, 4.1},
-                    new[] {2.1, 3.9},
-                    new[] {1.8, 4.1},
+                    new[] {1.6, 4.6},
+                    new[] {1.1, 4.4},
+                    new[] {1.6, 4.8},
+                    new[] {1.8, 4.4},
+                    new[] {1.7, 4.8},
+                    new[] {1.8, 4.4},
+                    new[] {1.5, 4.8},
                 },
             };
 
@@ -330,7 +320,7 @@ namespace TestPerf
 
             RunFunctionalTest();
 
-            Assert.IsFalse(IsRecordMode);   // Make sure this doesn't get committed as true
+            Assert.IsFalse(IsRecordMode, "Set IsRecordMode to false before commit");   // Make sure this doesn't get committed as true
         }
 
         private string DataPath { get { return TestFilesDirs.Last().PersistentFilesDir; } }
@@ -349,16 +339,6 @@ namespace TestPerf
         /// </summary>
         private bool IsRecordMode { get { return false; } }
 
-        private string ParseIrtProperties(string irtFormula, CultureInfo cultureInfo = null)
-        {
-            var decimalSeparator = (cultureInfo ?? CultureInfo.CurrentCulture).NumberFormat.NumberDecimalSeparator;
-            var match = Regex.Match(irtFormula, $@"iRT = (?<slope>\d+{decimalSeparator}\d+) \* [^+-]+? (?<sign>[+-]) (?<intercept>\d+{decimalSeparator}\d+)");
-            Assert.IsTrue(match.Success);
-            string slope = match.Groups["slope"].Value, intercept = match.Groups["intercept"].Value, sign = match.Groups["sign"].Value;
-            if (sign == "+") sign = string.Empty;
-            return $"IrtSlope = {slope},\r\nIrtIntercept = {sign}{intercept},\r\n";
-        }
-
         protected override void DoTest()
         {
             Assert.AreEqual("IrtSlope = 3.005,\r\nIrtIntercept = -67.173,\r\n", ParseIrtProperties("iRT = 3.005 * Measured RT - 67.173", CultureInfo.InvariantCulture));
@@ -373,7 +353,7 @@ namespace TestPerf
             SrmDocument doc = SkylineWindow.Document;
 
             string documentBaseName = "DIA-" + InstrumentTypeName + "-tutorial";
-            string documentFile = TestContext.GetTestPath(documentBaseName + SrmDocument.EXT);
+            string documentFile = GetTestPath(documentBaseName + SrmDocument.EXT);
             RunUI(() => SkylineWindow.SaveDocument(documentFile));
 
             // Launch the wizard
@@ -386,9 +366,15 @@ namespace TestPerf
             // build the document library.
             string diaDir = GetTestPath("DIA");
 
-            // delete -diaumpire files so they get regenerated instead of reused
-            foreach (var file in Directory.GetFiles(diaDir, "*-diaumpire.*"))
-                FileEx.SafeDelete(file);
+            // when in regular test mode, delete -diaumpire files so they get regenerated instead of reused
+            // (in IsRecordMode, keep these files around so that repeated tests on each language run faster)
+            if (!IsRecordMode)
+            {
+                var diaumpireFiles = Directory.GetFiles(diaDir, "*-diaumpire.*");
+                var filesToRegenerate = diaumpireFiles.Skip(1); // regenerate all but 1 file in order to test file reusability
+                foreach (var file in filesToRegenerate)
+                    FileEx.SafeDelete(file);
+            }
 
             string[] searchFiles = DiaFiles.Select(p => Path.Combine(diaDir, p)).Take(_analysisValues.IsWholeProteome ? DiaFiles.Length : 2).ToArray();
             foreach (var searchFile in searchFiles)
@@ -461,7 +447,8 @@ namespace TestPerf
                 // Verify other values shown in the tutorial
                 Assert.AreEqual(6, importPeptideSearchDlg.TransitionSettingsControl.IonCount);
                 Assert.AreEqual(6, importPeptideSearchDlg.TransitionSettingsControl.MinIonCount);
-                Assert.AreEqual(0.05, importPeptideSearchDlg.TransitionSettingsControl.IonMatchTolerance);
+                Assert.AreEqual(0.05, importPeptideSearchDlg.TransitionSettingsControl.IonMatchMzTolerance.Value);
+                Assert.AreEqual(MzTolerance.Units.mz, importPeptideSearchDlg.TransitionSettingsControl.IonMatchMzTolerance.Unit);
                 // CONSIDER: Not that easy to validate 1, 2 in ion charges.
             });
             PauseForScreenShot<ImportPeptideSearchDlg.TransitionSettingsPage>("Transition settings", 7);
@@ -581,13 +568,13 @@ namespace TestPerf
                 // Run the search
                 Assert.IsTrue(importPeptideSearchDlg.ClickNextButton());
 
-                importPeptideSearchDlg.SearchControl.OnSearchFinished += (success) => searchSucceeded = success;
+                importPeptideSearchDlg.SearchControl.SearchFinished += (success) => searchSucceeded = success;
                 importPeptideSearchDlg.BuildPepSearchLibControl.IncludeAmbiguousMatches = true;
             });
 
             PauseForScreenShot("Import Peptide Search - DDA search progress page", 14);
-            WaitForConditionUI(120 * 600000, () => searchSucceeded.HasValue);
-            Assert.IsTrue(searchSucceeded.Value);
+            WaitForConditionUI(120 * 600000, () => searchSucceeded.HasValue, () => importPeptideSearchDlg.SearchControl.LogText);
+            RunUI(() => Assert.IsTrue(searchSucceeded.Value, importPeptideSearchDlg.SearchControl.LogText));
 
             var addIrtDlg = ShowDialog<AddIrtPeptidesDlg>(() => importPeptideSearchDlg.ClickNextButton(), 30 * 60000);//peptidesPerProteinDlg.OkDialog());
             RunUI(() =>
@@ -636,13 +623,13 @@ namespace TestPerf
             }
             OkDialog(addIrtDlg, addIrtDlg.OkDialog);
 
-            var peptidesPerProteinDlg = WaitForOpenForm<PeptidesPerProteinDlg>(600000);
+            var peptidesPerProteinDlg = WaitForOpenForm<AssociateProteinsDlg>(600000);
             WaitForCondition(() => peptidesPerProteinDlg.DocumentFinalCalculated);
             RunUI(() =>
             {
-                int proteinCount, peptideCount, precursorCount, transitionCount;
-                peptidesPerProteinDlg.NewTargetsAll(out proteinCount, out peptideCount, out precursorCount, out transitionCount);
-                ValidateTargets(ref _analysisValues.TargetCounts, proteinCount, peptideCount, precursorCount, transitionCount, @"TargetCounts");
+                //int proteinCount, peptideCount, precursorCount, transitionCount;
+                //peptidesPerProteinDlg.NewTargetsAll(out proteinCount, out peptideCount, out precursorCount, out transitionCount);
+                //ValidateTargets(ref _analysisValues.TargetCounts, proteinCount, peptideCount, precursorCount, transitionCount, @"TargetCounts");
                 if (_analysisValues.RemoveDuplicates)
                     peptidesPerProteinDlg.RemoveDuplicatePeptides = true;
                 if (_analysisValues.MinPeptidesPerProtein.HasValue)
@@ -806,8 +793,6 @@ namespace TestPerf
             interestingParameters.Add(searchSettings.FragmentTolerance.Value.ToString(CultureInfo.InvariantCulture));
             interestingParameters.Add(analysisValues.LibraryPeptideCount.ToString());
             for (int i = 0; i < 4; ++i)
-                interestingParameters.Add(analysisValues.TargetCounts[i].ToString());
-            for (int i = 0; i < 4; ++i)
                 interestingParameters.Add(analysisValues.FinalTargetCounts[i].ToString());
             Console.WriteLine(string.Join("\t", interestingParameters));
         }
@@ -885,7 +870,7 @@ namespace TestPerf
         {
             double mean = massErrorPane.Mean, stdDev = massErrorPane.StdDev;
             if (IsRecordMode)
-                Console.WriteLine(@"new[] {{{0:0.#}, {1:0.#}}},", mean, stdDev);  // Not L10N
+                Console.WriteLine(@"new[] {{{0:0.0}, {1:0.0}}},", mean, stdDev);  // Not L10N
             else
             {
                 Assert.AreEqual(_analysisValues.MassErrorStats[index][0], mean, 0.05);

@@ -25,6 +25,7 @@ using System.IO;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using pwiz.Common.Chemistry;
+using pwiz.Skyline.Alerts;
 using pwiz.Skyline.Controls;
 using pwiz.Skyline.Controls.Graphs;
 using pwiz.Skyline.EditUI;
@@ -51,8 +52,7 @@ namespace TestPerf // This would be in tutorial tests if it didn't take about 10
 
         private const string EXT_ZIP = ".zip";
 
-        [TestMethod]
-        [Timeout(int.MaxValue)] // These can take a long time
+        [TestMethod, NoParallelTesting(TestExclusionReason.RESOURCE_INTENSIVE)]
         public void TestDriftTimePredictorTutorial()
         {
 //            IsPauseForScreenShots = true;
@@ -124,7 +124,8 @@ namespace TestPerf // This would be in tutorial tests if it didn't take about 10
             }
 
             {
-                var importResults = ShowDialog<ImportResultsDlg>(SkylineWindow.ImportResults);
+                var askDecoysDlg = ShowDialog<MultiButtonMsgDlg>(SkylineWindow.ImportResults);
+                var importResults = ShowDialog<ImportResultsDlg>(askDecoysDlg.ClickNo);
                 RunUI(() => importResults.ImportSimultaneousIndex = 2);
 
                 PauseForScreenShot<ImportResultsDlg>("Import results form", 4);
@@ -406,25 +407,25 @@ namespace TestPerf // This would be in tutorial tests if it didn't take about 10
             var expectedIM = new[,]
             {
                 // Values recorded from master branch - imMS1, imFragment, imWindow
-                {26.47, 26.63, 1.06},
+                {26.47, 26.47, 1.06},
                 {25.65, 25.65, 1.03},
-                {28.75, 28.92, 1.15},
+                {28.75, 28.75, 1.15},
                 {28.26, 28.26, 1.13},
                 {22.87, 22.87, 0.91},
                 {27.77, 27.77, 1.11},
-                {24.51, 24.67, 0.98},
-                {29.41, 29.57, 1.18},
-                {22.22, 22.38, 0.89},
-                {25.81, 26.14, 1.03},
-                {22.71, 22.87, 0.91},
+                {24.51, 24.51, 0.98},
+                {29.41, 29.41, 1.18},
+                {22.22, 22.22, 0.89},
+                {25.81, 25.81, 1.03},
+                {22.71, 22.71, 0.91},
                 {23.36, 23.36, 0.93},
                 {27.77, 27.77, 1.11},
-                {28.43, 28.59, 1.14},
-                {29.41, 27.94, 1.18},
-                {24.02, 24.18, 0.96},
-                {27.77, 27.94, 1.11},
+                {28.43, 28.43, 1.14},
+                {29.41, 27.9373, 1.18},
+                {24.02, 24.02, 0.96},
+                {27.77, 26.957, 1.11},
                 {25, 24.83, 1},
-                {30.39, 30.55, 1.22}
+                {30.39, 30.39, 1.22}
             };
             double lastMz = -1;
             var colMz = FindDocumentGridColumn(documentGrid, "Precursor.Mz");

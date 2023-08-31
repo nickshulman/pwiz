@@ -81,6 +81,8 @@
             this.cbAutoSelect = new System.Windows.Forms.CheckBox();
             this.lbPrecursorMzWindow = new System.Windows.Forms.Label();
             this.tabLibrary = new System.Windows.Forms.TabPage();
+            this.label23 = new System.Windows.Forms.Label();
+            this.comboToleranceUnits = new System.Windows.Forms.ComboBox();
             this.label9 = new System.Windows.Forms.Label();
             this.panelPick = new System.Windows.Forms.Panel();
             this.label22 = new System.Windows.Forms.Label();
@@ -93,7 +95,6 @@
             this.textIonCount = new System.Windows.Forms.TextBox();
             this.textTolerance = new System.Windows.Forms.TextBox();
             this.cbLibraryPick = new System.Windows.Forms.CheckBox();
-            this.label13 = new System.Windows.Forms.Label();
             this.tabInstrument = new System.Windows.Forms.TabPage();
             this.cbxTriggeredAcquisition = new System.Windows.Forms.CheckBox();
             this.textMaxInclusions = new System.Windows.Forms.TextBox();
@@ -111,7 +112,7 @@
             this.textMaxTrans = new System.Windows.Forms.TextBox();
             this.label17 = new System.Windows.Forms.Label();
             this.textMzMatchTolerance = new System.Windows.Forms.TextBox();
-            this.label16 = new System.Windows.Forms.Label();
+            this.lblMethodMatchTolerance = new System.Windows.Forms.Label();
             this.label10 = new System.Windows.Forms.Label();
             this.label11 = new System.Windows.Forms.Label();
             this.textMaxMz = new System.Windows.Forms.TextBox();
@@ -515,14 +516,31 @@
             // 
             // tabLibrary
             // 
+            this.tabLibrary.Controls.Add(this.label23);
+            this.tabLibrary.Controls.Add(this.comboToleranceUnits);
             this.tabLibrary.Controls.Add(this.label9);
             this.tabLibrary.Controls.Add(this.panelPick);
             this.tabLibrary.Controls.Add(this.textTolerance);
             this.tabLibrary.Controls.Add(this.cbLibraryPick);
-            this.tabLibrary.Controls.Add(this.label13);
             resources.ApplyResources(this.tabLibrary, "tabLibrary");
             this.tabLibrary.Name = "tabLibrary";
             this.tabLibrary.UseVisualStyleBackColor = true;
+            // 
+            // label23
+            // 
+            resources.ApplyResources(this.label23, "label23");
+            this.label23.Name = "label23";
+            // 
+            // comboToleranceUnits
+            // 
+            this.comboToleranceUnits.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.comboToleranceUnits.FormattingEnabled = true;
+            this.comboToleranceUnits.Items.AddRange(new object[] {
+            resources.GetString("comboToleranceUnits.Items"),
+            resources.GetString("comboToleranceUnits.Items1")});
+            resources.ApplyResources(this.comboToleranceUnits, "comboToleranceUnits");
+            this.comboToleranceUnits.Name = "comboToleranceUnits";
+            this.comboToleranceUnits.SelectedIndexChanged += new System.EventHandler(this.comboToleranceUnits_SelectedIndexChanged);
             // 
             // label9
             // 
@@ -559,6 +577,7 @@
             this.radioAllAndFiltered.Name = "radioAllAndFiltered";
             this.radioAllAndFiltered.TabStop = true;
             this.helpTip.SetToolTip(this.radioAllAndFiltered, resources.GetString("radioAllAndFiltered.ToolTip"));
+            this.modeUIHandler.SetUIMode(this.radioAllAndFiltered, pwiz.Skyline.Util.Helpers.ModeUIExtender.MODE_UI_HANDLING_TYPE.proteomic);
             this.radioAllAndFiltered.UseVisualStyleBackColor = true;
             // 
             // radioFiltered
@@ -567,6 +586,7 @@
             this.radioFiltered.Name = "radioFiltered";
             this.radioFiltered.TabStop = true;
             this.helpTip.SetToolTip(this.radioFiltered, resources.GetString("radioFiltered.ToolTip"));
+            this.modeUIHandler.SetUIMode(this.radioFiltered, pwiz.Skyline.Util.Helpers.ModeUIExtender.MODE_UI_HANDLING_TYPE.proteomic);
             this.radioFiltered.UseVisualStyleBackColor = true;
             // 
             // radioAll
@@ -575,6 +595,7 @@
             this.radioAll.Name = "radioAll";
             this.radioAll.TabStop = true;
             this.helpTip.SetToolTip(this.radioAll, resources.GetString("radioAll.ToolTip"));
+            this.modeUIHandler.SetUIMode(this.radioAll, pwiz.Skyline.Util.Helpers.ModeUIExtender.MODE_UI_HANDLING_TYPE.proteomic);
             this.radioAll.UseVisualStyleBackColor = true;
             // 
             // label14
@@ -607,11 +628,6 @@
             this.cbLibraryPick.UseVisualStyleBackColor = true;
             this.cbLibraryPick.CheckedChanged += new System.EventHandler(this.cbLibraryPick_CheckedChanged);
             // 
-            // label13
-            // 
-            resources.ApplyResources(this.label13, "label13");
-            this.label13.Name = "label13";
-            // 
             // tabInstrument
             // 
             this.tabInstrument.Controls.Add(this.cbxTriggeredAcquisition);
@@ -630,7 +646,7 @@
             this.tabInstrument.Controls.Add(this.textMaxTrans);
             this.tabInstrument.Controls.Add(this.label17);
             this.tabInstrument.Controls.Add(this.textMzMatchTolerance);
-            this.tabInstrument.Controls.Add(this.label16);
+            this.tabInstrument.Controls.Add(this.lblMethodMatchTolerance);
             this.tabInstrument.Controls.Add(this.label10);
             this.tabInstrument.Controls.Add(this.label11);
             this.tabInstrument.Controls.Add(this.textMaxMz);
@@ -645,6 +661,7 @@
             this.cbxTriggeredAcquisition.Name = "cbxTriggeredAcquisition";
             this.helpTip.SetToolTip(this.cbxTriggeredAcquisition, resources.GetString("cbxTriggeredAcquisition.ToolTip"));
             this.cbxTriggeredAcquisition.UseVisualStyleBackColor = true;
+            this.cbxTriggeredAcquisition.CheckedChanged += new System.EventHandler(this.cbxTriggeredAcquisition_CheckedChanged);
             // 
             // textMaxInclusions
             // 
@@ -728,10 +745,10 @@
             this.textMzMatchTolerance.Name = "textMzMatchTolerance";
             this.helpTip.SetToolTip(this.textMzMatchTolerance, resources.GetString("textMzMatchTolerance.ToolTip"));
             // 
-            // label16
+            // lblMethodMatchTolerance
             // 
-            resources.ApplyResources(this.label16, "label16");
-            this.label16.Name = "label16";
+            resources.ApplyResources(this.lblMethodMatchTolerance, "lblMethodMatchTolerance");
+            this.lblMethodMatchTolerance.Name = "lblMethodMatchTolerance";
             // 
             // label10
             // 
@@ -774,6 +791,7 @@
             this.ionMobilityFilteringControl.IsUseSpectralLibraryIonMobilities = false;
             resources.ApplyResources(this.ionMobilityFilteringControl, "ionMobilityFilteringControl");
             this.ionMobilityFilteringControl.Name = "ionMobilityFilteringControl";
+            this.ionMobilityFilteringControl.WindowWidthType = pwiz.Skyline.Model.DocSettings.IonMobilityWindowWidthCalculator.IonMobilityWindowWidthType.none;
             // 
             // helpTip
             // 
@@ -864,7 +882,6 @@
         private System.Windows.Forms.Label label8;
         private System.Windows.Forms.TabPage tabLibrary;
         private System.Windows.Forms.Label label14;
-        private System.Windows.Forms.Label label13;
         private System.Windows.Forms.TextBox textTolerance;
         private System.Windows.Forms.Label label9;
         private System.Windows.Forms.RadioButton radioFiltered;
@@ -873,7 +890,7 @@
         private System.Windows.Forms.TextBox textIonCount;
         private System.Windows.Forms.CheckBox cbLibraryPick;
         private System.Windows.Forms.Panel panelPick;
-        private System.Windows.Forms.Label label16;
+        private System.Windows.Forms.Label lblMethodMatchTolerance;
         private System.Windows.Forms.TextBox textMzMatchTolerance;
         private System.Windows.Forms.ComboBox comboOptimizeType;
         private System.Windows.Forms.CheckBox cbUseOptimized;
@@ -922,5 +939,7 @@
         private System.Windows.Forms.Label label22;
         private System.Windows.Forms.TextBox textMinIonCount;
         private System.Windows.Forms.CheckBox cbxTriggeredAcquisition;
+        private System.Windows.Forms.Label label23;
+        private System.Windows.Forms.ComboBox comboToleranceUnits;
     }
 }

@@ -70,14 +70,14 @@ namespace pwiz.SkylineTestFunctional
 
         private static readonly string[] HISTOGRAM_FINDRESULTS = 
         {
-            "K.DFATVYVDAVK.D [35, 45]",
-            "R.ASGIIDTLFQDR.F [181, 192]",
-            "R.HTNNGMICLTSLLR.I [279, 292]",
-            "K.ENSSNILDNLLSR.M [802, 814]",
-            "R.ALIHCLHMS.- [436, 444]",
-            "R.LTHGDFTWTTK.K [90, 100]",
-            "K.YGLDLGSLLVR.L [1066, 1076]",
-            "K.AGSWQITMK.G [258, 266]",
+            "K.DFATVYVDAVK.D [36, 46]",
+            "R.ASGIIDTLFQDR.F [182, 193]",
+            "R.HTNNGMICLTSLLR.I [280, 293]",
+            "K.ENSSNILDNLLSR.M [803, 815]",
+            "R.ALIHCLHMS.- [437, 445]",
+            "R.LTHGDFTWTTK.K [91, 101]",
+            "K.YGLDLGSLLVR.L [1067, 1077]",
+            "K.AGSWQITMK.G [259, 267]",
             "TLNSINIAVFSK",
             "ENEGTYYGPDGR",
             "ENLSPPLGECLLER",
@@ -94,14 +94,14 @@ namespace pwiz.SkylineTestFunctional
 
         private static readonly string[] HISTOGRAM2D_FINDRESULTS = 
         {
-            "K.DFATVYVDAVK.D [35, 45]",
-            "R.ASGIIDTLFQDR.F [181, 192]",
-            "R.HTNNGMICLTSLLR.I [279, 292]",
-            "K.ENSSNILDNLLSR.M [802, 814]",
-            "R.ALIHCLHMS.- [436, 444]",
-            "R.LTHGDFTWTTK.K [90, 100]",
-            "K.YGLDLGSLLVR.L [1066, 1076]",
-            "K.AGSWQITMK.G [258, 266]",
+            "K.DFATVYVDAVK.D [36, 46]",
+            "R.ASGIIDTLFQDR.F [182, 193]",
+            "R.HTNNGMICLTSLLR.I [280, 293]",
+            "K.ENSSNILDNLLSR.M [803, 815]",
+            "R.ALIHCLHMS.- [437, 445]",
+            "R.LTHGDFTWTTK.K [91, 101]",
+            "K.YGLDLGSLLVR.L [1067, 1077]",
+            "K.AGSWQITMK.G [259, 267]",
             "TLNSINIAVFSK",
             "ENEGTYYGPDGR",
             "ENLSPPLGECLLER",
@@ -252,7 +252,10 @@ namespace pwiz.SkylineTestFunctional
                 Assert.IsFalse(toolbar.DetectionsVisible);
             });
             AssertDataCorrect(pane, statsStartIndex++);
-            WaitForCondition(700, () => GetCache(pane).DataCount == 45);
+            if (!TryWaitForCondition(() => GetCache(pane).DataCount == 45))
+            {
+                Assert.AreEqual(45, GetCache(pane).DataCount);
+            }
             
             // Make sure that grouping by an annotation works correctly
             RunUI(() => SkylineWindow.SetAreaCVAnnotation("D102"));

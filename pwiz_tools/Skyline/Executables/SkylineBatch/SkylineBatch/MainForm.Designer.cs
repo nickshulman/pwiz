@@ -65,10 +65,14 @@
             this.btnOpenTemplate = new System.Windows.Forms.ToolStripButton();
             this.btnOpenResults = new System.Windows.Forms.ToolStripButton();
             this.btnOpenAnalysis = new System.Windows.Forms.ToolStripButton();
+            this.btnOpenRemoteFolder = new System.Windows.Forms.ToolStripButton();
+            this.btnUndo = new System.Windows.Forms.ToolStripButton();
+            this.btnRedo = new System.Windows.Forms.ToolStripButton();
             this.btnAddConfig = new System.Windows.Forms.Button();
             this.btnEdit = new System.Windows.Forms.Button();
             this.btnCopy = new System.Windows.Forms.Button();
             this.tabMain = new System.Windows.Forms.TabControl();
+            this.remoteFolderList = new System.Windows.Forms.ContextMenuStrip(this.components);
             this.tabLog.SuspendLayout();
             this.tabConfigs.SuspendLayout();
             this.panel2.SuspendLayout();
@@ -294,7 +298,10 @@
             this.btnDelete,
             this.btnOpenTemplate,
             this.btnOpenResults,
-            this.btnOpenAnalysis});
+            this.btnOpenAnalysis,
+            this.btnOpenRemoteFolder,
+            this.btnUndo,
+            this.btnRedo});
             this.toolStrip1.LayoutStyle = System.Windows.Forms.ToolStripLayoutStyle.VerticalStackWithOverflow;
             this.toolStrip1.Name = "toolStrip1";
             // 
@@ -346,6 +353,30 @@
             this.btnOpenAnalysis.Name = "btnOpenAnalysis";
             this.btnOpenAnalysis.Click += new System.EventHandler(this.btnOpenAnalysis_Click);
             // 
+            // btnOpenRemoteFolder
+            // 
+            this.btnOpenRemoteFolder.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Image;
+            resources.ApplyResources(this.btnOpenRemoteFolder, "btnOpenRemoteFolder");
+            this.btnOpenRemoteFolder.Image = global::SkylineBatch.Properties.Resources.OpenRemoteFolder;
+            this.btnOpenRemoteFolder.Name = "btnOpenRemoteFolder";
+            this.btnOpenRemoteFolder.Click += new System.EventHandler(this.btnOpenRemoteFolder_Click);
+            // 
+            // btnUndo
+            // 
+            this.btnUndo.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Image;
+            resources.ApplyResources(this.btnUndo, "btnUndo");
+            this.btnUndo.Image = global::SkylineBatch.Properties.Resources.Edit_Undo;
+            this.btnUndo.Name = "btnUndo";
+            this.btnUndo.Click += new System.EventHandler(this.btnUndo_Click);
+            // 
+            // btnRedo
+            // 
+            this.btnRedo.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Image;
+            resources.ApplyResources(this.btnRedo, "btnRedo");
+            this.btnRedo.Image = global::SkylineBatch.Properties.Resources.Edit_Redo;
+            this.btnRedo.Name = "btnRedo";
+            this.btnRedo.Click += new System.EventHandler(this.btnRedo_Click);
+            // 
             // btnAddConfig
             // 
             resources.ApplyResources(this.btnAddConfig, "btnAddConfig");
@@ -374,6 +405,12 @@
             this.tabMain.Controls.Add(this.tabLog);
             this.tabMain.Name = "tabMain";
             this.tabMain.SelectedIndex = 0;
+            this.tabMain.KeyDown += new System.Windows.Forms.KeyEventHandler(this.tabMain_KeyDown);
+            // 
+            // remoteFolderList
+            // 
+            this.remoteFolderList.Name = "remoteFolderList";
+            resources.ApplyResources(this.remoteFolderList, "remoteFolderList");
             // 
             // MainForm
             // 
@@ -438,5 +475,9 @@
         private System.Windows.Forms.ColumnHeader columnStartTime;
         private System.Windows.Forms.ColumnHeader columnRunTime;
         private System.Windows.Forms.Button btnLogStop;
+        public System.Windows.Forms.ToolStripButton btnUndo;
+        public System.Windows.Forms.ToolStripButton btnRedo;
+        public System.Windows.Forms.ToolStripButton btnOpenRemoteFolder;
+        private System.Windows.Forms.ContextMenuStrip remoteFolderList;
     }
 }

@@ -78,6 +78,15 @@ public:
     static void insertRt(TSVLine& line, const std::string& value) {
         line.rt = value.empty() ? 0 : lexical_cast<double>(value) / 60;
     }
+    static void insertRtMinutes(TSVLine& line, const std::string& value) {
+        line.rt = value.empty() ? 0 : lexical_cast<double>(value);
+    }
+    static void insertRtStartMinutes(TSVLine& line, const std::string& value) {
+        line.leftWidth = value.empty() ? 0 : lexical_cast<double>(value);
+    }
+    static void insertRtEndMinutes(TSVLine& line, const std::string& value) {
+        line.rightWidth = value.empty() ? 0 : lexical_cast<double>(value);
+    }
     static void insertSequence(TSVLine& line, const std::string& value) {
         line.sequence = value;
     }
@@ -120,6 +129,8 @@ public:
     static void insertIonMobility(TSVLine& line, const std::string& value) {
         line.ionMobility = lexical_cast<double>(value);
     }
+    static void ignore(TSVLine& line, const std::string& value) {
+    }
 };
 
 struct TSVColumnTranslator {
@@ -136,9 +147,10 @@ public:
     ~TSVReader();
 
     /// factory function for creating correct implementaiton of TSVReader based on column names
-    static boost::shared_ptr<TSVReader> create(BlibBuilder& maker, const char* tsvName, const ProgressIndicator* parentProgress);
+    static std::shared_ptr<TSVReader> create(BlibBuilder& maker, const char* tsvName, const ProgressIndicator* parentProgress);
 
     virtual bool parseFile() = 0;
+    virtual vector<PSM_SCORE_TYPE> getScoreTypes() = 0;
 
     // these inherited from SpecFileReader
     virtual void openFile(const char*, bool) {}

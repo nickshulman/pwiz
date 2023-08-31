@@ -245,6 +245,19 @@ namespace pwiz.Skyline.Model.DocSettings
             return TryGetPrecursorCalc(labelType, mods) != null;
         }
 
+        public bool SupportsPrecursor(TransitionGroupDocNode transitionGroup, ExplicitMods mods)
+        {
+            if (transitionGroup.IsLight)
+            {
+                return true;
+            }
+            if (transitionGroup.IsCustomIon)
+            {
+                return PeptideSettings.Modifications.GetHeavyModificationTypes().Contains(transitionGroup.LabelType);
+            }
+            return HasPrecursorCalc(transitionGroup.LabelType, mods);
+        }
+
         public IPrecursorMassCalc GetPrecursorCalc(IsotopeLabelType labelType, ExplicitMods mods)
         {
             var precursorCalc =  TryGetPrecursorCalc(labelType, mods);
@@ -301,7 +314,7 @@ namespace pwiz.Skyline.Model.DocSettings
             return precursorCalc.GetPrecursorMass(seq);
         }
 
-        public TypedMass GetPrecursorMass(IsotopeLabelType labelType, CustomMolecule mol, TypedModifications mods, Adduct adductForIsotopeLabels, out string isotopicFormula)
+        public TypedMass GetPrecursorMass(IsotopeLabelType labelType, CustomMolecule mol, TypedModifications mods, Adduct adductForIsotopeLabels, out ParsedMolecule isotopicFormula)
         {
             return GetPrecursorCalc(labelType, ExplicitMods.EMPTY).GetPrecursorMass(mol, mods, adductForIsotopeLabels, out isotopicFormula);
         }
@@ -412,7 +425,7 @@ namespace pwiz.Skyline.Model.DocSettings
             return new Target(strModifiedSequence);
         }
 
-        public Adduct GetModifiedAdduct(Adduct adduct, string neutralFormula,
+        public Adduct GetModifiedAdduct(Adduct adduct, ParsedMolecule neutralFormula,
                                           IsotopeLabelType labelType,
                                           ExplicitMods mods)
         {
@@ -426,9 +439,6 @@ namespace pwiz.Skyline.Model.DocSettings
 
         public Target GetModifiedSequence(PeptideDocNode nodePep)
         {
-            if (nodePep.Peptide.IsCustomMolecule)
-                return nodePep.ModifiedTarget;
-            Assume.IsNotNull(nodePep.ModifiedSequence);
             return nodePep.ModifiedTarget;
         }
 
@@ -743,6 +753,44 @@ namespace pwiz.Skyline.Model.DocSettings
             return false;
         }
 
+
+        /// <summary>
+        /// Returns true if the settings have changed in a way that might require
+        /// all of the results text in the SequenceTree to be updated.
+        /// </summary>
+        public bool IsGlobalRatioChange(SrmSettings other)
+        {
+            if (PeptideSettings.Quantification.SimpleRatios != other.PeptideSettings.Quantification.SimpleRatios)
+            {
+                return true;
+            }
+
+            if (_cachedPeptideStandards == null)
+            {
+                return other._cachedPeptideStandards != null;
+            }
+
+            if (other._cachedPeptideStandards == null)
+            {
+                return true;
+            }
+
+            foreach (var entry in _cachedPeptideStandards)
+            {
+                if (!other._cachedPeptideStandards.TryGetValue(entry.Key, out var otherValue))
+                {
+                    return true;
+                }
+
+                if (!Equals(entry.Value, otherValue))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         public bool HasGlobalStandardArea
         {
             get
@@ -982,6 +1030,12 @@ namespace pwiz.Skyline.Model.DocSettings
                 var imAndCCS = IonMobilityAndCCS.GetIonMobilityAndCCS(IonMobilityValue.GetIonMobilityValue(nodeGroup.ExplicitValues.IonMobility, nodeGroup.ExplicitValues.IonMobilityUnits),
                     nodeGroup.ExplicitValues.CollisionalCrossSectionSqA,
                     ExplicitTransitionValues.Get(nodeTran).IonMobilityHighEnergyOffset ?? 0);
+                if (instrumentInfo != null && instrumentInfo.ProvidesCollisionalCrossSectionConverter)
+                {
+                    // Try to get a CCS value for this explicitly stated IM value - useful in reports
+                    var ccs = instrumentInfo.CCSFromIonMobility(imAndCCS.IonMobility, nodeGroup.PrecursorMz, nodeGroup.TransitionGroup.PrecursorCharge);
+                    imAndCCS = imAndCCS.ChangeCollisionalCrossSection(ccs);
+                }
                 // Now get the window width
                 var windowIM = TransitionSettings.IonMobilityFiltering.FilterWindowWidthCalculator.WidthAt(imAndCCS.IonMobility.Mobility.Value, ionMobilityMax);
                 return IonMobilityFilter.GetIonMobilityFilter(imAndCCS, windowIM);
@@ -1016,14 +1070,15 @@ namespace pwiz.Skyline.Model.DocSettings
             LibraryIonMobilityInfo libraryIonMobilityInfo,
             double ionMobilityMax)
         {
+            IonMobilityFilter result = null;
             foreach (var typedSequence in GetTypedSequences(nodePep.Target, nodePep.ExplicitMods, nodeGroup.PrecursorAdduct))
             {
                 var chargedPeptide = new LibKey(typedSequence.ModifiedSequence, typedSequence.Adduct); // N.B. this may actually be a small molecule
 
                 // Try for a ion mobility library value (.imsdb file)
-                var result = TransitionSettings.IonMobilityFiltering.GetIonMobilityFilter(chargedPeptide, nodeGroup.PrecursorMz,  ionMobilityFunctionsProvider, ionMobilityMax);
+                result = TransitionSettings.IonMobilityFiltering.GetIonMobilityFilter(chargedPeptide, nodeGroup.PrecursorMz,  ionMobilityFunctionsProvider, ionMobilityMax);
                 if (result != null && result.HasIonMobilityValue)
-                    return result;
+                    break;
 
                 // Try other sources - BiblioSpec, Chromatogram libraries etc
                 if (libraryIonMobilityInfo != null)
@@ -1032,14 +1087,22 @@ namespace pwiz.Skyline.Model.DocSettings
                     if (imAndCCS.IonMobility.HasValue && TransitionSettings.IonMobilityFiltering.UseSpectralLibraryIonMobilityValues)
                     {
                         var ionMobilityWindow = TransitionSettings.IonMobilityFiltering.FilterWindowWidthCalculator.WidthAt(imAndCCS.IonMobility.Mobility.Value, ionMobilityMax);
-                        return IonMobilityFilter.GetIonMobilityFilter(imAndCCS, ionMobilityWindow);
+                        result = IonMobilityFilter.GetIonMobilityFilter(imAndCCS, ionMobilityWindow);
+                        break;
                     }
                 }
             }
-            return IonMobilityFilter.EMPTY;
+
+            if (result != null && result.HasIonMobilityValue && 
+                !result.CollisionalCrossSectionSqA.HasValue &&
+                ionMobilityFunctionsProvider != null && ionMobilityFunctionsProvider.ProvidesCollisionalCrossSectionConverter)
+            {
+                // Try to get a CCS value for this IM value - useful in reports
+                var ccs = ionMobilityFunctionsProvider.CCSFromIonMobility(result.IonMobility, nodeGroup.PrecursorMz, nodeGroup.TransitionGroup.PrecursorCharge);
+                result = result.ChangeCollisionCrossSection(ccs);
+            }
+            return result ?? IonMobilityFilter.EMPTY;
         }
-
-
 
         public bool TryGetRetentionTimes(Target sequence, Adduct adduct, ExplicitMods mods, MsDataFileUri filePath,
             out IsotopeLabelType type, out double[] retentionTimes)
@@ -1471,8 +1534,7 @@ namespace pwiz.Skyline.Model.DocSettings
         /// </summary>
         public bool Accept(SrmSettings settings, Peptide peptide, ExplicitMods mods, Adduct charge)
         {
-            bool allowVariableMods;
-            return Accept(settings, peptide, mods, new[] { charge }, PeptideFilterType.library, out allowVariableMods);
+            return Accept(settings, peptide, mods, new[] { charge }, PeptideFilterType.library, out _);
         }
 
         private enum PeptideFilterType
@@ -1981,6 +2043,10 @@ namespace pwiz.Skyline.Model.DocSettings
                         MeasuredResults.Chromatograms.Select(c => c.RestoreLegacyUriParameters()).ToArray()));
                 }
             }
+            if (documentFormat < DocumentFormat.VERSION_21_11)
+            {
+                result = result.ChangeMeasuredResults(result.MeasuredResults?.ClearImportTimes());
+            }
             if (documentFormat < DocumentFormat.TRANSITION_SETTINGS_ION_MOBILITY &&
                 !TransitionIonMobilityFiltering.IsNullOrEmpty(result.TransitionSettings.IonMobilityFiltering))
             {
@@ -1991,7 +2057,53 @@ namespace pwiz.Skyline.Model.DocSettings
                     result.TransitionSettings.ChangeIonMobilityFiltering(TransitionIonMobilityFiltering.EMPTY));
             }
 
+            if (documentFormat < DocumentFormat.VERSION_21_12)
+            {
+                result = result.ChangeTransitionSettings(transitionSettings =>
+                    transitionSettings.ChangeIntegration(
+                        transitionSettings.Integration.ChangeSynchronizedIntegration(null, false,
+                            Array.Empty<string>())));
+            }
+
+            if (documentFormat < DocumentFormat.PROTEIN_GROUPS)
+            {
+                result = result.ChangePeptideSettings(peptideSettings =>
+                    peptideSettings.ChangeParsimonySettings(ProteinAssociation.ParsimonySettings.DEFAULT));
+            }
+
+            if (documentFormat < DocumentFormat.VERSION_22_23)
+            {
+                if (result.TransitionSettings.Libraries.IonMatchMzTolerance.Unit == MzTolerance.Units.ppm)
+                {
+                    // Older versions of Skyline did not support library match tolerance ppm units
+                    // If the library match tolerance was in ppm, then convert it to mz units, assuming an mz of 1000.
+                    var newToleranceValue = result.TransitionSettings.Libraries.IonMatchMzTolerance.Value / 1000;
+                    newToleranceValue = Math.Min(TransitionLibraries.MAX_MATCH_TOLERANCE, Math.Max(TransitionLibraries.MIN_MATCH_TOLERANCE, newToleranceValue));
+                    result = result.ChangeTransitionSettings(transitionSettings =>
+                        transitionSettings.ChangeLibraries(
+                            transitionSettings.Libraries.ChangeIonMatchMzTolerance(new MzTolerance(newToleranceValue))));
+                }
+            }
+
             return result;
+        }
+
+        public ChromatogramGroupInfo LoadChromatogramGroup(ChromatogramSet chromatogramSet, MsDataFileUri dataFilePath, PeptideDocNode peptide,
+            TransitionGroupDocNode transitionGroup)
+        {
+            if (!HasResults)
+            {
+                return null;
+            }
+
+            if (!MeasuredResults.TryLoadChromatogram(chromatogramSet, peptide, transitionGroup,
+                (float) TransitionSettings.Instrument.MzMatchTolerance, out var infoSet))
+            {
+                return null;
+            }
+
+            return infoSet.FirstOrDefault(chromatogramGroupInfo =>
+                Equals(chromatogramGroupInfo.FilePath, dataFilePath));
         }
 
         #region Implementation of IXmlSerializable
@@ -2200,18 +2312,18 @@ namespace pwiz.Skyline.Model.DocSettings
     {
         MassType MassType { get; }
         TypedMass GetPrecursorMass(Target seq);
-        TypedMass GetPrecursorMass(CustomMolecule custom, TypedModifications mods, Adduct adductForIsotopeLabels, out string isotopicFormula);
+        TypedMass GetPrecursorMass(CustomMolecule custom, TypedModifications mods, Adduct adductForIsotopeLabels, out ParsedMolecule isotopicFormula);
         bool IsModified(Target seq);
         Target GetModifiedSequence(Target seq, bool narrow);
         Target GetModifiedSequence(Target seq, SequenceModFormatType format, bool explicitModsOnly);
         Target GetModifiedSequenceDisplay(Target seq);
         double GetAAModMass(char aa, int seqIndex, int seqLength);
         MassDistribution GetMzDistribution(Target target, Adduct adduct, IsotopeAbundances abundances);
-        MassDistribution GetMZDistributionFromFormula(string formula, Adduct adduct, IsotopeAbundances abundances);
+        MassDistribution GetMZDistribution(MoleculeMassOffset formula, Adduct adduct, IsotopeAbundances abundances);
         MassDistribution GetMZDistributionSinglePoint(double mz);
-        string GetMolecularFormula(string peptideSequence);
+        MoleculeMassOffset GetMolecularFormula(string peptideSequence);
         bool HasLabels { get; }
-        Adduct GetModifiedAdduct(Adduct adduct, string neutralFormula);
+        Adduct GetModifiedAdduct(Adduct adduct, ParsedMolecule neutralFormula);
     }
 
     /// <summary>
@@ -2712,6 +2824,15 @@ namespace pwiz.Skyline.Model.DocSettings
             // Force update if the bulk import has just completed
             else if (settingsOld.HasResults && settingsOld.MeasuredResults.IsResultsUpdateRequired)
                 DiffResults = true;
+
+            if (!settingsNew.PeptideSettings.Libraries.IsLoaded)
+            {
+                // If the libraries have not been loaded then we will not be able to determine which children
+                // should be chosen
+                DiffPeptides = false;
+                DiffTransitionGroups = false;
+                DiffTransitions = false;
+            }
         }
 
         private static bool EqualExceptAnnotations(MeasuredResults measuredResultsNew, MeasuredResults measuredResultsOld)
@@ -2730,6 +2851,11 @@ namespace pwiz.Skyline.Model.DocSettings
             }
             if (!ArrayUtil.EqualsDeep(measuredResultsNew.CachedFilePaths.ToArray(),
                                       measuredResultsOld.CachedFilePaths.ToArray()))
+            {
+                return false;
+            }
+            if (!measuredResultsNew.CachedFileInfos.Select(info => info.ImportTime)
+                .SequenceEqual(measuredResultsOld.CachedFileInfos.Select(info => info.ImportTime)))
             {
                 return false;
             }

@@ -91,26 +91,29 @@ namespace SkylineBatch
                 if (_serverMap[server] != null || _serverExceptions[server] != null)
                     continue;
                 var folder = ((DataServerInfo) server).Folder;
-                if (server.URI.Host.Equals("panoramaweb.org"))
+                Uri uri = server.FileSource.URI;
+                UserState state = PanoramaUtil.ValidateServerAndUser(ref uri, server.FileSource.Username, server.FileSource.Password);
+                if (state == UserState.valid)
                 {
+                    var chosenServer = Uri.UnescapeDataString(uri.GetLeftPart(UriPartial.Authority));
                     Uri webdavUri;
                     var panoramaFolder = (Path.GetDirectoryName(server.URI.LocalPath) ?? string.Empty).Replace(@"\", "/");
                     JToken files;
                     Exception error;
                     if (panoramaFolder.StartsWith("/_webdav/"))
                     {
-                        webdavUri = new Uri("https://panoramaweb.org" + panoramaFolder + "?method=json");
-                        files = TryUri(webdavUri, server.Username, server.Password, cancelToken, out error);
+                        webdavUri = new Uri(chosenServer + panoramaFolder + "?method=json");
+                        files = TryUri(webdavUri, server.FileSource.Username, server.FileSource.Password, cancelToken, out error);
                     }
                     else
                     {
                         panoramaFolder = "/_webdav" + panoramaFolder;
-                        webdavUri = new Uri("https://panoramaweb.org" + panoramaFolder + "/%40files/RawFiles?method=json");
-                        files = TryUri(webdavUri, server.Username, server.Password, cancelToken, out error);
+                        webdavUri = new Uri(chosenServer + panoramaFolder + "/%40files/RawFiles?method=json");
+                        files = TryUri(webdavUri, server.FileSource.Username, server.FileSource.Password, cancelToken, out error);
                         if (files == null)
                         {
-                            webdavUri = new Uri("https://panoramaweb.org" + panoramaFolder + "/%40files?method=json");
-                            files = TryUri(webdavUri, server.Username, server.Password, cancelToken, out error);
+                            webdavUri = new Uri(chosenServer + panoramaFolder + "/%40files?method=json");
+                            files = TryUri(webdavUri, server.FileSource.Username, server.FileSource.Password, cancelToken, out error);
                         }
                     }
 
@@ -120,17 +123,21 @@ namespace SkylineBatch
                         if (error != null) throw error;
                         var count = (double) (files.AsEnumerable().Count());
                         int i = 0;
-                        foreach (var file in files)
+                        foreach (dynamic file in files)
                         {
                             doOnProgress((int) (i / count * percentScale) + percentDone,
                                 (int) ((i + 1) / count * percentScale) + percentDone);
-                            var pathOnServer = (string) file["id"];
-                            var downloadUri = new Uri("https://panoramaweb.org" + pathOnServer);
-                            var size = WebDownloadClient.GetSize(downloadUri, server.Username, server.Password,
-                                cancelToken);
-                            fileInfos.Add(new ConnectedFileInfo(Path.GetFileName(pathOnServer),
-                                new Server(downloadUri, server.Username, server.Password, server.Encrypt), size,
-                                folder));
+                            if (file.collection == false && file.leaf == true)
+                            {
+                                var pathOnServer = (string)file["id"];
+                                var downloadUri = new Uri(chosenServer + pathOnServer);
+                                var panoramaServerUri = new Uri(chosenServer);
+                                var size = PanoramaServerConnector.GetSize(downloadUri, panoramaServerUri, new WebPanoramaClient(panoramaServerUri), server.FileSource.Username, server.FileSource.Password,
+                                     cancelToken);
+                                fileInfos.Add(new ConnectedFileInfo(Path.GetFileName(pathOnServer),
+                                    new Server(new RemoteFileSource(server.FileSource.Name + " TEST2", downloadUri, server.FileSource.Username, server.FileSource.Password, server.FileSource.Encrypt), string.Empty), size,
+                                    folder));
+                            }
                             i++;
                         }
                     }
@@ -180,7 +187,7 @@ namespace SkylineBatch
                         _serverExceptions[server] = new ArgumentException(string.Format(
                             Resources
                                 .DataServerInfo_Validate_There_were_no_files_found_at__0___Make_sure_the_URL__username__and_password_are_correct_and_try_again_,
-                            server));
+                            server.URI));
                     }
                     else
                     {
@@ -199,7 +206,7 @@ namespace SkylineBatch
             JToken files = null;
             try
             {
-                var webClient = new WebPanoramaClient(new Uri("https://panoramaweb.org/"));
+                var webClient = new WebPanoramaClient(new Uri(Uri.UnescapeDataString(uri.GetLeftPart(UriPartial.Authority))));
                 var jsonAsString =
                     webClient.DownloadStringAsync(uri, username, password, cancelToken);
                 if (cancelToken.IsCancellationRequested) return null;
@@ -227,13 +234,8 @@ namespace SkylineBatch
         {
             var client = new FtpClient(serverInfo.URI.Host);
 
-            if (!string.IsNullOrEmpty(serverInfo.Password))
-            {
-                if (!string.IsNullOrEmpty(serverInfo.Username))
-                    client.Credentials = new NetworkCredential(serverInfo.Username, serverInfo.Password);
-                else
-                    client.Credentials = new NetworkCredential("anonymous", serverInfo.Password);
-            }
+            if (!string.IsNullOrEmpty(serverInfo.FileSource.Password))
+                client.Credentials = new NetworkCredential(serverInfo.FileSource.Username, serverInfo.FileSource.Password);
 
             return client;
         }

@@ -103,18 +103,23 @@ namespace pwiz.Skyline.Model
         public override IEnumerable<AAModInfo> GetCurrentSequenceInfos()
         {
             if (_libKeys.Current.IsSmallMoleculeKey)
-                return new AAModInfo[0];
+                return Array.Empty<AAModInfo>();
             if (_libKeys.Current.LibraryKey is PeptideLibraryKey peptideLibraryKey)
             {
                 return EnumerateSequenceInfos(peptideLibraryKey, false);
             }
             else if (_libKeys.Current.LibraryKey is CrosslinkLibraryKey crosslinkLibraryKey)
             {
+                if (!crosslinkLibraryKey.IsSupportedBySkyline())
+                {
+                    return Array.Empty<AAModInfo>();
+                }
                 return crosslinkLibraryKey.PeptideLibraryKeys.SelectMany(
-                    libKey => EnumerateSequenceInfos(libKey, false));
+                        libKey => EnumerateSequenceInfos(libKey, false))
+                    .Concat(crosslinkLibraryKey.Crosslinks.Select(crosslink =>
+                        MakeCrosslinkAaModInfo(crosslinkLibraryKey, crosslink)));
             }
-
-            return new AAModInfo[0];
+            return Array.Empty<AAModInfo>();
         }
 
         private IEnumerable<AAModInfo> EnumerateSequenceInfos(PeptideLibraryKey peptideLibraryKey, bool allowDuplicates)
@@ -328,7 +333,7 @@ namespace pwiz.Skyline.Model
                 return null;
             }
             // First try and create the match from the settings created to match the library explorer.
-            Settings = HasMatches
+            Settings = HasMatches && !key.IsSmallMoleculeKey // Modifications don't matter to non-peptide nodes
                 ? settings.ChangePeptideModifications(mods => MatcherPepMods)
                 : settings;
             TransitionGroupDocNode nodeGroup;

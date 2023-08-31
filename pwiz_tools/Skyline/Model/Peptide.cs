@@ -56,11 +56,16 @@ namespace pwiz.Skyline.Model
             Validate();
         }
 
-        public Peptide(CustomMolecule customMolecule)
+        public Peptide(CustomMolecule customMolecule, Target originalMoleculeDescription = null)
         {
             Target = new Target(customMolecule);
 
             Validate();
+            if (originalMoleculeDescription != null)
+            {
+                // As when user changes molecule name, CAS etc, but not mass or formula, so we still want to associate chromatograms
+                OriginalMoleculeTarget = originalMoleculeDescription;
+            }
         }
 
         public Peptide(Target pepOrMol)
@@ -83,6 +88,9 @@ namespace pwiz.Skyline.Model
         public bool IsCustomMolecule { get { return !Target.IsProteomic; }}
         public int Length { get { return Target.IsProteomic ? Target.Sequence.Length : 0; }}
         public string TextId { get { return IsCustomMolecule ? Target.Molecule.InvariantName : Target.Sequence; } }
+
+        // For robust chromatogram association in the event of user tweaking molecule details like name, CAS etc (but not mass!)
+        public Target OriginalMoleculeTarget;
 
         public SmallMoleculeLibraryAttributes GetSmallMoleculeLibraryAttributes()
         {
@@ -120,7 +128,13 @@ namespace pwiz.Skyline.Model
 
         public static int CompareGroups(TransitionGroupDocNode node1, TransitionGroupDocNode node2)
         {
-            return CompareGroups(node1.TransitionGroup, node2.TransitionGroup);
+            int result = CompareGroups(node1.TransitionGroup, node2.TransitionGroup);
+            if (result == 0)
+            {
+                result = node1.SpectrumClassFilter.CompareTo(node2.SpectrumClassFilter);
+            }
+
+            return result;
         }
 
         public static int CompareGroups(TransitionGroup group1, TransitionGroup group2)
@@ -142,8 +156,12 @@ namespace pwiz.Skyline.Model
                 // CONSIDER(bspratt) could we reasonably reuse fragments with proposed precursors of suitable charge and polarity (say, add an M+Na node that mimics an existing M+H node and children)
                 foreach (var group in nodePep.TransitionGroups.Where(tranGroup => tranGroup.TransitionGroup.IsCustomIon))
                 {
+                    if (!settings.SupportsPrecursor(group, mods))
+                    {
+                        continue;
+                    }
                     if (!useFilter || settings.TransitionSettings.IsMeasurablePrecursor(group.PrecursorMz))
-                      yield return group.TransitionGroup;
+                        yield return group.TransitionGroup;
                 }
             }
             else
@@ -336,6 +354,7 @@ namespace pwiz.Skyline.Model
                 Assume.IsNull(_fastaSequence);
                 Assume.IsNull(Sequence);
                 CustomMolecule.Validate();
+                OriginalMoleculeTarget = Target;
             }
             else if (_fastaSequence == null)
             {
@@ -376,6 +395,7 @@ namespace pwiz.Skyline.Model
             if (ReferenceEquals(this, obj)) return true;
             var equal = Equals(obj._fastaSequence, _fastaSequence) &&
                 Equals(obj.Target, Target) &&
+                Equals(obj.OriginalMoleculeTarget, OriginalMoleculeTarget) &&
                 obj.Begin.Equals(Begin) &&
                 obj.End.Equals(End) &&
                 obj.MissedCleavages == MissedCleavages &&
@@ -397,6 +417,7 @@ namespace pwiz.Skyline.Model
             {
                 int result = (_fastaSequence != null ? _fastaSequence.GetHashCode() : 0);
                 result = (result*397) ^ (Target != null ? Target.GetHashCode() : 0);
+                result = (result*397) ^ (OriginalMoleculeTarget != null ? OriginalMoleculeTarget.GetHashCode() : 0);
                 result = (result*397) ^ (Begin.HasValue ? Begin.Value : 0);
                 result = (result*397) ^ (End.HasValue ? End.Value : 0);
                 result = (result*397) ^ MissedCleavages;
@@ -422,7 +443,7 @@ namespace pwiz.Skyline.Model
                 string format = @"{0}.{1}.{2} [{3}, {4}]";
                 if (MissedCleavages > 0)
                     format = TextUtil.SpaceSeparate(format, Resources.Peptide_ToString__missed__5__);
-                return string.Format(format, PrevAA, Target, NextAA, Begin.Value, End.Value - 1, MissedCleavages);
+                return string.Format(format, PrevAA, Target, NextAA, (Begin + 1).Value, End.Value, MissedCleavages);
             }
         }
 

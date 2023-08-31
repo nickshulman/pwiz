@@ -20,9 +20,9 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
+using System.Threading;
 using System.Windows.Forms;
 using pwiz.Common.Collections;
-using pwiz.Common.DataAnalysis;
 using pwiz.Common.DataBinding;
 using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Alerts;
@@ -364,12 +364,10 @@ namespace pwiz.Skyline.SettingsUI
 
             if (!calc.IsUsable)
             {
-                using (var longWait = new LongWaitDlg
+                using (var longWait = new LongWaitDlg())
                 {
-                    Text = Resources.EditRTDlg_ShowGraph_Initializing,
-                    Message = string.Format(Resources.EditRTDlg_ShowGraph_Initializing__0__calculator, calc.Name)
-                })
-                {
+                    longWait.Text = Resources.EditRTDlg_ShowGraph_Initializing;
+                    longWait.Message = string.Format(Resources.EditRTDlg_ShowGraph_Initializing__0__calculator, calc.Name);
                     try
                     {
                         var status = longWait.PerformWork(this, 800, monitor =>
@@ -468,8 +466,8 @@ namespace pwiz.Skyline.SettingsUI
         /// <summary>
         /// This function will update the calculator to the one given, or to the one with the best score for the document 
         /// peptides. It will then return the peptides chosen by that calculator for regression.
-		/// Todo: split this function into one that chooses and returns the calculator and one that returns the peptides
-		/// todo: chosen by that calculator
+        /// Todo: split this function into one that chooses and returns the calculator and one that returns the peptides
+        /// todo: chosen by that calculator
         /// </summary>
         private IList<MeasuredRetentionTime> UpdateCalculator(RetentionScoreCalculatorSpec calculator, IList<MeasuredRetentionTime> activePeptides = null)
         {
@@ -506,9 +504,8 @@ namespace pwiz.Skyline.SettingsUI
                 RecalcRegression(calculator, activePeptides);
             }
 
-            int minCount;
             var usePeptides = new HashSet<Target>(calculator.ChooseRegressionPeptides(
-                activePeptides.Select(pep => pep.PeptideSequence), out minCount));
+                activePeptides.Select(pep => pep.PeptideSequence), out _));
             //now go back and get the MeasuredPeptides corresponding to the strings chosen by the calculator
             var tablePeptides = activePeptides.Where(measuredRT =>
                 usePeptides.Contains(measuredRT.PeptideSequence)).ToList();
@@ -524,7 +521,7 @@ namespace pwiz.Skyline.SettingsUI
                 return null;
             }
             
-			//This "if" is to keep from getting into infinite loops
+            //This "if" is to keep from getting into infinite loops
             if (calcInitiallyNull)
                 comboCalculator.SelectedItem = calculator.Name;
 
@@ -558,7 +555,7 @@ namespace pwiz.Skyline.SettingsUI
         private RetentionScoreCalculatorSpec RecalcRegression(IList<RetentionScoreCalculatorSpec> calculators, IList<MeasuredRetentionTime> peptidesTimes)
         {
             var summary = RetentionTimeRegression.CalcBestRegressionLongOperationRunner(XmlNamedElement.NAME_INTERNAL, calculators, peptidesTimes,
-                null, false, RegressionMethodRT.linear, CustomCancellationToken.NONE);
+                null, false, RegressionMethodRT.linear, CancellationToken.None);
             var regression = summary.Best.Regression;
             var statistics = summary.Best.Statistics;
             var calculatorSpec = summary.Best.Calculator;
@@ -595,8 +592,7 @@ namespace pwiz.Skyline.SettingsUI
                 r = statistics.R;
             }
 
-            int minCount;
-            var pepCount = calculatorSpec.ChooseRegressionPeptides(peptidesTimes.Select(mrt => mrt.PeptideSequence), out minCount).Count();
+            var pepCount = calculatorSpec.ChooseRegressionPeptides(peptidesTimes.Select(mrt => mrt.PeptideSequence), out _).Count();
 
             labelRValue.Text = string.Format(Resources.EditRTDlg_RecalcRegression__0__peptides_R__1__, pepCount,
                                              Math.Round(r, RetentionTimeRegression.ThresholdPrecision));

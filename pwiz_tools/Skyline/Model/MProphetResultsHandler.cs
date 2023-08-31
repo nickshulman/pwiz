@@ -43,7 +43,7 @@ namespace pwiz.Skyline.Model
     public class MProphetResultsHandler
     {
         private double[] _qValues;
-        private readonly IList<IPeakFeatureCalculator> _calcs;
+        private readonly FeatureCalculators _calcs;
         private PeakTransitionGroupFeatureSet _features;
 
         private readonly Dictionary<PeakTransitionGroupIdKey, PeakFeatureStatistics> _featureDictionary;
@@ -61,7 +61,7 @@ namespace pwiz.Skyline.Model
             ScoringModel = scoringModel;
             _calcs = ScoringModel != null
                 ? ScoringModel.PeakFeatureCalculators
-                : PeakFeatureCalculator.Calculators.ToArray();
+                : FeatureCalculators.ALL;
             _features = features;
             _featureDictionary = new Dictionary<PeakTransitionGroupIdKey, PeakFeatureStatistics>();
 
@@ -88,9 +88,9 @@ namespace pwiz.Skyline.Model
         /// </summary>
         public bool FreeImmutableMemory { get; set; }
 
-        public PeakFeatureStatistics GetPeakFeatureStatistics(int pepIndex, int fileIndex)
+        public PeakFeatureStatistics GetPeakFeatureStatistics(Peptide peptide, ChromFileInfoId fileId)
         {
-            var key = new PeakTransitionGroupIdKey(pepIndex, fileIndex);
+            var key = new PeakTransitionGroupIdKey(peptide, fileId);
             PeakFeatureStatistics peakStatistics;
             if (_featureDictionary.TryGetValue(key, out peakStatistics))
             {
@@ -161,7 +161,7 @@ namespace pwiz.Skyline.Model
                     _featureDictionary,
                     _features,
                     Document.MeasuredResults.MSDataFileInfos.Select(f => f.FilePath.GetFileName()).ToList(),
-                    Document.MeasuredResults.MSDataFileInfos.Select(f => f.FileIndex).ToList(),
+                    Document.MeasuredResults.MSDataFileInfos.Select(f => f.FileId).ToList(),
                     bestTargetScores,
                     _qValues,
                     progressMonitor,
@@ -191,8 +191,8 @@ namespace pwiz.Skyline.Model
                 : null;
             using (settingsChangeMonitor)
             {
-                var settingsNew = Document.Settings.ChangePeptideIntegration(integraion =>
-                    integraion.ChangeResultsHandler(this));
+                var settingsNew = Document.Settings.ChangePeptideIntegration(integration =>
+                    integration.ChangeResultsHandler(this));
                 // Only update the document if anything has changed
                 var docNew = Document.ChangeSettings(settingsNew, settingsChangeMonitor);
                 if (!Equals(docNew.Settings.PeptideSettings.Integration, Document.Settings.PeptideSettings.Integration) ||
@@ -205,11 +205,11 @@ namespace pwiz.Skyline.Model
         }
 
         public void WriteScores(TextWriter writer,
-                                CultureInfo cultureInfo,
-                                IList<IPeakFeatureCalculator> calcs = null,
-                                bool bestOnly = true,
-                                bool includeDecoys = true,
-                                IProgressMonitor progressMonitor = null)
+            CultureInfo cultureInfo,
+            FeatureCalculators calcs = null,
+            bool bestOnly = true,
+            bool includeDecoys = true,
+            IProgressMonitor progressMonitor = null)
         {
             PeakTransitionGroupFeatureSet features;
             if (calcs == null)
@@ -362,11 +362,11 @@ namespace pwiz.Skyline.Model
         {
             MprophetScores = mprophetScores;    // May only be present for writing features
             PValues = pvalues;
-            // Don't hold onto the features, because they hold a lot of memory
             BestPeakIndex = features.PeakGroupFeatures[bestScoreIndex].OriginalPeakIndex;
             BestScoreIndex = bestScoreIndex;
             BestScore = bestScore;
             QValue = qValue;
+            BestFeatureScores = features.PeakGroupFeatures[bestScoreIndex].FeatureScores;
         }
 
         public IList<float> MprophetScores { get; private set; }
@@ -405,5 +405,6 @@ namespace pwiz.Skyline.Model
             }
             QValue = 1;
         }
+        public FeatureScores BestFeatureScores { get; }
     }
 }

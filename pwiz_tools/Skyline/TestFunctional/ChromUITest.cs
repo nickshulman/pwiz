@@ -25,7 +25,6 @@ using pwiz.Skyline;
 using pwiz.Skyline.Controls.Graphs;
 using pwiz.Skyline.EditUI;
 using pwiz.Skyline.Model;
-using pwiz.Skyline.Model.Results;
 using pwiz.Skyline.Model.Results.Scoring;
 using pwiz.SkylineTestUtil;
 using ZedGraph;
@@ -86,13 +85,27 @@ namespace pwiz.SkylineTestFunctional
                 VerifyRawTimesCount("4", nodeTran, showing);
                 VerifyRawTimesCount("5", nodeTran, showing);
             }
+
+            // Now verify that the RT display digits control works properly
+            var values = new [] {36.5, 36.49, 36.489};
+            for (var n = 0; n < 3 ; n++)
+            {
+                RunDlg<ChromChartPropertyDlg>(SkylineWindow.ShowChromatogramProperties, dlg =>
+                {
+                    dlg.DisplayRTDigits = n+1;
+                    dlg.OkDialog();
+                });
+                WaitForGraphs();
+                var graphChrom = SkylineWindow.GraphChromatograms.First();
+                var result = graphChrom.GetAnnotationLabelStrings().First();
+                AssertEx.AreEqual(values[n], double.Parse(result, NumberStyles.Float));
+            }
         }
 
         private void VerifyRawTimesCount(string chromName, TransitionDocNode transition, bool showing)
         {
             int resultIndex;
-            ChromatogramSet chromSet;
-            Assert.IsTrue(SkylineWindow.Document.Settings.MeasuredResults.TryGetChromatogramSet(chromName, out chromSet, out resultIndex));
+            Assert.IsTrue(SkylineWindow.Document.Settings.MeasuredResults.TryGetChromatogramSet(chromName, out _, out resultIndex));
 
             RunUI(() =>
             {
@@ -111,11 +124,11 @@ namespace pwiz.SkylineTestFunctional
         {
             var graphChrom = SkylineWindow.GetGraphChrom(chromName);
             // Graph objects will not be present when the program is off screen
-            if (!graphChrom.GraphItem.GraphObjList.Any() && Program.SkylineOffscreen)
+            if (!graphChrom.GraphPane.GraphObjList.Any() && Program.SkylineOffscreen)
                 return graphChrom.GraphItems.Sum(g => g.RawTimesCount);
 
             int count = 0;
-            foreach (var graphObj in graphChrom.GraphItem.GraphObjList)
+            foreach (var graphObj in graphChrom.GraphPane.GraphObjList)
             {
                 var objTag = graphObj.Tag as ChromGraphItem.GraphObjTag;
                 if (objTag != null && objTag.GraphObjType == ChromGraphItem.GraphObjType.raw_time)
@@ -134,7 +147,7 @@ namespace pwiz.SkylineTestFunctional
             var graphChrom = SkylineWindow.GetGraphChrom("1");
             // If the entire graph object list may be empty when the graph is offscreen
             // It is not worth it to make this work.
-            if (!graphChrom.GraphItem.GraphObjList.Any() && Program.SkylineOffscreen)
+            if (!graphChrom.GraphPane.GraphObjList.Any() && Program.SkylineOffscreen)
                 return;
 
             var norect = GetChromRect(graphChrom);
@@ -170,7 +183,7 @@ namespace pwiz.SkylineTestFunctional
 
         private static GraphObj GetChromRect(GraphChromatogram graphChrom)
         {
-            return graphChrom.GraphItem.GraphObjList.FirstOrDefault(obj =>
+            return graphChrom.GraphPane.GraphObjList.FirstOrDefault(obj =>
             {
                 var objTag = obj.Tag as ChromGraphItem.GraphObjTag;
                 return objTag != null && objTag.GraphObjType == ChromGraphItem.GraphObjType.original_peak_shading;

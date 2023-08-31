@@ -139,7 +139,6 @@
     <Compile Include="Collections\RangeList.cs" />
     <Compile Include="Collections\ReadOnlyList.cs" />
     <Compile Include="Collections\ReferenceEquality.cs" />
-    <Compile Include="Collections\RefIdValue.cs" />
     <Compile Include="Collections\StructSerializer.cs" />
     <Compile Include="SystemUtil\CommonFormEx.cs">
       <SubType>Form</SubType>

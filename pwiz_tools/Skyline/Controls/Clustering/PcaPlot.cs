@@ -28,6 +28,7 @@ using pwiz.Common.DataAnalysis.Clustering;
 using pwiz.Common.DataBinding;
 using pwiz.Common.DataBinding.Clustering;
 using pwiz.Common.SystemUtil;
+using pwiz.Skyline.Controls.Graphs.Legends;
 using pwiz.Skyline.Model;
 using pwiz.Skyline.Model.Databinding;
 using pwiz.Skyline.Properties;
@@ -49,6 +50,8 @@ namespace pwiz.Skyline.Controls.Clustering
             InitializeComponent();
             _calculator = new PcaCalculator(this);
             Localizer = SkylineDataSchema.GetLocalizedSchemaLocalizer();
+            legendGraphControl.MasterPane.PaneList.Clone();
+            legendGraphControl.MasterPane.PaneList.Add(new LegendPane());
         }
 
         public ClusterInput ClusterInput
@@ -233,6 +236,18 @@ namespace pwiz.Skyline.Controls.Clustering
                 }
             }
             symbolObjects.Sort(CollectionUtil.ColumnValueComparer);
+            legendGraphControl.GraphPane.CurveList.Clear();
+            if (symbolObjects.Count > 1)
+            {
+                for (int i = 0; i < symbolObjects.Count; i++)
+                {
+                    var symbol = symbolObjects[i];
+                    var lineItem = new LineItem(symbol.ToString(), new PointPairList(), Color.Black,
+                        symbolTypes[i % symbolTypes.Count]);
+                    legendGraphControl.GraphPane.CurveList.Add(lineItem);
+                }
+            }
+           
 
             foreach (var entry in pointLists)
             {
@@ -263,6 +278,7 @@ namespace pwiz.Skyline.Controls.Clustering
             zedGraphControl1.GraphPane.Legend.IsVisible = zedGraphControl1.GraphPane.CurveList.Count < 16;
             zedGraphControl1.GraphPane.AxisChange();
             zedGraphControl1.Invalidate();
+            legendGraphControl.Invalidate();
         }
 
         private Dictionary<ImmutableList<HeaderLevel>, PointPairList> GetRowPointPairLists(int xAxisIndex, int yAxisIndex)

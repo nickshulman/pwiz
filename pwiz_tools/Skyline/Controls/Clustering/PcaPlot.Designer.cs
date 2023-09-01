@@ -37,8 +37,14 @@
             this.zedGraphControl1 = new ZedGraph.ZedGraphControl();
             this.lblDataset = new System.Windows.Forms.Label();
             this.comboDataset = new System.Windows.Forms.ComboBox();
+            this.splitContainer1 = new System.Windows.Forms.SplitContainer();
+            this.legendGraphControl = new ZedGraph.ZedGraphControl();
             ((System.ComponentModel.ISupportInitialize)(this.numericUpDownXAxis)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.numericUpDownYAxis)).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)(this.splitContainer1)).BeginInit();
+            this.splitContainer1.Panel1.SuspendLayout();
+            this.splitContainer1.Panel2.SuspendLayout();
+            this.splitContainer1.SuspendLayout();
             this.SuspendLayout();
             // 
             // lblXAxis
@@ -110,13 +116,39 @@
             this.comboDataset.Name = "comboDataset";
             this.comboDataset.SelectedIndexChanged += new System.EventHandler(this.comboDataset_SelectedIndexChanged);
             // 
+            // splitContainer1
+            // 
+            this.splitContainer1.FixedPanel = System.Windows.Forms.FixedPanel.Panel2;
+            resources.ApplyResources(this.splitContainer1, "splitContainer1");
+            this.splitContainer1.Name = "splitContainer1";
+            // 
+            // splitContainer1.Panel1
+            // 
+            this.splitContainer1.Panel1.Controls.Add(this.zedGraphControl1);
+            // 
+            // splitContainer1.Panel2
+            // 
+            this.splitContainer1.Panel2.Controls.Add(this.legendGraphControl);
+            // 
+            // legendGraphControl
+            // 
+            resources.ApplyResources(this.legendGraphControl, "legendGraphControl");
+            this.legendGraphControl.Name = "legendGraphControl";
+            this.legendGraphControl.ScrollGrace = 0D;
+            this.legendGraphControl.ScrollMaxX = 0D;
+            this.legendGraphControl.ScrollMaxY = 0D;
+            this.legendGraphControl.ScrollMaxY2 = 0D;
+            this.legendGraphControl.ScrollMinX = 0D;
+            this.legendGraphControl.ScrollMinY = 0D;
+            this.legendGraphControl.ScrollMinY2 = 0D;
+            // 
             // PcaPlot
             // 
             resources.ApplyResources(this, "$this");
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
+            this.Controls.Add(this.splitContainer1);
             this.Controls.Add(this.comboDataset);
             this.Controls.Add(this.lblDataset);
-            this.Controls.Add(this.zedGraphControl1);
             this.Controls.Add(this.numericUpDownYAxis);
             this.Controls.Add(this.lblYAxis);
             this.Controls.Add(this.numericUpDownXAxis);
@@ -124,6 +156,10 @@
             this.Name = "PcaPlot";
             ((System.ComponentModel.ISupportInitialize)(this.numericUpDownXAxis)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.numericUpDownYAxis)).EndInit();
+            this.splitContainer1.Panel1.ResumeLayout(false);
+            this.splitContainer1.Panel2.ResumeLayout(false);
+            ((System.ComponentModel.ISupportInitialize)(this.splitContainer1)).EndInit();
+            this.splitContainer1.ResumeLayout(false);
             this.ResumeLayout(false);
             this.PerformLayout();
 
@@ -138,5 +174,7 @@
         private ZedGraph.ZedGraphControl zedGraphControl1;
         private System.Windows.Forms.Label lblDataset;
         private System.Windows.Forms.ComboBox comboDataset;
+        private System.Windows.Forms.SplitContainer splitContainer1;
+        private ZedGraph.ZedGraphControl legendGraphControl;
     }
 }

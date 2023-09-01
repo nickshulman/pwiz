@@ -394,6 +394,10 @@
       <DependentUpon>DetectionToolbarProperties.cs</DependentUpon>
     </Compile>
     <Compile Include="Controls\Graphs\GraphDataCalculator.cs" />
+    <Compile Include="Controls\Graphs\Legends\LegendItem.cs">
+      <SubType>Component</SubType>
+    </Compile>
+    <Compile Include="Controls\Graphs\Legends\LegendPane.cs" />
     <Compile Include="Controls\Graphs\PaneProgressBar.cs" />
     <Compile Include="Controls\Graphs\ReplicateGroupOp.cs" />
     <Compile Include="Controls\Graphs\ReplicateValue.cs" />

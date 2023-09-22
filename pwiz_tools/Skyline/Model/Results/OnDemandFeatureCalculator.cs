@@ -36,18 +36,27 @@ namespace pwiz.Skyline.Model.Results
         private ScoreQValueMap _scoreQValueMap;
 
         public OnDemandFeatureCalculator(FeatureCalculators calculators, SrmSettings settings,
-            PeptideDocNode peptideDocNode, int replicateIndex, ChromFileInfo chromFileInfo)
+            PeakScoringModelSpec peakScoringModel, PeptideDocNode peptideDocNode, int replicateIndex, ChromFileInfo chromFileInfo)
         {
             Calculators = calculators;
             Settings = settings;
+            PeakScoringModel = peakScoringModel;
             PeptideDocNode = peptideDocNode;
             ChromFileInfo = chromFileInfo;
             ReplicateIndex = replicateIndex;
-            _scoreQValueMap = settings.PeptideSettings.Integration.ScoreQValueMap;
+            if (Equals(peakScoringModel, settings.PeptideSettings.Integration.PeakScoringModel))
+            {
+                _scoreQValueMap = settings.PeptideSettings.Integration.ScoreQValueMap;
+            }
+            else
+            {
+                _scoreQValueMap = ScoreQValueMap.EMPTY;
+            }
         }
 
         public FeatureCalculators Calculators { get; }
         public SrmSettings Settings { get; }
+        public PeakScoringModelSpec PeakScoringModel { get; }
         public PeptideDocNode PeptideDocNode { get; }
         public int ReplicateIndex { get; }
         public ChromFileInfo ChromFileInfo { get; }
@@ -271,12 +280,7 @@ namespace pwiz.Skyline.Model.Results
 
         private PeakGroupScore MakePeakScore(FeatureScores featureScores)
         {
-            var model = Settings.PeptideSettings.Integration.PeakScoringModel;
-            if (model == null || !model.IsTrained)
-            {
-                model = LegacyScoringModel.DEFAULT_MODEL;
-            }
-            return PeakGroupScore.MakePeakScores(featureScores, model, _scoreQValueMap);
+            return PeakGroupScore.MakePeakScores(featureScores, PeakScoringModel, _scoreQValueMap);
         }
 
         internal IEnumerable<FeatureScores> CalculateChromatogramGroupScores(
@@ -418,7 +422,7 @@ namespace pwiz.Skyline.Model.Results
             return null;
         }
 
-        public static OnDemandFeatureCalculator GetFeatureCalculator(SrmDocument document, IdentityPath peptideIdentityPath, int replicateIndex, ChromFileInfoId chromFileInfoId)
+        public static OnDemandFeatureCalculator GetFeatureCalculator(SrmDocument document, PeakScoringModelSpec peakScoringModel, IdentityPath peptideIdentityPath, int replicateIndex, ChromFileInfoId chromFileInfoId)
         {
             var peptideDocNode = document.FindNode(peptideIdentityPath) as PeptideDocNode;
             if (peptideDocNode == null)
@@ -448,7 +452,7 @@ namespace pwiz.Skyline.Model.Results
                 return null;
             }
 
-            return new OnDemandFeatureCalculator(FeatureCalculators.ALL, document.Settings, peptideDocNode,
+            return new OnDemandFeatureCalculator(FeatureCalculators.ALL, document.Settings, peakScoringModel, peptideDocNode,
                 replicateIndex, chromFileInfo);
         }
     }

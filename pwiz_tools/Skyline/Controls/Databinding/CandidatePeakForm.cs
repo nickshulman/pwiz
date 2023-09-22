@@ -31,6 +31,7 @@ using pwiz.Skyline.Model;
 using pwiz.Skyline.Model.Databinding;
 using pwiz.Skyline.Model.Databinding.Entities;
 using pwiz.Skyline.Model.Results;
+using pwiz.Skyline.Model.Results.Scoring;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
 
@@ -161,12 +162,16 @@ namespace pwiz.Skyline.Controls.Databinding
 
         private void QueueUpdateRowSource()
         {
-            _updatePending = true;
-            BeginInvoke(new Action(UpdateRowSource));
+            if (!_updatePending)
+            {
+                _updatePending = true;
+                BeginInvoke(new Action(UpdateRowSource));
+            }
         }
 
         private void UpdateRowSource()
         {
+            UpdateControls();
             _updatePending = false;
             var newSelector = GetSelector();
             if (Equals(newSelector, _selector))
@@ -247,6 +252,27 @@ namespace pwiz.Skyline.Controls.Databinding
             return null;
         }
 
+        private PeakScoringModelSpec GetPeakScoringModelSpec()
+        {
+            var modelName = comboPeakScoringModel.SelectedItem as string;
+            return ListPeakScoringModels().FirstOrDefault(model => model.Name == modelName) ??
+                   LegacyScoringModel.DEFAULT_MODEL;
+        }
+
+        private IEnumerable<PeakScoringModelSpec> ListPeakScoringModels()
+        {
+            var modelNames = new HashSet<string>();
+            foreach (var model in Settings.Default.PeakScoringModelList
+                         .Prepend(SkylineWindow.DocumentUI.Settings.PeptideSettings.Integration.PeakScoringModel)
+                         .Prepend(LegacyScoringModel.DEFAULT_MODEL))
+            {
+                if (true == model?.IsTrained && modelNames.Add(model.Name))
+                {
+                    yield return model;
+                }
+            }
+        }
+
         private ViewSpec GetDefaultViewSpec()
         {
             var viewSpec = new ViewSpec().SetName(Resources.CandidatePeakForm_CandidatePeakForm_Candidate_Peaks).SetColumns(new[]
@@ -271,7 +297,7 @@ namespace pwiz.Skyline.Controls.Databinding
             {
                 return candidatePeakGroups;
             }
-            var featureCalculator = OnDemandFeatureCalculator.GetFeatureCalculator(selector.Document,
+            var featureCalculator = OnDemandFeatureCalculator.GetFeatureCalculator(selector.Document, selector.PeakScoringModel,
                 selector.PeptideIdentityPath, selector.ReplicateIndex, selector.ChromFileInfoId);
             if (featureCalculator == null)
             {
@@ -334,7 +360,7 @@ namespace pwiz.Skyline.Controls.Databinding
                 var transitionGroups = ImmutableList.ValueOf(comparableGroup.Select(tg => tg.TransitionGroup));
                 if (transitionGroups.Any(precursor => ReferenceEquals(transitionGroup, precursor)))
                 {
-                    return new Selector(document, peptideIdentityPath, transitionGroups,
+                    return new Selector(document, GetPeakScoringModelSpec(), checkBoxUseAlignment.Checked, peptideIdentityPath, transitionGroups,
                         replicateIndex, chromFileInfoId);
                 }
             }
@@ -344,10 +370,12 @@ namespace pwiz.Skyline.Controls.Databinding
 
         private class Selector
         {
-            public Selector(SrmDocument document, IdentityPath peptideIdentityPath,
+            public Selector(SrmDocument document, PeakScoringModelSpec peakScoringModel, bool useRunToRunAlignment, IdentityPath peptideIdentityPath,
                 IEnumerable<TransitionGroup> transitionGroups, int replicateIndex, ChromFileInfoId chromFileInfoId)
             {
                 Document = document;
+                PeakScoringModel = peakScoringModel;
+                UseRunToRunAlignment = useRunToRunAlignment;
                 PeptideIdentityPath = peptideIdentityPath;
                 TransitionGroups = ImmutableList.ValueOf(transitionGroups);
                 ReplicateIndex = replicateIndex;
@@ -355,6 +383,8 @@ namespace pwiz.Skyline.Controls.Databinding
             }
 
             public SrmDocument Document { get; }
+            public PeakScoringModelSpec PeakScoringModel { get; }
+            public bool UseRunToRunAlignment { get; }
             public IdentityPath PeptideIdentityPath { get; }
             public ImmutableList<TransitionGroup> TransitionGroups { get; }
             public int ReplicateIndex { get; }
@@ -366,7 +396,9 @@ namespace pwiz.Skyline.Controls.Databinding
                        && Equals(PeptideIdentityPath, other.PeptideIdentityPath)
                        && ArrayUtil.ReferencesEqual(TransitionGroups, other.TransitionGroups)
                        && ReplicateIndex == other.ReplicateIndex
-                       && ReferenceEquals(ChromFileInfoId, other.ChromFileInfoId);
+                       && ReferenceEquals(ChromFileInfoId, other.ChromFileInfoId)
+                       && Equals(PeakScoringModel, other.PeakScoringModel)
+                       && Equals(UseRunToRunAlignment, other.UseRunToRunAlignment);
             }
 
             public override bool Equals(object obj)
@@ -385,6 +417,8 @@ namespace pwiz.Skyline.Controls.Databinding
                     hashCode = (hashCode * 397) ^ PeptideIdentityPath.GetHashCode();
                     hashCode = (hashCode * 397) ^ ReplicateIndex;
                     hashCode = (hashCode * 397) ^ RuntimeHelpers.GetHashCode(ChromFileInfoId);
+                    hashCode = (hashCode * 397) ^ PeakScoringModel.GetHashCode();
+                    hashCode = (hashCode * 397) ^ UseRunToRunAlignment.GetHashCode();
                     return hashCode;
                 }
             }
@@ -419,6 +453,33 @@ namespace pwiz.Skyline.Controls.Databinding
             {
                 return base.IsComplete && !_updatePending;
             }
+        }
+
+        private void UpdateControls()
+        {
+            var modelNames = ListPeakScoringModels().Select(x => x.Name).ToList();
+            if (!modelNames.SequenceEqual(comboPeakScoringModel.Items.Cast<string>()))
+            {
+                var newSelectedIndex = modelNames.IndexOf(comboPeakScoringModel.SelectedItem as string);
+                if (newSelectedIndex < 0)
+                {
+                    newSelectedIndex = 0;
+                }
+                comboPeakScoringModel.Items.Clear();
+                comboPeakScoringModel.Items.AddRange(modelNames.ToArray());
+                comboPeakScoringModel.SelectedIndex = newSelectedIndex;
+                ComboHelper.AutoSizeDropDown(comboPeakScoringModel);
+            }
+        }
+
+        private void comboPeakScoringModel_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            QueueUpdateRowSource();
+        }
+
+        private void checkBoxUseAlignment_CheckedChanged(object sender, EventArgs e)
+        {
+            QueueUpdateRowSource();
         }
     }
 }

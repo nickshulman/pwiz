@@ -521,6 +521,7 @@
       <SubType>UserControl</SubType>
     </Compile>
     <Compile Include="Model\FullScanProperties.cs" />
+    <Compile Include="Model\Results\ChromFileInfoIndex.cs" />
     <Compile Include="Model\Results\Scoring\FeatureStatisticDictionary.cs" />
     <Compile Include="Model\Results\Spectra\SpectrumClassFilter.cs" />
     <Compile Include="Model\Results\Spectra\SpectrumFilterAutoComplete.cs" />

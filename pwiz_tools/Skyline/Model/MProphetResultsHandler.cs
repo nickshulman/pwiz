@@ -44,7 +44,6 @@ namespace pwiz.Skyline.Model
     /// </summary>
     public class MProphetResultsHandler
     {
-        private double[] _qValues;
         private readonly FeatureCalculators _calcs;
         private PeakTransitionGroupFeatureSet _features;
 
@@ -110,18 +109,17 @@ namespace pwiz.Skyline.Model
             if (ScoringModel == null)
                 return;
             _featureDictionary =
-                FeatureStatisticDictionary.MakeFeatureDictionary(ScoringModel, _features,
+                FeatureStatisticDictionary.MakeFeatureDictionary(ChromFileInfoIndex.FromChromatogramSets(Document.MeasuredResults.Chromatograms), ScoringModel, _features,
                     releaseRawFeatures && !UseTric);
             if (UseTric)
             {
-                _featureDictionary = Tric.Rescore(ScoringModel,
+                var replacements = Tric.Rescore(ScoringModel,
                     _featureDictionary,
                     _features,
-                    Document.MeasuredResults.MSDataFileInfos.Select(f => f.FilePath.GetFileName()).ToList(),
-                    Document.MeasuredResults.MSDataFileInfos.Select(f => f.FileId).ToList(),
                     progressMonitor,
                     DocumentPath,
                     output);
+                _featureDictionary = _featureDictionary.ReplaceValues(replacements);
             }
             if (releaseRawFeatures)
                 _features = null;   // Done with this memory
@@ -129,16 +127,7 @@ namespace pwiz.Skyline.Model
 
         public bool IsMissingScores()
         {
-            // TODO(nicksh)
-            return false;
-            foreach (var qValue in _qValues)
-            {
-                if (double.IsNaN(qValue))
-                {
-                    return true;
-                }
-            }
-            return false;
+            return _featureDictionary.MissingScores;
         }
 
         public SrmDocument ChangePeaks(IProgressMonitor progressMonitor = null)

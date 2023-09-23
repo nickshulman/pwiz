@@ -158,30 +158,20 @@ namespace pwiz.Skyline.Model.Results.Scoring.Tric
         private readonly double _seedCutoff;
         private readonly double _extensionCutoff;
         private readonly IEnumerable<PeptideFileFeatureSet> _peptides;
-        private readonly int _fileCount;
-        private readonly IList<ChromFileInfoId> _fileIndexes;
+        private readonly ChromFileInfoIndex _fileIndex;
         private readonly int _featureStatCount;
         private readonly RegressionMethodRT _regressionMethod;
         public TricTree _tree;
-        private readonly IDictionary<ReferenceValue<ChromFileInfoId>, string> _fileNames;
 
         public Tric(IEnumerable<PeptideFileFeatureSet> peptides,
-            IList<string> fileNames,
-            IList<ChromFileInfoId> fileIndexes,
+            ChromFileInfoIndex fileIndex,
             int featureStatCount,
             double alignmentCutoff,
             double seedCutoff,
             double extensionCutoff,
             RegressionMethodRT regressionMethod)
         {
-            _fileCount = fileIndexes.Count;
-            Assume.IsTrue(fileIndexes.Count == fileNames.Count);
-            _fileNames = new Dictionary<ReferenceValue<ChromFileInfoId>, string>();
-            _fileIndexes = fileIndexes;
-            for (int i = 0; i < _fileIndexes.Count; i++)
-            {
-                _fileNames[_fileIndexes[i]] = fileNames[i];
-            }
+            _fileIndex = fileIndex;
             _featureStatCount = featureStatCount;
             _alignmentCutoff = alignmentCutoff;
             _seedCutoff = seedCutoff;
@@ -192,18 +182,17 @@ namespace pwiz.Skyline.Model.Results.Scoring.Tric
 
         public ConcurrentBag<TricPeptide> Predictions { get; private set; }
 
-        public static FeatureStatisticDictionary Rescore(PeakScoringModelSpec originalScoringModel,
+        public static Dictionary<PeakTransitionGroupIdKey, PeakFeatureStatistics> Rescore(
+            PeakScoringModelSpec originalScoringModel,
             FeatureStatisticDictionary statDict,
             PeakTransitionGroupFeatureSet featureSet,
-            IList<string> fileNames,
-            IList<ChromFileInfoId> fileIndexes,
             IProgressMonitor progressMonitor,
             string documentPath,
             TextWriter output = null)
         {
             var newValues = new Dictionary<PeakTransitionGroupIdKey, PeakFeatureStatistics>();
             // First initialize transfer of confidence alignment
-            var tric = InitializeAndRunTric(statDict, featureSet, fileNames, fileIndexes, progressMonitor);
+            var tric = InitializeAndRunTric(statDict, featureSet, progressMonitor);
 
             // Train the model and append the scores for retention time distance etc.
             var featureScoreCalculator = new TricFeatureScoreCalculator(
@@ -351,13 +340,11 @@ namespace pwiz.Skyline.Model.Results.Scoring.Tric
                 }
             }
 
-            return statDict.ReplaceValues(newValues);
+            return newValues;
         }
 
         public static Tric InitializeAndRunTric(FeatureStatisticDictionary statDict,
             PeakTransitionGroupFeatureSet featureSet,
-            IList<string> fileNames,
-            IList<ChromFileInfoId> fileIndexes,
             IProgressMonitor progressMonitor)
         {
             IProgressStatus status =
@@ -377,7 +364,7 @@ namespace pwiz.Skyline.Model.Results.Scoring.Tric
             var extensionScoreCutoff = scoreQValueMap.GetQValue(EXTENSION_SCORE_CUTOFF) ?? 1;
 
             // Do a retention time alignment between all runs
-            var tric = new Tric(peptides, fileNames, fileIndexes, fileIndexes.Count * peptides.Length,
+            var tric = new Tric(peptides, statDict.FileIndex, statDict.FileIndex.Count * peptides.Length,
                 alignmentScoreCutoff, seedScoreCutoff, extensionScoreCutoff, RegressionMethodRT.loess);
 
             // And running the alignment is the other 80%
@@ -464,11 +451,11 @@ namespace pwiz.Skyline.Model.Results.Scoring.Tric
             switch (TREE_SEARCH_METHOD)
             {
                 case TreeSearchMethod.mst:
-                    _tree = new TricMst(_peptides, _fileNames, _fileIndexes, _alignmentCutoff, _regressionMethod,
+                    _tree = new TricMst(_peptides, _fileIndex, _alignmentCutoff, _regressionMethod,
                         progressMonitor, ref status, verbose);
                     break;
                 case TreeSearchMethod.star:
-                    _tree = new TricStarTree(_peptides, _fileNames, _fileIndexes, _alignmentCutoff, _regressionMethod,
+                    _tree = new TricStarTree(_peptides, _fileIndex, _alignmentCutoff, _regressionMethod,
                         progressMonitor, ref status, verbose);
                     break;
             }
@@ -529,14 +516,14 @@ namespace pwiz.Skyline.Model.Results.Scoring.Tric
                     RetentionTime =
                         seed.Features.PeakGroupFeatures[seed.FeatureStats.BestScoreIndex].MedianRetentionTime
                 };
-                var predictions = new Dictionary<ReferenceValue<ChromFileInfoId>, PredictionElement>(_fileCount);
+                var predictions = new Dictionary<ReferenceValue<ChromFileInfoId>, PredictionElement>(_fileIndex.Count);
                 predictions[seedIndex] = seedPredElement;
 
                 float squaredRtErrorSum = 0;
                 var extensions = 0;
 
                 //Traverse alignment tree starting from seed and try to find peaks in other files
-                foreach (var directionalEdge in _tree.Traverse(seed.Features.Key.FileId, _fileNames))
+                foreach (var directionalEdge in _tree.Traverse(seed.Features.Key.FileId, _fileIndex))
                 {
                     var sourceFileIndex = directionalEdge.SourceFileIndex;
                     var targetFileIndex = directionalEdge.TargetFileIndex;

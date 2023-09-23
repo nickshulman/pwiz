@@ -19,7 +19,6 @@
 
 using System.Collections.Generic;
 using System.Linq;
-using pwiz.Common.Collections;
 using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Model.RetentionTimes;
 
@@ -28,13 +27,12 @@ namespace pwiz.Skyline.Model.Results.Scoring.Tric
     class TricStarTree : TricTree
     {
         public TricStarTree(IEnumerable<PeptideFileFeatureSet> peptides,
-                            IDictionary<ReferenceValue<ChromFileInfoId>, string> fileNames, 
-                            IList<ChromFileInfoId> fileIndexes,
-                            double testAnchorCutoof,
+                            ChromFileInfoIndex fileIndex,
+                            double testAnchorCutoff,
                             RegressionMethodRT regressionMethod,
                             IProgressMonitor progressMonitor,
                             ref IProgressStatus status, bool verbose = false)
-            : base(peptides, fileNames, fileIndexes, testAnchorCutoof, regressionMethod, progressMonitor, ref status,verbose)
+            : base(peptides, fileIndex, testAnchorCutoff, regressionMethod, progressMonitor, ref status,verbose)
         {
         }
 
@@ -68,12 +66,12 @@ namespace pwiz.Skyline.Model.Results.Scoring.Tric
         {
             ChromFileInfoId maxScoreFileIndex = null;
             double maxScore = double.MinValue;
-            foreach(var index in _fileIds)
+            foreach (var fileId in _fileIndex.FileIds)
             {
-                if (_vertices[index].Score > maxScore)
+                if (_vertices[fileId].Score > maxScore)
                 {
-                    maxScore = _vertices[index].Score;
-                    maxScoreFileIndex = index;
+                    maxScore = _vertices[fileId].Score;
+                    maxScoreFileIndex = fileId;
                 }
             }
             _tree = new List<Edge>();

@@ -42,13 +42,12 @@ namespace pwiz.Skyline.Model.Results.Scoring.Tric
     public sealed class TricMst : TricTree
     {
         public TricMst(IEnumerable<PeptideFileFeatureSet>  peptides,
-                        IDictionary<ReferenceValue<ChromFileInfoId>, string> fileNames,
-                        IList<ChromFileInfoId> fileIndexes,
+                        ChromFileInfoIndex fileIndex,
                         double anchorCutoff,
                         RegressionMethodRT regressionMethod,
                         IProgressMonitor progressMonitor,
                         ref IProgressStatus status, bool verbose = false)
-            : base(peptides, fileNames, fileIndexes, anchorCutoff, regressionMethod, progressMonitor, ref status, verbose)
+            : base(peptides, fileIndex, anchorCutoff, regressionMethod, progressMonitor, ref status, verbose)
         {
             //Never add code here
         }
@@ -70,15 +69,15 @@ namespace pwiz.Skyline.Model.Results.Scoring.Tric
                     if (pm != null)
                     {
                         pm.UpdateProgress(
-                            status = status.ChangePercentComplete(startPercent + percentRange*edgesAdded/_fileIds.Count));
+                            status = status.ChangePercentComplete(startPercent + percentRange*edgesAdded/_fileIndex.Count));
                     }
-                    if (edgesAdded >= _fileIds.Count - 1)
+                    if (edgesAdded >= _fileIndex.Count - 1)
                     {
                         break;
                     }
                 }
             }
-            if (edgesAdded < _fileIds.Count - 1)
+            if (edgesAdded < _fileIndex.Count - 1)
             {
                 throw new Exception(
                         Resources.TricMst_FindMst_Insufficient_high_quality_identifications_to_make_a_quality_alignment);
@@ -108,13 +107,13 @@ namespace pwiz.Skyline.Model.Results.Scoring.Tric
             // The weigths are 1 - r^2 of a simple linear regression, because it is too
             // slow to calculate correlation with non-linear regressions, which may be used
             // for the actual alignment.
-            _edges = new List<Edge>(_fileIds.Count*(_fileIds.Count - 1));
+            _edges = new List<Edge>(_fileIndex.Count*(_fileIndex.Count - 1));
             var depList = new List<double>();
             var indList = new List<double>();
             int regressionsCounter = 0;
-            foreach(var fileIndexFrom in _fileIds)
+            foreach(var fileIndexFrom in _fileIndex.FileIds)
             {
-                foreach (var fileIndexTo in _fileIds)
+                foreach (var fileIndexTo in _fileIndex.FileIds)
                 {
                     if(ReferenceEquals(fileIndexTo, fileIndexFrom))
                         continue;
@@ -132,7 +131,7 @@ namespace pwiz.Skyline.Model.Results.Scoring.Tric
                 }
                 regressionsCounter++;
                 if (pm != null)
-                    pm.UpdateProgress(status = status.ChangePercentComplete(startPercent + regressionsCounter*percentRange/_fileIds.Count));
+                    pm.UpdateProgress(status = status.ChangePercentComplete(startPercent + regressionsCounter*percentRange/_fileIndex.Count));
             }
         }
 

@@ -29,8 +29,7 @@ namespace pwiz.Skyline.Model.Results.Scoring.Tric
 {
     public abstract class TricTree
     {
-        protected IDictionary<ReferenceValue<ChromFileInfoId>, string> _fileNames;
-        protected IList<ChromFileInfoId> _fileIds;
+        protected ChromFileInfoIndex _fileIndex;
         protected List<Edge> _edges;
         protected Dictionary<ReferenceValue<ChromFileInfoId>, Vertex> _vertices;
         protected List<Edge> _tree;
@@ -38,11 +37,10 @@ namespace pwiz.Skyline.Model.Results.Scoring.Tric
         protected IEnumerable<PeptideFileFeatureSet> _peptides;
         private readonly RegressionMethodRT _regressionMethod;
 
-        protected TricTree(IEnumerable<PeptideFileFeatureSet> peptides, IDictionary<ReferenceValue<ChromFileInfoId>, string> fileNames, IList<ChromFileInfoId> fileIndexes, double anchorCutoff,
+        protected TricTree(IEnumerable<PeptideFileFeatureSet> peptides, ChromFileInfoIndex fileIndex, double anchorCutoff,
             RegressionMethodRT regressionMethod, IProgressMonitor progressMonitor, ref IProgressStatus status, bool verbose = false)
         {
-            _fileNames = fileNames;
-            _fileIds = fileIndexes;
+            _fileIndex = fileIndex;
             _peptides = peptides;
             _anchorCutoff = anchorCutoff;
             _regressionMethod = regressionMethod;
@@ -55,7 +53,7 @@ namespace pwiz.Skyline.Model.Results.Scoring.Tric
         {
             if (progressMonitor != null)
                 status = status.ChangeMessage(Resources.TricTree_TricTree_Calculating_retention_time_alignment_edges);
-            foreach (var fileId in _fileIds)
+            foreach (var fileId in _fileIndex.FileIds)
             {
                 //Runs are not zero based
                 _vertices.Add(fileId, new Vertex(fileId));
@@ -139,8 +137,8 @@ namespace pwiz.Skyline.Model.Results.Scoring.Tric
 
                 if (verbose)
                 {
-                    var nameA = _fileNames[edge.AVertex.FileId];
-                    var nameB = _fileNames[edge.BVertex.FileId];
+                    var nameA = _fileIndex[edge.AVertex.FileId].FilePath.GetFileName();
+                    var nameB = _fileIndex[edge.BVertex.FileId].FilePath.GetFileName();
                     Console.WriteLine(Resources.TricTree_TrainAligners__0______1__RMSD__2_, nameA, nameB,
                         edge.Aligner.GetRmsd() * 60);
                 }
@@ -168,7 +166,7 @@ namespace pwiz.Skyline.Model.Results.Scoring.Tric
             }
         }
 
-        public List<DirectionalEdge> Traverse(ChromFileInfoId startFileIndex, IDictionary<ReferenceValue<ChromFileInfoId>, string> fileNames, bool verbose = false)
+        public List<DirectionalEdge> Traverse(ChromFileInfoId startFileIndex, ChromFileInfoIndex chromFileInfoIndex, bool verbose = false)
         {
             var traversal = new List<DirectionalEdge>();
             var visited = new HashSet<ReferenceValue<ChromFileInfoId>>();
@@ -192,8 +190,8 @@ namespace pwiz.Skyline.Model.Results.Scoring.Tric
             {
                 foreach (var edge in traversal)
                 {
-                    var nameA = fileNames[edge.SourceFileIndex];
-                    var nameB = fileNames[edge.TargetFileIndex];
+                    var nameA = chromFileInfoIndex[edge.SourceFileIndex].FilePath.GetFileName();
+                    var nameB = chromFileInfoIndex[edge.TargetFileIndex].FilePath.GetFileName();
                     var rmsd = edge.Rmsd * 60;
                     Console.WriteLine(Resources.TricTree_Traverse__0______1____RMSD__2_,nameA, nameB,rmsd);    
                 }

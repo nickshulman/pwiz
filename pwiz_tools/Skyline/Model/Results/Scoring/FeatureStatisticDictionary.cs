@@ -1,5 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
+using NHibernate.Type;
+using pwiz.Common.Collections;
 using pwiz.Skyline.Util;
 
 namespace pwiz.Skyline.Model.Results.Scoring
@@ -7,34 +9,53 @@ namespace pwiz.Skyline.Model.Results.Scoring
     public class FeatureStatisticDictionary
     {
         public static readonly FeatureStatisticDictionary EMPTY =
-            new FeatureStatisticDictionary(new Dictionary<PeakTransitionGroupIdKey, PeakFeatureStatistics>(),
-                ScoreQValueMap.EMPTY);
-        private Dictionary<PeakTransitionGroupIdKey, PeakFeatureStatistics> _dictionary;
+            new FeatureStatisticDictionary(ChromFileInfoIndex.EMPTY, new Dictionary<ReferenceValue<Peptide>, PeakFeatureStatistics[]>(),
+                ScoreQValueMap.EMPTY, false);
+        private Dictionary<ReferenceValue<Peptide>, PeakFeatureStatistics[]> _dictionary;
 
-        public FeatureStatisticDictionary(Dictionary<PeakTransitionGroupIdKey, PeakFeatureStatistics> dictionary,
-            ScoreQValueMap scoreQValueMap)
+        private FeatureStatisticDictionary(ChromFileInfoIndex chromFileInfoIndex, Dictionary<ReferenceValue<Peptide>, PeakFeatureStatistics[]> dictionary,
+            ScoreQValueMap scoreQValueMap, bool missingScores)
         {
+            FileIndex = chromFileInfoIndex;
             _dictionary = dictionary;
             ScoreQValueMap = scoreQValueMap;
+            MissingScores = missingScores;
         }
 
         public FeatureStatisticDictionary ReplaceValues(
             IEnumerable<KeyValuePair<PeakTransitionGroupIdKey, PeakFeatureStatistics>> replacements)
         {
-            var dictionary = new Dictionary<PeakTransitionGroupIdKey, PeakFeatureStatistics>(_dictionary);
-            foreach (var entry in replacements)
+            var dictionary = new Dictionary<ReferenceValue<Peptide>, PeakFeatureStatistics[]>(_dictionary);
+            foreach (var grouping in replacements.GroupBy(key => ReferenceValue.Of(key.Key.Peptide)))
             {
-                dictionary[entry.Key] = entry.Value;
+                PeakFeatureStatistics[] array;
+                if (_dictionary.TryGetValue(grouping.Key, out array))
+                {
+                    array = (PeakFeatureStatistics[]) array.Clone();
+                }
+                else
+                {
+                    array = new PeakFeatureStatistics[FileIndex.Count];
+                }
+                foreach (var entry in grouping)
+                {
+                    array[FileIndex.IndexOf(entry.Key.FileId)] = entry.Value;
+                }
+
+                dictionary[grouping.Key] = array;
+
             }
 
-            return new FeatureStatisticDictionary(dictionary, ScoreQValueMap);
+            return new FeatureStatisticDictionary(FileIndex, dictionary, ScoreQValueMap, MissingScores);
 
         }
+        public ChromFileInfoIndex FileIndex { get; }
         public ScoreQValueMap ScoreQValueMap { get; }
+        public bool MissingScores { get; }
 
         public PeakFeatureStatistics GetPeakFeatureStatistics(PeakTransitionGroupIdKey key)
         {
-            _dictionary.TryGetValue(key, out var result);
+            TryGetValue(key, out var result);
             return result;
         }
 
@@ -48,71 +69,100 @@ namespace pwiz.Skyline.Model.Results.Scoring
 
         public bool TryGetValue(PeakTransitionGroupIdKey key, out PeakFeatureStatistics result)
         {
-            return _dictionary.TryGetValue(key, out result);
+            result = default;
+            int fileIndex = FileIndex.IndexOf(key.FileId);
+            if (fileIndex < 0)
+            {
+                return false;
+            }
+
+            if (!_dictionary.TryGetValue(key.Peptide, out var list))
+            {
+                return false;
+            }
+
+            result = list[fileIndex];
+            return true;
         }
         public int Count
         {
             get { return _dictionary.Count; }
         }
 
-        public static FeatureStatisticDictionary MakeFeatureDictionary(PeakScoringModelSpec ScoringModel,
-            PeakTransitionGroupFeatureSet _features, bool releaseRawFeatures)
+        public static FeatureStatisticDictionary MakeFeatureDictionary(ChromFileInfoIndex chromFileIndex, PeakScoringModelSpec ScoringModel,
+            PeakTransitionGroupFeatureSet features, bool releaseRawFeatures)
         {
-            var bestTargetPvalues = new List<double>(_features.TargetCount);
-            var bestTargetScores = new List<double>(_features.TargetCount);
-            var targetIds = new List<PeakTransitionGroupIdKey>(_features.TargetCount);
-            var featureDictionary = new Dictionary<PeakTransitionGroupIdKey, PeakFeatureStatistics>();
-            foreach (var transitionGroupFeatures in _features.Features)
+            var bestTargetPvalues = new List<double>(features.TargetCount);
+            var bestTargetScores = new List<double>(features.TargetCount);
+            var targetIds = new List<PeakTransitionGroupIdKey>(features.TargetCount);
+            var featureDictionary = new Dictionary<ReferenceValue<Peptide>, PeakFeatureStatistics[]>();
+            foreach (var grouping in features.Features.GroupBy(feature => ReferenceValue.Of(feature.Key.Peptide)))
             {
-                int bestIndex = 0;
-                float bestScore = float.MinValue;
-                float bestPvalue = float.NaN;
-                var peakGroupFeatures = transitionGroupFeatures.PeakGroupFeatures;
-                IList<float> mProphetScoresGroup = null, pvalues = null;
-                if (!releaseRawFeatures)
-                    mProphetScoresGroup = new float[peakGroupFeatures.Count];
-                if (!releaseRawFeatures)
-                    pvalues = new float[peakGroupFeatures.Count];
-
-                for (int i = 0; i < peakGroupFeatures.Count; i++)
+                var array = new PeakFeatureStatistics[chromFileIndex.Count];
+                foreach (var transitionGroupFeatures in grouping)
                 {
-                    double score = ScoringModel.Score(peakGroupFeatures[i].Features);
-                    if (double.IsNaN(bestScore) || score > bestScore)
+                    int fileIndex = chromFileIndex.IndexOf(transitionGroupFeatures.Key.FileId);
+                    if (fileIndex < 0)
                     {
-                        bestIndex = i;
-                        bestScore = (float)score;
-                        bestPvalue = (float)(1 - Statistics.PNorm(score));
+                        continue;
+                    }
+                    int bestIndex = 0;
+                    float bestScore = float.MinValue;
+                    float bestPvalue = float.NaN;
+                    var peakGroupFeatures = transitionGroupFeatures.PeakGroupFeatures;
+                    IList<float> mProphetScoresGroup = null, pvalues = null;
+                    if (!releaseRawFeatures)
+                        mProphetScoresGroup = new float[peakGroupFeatures.Count];
+                    if (!releaseRawFeatures)
+                        pvalues = new float[peakGroupFeatures.Count];
+
+                    for (int i = 0; i < peakGroupFeatures.Count; i++)
+                    {
+                        double score = ScoringModel.Score(peakGroupFeatures[i].Features);
+                        if (double.IsNaN(bestScore) || score > bestScore)
+                        {
+                            bestIndex = i;
+                            bestScore = (float)score;
+                            bestPvalue = (float)(1 - Statistics.PNorm(score));
+                        }
+
+                        if (mProphetScoresGroup != null)
+                            mProphetScoresGroup[i] = (float)score;
+                        if (pvalues != null)
+                            pvalues[i] = (float)(1 - Statistics.PNorm(score));
                     }
 
-                    if (mProphetScoresGroup != null)
-                        mProphetScoresGroup[i] = (float)score;
-                    if (pvalues != null)
-                        pvalues[i] = (float)(1 - Statistics.PNorm(score));
-                }
+                    if (bestScore == float.MinValue)
+                        bestScore = float.NaN;
 
-                if (bestScore == float.MinValue)
-                    bestScore = float.NaN;
-
-                var featureStats = new PeakFeatureStatistics(transitionGroupFeatures,
-                    mProphetScoresGroup, pvalues, bestIndex, bestScore, null);
-                featureDictionary.Add(transitionGroupFeatures.Key, featureStats);
-                if (!transitionGroupFeatures.IsDecoy)
-                {
-                    bestTargetPvalues.Add(bestPvalue);
-                    bestTargetScores.Add(bestScore);
-                    targetIds.Add(transitionGroupFeatures.Key);
+                    var featureStats = new PeakFeatureStatistics(transitionGroupFeatures,
+                        mProphetScoresGroup, pvalues, bestIndex, bestScore, null);
+                    array[fileIndex] = featureStats;
+                    if (!transitionGroupFeatures.IsDecoy)
+                    {
+                        bestTargetPvalues.Add(bestPvalue);
+                        bestTargetScores.Add(bestScore);
+                        targetIds.Add(transitionGroupFeatures.Key);
+                    }
                 }
+                featureDictionary.Add(grouping.Key, array);
+
             }
 
             var qValues = new Statistics(bestTargetPvalues).Qvalues(MProphetPeakScoringModel.DEFAULT_R_LAMBDA,
                 MProphetPeakScoringModel.PI_ZERO_MIN);
             for (int i = 0; i < qValues.Length; ++i)
             {
-                featureDictionary[targetIds[i]] = featureDictionary[targetIds[i]].ChangeQValue((float)qValues[i]);
+                var targetid = targetIds[i];
+                var fileIndex = chromFileIndex.IndexOf(targetid.FileId);
+                var array = featureDictionary[targetid.Peptide];
+                array[fileIndex] = array[fileIndex].ChangeQValue((float)qValues[i]);
             }
 
-            return new FeatureStatisticDictionary(featureDictionary,
-                ScoreQValueMap.FromScoreQValues(bestTargetPvalues, qValues));
+            bool missingValues = qValues.Any(double.IsNaN);
+
+            return new FeatureStatisticDictionary(chromFileIndex, featureDictionary,
+                ScoreQValueMap.FromScoreQValues(bestTargetPvalues, qValues), missingValues);
         }
     }
 }

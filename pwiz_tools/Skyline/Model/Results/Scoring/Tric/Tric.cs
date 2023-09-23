@@ -192,20 +192,18 @@ namespace pwiz.Skyline.Model.Results.Scoring.Tric
 
         public ConcurrentBag<TricPeptide> Predictions { get; private set; }
 
-        public static void Rescore(PeakScoringModelSpec originalScoringModel,
-            Dictionary<PeakTransitionGroupIdKey, PeakFeatureStatistics> statDict,
+        public static FeatureStatisticDictionary Rescore(PeakScoringModelSpec originalScoringModel,
+            FeatureStatisticDictionary statDict,
             PeakTransitionGroupFeatureSet featureSet,
             IList<string> fileNames,
             IList<ChromFileInfoId> fileIndexes,
-            IList<double> origScores,
-            IList<double> origQValues,
             IProgressMonitor progressMonitor,
             string documentPath,
             TextWriter output = null)
         {
+            var newValues = new Dictionary<PeakTransitionGroupIdKey, PeakFeatureStatistics>();
             // First initialize transfer of confidence alignment
-            var tric = InitializeAndRunTric(statDict, featureSet, fileNames, fileIndexes, origScores, origQValues,
-                progressMonitor);
+            var tric = InitializeAndRunTric(statDict, featureSet, fileNames, fileIndexes, progressMonitor);
 
             // Train the model and append the scores for retention time distance etc.
             var featureScoreCalculator = new TricFeatureScoreCalculator(
@@ -230,7 +228,8 @@ namespace pwiz.Skyline.Model.Results.Scoring.Tric
                     {
                         foreach (var tricStat in prediction.Peptide.FileValues)
                         {
-                            tricStat.FeatureStats.SetNoBestPeak();
+                            newValues[new PeakTransitionGroupIdKey(prediction.Peptide.Peptide, tricStat.FileId)] =
+                                tricStat.FeatureStats.SetNoBestPeak();
                         }
                         continue;
                     }
@@ -245,14 +244,14 @@ namespace pwiz.Skyline.Model.Results.Scoring.Tric
                         //No peak found, then make sure FeatureStats agrees
                         if (alignedIndex == -1)
                         {
-                            tricStat.FeatureStats.SetNoBestPeak();
+                            newValues[tricStat.Features.Key] = tricStat.FeatureStats.SetNoBestPeak();
                             continue;
                         }
                         if (!isDecoy)
                         {
                             targetIds.Add(tricStat.Features.Key);
                         }
-                        tricStat.FeatureStats.ResetBestPeak(tricStat.AlignedPeakIndex, tricStat.Features);
+                        newValues[tricStat.Features.Key] = tricStat.FeatureStats.ResetBestPeak(tricStat.AlignedPeakIndex, tricStat.Features);
 
                         var featureArray = featureScoreCalculator.GetFeatureArray(tricStat, prediction);
 
@@ -297,14 +296,13 @@ namespace pwiz.Skyline.Model.Results.Scoring.Tric
                 for (int i = 0; i < qValues.Length; i++)
                 {
                     var stat = statDict[targetIds[i]];
-                    stat.ResetBestScores((float) scores[i], qValues[i]);
+                    newValues[targetIds[i]] = stat.ResetBestScores((float) scores[i], qValues[i]);
                 }
             }
             // If not rescoring, then either use interpolated qValues or
             // peptide level qValues depending on our hyperparameter settings
             else
             {
-                var interpolator = new ValueInterpolation(origQValues, origScores);
                 //Iterate peptides
                 foreach (var prediction in tric.Predictions)
                 {
@@ -313,7 +311,7 @@ namespace pwiz.Skyline.Model.Results.Scoring.Tric
                     {
                         foreach (var tricStat in prediction.Peptide.FileValues)
                         {
-                            tricStat.FeatureStats.SetNoBestPeak();
+                            newValues[tricStat.Features.Key] = tricStat.FeatureStats.SetNoBestPeak();
                         }
                         continue;
                     }
@@ -321,19 +319,20 @@ namespace pwiz.Skyline.Model.Results.Scoring.Tric
                     //Iterate files
                     foreach (var tricStat in prediction.Peptide.FileValues)
                     {
+                        var featureStats = tricStat.FeatureStats;
                         var alignedIndex = tricStat.AlignedPeakIndex;
                         if (alignedIndex == -1)
                         {
-                            tricStat.FeatureStats.SetNoBestPeak();
+                            newValues[tricStat.Features.Key] = featureStats.SetNoBestPeak();
                             continue;
                         }
-                        tricStat.FeatureStats.ResetBestPeak(tricStat.AlignedPeakIndex, tricStat.Features);
+                        featureStats = featureStats.ResetBestPeak(tricStat.AlignedPeakIndex, tricStat.Features);
                         //If we are doing peptide level scoring
                         //then every peak group picked by TRIC gets the peptide level
                         //score and qValue
                         if (USE_GLOBAL_Q_VALUES)
                         {
-                            tricStat.FeatureStats.ResetBestScores(
+                            featureStats = featureStats.ResetBestScores(
                                 (float) prediction.Peptide.GlobalBestScore,
                                 prediction.Peptide.GlobalQValue
                             );
@@ -342,22 +341,23 @@ namespace pwiz.Skyline.Model.Results.Scoring.Tric
                         //and interpolated qValue 
                         else
                         {
-                            tricStat.FeatureStats.ResetBestScores(
+                            featureStats = featureStats.ResetBestScores(
                                 tricStat.BestScore,
-                                interpolator.GetValueAForValueB(
-                                    tricStat.FeatureStats.MprophetScores[tricStat.AlignedPeakIndex]));
+                                statDict.ScoreQValueMap.GetQValue(tricStat.FeatureStats.MprophetScores[tricStat.AlignedPeakIndex]) ?? 1);
                         }
+
+                        newValues[tricStat.Features.Key] = featureStats;
                     }
                 }
             }
+
+            return statDict.ReplaceValues(newValues);
         }
 
-        private static Tric InitializeAndRunTric(Dictionary<PeakTransitionGroupIdKey, PeakFeatureStatistics> statDict,
+        public static Tric InitializeAndRunTric(FeatureStatisticDictionary statDict,
             PeakTransitionGroupFeatureSet featureSet,
             IList<string> fileNames,
             IList<ChromFileInfoId> fileIndexes,
-            IList<double> origScores,
-            IList<double> origQValues,
             IProgressMonitor progressMonitor)
         {
             IProgressStatus status =
@@ -368,15 +368,13 @@ namespace pwiz.Skyline.Model.Results.Scoring.Tric
             // These two operations account for 20% of progress
             var peptides = GetStatsForAllPeptidesInAllRuns(featureSet, statDict, progressMonitor, ref status,
                 PERCENT_STATS);
+            var scoreQValueMap = statDict.ScoreQValueMap;
 
-            var interpolation = new ValueInterpolation(origScores, origQValues);
-
-            var alignmentScoreCutoff = interpolation.GetValueAForValueB(ALIGNMENT_CUTOFF);
-            var seedScoreCutoff = CALCULATE_BEST_OVERALL_QVALUES_FOR_SEED_SELECTION
+            var alignmentScoreCutoff = scoreQValueMap.GetQValue(ALIGNMENT_CUTOFF) ?? 1;
+            var seedScoreCutoff = (CALCULATE_BEST_OVERALL_QVALUES_FOR_SEED_SELECTION
                 ? GetSeedScoreCutoffUsingBestOverallPeaks(peptides, SEED_CUTOFF)
-                : interpolation.GetValueAForValueB(SEED_CUTOFF);
-            interpolation.GetValueAForValueB(SEED_CUTOFF);
-            var extensionScoreCutoff = interpolation.GetValueAForValueB(EXTENSION_SCORE_CUTOFF);
+                : scoreQValueMap.GetQValue(SEED_CUTOFF)) ?? 1;
+            var extensionScoreCutoff = scoreQValueMap.GetQValue(EXTENSION_SCORE_CUTOFF) ?? 1;
 
             // Do a retention time alignment between all runs
             var tric = new Tric(peptides, fileNames, fileIndexes, fileIndexes.Count * peptides.Length,
@@ -395,7 +393,8 @@ namespace pwiz.Skyline.Model.Results.Scoring.Tric
         {
             var targets = peptides.Where(p => !p.IsDecoy).ToArray();
             var decoys = peptides.Where(p => p.IsDecoy).ToArray();
-            var statTargetBestScores = new Statistics(targets.Select(p => p.GlobalBestScore));
+            var targetBestScores = targets.Select(p => p.GlobalBestScore).ToArray();
+            var statTargetBestScores = new Statistics(targetBestScores);
             var statDecoyBestScores = new Statistics(decoys.Select(p => p.GlobalBestScore).ToList());
             var pValues = statDecoyBestScores.PvaluesNull(statTargetBestScores);
             var qValues = new Statistics(pValues).Qvalues(MProphetPeakScoringModel.DEFAULT_R_LAMBDA,
@@ -404,8 +403,9 @@ namespace pwiz.Skyline.Model.Results.Scoring.Tric
             {
                 targets[i].GlobalQValue = qValues[i];
             }
-            var interpolation = new ValueInterpolation(statTargetBestScores.CopyList(), qValues);
-            return interpolation.GetValueAForValueB(qValueCutoff);
+
+            var scoreQValueMap = ScoreQValueMap.FromScoreQValues(targetBestScores, qValues);
+            return scoreQValueMap.GetQValue(qValueCutoff) ?? 1;
         }
 
 
@@ -431,7 +431,7 @@ namespace pwiz.Skyline.Model.Results.Scoring.Tric
         /// <returns></returns>
         private static PeptideFileFeatureSet[] GetStatsForAllPeptidesInAllRuns(
             PeakTransitionGroupFeatureSet featuresSet,
-            Dictionary<PeakTransitionGroupIdKey, PeakFeatureStatistics> featureStats,
+            FeatureStatisticDictionary featureStats,
             IProgressMonitor progressMonitor,
             ref IProgressStatus status,
             int percentRange)

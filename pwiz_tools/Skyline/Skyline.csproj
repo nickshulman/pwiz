@@ -521,6 +521,7 @@
       <SubType>UserControl</SubType>
     </Compile>
     <Compile Include="Model\FullScanProperties.cs" />
+    <Compile Include="Model\Results\Scoring\FeatureStatisticDictionary.cs" />
     <Compile Include="Model\Results\Spectra\SpectrumClassFilter.cs" />
     <Compile Include="Model\Results\Spectra\SpectrumFilterAutoComplete.cs" />
     <Compile Include="Model\SpectrumPropertiesResx.Designer.cs">
@@ -1775,7 +1776,6 @@
     <Compile Include="Model\Results\Scoring\MQuestFeatureCalc.cs" />
     <Compile Include="Model\Results\Scoring\PeakFeatureEnumerator.cs" />
     <Compile Include="Model\RetentionTimes\LoessAligner.cs" />
-    <Compile Include="Model\Results\Scoring\Tric\ValueInterpolation.cs" />
     <Compile Include="Model\Results\Scoring\ScoredGroupPeaksSet.cs" />
     <Compile Include="Model\Results\Scoring\ScoredPeak.cs" />
     <Compile Include="Model\Results\Scoring\ScoredGroupPeaks.cs" />

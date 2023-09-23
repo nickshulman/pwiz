@@ -22,6 +22,8 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using JetBrains.Annotations;
+using pwiz.Common.Collections;
 using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.DocSettings.Extensions;
@@ -46,7 +48,7 @@ namespace pwiz.Skyline.Model
         private readonly FeatureCalculators _calcs;
         private PeakTransitionGroupFeatureSet _features;
 
-        private readonly Dictionary<PeakTransitionGroupIdKey, PeakFeatureStatistics> _featureDictionary;
+        private FeatureStatisticDictionary _featureDictionary;
 
         private const string Q_VALUE_ANNOTATION = "QValue"; // : for now, we are not localizing column headers
 
@@ -63,7 +65,7 @@ namespace pwiz.Skyline.Model
                 ? ScoringModel.PeakFeatureCalculators
                 : FeatureCalculators.ALL;
             _features = features;
-            _featureDictionary = new Dictionary<PeakTransitionGroupIdKey, PeakFeatureStatistics>();
+            _featureDictionary = FeatureStatisticDictionary.EMPTY;
 
             // Legacy defaults
             QValueCutoff = double.MaxValue;
@@ -107,63 +109,16 @@ namespace pwiz.Skyline.Model
             }
             if (ScoringModel == null)
                 return;
-
-            var bestTargetPvalues = new List<double>(_features.TargetCount);
-            var bestTargetScores = new List<double>(_features.TargetCount);
-            var targetIds = new List<PeakTransitionGroupIdKey>(_features.TargetCount);
-            foreach (var transitionGroupFeatures in _features.Features)
-            {
-                int bestIndex = 0;
-                float bestScore = float.MinValue;
-                float bestPvalue = float.NaN;
-                var peakGroupFeatures = transitionGroupFeatures.PeakGroupFeatures;
-                IList<float> mProphetScoresGroup = null, pvalues = null;
-                if (!releaseRawFeatures || UseTric)//Tric needs scores for qValue interpolation
-                    mProphetScoresGroup = new float[peakGroupFeatures.Count];
-                if (!releaseRawFeatures)
-                    pvalues = new float[peakGroupFeatures.Count];
-
-                for (int i = 0; i < peakGroupFeatures.Count; i++)
-                {
-                    double score = ScoringModel.Score(peakGroupFeatures[i].Features);
-                    if (double.IsNaN(bestScore) || score > bestScore)
-                    {
-                        bestIndex = i;
-                        bestScore = (float)score;
-                        bestPvalue = (float)(1 - Statistics.PNorm(score));
-                    }
-                    if (mProphetScoresGroup != null)
-                        mProphetScoresGroup[i] = (float)score;
-                    if (pvalues != null)
-                        pvalues[i] = (float)(1 - Statistics.PNorm(score));
-                }
-                if (bestScore == float.MinValue)
-                    bestScore = float.NaN;
-
-                var featureStats = new PeakFeatureStatistics(transitionGroupFeatures,
-                    mProphetScoresGroup, pvalues, bestIndex, bestScore, null);
-                _featureDictionary.Add(transitionGroupFeatures.Key, featureStats);
-                if (!transitionGroupFeatures.IsDecoy)
-                {
-                    bestTargetPvalues.Add(bestPvalue);
-                    bestTargetScores.Add(bestScore);
-                    targetIds.Add(transitionGroupFeatures.Key);
-                }
-            }
-            _qValues = new Statistics(bestTargetPvalues).Qvalues(MProphetPeakScoringModel.DEFAULT_R_LAMBDA, MProphetPeakScoringModel.PI_ZERO_MIN);
-            for (int i = 0; i < _qValues.Length; ++i)
-            {
-                _featureDictionary[targetIds[i]].QValue = (float)_qValues[i];
-            }
+            _featureDictionary =
+                FeatureStatisticDictionary.MakeFeatureDictionary(ScoringModel, _features,
+                    releaseRawFeatures && !UseTric);
             if (UseTric)
             {
-                Tric.Rescore(ScoringModel,
+                _featureDictionary = Tric.Rescore(ScoringModel,
                     _featureDictionary,
                     _features,
                     Document.MeasuredResults.MSDataFileInfos.Select(f => f.FilePath.GetFileName()).ToList(),
                     Document.MeasuredResults.MSDataFileInfos.Select(f => f.FileId).ToList(),
-                    bestTargetScores,
-                    _qValues,
                     progressMonitor,
                     DocumentPath,
                     output);
@@ -174,6 +129,8 @@ namespace pwiz.Skyline.Model
 
         public bool IsMissingScores()
         {
+            // TODO(nicksh)
+            return false;
             foreach (var qValue in _qValues)
             {
                 if (double.IsNaN(qValue))
@@ -355,13 +312,13 @@ namespace pwiz.Skyline.Model
         }
     }
 
-    public class PeakFeatureStatistics
+    public class PeakFeatureStatistics : Immutable
     {
         public PeakFeatureStatistics(PeakTransitionGroupFeatures features, IList<float> mprophetScores, IList<float> pvalues,
             int bestScoreIndex, float bestScore, float? qValue)
         {
-            MprophetScores = mprophetScores;    // May only be present for writing features
-            PValues = pvalues;
+            MprophetScores = ImmutableList.ValueOf(mprophetScores);    // May only be present for writing features
+            PValues = ImmutableList.ValueOf(pvalues);
             BestPeakIndex = features.PeakGroupFeatures[bestScoreIndex].OriginalPeakIndex;
             BestScoreIndex = bestScoreIndex;
             BestScore = bestScore;
@@ -369,41 +326,52 @@ namespace pwiz.Skyline.Model
             BestFeatureScores = features.PeakGroupFeatures[bestScoreIndex].FeatureScores;
         }
 
-        public IList<float> MprophetScores { get; private set; }
-        public IList<float> PValues { get; private set; }
+        public ImmutableList<float> MprophetScores { get; private set; }
+        public ImmutableList<float> PValues { get; private set; }
         public int BestPeakIndex { get; private set; }
         public int BestScoreIndex { get; private set; }
         public float BestScore { get; private set; }
-        public float? QValue { get; internal set; }
+        public float? QValue { get; private set; }
 
-        public void ResetBestScores(float score, double qValue)
+        [Pure]
+        public PeakFeatureStatistics ChangeQValue(float? qValue)
         {
-            QValue = (float) qValue;
-            BestScore = score;
-            MprophetScores[BestScoreIndex] = score;
+            return ChangeProp(ImClone(this), im => im.QValue = qValue);
         }
 
-        public void ResetBestPeak(int bestIndex, PeakTransitionGroupFeatures features)
+        [Pure]
+        public PeakFeatureStatistics ResetBestScores(float score, double qValue)
         {
-            BestScoreIndex = bestIndex;
-            BestPeakIndex = features.PeakGroupFeatures[bestIndex].OriginalPeakIndex;
-            for (int i = 0; i < MprophetScores.Count; i ++)
+            return ChangeProp(ImClone(this), im =>
             {
-                if(i == bestIndex)
-                    continue;
-                MprophetScores[i] = 0;
-            }
+                im.QValue = (float)qValue;
+                im.BestScore = score;
+                im.MprophetScores = im.MprophetScores.ReplaceAt(BestScoreIndex, score);
+            });
         }
 
-        public void SetNoBestPeak()
+        [Pure]
+        public PeakFeatureStatistics ResetBestPeak(int bestIndex, PeakTransitionGroupFeatures features)
         {
-            BestScoreIndex = -1;
-            BestPeakIndex = -1;
-            for (int i = 0; i < MprophetScores.Count; i++)
+            return ChangeProp(ImClone(this), im =>
             {
-                MprophetScores[i] = 0;
-            }
-            QValue = 1;
+                im.BestScoreIndex = bestIndex;
+                im.BestPeakIndex = features.PeakGroupFeatures[bestIndex].OriginalPeakIndex;
+                im.MprophetScores = ImmutableList.ValueOf(Enumerable.Range(0, MprophetScores.Count)
+                    .Select(i => i == bestIndex ? MprophetScores[i] : 0));
+            });
+        }
+
+        [Pure]
+        public PeakFeatureStatistics SetNoBestPeak()
+        {
+            return ChangeProp(ImClone(this), im =>
+            {
+                im.BestScoreIndex = -1;
+                im.BestPeakIndex = -1;
+                im.MprophetScores = ImmutableList.ValueOf(new float[MprophetScores.Count]);
+                im.QValue = 1;
+            });
         }
         public FeatureScores BestFeatureScores { get; }
     }

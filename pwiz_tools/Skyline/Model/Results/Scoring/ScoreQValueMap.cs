@@ -111,6 +111,12 @@ namespace pwiz.Skyline.Model.Results.Scoring
             return new ScoreQValueMap(ImmutableSortedList.FromValues(entries));
         }
 
+        public static ScoreQValueMap FromScoreQValues(IEnumerable<double> scores, IEnumerable<double> qValues)
+        {
+            return FromScoreQValues(scores.Zip(qValues,
+                (score, qValue) => new KeyValuePair<double, double>(score, qValue)));
+        }
+        
         public static ScoreQValueMap FromScoreQValues(IEnumerable<KeyValuePair<double, double>> entries)
         {
             return new ScoreQValueMap(ImmutableSortedList.FromValues(UniqueEntries(entries)));

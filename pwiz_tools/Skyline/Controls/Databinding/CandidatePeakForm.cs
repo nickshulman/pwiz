@@ -26,12 +26,14 @@ using System.Windows.Forms;
 using pwiz.Common.Collections;
 using pwiz.Common.Colors;
 using pwiz.Common.DataBinding;
+using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Controls.Graphs;
 using pwiz.Skyline.Model;
 using pwiz.Skyline.Model.Databinding;
 using pwiz.Skyline.Model.Databinding.Entities;
 using pwiz.Skyline.Model.Results;
 using pwiz.Skyline.Model.Results.Scoring;
+using pwiz.Skyline.Model.Results.Scoring.Tric;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
 
@@ -44,6 +46,7 @@ namespace pwiz.Skyline.Controls.Databinding
         private Selector _selector;
         private BindingList<CandidatePeakGroup> _bindingList;
         private List<CandidatePeakGroup> _candidatePeakGroups;
+        private Results _results;
         private Color _originalPeakColor;
         private readonly DocumentChangeListener _documentChangeListener;
         private bool _updatePending;
@@ -180,10 +183,10 @@ namespace pwiz.Skyline.Controls.Databinding
             }
 
             _selector = newSelector;
-            _candidatePeakGroups.Clear();
+            var results = _results?.ChangeSelector(newSelector) ?? new Results(newSelector);
             try
             {
-                _candidatePeakGroups.AddRange(GetCandidatePeakGroups(newSelector));
+                results = PopulateResults(results);
             }
             catch (Exception ex)
             {
@@ -191,8 +194,39 @@ namespace pwiz.Skyline.Controls.Databinding
                 {
                     Program.ReportException(ex);
                 }
+
+                return;
+            }
+
+            _results = results;
+            _candidatePeakGroups.Clear();
+            if (results.CandidatePeaks != null)
+            {
+                _candidatePeakGroups.AddRange(results.CandidatePeaks);
             }
             _bindingList.ResetBindings();
+            String bestReplicateName = null;
+            var bestFileId = _results?.TricPeptide?.Seed?.FileId;
+            if (bestFileId != null)
+            {
+                foreach (var chromatogramSet in results.Selector.Document.MeasuredResults.Chromatograms)
+                {
+                    if (chromatogramSet.IndexOfId(bestFileId) >= 0)
+                    {
+                        bestReplicateName = chromatogramSet.Name;
+                        break;
+                    }
+                }
+            }
+
+            if (bestReplicateName != null)
+            {
+                linkLabelBestReplicate.Text = bestReplicateName;
+            }
+            else
+            {
+                linkLabelBestReplicate.Text = string.Empty;
+            }
         }
 
         private IdentityPath GetPrecursorIdentityPath()
@@ -288,6 +322,34 @@ namespace pwiz.Skyline.Controls.Databinding
                     .Property(nameof(PeakGroupScore.WeightedFeatures)).DictionaryValues())
             });
             return viewSpec;
+        }
+
+        private Results PopulateResults(Results results)
+        {
+            var selector = results.Selector;
+            if (selector == null)
+            {
+                return results;
+            }
+            if (selector.UseRunToRunAlignment)
+            {
+                if (results.PeakTransitionGroupFeatureSet == null)
+                {
+                    var peakTransitionGroupFeatureSet = selector.Document.GetPeakFeatures(selector.PeakScoringModel.PeakFeatureCalculators);
+                    results = results.ChangePeakTransitionGroupFeatureSet(peakTransitionGroupFeatureSet);
+                }
+
+                var chromFileIndex =
+                    ChromFileInfoIndex.FromChromatogramSets(results.Selector.Document.MeasuredResults.Chromatograms);
+                var featureDictionary = FeatureStatisticDictionary.MakeFeatureDictionary(chromFileIndex, selector.PeakScoringModel, results.PeakTransitionGroupFeatureSet, false);
+                var tric = Tric.InitializeAndRunTric(featureDictionary, results.PeakTransitionGroupFeatureSet, null);
+                var tricPeptide = tric.Predictions.FirstOrDefault(peptide =>
+                    ReferenceEquals(peptide.Peptide.Peptide, selector.PeptideIdentityPath.Child));
+                results = results.ChangeTricPeptide(tricPeptide);
+            }
+
+            results = results.ChangeCandidatePeaks(GetCandidatePeakGroups(selector));
+            return results;
         }
 
         private IList<CandidatePeakGroup> GetCandidatePeakGroups(Selector selector)
@@ -480,6 +542,49 @@ namespace pwiz.Skyline.Controls.Databinding
         private void checkBoxUseAlignment_CheckedChanged(object sender, EventArgs e)
         {
             QueueUpdateRowSource();
+        }
+
+        private class Results : Immutable
+        {
+            public Results(Selector selector)
+            {
+                Selector = selector;
+            }
+
+            public Selector Selector { get; private set; }
+
+            public Results ChangeSelector(Selector selector)
+            {
+                return ChangeProp(ImClone(this), im =>
+                {
+                    im.Selector = selector;
+                    if (!ReferenceEquals(Selector?.Document, selector?.Document) || !Equals(Selector?.PeakScoringModel, selector?.PeakScoringModel))
+                    {
+                        im.PeakTransitionGroupFeatureSet = null;
+                    }
+
+                    im.TricPeptide = null;
+                    im.CandidatePeaks = null;
+                });
+            }
+            public PeakTransitionGroupFeatureSet PeakTransitionGroupFeatureSet { get; private set; }
+
+            public Results ChangePeakTransitionGroupFeatureSet(PeakTransitionGroupFeatureSet value)
+            {
+                return ChangeProp(ImClone(this), im => im.PeakTransitionGroupFeatureSet = value);
+            }
+            public Tric.TricPeptide TricPeptide { get; private set; }
+
+            public Results ChangeTricPeptide(Tric.TricPeptide tricPeptide)
+            {
+                return ChangeProp(ImClone(this), im => im.TricPeptide = tricPeptide);
+            }
+            public ImmutableList<CandidatePeakGroup> CandidatePeaks { get; private set; }
+
+            public Results ChangeCandidatePeaks(IEnumerable<CandidatePeakGroup> candidatePeaks)
+            {
+                return ChangeProp(ImClone(this), im => im.CandidatePeaks = ImmutableList.ValueOf(candidatePeaks));
+            }
         }
     }
 }

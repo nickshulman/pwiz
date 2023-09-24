@@ -77,5 +77,20 @@ namespace pwiz.Skyline.Model.Results
                 return null;
             }
         }
+
+        public T[] MakeArray<T>(IEnumerable<KeyValuePair<ChromFileInfoId, T>> items)
+        {
+            var array = new T[Count];
+            foreach (var item in items)
+            {
+                int index = IndexOf(item.Key);
+                if (index >= 0)
+                {
+                    array[index] = item.Value;
+                }
+            }
+
+            return array;
+        }
     }
 }

@@ -140,6 +140,57 @@
     <value>17, 17</value>
   </metadata>
   <assembly alias="mscorlib" name="mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089" />
+  <data name="linkLabelBestReplicate.AutoSize" type="System.Boolean, mscorlib">
+    <value>True</value>
+  </data>
+  <data name="linkLabelBestReplicate.Location" type="System.Drawing.Point, System.Drawing">
+    <value>432, 9</value>
+  </data>
+  <data name="linkLabelBestReplicate.Size" type="System.Drawing.Size, System.Drawing">
+    <value>0, 13</value>
+  </data>
+  <data name="linkLabelBestReplicate.TabIndex" type="System.Int32, mscorlib">
+    <value>13</value>
+  </data>
+  <data name="&gt;&gt;linkLabelBestReplicate.Name" xml:space="preserve">
+    <value>linkLabelBestReplicate</value>
+  </data>
+  <data name="&gt;&gt;linkLabelBestReplicate.Type" xml:space="preserve">
+    <value>System.Windows.Forms.LinkLabel, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="&gt;&gt;linkLabelBestReplicate.Parent" xml:space="preserve">
+    <value>panel1</value>
+  </data>
+  <data name="&gt;&gt;linkLabelBestReplicate.ZOrder" xml:space="preserve">
+    <value>0</value>
+  </data>
+  <data name="lblBestReplicate.AutoSize" type="System.Boolean, mscorlib">
+    <value>True</value>
+  </data>
+  <data name="lblBestReplicate.Location" type="System.Drawing.Point, System.Drawing">
+    <value>347, 9</value>
+  </data>
+  <data name="lblBestReplicate.Size" type="System.Drawing.Size, System.Drawing">
+    <value>79, 13</value>
+  </data>
+  <data name="lblBestReplicate.TabIndex" type="System.Int32, mscorlib">
+    <value>12</value>
+  </data>
+  <data name="lblBestReplicate.Text" xml:space="preserve">
+    <value>Best Replicate:</value>
+  </data>
+  <data name="&gt;&gt;lblBestReplicate.Name" xml:space="preserve">
+    <value>lblBestReplicate</value>
+  </data>
+  <data name="&gt;&gt;lblBestReplicate.Type" xml:space="preserve">
+    <value>System.Windows.Forms.Label, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="&gt;&gt;lblBestReplicate.Parent" xml:space="preserve">
+    <value>panel1</value>
+  </data>
+  <data name="&gt;&gt;lblBestReplicate.ZOrder" xml:space="preserve">
+    <value>1</value>
+  </data>
   <data name="checkBoxUseAlignment.AutoSize" type="System.Boolean, mscorlib">
     <value>True</value>
   </data>
@@ -169,7 +220,7 @@
     <value>panel1</value>
   </data>
   <data name="&gt;&gt;checkBoxUseAlignment.ZOrder" xml:space="preserve">
-    <value>0</value>
+    <value>2</value>
   </data>
   <data name="comboPeakScoringModel.Location" type="System.Drawing.Point, System.Drawing">
     <value>12, 25</value>
@@ -190,7 +241,7 @@
     <value>panel1</value>
   </data>
   <data name="&gt;&gt;comboPeakScoringModel.ZOrder" xml:space="preserve">
-    <value>1</value>
+    <value>3</value>
   </data>
   <data name="lblModel.AutoSize" type="System.Boolean, mscorlib">
     <value>True</value>
@@ -217,7 +268,7 @@
     <value>panel1</value>
   </data>
   <data name="&gt;&gt;lblModel.ZOrder" xml:space="preserve">
-    <value>2</value>
+    <value>4</value>
   </data>
   <data name="panel1.Dock" type="System.Windows.Forms.DockStyle, System.Windows.Forms">
     <value>Top</value>

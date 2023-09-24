@@ -30,9 +30,11 @@
         {
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(CandidatePeakForm));
             this.panel1 = new System.Windows.Forms.Panel();
+            this.checkBoxUseAlignment = new System.Windows.Forms.CheckBox();
             this.comboPeakScoringModel = new System.Windows.Forms.ComboBox();
             this.lblModel = new System.Windows.Forms.Label();
-            this.checkBoxUseAlignment = new System.Windows.Forms.CheckBox();
+            this.lblBestReplicate = new System.Windows.Forms.Label();
+            this.linkLabelBestReplicate = new System.Windows.Forms.LinkLabel();
             this.panel1.SuspendLayout();
             this.SuspendLayout();
             // 
@@ -42,11 +44,20 @@
             // 
             // panel1
             // 
+            this.panel1.Controls.Add(this.linkLabelBestReplicate);
+            this.panel1.Controls.Add(this.lblBestReplicate);
             this.panel1.Controls.Add(this.checkBoxUseAlignment);
             this.panel1.Controls.Add(this.comboPeakScoringModel);
             this.panel1.Controls.Add(this.lblModel);
             resources.ApplyResources(this.panel1, "panel1");
             this.panel1.Name = "panel1";
+            // 
+            // checkBoxUseAlignment
+            // 
+            resources.ApplyResources(this.checkBoxUseAlignment, "checkBoxUseAlignment");
+            this.checkBoxUseAlignment.Name = "checkBoxUseAlignment";
+            this.checkBoxUseAlignment.UseVisualStyleBackColor = true;
+            this.checkBoxUseAlignment.CheckedChanged += new System.EventHandler(this.checkBoxUseAlignment_CheckedChanged);
             // 
             // comboPeakScoringModel
             // 
@@ -61,12 +72,15 @@
             resources.ApplyResources(this.lblModel, "lblModel");
             this.lblModel.Name = "lblModel";
             // 
-            // checkBoxUseAlignment
+            // lblBestReplicate
             // 
-            resources.ApplyResources(this.checkBoxUseAlignment, "checkBoxUseAlignment");
-            this.checkBoxUseAlignment.Name = "checkBoxUseAlignment";
-            this.checkBoxUseAlignment.UseVisualStyleBackColor = true;
-            this.checkBoxUseAlignment.CheckedChanged += new System.EventHandler(this.checkBoxUseAlignment_CheckedChanged);
+            resources.ApplyResources(this.lblBestReplicate, "lblBestReplicate");
+            this.lblBestReplicate.Name = "lblBestReplicate";
+            // 
+            // linkLabelBestReplicate
+            // 
+            resources.ApplyResources(this.linkLabelBestReplicate, "linkLabelBestReplicate");
+            this.linkLabelBestReplicate.Name = "linkLabelBestReplicate";
             // 
             // CandidatePeakForm
             // 
@@ -88,5 +102,7 @@
         private System.Windows.Forms.ComboBox comboPeakScoringModel;
         private System.Windows.Forms.Label lblModel;
         private System.Windows.Forms.CheckBox checkBoxUseAlignment;
+        private System.Windows.Forms.LinkLabel linkLabelBestReplicate;
+        private System.Windows.Forms.Label lblBestReplicate;
     }
 }

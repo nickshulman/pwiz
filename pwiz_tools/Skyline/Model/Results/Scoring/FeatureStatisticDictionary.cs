@@ -1,6 +1,5 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
-using NHibernate.Type;
 using pwiz.Common.Collections;
 using pwiz.Skyline.Util;
 
@@ -9,11 +8,11 @@ namespace pwiz.Skyline.Model.Results.Scoring
     public class FeatureStatisticDictionary
     {
         public static readonly FeatureStatisticDictionary EMPTY =
-            new FeatureStatisticDictionary(ChromFileInfoIndex.EMPTY, new Dictionary<ReferenceValue<Peptide>, PeakFeatureStatistics[]>(),
+            new FeatureStatisticDictionary(ChromFileInfoIndex.EMPTY, new Dictionary<ReferenceValue<Peptide>, ImmutableList<PeakFeatureStatistics>>(),
                 ScoreQValueMap.EMPTY, false);
-        private Dictionary<ReferenceValue<Peptide>, PeakFeatureStatistics[]> _dictionary;
+        private Dictionary<ReferenceValue<Peptide>, ImmutableList<PeakFeatureStatistics>> _dictionary;
 
-        private FeatureStatisticDictionary(ChromFileInfoIndex chromFileInfoIndex, Dictionary<ReferenceValue<Peptide>, PeakFeatureStatistics[]> dictionary,
+        private FeatureStatisticDictionary(ChromFileInfoIndex chromFileInfoIndex, Dictionary<ReferenceValue<Peptide>, ImmutableList<PeakFeatureStatistics>> dictionary,
             ScoreQValueMap scoreQValueMap, bool missingScores)
         {
             FileIndex = chromFileInfoIndex;
@@ -23,31 +22,14 @@ namespace pwiz.Skyline.Model.Results.Scoring
         }
 
         public FeatureStatisticDictionary ReplaceValues(
-            IEnumerable<KeyValuePair<PeakTransitionGroupIdKey, PeakFeatureStatistics>> replacements)
+            IEnumerable<KeyValuePair<Peptide, ImmutableList<PeakFeatureStatistics>>> replacements)
         {
-            var dictionary = new Dictionary<ReferenceValue<Peptide>, PeakFeatureStatistics[]>(_dictionary);
-            foreach (var grouping in replacements.GroupBy(key => ReferenceValue.Of(key.Key.Peptide)))
+            var dictionary = new Dictionary<ReferenceValue<Peptide>, ImmutableList<PeakFeatureStatistics>>(_dictionary);
+            foreach (var entry in replacements)
             {
-                PeakFeatureStatistics[] array;
-                if (_dictionary.TryGetValue(grouping.Key, out array))
-                {
-                    array = (PeakFeatureStatistics[]) array.Clone();
-                }
-                else
-                {
-                    array = new PeakFeatureStatistics[FileIndex.Count];
-                }
-                foreach (var entry in grouping)
-                {
-                    array[FileIndex.IndexOf(entry.Key.FileId)] = entry.Value;
-                }
-
-                dictionary[grouping.Key] = array;
-
+                dictionary[entry.Key] = entry.Value;
             }
-
             return new FeatureStatisticDictionary(FileIndex, dictionary, ScoreQValueMap, MissingScores);
-
         }
         public ChromFileInfoIndex FileIndex { get; }
         public ScoreQValueMap ScoreQValueMap { get; }
@@ -146,7 +128,6 @@ namespace pwiz.Skyline.Model.Results.Scoring
                     }
                 }
                 featureDictionary.Add(grouping.Key, array);
-
             }
 
             var qValues = new Statistics(bestTargetPvalues).Qvalues(MProphetPeakScoringModel.DEFAULT_R_LAMBDA,
@@ -161,8 +142,23 @@ namespace pwiz.Skyline.Model.Results.Scoring
 
             bool missingValues = qValues.Any(double.IsNaN);
 
-            return new FeatureStatisticDictionary(chromFileIndex, featureDictionary,
-                ScoreQValueMap.FromScoreQValues(bestTargetPvalues, qValues), missingValues);
+            return new FeatureStatisticDictionary(chromFileIndex, featureDictionary.ToDictionary(kvp=>kvp.Key, kvp=>ImmutableList.ValueOf(kvp.Value)),
+                ScoreQValueMap.FromScoreQValues(bestTargetScores, qValues), missingValues);
+        }
+
+        private T[] MakeArray<T>(IEnumerable<KeyValuePair<ReferenceValue<ChromFileInfoId>, T>> items)
+        {
+            var result = new T[FileIndex.Count];
+            foreach (var item in items)
+            {
+                int index = FileIndex.IndexOf(item.Key);
+                if (index >= 0)
+                {
+                    result[index] = item.Value;
+                }
+            }
+
+            return result;
         }
     }
 }

@@ -113,13 +113,11 @@ namespace pwiz.Skyline.Model
                     releaseRawFeatures && !UseTric);
             if (UseTric)
             {
-                var replacements = Tric.Rescore(ScoringModel,
+                _featureDictionary = Tric.Rescore(
                     _featureDictionary,
                     _features,
-                    progressMonitor,
-                    DocumentPath,
-                    output);
-                _featureDictionary = _featureDictionary.ReplaceValues(replacements);
+                    progressMonitor
+                );
             }
             if (releaseRawFeatures)
                 _features = null;   // Done with this memory

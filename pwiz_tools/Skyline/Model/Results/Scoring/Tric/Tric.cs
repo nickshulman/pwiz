@@ -182,7 +182,33 @@ namespace pwiz.Skyline.Model.Results.Scoring.Tric
 
         public ConcurrentBag<TricPeptide> Predictions { get; private set; }
 
-        public static Dictionary<PeakTransitionGroupIdKey, PeakFeatureStatistics> Rescore(
+        public static FeatureStatisticDictionary Rescore(
+            FeatureStatisticDictionary statDict,
+            PeakTransitionGroupFeatureSet featureSet,
+            IProgressMonitor progressMonitor)
+        {
+            var newValues = new List<KeyValuePair<Peptide, ImmutableList<PeakFeatureStatistics>>>();
+            // First initialize transfer of confidence alignment
+            var tric = InitializeAndRunTric(statDict, featureSet, progressMonitor);
+            //Iterate peptides
+            foreach (var prediction in tric.Predictions)
+            {
+                var array = new PeakFeatureStatistics[statDict.FileIndex.Count];
+                foreach (var entry in RescorePeptide(prediction, statDict.ScoreQValueMap))
+                {
+                    int index = statDict.FileIndex.IndexOf(entry.Key);
+                    if (index >= 0)
+                    {
+                        array[index] = entry.Value;
+                    }
+                }
+                newValues.Add(new KeyValuePair<Peptide, ImmutableList<PeakFeatureStatistics>>(prediction.Peptide.Peptide, ImmutableList.ValueOf(array)));
+            }
+
+            return statDict.ReplaceValues(newValues);
+        }
+
+        public static Dictionary<PeakTransitionGroupIdKey, PeakFeatureStatistics> RescorePickedPeaks(
             PeakScoringModelSpec originalScoringModel,
             FeatureStatisticDictionary statDict,
             PeakTransitionGroupFeatureSet featureSet,
@@ -201,28 +227,18 @@ namespace pwiz.Skyline.Model.Results.Scoring.Tric
                 originalScoringModel);
 
 
-            if (RESCORE_PICKED_PEAKS)
+            // Collect up the feature scores for the best run for each peptide.
+            var targets = new List<IList<FeatureScores>>(featureSet.TargetCount);
+            var decoys = new List<IList<FeatureScores>>(featureSet.DecoyCount);
+
+            var targetIds = new List<PeakTransitionGroupIdKey>(featureSet.TargetCount);
+
+            //Iterate over each peptide
+            foreach (var prediction in tric.Predictions)
             {
-                // Collect up the feature scores for the best run for each peptide.
-                var targets = new List<IList<FeatureScores>>(featureSet.TargetCount);
-                var decoys = new List<IList<FeatureScores>>(featureSet.DecoyCount);
-
-                var targetIds = new List<PeakTransitionGroupIdKey>(featureSet.TargetCount);
-
-                //Iterate over each peptide
-                foreach (var prediction in tric.Predictions)
+                //Set no best peak if no seed was found.
+                if (prediction.Seed != null)
                 {
-                    //Set no best peak if no seed was found.
-                    if (prediction.Seed == null)
-                    {
-                        foreach (var tricStat in prediction.Peptide.FileValues)
-                        {
-                            newValues[new PeakTransitionGroupIdKey(prediction.Peptide.Peptide, tricStat.FileId)] =
-                                tricStat.FeatureStats.SetNoBestPeak();
-                        }
-                        continue;
-                    }
-
                     var isDecoy = prediction.Seed.Features.IsDecoy;
 
                     //Iterate over each file and if peak_group was found 
@@ -236,11 +252,14 @@ namespace pwiz.Skyline.Model.Results.Scoring.Tric
                             newValues[tricStat.Features.Key] = tricStat.FeatureStats.SetNoBestPeak();
                             continue;
                         }
+
                         if (!isDecoy)
                         {
                             targetIds.Add(tricStat.Features.Key);
                         }
-                        newValues[tricStat.Features.Key] = tricStat.FeatureStats.ResetBestPeak(tricStat.AlignedPeakIndex, tricStat.Features);
+
+                        newValues[tricStat.Features.Key] =
+                            tricStat.FeatureStats.ResetBestPeak(tricStat.AlignedPeakIndex, tricStat.Features);
 
                         var featureArray = featureScoreCalculator.GetFeatureArray(tricStat, prediction);
 
@@ -250,97 +269,93 @@ namespace pwiz.Skyline.Model.Results.Scoring.Tric
                             targets.Add(ImmutableList.Singleton(featureArray));
                     }
                 }
+            }
 
-                //Cannot do any FDR Estimation with zero decoys
-                //TODO is this threshold too low?
-                if (decoys.Count == 0)
-                    throw new Exception(
-                        Resources.Tric_Rescore_Not_enough_high_scoring_Decoys_found_in_run_to_run_alignment_);
-                var initWeights = featureScoreCalculator.GetInitialFeatureWeights();
+            //Cannot do any FDR Estimation with zero decoys
+            //TODO is this threshold too low?
+            if (decoys.Count == 0)
+                throw new Exception(
+                    Resources.Tric_Rescore_Not_enough_high_scoring_Decoys_found_in_run_to_run_alignment_);
+            var initWeights = featureScoreCalculator.GetInitialFeatureWeights();
 
-                //train final model
-                var initParams = new LinearModelParams(initWeights);
-                var finalModel = new MProphetPeakScoringModel("FinalModel", initParams, null, true);
+            //train final model
+            var initParams = new LinearModelParams(initWeights);
+            var finalModel = new MProphetPeakScoringModel("FinalModel", initParams, null, true);
 
-                // TODO(tric): targetdecoygenerator
-                finalModel = (MProphetPeakScoringModel) finalModel.Train(targets, decoys, null, initParams,
-                    null, null, false, false, progressMonitor, documentPath);
+            // TODO(tric): targetdecoygenerator
+            finalModel = (MProphetPeakScoringModel)finalModel.Train(targets, decoys, null, initParams,
+                null, null, false, false, progressMonitor, documentPath);
 
-                //Write final model parameters to console
-                if (output != null)
+            //Write final model parameters to console
+            if (output != null)
+            {
+                var names = featureScoreCalculator.GetFeatureNames();
+                var weights = finalModel.Parameters.Weights;
+                Assume.IsTrue(names.Count == weights.Count);
+                for (int i = 0; i < names.Count; i++)
                 {
-                    var names = featureScoreCalculator.GetFeatureNames();
-                    var weights = finalModel.Parameters.Weights;
-                    Assume.IsTrue(names.Count == weights.Count);
-                    for (int i = 0; i < names.Count; i++)
-                    {
-                        output.WriteLine("{0}: {1:F04}", names[i], weights[i]); // Not L10N
-                    }
-                }
-                List<double> pValues, scores;
-                CalcScores(targets, finalModel, out scores, out pValues);
-                //TODO what should lambda and piZeroMinBe ?
-                var qValues = new Statistics(pValues).Qvalues(0.95, 0.005);
-                // make sure to reset the scores
-                for (int i = 0; i < qValues.Length; i++)
-                {
-                    var stat = statDict[targetIds[i]];
-                    newValues[targetIds[i]] = stat.ResetBestScores((float) scores[i], qValues[i]);
+                    output.WriteLine("{0}: {1:F04}", names[i], weights[i]); // Not L10N
                 }
             }
-            // If not rescoring, then either use interpolated qValues or
-            // peptide level qValues depending on our hyperparameter settings
-            else
+            List<double> pValues, scores;
+            CalcScores(targets, finalModel, out scores, out pValues);
+            //TODO what should lambda and piZeroMinBe ?
+            var qValues = new Statistics(pValues).Qvalues(0.95, 0.005);
+            // make sure to reset the scores
+            for (int i = 0; i < qValues.Length; i++)
             {
-                //Iterate peptides
-                foreach (var prediction in tric.Predictions)
-                {
-                    //Set no best peak if no seed was found.
-                    if (prediction.Seed == null)
-                    {
-                        foreach (var tricStat in prediction.Peptide.FileValues)
-                        {
-                            newValues[tricStat.Features.Key] = tricStat.FeatureStats.SetNoBestPeak();
-                        }
-                        continue;
-                    }
-
-                    //Iterate files
-                    foreach (var tricStat in prediction.Peptide.FileValues)
-                    {
-                        var featureStats = tricStat.FeatureStats;
-                        var alignedIndex = tricStat.AlignedPeakIndex;
-                        if (alignedIndex == -1)
-                        {
-                            newValues[tricStat.Features.Key] = featureStats.SetNoBestPeak();
-                            continue;
-                        }
-                        featureStats = featureStats.ResetBestPeak(tricStat.AlignedPeakIndex, tricStat.Features);
-                        //If we are doing peptide level scoring
-                        //then every peak group picked by TRIC gets the peptide level
-                        //score and qValue
-                        if (USE_GLOBAL_Q_VALUES)
-                        {
-                            featureStats = featureStats.ResetBestScores(
-                                (float) prediction.Peptide.GlobalBestScore,
-                                prediction.Peptide.GlobalQValue
-                            );
-                        }
-                        //Otherwise retain original mProphet score
-                        //and interpolated qValue 
-                        else
-                        {
-                            featureStats = featureStats.ResetBestScores(
-                                tricStat.BestScore,
-                                statDict.ScoreQValueMap.GetQValue(tricStat.FeatureStats.MprophetScores[tricStat.AlignedPeakIndex]) ?? 1);
-                        }
-
-                        newValues[tricStat.Features.Key] = featureStats;
-                    }
-                }
+                var stat = statDict[targetIds[i]];
+                newValues[targetIds[i]] = stat.ResetBestScores((float)scores[i], qValues[i]);
             }
 
             return newValues;
+        }
+
+
+        public static Dictionary<ReferenceValue<ChromFileInfoId>, PeakFeatureStatistics> RescorePeptide(TricPeptide prediction,
+            ScoreQValueMap scoreQValueMap)
+        {
+            if (prediction.Seed == null)
+            {
+                return prediction.Peptide.FileValues.ToDictionary(value => ReferenceValue.Of(value.FileId), 
+                    value => value.FeatureStats.SetNoBestPeak());
+            }
+
+            var result = new Dictionary<ReferenceValue<ChromFileInfoId>, PeakFeatureStatistics>();
+            foreach (var tricStat in prediction.Peptide.FileValues)
+            {
+                var featureStats = tricStat.FeatureStats;
+                var alignedIndex = tricStat.AlignedPeakIndex;
+                if (alignedIndex == -1)
+                {
+                    result.Add(tricStat.FileId, featureStats.SetNoBestPeak());
+                    continue;
+                }
+
+                featureStats = featureStats.ResetBestPeak(tricStat.AlignedPeakIndex, tricStat.Features);
+                //If we are doing peptide level scoring
+                //then every peak group picked by TRIC gets the peptide level
+                //score and qValue
+                if (USE_GLOBAL_Q_VALUES)
+                {
+                    featureStats = featureStats.ResetBestScores(
+                        (float)prediction.Peptide.GlobalBestScore,
+                        prediction.Peptide.GlobalQValue
+                    );
+                }
+                //Otherwise retain original mProphet score
+                //and interpolated qValue 
+                else
+                {
+                    featureStats = featureStats.ResetBestScores(
+                        tricStat.BestScore,
+                        scoreQValueMap.GetQValue(tricStat.FeatureStats.MprophetScores[tricStat.AlignedPeakIndex]) ?? 1);
+                }
+
+                result.Add(tricStat.FileId, featureStats);
+            }
+
+            return result;
         }
 
         public static Tric InitializeAndRunTric(FeatureStatisticDictionary statDict,
@@ -441,7 +456,7 @@ namespace pwiz.Skyline.Model.Results.Scoring.Tric
             }
 
             return bag.GroupBy(tricStat => ReferenceValue.Of(tricStat.Features.Key.Peptide))
-                .Select(g => new PeptideFileFeatureSet(g)).ToArray();
+                .Select(g => new PeptideFileFeatureSet(g.Key, g)).ToArray();
         }
         /// <summary>
         /// Create alignment tree and then do alignment on all peptides to pick peaks. 
@@ -680,9 +695,9 @@ namespace pwiz.Skyline.Model.Results.Scoring.Tric
 
     public class PeptideFileFeatureSet
     {
-        public PeptideFileFeatureSet(IGrouping<ReferenceValue<Peptide>, TricFileFeatureStatistics> grouping)
+        public PeptideFileFeatureSet(Peptide peptide, IEnumerable<TricFileFeatureStatistics> grouping)
         {
-            Peptide = grouping.Key.Value;
+            Peptide = peptide;
             FileFeatures = new Dictionary<ReferenceValue<ChromFileInfoId>, TricFileFeatureStatistics>();
             GlobalBestScore = float.MinValue;
             foreach (var fileFeatures in grouping)

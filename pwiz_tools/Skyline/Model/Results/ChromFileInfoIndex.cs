@@ -78,7 +78,7 @@ namespace pwiz.Skyline.Model.Results
             }
         }
 
-        public T[] MakeArray<T>(IEnumerable<KeyValuePair<ChromFileInfoId, T>> items)
+        public T[] MakeArray<T>(IDictionary<ReferenceValue<ChromFileInfoId>, T> items)
         {
             var array = new T[Count];
             foreach (var item in items)

@@ -20,6 +20,7 @@
 using System;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Windows.Forms;
 using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Alerts;
@@ -28,6 +29,7 @@ using pwiz.Skyline.Model;
 using pwiz.Skyline.Model.AuditLog;
 using pwiz.Skyline.Model.DocSettings.Extensions;
 using pwiz.Skyline.Model.Results.Scoring;
+using pwiz.Skyline.Model.Results.Scoring.Tric;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.SettingsUI;
 using pwiz.Skyline.Util;
@@ -62,6 +64,8 @@ namespace pwiz.Skyline.EditUI
             _driverPeakScoringModel.EditItemEvent += comboBoxScoringModel_EditItem;
             var peakScoringModel = document.Settings.PeptideSettings.Integration.PeakScoringModel;
             _driverPeakScoringModel.LoadList(peakScoringModel != null ? peakScoringModel.Name : null);
+            comboRunToRunAlignment.Items.AddRange(RunToRunAlignmentOption.ALL.ToArray());
+            comboRunToRunAlignment.SelectedIndex = 0;
         }
 
         private void comboBoxScoringModel_EditItem(object sender, SettingsListComboDriver<PeakScoringModelSpec>.EditItemEventArgs e)
@@ -120,7 +124,7 @@ namespace pwiz.Skyline.EditUI
                     {
                         QValueCutoff = qCutoff,
                         OverrideManual = checkBoxOverwrite.Checked,
-                        UseTric = checkBoxUseAlignment.Checked,
+                        RunToRunAlignmentOption = UseTric
                     };
                     longWaitDlg.PerformWork(this, 1000, pm =>
                         {
@@ -222,10 +226,10 @@ namespace pwiz.Skyline.EditUI
             set { textBoxCutoff.Text = value.ToString(CultureInfo.CurrentCulture); }
         }
 
-        public bool UseTric
+        public RunToRunAlignmentOption UseTric
         {
-            get { return checkBoxUseAlignment.Checked; }
-            set { checkBoxUseAlignment.Checked = value; }
+            get { return comboRunToRunAlignment.SelectedItem as RunToRunAlignmentOption ?? RunToRunAlignmentOption.NONE;  }
+            set { comboRunToRunAlignment.SelectedItem = value; }
         }
 
         public bool OverwriteManual

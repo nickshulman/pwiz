@@ -47,6 +47,7 @@ using pwiz.Skyline.Model.Optimization;
 using pwiz.Skyline.Model.Proteome;
 using pwiz.Skyline.Model.Results;
 using pwiz.Skyline.Model.Results.Scoring;
+using pwiz.Skyline.Model.Results.Scoring.Tric;
 using pwiz.Skyline.Model.Tools;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
@@ -2502,7 +2503,7 @@ namespace pwiz.Skyline
                     modelAndFeatures = new ModelAndFeatures(scoringModel, null);
                 }
 
-                if (!Reintegrate(modelAndFeatures, commandArgs.IsOverwritePeaks, commandArgs.UsesTRIC, commandArgs.IsLogTraining))
+                if (!Reintegrate(modelAndFeatures, commandArgs.IsOverwritePeaks, commandArgs.RunToRunAlignmentOption, commandArgs.IsLogTraining))
                     return false;
             }
             return true;
@@ -2624,7 +2625,7 @@ namespace pwiz.Skyline
             return new MProphetPeakScoringModel(modelName, (LinearModelParams) null, calcs, decoys, secondBest);
         }
 
-        private bool Reintegrate(ModelAndFeatures modelAndFeatures, bool isOverwritePeaks, bool useTric, bool logTraining)
+        private bool Reintegrate(ModelAndFeatures modelAndFeatures, bool isOverwritePeaks, RunToRunAlignmentOption runToRunAlignmentOption, bool logTraining)
         {
             try
             {
@@ -2632,7 +2633,7 @@ namespace pwiz.Skyline
                 {
                     OverrideManual = isOverwritePeaks,
                     FreeImmutableMemory = true,
-                    UseTric = useTric
+                    RunToRunAlignmentOption = runToRunAlignmentOption
                 };
                 
                 // If logging training, give the modeling code a place to write

@@ -24,6 +24,7 @@ using pwiz.Common.DataBinding.Controls.Editor;
 using pwiz.Skyline.Alerts;
 using pwiz.Skyline.Controls.Databinding;
 using pwiz.Skyline.EditUI;
+using pwiz.Skyline.Model.Results.Scoring.Tric;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.SettingsUI;
 using pwiz.Skyline.Util.Extensions;
@@ -76,7 +77,7 @@ namespace TestPerf
                 var reintegrateDlg = ShowDialog<ReintegrateDlg>(SkylineWindow.ShowReintegrateDialog);
                 RunUI(() =>
                 {
-                    reintegrateDlg.UseTric = true;
+                    reintegrateDlg.UseTric = RunToRunAlignmentOption.COPY_BEST_PEAK;
                     reintegrateDlg.OverwriteManual = true;
                     reintegrateDlg.ReintegrateAll = true;
                 });
@@ -107,7 +108,7 @@ namespace TestPerf
                 var reintegrateDlg = ShowDialog<ReintegrateDlg>(SkylineWindow.ShowReintegrateDialog);
                 RunUI(() =>
                 {
-                    reintegrateDlg.UseTric = false;
+                    reintegrateDlg.UseTric = RunToRunAlignmentOption.NONE;
                     reintegrateDlg.OverwriteManual = true;
                     reintegrateDlg.ReintegrateAll = true;
                     reintegrateDlg.ComboPeakScoringModelSelected = "TestScoringModel";

@@ -81,7 +81,7 @@ namespace pwiz.Skyline.Model
         public double QValueCutoff { get; set; }
         public bool OverrideManual { get; set; }
         public bool IncludeDecoys { get; set; }
-        public bool UseTric { get; set; }
+        public RunToRunAlignmentOption RunToRunAlignmentOption { get; set; }
 
         /// <summary>
         /// Forces the release of memory by breaking immutability to avoid doubling
@@ -110,14 +110,19 @@ namespace pwiz.Skyline.Model
                 return;
             _featureDictionary =
                 FeatureStatisticDictionary.MakeFeatureDictionary(ChromFileInfoIndex.FromChromatogramSets(Document.MeasuredResults.Chromatograms), ScoringModel, _features,
-                    releaseRawFeatures && !UseTric);
-            if (UseTric)
+                    releaseRawFeatures && RunToRunAlignmentOption == RunToRunAlignmentOption.NONE);
+            if (RunToRunAlignmentOption == RunToRunAlignmentOption.COPY_BEST_PEAK)
             {
                 _featureDictionary = Tric.Rescore(
                     _featureDictionary,
                     _features,
                     progressMonitor
                 );
+            }
+            else
+            {
+                _featureDictionary = Tric.RescorePickedPeaks(ScoringModel, _featureDictionary, _features,
+                    progressMonitor, DocumentPath, output);
             }
             if (releaseRawFeatures)
                 _features = null;   // Done with this memory

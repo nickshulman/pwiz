@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using pwiz.Common.Collections;
 using pwiz.Skyline.Util;
@@ -22,12 +23,12 @@ namespace pwiz.Skyline.Model.Results.Scoring
         }
 
         public FeatureStatisticDictionary ReplaceValues(
-            IEnumerable<KeyValuePair<Peptide, ImmutableList<PeakFeatureStatistics>>> replacements)
+            IEnumerable<Tuple<Peptide, ImmutableList<PeakFeatureStatistics>>> replacements)
         {
             var dictionary = new Dictionary<ReferenceValue<Peptide>, ImmutableList<PeakFeatureStatistics>>(_dictionary);
             foreach (var entry in replacements)
             {
-                dictionary[entry.Key] = entry.Value;
+                dictionary[entry.Item1] = entry.Item2;
             }
             return new FeatureStatisticDictionary(FileIndex, dictionary, ScoreQValueMap, MissingScores);
         }

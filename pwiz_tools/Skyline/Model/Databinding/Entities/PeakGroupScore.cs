@@ -114,6 +114,11 @@ namespace pwiz.Skyline.Model.Databinding.Entities
         {
             return _scores.ToString(format, formatProvider);
         }
+
+        public FeatureScores GetFeatureScores()
+        {
+            return _scores;
+        }
     }
 
     [InvariantDisplayName(nameof(WeightedFeature))]

@@ -38,7 +38,8 @@
             this.checkBoxOverwrite = new System.Windows.Forms.CheckBox();
             this.label36 = new System.Windows.Forms.Label();
             this.comboBoxScoringModel = new System.Windows.Forms.ComboBox();
-            this.checkBoxUseAlignment = new System.Windows.Forms.CheckBox();
+            this.lblRunToRunAlignment = new System.Windows.Forms.Label();
+            this.comboRunToRunAlignment = new System.Windows.Forms.ComboBox();
             this.SuspendLayout();
             // 
             // btnCancel
@@ -100,11 +101,17 @@
             this.comboBoxScoringModel.Name = "comboBoxScoringModel";
             this.comboBoxScoringModel.SelectedIndexChanged += new System.EventHandler(this.comboBoxScoringModel_SelectedIndexChanged);
             // 
-            // checkBoxUseAlignment
+            // lblRunToRunAlignment
             // 
-            resources.ApplyResources(this.checkBoxUseAlignment, "checkBoxUseAlignment");
-            this.checkBoxUseAlignment.Name = "checkBoxUseAlignment";
-            this.checkBoxUseAlignment.UseVisualStyleBackColor = true;
+            resources.ApplyResources(this.lblRunToRunAlignment, "lblRunToRunAlignment");
+            this.lblRunToRunAlignment.Name = "lblRunToRunAlignment";
+            // 
+            // comboRunToRunAlignment
+            // 
+            this.comboRunToRunAlignment.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.comboRunToRunAlignment.FormattingEnabled = true;
+            resources.ApplyResources(this.comboRunToRunAlignment, "comboRunToRunAlignment");
+            this.comboRunToRunAlignment.Name = "comboRunToRunAlignment";
             // 
             // ReintegrateDlg
             // 
@@ -112,7 +119,8 @@
             resources.ApplyResources(this, "$this");
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.CancelButton = this.btnCancel;
-            this.Controls.Add(this.checkBoxUseAlignment);
+            this.Controls.Add(this.comboRunToRunAlignment);
+            this.Controls.Add(this.lblRunToRunAlignment);
             this.Controls.Add(this.comboBoxScoringModel);
             this.Controls.Add(this.label36);
             this.Controls.Add(this.checkBoxOverwrite);
@@ -143,6 +151,7 @@
         private System.Windows.Forms.CheckBox checkBoxOverwrite;
         private System.Windows.Forms.Label label36;
         private System.Windows.Forms.ComboBox comboBoxScoringModel;
-        private System.Windows.Forms.CheckBox checkBoxUseAlignment;
+        private System.Windows.Forms.Label lblRunToRunAlignment;
+        private System.Windows.Forms.ComboBox comboRunToRunAlignment;
     }
 }

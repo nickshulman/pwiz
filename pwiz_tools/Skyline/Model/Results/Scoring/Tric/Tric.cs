@@ -27,6 +27,8 @@ using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Model.RetentionTimes;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
+using static pwiz.Skyline.Model.Results.ProtoBuf.ChromatogramGroupIdsProto.Types;
+using static pwiz.Skyline.SettingsUI.EditPeakScoringModelDlg;
 
 namespace pwiz.Skyline.Model.Results.Scoring.Tric
 {
@@ -187,28 +189,19 @@ namespace pwiz.Skyline.Model.Results.Scoring.Tric
             PeakTransitionGroupFeatureSet featureSet,
             IProgressMonitor progressMonitor)
         {
-            var newValues = new List<KeyValuePair<Peptide, ImmutableList<PeakFeatureStatistics>>>();
+            var newValues = new List<Tuple<Peptide, ImmutableList<PeakFeatureStatistics>>>();
             // First initialize transfer of confidence alignment
             var tric = InitializeAndRunTric(statDict, featureSet, progressMonitor);
             //Iterate peptides
             foreach (var prediction in tric.Predictions)
             {
-                var array = new PeakFeatureStatistics[statDict.FileIndex.Count];
-                foreach (var entry in RescorePeptide(prediction, statDict.ScoreQValueMap))
-                {
-                    int index = statDict.FileIndex.IndexOf(entry.Key);
-                    if (index >= 0)
-                    {
-                        array[index] = entry.Value;
-                    }
-                }
-                newValues.Add(new KeyValuePair<Peptide, ImmutableList<PeakFeatureStatistics>>(prediction.Peptide.Peptide, ImmutableList.ValueOf(array)));
+                newValues.Add(Tuple.Create(prediction.Peptide.Peptide, ImmutableList.ValueOf(statDict.FileIndex.MakeArray(AlignToBestPeak(prediction, statDict.ScoreQValueMap)))));
             }
 
             return statDict.ReplaceValues(newValues);
         }
 
-        public static Dictionary<PeakTransitionGroupIdKey, PeakFeatureStatistics> RescorePickedPeaks(
+        public static FeatureStatisticDictionary RescorePickedPeaks(
             PeakScoringModelSpec originalScoringModel,
             FeatureStatisticDictionary statDict,
             PeakTransitionGroupFeatureSet featureSet,
@@ -216,7 +209,8 @@ namespace pwiz.Skyline.Model.Results.Scoring.Tric
             string documentPath,
             TextWriter output = null)
         {
-            var newValues = new Dictionary<PeakTransitionGroupIdKey, PeakFeatureStatistics>();
+            var newValues = new List<Tuple<Peptide, ImmutableList<PeakFeatureStatistics>>>();
+            ;
             // First initialize transfer of confidence alignment
             var tric = InitializeAndRunTric(statDict, featureSet, progressMonitor);
 
@@ -236,40 +230,25 @@ namespace pwiz.Skyline.Model.Results.Scoring.Tric
             //Iterate over each peptide
             foreach (var prediction in tric.Predictions)
             {
-                //Set no best peak if no seed was found.
-                if (prediction.Seed != null)
+                var isDecoy = prediction.Seed.Features.IsDecoy;
+                var alignedResults = AlignToBestPeak(prediction, statDict.ScoreQValueMap);
+
+                var rescoredFeatures = RescorePeptide(featureScoreCalculator, prediction, alignedResults);
+
+                foreach (var featureEntry in rescoredFeatures)
                 {
-                    var isDecoy = prediction.Seed.Features.IsDecoy;
-
-                    //Iterate over each file and if peak_group was found 
-                    //store its feature scores for LDA
-                    foreach (var tricStat in prediction.Peptide.FileValues)
+                    if (!isDecoy)
                     {
-                        var alignedIndex = tricStat.AlignedPeakIndex;
-                        //No peak found, then make sure FeatureStats agrees
-                        if (alignedIndex == -1)
-                        {
-                            newValues[tricStat.Features.Key] = tricStat.FeatureStats.SetNoBestPeak();
-                            continue;
-                        }
-
-                        if (!isDecoy)
-                        {
-                            targetIds.Add(tricStat.Features.Key);
-                        }
-
-                        newValues[tricStat.Features.Key] =
-                            tricStat.FeatureStats.ResetBestPeak(tricStat.AlignedPeakIndex, tricStat.Features);
-
-                        var featureArray = featureScoreCalculator.GetFeatureArray(tricStat, prediction);
-
-                        if (isDecoy)
-                            decoys.Add(ImmutableList.Singleton(featureArray));
-                        else
-                            targets.Add(ImmutableList.Singleton(featureArray));
+                        targetIds.Add(new PeakTransitionGroupIdKey(prediction.Peptide.Peptide, featureEntry.Key));
                     }
+                    if (isDecoy)
+                        decoys.Add(ImmutableList.Singleton(featureEntry.Value));
+                    else
+                        targets.Add(ImmutableList.Singleton(featureEntry.Value));
                 }
+                newValues.Add(Tuple.Create(prediction.Peptide.Peptide, ImmutableList.ValueOf(statDict.FileIndex.MakeArray(alignedResults))));
             }
+            statDict = statDict.ReplaceValues(newValues);
 
             //Cannot do any FDR Estimation with zero decoys
             //TODO is this threshold too low?
@@ -297,22 +276,59 @@ namespace pwiz.Skyline.Model.Results.Scoring.Tric
                     output.WriteLine("{0}: {1:F04}", names[i], weights[i]); // Not L10N
                 }
             }
+
+
             List<double> pValues, scores;
             CalcScores(targets, finalModel, out scores, out pValues);
             //TODO what should lambda and piZeroMinBe ?
             var qValues = new Statistics(pValues).Qvalues(0.95, 0.005);
             // make sure to reset the scores
-            for (int i = 0; i < qValues.Length; i++)
+            return ReplaceScores(statDict, targetIds, scores, qValues);
+        }
+
+        public static Dictionary<ReferenceValue<ChromFileInfoId>, FeatureScores> RescorePeptide(
+            TricFeatureScoreCalculator featureScoreCalculator, TricPeptide prediction, Dictionary<ReferenceValue<ChromFileInfoId>, PeakFeatureStatistics> alignedResults)
+        {
+            var result = new Dictionary<ReferenceValue<ChromFileInfoId>, FeatureScores>();
+            foreach (var alignedResult in alignedResults)
             {
-                var stat = statDict[targetIds[i]];
-                newValues[targetIds[i]] = stat.ResetBestScores((float)scores[i], qValues[i]);
+                if (alignedResult.Value.BestPeakIndex < 0)
+                {
+                    continue;
+                }
+
+                var tricStat = new TricFileFeatureStatistics(alignedResult.Value,
+                    prediction.Peptide.FileFeatures[alignedResult.Key].Features);
+                result[alignedResult.Key] = featureScoreCalculator.GetFeatureArray(tricStat, prediction);
             }
 
-            return newValues;
+            return result;
+        }
+
+        private static FeatureStatisticDictionary ReplaceScores(FeatureStatisticDictionary featureStatisticDictionary,
+            IList<PeakTransitionGroupIdKey> ids, IList<double> scores, IList<double> qValues)
+        {
+            var indexes = ids.Select((id, index) => Tuple.Create(id, index))
+                .GroupBy(tuple => ReferenceValue.Of(tuple.Item1.Peptide));
+            var replacements = new List<Tuple<Peptide, ImmutableList<PeakFeatureStatistics>>>();
+            foreach (var grouping in indexes)
+            {
+                var array = new PeakFeatureStatistics[featureStatisticDictionary.FileIndex.Count];
+                foreach (var tuple in grouping)
+                {
+                    var peakFeatureStatistics = featureStatisticDictionary.GetPeakFeatureStatistics(tuple.Item1);
+                    peakFeatureStatistics =
+                        peakFeatureStatistics.ResetBestScores((float)scores[tuple.Item2], qValues[tuple.Item2]);
+                    array[featureStatisticDictionary.FileIndex.IndexOf(tuple.Item1.FileId)] = peakFeatureStatistics;
+                }
+                replacements.Add(Tuple.Create(grouping.Key.Value, ImmutableList.ValueOf(array)));
+            }
+
+            return featureStatisticDictionary.ReplaceValues(replacements);
         }
 
 
-        public static Dictionary<ReferenceValue<ChromFileInfoId>, PeakFeatureStatistics> RescorePeptide(TricPeptide prediction,
+        public static Dictionary<ReferenceValue<ChromFileInfoId>, PeakFeatureStatistics> AlignToBestPeak(TricPeptide prediction,
             ScoreQValueMap scoreQValueMap)
         {
             if (prediction.Seed == null)

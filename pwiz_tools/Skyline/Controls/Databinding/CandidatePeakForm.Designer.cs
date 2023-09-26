@@ -30,11 +30,12 @@
         {
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(CandidatePeakForm));
             this.panel1 = new System.Windows.Forms.Panel();
-            this.checkBoxUseAlignment = new System.Windows.Forms.CheckBox();
+            this.linkLabelBestReplicate = new System.Windows.Forms.LinkLabel();
+            this.lblBestReplicate = new System.Windows.Forms.Label();
             this.comboPeakScoringModel = new System.Windows.Forms.ComboBox();
             this.lblModel = new System.Windows.Forms.Label();
-            this.lblBestReplicate = new System.Windows.Forms.Label();
-            this.linkLabelBestReplicate = new System.Windows.Forms.LinkLabel();
+            this.lblRunToRunAlignment = new System.Windows.Forms.Label();
+            this.comboRunToRunAlignment = new System.Windows.Forms.ComboBox();
             this.panel1.SuspendLayout();
             this.SuspendLayout();
             // 
@@ -44,20 +45,24 @@
             // 
             // panel1
             // 
+            this.panel1.Controls.Add(this.comboRunToRunAlignment);
+            this.panel1.Controls.Add(this.lblRunToRunAlignment);
             this.panel1.Controls.Add(this.linkLabelBestReplicate);
             this.panel1.Controls.Add(this.lblBestReplicate);
-            this.panel1.Controls.Add(this.checkBoxUseAlignment);
             this.panel1.Controls.Add(this.comboPeakScoringModel);
             this.panel1.Controls.Add(this.lblModel);
             resources.ApplyResources(this.panel1, "panel1");
             this.panel1.Name = "panel1";
             // 
-            // checkBoxUseAlignment
+            // linkLabelBestReplicate
             // 
-            resources.ApplyResources(this.checkBoxUseAlignment, "checkBoxUseAlignment");
-            this.checkBoxUseAlignment.Name = "checkBoxUseAlignment";
-            this.checkBoxUseAlignment.UseVisualStyleBackColor = true;
-            this.checkBoxUseAlignment.CheckedChanged += new System.EventHandler(this.checkBoxUseAlignment_CheckedChanged);
+            resources.ApplyResources(this.linkLabelBestReplicate, "linkLabelBestReplicate");
+            this.linkLabelBestReplicate.Name = "linkLabelBestReplicate";
+            // 
+            // lblBestReplicate
+            // 
+            resources.ApplyResources(this.lblBestReplicate, "lblBestReplicate");
+            this.lblBestReplicate.Name = "lblBestReplicate";
             // 
             // comboPeakScoringModel
             // 
@@ -72,15 +77,18 @@
             resources.ApplyResources(this.lblModel, "lblModel");
             this.lblModel.Name = "lblModel";
             // 
-            // lblBestReplicate
+            // lblRunToRunAlignment
             // 
-            resources.ApplyResources(this.lblBestReplicate, "lblBestReplicate");
-            this.lblBestReplicate.Name = "lblBestReplicate";
+            resources.ApplyResources(this.lblRunToRunAlignment, "lblRunToRunAlignment");
+            this.lblRunToRunAlignment.Name = "lblRunToRunAlignment";
             // 
-            // linkLabelBestReplicate
+            // comboRunToRunAlignment
             // 
-            resources.ApplyResources(this.linkLabelBestReplicate, "linkLabelBestReplicate");
-            this.linkLabelBestReplicate.Name = "linkLabelBestReplicate";
+            this.comboRunToRunAlignment.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.comboRunToRunAlignment.FormattingEnabled = true;
+            resources.ApplyResources(this.comboRunToRunAlignment, "comboRunToRunAlignment");
+            this.comboRunToRunAlignment.Name = "comboRunToRunAlignment";
+            this.comboRunToRunAlignment.SelectedIndexChanged += new System.EventHandler(this.comboRunToRunAlignment_SelectedIndexChanged);
             // 
             // CandidatePeakForm
             // 
@@ -101,8 +109,9 @@
         private System.Windows.Forms.Panel panel1;
         private System.Windows.Forms.ComboBox comboPeakScoringModel;
         private System.Windows.Forms.Label lblModel;
-        private System.Windows.Forms.CheckBox checkBoxUseAlignment;
         private System.Windows.Forms.LinkLabel linkLabelBestReplicate;
         private System.Windows.Forms.Label lblBestReplicate;
+        private System.Windows.Forms.ComboBox comboRunToRunAlignment;
+        private System.Windows.Forms.Label lblRunToRunAlignment;
     }
 }

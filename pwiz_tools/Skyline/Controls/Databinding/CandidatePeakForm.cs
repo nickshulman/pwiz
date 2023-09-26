@@ -69,6 +69,8 @@ namespace pwiz.Skyline.Controls.Databinding
             DataboundGridControl.DataGridView.CellFormatting += DataGridView_OnCellFormatting;
             DataboundGridControl.DataGridView.CurrentCellDirtyStateChanged += DataGridView_OnCurrentCellDirtyStateChanged;
             _originalPeakColor = GetOriginalPeakColor();
+            comboRunToRunAlignment.Items.AddRange(RunToRunAlignmentOption.ALL.ToArray());
+            comboRunToRunAlignment.SelectedIndex = 0;
         }
 
         private void DataGridView_OnCurrentCellDirtyStateChanged(object sender, EventArgs e)
@@ -331,7 +333,8 @@ namespace pwiz.Skyline.Controls.Databinding
             {
                 return results;
             }
-            if (selector.UseRunToRunAlignment)
+
+            if (selector.RunToRunAlignment != RunToRunAlignmentOption.NONE)
             {
                 if (results.PeakTransitionGroupFeatureSet == null)
                 {
@@ -346,13 +349,27 @@ namespace pwiz.Skyline.Controls.Databinding
                 var tricPeptide = tric.Predictions.FirstOrDefault(peptide =>
                     ReferenceEquals(peptide.Peptide.Peptide, selector.PeptideIdentityPath.Child));
                 results = results.ChangeTricPeptide(tricPeptide);
+                if (tricPeptide != null)
+                {
+                    var alignedResults = Tric.AlignToBestPeak(tricPeptide, featureDictionary.ScoreQValueMap);
+                    if (selector.RunToRunAlignment == RunToRunAlignmentOption.RESCORE)
+                    {
+                        var featureScoreCalculator = new TricFeatureScoreCalculator(Tric.SEED_SCORES_USED,
+                            Tric.USE_SEED_DOT_PRODUCT_CORRELATION_SCORE, selector.PeakScoringModel);
+                        var rescoredResultsDict = Tric.RescorePeptide(featureScoreCalculator, tricPeptide, alignedResults);
+                        if (rescoredResultsDict.TryGetValue(selector.ChromFileInfoId, out var rescoredResults))
+                        {
+                            results = results.ChangeRescoredResults(rescoredResults);
+                        }
+                    }
+                }
             }
 
-            results = results.ChangeCandidatePeaks(GetCandidatePeakGroups(selector));
+            results = results.ChangeCandidatePeaks(GetCandidatePeakGroups(selector, results.TricPeptide));
             return results;
         }
 
-        private IList<CandidatePeakGroup> GetCandidatePeakGroups(Selector selector)
+        private IList<CandidatePeakGroup> GetCandidatePeakGroups(Selector selector, Tric.TricPeptide tricPeptide)
         {
             var candidatePeakGroups = new List<CandidatePeakGroup>();
             if (selector == null)
@@ -365,7 +382,8 @@ namespace pwiz.Skyline.Controls.Databinding
             {
                 return candidatePeakGroups;
             }
-
+            TricFileFeatureStatistics tricFileFeatureStatistics = null;
+            tricPeptide?.Peptide.FileFeatures.TryGetValue(selector.ChromFileInfoId, out tricFileFeatureStatistics);
             var precursorIdentityPath =
                 new IdentityPath(selector.PeptideIdentityPath, selector.TransitionGroups.First());
             var precursor = new Precursor(_dataSchema, precursorIdentityPath);
@@ -375,7 +393,17 @@ namespace pwiz.Skyline.Controls.Databinding
             var transitionGroup = (TransitionGroup)precursorIdentityPath.Child;
             foreach (var peakGroupData in featureCalculator.GetCandidatePeakGroups(transitionGroup))
             {
-                candidatePeakGroups.Add(new CandidatePeakGroup(precursorResult, peakGroupData));
+                CandidatePeakGroup candidatePeakGroup;
+                if (tricFileFeatureStatistics != null)
+                {
+                    PeakGroupFeatures peakFeatures = tricFileFeatureStatistics.Features.PeakGroupFeatures[candidatePeakGroups.Count];
+                    candidatePeakGroup = new CandidatePeakGroup(precursorResult, MergePeakGroupData(peakGroupData, peakFeatures));
+                }
+                else
+                {
+                    candidatePeakGroup = new CandidatePeakGroup(precursorResult, peakGroupData);
+                }
+                candidatePeakGroups.Add(candidatePeakGroup);
             }
 
             if (!candidatePeakGroups.Any(peak => peak.Chosen))
@@ -388,6 +416,32 @@ namespace pwiz.Skyline.Controls.Databinding
             }
 
             return candidatePeakGroups.OrderBy(peak => Tuple.Create(peak.PeakGroupStartTime, peak.PeakGroupEndTime)).ToList();
+        }
+
+        private CandidatePeakGroupData MergePeakGroupData(CandidatePeakGroupData candidatePeakGroupData,
+            PeakGroupFeatures peakGroupFeatures)
+        {
+            var originalFeatureScores = candidatePeakGroupData.Score.Features.GetFeatureScores();
+            var newFeatureScores = peakGroupFeatures.FeatureScores;
+            var mergedFeatureNames = FeatureNames.FromCalculators(originalFeatureScores.FeatureNames.AsCalculators()
+                .Concat(newFeatureScores.FeatureNames.AsCalculators()));
+            var newScores = new List<float>();
+            var newWeightedFeatures = new Dictionary<FeatureKey, WeightedFeature>(candidatePeakGroupData.Score.WeightedFeatures);
+            foreach (var calculator in mergedFeatureNames.AsCalculators())
+            {
+                var score = newFeatureScores.GetFeature(calculator) ?? originalFeatureScores.GetFeature(calculator) ?? float.NaN;
+                newScores.Add(score);
+                if (originalFeatureScores.FeatureNames.IndexOf(calculator) < 0)
+                {
+                    newWeightedFeatures.Add(FeatureKey.FromCalculator(calculator),new WeightedFeature(score, 0));
+                }
+            }
+
+            var newPeakGroupScore = new PeakGroupScore(new FeatureScores(mergedFeatureNames, newScores),
+                candidatePeakGroupData.Score.ModelScore, candidatePeakGroupData.Score.PeakQValue, newWeightedFeatures);
+            return new CandidatePeakGroupData(candidatePeakGroupData.PeakIndex, candidatePeakGroupData.RetentionTime,
+                candidatePeakGroupData.MinStartTime, candidatePeakGroupData.MaxEndTime, candidatePeakGroupData.Chosen,
+                newPeakGroupScore, candidatePeakGroupData.OriginallyBestPeak);
         }
 
         private Selector GetSelector()
@@ -422,7 +476,7 @@ namespace pwiz.Skyline.Controls.Databinding
                 var transitionGroups = ImmutableList.ValueOf(comparableGroup.Select(tg => tg.TransitionGroup));
                 if (transitionGroups.Any(precursor => ReferenceEquals(transitionGroup, precursor)))
                 {
-                    return new Selector(document, GetPeakScoringModelSpec(), checkBoxUseAlignment.Checked, peptideIdentityPath, transitionGroups,
+                    return new Selector(document, GetPeakScoringModelSpec(), RunToRunAlignmentOption, peptideIdentityPath, transitionGroups,
                         replicateIndex, chromFileInfoId);
                 }
             }
@@ -430,14 +484,27 @@ namespace pwiz.Skyline.Controls.Databinding
             return null;
         }
 
+
+        public RunToRunAlignmentOption RunToRunAlignmentOption
+        {
+            get
+            {
+                return comboRunToRunAlignment.SelectedItem as RunToRunAlignmentOption ?? RunToRunAlignmentOption.NONE;
+            }
+            set
+            {
+                comboRunToRunAlignment.SelectedItem = value;
+            }
+        }
+
         private class Selector
         {
-            public Selector(SrmDocument document, PeakScoringModelSpec peakScoringModel, bool useRunToRunAlignment, IdentityPath peptideIdentityPath,
+            public Selector(SrmDocument document, PeakScoringModelSpec peakScoringModel, RunToRunAlignmentOption runToRunAlignment, IdentityPath peptideIdentityPath,
                 IEnumerable<TransitionGroup> transitionGroups, int replicateIndex, ChromFileInfoId chromFileInfoId)
             {
                 Document = document;
                 PeakScoringModel = peakScoringModel;
-                UseRunToRunAlignment = useRunToRunAlignment;
+                RunToRunAlignment = runToRunAlignment;
                 PeptideIdentityPath = peptideIdentityPath;
                 TransitionGroups = ImmutableList.ValueOf(transitionGroups);
                 ReplicateIndex = replicateIndex;
@@ -446,7 +513,7 @@ namespace pwiz.Skyline.Controls.Databinding
 
             public SrmDocument Document { get; }
             public PeakScoringModelSpec PeakScoringModel { get; }
-            public bool UseRunToRunAlignment { get; }
+            public RunToRunAlignmentOption RunToRunAlignment { get; }
             public IdentityPath PeptideIdentityPath { get; }
             public ImmutableList<TransitionGroup> TransitionGroups { get; }
             public int ReplicateIndex { get; }
@@ -460,7 +527,7 @@ namespace pwiz.Skyline.Controls.Databinding
                        && ReplicateIndex == other.ReplicateIndex
                        && ReferenceEquals(ChromFileInfoId, other.ChromFileInfoId)
                        && Equals(PeakScoringModel, other.PeakScoringModel)
-                       && Equals(UseRunToRunAlignment, other.UseRunToRunAlignment);
+                       && Equals(RunToRunAlignment, other.RunToRunAlignment);
             }
 
             public override bool Equals(object obj)
@@ -480,7 +547,7 @@ namespace pwiz.Skyline.Controls.Databinding
                     hashCode = (hashCode * 397) ^ ReplicateIndex;
                     hashCode = (hashCode * 397) ^ RuntimeHelpers.GetHashCode(ChromFileInfoId);
                     hashCode = (hashCode * 397) ^ PeakScoringModel.GetHashCode();
-                    hashCode = (hashCode * 397) ^ UseRunToRunAlignment.GetHashCode();
+                    hashCode = (hashCode * 397) ^ RunToRunAlignment.GetHashCode();
                     return hashCode;
                 }
             }
@@ -565,6 +632,7 @@ namespace pwiz.Skyline.Controls.Databinding
 
                     im.TricPeptide = null;
                     im.CandidatePeaks = null;
+                    im.RescoredResults = null;
                 });
             }
             public PeakTransitionGroupFeatureSet PeakTransitionGroupFeatureSet { get; private set; }
@@ -585,6 +653,18 @@ namespace pwiz.Skyline.Controls.Databinding
             {
                 return ChangeProp(ImClone(this), im => im.CandidatePeaks = ImmutableList.ValueOf(candidatePeaks));
             }
+
+            public FeatureScores RescoredResults { get; private set; }
+
+            public Results ChangeRescoredResults(FeatureScores value)
+            {
+                return ChangeProp(ImClone(this), im => im.RescoredResults = value);
+            }
+        }
+
+        private void comboRunToRunAlignment_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            QueueUpdateRowSource();
         }
     }
 }

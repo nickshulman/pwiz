@@ -139,7 +139,55 @@
   <metadata name="ModeUIExtender.TrayLocation" type="System.Drawing.Point, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a">
     <value>17, 17</value>
   </metadata>
+  <data name="comboRunToRunAlignment.Location" type="System.Drawing.Point, System.Drawing">
+    <value>198, 25</value>
+  </data>
+  <data name="comboRunToRunAlignment.Size" type="System.Drawing.Size, System.Drawing">
+    <value>146, 21</value>
+  </data>
   <assembly alias="mscorlib" name="mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089" />
+  <data name="comboRunToRunAlignment.TabIndex" type="System.Int32, mscorlib">
+    <value>15</value>
+  </data>
+  <data name="&gt;&gt;comboRunToRunAlignment.Name" xml:space="preserve">
+    <value>comboRunToRunAlignment</value>
+  </data>
+  <data name="&gt;&gt;comboRunToRunAlignment.Type" xml:space="preserve">
+    <value>System.Windows.Forms.ComboBox, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="&gt;&gt;comboRunToRunAlignment.Parent" xml:space="preserve">
+    <value>panel1</value>
+  </data>
+  <data name="&gt;&gt;comboRunToRunAlignment.ZOrder" xml:space="preserve">
+    <value>0</value>
+  </data>
+  <data name="lblRunToRunAlignment.AutoSize" type="System.Boolean, mscorlib">
+    <value>True</value>
+  </data>
+  <data name="lblRunToRunAlignment.Location" type="System.Drawing.Point, System.Drawing">
+    <value>195, 9</value>
+  </data>
+  <data name="lblRunToRunAlignment.Size" type="System.Drawing.Size, System.Drawing">
+    <value>102, 13</value>
+  </data>
+  <data name="lblRunToRunAlignment.TabIndex" type="System.Int32, mscorlib">
+    <value>14</value>
+  </data>
+  <data name="lblRunToRunAlignment.Text" xml:space="preserve">
+    <value>Run to run aligment:</value>
+  </data>
+  <data name="&gt;&gt;lblRunToRunAlignment.Name" xml:space="preserve">
+    <value>lblRunToRunAlignment</value>
+  </data>
+  <data name="&gt;&gt;lblRunToRunAlignment.Type" xml:space="preserve">
+    <value>System.Windows.Forms.Label, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="&gt;&gt;lblRunToRunAlignment.Parent" xml:space="preserve">
+    <value>panel1</value>
+  </data>
+  <data name="&gt;&gt;lblRunToRunAlignment.ZOrder" xml:space="preserve">
+    <value>1</value>
+  </data>
   <data name="linkLabelBestReplicate.AutoSize" type="System.Boolean, mscorlib">
     <value>True</value>
   </data>
@@ -162,7 +210,7 @@
     <value>panel1</value>
   </data>
   <data name="&gt;&gt;linkLabelBestReplicate.ZOrder" xml:space="preserve">
-    <value>0</value>
+    <value>2</value>
   </data>
   <data name="lblBestReplicate.AutoSize" type="System.Boolean, mscorlib">
     <value>True</value>
@@ -189,38 +237,7 @@
     <value>panel1</value>
   </data>
   <data name="&gt;&gt;lblBestReplicate.ZOrder" xml:space="preserve">
-    <value>1</value>
-  </data>
-  <data name="checkBoxUseAlignment.AutoSize" type="System.Boolean, mscorlib">
-    <value>True</value>
-  </data>
-  <assembly alias="System.Windows.Forms" name="System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089" />
-  <data name="checkBoxUseAlignment.ImeMode" type="System.Windows.Forms.ImeMode, System.Windows.Forms">
-    <value>NoControl</value>
-  </data>
-  <data name="checkBoxUseAlignment.Location" type="System.Drawing.Point, System.Drawing">
-    <value>186, 12</value>
-  </data>
-  <data name="checkBoxUseAlignment.Size" type="System.Drawing.Size, System.Drawing">
-    <value>141, 17</value>
-  </data>
-  <data name="checkBoxUseAlignment.TabIndex" type="System.Int32, mscorlib">
-    <value>11</value>
-  </data>
-  <data name="checkBoxUseAlignment.Text" xml:space="preserve">
-    <value>Use run to run alignment</value>
-  </data>
-  <data name="&gt;&gt;checkBoxUseAlignment.Name" xml:space="preserve">
-    <value>checkBoxUseAlignment</value>
-  </data>
-  <data name="&gt;&gt;checkBoxUseAlignment.Type" xml:space="preserve">
-    <value>System.Windows.Forms.CheckBox, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
-  </data>
-  <data name="&gt;&gt;checkBoxUseAlignment.Parent" xml:space="preserve">
-    <value>panel1</value>
-  </data>
-  <data name="&gt;&gt;checkBoxUseAlignment.ZOrder" xml:space="preserve">
-    <value>2</value>
+    <value>3</value>
   </data>
   <data name="comboPeakScoringModel.Location" type="System.Drawing.Point, System.Drawing">
     <value>12, 25</value>
@@ -241,7 +258,7 @@
     <value>panel1</value>
   </data>
   <data name="&gt;&gt;comboPeakScoringModel.ZOrder" xml:space="preserve">
-    <value>3</value>
+    <value>4</value>
   </data>
   <data name="lblModel.AutoSize" type="System.Boolean, mscorlib">
     <value>True</value>
@@ -268,8 +285,9 @@
     <value>panel1</value>
   </data>
   <data name="&gt;&gt;lblModel.ZOrder" xml:space="preserve">
-    <value>4</value>
+    <value>5</value>
   </data>
+  <assembly alias="System.Windows.Forms" name="System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089" />
   <data name="panel1.Dock" type="System.Windows.Forms.DockStyle, System.Windows.Forms">
     <value>Top</value>
   </data>

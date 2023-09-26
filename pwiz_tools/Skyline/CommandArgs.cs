@@ -39,6 +39,7 @@ using pwiz.Skyline.Model.IonMobility;
 using pwiz.Skyline.Model.Irt;
 using pwiz.Skyline.Model.Results;
 using pwiz.Skyline.Model.Results.Scoring;
+using pwiz.Skyline.Model.Results.Scoring.Tric;
 using pwiz.Skyline.Model.Tools;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
@@ -765,7 +766,7 @@ namespace pwiz.Skyline
         public bool IsCreateScoringModel { get; private set; }
         public bool IsSecondBestModel { get; private set; }
         public bool IsDecoyModel { get; private set; }
-        public bool UsesTRIC { get; private set;}
+        public RunToRunAlignmentOption  RunToRunAlignmentOption { get; private set;}
         public bool IsLogTraining { get; private set; }
         public ScoringModelType ReintegrateModelType { get; private set; }
         public List<IPeakFeatureCalculator> ExcludeFeatures { get; private set; }

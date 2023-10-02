@@ -304,12 +304,10 @@ namespace pwiz.Skyline
 
         public void OpenPasteFileDlg(PasteFormat pf)
         {
-            using (var pasteDlg = new PasteDlg(this)
+            using (var pasteDlg = new PasteDlg(this))
             {
-                SelectedPath = SelectedPath,
-                PasteFormat = pf
-            })
-            {
+                pasteDlg.SelectedPath = SelectedPath;
+                pasteDlg.PasteFormat = pf;
                 if (pasteDlg.ShowDialog(this) == DialogResult.OK)
                     SelectedPath = pasteDlg.SelectedPath;
             }
@@ -634,8 +632,9 @@ namespace pwiz.Skyline
                 docCurrent = DocumentUI;
                 docNew = docCurrent.ChangeSettings(docCurrent.Settings.ChangePeptideIntegration(i => i.ChangePeakScoringModel(newModel)));
                 var resultsHandler = new MProphetResultsHandler(docNew, newModel);
-                using (var longWaitDlg = new LongWaitDlg {Text = Resources.ReintegrateDlg_OkDialog_Reintegrating})
+                using (var longWaitDlg = new LongWaitDlg())
                 {
+                    longWaitDlg.Text = Resources.ReintegrateDlg_OkDialog_Reintegrating;
                     try
                     {
                         longWaitDlg.PerformWork(this, 1000, pm =>
@@ -2139,8 +2138,7 @@ namespace pwiz.Skyline
                 list.Clear();
                 list.Add(settingsDefault); // Add back default settings.
                 list.AddRange(listNew);
-                SrmSettings settings;
-                if (!list.TryGetValue(settingsCurrent.GetKey(), out settings))
+                if (!list.TryGetValue(settingsCurrent.GetKey(), out _))
                 {
                     // If the current settings were removed, then make
                     // them the default, and use them to avoid a shift
@@ -2490,13 +2488,11 @@ namespace pwiz.Skyline
                 {
                     var newSettings = changeSettings(Document.Settings);
                     bool success = false;
-                    using (var longWaitDlg = new LongWaitDlg(this)
+                    using (var longWaitDlg = new LongWaitDlg(this))
                     {
-                        Text = Text,    // Same as dialog box
-                        Message = message,
-                        ProgressValue = 0
-                    })
-                    {
+                        longWaitDlg.Text = Text; // Same as dialog box
+                        longWaitDlg.Message = message;
+                        longWaitDlg.ProgressValue = 0;
                         var undoState = GetUndoState();
                         longWaitDlg.PerformWork(parent, 800, progressMonitor =>
                         {

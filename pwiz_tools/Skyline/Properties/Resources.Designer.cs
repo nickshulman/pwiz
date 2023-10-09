@@ -12637,6 +12637,15 @@ namespace pwiz.Skyline.Properties {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Waiting for chromatogram library.
+        /// </summary>
+        public static string EncyclopeDiaHelpers_Generate_Waiting_for_chromatogram_library {
+            get {
+                return ResourceManager.GetString("EncyclopeDiaHelpers_Generate_Waiting_for_chromatogram_library", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Combining chromatogram libraries.
         /// </summary>
         public static string EncyclopeDiaHelpers_GenerateLibrary_Combining_chromatogram_libraries {
@@ -22139,6 +22148,15 @@ namespace pwiz.Skyline.Properties {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to An EncyclopeDIA task failed..
+        /// </summary>
+        public static string ParallelRunner_Generate_An_EncyclopeDIA_task_failed_ {
+            get {
+                return ResourceManager.GetString("ParallelRunner_Generate_An_EncyclopeDIA_task_failed_", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to {0} at position {1}.
         /// </summary>
         public static string ParseExceptionDetail_ToString__at_position__0_ {
@@ -24948,6 +24966,15 @@ namespace pwiz.Skyline.Properties {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Demultiplexing spectra: {0}/{1}.
+        /// </summary>
+        public static string ProgressMonitorForFile_UpdateProgress_Demultiplexing_spectra___0___1_ {
+            get {
+                return ResourceManager.GetString("ProgressMonitorForFile_UpdateProgress_Demultiplexing_spectra___0___1_", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized resource of type System.Drawing.Bitmap.
         /// </summary>
         public static System.Drawing.Bitmap Properties_Button {
@@ -26566,6 +26593,24 @@ namespace pwiz.Skyline.Properties {
         public static string ReportSpecList_GetDefaults_Molecule_Peak_Boundaries {
             get {
                 return ResourceManager.GetString("ReportSpecList_GetDefaults_Molecule_Peak_Boundaries", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Molecule RT Results.
+        /// </summary>
+        public static string ReportSpecList_GetDefaults_Molecule_RT_Results {
+            get {
+                return ResourceManager.GetString("ReportSpecList_GetDefaults_Molecule_RT_Results", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Molecule Transition Results.
+        /// </summary>
+        public static string ReportSpecList_GetDefaults_Molecule_Transition_Results {
+            get {
+                return ResourceManager.GetString("ReportSpecList_GetDefaults_Molecule_Transition_Results", resourceCulture);
             }
         }
         

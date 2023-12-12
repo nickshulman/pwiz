@@ -139,7 +139,6 @@
     <Compile Include="Collections\Range.cs" />
     <Compile Include="Collections\RangeList.cs" />
     <Compile Include="Collections\ReadOnlyList.cs" />
-    <Compile Include="Collections\ReferenceEquality.cs" />
     <Compile Include="Collections\StructSerializer.cs" />
     <Compile Include="GUI\GuiMessages.Designer.cs">
       <AutoGen>True</AutoGen>

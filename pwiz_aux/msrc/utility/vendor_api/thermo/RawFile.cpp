@@ -325,8 +325,13 @@ RawFileImpl::RawFileImpl(const string& filename)
         raw_->IncludeReferenceAndExceptionData = true;
 
         // CONSIDER: throwing C++ exceptions in managed code may cause Wine to crash?
-        if (raw_->IsError || raw_->InAcquisition)
-            throw gcnew System::Exception("Corrupt RAW file " + managedFilename);
+        if (raw_->IsError || raw_->InAcquisition){
+            System::String^  message = "Corrupt RAW file " + managedFilename;
+            if (raw_->FileError->HasError) {
+                message += " ErrorMessage: " + raw_->FileError->ErrorMessage;
+            }
+            throw gcnew System::Exception(message);
+        }
 
         if (getNumberOfControllersOfType(Controller_MS) == 0)
             return; // none of the following metadata stuff works for non-MS controllers as far as I can tell

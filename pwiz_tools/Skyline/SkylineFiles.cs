@@ -62,7 +62,6 @@ using pwiz.Skyline.Properties;
 using pwiz.Skyline.ToolsUI;
 using pwiz.Skyline.Util;
 using pwiz.Skyline.Util.Extensions;
-using AlertDlg = pwiz.Skyline.Alerts.AlertDlg;
 using DatabaseOpeningException = pwiz.Skyline.Model.Irt.DatabaseOpeningException;
 
 namespace pwiz.Skyline
@@ -928,7 +927,8 @@ namespace pwiz.Skyline
 
             try
             {
-                using var dlg = new PanoramaFilePicker(panoramaServers, state) { Text = Resources.SkylineWindow_OpenFromPanorama_Open_From_Panorama };
+                using var dlg = new PanoramaFilePicker(panoramaServers, state);
+                dlg.Text = Resources.SkylineWindow_OpenFromPanorama_Open_From_Panorama;
                 var longOptionRunner = new LongOperationRunner
                 {
                     ParentControl = this,

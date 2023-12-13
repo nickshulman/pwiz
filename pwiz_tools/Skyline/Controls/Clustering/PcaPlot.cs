@@ -422,6 +422,11 @@ namespace pwiz.Skyline.Controls.Clustering
             {
                 return (Value != null ? Value.GetHashCode() : 0);
             }
+
+            public override string ToString()
+            {
+                return Value?.ToString() ?? string.Empty;
+            }
         }
 
         public class PointInfo : Immutable

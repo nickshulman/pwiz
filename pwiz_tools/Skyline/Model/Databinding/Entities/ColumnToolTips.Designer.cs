@@ -2583,6 +2583,15 @@ namespace pwiz.Skyline.Model.Databinding.Entities {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Number of spectra in the spectral library which match the peptide and result file..
+        /// </summary>
+        public static string PeptideSpectrumMatchCount {
+            get {
+                return ResourceManager.GetString("PeptideSpectrumMatchCount", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Number of data points that were used in the curve fit..
         /// </summary>
         public static string PointCount {
@@ -3726,6 +3735,15 @@ namespace pwiz.Skyline.Model.Databinding.Entities {
         public static string SummaryMessage {
             get {
                 return ResourceManager.GetString("SummaryMessage", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Name of another peptide or molecule whose fitted calibration curve will be used for quantification of this peptide or molecule.
+        /// </summary>
+        public static string SurrogateExternalStandard {
+            get {
+                return ResourceManager.GetString("SurrogateExternalStandard", resourceCulture);
             }
         }
         

@@ -118,15 +118,20 @@ namespace pwiz.Skyline.ToolsUI
                 Enumerable.Range(PrositConstants.MIN_NCE, PrositConstants.MAX_NCE - PrositConstants.MIN_NCE + 1).Select(c => (object) c)
                     .ToArray());
             ceCombo.SelectedItem = Settings.Default.PrositNCE;
+            tbxSettingsFilePath.Text = System.Configuration.ConfigurationManager
+                .OpenExeConfiguration(System.Configuration.ConfigurationUserLevel.PerUserRoamingAndLocal).FilePath;
         }
 
         private class PrositPingRequest : PrositHelpers.PrositRequest
         {
+            private Channel _channel;
             public PrositPingRequest(string ms2Model, string rtModel, SrmSettings settings,
                 PeptideDocNode peptide, TransitionGroupDocNode precursor, int nce, Action updateCallback) : base(null,
                 null, null, settings, peptide, precursor, null, nce, updateCallback)
             {
-                Client = PrositPredictionClient.CreateClient(PrositConfig.GetPrositConfig());
+                var prositConfig = PrositConfig.GetPrositConfig();
+                _channel = prositConfig.CreateChannel();
+                Client = PrositPredictionClient.CreateClient(_channel, prositConfig.Server);
                 IntensityModel = PrositIntensityModel.GetInstance(ms2Model);
                 RTModel = PrositRetentionTimeModel.GetInstance(rtModel);
 
@@ -142,7 +147,8 @@ namespace pwiz.Skyline.ToolsUI
                     {
                         var labelType = Precursor.LabelType;
                         var ms = IntensityModel.PredictSingle(Client, Settings,
-                            new PrositIntensityModel.PeptidePrecursorNCE(Peptide, Precursor, labelType, NCE), _tokenSource.Token);
+                            new PrositIntensityModel.PeptidePrecursorNCE(Peptide, Precursor, labelType, NCE),
+                            _tokenSource.Token);
 
                         var iRTMap = RTModel.PredictSingle(Client,
                             Settings,
@@ -161,6 +167,10 @@ namespace pwiz.Skyline.ToolsUI
                         // so don't even update UI
                         if (ex.InnerException is RpcException rpcEx && rpcEx.StatusCode == StatusCode.Cancelled)
                             return;
+                    }
+                    finally
+                    {
+                        _channel.ShutdownAsync().Wait();
                     }
                     
                     // Bad timing could cause the ping to finish right when we cancel as the form closes
@@ -221,7 +231,7 @@ namespace pwiz.Skyline.ToolsUI
 
             try
             {
-                if (PrositIntensityModelCombo == null || PrositRetentionTimeModelCombo == null)
+                if (string.IsNullOrEmpty(PrositIntensityModelCombo) || string.IsNullOrEmpty(PrositRetentionTimeModelCombo))
                 {
                     _pingRequest?.Cancel();
                     SetServerStatus(ServerStatus.SELECT_MODEL);
@@ -479,7 +489,18 @@ namespace pwiz.Skyline.ToolsUI
 
         private void ToolOptionsUI_Shown(object sender, EventArgs e)
         {
-            UpdateServerStatus();
+            if (tabControl.SelectedIndex == (int)TABS.Prosit)
+                UpdateServerStatus();
+            else
+            {
+                tabControl.SelectedIndexChanged += tabControl_SelectedIndexChanged;
+            }
+        }
+
+        private void tabControl_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            if (tabControl.SelectedIndex == (int)TABS.Prosit)
+                UpdateServerStatus();
         }
     }
 }

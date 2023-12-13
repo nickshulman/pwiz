@@ -255,15 +255,13 @@ namespace pwiz.Skyline.Controls.Databinding
 
         public bool Export(Control owner, ViewInfo viewInfo)
         {
-            using (var saveFileDialog = new SaveFileDialog
+            using (var saveFileDialog = new SaveFileDialog())
             {
-                InitialDirectory = GetExportDirectory(),
-                OverwritePrompt = true,
-                DefaultExt = TextUtil.EXT_CSV,
-                Filter = TextUtil.FileDialogFiltersAll(TextUtil.FILTER_CSV, TextUtil.FILTER_TSV),
-                FileName = GetDefaultExportFilename(viewInfo),
-            })
-            {
+                saveFileDialog.InitialDirectory = GetExportDirectory();
+                saveFileDialog.OverwritePrompt = true;
+                saveFileDialog.DefaultExt = TextUtil.EXT_CSV;
+                saveFileDialog.Filter = TextUtil.FileDialogFiltersAll(TextUtil.FILTER_CSV, TextUtil.FILTER_TSV);
+                saveFileDialog.FileName = GetDefaultExportFilename(viewInfo);
                 // TODO: If document has been saved, initial directory should be document directory
                 if (saveFileDialog.ShowDialog(FormUtil.FindTopLevelOwner(owner)) == DialogResult.Cancel)
                 {
@@ -305,12 +303,9 @@ namespace pwiz.Skyline.Controls.Databinding
                 return SafeWriteToFile(owner, fileName, stream =>
                 {
                     bool success = false;
-                    using (
-                        var longWait = new LongWaitDlg
-                        {
-                            Text = Resources.ExportReportDlg_ExportReport_Generating_Report
-                        })
+                    using (var longWait = new LongWaitDlg())
                     {
+                        longWait.Text = Resources.ExportReportDlg_ExportReport_Generating_Report;
                         var action = new Action<IProgressMonitor>(progressMonitor =>
                         {
                             IProgressStatus status = new ProgressStatus(Resources.ExportReportDlg_ExportReport_Building_report);
@@ -498,6 +493,7 @@ namespace pwiz.Skyline.Controls.Databinding
                     columnsToRemove.Add(PropertyPath.Root.Property("NormalizationMethod"));
                     columnsToRemove.Add(PropertyPath.Root.Property(nameof(Model.Databinding.Entities.Peptide.AutoSelectPrecursors)));
                     columnsToRemove.Add(PropertyPath.Root.Property(nameof(Model.Databinding.Entities.Peptide.AttributeGroupId)));
+                    columnsToRemove.Add(PropertyPath.Root.Property(nameof(Model.Databinding.Entities.Peptide.SurrogateExternalStandard)));
                     foreach (var prop in MoleculeAccessionNumbers.PREFERRED_ACCESSION_TYPE_ORDER)
                         columnsToRemove.Add(PropertyPath.Root.Property(prop)); // By default don't show CAS, InChI etc
                     if (docHasOnlyCustomIons)
@@ -639,13 +635,11 @@ namespace pwiz.Skyline.Controls.Databinding
 
         public override void ExportViews(Control owner, ViewSpecList viewSpecList)
         {
-            using (var saveFileDialog = new SaveFileDialog
+            using (var saveFileDialog = new SaveFileDialog())
             {
-                InitialDirectory = Settings.Default.ActiveDirectory,
-                CheckPathExists = true,
-                Filter = TextUtil.FileDialogFilterAll(Resources.ExportReportDlg_ShowShare_Skyline_Reports, ReportSpecList.EXT_REPORTS)
-            })
-            {
+                saveFileDialog.InitialDirectory = Settings.Default.ActiveDirectory;
+                saveFileDialog.CheckPathExists = true;
+                saveFileDialog.Filter = TextUtil.FileDialogFilterAll(Resources.ExportReportDlg_ShowShare_Skyline_Reports, ReportSpecList.EXT_REPORTS);
                 saveFileDialog.ShowDialog(FormUtil.FindTopLevelOwner(owner));
                 if (!string.IsNullOrEmpty(saveFileDialog.FileName))
                 {
@@ -666,14 +660,12 @@ namespace pwiz.Skyline.Controls.Databinding
 
         public override void ImportViews(Control owner, ViewGroup group)
         {
-            using (var importDialog = new OpenFileDialog
+            using (var importDialog = new OpenFileDialog())
             {
-                InitialDirectory = Settings.Default.ActiveDirectory,
-                CheckPathExists = true,
-                Filter = TextUtil.FileDialogFilterAll(Resources.ExportReportDlg_ShowShare_Skyline_Reports,
-                    ReportSpecList.EXT_REPORTS)
-            })
-            {
+                importDialog.InitialDirectory = Settings.Default.ActiveDirectory;
+                importDialog.CheckPathExists = true;
+                importDialog.Filter = TextUtil.FileDialogFilterAll(Resources.ExportReportDlg_ShowShare_Skyline_Reports,
+                    ReportSpecList.EXT_REPORTS);
                 importDialog.ShowDialog(FormUtil.FindTopLevelOwner(owner));
 
                 if (string.IsNullOrEmpty(importDialog.FileName))

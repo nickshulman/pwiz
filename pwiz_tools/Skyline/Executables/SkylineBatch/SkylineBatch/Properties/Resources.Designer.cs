@@ -19,7 +19,7 @@ namespace SkylineBatch.Properties {
     // class via a tool like ResGen or Visual Studio.
     // To add or remove a member, edit your .ResX file then rerun ResGen
     // with the /str option, or rebuild your VS project.
-    [global::System.CodeDom.Compiler.GeneratedCodeAttribute("System.Resources.Tools.StronglyTypedResourceBuilder", "15.0.0.0")]
+    [global::System.CodeDom.Compiler.GeneratedCodeAttribute("System.Resources.Tools.StronglyTypedResourceBuilder", "17.0.0.0")]
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
     [global::System.Runtime.CompilerServices.CompilerGeneratedAttribute()]
     public class Resources {
@@ -527,16 +527,6 @@ namespace SkylineBatch.Properties {
             get {
                 return ResourceManager.GetString("DataServerForm_GetServerFromUi_A_remote_file_source_is_required__Please_select_a_" +
                         "remote_file_source_", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Error parsing the URL. Please correct the URL and try again..
-        /// </summary>
-        public static string DataServerInfo_ServerFromUi_Error_parsing_the_URL__Please_correct_the_URL_and_try_again_ {
-            get {
-                return ResourceManager.GetString("DataServerInfo_ServerFromUi_Error_parsing_the_URL__Please_correct_the_URL_and_try" +
-                        "_again_", resourceCulture);
             }
         }
         
@@ -1263,6 +1253,16 @@ namespace SkylineBatch.Properties {
         }
         
         /// <summary>
+        ///   Looks up a localized resource of type System.Drawing.Bitmap.
+        /// </summary>
+        public static System.Drawing.Bitmap Panorama {
+            get {
+                object obj = ResourceManager.GetObject("Panorama", resourceCulture);
+                return ((System.Drawing.Bitmap)(obj));
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to The template file was not downloaded.
         /// </summary>
         public static string PanoramaFile_Download_The_template_file_was_not_downloaded {
@@ -1545,6 +1545,24 @@ namespace SkylineBatch.Properties {
             get {
                 return ResourceManager.GetString("RemoteFileForm_btnSave_Click_This_file_type_does_not_support_downloads_from_an_FT" +
                         "P_file_source__Please_download_this_file_from_Panorama_", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Error parsing the URL..
+        /// </summary>
+        public static string RemoteFileSource_ValidateInputs_Error_parsing_the_URL_ {
+            get {
+                return ResourceManager.GetString("RemoteFileSource_ValidateInputs_Error_parsing_the_URL_", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Please correct the URL and try again..
+        /// </summary>
+        public static string RemoteFileSource_ValidateInputs_Please_correct_the_URL_and_try_again_ {
+            get {
+                return ResourceManager.GetString("RemoteFileSource_ValidateInputs_Please_correct_the_URL_and_try_again_", resourceCulture);
             }
         }
         

@@ -48,6 +48,7 @@
 #include "MassLynxLockMassProcessor.hpp"
 #include "MassLynxRawProcessor.hpp"
 #include "MassLynxParameters.hpp"
+#include "MassLynxScanProcessor.hpp"
 //#include "cdtdefs.h"
 //#include "compresseddatacluster.h"
 #pragma warning (pop)
@@ -76,7 +77,7 @@ class MassLynxRawProcessorWithProgress : public MassLynxRawProcessor
     public:
     MassLynxRawProcessorWithProgress(const string& rawpath, IterationListenerRegistry* ilr = nullptr) : ilr_(ilr), numSpectra_(100), lastSpectrum_(0)
     {
-        SetRawPath(rawpath);
+        SetRawData(rawpath);
     }
 
     void SetNumSpectra(int numSpectra) { numSpectra_ = numSpectra; }
@@ -134,7 +135,7 @@ struct PWIZ_API_DECL RawData
           hasIonMobility_(false),
           hasSONAR_(false)
     {
-        LockMass.SetRawReader(Reader);
+        LockMass.SetRawData(Reader);
 
         // Count the number of _FUNC[0-9]{3}.DAT files, starting with _FUNC001.DAT
         // For functions over 100, the names become _FUNC0100.DAT
@@ -346,38 +347,6 @@ struct PWIZ_API_DECL RawData
         return findItr->second;
     }
 
-    void Centroid() const
-    {
-        if (!hasProfile_)
-        {
-            centroidRaw_.reset(const_cast<RawData*>(this), boost::null_deleter());
-            return;
-        }
-
-        string centroidPath = rawpath_ + "\\centroid.raw";
-        if (!bfs::exists(centroidPath))
-            PeakPicker.Centroid(centroidPath);
-
-        if (!centroidRaw_)
-        {
-            try
-            {
-                centroidRaw_.reset(new RawData(centroidPath));
-            }
-            catch (MassLynxRawException&)
-            {
-                bfs::remove_all(centroidPath);
-                PeakPicker.Centroid(centroidPath);
-                centroidRaw_.reset(new RawData(centroidPath));
-            }
-        }
-    }
-
-    boost::shared_ptr<RawData> CentroidRawDataFile() const
-    {
-        return centroidRaw_;
-    }
-
     bool LockMassCanBeApplied() const
     {
         return Info.CanLockMassCorrect();
@@ -428,9 +397,20 @@ struct PWIZ_API_DECL RawData
         }
     }
 
-    void EnableDDAProcessing()
+    double GetLockMassCorrectedMz(float atScanTime, double uncorrectedMz)
     {
-        DDAProcessor.SetRawReader(Reader);
+        if (!LockMassIsApplied())
+            return uncorrectedMz;
+
+        float gain = LockMass.GetLockMassCorrection(atScanTime);
+        return uncorrectedMz * static_cast<double>(gain);
+    }
+
+    void EnableProcessing(bool bEnableDDAProcessing)
+    {
+        ScanProcessor.SetRawData(Reader);
+        if (bEnableDDAProcessing)
+            DDAProcessor.SetRawData(Reader);      
     }
 
     unsigned int GetDDAScanCount()
@@ -438,10 +418,16 @@ struct PWIZ_API_DECL RawData
         return DDAProcessor.GetScanCount();
     }
 
-    bool GetDDAScan(const int& nWhichIndex, float& RT, int& function, int& startScan, int& endScan, bool& isMS1, float& setMass, float& precursorMass, vector<float>& masses, vector<float>& intensities)
+    bool GetDDAScan(const int& nWhichIndex, bool doCentroid, vector<float>& masses, vector<float>& intensities)
     {
         MassLynxParameters parameters;
-        bool success = DDAProcessor.GetScan(nWhichIndex, masses, intensities, parameters);
+        return DDAProcessor.SetCentroid(doCentroid).GetScan(nWhichIndex, masses, intensities, parameters);
+    }
+
+    bool GetDDAScanInfo(const int& nWhichIndex, float& RT, int& function, int& startScan, int& endScan, bool& isMS1, float& setMass, float& precursorMass)
+    {
+        MassLynxParameters parameters;
+        bool success = DDAProcessor.GetScanInfo(nWhichIndex, parameters);
 
         if (success)
         {
@@ -462,9 +448,9 @@ struct PWIZ_API_DECL RawData
 
     bool GetIsolationWindow(float& lowerOffset, float& upperOffset)
     {
-        MassLynxParameters parameters = DDAProcessor.GetParameters();
-        float lowerOffsetParam = lexical_cast<float>(parameters.Get(DDAParameter::LOWEROFFSET));
-        float upperOffsetParam = lexical_cast<float>(parameters.Get(DDAParameter::UPPEROFFSET));
+        MassLynxParameters parameters = DDAProcessor.GetQuadIsolationWindowParameters();
+        float lowerOffsetParam = lexical_cast<float>(parameters.Get(DDAIsolationWindowParameter::LOWEROFFSET));
+        float upperOffsetParam = lexical_cast<float>(parameters.Get(DDAIsolationWindowParameter::UPPEROFFSET));
 
         if (lowerOffsetParam == 0 && upperOffsetParam == 0)
             return false;
@@ -475,11 +461,21 @@ struct PWIZ_API_DECL RawData
         return true;
     }
 
+    void ReadScan(int function, int scan, bool doCentroid, vector<float>& masses, vector<float>& intensities)
+    {
+        ScanProcessor.Load(function, scan);
+
+        if (doCentroid)
+            ScanProcessor.Centroid();
+
+        ScanProcessor.GetScan(masses, intensities);
+    }
+
     private:
     MassLynxLockMassProcessor LockMass;
-    MassLynxDDAProcessor DDAProcessor;
+    Extended::MassLynxDDAProcessor DDAProcessor;
+    MassLynxScanProcessor ScanProcessor;
     mutable MassLynxRawProcessorWithProgress PeakPicker;
-    mutable boost::shared_ptr<RawData> centroidRaw_;
     mutable int workingDriftTimeFunctionIndex_;
     mutable int workingSonarFunctionIndex_; // We're assuming that the Sonar calibration is the same across all functions
     mutable float sonarMassLowerLimit_, sonarMassUpperLimit_;  // We're assuming that the Sonar calibration is the same across all functions

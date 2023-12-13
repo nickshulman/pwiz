@@ -257,6 +257,11 @@ namespace pwiz.Skyline.Model.Databinding
             return _replicateSummaries = replicateSummaries;
         }
 
+        public Lazy<NormalizationData> LazyNormalizationData
+        {
+            get { return new Lazy<NormalizationData>(() => GetReplicateSummaries().GetNormalizationData()); }
+        }
+
         public ChromDataCache ChromDataCache { get; private set; }
         public ElementRefs ElementRefs { get { return _elementRefCache.Value; } }
 
@@ -450,8 +455,7 @@ namespace pwiz.Skyline.Model.Databinding
                 return string.Empty;
 
             // TODO: only allow reflection for all info? Okay to use null for decimal places?
-            bool unused;
-            return DiffNode.ObjectToString(true, value, null, out unused);
+            return DiffNode.ObjectToString(true, value, null, out _);
         }
 
         public void ModifyDocument(EditDescription editDescription, Func<SrmDocument, SrmDocument> action, Func<SrmDocumentPair, AuditLogEntry> logFunc = null)

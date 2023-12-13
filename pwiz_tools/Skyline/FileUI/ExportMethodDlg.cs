@@ -173,6 +173,7 @@ namespace pwiz.Skyline.FileUI
 
             DwellTime = Settings.Default.ExportMethodDwellTime;
             AccumulationTime = Settings.Default.ExportMethodAccumulationTime;
+            XICWidth = Settings.Default.ExportMethodXICWidth;
             RunLength = Settings.Default.ExportMethodRunLength;
 
             Helpers.PeptideToMoleculeTextMapper.TranslateForm(this, document.DocumentType); // Use terminology like "Molecule List" instead of "Protein" if appropriate to document
@@ -234,6 +235,8 @@ namespace pwiz.Skyline.FileUI
             panelSciexTune.Top = labelOptimizing.Top;
             panelWaters.Top = labelDwellTime.Top - panelWaters.Height;
             panelBrukerTimsTof.Top = labelOptimizing.Top;
+            panelAbiSciexOS.Top = textMaxTransitions.Top;
+            panelAbiSciexOS.Left = cbSortByMz.Left - cbExportSciexOSQuantMethod.Left;
 
             foreach (string tuneType in ExportOptimize.CompensationVoltageTuneTypes)
                 comboTuning.Items.Add(tuneType);
@@ -568,6 +571,7 @@ namespace pwiz.Skyline.FileUI
         private void UpdateAbSciexControls()
         {
             panelAbSciexTOF.Visible = InstrumentType == ExportInstrumentType.ABI_TOF;
+            panelAbiSciexOS.Visible = InstrumentType == ExportInstrumentType.ABI_7600;
         }
 
         private void UpdateWatersControls()
@@ -761,6 +765,16 @@ namespace pwiz.Skyline.FileUI
             }
         }
 
+        public double XICWidth
+        {
+            get { return _exportProperties.XICWidth; }
+            set
+            {
+                _exportProperties.XICWidth = value;
+                textXICWidth.Text = _exportProperties.XICWidth.ToString(LocalizationHelper.CurrentCulture);
+            }
+        }
+
         /// <summary>
         /// Length of run in minutes for non-scheduled runs
         /// </summary>
@@ -824,9 +838,9 @@ namespace pwiz.Skyline.FileUI
                     helper.ShowTextBoxError(textTemplateFile, Resources.ExportMethodDlg_OkDialog_A_template_file_is_required_to_export_a_method);
                     return;
                 }
-                if ((Equals(InstrumentType, ExportInstrumentType.AGILENT6400) ||
-                    Equals(InstrumentType, ExportInstrumentType.BRUKER_TOF)) ?
-                                                                                 !Directory.Exists(templateName) : !File.Exists(templateName))
+                if (Equals(InstrumentType, ExportInstrumentType.AGILENT6400) || Equals(InstrumentType, ExportInstrumentType.AGILENT_MASSHUNTER_12) ||
+                    Equals(InstrumentType, ExportInstrumentType.BRUKER_TOF)
+                    ? !Directory.Exists(templateName) : !File.Exists(templateName))
                 {
                     helper.ShowTextBoxError(textTemplateFile, Resources.ExportMethodDlg_OkDialog_The_template_file__0__does_not_exist, templateName);
                     return;
@@ -837,6 +851,12 @@ namespace pwiz.Skyline.FileUI
                     helper.ShowTextBoxError(textTemplateFile,
                                             Resources.ExportMethodDlg_OkDialog_The_folder__0__does_not_appear_to_contain_an_Agilent_QQQ_method_template_The_folder_is_expected_to_have_a_m_extension_and_contain_the_file_qqqacqmethod_xsd,
                                             templateName);
+                    return;
+                }
+                if (Equals(InstrumentType, ExportInstrumentType.AGILENT_MASSHUNTER_12) &&
+                    !AgilentUltivoMethodExporter.IsMethodPath(templateName))
+                {
+                    helper.ShowTextBoxError(textTemplateFile, Resources.ExportMethodDlg_OkDialog_The_folder__0__does_not_appear_to_contain_an_Agilent_MassHunter_12_method_template__The_folder_is_expected_to_have_a__m_extension_, templateName);
                     return;
                 }
                 if (Equals(InstrumentType, ExportInstrumentType.BRUKER_TOF) &&
@@ -1093,15 +1113,13 @@ namespace pwiz.Skyline.FileUI
                         break;
                 }
 
-                using (var dlg = new SaveFileDialog
-                    {
-                        Title = title,
-                        InitialDirectory = Settings.Default.ExportDirectory,
-                        OverwritePrompt = true,
-                        DefaultExt = ext,
-                        Filter = TextUtil.FileDialogFilterAll(filter, ext)
-                    })
+                using (var dlg = new SaveFileDialog())
                 {
+                    dlg.Title = title;
+                    dlg.InitialDirectory = Settings.Default.ExportDirectory;
+                    dlg.OverwritePrompt = true;
+                    dlg.DefaultExt = ext;
+                    dlg.Filter = TextUtil.FileDialogFilterAll(filter, ext);
                     if (dlg.ShowDialog(this) == DialogResult.Cancel)
                     {
                         return;
@@ -1237,6 +1255,7 @@ namespace pwiz.Skyline.FileUI
 
             _exportProperties.ExportMultiQuant = panelAbSciexTOF.Visible && cbExportMultiQuant.Checked;
             _exportProperties.ExportSureQuant = cbSureQuant.Visible && cbSureQuant.Checked;
+            _exportProperties.ExportSciexOSQuant = cbExportSciexOSQuantMethod.Visible && cbExportSciexOSQuantMethod.Checked;
 
             _exportProperties.RetentionStartAndEnd = panelThermoRt.Visible && cbUseStartAndEndRts.Checked;
 
@@ -1375,6 +1394,14 @@ namespace pwiz.Skyline.FileUI
                     return false;
 
                 _exportProperties.AccumulationTime = accumulationTime;
+            }
+
+            if (textXICWidth.Visible)
+            {
+                if (!helper.ValidateDecimalTextBox(textXICWidth, AbiMassListExporter.XIC_WIDTH_MIN,
+                        AbiMassListExporter.XIC_WIDTH_MAX, out var xicWidth, false))
+                    return false;
+                _exportProperties.XICWidth = xicWidth;
             }
 
             _exportProperties.IntensityThresholdPercent = null;
@@ -1963,6 +1990,14 @@ namespace pwiz.Skyline.FileUI
                     showRunLength = true;                    
                 }
             }
+            else
+            {
+                if (!IsDia && Equals(InstrumentType, ExportInstrumentType.ABI_7600))
+                {
+                    labelDwellTime.Text = ACCUMULATION_TIME_TXT;
+                    showAccumulation = true;
+                }
+            }
             labelDwellTime.Visible = showDwell || showAccumulation || showRunLength;
             labelDwellTime.TabIndex = textRunLength.TabIndex-1;
             textDwellTime.Visible = showDwell;
@@ -1974,14 +2009,12 @@ namespace pwiz.Skyline.FileUI
         private void btnBrowseTemplate_Click(object sender, EventArgs e)
         {
             string templateName = textTemplateFile.Text;
-            if (Equals(InstrumentType, ExportInstrumentType.AGILENT6400) ||
+            if (Equals(InstrumentType, ExportInstrumentType.AGILENT6400) || Equals(InstrumentType, ExportInstrumentType.AGILENT_MASSHUNTER_12) ||
                 Equals(InstrumentType, ExportInstrumentType.BRUKER_TOF))
             {
-                using (var chooseDirDialog = new FolderBrowserDialog
-                    {
-                        Description = Resources.ExportMethodDlg_btnBrowseTemplate_Click_Method_Template,
-                    })
+                using (var chooseDirDialog = new FolderBrowserDialog())
                 {
+                    chooseDirDialog.Description = Resources.ExportMethodDlg_btnBrowseTemplate_Click_Method_Template;
                     if (!string.IsNullOrEmpty(templateName))
                     {
                         chooseDirDialog.SelectedPath = templateName;
@@ -1994,6 +2027,12 @@ namespace pwiz.Skyline.FileUI
                             !AgilentMethodExporter.IsAgilentMethodPath(templateName))
                         {
                             MessageDlg.Show(this, Resources.ExportMethodDlg_btnBrowseTemplate_Click_The_chosen_folder_does_not_appear_to_contain_an_Agilent_QQQ_method_template_The_folder_is_expected_to_have_a_m_extension_and_contain_the_file_qqqacqmethod_xsd);
+                            return;
+                        }
+                        else if (Equals(InstrumentType, ExportInstrumentType.AGILENT_MASSHUNTER_12) &&
+                                 !AgilentUltivoMethodExporter.IsMethodPath(templateName))
+                        {
+                            MessageDlg.Show(this, Resources.ExportMethodDlg_btnBrowseTemplate_Click_The_chosen_folder_does_not_appear_to_contain_an_Agilent_MassHunter_12_method_template__The_folder_is_expected_to_have_a__m_extension_);
                             return;
                         }
                         else if (Equals(InstrumentType, ExportInstrumentType.BRUKER_TOF) &&
@@ -2009,13 +2048,10 @@ namespace pwiz.Skyline.FileUI
                 return;
             }
 
-            using (var openFileDialog = new OpenFileDialog
-                {
-                    Title = Resources.ExportMethodDlg_btnBrowseTemplate_Click_Method_Template,
-                    // Extension based on currently selected type
-                    CheckPathExists = true
-                })
+            using (var openFileDialog = new OpenFileDialog())
             {
+                openFileDialog.Title = Resources.ExportMethodDlg_btnBrowseTemplate_Click_Method_Template; // Extension based on currently selected type
+                openFileDialog.CheckPathExists = true;
                 if (!string.IsNullOrEmpty(templateName))
                 {
                     try
@@ -2125,7 +2161,12 @@ namespace pwiz.Skyline.FileUI
                 MessageDlg.Show(this, Resources.ExportMethodDlg_cbIgnoreProteins_CheckedChanged_Grouping_peptides_by_protein_has_not_yet_been_implemented_for_scheduled_methods_);
             }
         }
-        
+
+        private void cbExportSciexOSQuantMethod_CheckedChanged(object sender, EventArgs e)
+        {
+            textXICWidth.Visible = cbExportSciexOSQuantMethod.Checked;
+            labelXICWidth.Visible = cbExportSciexOSQuantMethod.Checked;
+        }
         private void btnGraph_Click(object sender, EventArgs e)
         {
             ShowSchedulingGraph();
@@ -2303,11 +2344,9 @@ namespace pwiz.Skyline.FileUI
                 return;
             }
 
-            using (var longWait = new LongWaitDlg
-                    {
-                        Text = Resources.ExportDlgProperties_PerformLongExport_Exporting_Methods
-                    })
+            using (var longWait = new LongWaitDlg())
             {
+                longWait.Text = Resources.ExportDlgProperties_PerformLongExport_Exporting_Methods;
                 try
                 {
                     var status = longWait.PerformWork(_dialog, 800, performExport);

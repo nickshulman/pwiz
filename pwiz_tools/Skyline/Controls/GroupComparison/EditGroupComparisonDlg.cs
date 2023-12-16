@@ -460,23 +460,7 @@ namespace pwiz.Skyline.Controls.GroupComparison
 
         protected void ReplaceComboItems<T>(ComboBox comboBox, IEnumerable<T> items, T selectedItem)
         {
-            var itemObjects = items.Cast<object>().ToArray();
-            int newSelectedIndex = -1;
-            for (int i = 0; i < itemObjects.Length; i++)
-            {
-                if (Equals(selectedItem, itemObjects[i]))
-                {
-                    newSelectedIndex = i;
-                    break;
-                }
-            }
-            if (newSelectedIndex == comboBox.SelectedIndex && ArrayUtil.EqualsDeep(itemObjects, comboBox.Items.Cast<object>().ToArray()))
-            {
-                return;
-            }
-            comboBox.Items.Clear();
-            comboBox.Items.AddRange(itemObjects);
-            comboBox.SelectedIndex = newSelectedIndex;
+            ComboHelper.ReplaceItems(comboBox, items, selectedItem);
         }
 
         private void comboSummaryMethod_SelectedIndexChanged(object sender, EventArgs e)

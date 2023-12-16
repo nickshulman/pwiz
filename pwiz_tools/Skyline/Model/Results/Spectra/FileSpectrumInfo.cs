@@ -33,9 +33,9 @@ namespace pwiz.Skyline.Model.Results.Spectra
     [InvariantDisplayName("Info")]
     public class FileSpectrumInfo : RootSkylineObject, ILinkValue
     {
-        private ImmutableList<SpectrumMetadata> _spectra;
+        private ImmutableList<DigestedSpectrumMetadata> _spectra;
         private MsDataFileUri _dataFileUri;
-        public FileSpectrumInfo(SkylineDataSchema dataSchema, MsDataFileUri dataFileUri, IEnumerable<SpectrumMetadata> spectra) : base(dataSchema)
+        public FileSpectrumInfo(SkylineDataSchema dataSchema, MsDataFileUri dataFileUri, IEnumerable<DigestedSpectrumMetadata> spectra) : base(dataSchema)
         {
             _dataFileUri = dataFileUri;
             _spectra = ImmutableList.ValueOf(spectra);
@@ -88,7 +88,7 @@ namespace pwiz.Skyline.Model.Results.Spectra
             return string.Format(Resources.FileSpectrumInfo_ToString__0__Spectra, SpectrumCount);
         }
 
-        public ImmutableList<SpectrumMetadata> GetSpectra()
+        public ImmutableList<DigestedSpectrumMetadata> GetSpectra()
         {
             return _spectra;
         }

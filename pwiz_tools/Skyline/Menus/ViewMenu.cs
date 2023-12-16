@@ -23,6 +23,7 @@ using System.Windows.Forms;
 using pwiz.Common.Collections;
 using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Controls;
+using pwiz.Skyline.Controls.Alignment;
 using pwiz.Skyline.Controls.Graphs;
 using pwiz.Skyline.Controls.GroupComparison;
 using pwiz.Skyline.Controls.Spectra;
@@ -1065,6 +1066,12 @@ namespace pwiz.Skyline.Menus
         {
             // The "Spectrum Grid" menu item is only visible if the user was holding down shift
             spectrumGridMenuItem.Visible = 0 != (ModifierKeys & Keys.Shift);
+        }
+
+        private void runAlignmentToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            var runAlignmentForm = new RunAlignmentForm(SkylineWindow);
+            runAlignmentForm.Show(SkylineWindow);
         }
     }
 }

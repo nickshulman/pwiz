@@ -21,7 +21,6 @@ using System.Collections.Generic;
 using System.Linq;
 using pwiz.Common.Collections;
 using pwiz.Common.DataBinding;
-using pwiz.Common.Spectra;
 using pwiz.Common.SystemUtil;
 
 namespace pwiz.Skyline.Model.Results.Spectra
@@ -32,7 +31,7 @@ namespace pwiz.Skyline.Model.Results.Spectra
         private readonly ImmutableList<int> _ms1SpectrumIndices;
         private readonly ImmutableSortedList<double, ImmutableList<int>> _spectrumIndicesByPrecursor;
         private readonly Dictionary<string, int> _columnIndices;
-        public SpectrumMetadataList(IEnumerable<SpectrumMetadata> spectrumMetadatas, IEnumerable<SpectrumClassColumn> columns)
+        public SpectrumMetadataList(IEnumerable<DigestedSpectrumMetadata> spectrumMetadatas, IEnumerable<SpectrumClassColumn> columns)
         {
             AllSpectra = ImmutableList.ValueOfOrEmpty(spectrumMetadatas);
             Columns = ImmutableList.ValueOf(columns);
@@ -40,10 +39,10 @@ namespace pwiz.Skyline.Model.Results.Spectra
             var valueCache = new ValueCache();
             _columnValues = Columns.Select(col => GetColumnValues(valueCache, col, AllSpectra)).ToArray();
 
-            _ms1SpectrumIndices = ImmutableList.ValueOf(Enumerable.Range(0, AllSpectra.Count).Where(i => AllSpectra[i].MsLevel == 1));
+            _ms1SpectrumIndices = ImmutableList.ValueOf(Enumerable.Range(0, AllSpectra.Count).Where(i => AllSpectra[i].SpectrumMetadata.MsLevel == 1));
             var spectraByPrecursor = new List<KeyValuePair<double, ImmutableList<int>>>();
             var precursorGroups = AllRows
-                .SelectMany(row=> row.SpectrumMetadata.GetPrecursors(1).Select(p => Tuple.Create(p.PrecursorMz, row)))
+                .SelectMany(row=> row.SpectrumMetadata.SpectrumMetadata.GetPrecursors(1).Select(p => Tuple.Create(p.PrecursorMz, row)))
                 .GroupBy(tuple => tuple.Item1, tuple => tuple.Item2.RowIndex);
             foreach (var group in precursorGroups)
             {
@@ -53,9 +52,9 @@ namespace pwiz.Skyline.Model.Results.Spectra
             _spectrumIndicesByPrecursor = ImmutableSortedList.FromValues(spectraByPrecursor);
         }
 
-        public static SpectrumMetadataList Ms2Only(IEnumerable<SpectrumMetadata> spectrumMetadatas, IEnumerable<SpectrumClassColumn> columns)
+        public static SpectrumMetadataList Ms2Only(IEnumerable<DigestedSpectrumMetadata> spectrumMetadatas, IEnumerable<SpectrumClassColumn> columns)
         {
-            return new SpectrumMetadataList(spectrumMetadatas.Where(s => s.MsLevel > 1), columns);
+            return new SpectrumMetadataList(spectrumMetadatas.Where(s => s.SpectrumMetadata.MsLevel > 1), columns);
         }
 
         public ImmutableList<SpectrumClassColumn> Columns { get; }
@@ -84,7 +83,7 @@ namespace pwiz.Skyline.Model.Results.Spectra
             return -1;
         }
 
-        public ImmutableList<SpectrumMetadata> AllSpectra { get; private set; }
+        public ImmutableList<DigestedSpectrumMetadata> AllSpectra { get; private set; }
 
         public IList<Row> AllRows
         {
@@ -127,7 +126,7 @@ namespace pwiz.Skyline.Model.Results.Spectra
 
             public SpectrumMetadataList SpectrumMetadataList { get; }
             public int RowIndex { get; }
-            public SpectrumMetadata SpectrumMetadata
+            public DigestedSpectrumMetadata SpectrumMetadata
             {
                 get { return SpectrumMetadataList.AllSpectra[RowIndex]; }
             }
@@ -147,13 +146,13 @@ namespace pwiz.Skyline.Model.Results.Spectra
             }
         }
 
-        public static Array GetColumnValues(ValueCache valueCache, SpectrumClassColumn column, IList<SpectrumMetadata> spectrumMetadatas)
+        public static Array GetColumnValues(ValueCache valueCache, SpectrumClassColumn column, IList<DigestedSpectrumMetadata> spectrumMetadatas)
         {
             bool isValueType = column.ValueType.IsValueType;
             var array = Array.CreateInstance(column.ValueType, spectrumMetadatas.Count);
             for (int i = 0; i < spectrumMetadatas.Count; i++)
             {
-                var value = column.GetValue(spectrumMetadatas[i]);
+                var value = column.GetValue(spectrumMetadatas[i].SpectrumMetadata);
                 if (!isValueType)
                 {
                     value = valueCache.CacheValue(value);

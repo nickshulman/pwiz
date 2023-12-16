@@ -17,8 +17,11 @@
  * limitations under the License.
  */
 using System;
+using System.Collections;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -299,7 +302,34 @@ EndSelection:<<<<<<<3
             }
 
             comboBox.DropDownWidth = widestWidth;
-        }        
+        }
+
+        public static void ReplaceItems(ComboBox comboBox, IEnumerable items)
+        {
+            ReplaceItems(comboBox, items.Cast<object>(), comboBox.SelectedItem);
+        }
+
+        public static void ReplaceItems<T>(ComboBox comboBox, IEnumerable<T> items, T selectedItem)
+        {
+            var itemObjects = items.Cast<object>().ToArray();
+            int newSelectedIndex = -1;
+            for (int i = 0; i < itemObjects.Length; i++)
+            {
+                if (Equals(selectedItem, itemObjects[i]))
+                {
+                    newSelectedIndex = i;
+                    break;
+                }
+            }
+            if (newSelectedIndex == comboBox.SelectedIndex && ArrayUtil.EqualsDeep(itemObjects, comboBox.Items.Cast<object>().ToArray()))
+            {
+                return;
+            }
+            comboBox.Items.Clear();
+            comboBox.Items.AddRange(itemObjects);
+            comboBox.SelectedIndex = newSelectedIndex;
+            AutoSizeDropDown(comboBox);
+        }
     }
 
     public static class ClipboardHelper

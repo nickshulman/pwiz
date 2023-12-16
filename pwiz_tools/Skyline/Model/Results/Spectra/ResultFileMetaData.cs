@@ -42,15 +42,15 @@ namespace pwiz.Skyline.Model.Results.Spectra
     /// </summary>
     public class ResultFileMetaData : Immutable, IResultFileMetadata
     {
-        public ResultFileMetaData(IEnumerable<SpectrumMetadata> spectrumMetadatas)
+        public ResultFileMetaData(IEnumerable<DigestedSpectrumMetadata> spectrumMetadatas)
         {
             SpectrumMetadatas = ImmutableList.ValueOf(spectrumMetadatas);
         }
-        public ImmutableList<SpectrumMetadata> SpectrumMetadatas { get; private set; }
+        public ImmutableList<DigestedSpectrumMetadata> SpectrumMetadatas { get; private set; }
 
         public static ResultFileMetaData FromProtoBuf(ResultFileMetaDataProto proto)
         {
-            var spectrumMetadatas = new List<SpectrumMetadata>();
+            var spectrumMetadatas = new List<DigestedSpectrumMetadata>();
             var precursors = proto.Precursors.Select(SpectrumPrecursorFromProto).ToList();
             foreach (var protoSpectrum in proto.Spectra)
             {
@@ -87,7 +87,7 @@ namespace pwiz.Skyline.Model.Results.Spectra
                     spectrumMetadata = spectrumMetadata.ChangePrecursors(Enumerable
                         .Range(1, precursorsByLevel.Max(group => group.Key)).Select(level => precursorsByLevel[level]));
                 }
-                spectrumMetadatas.Add(spectrumMetadata);
+                spectrumMetadatas.Add(new DigestedSpectrumMetadata(spectrumMetadata, protoSpectrum.Signature));
             }
 
             return new ResultFileMetaData(spectrumMetadatas);
@@ -112,12 +112,14 @@ namespace pwiz.Skyline.Model.Results.Spectra
             var precursors = new DistinctList<(int MsLevel, SpectrumPrecursor SpectrumPrecuror)>();
             var scanDescriptions = new DistinctList<string>{null};
             var analyzers = new DistinctList<string>{null};
-            foreach (var spectrumMetadata in SpectrumMetadatas)
+            foreach (var digestedSpectrumMetadata in SpectrumMetadatas)
             {
+                var spectrumMetadata = digestedSpectrumMetadata.SpectrumMetadata;
                 var spectrum = new ResultFileMetaDataProto.Types.SpectrumMetadata
                 {
                     RetentionTime = spectrumMetadata.RetentionTime,
                 };
+                spectrum.Signature.AddRange(digestedSpectrumMetadata.Digest);
                 spectrum.PresetScanConfiguration = spectrumMetadata.PresetScanConfiguration;
                 var intParts = GetScanIdParts(spectrumMetadata.Id);
                 if (intParts == null)

@@ -20,16 +20,17 @@ namespace pwiz.Skyline.Controls.Alignment
 {
     public partial class RunAlignmentForm : DockableFormEx
     {
-        private bool _inUpdate;
-        private List<CurveSettings> _curveList;
-        private CurveSettings _currentCurveSettings;
+        private bool _inUpdateControls;
+        private List<CurveSettings> _curves = new List<CurveSettings>{new CurveSettings()};
+        private RunAlignmentProperties _runAlignmentProperties;
         private Cache _cache = new Cache();
         public RunAlignmentForm(SkylineWindow skylineWindow)
         {
             InitializeComponent();
             SkylineWindow = skylineWindow;
-            _currentCurveSettings = new CurveSettings(skylineWindow);
-            propertyGrid.SelectedObject = _currentCurveSettings;
+            IfNotUpdating(UpdateComboCurves);
+            _runAlignmentProperties = new RunAlignmentProperties(skylineWindow);
+            propertyGrid.SelectedObject = _runAlignmentProperties;
         }
 
         public SkylineWindow SkylineWindow { get; }
@@ -52,28 +53,32 @@ namespace pwiz.Skyline.Controls.Alignment
             UpdateUI();
         }
 
-
-        private void OnValuesChanged(object sender, EventArgs e)
+        private void IfNotUpdating(Action action)
         {
-            UpdateUI();
+            if (!_inUpdateControls)
+            {
+                try
+                {
+                    _inUpdateControls = true;
+                    action();
+                }
+                finally
+                {
+                    _inUpdateControls = false;
+                }
+            }
         }
 
         public void UpdateUI()
         {
-            if (_inUpdate)
-            {
-                return;
-            }
-
             try
             {
-                _inUpdate = true;
                 UpdateGraph(_cache);
+                propertyGrid.Refresh();
             }
             finally
             {
                 _cache.DumpStaleObjects();
-                _inUpdate = false;
             }
         }
 
@@ -81,29 +86,30 @@ namespace pwiz.Skyline.Controls.Alignment
         {
             zedGraphControl1.GraphPane.CurveList.Clear();
             var document = SkylineWindow.Document;
-            var dataX = cache.GetValue(Tuple.Create(document, _currentCurveSettings.XAxis),
-                () => GetRetentionTimeData(document, _currentCurveSettings.XAxis));
+            var dataX = cache.GetValue(Tuple.Create(document, _runAlignmentProperties.XAxis),
+                () => GetRetentionTimeData(document, _runAlignmentProperties.XAxis));
             if (dataX != null)
             {
-                var curveSettings = _currentCurveSettings;
-                var dataY = cache.GetValue(Tuple.Create(document, _currentCurveSettings.YAxis),
-                    ()=> GetRetentionTimeData(document, _currentCurveSettings.YAxis));
-
-                if (dataY != null)
+                foreach (var curveSettings in _curves)
                 {
+                    var dataY = cache.GetValue(Tuple.Create(document, curveSettings.YAxis),
+                        () => GetRetentionTimeData(document, curveSettings.YAxis));
+                    if (dataY == null)
+                    {
+                        continue;
+                    }
+
                     var similarityMatrixKey = Tuple.Create(dataX, dataY);
                     if (!cache.TryGetValue(similarityMatrixKey, out SimilarityMatrix similarityMatrix))
                     {
-                        using (var longWaitDlg = new LongWaitDlg())
+                        using var longWaitDlg = new LongWaitDlg();
+                        longWaitDlg.PerformWork(this, 1000, progressMonitor =>
                         {
-                            longWaitDlg.PerformWork(this, 1000, progressMonitor =>
-                            {
-                                var progressStatus = new ProgressStatus("Computing Similarity Matrix");
-                                similarityMatrix =
-                                    dataX.Spectra.GetSimilarityMatrix(progressMonitor, progressStatus, dataY.Spectra);
-                                cache.AddValue(similarityMatrixKey, similarityMatrix);
-                            });
-                        }
+                            var progressStatus = new ProgressStatus("Computing Similarity Matrix");
+                            similarityMatrix =
+                                dataX.Spectra.GetSimilarityMatrix(progressMonitor, progressStatus, dataY.Spectra);
+                            cache.AddValue(similarityMatrixKey, similarityMatrix);
+                        });
                     }
 
                     if (similarityMatrix != null)
@@ -126,24 +132,25 @@ namespace pwiz.Skyline.Controls.Alignment
                                 }
                             });
                     }
-                }
 
-                if (!string.IsNullOrEmpty(curveSettings.Caption))
-                {
-                    var legendItem = new LineItem(curveSettings.Caption)
+                    if (!string.IsNullOrEmpty(curveSettings.Caption))
                     {
-                        Symbol = new Symbol(curveSettings.SymbolType, curveSettings.SymbolColor),
-                    };
-                    if (curveSettings.LineDashStyle.HasValue)
-                    {
-                        legendItem.Line.Color = curveSettings.LineColor;
-                        legendItem.Line.Style = curveSettings.LineDashStyle.Value;
+                        var legendItem = new LineItem(curveSettings.Caption)
+                        {
+                            Symbol = new Symbol(curveSettings.SymbolType, curveSettings.SymbolColor),
+                        };
+                        if (curveSettings.LineDashStyle.HasValue)
+                        {
+                            legendItem.Line.Color = curveSettings.LineColor;
+                            legendItem.Line.Style = curveSettings.LineDashStyle.Value;
+                        }
+                        else
+                        {
+                            legendItem.Line.IsVisible = false;
+                        }
+
+                        zedGraphControl1.GraphPane.CurveList.Add(legendItem);
                     }
-                    else
-                    {
-                        legendItem.Line.IsVisible = false;
-                    }
-                    zedGraphControl1.GraphPane.CurveList.Add(legendItem);
                 }
             }
 
@@ -244,7 +251,70 @@ namespace pwiz.Skyline.Controls.Alignment
 
         private void propertyGrid_PropertyValueChanged(object s, System.Windows.Forms.PropertyValueChangedEventArgs e)
         {
-            UpdateUI();
+            IfNotUpdating(() =>
+            {
+                _curves[comboCurves.SelectedIndex] = _runAlignmentProperties.CurveSettings;
+                UpdateComboCurves();
+                UpdateUI();
+            });
+        }
+
+        private void comboCurves_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            IfNotUpdating(() =>
+            {
+                if (comboCurves.SelectedIndex >= 0)
+                {
+                    _runAlignmentProperties.CurveSettings = _curves[comboCurves.SelectedIndex];
+                    UpdateUI();
+                }
+            });
+        }
+
+        private void toolButtonAddCurve_Click(object sender, EventArgs e)
+        {
+            IfNotUpdating(() =>
+            {
+                _curves.Add(CurveSettings.Default);
+                UpdateComboCurves();
+                comboCurves.SelectedIndex = _curves.Count - 1;
+                _runAlignmentProperties.CurveSettings = _curves[comboCurves.SelectedIndex];
+                UpdateUI();
+            });
+        }
+
+        private void toolButtonDelete_Click(object sender, EventArgs e)
+        {
+            IfNotUpdating(() =>
+            {
+                if (comboCurves.SelectedIndex > 0 && comboCurves.SelectedIndex < _curves.Count)
+                {
+                    _curves.RemoveAt(comboCurves.SelectedIndex);
+                    if (_curves.Count == 0)
+                    {
+                        _curves.Add(new CurveSettings());
+                    }
+                }
+
+                UpdateComboCurves();
+                _runAlignmentProperties.CurveSettings = _curves[comboCurves.SelectedIndex];
+                UpdateUI();
+
+            });
+        }
+
+        private void UpdateComboCurves()
+        {
+            Assume.IsTrue(_inUpdateControls);
+            if (_curves.Count == 0)
+            {
+                _curves.Add(new CurveSettings());
+            }
+
+            int newSelectedIndex = Math.Max(0, Math.Min(_curves.Count - 1, comboCurves.SelectedIndex));
+            comboCurves.Items.Clear();
+            comboCurves.Items.AddRange(_curves.Select(curve=>curve.ToString()).ToArray());
+            comboCurves.SelectedIndex = newSelectedIndex;
         }
     }
 }

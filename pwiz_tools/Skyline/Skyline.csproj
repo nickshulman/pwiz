@@ -337,6 +337,7 @@
       <DependentUpon>CommandArgUsage.resx</DependentUpon>
     </Compile>
     <Compile Include="Controls\Alignment\Cache.cs" />
+    <Compile Include="Controls\Alignment\CurveSettings.cs" />
     <Compile Include="Controls\Alignment\RetentionTimeSource.cs" />
     <Compile Include="Controls\Alignment\RunAlignmentResources.Designer.cs">
       <AutoGen>True</AutoGen>
@@ -349,7 +350,7 @@
     <Compile Include="Controls\Alignment\RunAlignmentForm.Designer.cs">
       <DependentUpon>RunAlignmentForm.cs</DependentUpon>
     </Compile>
-    <Compile Include="Controls\Alignment\CurveSettings.cs" />
+    <Compile Include="Controls\Alignment\RunAlignmentProperties.cs" />
     <Compile Include="Controls\Alignment\UserInterfaceObject.cs" />
     <Compile Include="Controls\AuditLog\AuditLogExtraInfoForm.cs">
       <SubType>Form</SubType>

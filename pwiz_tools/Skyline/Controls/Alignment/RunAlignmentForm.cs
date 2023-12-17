@@ -35,6 +35,11 @@ namespace pwiz.Skyline.Controls.Alignment
             comboMsLevel.Items.Add("");
             comboMsLevel.Items.Add(1);
             comboMsLevel.Items.Add(2);
+            comboRegression.Items.Add("");
+            foreach (var regressionType in Enum.GetValues(typeof(RegressionMethodRT)))
+            {
+                comboRegression.Items.Add(regressionType);
+            }
             bindingSource1.DataSource = _rows;
             bindingSource1.ListChanged += BindingSource1_ListChanged;
         }
@@ -102,78 +107,36 @@ namespace pwiz.Skyline.Controls.Alignment
                         var dataY = curve.RetentionTimeData;
                         if (dataY != null)
                         {
+                            SimilarityMatrix similarityMatrix = null;
+                            using (var longWaitDlg = new LongWaitDlg())
+                            {
+                                longWaitDlg.PerformWork(this, 1000, progressMonitor =>
+                                {
+                                    var progressStatus = new ProgressStatus("Computing Similarity Matrix");
+                                    similarityMatrix = dataX.Spectra.GetSimilarityMatrix(progressMonitor, progressStatus, dataY.Spectra);
+                                });
+                            }
 
+                            if (similarityMatrix != null)
+                            {
+                                var bestPath = new PointPairList(similarityMatrix.FindBestPath(false).ToList());
+                                if (curve.RegressionMethod.HasValue)
+                                {
+                                    zedGraphControl1.GraphPane.CurveList.Add(PerformKdeAlignment(bestPath));
+                                }
+                                zedGraphControl1.GraphPane.CurveList.Add(
+                                    new LineItem(curve.Caption, bestPath, Color.Black, SymbolType.Circle)
+                                    {
+                                        Line =
+                                        {
+                                            IsVisible = false
+                                        }
+                                    });
+                            }
                         }
                     }
                 }
             }
-            if (comboXAxis.SelectedItem is RetentionTimeSource xFileItem && comboYAxis.SelectedItem is RetentionTimeSource yFileItem)
-            {
-                var dataX = GetRetentionTimeData(document, xFileItem);
-                var dataY = GetRetentionTimeData(document, yFileItem);
-                if (dataX != null && dataY != null)
-                {
-                    SimilarityMatrix similarityMatrix = null;
-                    using (var longWaitDlg = new LongWaitDlg())
-                    {
-                        int digestLength = comboSignatureLength.SelectedItem as int? ?? 2;
-                        bool halfPrecision = cbxHalfPrecision.Checked;
-                        longWaitDlg.PerformWork(this, 1000, progressMonitor =>
-                        {
-                            var progressStatus = new ProgressStatus("Computing Similarity Matrix");
-                            similarityMatrix = dataX.Spectra.GetSimilarityMatrix(progressMonitor, progressStatus, dataY.Spectra);
-                        });
-                    }
-
-                    if (similarityMatrix != null)
-                    {
-                        if (cbxSparseBestPath.Checked)
-                        {
-                            var bestPath = new PointPairList(similarityMatrix.FindBestPath(true).ToList());
-                            
-                            if (cbxKdeAlignment.Checked)
-                            {
-                                zedGraphControl1.GraphPane.CurveList.Add(PerformKdeAlignment(bestPath));
-                            }
-
-                            zedGraphControl1.GraphPane.CurveList.Add(
-                                new LineItem("Sparse Best Path", bestPath, Color.Black, SymbolType.Triangle)
-                                {
-                                    Line =
-                                    {
-                                        IsVisible = false
-                                    }
-                                });
-                        }
-                        if (cbxDenseBestPath.Checked)
-                        {
-                            var bestPath = new PointPairList(similarityMatrix.FindBestPath(false).ToList());
-                            if (cbxKdeAlignment.Checked)
-                            {
-                                zedGraphControl1.GraphPane.CurveList.Add(PerformKdeAlignment(bestPath));
-                            }
-                            zedGraphControl1.GraphPane.CurveList.Add(
-                                new LineItem("Dense Best Path", bestPath, Color.Black, SymbolType.Circle)
-                                {
-                                    Line =
-                                    {
-                                        IsVisible = false
-                                    }
-                                });
-                        }
-
-                        if (cbxSimilarityMatrix.Checked)
-                        {
-                            zedGraphControl1.GraphPane.CurveList.Add(MakeSimilarityMatrix(similarityMatrix));
-                        }
-                    }
-                }
-
-                zedGraphControl1.GraphPane.XAxis.Title.Text = xFileItem.ToString();
-                zedGraphControl1.GraphPane.YAxis.Title.Text = yFileItem.ToString();
-            }
-
-
             zedGraphControl1.GraphPane.AxisChange();
             zedGraphControl1.Invalidate();
         }
@@ -229,30 +192,6 @@ namespace pwiz.Skyline.Controls.Alignment
             return Equals(spectrum1.GetPrecursors(0), spectrum2.GetPrecursors(0));
         }
 
-        public static double? DotProduct(IList<float> x, IList<float> y)
-        {
-            if (x.Count != y.Count)
-            {
-                return null;
-            }
-            double sumX2 = 0;
-            double sumY2 = 0;
-            double sumXY = 0;
-            for (int i = 0; i < x.Count; i++)
-            {
-                sumX2 += x[i] * x[i];
-                sumY2 += y[i] * y[i];
-                sumXY += x[i] * y[i];
-            }
-
-            if (sumX2 == 0 || sumY2 == 0)
-            {
-                return null;
-            }
-
-            return sumXY / Math.Sqrt(sumX2 * sumY2);
-        }
-
         public struct RetentionTimeSource
         {
             public RetentionTimeSource(string name, MsDataFileUri msDataFileUri, string filename)
@@ -287,6 +226,7 @@ namespace pwiz.Skyline.Controls.Alignment
                 {
                     spectrumMetadataList = new SpectrumMetadataList(resultFileMetadata.SpectrumMetadatas,
                         ImmutableList.Empty<SpectrumClassColumn>());
+                    spectrumMetadataList = ReduceMetadataList(spectrumMetadataList);
                 }
             }
 
@@ -303,15 +243,51 @@ namespace pwiz.Skyline.Controls.Alignment
             public RetentionTimeData RetentionTimeData { get; }
             public string Caption { get; set; }
             public string Description { get; set; }
+            public RegressionMethodRT? RegressionMethod { get; set; }
         }
 
         private void btnAdd_Click(object sender, EventArgs e)
         {
             if (comboYAxis.SelectedItem is RetentionTimeSource source)
             {
-                _rows.Add(new CurveRow(GetRetentionTimeData(SkylineWindow.Document, source)));
+                var retentionTimeData = GetRetentionTimeData(SkylineWindow.Document, source);
+
+                var row = new CurveRow(retentionTimeData)
+                {
+                    Caption = source.Name,
+                    RegressionMethod = comboRegression.SelectedItem as RegressionMethodRT?
+                };
+                _rows.Add(row);
             }
-            
+        }
+
+        private SpectrumMetadataList ReduceMetadataList(SpectrumMetadataList metadataList)
+        {
+            int? msLevel = comboMsLevel.SelectedItem as int?;
+            var spectra = new List<DigestedSpectrumMetadata>();
+            int? digestLength = comboSignatureLength.SelectedItem as int?;
+            bool halfPrecision = cbxHalfPrecision.Checked;
+            foreach (var spectrum in metadataList.AllSpectra)
+            {
+                if (msLevel.HasValue && msLevel != spectrum.SpectrumMetadata.MsLevel)
+                {
+                    continue;
+                }
+
+                SpectrumDigest digest = spectrum.Digest;
+                if (digestLength.HasValue)
+                {
+                    digest = digest.ShortenTo(digestLength.Value);
+                }
+
+                if (halfPrecision)
+                {
+                    digest = new SpectrumDigest(digest.Select(v => (double)((HalfPrecisionFloat)v)));
+                }
+                spectra.Add(new DigestedSpectrumMetadata(spectrum.SpectrumMetadata, digest));
+            }
+
+            return new SpectrumMetadataList(spectra, metadataList.Columns);
         }
     }
 }

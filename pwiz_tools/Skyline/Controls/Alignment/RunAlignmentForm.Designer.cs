@@ -47,8 +47,6 @@
             this.splitContainer1 = new System.Windows.Forms.SplitContainer();
             this.zedGraphControl1 = new ZedGraph.ZedGraphControl();
             this.dataGridView1 = new System.Windows.Forms.DataGridView();
-            this.colCurveTitle = new System.Windows.Forms.DataGridViewTextBoxColumn();
-            this.colCurveDescription = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.colSymbol = new System.Windows.Forms.DataGridViewComboBoxColumn();
             this.bindingSource1 = new System.Windows.Forms.BindingSource(this.components);
             this.bindingNavigator1 = new System.Windows.Forms.BindingNavigator(this.components);
@@ -65,6 +63,12 @@
             this.bindingNavigatorDeleteItem = new System.Windows.Forms.ToolStripButton();
             this.panelGrid = new System.Windows.Forms.Panel();
             this.btnAdd = new System.Windows.Forms.Button();
+            this.dataGridViewTextBoxColumn1 = new System.Windows.Forms.DataGridViewTextBoxColumn();
+            this.dataGridViewTextBoxColumn2 = new System.Windows.Forms.DataGridViewTextBoxColumn();
+            this.colCurveTitle = new System.Windows.Forms.DataGridViewTextBoxColumn();
+            this.colCurveDescription = new System.Windows.Forms.DataGridViewTextBoxColumn();
+            this.comboRegression = new System.Windows.Forms.ComboBox();
+            this.lblRegression = new System.Windows.Forms.Label();
             this.panel1.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.splitContainer1)).BeginInit();
             this.splitContainer1.Panel1.SuspendLayout();
@@ -79,6 +83,8 @@
             // 
             // panel1
             // 
+            this.panel1.Controls.Add(this.lblRegression);
+            this.panel1.Controls.Add(this.comboRegression);
             this.panel1.Controls.Add(this.btnAdd);
             this.panel1.Controls.Add(this.panelGrid);
             this.panel1.Controls.Add(this.cbxHalfPrecision);
@@ -126,7 +132,7 @@
             // 
             this.comboMsLevel.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.comboMsLevel.FormattingEnabled = true;
-            this.comboMsLevel.Location = new System.Drawing.Point(589, 35);
+            this.comboMsLevel.Location = new System.Drawing.Point(397, 6);
             this.comboMsLevel.Name = "comboMsLevel";
             this.comboMsLevel.Size = new System.Drawing.Size(121, 21);
             this.comboMsLevel.TabIndex = 7;
@@ -135,7 +141,7 @@
             // lblMsLevel
             // 
             this.lblMsLevel.AutoSize = true;
-            this.lblMsLevel.Location = new System.Drawing.Point(515, 38);
+            this.lblMsLevel.Location = new System.Drawing.Point(323, 9);
             this.lblMsLevel.Name = "lblMsLevel";
             this.lblMsLevel.Size = new System.Drawing.Size(55, 13);
             this.lblMsLevel.TabIndex = 6;
@@ -145,7 +151,7 @@
             // 
             this.comboSignatureLength.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.comboSignatureLength.FormattingEnabled = true;
-            this.comboSignatureLength.Location = new System.Drawing.Point(280, 36);
+            this.comboSignatureLength.Location = new System.Drawing.Point(623, 6);
             this.comboSignatureLength.Name = "comboSignatureLength";
             this.comboSignatureLength.Size = new System.Drawing.Size(121, 21);
             this.comboSignatureLength.TabIndex = 5;
@@ -154,7 +160,7 @@
             // lblSignatureLength
             // 
             this.lblSignatureLength.AutoSize = true;
-            this.lblSignatureLength.Location = new System.Drawing.Point(186, 39);
+            this.lblSignatureLength.Location = new System.Drawing.Point(529, 9);
             this.lblSignatureLength.Name = "lblSignatureLength";
             this.lblSignatureLength.Size = new System.Drawing.Size(88, 13);
             this.lblSignatureLength.TabIndex = 4;
@@ -225,7 +231,7 @@
             // cbxHalfPrecision
             // 
             this.cbxHalfPrecision.AutoSize = true;
-            this.cbxHalfPrecision.Location = new System.Drawing.Point(416, 35);
+            this.cbxHalfPrecision.Location = new System.Drawing.Point(227, 8);
             this.cbxHalfPrecision.Name = "cbxHalfPrecision";
             this.cbxHalfPrecision.Size = new System.Drawing.Size(90, 17);
             this.cbxHalfPrecision.TabIndex = 12;
@@ -282,17 +288,6 @@
             this.dataGridView1.Size = new System.Drawing.Size(797, 106);
             this.dataGridView1.TabIndex = 13;
             // 
-            // colCurveTitle
-            // 
-            this.colCurveTitle.HeaderText = "Caption";
-            this.colCurveTitle.Name = "colCurveTitle";
-            // 
-            // colCurveDescription
-            // 
-            this.colCurveDescription.HeaderText = "Description";
-            this.colCurveDescription.Name = "colCurveDescription";
-            this.colCurveDescription.ReadOnly = true;
-            // 
             // colSymbol
             // 
             this.colSymbol.HeaderText = "Symbol";
@@ -308,6 +303,7 @@
             // bindingNavigator1
             // 
             this.bindingNavigator1.AddNewItem = this.bindingNavigatorAddNewItem;
+            this.bindingNavigator1.BindingSource = this.bindingSource1;
             this.bindingNavigator1.CountItem = this.bindingNavigatorCountItem;
             this.bindingNavigator1.DeleteItem = this.bindingNavigatorDeleteItem;
             this.bindingNavigator1.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
@@ -437,6 +433,48 @@
             this.btnAdd.UseVisualStyleBackColor = true;
             this.btnAdd.Click += new System.EventHandler(this.btnAdd_Click);
             // 
+            // dataGridViewTextBoxColumn1
+            // 
+            this.dataGridViewTextBoxColumn1.HeaderText = "Caption";
+            this.dataGridViewTextBoxColumn1.Name = "dataGridViewTextBoxColumn1";
+            this.dataGridViewTextBoxColumn1.Width = 251;
+            // 
+            // dataGridViewTextBoxColumn2
+            // 
+            this.dataGridViewTextBoxColumn2.HeaderText = "Description";
+            this.dataGridViewTextBoxColumn2.Name = "dataGridViewTextBoxColumn2";
+            this.dataGridViewTextBoxColumn2.ReadOnly = true;
+            this.dataGridViewTextBoxColumn2.Width = 252;
+            // 
+            // colCurveTitle
+            // 
+            this.colCurveTitle.HeaderText = "Caption";
+            this.colCurveTitle.Name = "colCurveTitle";
+            // 
+            // colCurveDescription
+            // 
+            this.colCurveDescription.HeaderText = "Description";
+            this.colCurveDescription.Name = "colCurveDescription";
+            this.colCurveDescription.ReadOnly = true;
+            // 
+            // comboRegression
+            // 
+            this.comboRegression.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.comboRegression.FormattingEnabled = true;
+            this.comboRegression.Location = new System.Drawing.Point(326, 39);
+            this.comboRegression.Name = "comboRegression";
+            this.comboRegression.Size = new System.Drawing.Size(121, 21);
+            this.comboRegression.TabIndex = 17;
+            // 
+            // lblRegression
+            // 
+            this.lblRegression.AutoSize = true;
+            this.lblRegression.Location = new System.Drawing.Point(224, 42);
+            this.lblRegression.Name = "lblRegression";
+            this.lblRegression.Size = new System.Drawing.Size(90, 13);
+            this.lblRegression.TabIndex = 18;
+            this.lblRegression.Text = "Regression Type:";
+            // 
             // RunAlignmentForm
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
@@ -500,5 +538,9 @@
         private System.Windows.Forms.BindingSource bindingSource1;
         private System.Windows.Forms.Panel panelGrid;
         private System.Windows.Forms.Button btnAdd;
+        private System.Windows.Forms.DataGridViewTextBoxColumn dataGridViewTextBoxColumn1;
+        private System.Windows.Forms.DataGridViewTextBoxColumn dataGridViewTextBoxColumn2;
+        private System.Windows.Forms.Label lblRegression;
+        private System.Windows.Forms.ComboBox comboRegression;
     }
 }

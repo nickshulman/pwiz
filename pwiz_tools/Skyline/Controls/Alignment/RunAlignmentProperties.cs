@@ -79,5 +79,7 @@ namespace pwiz.Skyline.Controls.Alignment
                 _curveSettings = value;
             }
         }
+
+        public CurveResult Result { get; set; }
     }
 }

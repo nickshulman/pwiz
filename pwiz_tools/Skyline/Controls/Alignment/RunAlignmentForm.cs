@@ -73,7 +73,7 @@ namespace pwiz.Skyline.Controls.Alignment
         {
             try
             {
-                UpdateGraph(_cache);
+                UpdateGraph();
                 propertyGrid.Refresh();
             }
             finally
@@ -82,80 +82,105 @@ namespace pwiz.Skyline.Controls.Alignment
             }
         }
 
-        private void UpdateGraph(Cache cache)
+        private void UpdateGraph()
         {
             zedGraphControl1.GraphPane.CurveList.Clear();
             var document = SkylineWindow.Document;
-            var dataX = cache.GetValue(Tuple.Create(document, _runAlignmentProperties.XAxis),
+            var dataX = _cache.GetValue(Tuple.Create(document, _runAlignmentProperties.XAxis),
                 () => GetRetentionTimeData(document, _runAlignmentProperties.XAxis));
             if (dataX != null)
             {
-                foreach (var curveSettings in _curves)
+                for (int iCurve = 0; iCurve < _curves.Count; iCurve++)
                 {
-                    var dataY = cache.GetValue(Tuple.Create(document, curveSettings.YAxis),
-                        () => GetRetentionTimeData(document, curveSettings.YAxis));
-                    if (dataY == null)
+                    var result = DisplayCurve(document, dataX, _curves[iCurve]);
+                    if (iCurve == comboCurves.SelectedIndex)
                     {
-                        continue;
-                    }
+                        _runAlignmentProperties.Result = result;
 
-                    var similarityMatrixKey = Tuple.Create(dataX, dataY);
-                    if (!cache.TryGetValue(similarityMatrixKey, out SimilarityMatrix similarityMatrix))
-                    {
-                        using var longWaitDlg = new LongWaitDlg();
-                        longWaitDlg.PerformWork(this, 1000, progressMonitor =>
-                        {
-                            var progressStatus = new ProgressStatus("Computing Similarity Matrix");
-                            similarityMatrix =
-                                dataX.Spectra.GetSimilarityMatrix(progressMonitor, progressStatus, dataY.Spectra);
-                            cache.AddValue(similarityMatrixKey, similarityMatrix);
-                        });
-                    }
-
-                    if (similarityMatrix != null)
-                    {
-                        var bestPath = new PointPairList(similarityMatrix.FindBestPath(false).ToList());
-                        if (curveSettings.RegressionMethod.HasValue && curveSettings.LineDashStyle.HasValue)
-                        {
-                            var lineItem = PerformKdeAlignment(bestPath);
-                            lineItem.Line.Style = curveSettings.LineDashStyle.Value;
-                            lineItem.Line.Color = curveSettings.LineColor;
-                            zedGraphControl1.GraphPane.CurveList.Add(lineItem);
-                        }
-
-                        zedGraphControl1.GraphPane.CurveList.Add(
-                            new LineItem(null, bestPath, curveSettings.SymbolColor, curveSettings.SymbolType)
-                            {
-                                Line =
-                                {
-                                    IsVisible = false
-                                }
-                            });
-                    }
-
-                    if (!string.IsNullOrEmpty(curveSettings.Caption))
-                    {
-                        var legendItem = new LineItem(curveSettings.Caption)
-                        {
-                            Symbol = new Symbol(curveSettings.SymbolType, curveSettings.SymbolColor),
-                        };
-                        if (curveSettings.LineDashStyle.HasValue)
-                        {
-                            legendItem.Line.Color = curveSettings.LineColor;
-                            legendItem.Line.Style = curveSettings.LineDashStyle.Value;
-                        }
-                        else
-                        {
-                            legendItem.Line.IsVisible = false;
-                        }
-
-                        zedGraphControl1.GraphPane.CurveList.Add(legendItem);
                     }
                 }
+            }
+            else
+            {
+                _runAlignmentProperties.Result = new CurveResult("No X-axis");
             }
 
             zedGraphControl1.GraphPane.AxisChange();
             zedGraphControl1.Invalidate();
+        }
+
+        private CurveResult DisplayCurve(SrmDocument document, RetentionTimeData dataX, CurveSettings curveSettings)
+        {
+
+            var dataY = _cache.GetValue(Tuple.Create(document, curveSettings.YAxis),
+                () => GetRetentionTimeData(document, curveSettings.YAxis));
+            if (dataY == null)
+            {
+                return new CurveResult("No Y-axis");
+            }
+            if (!string.IsNullOrEmpty(curveSettings.Caption))
+            {
+                var legendItem = new LineItem(curveSettings.Caption)
+                {
+                    Symbol = new Symbol(curveSettings.SymbolType, curveSettings.SymbolColor),
+                };
+                if (curveSettings.LineDashStyle.HasValue)
+                {
+                    legendItem.Line.Color = curveSettings.LineColor;
+                    legendItem.Line.Style = curveSettings.LineDashStyle.Value;
+                }
+                else
+                {
+                    legendItem.Line.IsVisible = false;
+                }
+
+                zedGraphControl1.GraphPane.CurveList.Add(legendItem);
+            }
+
+            var similarityMatrixKey = Tuple.Create(dataX, dataY);
+            if (!_cache.TryGetValue(similarityMatrixKey, out SimilarityMatrix similarityMatrix))
+            {
+                using var longWaitDlg = new LongWaitDlg();
+                longWaitDlg.PerformWork(this, 1000, progressMonitor =>
+                {
+                    var progressStatus = new ProgressStatus("Computing Similarity Matrix");
+                    similarityMatrix =
+                        dataX.Spectra.GetSimilarityMatrix(progressMonitor, progressStatus, dataY.Spectra);
+                    _cache.AddValue(similarityMatrixKey, similarityMatrix);
+                });
+            }
+
+            if (similarityMatrix == null)
+            {
+                return new CurveResult("Cancelled");
+            }
+            
+            var bestPath = new PointPairList(similarityMatrix.FindBestPath(false).ToList());
+            if (curveSettings.RegressionMethod.HasValue && curveSettings.LineDashStyle.HasValue)
+            {
+                var lineItem = PerformKdeAlignment(bestPath);
+                lineItem.Line.Style = curveSettings.LineDashStyle.Value;
+                lineItem.Line.Color = curveSettings.LineColor;
+                zedGraphControl1.GraphPane.CurveList.Add(lineItem);
+            }
+
+            zedGraphControl1.GraphPane.CurveList.Add(
+                new LineItem(null, bestPath, curveSettings.SymbolColor, curveSettings.SymbolType)
+                {
+                    Line =
+                    {
+                        IsVisible = false
+                    }
+                });
+
+
+            return new CurveResult("Success")
+            {
+                AlignmentResult = new AlignmentResult()
+                {
+                    NumberOfPoints = similarityMatrix.Points.Count
+                }
+            };
         }
 
         private IList<DigestedSpectrumMetadata> FilterMetadatas(IList<DigestedSpectrumMetadata> metadatas, int? msLevel)

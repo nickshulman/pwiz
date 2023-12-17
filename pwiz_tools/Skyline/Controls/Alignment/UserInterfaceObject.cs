@@ -1,9 +1,12 @@
-﻿using System.Reflection;
+﻿using System.ComponentModel;
+using System.Linq;
+using System.Reflection;
+using pwiz.Common.PropertyDescriptors;
 using pwiz.Skyline.Model;
 
 namespace pwiz.Skyline.Controls.Alignment
 {
-    public class UserInterfaceObject
+    public class UserInterfaceObject : PropertiesObject
     {
         private IDocumentContainer _documentContainer;
 
@@ -35,6 +38,16 @@ namespace pwiz.Skyline.Controls.Alignment
                 }
             }
             return (UserInterfaceObject) result;
+        }
+
+        public override object GetPropertyOwner(PropertyDescriptor pd)
+        {
+            return this;
+        }
+
+        protected PropertyDescriptor FindProperty(string name)
+        {
+            return GetProperties().Cast<PropertyDescriptor>().FirstOrDefault(p => p.Name == name);
         }
     }
 }

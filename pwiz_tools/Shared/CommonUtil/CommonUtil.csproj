@@ -161,6 +161,8 @@
       <DesignTime>True</DesignTime>
       <DependentUpon>Images.resx</DependentUpon>
     </Compile>
+    <Compile Include="PropertyDescriptors\OrderAttribute.cs" />
+    <Compile Include="PropertyDescriptors\PropertiesObject.cs" />
     <Compile Include="Spectra\SpectrumDigester.cs" />
     <Compile Include="SystemUtil\CommonFormEx.cs">
       <SubType>Form</SubType>
@@ -274,6 +276,7 @@
   </ItemGroup>
   <ItemGroup>
     <Folder Include="GraphicalUserInterface\" />
+    <Folder Include="GUI\PropertyGrids\" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

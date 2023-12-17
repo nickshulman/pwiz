@@ -29,14 +29,15 @@
         private void InitializeComponent()
         {
             this.components = new System.ComponentModel.Container();
-            System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(RunAlignmentForm));
             this.splitContainer1 = new System.Windows.Forms.SplitContainer();
             this.zedGraphControl1 = new ZedGraph.ZedGraphControl();
             this.propertyGrid = new System.Windows.Forms.PropertyGrid();
+            this.comboCurves = new System.Windows.Forms.ComboBox();
             this.toolStrip1 = new System.Windows.Forms.ToolStrip();
             this.toolButtonAddCurve = new System.Windows.Forms.ToolStripButton();
+            this.toolButtonUp = new System.Windows.Forms.ToolStripButton();
+            this.toolButtonDown = new System.Windows.Forms.ToolStripButton();
             this.toolButtonDelete = new System.Windows.Forms.ToolStripButton();
-            this.comboCurves = new System.Windows.Forms.ComboBox();
             this.dataGridViewTextBoxColumn1 = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.dataGridViewTextBoxColumn2 = new System.Windows.Forms.DataGridViewTextBoxColumn();
             ((System.ComponentModel.ISupportInitialize)(this.splitContainer1)).BeginInit();
@@ -60,8 +61,8 @@
             // splitContainer1.Panel2
             // 
             this.splitContainer1.Panel2.Controls.Add(this.propertyGrid);
-            this.splitContainer1.Panel2.Controls.Add(this.toolStrip1);
             this.splitContainer1.Panel2.Controls.Add(this.comboCurves);
+            this.splitContainer1.Panel2.Controls.Add(this.toolStrip1);
             this.splitContainer1.Size = new System.Drawing.Size(800, 450);
             this.splitContainer1.SplitterDistance = 526;
             this.splitContainer1.TabIndex = 2;
@@ -84,19 +85,33 @@
             // propertyGrid
             // 
             this.propertyGrid.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.propertyGrid.Location = new System.Drawing.Point(0, 21);
+            this.propertyGrid.Location = new System.Drawing.Point(0, 46);
             this.propertyGrid.Name = "propertyGrid";
+            this.propertyGrid.PropertySort = System.Windows.Forms.PropertySort.NoSort;
             this.propertyGrid.Size = new System.Drawing.Size(270, 404);
             this.propertyGrid.TabIndex = 1;
             this.propertyGrid.PropertyValueChanged += new System.Windows.Forms.PropertyValueChangedEventHandler(this.propertyGrid_PropertyValueChanged);
             // 
+            // comboCurves
+            // 
+            this.comboCurves.Dock = System.Windows.Forms.DockStyle.Top;
+            this.comboCurves.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.comboCurves.FormattingEnabled = true;
+            this.comboCurves.Location = new System.Drawing.Point(0, 25);
+            this.comboCurves.Name = "comboCurves";
+            this.comboCurves.Size = new System.Drawing.Size(270, 21);
+            this.comboCurves.TabIndex = 1;
+            this.comboCurves.SelectedIndexChanged += new System.EventHandler(this.comboCurves_SelectedIndexChanged);
+            // 
             // toolStrip1
             // 
-            this.toolStrip1.Dock = System.Windows.Forms.DockStyle.Bottom;
+            this.toolStrip1.GripStyle = System.Windows.Forms.ToolStripGripStyle.Hidden;
             this.toolStrip1.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.toolButtonAddCurve,
+            this.toolButtonUp,
+            this.toolButtonDown,
             this.toolButtonDelete});
-            this.toolStrip1.Location = new System.Drawing.Point(0, 425);
+            this.toolStrip1.Location = new System.Drawing.Point(0, 0);
             this.toolStrip1.Name = "toolStrip1";
             this.toolStrip1.Size = new System.Drawing.Size(270, 25);
             this.toolStrip1.TabIndex = 2;
@@ -104,13 +119,33 @@
             // 
             // toolButtonAddCurve
             // 
-            this.toolButtonAddCurve.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Text;
-            this.toolButtonAddCurve.Image = ((System.Drawing.Image)(resources.GetObject("toolButtonAddCurve.Image")));
+            this.toolButtonAddCurve.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Image;
+            this.toolButtonAddCurve.Image = global::pwiz.Skyline.Properties.Resources.AddNewPlot;
             this.toolButtonAddCurve.ImageTransparentColor = System.Drawing.Color.Magenta;
             this.toolButtonAddCurve.Name = "toolButtonAddCurve";
-            this.toolButtonAddCurve.Size = new System.Drawing.Size(95, 22);
-            this.toolButtonAddCurve.Text = "Add New Graph";
+            this.toolButtonAddCurve.Size = new System.Drawing.Size(23, 22);
+            this.toolButtonAddCurve.Text = "Add new plot";
             this.toolButtonAddCurve.Click += new System.EventHandler(this.toolButtonAddCurve_Click);
+            // 
+            // toolButtonUp
+            // 
+            this.toolButtonUp.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Image;
+            this.toolButtonUp.Image = global::pwiz.Skyline.Properties.Resources.up_pro32;
+            this.toolButtonUp.ImageTransparentColor = System.Drawing.Color.Magenta;
+            this.toolButtonUp.Name = "toolButtonUp";
+            this.toolButtonUp.Size = new System.Drawing.Size(23, 22);
+            this.toolButtonUp.Text = "Move plot up";
+            this.toolButtonUp.Click += new System.EventHandler(this.toolButtonUp_Click);
+            // 
+            // toolButtonDown
+            // 
+            this.toolButtonDown.DisplayStyle = System.Windows.Forms.ToolStripItemDisplayStyle.Image;
+            this.toolButtonDown.Image = global::pwiz.Skyline.Properties.Resources.down_pro32;
+            this.toolButtonDown.ImageTransparentColor = System.Drawing.Color.Magenta;
+            this.toolButtonDown.Name = "toolButtonDown";
+            this.toolButtonDown.Size = new System.Drawing.Size(23, 22);
+            this.toolButtonDown.Text = "Move plot down";
+            this.toolButtonDown.Click += new System.EventHandler(this.toolButtonDown_Click);
             // 
             // toolButtonDelete
             // 
@@ -119,19 +154,8 @@
             this.toolButtonDelete.ImageTransparentColor = System.Drawing.Color.Magenta;
             this.toolButtonDelete.Name = "toolButtonDelete";
             this.toolButtonDelete.Size = new System.Drawing.Size(23, 22);
-            this.toolButtonDelete.Text = "toolStripButton1";
+            this.toolButtonDelete.Text = "Delete current plot";
             this.toolButtonDelete.Click += new System.EventHandler(this.toolButtonDelete_Click);
-            // 
-            // comboCurves
-            // 
-            this.comboCurves.Dock = System.Windows.Forms.DockStyle.Top;
-            this.comboCurves.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
-            this.comboCurves.FormattingEnabled = true;
-            this.comboCurves.Location = new System.Drawing.Point(0, 0);
-            this.comboCurves.Name = "comboCurves";
-            this.comboCurves.Size = new System.Drawing.Size(270, 21);
-            this.comboCurves.TabIndex = 1;
-            this.comboCurves.SelectedIndexChanged += new System.EventHandler(this.comboCurves_SelectedIndexChanged);
             // 
             // dataGridViewTextBoxColumn1
             // 
@@ -177,5 +201,7 @@
         private System.Windows.Forms.ToolStrip toolStrip1;
         private System.Windows.Forms.ToolStripButton toolButtonAddCurve;
         private System.Windows.Forms.ToolStripButton toolButtonDelete;
+        private System.Windows.Forms.ToolStripButton toolButtonUp;
+        private System.Windows.Forms.ToolStripButton toolButtonDown;
     }
 }

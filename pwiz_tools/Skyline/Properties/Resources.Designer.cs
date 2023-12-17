@@ -654,6 +654,16 @@ namespace pwiz.Skyline.Properties {
         }
         
         /// <summary>
+        ///   Looks up a localized resource of type System.Drawing.Bitmap.
+        /// </summary>
+        public static System.Drawing.Bitmap AddNewPlot {
+            get {
+                object obj = ResourceManager.GetObject("AddNewPlot", resourceCulture);
+                return ((System.Drawing.Bitmap)(obj));
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Please choose the optimization library you would like to add..
         /// </summary>
         public static string AddOptimizationDlg_OkDialog_Please_choose_the_optimization_library_you_would_like_to_add_ {

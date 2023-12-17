@@ -1,85 +1,68 @@
 ﻿using System.ComponentModel;
-using System.Drawing;
-using System.Drawing.Drawing2D;
 using pwiz.Skyline.Model;
 using pwiz.Skyline.Model.RetentionTimes;
-using pwiz.Skyline.Util;
-using ZedGraph;
 
 namespace pwiz.Skyline.Controls.Alignment
 {
     public class RunAlignmentProperties : UserInterfaceObject
     {
-        private CurveSettings _curveSettings;
         public RunAlignmentProperties(IDocumentContainer documentContainer) : base(documentContainer)
         {
-            _curveSettings = CurveSettings.Default;
+            CurveFormat = new CurveFormat();
         }
-        [Category("1_Data")]
+
+
         public RetentionTimeSource XAxis { get; set; }
 
-        [Category("1_Data")]
         public RetentionTimeSource YAxis
         {
-            get { return CurveSettings.YAxis; }
-            set { CurveSettings = CurveSettings.ChangeYAxis(value); }
+            get; set;
         }
-
-        [Category("2_Regression")]
-        public RegressionMethodRT? RegressionMethod
-        {
-            get { return CurveSettings.RegressionMethod; }
-            set { CurveSettings = CurveSettings.ChangeRegressionMethod(value); }
-        }
-
-        [Category("2_Regression")]
-        public DashStyle? LineDashStyle
-        {
-            get { return CurveSettings.LineDashStyle; }
-            set { CurveSettings = CurveSettings.ChangeLineDashStyle(value); }
-        }
-
-        [Category("2_Regression")]
-        public Color LineColor
-        {
-            get { return CurveSettings.LineColor; }
-            set { CurveSettings = CurveSettings.ChangeLineColor(value); }
-        }
-
-        [Category("3_Formatting")]
         public string Caption
         {
-            get { return CurveSettings.Caption; }
-            set { CurveSettings = CurveSettings.ChangeCaption(value); }
+            get;
+            set;
         }
 
-        [Category("3_Formatting")]
-        public SymbolType SymbolType
+        public RegressionMethodRT? RegressionMethod
         {
-            get { return CurveSettings.SymbolType; }
-            set { CurveSettings = CurveSettings.ChangeSymbolType(value); }
+            get;
+            set;
         }
 
-        [Category("3_Formatting")]
-        public Color SymbolColor
-        {
-            get { return CurveSettings.SymbolColor; }
-            set { CurveSettings = CurveSettings.ChangeSymbolColor(value); }
-        }
 
-        [Browsable(false)] 
+        [Browsable(false)]
         public CurveSettings CurveSettings {
             get
             {
-                return _curveSettings;
+                return CurveSettings.Default.ChangeCurveFormat(CurveFormat).ChangeCaption(Caption)
+                    .ChangeRegressionMethod(RegressionMethod).ChangeYAxis(YAxis);
             }
             set
             {
-                Assume.IsNotNull(value);
-                _curveSettings = value;
+                CurveFormat = value.CurveFormat;
+                Caption = value.Caption;
+                RegressionMethod = value.RegressionMethod;
+                YAxis = value.YAxis;
             }
         }
 
+        [TypeConverter(typeof(ExpandableObjectConverter))]
+        [ReadOnly(true)]
+        public CurveFormat CurveFormat 
+        {
+            get;
+            set;
+        }
+        [TypeConverter(typeof(ExpandableObjectConverter))]
+        [ReadOnly(true)]
         public CurveResult Result { get; set; }
+
+        public override PropertyDescriptor GetDefaultProperty()
+        {
+            return FindProperty(nameof(XAxis));
+        }
+
+        
     }
 }

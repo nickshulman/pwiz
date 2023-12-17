@@ -21,7 +21,7 @@ namespace pwiz.Skyline.Controls.Alignment
     public partial class RunAlignmentForm : DockableFormEx
     {
         private bool _inUpdateControls;
-        private List<CurveSettings> _curves = new List<CurveSettings>{new CurveSettings()};
+        private List<CurveSettings> _curves = new List<CurveSettings>{CurveSettings.Default};
         private RunAlignmentProperties _runAlignmentProperties;
         private Cache _cache = new Cache();
         public RunAlignmentForm(SkylineWindow skylineWindow)
@@ -39,6 +39,7 @@ namespace pwiz.Skyline.Controls.Alignment
         {
             base.OnHandleCreated(e);
             SkylineWindow.DocumentUIChangedEvent += SkylineWindowOnDocumentUIChangedEvent;
+            UpdateUI();
         }
 
         protected override void OnHandleDestroyed(EventArgs e)
@@ -75,6 +76,11 @@ namespace pwiz.Skyline.Controls.Alignment
             {
                 UpdateGraph();
                 propertyGrid.Refresh();
+                toolButtonAddCurve.Enabled = !Equals(_runAlignmentProperties.CurveSettings, CurveSettings.Default);
+                toolButtonDelete.Enabled = !Equals(_runAlignmentProperties.CurveSettings, CurveSettings.Default) ||
+                                           _curves.Count > 1;
+                toolButtonUp.Enabled = comboCurves.SelectedIndex > 0;
+                toolButtonDown.Enabled = comboCurves.SelectedIndex < _curves.Count - 1;
             }
             finally
             {
@@ -122,12 +128,16 @@ namespace pwiz.Skyline.Controls.Alignment
             {
                 var legendItem = new LineItem(curveSettings.Caption)
                 {
-                    Symbol = new Symbol(curveSettings.SymbolType, curveSettings.SymbolColor),
+                    Symbol = new Symbol(curveSettings.CurveFormat.SymbolType, curveSettings.CurveFormat.SymbolColor)
+                    {
+                        Size = curveSettings.CurveFormat.SymbolSize
+                    }
                 };
-                if (curveSettings.LineDashStyle.HasValue)
+                if (curveSettings.CurveFormat.LineDashStyle.HasValue)
                 {
-                    legendItem.Line.Color = curveSettings.LineColor;
-                    legendItem.Line.Style = curveSettings.LineDashStyle.Value;
+                    legendItem.Line.Color = curveSettings.CurveFormat.LineColor;
+                    legendItem.Line.Style = curveSettings.CurveFormat.LineDashStyle.Value;
+                    legendItem.Line.Width = curveSettings.CurveFormat.LineWidth;
                 }
                 else
                 {
@@ -156,16 +166,17 @@ namespace pwiz.Skyline.Controls.Alignment
             }
             
             var bestPath = new PointPairList(similarityMatrix.FindBestPath(false).ToList());
-            if (curveSettings.RegressionMethod.HasValue && curveSettings.LineDashStyle.HasValue)
+            if (curveSettings.RegressionMethod.HasValue && curveSettings.CurveFormat.LineDashStyle.HasValue)
             {
                 var lineItem = PerformKdeAlignment(bestPath);
-                lineItem.Line.Style = curveSettings.LineDashStyle.Value;
-                lineItem.Line.Color = curveSettings.LineColor;
+                lineItem.Line.Style = curveSettings.CurveFormat.LineDashStyle.Value;
+                lineItem.Line.Color = curveSettings.CurveFormat.LineColor;
+                lineItem.Line.Width = curveSettings.CurveFormat.LineWidth;
                 zedGraphControl1.GraphPane.CurveList.Add(lineItem);
             }
 
             zedGraphControl1.GraphPane.CurveList.Add(
-                new LineItem(null, bestPath, curveSettings.SymbolColor, curveSettings.SymbolType)
+                new LineItem(null, bestPath, curveSettings.CurveFormat.SymbolColor, curveSettings.CurveFormat.SymbolType)
                 {
                     Line =
                     {
@@ -312,12 +323,12 @@ namespace pwiz.Skyline.Controls.Alignment
         {
             IfNotUpdating(() =>
             {
-                if (comboCurves.SelectedIndex > 0 && comboCurves.SelectedIndex < _curves.Count)
+                if (comboCurves.SelectedIndex >= 0 && comboCurves.SelectedIndex < _curves.Count)
                 {
                     _curves.RemoveAt(comboCurves.SelectedIndex);
                     if (_curves.Count == 0)
                     {
-                        _curves.Add(new CurveSettings());
+                        _curves.Add(CurveSettings.Default);
                     }
                 }
 
@@ -333,13 +344,51 @@ namespace pwiz.Skyline.Controls.Alignment
             Assume.IsTrue(_inUpdateControls);
             if (_curves.Count == 0)
             {
-                _curves.Add(new CurveSettings());
+                _curves.Add(CurveSettings.Default);
             }
 
             int newSelectedIndex = Math.Max(0, Math.Min(_curves.Count - 1, comboCurves.SelectedIndex));
             comboCurves.Items.Clear();
             comboCurves.Items.AddRange(_curves.Select(curve=>curve.ToString()).ToArray());
             comboCurves.SelectedIndex = newSelectedIndex;
+        }
+
+        private void toolButtonUp_Click(object sender, EventArgs e)
+        {
+            IfNotUpdating(() =>
+            {
+                int index = comboCurves.SelectedIndex;
+                if (index <= 0 || index >= _curves.Count)
+                {
+                    return;
+                }
+
+                var curve = _curves[index];
+                _curves.RemoveAt(index);
+                _curves.Insert(index - 1, curve);
+                comboCurves.SelectedIndex = index - 1;
+                UpdateComboCurves();
+                UpdateUI();
+            });
+        }
+
+        private void toolButtonDown_Click(object sender, EventArgs e)
+        {
+            IfNotUpdating(() =>
+            {
+                int index = comboCurves.SelectedIndex;
+                if (index < 0 || index >= _curves.Count - 1)
+                {
+                    return;
+                }
+
+                var curve = _curves[index];
+                _curves.RemoveAt(index);
+                _curves.Insert(index + 1, curve);
+                comboCurves.SelectedIndex = index + 1;
+                UpdateComboCurves();
+                UpdateUI();
+            });
         }
     }
 }

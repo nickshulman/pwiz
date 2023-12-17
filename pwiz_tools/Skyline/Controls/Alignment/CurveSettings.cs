@@ -1,18 +1,17 @@
-﻿using System.Drawing;
-using System.Drawing.Drawing2D;
-using pwiz.Common.SystemUtil;
+﻿using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Model.RetentionTimes;
-using ZedGraph;
 
 namespace pwiz.Skyline.Controls.Alignment
 {
     public class CurveSettings : Immutable
     {
-        public static readonly CurveSettings Default = new CurveSettings
+        public static readonly CurveSettings Default = new CurveSettings();
+        private CurveFormat _curveFormat;
+
+        private CurveSettings()
         {
-            LineColor = Color.Black,
-            SymbolColor = Color.Black
-        };
+            CurveFormat = new CurveFormat();
+        }
         public RetentionTimeSource YAxis { get; private set; }
 
         public CurveSettings ChangeYAxis(RetentionTimeSource value)
@@ -27,20 +26,6 @@ namespace pwiz.Skyline.Controls.Alignment
             return ChangeProp(ImClone(this), im => im.RegressionMethod = value);
         }
 
-        public DashStyle? LineDashStyle { get; private set; }
-
-        public CurveSettings ChangeLineDashStyle(DashStyle? value)
-        {
-            return ChangeProp(ImClone(this), im => im.LineDashStyle = value);
-        }
-
-        public Color LineColor { get; private set; }
-
-        public CurveSettings ChangeLineColor(Color value)
-        {
-            return ChangeProp(ImClone(this), im => im.LineColor = value);
-        }
-
         public string Caption { get; private set; }
 
         public CurveSettings ChangeCaption(string value)
@@ -48,25 +33,11 @@ namespace pwiz.Skyline.Controls.Alignment
             return ChangeProp(ImClone(this), im => im.Caption = value);
         }
 
-        public SymbolType SymbolType { get; private set; }
-
-        public CurveSettings ChangeSymbolType(SymbolType value)
-        {
-            return ChangeProp(ImClone(this), im => im.SymbolType = value);
-        }
-
-        public Color SymbolColor { get; private set; }
-
-        public CurveSettings ChangeSymbolColor(Color value)
-        {
-            return ChangeProp(ImClone(this), im => im.SymbolColor = value);
-        }
-
         protected bool Equals(CurveSettings other)
         {
             return Equals(YAxis, other.YAxis) && RegressionMethod == other.RegressionMethod &&
-                   LineDashStyle == other.LineDashStyle && LineColor.Equals(other.LineColor) &&
-                   Caption == other.Caption && SymbolType == other.SymbolType && SymbolColor.Equals(other.SymbolColor);
+                   Equals(CurveFormat, other.CurveFormat) && 
+                   Caption == other.Caption;
         }
 
         public override bool Equals(object obj)
@@ -83,14 +54,26 @@ namespace pwiz.Skyline.Controls.Alignment
             {
                 var hashCode = (YAxis != null ? YAxis.GetHashCode() : 0);
                 hashCode = (hashCode * 397) ^ RegressionMethod.GetHashCode();
-                hashCode = (hashCode * 397) ^ LineDashStyle.GetHashCode();
-                hashCode = (hashCode * 397) ^ LineColor.GetHashCode();
+                hashCode = (hashCode * 397) ^ CurveFormat.GetHashCode();
                 hashCode = (hashCode * 397) ^ (Caption != null ? Caption.GetHashCode() : 0);
-                hashCode = (hashCode * 397) ^ (int)SymbolType;
-                hashCode = (hashCode * 397) ^ SymbolColor.GetHashCode();
                 return hashCode;
             }
         }
+
+        public CurveFormat CurveFormat
+        {
+            get { return _curveFormat.Clone();}
+            private set
+            {
+                _curveFormat = value.Clone();
+            }
+        }
+
+        public CurveSettings ChangeCurveFormat(CurveFormat curveFormat)
+        {
+            return ChangeProp(ImClone(this), im => im.CurveFormat = curveFormat);
+        }
+
 
         public override string ToString()
         {

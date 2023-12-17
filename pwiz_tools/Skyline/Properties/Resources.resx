@@ -5649,6 +5649,9 @@ If you prefer you can choose to report anonymously.</value>
   <data name="up_pro32" type="System.Resources.ResXFileRef, System.Windows.Forms">
     <value>..\Resources\up-pro32.bmp;System.Drawing.Bitmap, System.Drawing, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
   </data>
+  <data name="AddNewPlot" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\AddNewPlot.bmp;System.Drawing.Bitmap, System.Drawing, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
+  </data>
   <data name="ProteinUI" type="System.Resources.ResXFileRef, System.Windows.Forms">
     <value>..\Resources\ProteinUI.bmp;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
   </data>

@@ -8,10 +8,10 @@ namespace pwiz.Skyline.Controls.Alignment
         {
             Message = message;
         }
-        //[ReadOnly(true)]
+        [ReadOnly(true)]
         public string Message { get; set; }
 
-        //[ReadOnly(true)]
+        [ReadOnly(true)]
         public int NumberOfPoints { get; set; }
 
         public AlignmentResult AlignmentResult { get; set; }

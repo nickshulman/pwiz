@@ -3268,7 +3268,7 @@ namespace pwiz.Skyline.Model.DocSettings
                 if (SynchronizedIntegrationGroupBy != null)
                     result = (result * 397) ^ SynchronizedIntegrationGroupBy.GetHashCode();
                 result = (result * 397) ^ SynchronizedIntegrationAll.GetHashCode();
-                result = (result * 397) ^ ArrayUtil.GetHashCodeDeep(SynchronizedIntegrationTargets);
+                result = (result * 397) ^ ArrayUtil.GetHashCodeDeep(SynchronizedIntegrationTargets ?? Array.Empty<string>());
                 return result;
             }
         }

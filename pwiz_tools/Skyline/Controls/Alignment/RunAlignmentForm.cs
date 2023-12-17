@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.ComponentModel;
 using System.Drawing;
 using System.Linq;
 using System.Threading;
@@ -22,31 +21,15 @@ namespace pwiz.Skyline.Controls.Alignment
     public partial class RunAlignmentForm : DockableFormEx
     {
         private bool _inUpdate;
-        private BindingList<CurveRow> _rows = new BindingList<CurveRow>();
+        private List<CurveSettings> _curveList;
+        private CurveSettings _currentCurveSettings;
+        private Cache _cache = new Cache();
         public RunAlignmentForm(SkylineWindow skylineWindow)
         {
             InitializeComponent();
             SkylineWindow = skylineWindow;
-            for (int i = 1; i < 13; i++)
-            {
-                comboSignatureLength.Items.Add(1 << i);
-            }
-            comboSignatureLength.SelectedIndex = 0;
-            comboMsLevel.Items.Add("");
-            comboMsLevel.Items.Add(1);
-            comboMsLevel.Items.Add(2);
-            comboRegression.Items.Add("");
-            foreach (var regressionType in Enum.GetValues(typeof(RegressionMethodRT)))
-            {
-                comboRegression.Items.Add(regressionType);
-            }
-            bindingSource1.DataSource = _rows;
-            bindingSource1.ListChanged += BindingSource1_ListChanged;
-        }
-
-        private void BindingSource1_ListChanged(object sender, ListChangedEventArgs e)
-        {
-            UpdateGraph();
+            _currentCurveSettings = new CurveSettings(skylineWindow);
+            propertyGrid.SelectedObject = _currentCurveSettings;
         }
 
         public SkylineWindow SkylineWindow { get; }
@@ -55,7 +38,6 @@ namespace pwiz.Skyline.Controls.Alignment
         {
             base.OnHandleCreated(e);
             SkylineWindow.DocumentUIChangedEvent += SkylineWindowOnDocumentUIChangedEvent;
-            UpdateControls();
         }
 
         protected override void OnHandleDestroyed(EventArgs e)
@@ -86,73 +68,87 @@ namespace pwiz.Skyline.Controls.Alignment
             try
             {
                 _inUpdate = true;
-                UpdateGraph();
+                UpdateGraph(_cache);
             }
             finally
             {
+                _cache.DumpStaleObjects();
                 _inUpdate = false;
             }
         }
 
-        private void UpdateGraph()
+        private void UpdateGraph(Cache cache)
         {
             zedGraphControl1.GraphPane.CurveList.Clear();
-            if (comboXAxis.SelectedItem is RetentionTimeSource xSource)
+            var document = SkylineWindow.Document;
+            var dataX = cache.GetValue(Tuple.Create(document, _currentCurveSettings.XAxis),
+                () => GetRetentionTimeData(document, _currentCurveSettings.XAxis));
+            if (dataX != null)
             {
-                var dataX = GetRetentionTimeData(SkylineWindow.Document, xSource);
-                if (dataX != null)
-                {
-                    foreach (var curve in _rows)
-                    {
-                        var dataY = curve.RetentionTimeData;
-                        if (dataY != null)
-                        {
-                            SimilarityMatrix similarityMatrix = null;
-                            using (var longWaitDlg = new LongWaitDlg())
-                            {
-                                longWaitDlg.PerformWork(this, 1000, progressMonitor =>
-                                {
-                                    var progressStatus = new ProgressStatus("Computing Similarity Matrix");
-                                    similarityMatrix = dataX.Spectra.GetSimilarityMatrix(progressMonitor, progressStatus, dataY.Spectra);
-                                });
-                            }
+                var curveSettings = _currentCurveSettings;
+                var dataY = cache.GetValue(Tuple.Create(document, _currentCurveSettings.YAxis),
+                    ()=> GetRetentionTimeData(document, _currentCurveSettings.YAxis));
 
-                            if (similarityMatrix != null)
+                if (dataY != null)
+                {
+                    var similarityMatrixKey = Tuple.Create(dataX, dataY);
+                    if (!cache.TryGetValue(similarityMatrixKey, out SimilarityMatrix similarityMatrix))
+                    {
+                        using (var longWaitDlg = new LongWaitDlg())
+                        {
+                            longWaitDlg.PerformWork(this, 1000, progressMonitor =>
                             {
-                                var bestPath = new PointPairList(similarityMatrix.FindBestPath(false).ToList());
-                                if (curve.RegressionMethod.HasValue)
-                                {
-                                    zedGraphControl1.GraphPane.CurveList.Add(PerformKdeAlignment(bestPath));
-                                }
-                                zedGraphControl1.GraphPane.CurveList.Add(
-                                    new LineItem(curve.Caption, bestPath, Color.Black, SymbolType.Circle)
-                                    {
-                                        Line =
-                                        {
-                                            IsVisible = false
-                                        }
-                                    });
-                            }
+                                var progressStatus = new ProgressStatus("Computing Similarity Matrix");
+                                similarityMatrix =
+                                    dataX.Spectra.GetSimilarityMatrix(progressMonitor, progressStatus, dataY.Spectra);
+                                cache.AddValue(similarityMatrixKey, similarityMatrix);
+                            });
                         }
                     }
+
+                    if (similarityMatrix != null)
+                    {
+                        var bestPath = new PointPairList(similarityMatrix.FindBestPath(false).ToList());
+                        if (curveSettings.RegressionMethod.HasValue && curveSettings.LineDashStyle.HasValue)
+                        {
+                            var lineItem = PerformKdeAlignment(bestPath);
+                            lineItem.Line.Style = curveSettings.LineDashStyle.Value;
+                            lineItem.Line.Color = curveSettings.LineColor;
+                            zedGraphControl1.GraphPane.CurveList.Add(lineItem);
+                        }
+
+                        zedGraphControl1.GraphPane.CurveList.Add(
+                            new LineItem(null, bestPath, curveSettings.SymbolColor, curveSettings.SymbolType)
+                            {
+                                Line =
+                                {
+                                    IsVisible = false
+                                }
+                            });
+                    }
+                }
+
+                if (!string.IsNullOrEmpty(curveSettings.Caption))
+                {
+                    var legendItem = new LineItem(curveSettings.Caption)
+                    {
+                        Symbol = new Symbol(curveSettings.SymbolType, curveSettings.SymbolColor),
+                    };
+                    if (curveSettings.LineDashStyle.HasValue)
+                    {
+                        legendItem.Line.Color = curveSettings.LineColor;
+                        legendItem.Line.Style = curveSettings.LineDashStyle.Value;
+                    }
+                    else
+                    {
+                        legendItem.Line.IsVisible = false;
+                    }
+                    zedGraphControl1.GraphPane.CurveList.Add(legendItem);
                 }
             }
+
             zedGraphControl1.GraphPane.AxisChange();
             zedGraphControl1.Invalidate();
-        }
-
-        public void UpdateControls()
-        {
-            var document = SkylineWindow.DocumentUI;
-            var fileItems = new List<RetentionTimeSource>();
-            if (document.Settings.HasResults)
-            {
-                fileItems.AddRange(document.Settings.MeasuredResults.Chromatograms
-                    .SelectMany(chromatogramSet => chromatogramSet.MSDataFilePaths).Distinct()
-                    .Select(path => new RetentionTimeSource(path.GetFileName(), path, null)));
-            }
-            ComboHelper.ReplaceItems(comboXAxis, fileItems);
-            ComboHelper.ReplaceItems(comboYAxis, fileItems);
         }
 
         private IList<DigestedSpectrumMetadata> FilterMetadatas(IList<DigestedSpectrumMetadata> metadatas, int? msLevel)
@@ -192,31 +188,15 @@ namespace pwiz.Skyline.Controls.Alignment
             return Equals(spectrum1.GetPrecursors(0), spectrum2.GetPrecursors(0));
         }
 
-        public struct RetentionTimeSource
-        {
-            public RetentionTimeSource(string name, MsDataFileUri msDataFileUri, string filename)
-            {
-                Name = name;
-                MsDataFileUri = msDataFileUri;
-                Filename = filename;
-            }
-
-            public string Name { get; }
-            public override string ToString()
-            {
-                return Name;
-            }
-
-            public MsDataFileUri MsDataFileUri
-            {
-                get;
-            }
-
-            public string Filename { get; }
-        }
 
         public RetentionTimeData GetRetentionTimeData(SrmDocument document, RetentionTimeSource retentionTimeSource)
         {
+            if (retentionTimeSource == null)
+            {
+                return null;
+            }
+
+            
             SpectrumMetadataList spectrumMetadataList = null;
             if (retentionTimeSource.MsDataFileUri != null)
             {
@@ -233,40 +213,12 @@ namespace pwiz.Skyline.Controls.Alignment
             return new RetentionTimeData(Array.Empty<MeasuredRetentionTime>(), spectrumMetadataList, null);
         }
 
-        public class CurveRow
-        {
-            public CurveRow(RetentionTimeData retentionTimeData)
-            {
-                RetentionTimeData = retentionTimeData;
-            }
-
-            public RetentionTimeData RetentionTimeData { get; }
-            public string Caption { get; set; }
-            public string Description { get; set; }
-            public RegressionMethodRT? RegressionMethod { get; set; }
-        }
-
-        private void btnAdd_Click(object sender, EventArgs e)
-        {
-            if (comboYAxis.SelectedItem is RetentionTimeSource source)
-            {
-                var retentionTimeData = GetRetentionTimeData(SkylineWindow.Document, source);
-
-                var row = new CurveRow(retentionTimeData)
-                {
-                    Caption = source.Name,
-                    RegressionMethod = comboRegression.SelectedItem as RegressionMethodRT?
-                };
-                _rows.Add(row);
-            }
-        }
-
         private SpectrumMetadataList ReduceMetadataList(SpectrumMetadataList metadataList)
         {
-            int? msLevel = comboMsLevel.SelectedItem as int?;
+            int? msLevel = null;
             var spectra = new List<DigestedSpectrumMetadata>();
-            int? digestLength = comboSignatureLength.SelectedItem as int?;
-            bool halfPrecision = cbxHalfPrecision.Checked;
+            int? digestLength = 16;
+            bool halfPrecision = true;
             foreach (var spectrum in metadataList.AllSpectra)
             {
                 if (msLevel.HasValue && msLevel != spectrum.SpectrumMetadata.MsLevel)
@@ -288,6 +240,11 @@ namespace pwiz.Skyline.Controls.Alignment
             }
 
             return new SpectrumMetadataList(spectra, metadataList.Columns);
+        }
+
+        private void propertyGrid_PropertyValueChanged(object s, System.Windows.Forms.PropertyValueChangedEventArgs e)
+        {
+            UpdateUI();
         }
     }
 }

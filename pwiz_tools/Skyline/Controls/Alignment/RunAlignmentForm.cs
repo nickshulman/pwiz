@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Drawing;
 using System.Linq;
 using System.Threading;
@@ -8,7 +9,11 @@ using pwiz.Common.Spectra;
 using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Controls.Clustering;
 using pwiz.Skyline.Model;
+using pwiz.Skyline.Model.Alignment;
+using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.Results;
+using pwiz.Skyline.Model.Results.Spectra;
+using pwiz.Skyline.Model.RetentionTimes;
 using pwiz.Skyline.Util;
 using ZedGraph;
 
@@ -17,11 +22,12 @@ namespace pwiz.Skyline.Controls.Alignment
     public partial class RunAlignmentForm : DockableFormEx
     {
         private bool _inUpdate;
+        private BindingList<CurveRow> _rows = new BindingList<CurveRow>();
         public RunAlignmentForm(SkylineWindow skylineWindow)
         {
             InitializeComponent();
             SkylineWindow = skylineWindow;
-            for (int i = 1; i < 8; i++)
+            for (int i = 1; i < 13; i++)
             {
                 comboSignatureLength.Items.Add(1 << i);
             }
@@ -29,6 +35,13 @@ namespace pwiz.Skyline.Controls.Alignment
             comboMsLevel.Items.Add("");
             comboMsLevel.Items.Add(1);
             comboMsLevel.Items.Add(2);
+            bindingSource1.DataSource = _rows;
+            bindingSource1.ListChanged += BindingSource1_ListChanged;
+        }
+
+        private void BindingSource1_ListChanged(object sender, ListChangedEventArgs e)
+        {
+            UpdateGraph();
         }
 
         public SkylineWindow SkylineWindow { get; }
@@ -37,7 +50,7 @@ namespace pwiz.Skyline.Controls.Alignment
         {
             base.OnHandleCreated(e);
             SkylineWindow.DocumentUIChangedEvent += SkylineWindowOnDocumentUIChangedEvent;
-            UpdateGraph();
+            UpdateControls();
         }
 
         protected override void OnHandleDestroyed(EventArgs e)
@@ -53,7 +66,7 @@ namespace pwiz.Skyline.Controls.Alignment
         }
 
 
-        private void combo_SelectedIndexChanged(object sender, EventArgs e)
+        private void OnValuesChanged(object sender, EventArgs e)
         {
             UpdateUI();
         }
@@ -79,42 +92,104 @@ namespace pwiz.Skyline.Controls.Alignment
         private void UpdateGraph()
         {
             zedGraphControl1.GraphPane.CurveList.Clear();
-            var document = SkylineWindow.DocumentUI;
-            var fileItems = new List<FileItem>();
-            if (document.Settings.HasResults)
+            if (comboXAxis.SelectedItem is RetentionTimeSource xSource)
             {
-                fileItems.AddRange(document.Settings.MeasuredResults.Chromatograms
-                    .SelectMany(chromatogramSet => chromatogramSet.MSDataFilePaths).Distinct()
-                    .Select(path => new FileItem(path)));
-            }
-            ComboHelper.ReplaceItems(comboXAxis, fileItems);
-            ComboHelper.ReplaceItems(comboYAxis, fileItems);
-            if (comboXAxis.SelectedItem is FileItem xFileItem && comboYAxis.SelectedItem is FileItem yFileItem)
-            {
-                var fileMetaData1 = document.Settings.MeasuredResults?.GetResultFileMetaData(xFileItem.MsDataFilePath);
-                var fileMetaData2 = document.Settings.MeasuredResults?.GetResultFileMetaData(yFileItem.MsDataFilePath);
-                if (fileMetaData1 != null && fileMetaData2 != null)
+                var dataX = GetRetentionTimeData(SkylineWindow.Document, xSource);
+                if (dataX != null)
                 {
-                    int? msLevel = comboMsLevel.SelectedItem as int?;
-                    var metadatas1 = FilterMetadatas(fileMetaData1.SpectrumMetadatas, msLevel);
-                    var metadatas2 = FilterMetadatas(fileMetaData2.SpectrumMetadatas, msLevel);
-                    PointPairList pointPairList = null;
+                    foreach (var curve in _rows)
+                    {
+                        var dataY = curve.RetentionTimeData;
+                        if (dataY != null)
+                        {
+
+                        }
+                    }
+                }
+            }
+            if (comboXAxis.SelectedItem is RetentionTimeSource xFileItem && comboYAxis.SelectedItem is RetentionTimeSource yFileItem)
+            {
+                var dataX = GetRetentionTimeData(document, xFileItem);
+                var dataY = GetRetentionTimeData(document, yFileItem);
+                if (dataX != null && dataY != null)
+                {
+                    SimilarityMatrix similarityMatrix = null;
                     using (var longWaitDlg = new LongWaitDlg())
                     {
                         int digestLength = comboSignatureLength.SelectedItem as int? ?? 2;
-                        longWaitDlg.PerformWork(this, 1000, broker =>
+                        bool halfPrecision = cbxHalfPrecision.Checked;
+                        longWaitDlg.PerformWork(this, 1000, progressMonitor =>
                         {
-                            pointPairList = GetPointPairList(broker, digestLength, metadatas1,
-                                metadatas2);
+                            var progressStatus = new ProgressStatus("Computing Similarity Matrix");
+                            similarityMatrix = dataX.Spectra.GetSimilarityMatrix(progressMonitor, progressStatus, dataY.Spectra);
                         });
                     }
-                    zedGraphControl1.GraphPane.CurveList.Add(new ClusteredHeatMapItem("Graph", pointPairList));
+
+                    if (similarityMatrix != null)
+                    {
+                        if (cbxSparseBestPath.Checked)
+                        {
+                            var bestPath = new PointPairList(similarityMatrix.FindBestPath(true).ToList());
+                            
+                            if (cbxKdeAlignment.Checked)
+                            {
+                                zedGraphControl1.GraphPane.CurveList.Add(PerformKdeAlignment(bestPath));
+                            }
+
+                            zedGraphControl1.GraphPane.CurveList.Add(
+                                new LineItem("Sparse Best Path", bestPath, Color.Black, SymbolType.Triangle)
+                                {
+                                    Line =
+                                    {
+                                        IsVisible = false
+                                    }
+                                });
+                        }
+                        if (cbxDenseBestPath.Checked)
+                        {
+                            var bestPath = new PointPairList(similarityMatrix.FindBestPath(false).ToList());
+                            if (cbxKdeAlignment.Checked)
+                            {
+                                zedGraphControl1.GraphPane.CurveList.Add(PerformKdeAlignment(bestPath));
+                            }
+                            zedGraphControl1.GraphPane.CurveList.Add(
+                                new LineItem("Dense Best Path", bestPath, Color.Black, SymbolType.Circle)
+                                {
+                                    Line =
+                                    {
+                                        IsVisible = false
+                                    }
+                                });
+                        }
+
+                        if (cbxSimilarityMatrix.Checked)
+                        {
+                            zedGraphControl1.GraphPane.CurveList.Add(MakeSimilarityMatrix(similarityMatrix));
+                        }
+                    }
                 }
+
+                zedGraphControl1.GraphPane.XAxis.Title.Text = xFileItem.ToString();
+                zedGraphControl1.GraphPane.YAxis.Title.Text = yFileItem.ToString();
             }
 
 
             zedGraphControl1.GraphPane.AxisChange();
             zedGraphControl1.Invalidate();
+        }
+
+        public void UpdateControls()
+        {
+            var document = SkylineWindow.DocumentUI;
+            var fileItems = new List<RetentionTimeSource>();
+            if (document.Settings.HasResults)
+            {
+                fileItems.AddRange(document.Settings.MeasuredResults.Chromatograms
+                    .SelectMany(chromatogramSet => chromatogramSet.MSDataFilePaths).Distinct()
+                    .Select(path => new RetentionTimeSource(path.GetFileName(), path, null)));
+            }
+            ComboHelper.ReplaceItems(comboXAxis, fileItems);
+            ComboHelper.ReplaceItems(comboYAxis, fileItems);
         }
 
         private IList<DigestedSpectrumMetadata> FilterMetadatas(IList<DigestedSpectrumMetadata> metadatas, int? msLevel)
@@ -127,37 +202,19 @@ namespace pwiz.Skyline.Controls.Alignment
             return metadatas.Where(metadata => metadata.SpectrumMetadata.MsLevel == msLevel).ToList();
         }
 
-        private static PointPairList GetPointPairList(ILongWaitBroker longWaitBroker, int digestLength, IList<DigestedSpectrumMetadata> xList,
-            IList<DigestedSpectrumMetadata> yList)
+        private LineItem PerformKdeAlignment(IList<PointPair> pointPairList)
         {
-            var lists = new List<PointPair>[xList.Count];
-            var yDigests = yList.Select(metadata => TruncateDigest(metadata.Digest, digestLength)).ToList();
-            int completedCount = 0;
-            ParallelEx.For(0, xList.Count, x =>
-            {
-                var xMetadata = xList[x].SpectrumMetadata;
-                var xDigest = TruncateDigest(xList[x].Digest, digestLength);
-                var list = new List<PointPair>();
-                for (int y = 0; y < yList.Count; y++)
-                {
-                    longWaitBroker.CancellationToken.ThrowIfCancellationRequested();
-                    if (!AreCompatible(xMetadata, yList[y].SpectrumMetadata))
-                    {
-                        continue;
-                    }
-                    var similarity = DotProduct(xDigest, yDigests[y]);
-                    if (similarity != null)
-                    {
-                        list.Add(new PointPair(x, y) {Tag = GetColor(similarity.Value)});
-                    }
-                }
-                lists[x] = list;
-                Interlocked.Increment(ref completedCount);
-                longWaitBroker.ProgressValue = completedCount * 100 / xList.Count;
-            });
+            var kdeAligner = new KdeAligner();
+            kdeAligner.Train(pointPairList.Select(point=>point.X).ToArray(), pointPairList.Select(point=>point.Y).ToArray(), CancellationToken.None);
+            kdeAligner.GetSmoothedValues(out var xArr, out var yArr);
+            return new LineItem(null, new PointPairList(xArr, yArr), Color.Black, SymbolType.None);
+        }
+
+        private ClusteredHeatMapItem MakeSimilarityMatrix(SimilarityMatrix similarityMatrix)
+        {
             var pointPairList = new PointPairList();
-            pointPairList.AddRange(lists.SelectMany(list=>list));
-            return pointPairList;
+            pointPairList.AddRange(similarityMatrix.Points.Select(point=>new PointPair(point.X, point.Y) {Tag = GetColor(point.Z)}));
+            return new ClusteredHeatMapItem("Similarity Matrix", pointPairList);
         }
 
         private static Color GetColor(double similarity)
@@ -196,35 +253,65 @@ namespace pwiz.Skyline.Controls.Alignment
             return sumXY / Math.Sqrt(sumX2 * sumY2);
         }
 
-        private struct FileItem
+        public struct RetentionTimeSource
         {
-            public FileItem(MsDataFileUri msDataFilePath)
+            public RetentionTimeSource(string name, MsDataFileUri msDataFileUri, string filename)
             {
-                MsDataFilePath = msDataFilePath;
+                Name = name;
+                MsDataFileUri = msDataFileUri;
+                Filename = filename;
             }
 
-            public MsDataFileUri MsDataFilePath { get; }
-
+            public string Name { get; }
             public override string ToString()
             {
-                return MsDataFilePath.GetFileName();
+                return Name;
             }
+
+            public MsDataFileUri MsDataFileUri
+            {
+                get;
+            }
+
+            public string Filename { get; }
         }
 
-        private static IList<float> TruncateDigest(IList<float> digest, int length)
+        public RetentionTimeData GetRetentionTimeData(SrmDocument document, RetentionTimeSource retentionTimeSource)
         {
-            if (digest.Count <= length)
+            SpectrumMetadataList spectrumMetadataList = null;
+            if (retentionTimeSource.MsDataFileUri != null)
             {
-                return digest;
+                var resultFileMetadata =
+                    document.Settings.MeasuredResults?.GetResultFileMetaData(retentionTimeSource.MsDataFileUri);
+                if (resultFileMetadata != null)
+                {
+                    spectrumMetadataList = new SpectrumMetadataList(resultFileMetadata.SpectrumMetadatas,
+                        ImmutableList.Empty<SpectrumClassColumn>());
+                }
             }
 
-            IList<double> vector = digest.Select(value => (double)value).ToList();
-            while (vector.Count > length)
+            return new RetentionTimeData(Array.Empty<MeasuredRetentionTime>(), spectrumMetadataList, null);
+        }
+
+        public class CurveRow
+        {
+            public CurveRow(RetentionTimeData retentionTimeData)
             {
-                vector = DigestedSpectrumMetadata.DigestVector(vector);
+                RetentionTimeData = retentionTimeData;
             }
 
-            return ImmutableList.ValueOf(vector.Select(v => (float)v));
+            public RetentionTimeData RetentionTimeData { get; }
+            public string Caption { get; set; }
+            public string Description { get; set; }
+        }
+
+        private void btnAdd_Click(object sender, EventArgs e)
+        {
+            if (comboYAxis.SelectedItem is RetentionTimeSource source)
+            {
+                _rows.Add(new CurveRow(GetRetentionTimeData(SkylineWindow.Document, source)));
+            }
+            
         }
     }
 }

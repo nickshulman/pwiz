@@ -103,6 +103,9 @@
     <Prefer32Bit>false</Prefer32Bit>
   </PropertyGroup>
   <ItemGroup>
+    <Reference Include="Accord.MachineLearning">
+      <HintPath>..\Shared\Lib\Accord.Net\Accord.MachineLearning.dll</HintPath>
+    </Reference>
     <Reference Include="DigitalRune.Windows.Docking, Version=1.3.5.0, Culture=neutral, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
       <HintPath>..\Shared\Lib\DigitalRune.Windows.Docking.dll</HintPath>
@@ -477,6 +480,10 @@
     <Compile Include="FileUI\PeptideSearch\BuildLibraryGridView.cs">
       <SubType>Component</SubType>
     </Compile>
+    <Compile Include="Model\Alignment\AlignmentPoint.cs" />
+    <Compile Include="Model\Alignment\RetentionTimeData.cs" />
+    <Compile Include="Model\Alignment\SimilarityMatrix.cs" />
+    <Compile Include="Model\Alignment\SpectrumDigest.cs" />
     <Compile Include="Model\AuditLog\EnumNames.Designer.cs">
       <AutoGen>True</AutoGen>
       <DesignTime>True</DesignTime>
@@ -878,6 +885,7 @@
     <Compile Include="Util\DocumentCancellationToken.cs" />
     <Compile Include="Util\Extensions\MassTypeLocalizationExtension.cs" />
     <Compile Include="Util\FormGroup.cs" />
+    <Compile Include="Util\HalfPrecisionFloat.cs" />
     <Compile Include="Util\HillSystemOrdering.cs" />
     <Compile Include="Util\ParsedMolecule.cs" />
     <Compile Include="Util\PersistentString.cs" />

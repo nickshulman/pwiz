@@ -27,6 +27,7 @@ using pwiz.Common.Chemistry;
 using pwiz.Common.Collections;
 using pwiz.Common.Spectra;
 using pwiz.Common.SystemUtil;
+using pwiz.Skyline.Model.Alignment;
 using pwiz.Skyline.Model.Results.ProtoBuf;
 using pwiz.Skyline.Util;
 
@@ -87,7 +88,7 @@ namespace pwiz.Skyline.Model.Results.Spectra
                     spectrumMetadata = spectrumMetadata.ChangePrecursors(Enumerable
                         .Range(1, precursorsByLevel.Max(group => group.Key)).Select(level => precursorsByLevel[level]));
                 }
-                spectrumMetadatas.Add(new DigestedSpectrumMetadata(spectrumMetadata, protoSpectrum.Signature));
+                spectrumMetadatas.Add(new DigestedSpectrumMetadata(spectrumMetadata, new SpectrumDigest(protoSpectrum.Signature.Select(v=>(double) v))));
             }
 
             return new ResultFileMetaData(spectrumMetadatas);
@@ -119,7 +120,7 @@ namespace pwiz.Skyline.Model.Results.Spectra
                 {
                     RetentionTime = spectrumMetadata.RetentionTime,
                 };
-                spectrum.Signature.AddRange(digestedSpectrumMetadata.Digest);
+                spectrum.Signature.AddRange(digestedSpectrumMetadata.Digest.Select(v=>(float) v));
                 spectrum.PresetScanConfiguration = spectrumMetadata.PresetScanConfiguration;
                 var intParts = GetScanIdParts(spectrumMetadata.Id);
                 if (intParts == null)

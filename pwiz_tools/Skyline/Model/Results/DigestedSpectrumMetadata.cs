@@ -4,17 +4,17 @@ using System.Linq;
 using pwiz.Common.Collections;
 using pwiz.Common.Spectra;
 using pwiz.ProteowizardWrapper;
+using pwiz.Skyline.Model.Alignment;
 
 namespace pwiz.Skyline.Model.Results
 {
     public class DigestedSpectrumMetadata
     {
-        private const int DIGEST_SIZE = 128;
-
-        public DigestedSpectrumMetadata(SpectrumMetadata spectrumMetadata, IEnumerable<float> digest)
+        private const int DIGEST_SIZE = 1024;
+        public DigestedSpectrumMetadata(SpectrumMetadata spectrumMetadata, SpectrumDigest digest)
         {
             SpectrumMetadata = spectrumMetadata;
-            Digest = ImmutableList.ValueOfOrEmpty(digest);
+            Digest = digest;
         }
 
         public static DigestedSpectrumMetadata FromSpectrum(MsDataSpectrum spectrum)
@@ -25,7 +25,7 @@ namespace pwiz.Skyline.Model.Results
             }
 
             return new DigestedSpectrumMetadata(spectrum.Metadata,
-                DigestSpectrum(DIGEST_SIZE, spectrum.Mzs, spectrum.Intensities).Select(v => (float)v));
+                SpectrumDigest.DigestSpectrum(DIGEST_SIZE, BinSpectrum(spectrum.Mzs, spectrum.Intensities)));
         }
 
         public string Id
@@ -37,42 +37,8 @@ namespace pwiz.Skyline.Model.Results
             get { return SpectrumMetadata.RetentionTime; }
         }
         public SpectrumMetadata SpectrumMetadata { get; }
-        public ImmutableList<float> Digest { get; }
+        public SpectrumDigest Digest { get; }
         private const double BIN_SIZE = 0.250125;
-
-        public static IList<double> DigestSpectrum(int digestSize, IList<double> mzs, IList<double> intensities)
-        {
-            var binnedSpectrum = BinSpectrum(mzs, intensities);
-            while (binnedSpectrum.Count > digestSize)
-            {
-                binnedSpectrum = DigestVector(binnedSpectrum);
-            }
-
-            if (binnedSpectrum.Count == digestSize)
-            {
-                return binnedSpectrum;
-            }
-
-            var result = new double[digestSize];
-            binnedSpectrum.CopyTo(result, 0);
-            return result;
-        }
-
-        public static IList<double> DigestVector(IList<double> vector)
-        {
-            int n = vector.Count / 2;
-            // Temporary array to store the transformed data
-            double[] result = new double[n];
-
-            for (int i = 0; i < n / 2; i++)
-            {
-                // Calculate the average and difference
-                result[i] = (vector[2 * i] + vector[2 * i + 1]) / Math.Sqrt(2.0);
-                result[n / 2 + i] = (vector[2 * i] - vector[2 * i + 1]) / Math.Sqrt(2.0);
-            }
-
-            return result;
-        }
 
         public static IList<double> BinSpectrum(IList<double> mzs, IList<double> intensities)
         {

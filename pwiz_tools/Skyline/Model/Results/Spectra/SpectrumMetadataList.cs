@@ -21,7 +21,10 @@ using System.Collections.Generic;
 using System.Linq;
 using pwiz.Common.Collections;
 using pwiz.Common.DataBinding;
+using pwiz.Common.Spectra;
 using pwiz.Common.SystemUtil;
+using pwiz.Skyline.Model.Alignment;
+using ZedGraph;
 
 namespace pwiz.Skyline.Model.Results.Spectra
 {
@@ -161,6 +164,57 @@ namespace pwiz.Skyline.Model.Results.Spectra
             }
 
             return array;
+        }
+
+        public IEnumerable<KeyValuePair<int, double>> GetSimilarityVector(DigestedSpectrumMetadata spectrum)
+        {
+            for (int i = 0; i < AllSpectra.Count; i++)
+            {
+                if (!AreCompatible(spectrum.SpectrumMetadata, AllSpectra[i].SpectrumMetadata))
+                {
+                    continue;
+                }
+
+                var similarity = spectrum.Digest.SimilarityScore(AllSpectra[i].Digest);
+                if (similarity.HasValue)
+                {
+                    yield return new KeyValuePair<int, double>(i, similarity.Value);
+                }
+            }
+        }
+
+        public SimilarityMatrix GetSimilarityMatrix(IProgressMonitor progressMonitor, IProgressStatus status, SpectrumMetadataList that)
+        {
+            int completedCount = 0;
+            var lists = new List<PointPair>[that.AllSpectra.Count];
+            ParallelEx.For(0, that.AllSpectra.Count, i =>
+            {
+                var list = new List<PointPair>();
+                var thatSpectrum = that.AllSpectra[i];
+                var y = thatSpectrum.SpectrumMetadata.RetentionTime;
+                foreach (var entry in GetSimilarityVector(thatSpectrum))
+                {
+                    if (progressMonitor.IsCanceled)
+                    {
+                        break;
+                    }
+                    list.Add(new PointPair(AllSpectra[entry.Key].RetentionTime, y, entry.Value));
+                }
+
+                lists[i] = list;
+                lock (lists)
+                {
+                    completedCount++;
+                    status = status.ChangePercentComplete(completedCount * 100 / lists.Length);
+                    progressMonitor.UpdateProgress(status);
+                }
+            });
+            return new SimilarityMatrix(lists.SelectMany(list => list));
+        }
+
+        public static bool AreCompatible(SpectrumMetadata metadata1, SpectrumMetadata metadata2)
+        {
+            return metadata1.GetPrecursors(0).Equals(metadata2.GetPrecursors(0));
         }
     }
 }

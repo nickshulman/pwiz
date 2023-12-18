@@ -166,6 +166,26 @@ namespace pwiz.Skyline.Model.Results.Spectra
             return array;
         }
 
+        public SpectrumMetadataList SetDigestLength(int length)
+        {
+            bool anyChanges = false;
+            var newSpectra = new List<DigestedSpectrumMetadata>();
+            foreach (var spectrum in AllSpectra)
+            {
+                if (spectrum.Digest.Count <= length)
+                {
+                    newSpectra.Add(spectrum);
+                }
+                else
+                {
+                    newSpectra.Add(new DigestedSpectrumMetadata(spectrum.SpectrumMetadata, spectrum.Digest.ShortenTo(length)));
+                    anyChanges = true;
+                }
+            }
+
+            return anyChanges ? new SpectrumMetadataList(newSpectra, Columns) : this;
+        }
+
         public IEnumerable<KeyValuePair<int, double>> GetSimilarityVector(DigestedSpectrumMetadata spectrum)
         {
             for (int i = 0; i < AllSpectra.Count; i++)
@@ -215,6 +235,27 @@ namespace pwiz.Skyline.Model.Results.Spectra
         public static bool AreCompatible(SpectrumMetadata metadata1, SpectrumMetadata metadata2)
         {
             return metadata1.GetPrecursors(0).Equals(metadata2.GetPrecursors(0));
+        }
+
+        protected bool Equals(SpectrumMetadataList other)
+        {
+            return Columns.Equals(other.Columns) && AllSpectra.Equals(other.AllSpectra);
+        }
+
+        public override bool Equals(object obj)
+        {
+            if (ReferenceEquals(null, obj)) return false;
+            if (ReferenceEquals(this, obj)) return true;
+            if (obj.GetType() != this.GetType()) return false;
+            return Equals((SpectrumMetadataList)obj);
+        }
+
+        public override int GetHashCode()
+        {
+            unchecked
+            {
+                return (Columns.GetHashCode() * 397) ^ AllSpectra.GetHashCode();
+            }
         }
     }
 }

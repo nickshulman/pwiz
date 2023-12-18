@@ -53,6 +53,10 @@ namespace pwiz.Skyline.Model.Alignment
 
         public RetentionTimeData ChangeSpectra(SpectrumMetadataList spectra)
         {
+            if (ReferenceEquals(spectra, Spectra))
+            {
+                return this;
+            }
             return ChangeProp(ImClone(this), im => im.Spectra = spectra);
         }
 
@@ -68,6 +72,30 @@ namespace pwiz.Skyline.Model.Alignment
                         yield return new KeyValuePair<double, double>(thisTime, thatTime);
                     }
                 }
+            }
+        }
+
+        protected bool Equals(RetentionTimeData other)
+        {
+            return Equals(Calculator, other.Calculator) && Equals(MeasuredRetentionTimes, other.MeasuredRetentionTimes) && Equals(Spectra, other.Spectra);
+        }
+
+        public override bool Equals(object obj)
+        {
+            if (ReferenceEquals(null, obj)) return false;
+            if (ReferenceEquals(this, obj)) return true;
+            if (obj.GetType() != this.GetType()) return false;
+            return Equals((RetentionTimeData)obj);
+        }
+
+        public override int GetHashCode()
+        {
+            unchecked
+            {
+                var hashCode = (Calculator != null ? Calculator.GetHashCode() : 0);
+                hashCode = (hashCode * 397) ^ (MeasuredRetentionTimes != null ? MeasuredRetentionTimes.GetHashCode() : 0);
+                hashCode = (hashCode * 397) ^ (Spectra != null ? Spectra.GetHashCode() : 0);
+                return hashCode;
             }
         }
     }

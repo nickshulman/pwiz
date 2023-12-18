@@ -1,6 +1,5 @@
 ﻿using System.ComponentModel;
 using pwiz.Skyline.Model;
-using pwiz.Skyline.Model.RetentionTimes;
 
 namespace pwiz.Skyline.Controls.Alignment
 {
@@ -9,6 +8,7 @@ namespace pwiz.Skyline.Controls.Alignment
         public RunAlignmentProperties(IDocumentContainer documentContainer) : base(documentContainer)
         {
             CurveFormat = new CurveFormat();
+            RegressionOptions = new RegressionOptions();
         }
 
 
@@ -24,11 +24,9 @@ namespace pwiz.Skyline.Controls.Alignment
             set;
         }
 
-        public RegressionMethodRT? RegressionMethod
-        {
-            get;
-            set;
-        }
+        [ReadOnly(true)]
+        [TypeConverter(typeof(ExpandableObjectConverter))]
+        public RegressionOptions RegressionOptions { get; set; }
 
 
         [Browsable(false)]
@@ -36,13 +34,13 @@ namespace pwiz.Skyline.Controls.Alignment
             get
             {
                 return CurveSettings.Default.ChangeCurveFormat(CurveFormat).ChangeCaption(Caption)
-                    .ChangeRegressionMethod(RegressionMethod).ChangeYAxis(YAxis);
+                    .ChangeRegressionOptions(RegressionOptions).ChangeYAxis(YAxis);
             }
             set
             {
                 CurveFormat = value.CurveFormat;
                 Caption = value.Caption;
-                RegressionMethod = value.RegressionMethod;
+                RegressionOptions = value.RegressionOptions;
                 YAxis = value.YAxis;
             }
         }

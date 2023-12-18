@@ -1,16 +1,18 @@
-﻿using pwiz.Common.SystemUtil;
-using pwiz.Skyline.Model.RetentionTimes;
+﻿using pwiz.Common.Collections;
+using pwiz.Common.SystemUtil;
 
 namespace pwiz.Skyline.Controls.Alignment
 {
     public class CurveSettings : Immutable
     {
         public static readonly CurveSettings Default = new CurveSettings();
-        private CurveFormat _curveFormat;
+        private ImmutableDeepCloneable<CurveFormat> _curveFormat;
+        private ImmutableDeepCloneable<RegressionOptions> _regressionOptions;
 
         private CurveSettings()
         {
-            CurveFormat = new CurveFormat();
+            _curveFormat = new CurveFormat();
+            _regressionOptions = new RegressionOptions();
         }
         public RetentionTimeSource YAxis { get; private set; }
 
@@ -19,11 +21,14 @@ namespace pwiz.Skyline.Controls.Alignment
             return ChangeProp(ImClone(this), im => im.YAxis = value);
         }
 
-        public RegressionMethodRT? RegressionMethod { get; private set; }
-
-        public CurveSettings ChangeRegressionMethod(RegressionMethodRT? value)
+        public RegressionOptions RegressionOptions
         {
-            return ChangeProp(ImClone(this), im => im.RegressionMethod = value);
+            get { return _regressionOptions; }
+        }
+
+        public CurveSettings ChangeRegressionOptions(RegressionOptions regressionOptions)
+        {
+            return ChangeProp(ImClone(this), im => im._regressionOptions = regressionOptions);
         }
 
         public string Caption { get; private set; }
@@ -35,7 +40,7 @@ namespace pwiz.Skyline.Controls.Alignment
 
         protected bool Equals(CurveSettings other)
         {
-            return Equals(YAxis, other.YAxis) && RegressionMethod == other.RegressionMethod &&
+            return Equals(YAxis, other.YAxis) && Equals(RegressionOptions, other.RegressionOptions) &&
                    Equals(CurveFormat, other.CurveFormat) && 
                    Caption == other.Caption;
         }
@@ -53,8 +58,8 @@ namespace pwiz.Skyline.Controls.Alignment
             unchecked
             {
                 var hashCode = (YAxis != null ? YAxis.GetHashCode() : 0);
-                hashCode = (hashCode * 397) ^ RegressionMethod.GetHashCode();
-                hashCode = (hashCode * 397) ^ CurveFormat.GetHashCode();
+                hashCode = (hashCode * 397) ^ _regressionOptions.GetHashCode();
+                hashCode = (hashCode * 397) ^ _curveFormat.GetHashCode();
                 hashCode = (hashCode * 397) ^ (Caption != null ? Caption.GetHashCode() : 0);
                 return hashCode;
             }
@@ -62,10 +67,10 @@ namespace pwiz.Skyline.Controls.Alignment
 
         public CurveFormat CurveFormat
         {
-            get { return _curveFormat.Clone();}
+            get { return _curveFormat;}
             private set
             {
-                _curveFormat = value.Clone();
+                _curveFormat = value;
             }
         }
 

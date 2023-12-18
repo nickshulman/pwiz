@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
 using System.Threading;
+using NHibernate.Util;
 using pwiz.Common.Collections;
 using pwiz.Common.Spectra;
 using pwiz.Common.SystemUtil;
@@ -72,19 +73,13 @@ namespace pwiz.Skyline.Controls.Alignment
 
         public void UpdateUI()
         {
-            try
-            {
-                UpdateGraph();
-                propertyGrid.Refresh();
-                toolButtonAddCurve.Enabled = !Equals(_runAlignmentProperties.CurveSettings, CurveSettings.Default);
-                toolButtonDelete.Enabled = !Equals(_runAlignmentProperties.CurveSettings, CurveSettings.Default) ||
-                                           _curves.Count > 1;
-                toolButtonUp.Enabled = comboCurves.SelectedIndex > 0;
-                toolButtonDown.Enabled = comboCurves.SelectedIndex < _curves.Count - 1;
-            }
-            finally
-            {
-            }
+            UpdateGraph();
+            propertyGrid.Refresh();
+            toolButtonAddCurve.Enabled = !Equals(_runAlignmentProperties.CurveSettings, CurveSettings.Default);
+            toolButtonDelete.Enabled = !Equals(_runAlignmentProperties.CurveSettings, CurveSettings.Default) ||
+                                       _curves.Count > 1;
+            toolButtonUp.Enabled = comboCurves.SelectedIndex > 0;
+            toolButtonDown.Enabled = comboCurves.SelectedIndex < _curves.Count - 1;
         }
 
         private void UpdateGraph()
@@ -148,18 +143,7 @@ namespace pwiz.Skyline.Controls.Alignment
                 zedGraphControl1.GraphPane.CurveList.Add(legendItem);
             }
 
-            var similarityMatrixKey = Tuple.Create(dataX, dataY);
-            if (!calculatedValues.TryGetValue(similarityMatrixKey, out SimilarityMatrix similarityMatrix))
-            {
-                using var longWaitDlg = new LongWaitDlg();
-                longWaitDlg.PerformWork(this, 1000, progressMonitor =>
-                {
-                    var progressStatus = new ProgressStatus("Computing Similarity Matrix");
-                    similarityMatrix =
-                        dataX.Spectra.GetSimilarityMatrix(progressMonitor, progressStatus, dataY.Spectra);
-                    calculatedValues.AddValue(similarityMatrixKey, similarityMatrix);
-                });
-            }
+            var similarityMatrix = GetSimilarityMatrix(calculatedValues, dataX, dataY, curveSettings.RegressionOptions);
 
             if (similarityMatrix == null)
             {
@@ -167,7 +151,7 @@ namespace pwiz.Skyline.Controls.Alignment
             }
             
             var bestPath = new PointPairList(similarityMatrix.FindBestPath(false).ToList());
-            if (curveSettings.RegressionMethod.HasValue && curveSettings.CurveFormat.LineDashStyle.HasValue)
+            if (curveSettings.RegressionOptions.RegressionMethod.HasValue && curveSettings.CurveFormat.LineDashStyle.HasValue)
             {
                 var lineItem = PerformKdeAlignment(bestPath);
                 lineItem.Line.Style = curveSettings.CurveFormat.LineDashStyle.Value;
@@ -182,6 +166,10 @@ namespace pwiz.Skyline.Controls.Alignment
                     Line =
                     {
                         IsVisible = false
+                    },
+                    Symbol =
+                    {
+                        Size = curveSettings.CurveFormat.SymbolSize
                     }
                 });
 
@@ -193,6 +181,27 @@ namespace pwiz.Skyline.Controls.Alignment
                     NumberOfPoints = similarityMatrix.Points.Count
                 }
             };
+        }
+
+        private SimilarityMatrix GetSimilarityMatrix(CalculatedValues calculatedValues, RetentionTimeData dataX,
+            RetentionTimeData dataY, RegressionOptions regressionOptions)
+        {
+            dataX = dataX.ChangeSpectra(dataX.Spectra.SetDigestLength(regressionOptions.SpectrumDigestLength));
+            dataY = dataY.ChangeSpectra(dataY.Spectra.SetDigestLength(regressionOptions.SpectrumDigestLength));
+            var key = Tuple.Create(dataX, dataY);
+            if (calculatedValues.TryGetValue(key, out SimilarityMatrix similarityMatrix))
+            {
+                return similarityMatrix;
+            }
+            using var longWaitDlg = new LongWaitDlg();
+            longWaitDlg.PerformWork(this, 1000, progressMonitor =>
+            {
+                var progressStatus = new ProgressStatus("Computing Similarity Matrix");
+                similarityMatrix =
+                    dataX.Spectra.GetSimilarityMatrix(progressMonitor, progressStatus, dataY.Spectra);
+                calculatedValues.AddValue(key, similarityMatrix);
+            });
+            return similarityMatrix;
         }
 
         private IList<DigestedSpectrumMetadata> FilterMetadatas(IList<DigestedSpectrumMetadata> metadatas, int? msLevel)

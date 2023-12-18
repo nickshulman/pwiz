@@ -341,6 +341,7 @@
     <Compile Include="Controls\Alignment\CurveGroup.cs" />
     <Compile Include="Controls\Alignment\CurveResult.cs" />
     <Compile Include="Controls\Alignment\CurveSettings.cs" />
+    <Compile Include="Controls\Alignment\RegressionOptions.cs" />
     <Compile Include="Controls\Alignment\RetentionTimeSource.cs" />
     <Compile Include="Controls\Alignment\RunAlignmentResources.Designer.cs">
       <AutoGen>True</AutoGen>

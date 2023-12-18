@@ -1,33 +1,44 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Runtime.CompilerServices;
+using pwiz.Common.Collections;
 
 namespace pwiz.Skyline.Controls.Alignment
 {
-    public class Cache
+    public class CalculatedValues
     {
-        private Dictionary<TypedKey, object> _staleDictionary;
+        private Dictionary<TypedKey, object> _oldDictionary;
         private Dictionary<TypedKey, object> _currentDictionary;
 
-        public Cache()
+        public CalculatedValues(IEnumerable<KeyValuePair<TypedKey, object>> oldValues)
         {
-            _staleDictionary = new Dictionary<TypedKey, object>();
+            if (oldValues != null)
+            {
+                foreach (var entry in oldValues)
+                {
+                    _oldDictionary ??= new Dictionary<TypedKey, object>();
+                    _oldDictionary[entry.Key] = entry.Value;
+                }
+            }
             _currentDictionary = new Dictionary<TypedKey, object>();
         }
 
 
-        public bool TryGetValue<T>(ITuple key, out T value)
+        public bool TryGetValue<T>(object key, out T value)
         {
             var typedKey = new TypedKey(key, typeof(T));
-            if (_staleDictionary.TryGetValue(typedKey, out var valueObject))
+            if (!_currentDictionary.TryGetValue(typedKey, out var valueObject))
             {
-                _currentDictionary[typedKey] = valueObject;
-                _staleDictionary.Remove(typedKey);
-            }
-            else if (!_currentDictionary.TryGetValue(typedKey, out valueObject))
-            {
-                value = default;
-                return false;
+                if (true == _oldDictionary?.TryGetValue(typedKey, out valueObject))
+                {
+                    _currentDictionary[typedKey] = valueObject;
+                }
+                else
+                {
+                    value = default;
+                    return false;
+                }
             }
             value = (T) valueObject;
             return true;
@@ -40,7 +51,7 @@ namespace pwiz.Skyline.Controls.Alignment
 
         public T GetValue<T>(ITuple key, Func<T> fallback)
         {
-            if (TryGetValue<T>(key, out T result))
+            if (TryGetValue(key, out T result))
             {
                 return result;
             }
@@ -50,20 +61,19 @@ namespace pwiz.Skyline.Controls.Alignment
             return result;
         }
 
-        public void DumpStaleObjects()
+        public IEnumerable<KeyValuePair<TypedKey, object>> GetCurrentValues()
         {
-            _staleDictionary = _currentDictionary;
-            _currentDictionary = new Dictionary<TypedKey, object>();
+            return _currentDictionary.AsEnumerable();
         }
-        private class TypedKey
+        public class TypedKey
         {
-            public TypedKey(ITuple key, Type valueType)
+            public TypedKey(object key, Type valueType)
             {
                 Key = key;
                 ValueType = valueType;
             }
 
-            public ITuple Key { get; }
+            public object Key { get; }
             public Type ValueType { get; }
 
             protected bool Equals(TypedKey other)

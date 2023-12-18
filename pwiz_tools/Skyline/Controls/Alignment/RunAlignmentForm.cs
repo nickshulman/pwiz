@@ -23,7 +23,7 @@ namespace pwiz.Skyline.Controls.Alignment
         private bool _inUpdateControls;
         private List<CurveSettings> _curves = new List<CurveSettings>{CurveSettings.Default};
         private RunAlignmentProperties _runAlignmentProperties;
-        private Cache _cache = new Cache();
+        private ImmutableList<KeyValuePair<CalculatedValues.TypedKey, object>> _calculatedValues;
         public RunAlignmentForm(SkylineWindow skylineWindow)
         {
             InitializeComponent();
@@ -84,21 +84,21 @@ namespace pwiz.Skyline.Controls.Alignment
             }
             finally
             {
-                _cache.DumpStaleObjects();
             }
         }
 
         private void UpdateGraph()
         {
+            var calculatedValues = new CalculatedValues(_calculatedValues);
             zedGraphControl1.GraphPane.CurveList.Clear();
             var document = SkylineWindow.Document;
-            var dataX = _cache.GetValue(Tuple.Create(document, _runAlignmentProperties.XAxis),
+            var dataX = calculatedValues.GetValue(Tuple.Create(document, _runAlignmentProperties.XAxis),
                 () => GetRetentionTimeData(document, _runAlignmentProperties.XAxis));
             if (dataX != null)
             {
                 for (int iCurve = 0; iCurve < _curves.Count; iCurve++)
                 {
-                    var result = DisplayCurve(document, dataX, _curves[iCurve]);
+                    var result = DisplayCurve(calculatedValues, document, dataX, _curves[iCurve]);
                     if (iCurve == comboCurves.SelectedIndex)
                     {
                         _runAlignmentProperties.Result = result;
@@ -113,12 +113,13 @@ namespace pwiz.Skyline.Controls.Alignment
 
             zedGraphControl1.GraphPane.AxisChange();
             zedGraphControl1.Invalidate();
+            _calculatedValues = ImmutableList.ValueOf(calculatedValues.GetCurrentValues());
         }
 
-        private CurveResult DisplayCurve(SrmDocument document, RetentionTimeData dataX, CurveSettings curveSettings)
+        private CurveResult DisplayCurve(CalculatedValues calculatedValues, SrmDocument document, RetentionTimeData dataX, CurveSettings curveSettings)
         {
 
-            var dataY = _cache.GetValue(Tuple.Create(document, curveSettings.YAxis),
+            var dataY = calculatedValues.GetValue(Tuple.Create(document, curveSettings.YAxis),
                 () => GetRetentionTimeData(document, curveSettings.YAxis));
             if (dataY == null)
             {
@@ -148,7 +149,7 @@ namespace pwiz.Skyline.Controls.Alignment
             }
 
             var similarityMatrixKey = Tuple.Create(dataX, dataY);
-            if (!_cache.TryGetValue(similarityMatrixKey, out SimilarityMatrix similarityMatrix))
+            if (!calculatedValues.TryGetValue(similarityMatrixKey, out SimilarityMatrix similarityMatrix))
             {
                 using var longWaitDlg = new LongWaitDlg();
                 longWaitDlg.PerformWork(this, 1000, progressMonitor =>
@@ -156,7 +157,7 @@ namespace pwiz.Skyline.Controls.Alignment
                     var progressStatus = new ProgressStatus("Computing Similarity Matrix");
                     similarityMatrix =
                         dataX.Spectra.GetSimilarityMatrix(progressMonitor, progressStatus, dataY.Spectra);
-                    _cache.AddValue(similarityMatrixKey, similarityMatrix);
+                    calculatedValues.AddValue(similarityMatrixKey, similarityMatrix);
                 });
             }
 

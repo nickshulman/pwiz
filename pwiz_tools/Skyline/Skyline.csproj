@@ -336,8 +336,9 @@
       <DesignTime>True</DesignTime>
       <DependentUpon>CommandArgUsage.resx</DependentUpon>
     </Compile>
-    <Compile Include="Controls\Alignment\Cache.cs" />
+    <Compile Include="Controls\Alignment\CalculatedValues.cs" />
     <Compile Include="Controls\Alignment\CurveFormat.cs" />
+    <Compile Include="Controls\Alignment\CurveGroup.cs" />
     <Compile Include="Controls\Alignment\CurveResult.cs" />
     <Compile Include="Controls\Alignment\CurveSettings.cs" />
     <Compile Include="Controls\Alignment\RetentionTimeSource.cs" />

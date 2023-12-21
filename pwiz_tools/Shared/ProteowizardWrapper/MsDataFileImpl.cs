@@ -1201,7 +1201,6 @@ namespace pwiz.ProteowizardWrapper
                     metadata = metadata.ChangeCompensationVoltage(ionMobilityValue.Mobility);
                 }
             }
-
             double? scanWindowLowerLimit = null;
             double? scanWindowUpperLimit = null;
             foreach (var scan in spectrum.scanList.scans)

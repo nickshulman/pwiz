@@ -9,10 +9,10 @@ using pwiz.Common.Spectra;
 using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Controls.Clustering;
 using pwiz.Skyline.Model;
-using pwiz.Skyline.Model.Alignment;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.Results.Spectra.Alignment;
 using pwiz.Skyline.Model.RetentionTimes;
+using pwiz.Skyline.Model.Spectra.Alignment;
 using pwiz.Skyline.Util;
 using ZedGraph;
 
@@ -21,16 +21,16 @@ namespace pwiz.Skyline.Controls.Alignment
     public partial class RunAlignmentForm : DockableFormEx
     {
         private bool _inUpdateControls;
-        private List<CurveSettings> _curves = new List<CurveSettings>{CurveSettings.Default};
-        private RunAlignmentProperties _runAlignmentProperties;
+        private List<CurveSettings> _curves = new List<CurveSettings>();
         private ImmutableList<KeyValuePair<CalculatedValues.TypedKey, object>> _calculatedValues;
+        private RetentionTimeSource _xAxis;
         public RunAlignmentForm(SkylineWindow skylineWindow)
         {
             InitializeComponent();
             SkylineWindow = skylineWindow;
             IfNotUpdating(UpdateComboCurves);
-            _runAlignmentProperties = new RunAlignmentProperties(skylineWindow);
-            propertyGrid.SelectedObject = _runAlignmentProperties;
+            _curves.Add(new CurveSettings(skylineWindow));
+            propertyGrid.SelectedObject = _curves[0];
         }
 
         public SkylineWindow SkylineWindow { get; }
@@ -72,13 +72,32 @@ namespace pwiz.Skyline.Controls.Alignment
 
         public void UpdateUI()
         {
+            UpdateComboXAxis();
             UpdateGraph();
             propertyGrid.Refresh();
-            toolButtonAddCurve.Enabled = !Equals(_runAlignmentProperties.CurveSettings, CurveSettings.Default);
-            toolButtonDelete.Enabled = !Equals(_runAlignmentProperties.CurveSettings, CurveSettings.Default) ||
-                                       _curves.Count > 1;
+            toolButtonAddCurve.Enabled = true;
+            toolButtonDelete.Enabled = _curves.Count > 1;
             toolButtonUp.Enabled = comboCurves.SelectedIndex > 0;
             toolButtonDown.Enabled = comboCurves.SelectedIndex < _curves.Count - 1;
+        }
+
+        private void UpdateComboXAxis()
+        {
+            var retentionTimeSources = RetentionTimeSource.ListRetentionTimeSources(SkylineWindow.Document).ToList();
+            int selectedIndex = -1;
+            if (_xAxis != null)
+            {
+                selectedIndex = retentionTimeSources.IndexOf(_xAxis);
+            }
+
+            if (selectedIndex < 0 && retentionTimeSources.Count > 0)
+            {
+                selectedIndex = 0;
+            }
+            comboXAxis.Items.Clear();
+            comboXAxis.Items.AddRange(retentionTimeSources.ToArray());
+            comboXAxis.SelectedIndex = selectedIndex;
+            _xAxis = selectedIndex >= 0 ? retentionTimeSources[selectedIndex] : null;
         }
 
         private void UpdateGraph()
@@ -86,8 +105,8 @@ namespace pwiz.Skyline.Controls.Alignment
             var calculatedValues = new CalculatedValues(_calculatedValues);
             zedGraphControl1.GraphPane.CurveList.Clear();
             var document = SkylineWindow.Document;
-            var dataX = calculatedValues.GetValue(Tuple.Create(document, _runAlignmentProperties.XAxis),
-                () => GetRetentionTimeData(document, _runAlignmentProperties.XAxis));
+            var dataX = calculatedValues.GetValue(Tuple.Create(document, _xAxis),
+                () => GetRetentionTimeData(document, _xAxis));
             if (dataX != null)
             {
                 for (int iCurve = 0; iCurve < _curves.Count; iCurve++)
@@ -95,14 +114,14 @@ namespace pwiz.Skyline.Controls.Alignment
                     var result = DisplayCurve(calculatedValues, document, dataX, _curves[iCurve]);
                     if (iCurve == comboCurves.SelectedIndex)
                     {
-                        _runAlignmentProperties.Result = result;
+                        //_runAlignmentProperties.Result = result;
 
                     }
                 }
             }
             else
             {
-                _runAlignmentProperties.Result = new CurveResult("No X-axis");
+                //_runAlignmentProperties.Result = new CurveResult("No X-axis");
             }
 
             zedGraphControl1.GraphPane.AxisChange();
@@ -290,7 +309,6 @@ namespace pwiz.Skyline.Controls.Alignment
         {
             IfNotUpdating(() =>
             {
-                _curves[comboCurves.SelectedIndex] = _runAlignmentProperties.CurveSettings;
                 UpdateComboCurves();
                 UpdateUI();
             });
@@ -302,7 +320,7 @@ namespace pwiz.Skyline.Controls.Alignment
             {
                 if (comboCurves.SelectedIndex >= 0)
                 {
-                    _runAlignmentProperties.CurveSettings = _curves[comboCurves.SelectedIndex];
+                    propertyGrid.SelectedObject = _curves[comboCurves.SelectedIndex];
                     UpdateUI();
                 }
             });
@@ -312,10 +330,10 @@ namespace pwiz.Skyline.Controls.Alignment
         {
             IfNotUpdating(() =>
             {
-                _curves.Add(CurveSettings.Default);
+                _curves.Add(new CurveSettings(SkylineWindow));
                 UpdateComboCurves();
                 comboCurves.SelectedIndex = _curves.Count - 1;
-                _runAlignmentProperties.CurveSettings = _curves[comboCurves.SelectedIndex];
+                propertyGrid.SelectedObject = _curves[comboCurves.SelectedIndex];
                 UpdateUI();
             });
         }
@@ -329,12 +347,12 @@ namespace pwiz.Skyline.Controls.Alignment
                     _curves.RemoveAt(comboCurves.SelectedIndex);
                     if (_curves.Count == 0)
                     {
-                        _curves.Add(CurveSettings.Default);
+                        _curves.Add(new CurveSettings(SkylineWindow));
                     }
                 }
 
                 UpdateComboCurves();
-                _runAlignmentProperties.CurveSettings = _curves[comboCurves.SelectedIndex];
+                propertyGrid.SelectedObject = _curves[comboCurves.SelectedIndex];
                 UpdateUI();
 
             });
@@ -345,7 +363,7 @@ namespace pwiz.Skyline.Controls.Alignment
             Assume.IsTrue(_inUpdateControls);
             if (_curves.Count == 0)
             {
-                _curves.Add(CurveSettings.Default);
+                _curves.Add(new CurveSettings(SkylineWindow));
             }
 
             int newSelectedIndex = Math.Max(0, Math.Min(_curves.Count - 1, comboCurves.SelectedIndex));
@@ -388,6 +406,15 @@ namespace pwiz.Skyline.Controls.Alignment
                 _curves.Insert(index + 1, curve);
                 comboCurves.SelectedIndex = index + 1;
                 UpdateComboCurves();
+                UpdateUI();
+            });
+        }
+
+        private void comboXAxis_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            IfNotUpdating(() =>
+            {
+                _xAxis = (RetentionTimeSource) comboXAxis.SelectedItem;
                 UpdateUI();
             });
         }

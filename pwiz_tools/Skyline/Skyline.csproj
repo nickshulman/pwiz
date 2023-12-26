@@ -354,7 +354,6 @@
     <Compile Include="Controls\Alignment\RunAlignmentForm.Designer.cs">
       <DependentUpon>RunAlignmentForm.cs</DependentUpon>
     </Compile>
-    <Compile Include="Controls\Alignment\RunAlignmentProperties.cs" />
     <Compile Include="Controls\Alignment\UserInterfaceObject.cs" />
     <Compile Include="Controls\AuditLog\AuditLogExtraInfoForm.cs">
       <SubType>Form</SubType>
@@ -494,7 +493,7 @@
     <Compile Include="FileUI\PeptideSearch\BuildLibraryGridView.cs">
       <SubType>Component</SubType>
     </Compile>
-    <Compile Include="Model\Alignment\RetentionTimeData.cs" />
+    <Compile Include="Model\Spectra\Alignment\RetentionTimeData.cs" />
     <Compile Include="Model\AuditLog\EnumNames.Designer.cs">
       <AutoGen>True</AutoGen>
       <DesignTime>True</DesignTime>

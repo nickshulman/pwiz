@@ -53,7 +53,13 @@ namespace pwiz.Skyline.Model.Results.Spectra.Alignment
         private static Tuple<double, double, ImmutableList<ImmutableList<SpectrumPrecursor>>> GetSpectrumDigestKey(
             SpectrumSummary spectrumSummary)
         {
-            if (spectrumSummary.SummaryValue == null)
+            if (spectrumSummary.SummaryValue.Count == 0)
+            {
+                return null;
+            }
+
+            if (!spectrumSummary.SpectrumMetadata.ScanWindowLowerLimit.HasValue ||
+                !spectrumSummary.SpectrumMetadata.ScanWindowUpperLimit.HasValue)
             {
                 return null;
             }

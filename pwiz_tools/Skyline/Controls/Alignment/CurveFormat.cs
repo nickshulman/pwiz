@@ -1,12 +1,11 @@
 ﻿using System.ComponentModel;
 using System.Drawing;
 using System.Drawing.Drawing2D;
-using pwiz.Common.Collections;
 using ZedGraph;
 
 namespace pwiz.Skyline.Controls.Alignment
 {
-    public class CurveFormat : DeepCloneable<CurveFormat>
+    public class CurveFormat
     {
         public Color SymbolColor { get; set; } = Color.Black;
         [DefaultValue(SymbolType.Default)] public SymbolType SymbolType { get; set; } = SymbolType.Default;

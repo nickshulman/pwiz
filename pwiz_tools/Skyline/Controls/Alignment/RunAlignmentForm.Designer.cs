@@ -38,6 +38,9 @@
             this.toolButtonUp = new System.Windows.Forms.ToolStripButton();
             this.toolButtonDown = new System.Windows.Forms.ToolStripButton();
             this.toolButtonDelete = new System.Windows.Forms.ToolStripButton();
+            this.panel1 = new System.Windows.Forms.Panel();
+            this.comboXAxis = new System.Windows.Forms.ComboBox();
+            this.lblXAxis = new System.Windows.Forms.Label();
             this.dataGridViewTextBoxColumn1 = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.dataGridViewTextBoxColumn2 = new System.Windows.Forms.DataGridViewTextBoxColumn();
             ((System.ComponentModel.ISupportInitialize)(this.splitContainer1)).BeginInit();
@@ -45,6 +48,7 @@
             this.splitContainer1.Panel2.SuspendLayout();
             this.splitContainer1.SuspendLayout();
             this.toolStrip1.SuspendLayout();
+            this.panel1.SuspendLayout();
             this.SuspendLayout();
             // 
             // splitContainer1
@@ -63,6 +67,7 @@
             this.splitContainer1.Panel2.Controls.Add(this.propertyGrid);
             this.splitContainer1.Panel2.Controls.Add(this.comboCurves);
             this.splitContainer1.Panel2.Controls.Add(this.toolStrip1);
+            this.splitContainer1.Panel2.Controls.Add(this.panel1);
             this.splitContainer1.Size = new System.Drawing.Size(800, 450);
             this.splitContainer1.SplitterDistance = 526;
             this.splitContainer1.TabIndex = 2;
@@ -85,10 +90,10 @@
             // propertyGrid
             // 
             this.propertyGrid.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.propertyGrid.Location = new System.Drawing.Point(0, 46);
+            this.propertyGrid.Location = new System.Drawing.Point(0, 89);
             this.propertyGrid.Name = "propertyGrid";
             this.propertyGrid.PropertySort = System.Windows.Forms.PropertySort.NoSort;
-            this.propertyGrid.Size = new System.Drawing.Size(270, 404);
+            this.propertyGrid.Size = new System.Drawing.Size(270, 361);
             this.propertyGrid.TabIndex = 1;
             this.propertyGrid.PropertyValueChanged += new System.Windows.Forms.PropertyValueChangedEventHandler(this.propertyGrid_PropertyValueChanged);
             // 
@@ -97,7 +102,7 @@
             this.comboCurves.Dock = System.Windows.Forms.DockStyle.Top;
             this.comboCurves.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.comboCurves.FormattingEnabled = true;
-            this.comboCurves.Location = new System.Drawing.Point(0, 25);
+            this.comboCurves.Location = new System.Drawing.Point(0, 68);
             this.comboCurves.Name = "comboCurves";
             this.comboCurves.Size = new System.Drawing.Size(270, 21);
             this.comboCurves.TabIndex = 1;
@@ -111,7 +116,7 @@
             this.toolButtonUp,
             this.toolButtonDown,
             this.toolButtonDelete});
-            this.toolStrip1.Location = new System.Drawing.Point(0, 0);
+            this.toolStrip1.Location = new System.Drawing.Point(0, 43);
             this.toolStrip1.Name = "toolStrip1";
             this.toolStrip1.Size = new System.Drawing.Size(270, 25);
             this.toolStrip1.TabIndex = 2;
@@ -157,6 +162,35 @@
             this.toolButtonDelete.Text = "Delete current plot";
             this.toolButtonDelete.Click += new System.EventHandler(this.toolButtonDelete_Click);
             // 
+            // panel1
+            // 
+            this.panel1.Controls.Add(this.comboXAxis);
+            this.panel1.Controls.Add(this.lblXAxis);
+            this.panel1.Dock = System.Windows.Forms.DockStyle.Top;
+            this.panel1.Location = new System.Drawing.Point(0, 0);
+            this.panel1.Name = "panel1";
+            this.panel1.Size = new System.Drawing.Size(270, 43);
+            this.panel1.TabIndex = 3;
+            // 
+            // comboXAxis
+            // 
+            this.comboXAxis.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.comboXAxis.FormattingEnabled = true;
+            this.comboXAxis.Location = new System.Drawing.Point(2, 22);
+            this.comboXAxis.Name = "comboXAxis";
+            this.comboXAxis.Size = new System.Drawing.Size(265, 21);
+            this.comboXAxis.TabIndex = 1;
+            this.comboXAxis.SelectedIndexChanged += new System.EventHandler(this.comboXAxis_SelectedIndexChanged);
+            // 
+            // lblXAxis
+            // 
+            this.lblXAxis.AutoSize = true;
+            this.lblXAxis.Location = new System.Drawing.Point(3, 6);
+            this.lblXAxis.Name = "lblXAxis";
+            this.lblXAxis.Size = new System.Drawing.Size(39, 13);
+            this.lblXAxis.TabIndex = 0;
+            this.lblXAxis.Text = "X-Axis:";
+            // 
             // dataGridViewTextBoxColumn1
             // 
             this.dataGridViewTextBoxColumn1.HeaderText = "Caption";
@@ -186,6 +220,8 @@
             this.splitContainer1.ResumeLayout(false);
             this.toolStrip1.ResumeLayout(false);
             this.toolStrip1.PerformLayout();
+            this.panel1.ResumeLayout(false);
+            this.panel1.PerformLayout();
             this.ResumeLayout(false);
 
         }
@@ -203,5 +239,8 @@
         private System.Windows.Forms.ToolStripButton toolButtonDelete;
         private System.Windows.Forms.ToolStripButton toolButtonUp;
         private System.Windows.Forms.ToolStripButton toolButtonDown;
+        private System.Windows.Forms.Panel panel1;
+        private System.Windows.Forms.ComboBox comboXAxis;
+        private System.Windows.Forms.Label lblXAxis;
     }
 }

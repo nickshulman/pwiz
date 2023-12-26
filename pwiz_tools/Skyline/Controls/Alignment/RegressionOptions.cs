@@ -2,13 +2,12 @@
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Globalization;
-using pwiz.Common.Collections;
 using pwiz.Skyline.Model.RetentionTimes;
 using pwiz.Skyline.Util.Extensions;
 
 namespace pwiz.Skyline.Controls.Alignment
 {
-    public class RegressionOptions : DeepCloneable<RegressionOptions>
+    public class RegressionOptions
     {
         public RegressionMethodRT? RegressionMethod
         {

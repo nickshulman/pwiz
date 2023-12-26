@@ -7,7 +7,7 @@ using pwiz.Skyline.Model.Lib;
 using pwiz.Skyline.Model.Results.Spectra.Alignment;
 using pwiz.Skyline.Util;
 
-namespace pwiz.Skyline.Model.Alignment
+namespace pwiz.Skyline.Model.Spectra.Alignment
 {
     public class RetentionTimeData : Immutable
     {

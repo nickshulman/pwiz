@@ -15,7 +15,8 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- */using System;
+ */
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using pwiz.Common.Collections;
@@ -99,8 +100,8 @@ namespace pwiz.Common.Spectra
         {
             return ChangeProp(ImClone(this), im =>
             {
-                im.ScanWindowLowerLimit = ScanWindowLowerLimit;
-                im.ScanWindowUpperLimit = ScanWindowUpperLimit;
+                im.ScanWindowLowerLimit = lowerLimit;
+                im.ScanWindowUpperLimit = upperLimit;
             });
         }
 

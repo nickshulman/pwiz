@@ -24,11 +24,10 @@ using System.Linq;
 using System.Text;
 using Google.Protobuf;
 using pwiz.Common.Chemistry;
-using pwiz.Common.Collections;
 using pwiz.Common.Spectra;
 using pwiz.Common.SystemUtil;
-using pwiz.Skyline.Model.Alignment;
 using pwiz.Skyline.Model.Results.ProtoBuf;
+using pwiz.Skyline.Model.Results.Spectra.Alignment;
 using pwiz.Skyline.Util;
 
 namespace pwiz.Skyline.Model.Results.Spectra
@@ -43,15 +42,16 @@ namespace pwiz.Skyline.Model.Results.Spectra
     /// </summary>
     public class ResultFileMetaData : Immutable, IResultFileMetadata
     {
-        public ResultFileMetaData(IEnumerable<DigestedSpectrumMetadata> spectrumMetadatas)
+        public ResultFileMetaData(IEnumerable<SpectrumSummary> spectrumMetadatas)
         {
-            SpectrumMetadatas = ImmutableList.ValueOf(spectrumMetadatas);
+            SpectrumMetadatas = new SpectrumSummaryList(spectrumMetadatas);
         }
-        public ImmutableList<DigestedSpectrumMetadata> SpectrumMetadatas { get; private set; }
+
+        public SpectrumSummaryList SpectrumMetadatas { get; private set; }
 
         public static ResultFileMetaData FromProtoBuf(ResultFileMetaDataProto proto)
         {
-            var spectrumMetadatas = new List<DigestedSpectrumMetadata>();
+            var spectrumMetadatas = new List<SpectrumSummary>();
             var precursors = proto.Precursors.Select(SpectrumPrecursorFromProto).ToList();
             foreach (var protoSpectrum in proto.Spectra)
             {
@@ -88,7 +88,7 @@ namespace pwiz.Skyline.Model.Results.Spectra
                     spectrumMetadata = spectrumMetadata.ChangePrecursors(Enumerable
                         .Range(1, precursorsByLevel.Max(group => group.Key)).Select(level => precursorsByLevel[level]));
                 }
-                spectrumMetadatas.Add(new DigestedSpectrumMetadata(spectrumMetadata, new SpectrumDigest(protoSpectrum.Signature.Select(v=>(double) v))));
+                spectrumMetadatas.Add(new SpectrumSummary(spectrumMetadata, protoSpectrum.Signature.Select(v=>(double) v)));
             }
 
             return new ResultFileMetaData(spectrumMetadatas);
@@ -120,7 +120,7 @@ namespace pwiz.Skyline.Model.Results.Spectra
                 {
                     RetentionTime = spectrumMetadata.RetentionTime,
                 };
-                spectrum.Signature.AddRange(digestedSpectrumMetadata.Digest.Select(v=>(float) v));
+                spectrum.Signature.AddRange(digestedSpectrumMetadata.SummaryValue.Select(v=>(float) v));
                 spectrum.PresetScanConfiguration = spectrumMetadata.PresetScanConfiguration;
                 var intParts = GetScanIdParts(spectrumMetadata.Id);
                 if (intParts == null)
@@ -172,7 +172,7 @@ namespace pwiz.Skyline.Model.Results.Spectra
             {
                 var spectrum = SpectrumMetadatas[i];
                 var startIndex = byteStream.Length;
-                var scanIdBytes = Encoding.UTF8.GetBytes(spectrum.Id);
+                var scanIdBytes = Encoding.UTF8.GetBytes(spectrum.SpectrumMetadata.Id);
                 byteStream.Write(scanIdBytes, 0, scanIdBytes.Length);
                 Assume.AreEqual(startIndex + scanIdBytes.Length, byteStream.Length);
                 startBytesList.Add(Convert.ToInt32(startIndex));

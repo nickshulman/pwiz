@@ -292,7 +292,7 @@ namespace pwiz.Skyline.Controls.Spectra
                 if (transitionGroupDocNodes != null)
                 {
                     spectra = ImmutableList.ValueOf(spectra.Where(row =>
-                        FindMatchingTransitionGroups(document.Settings.TransitionSettings, row.SpectrumMetadata.SpectrumMetadata, transitionGroupDocNodes).Any()));
+                        FindMatchingTransitionGroups(document.Settings.TransitionSettings, row.SpectrumMetadata, transitionGroupDocNodes).Any()));
                 }
 
                 // var columnValues = classColumns.Select(column => spectrumList.GetColumnValues(column, spectra));
@@ -304,7 +304,7 @@ namespace pwiz.Skyline.Controls.Spectra
                         if (precursorClasses != null)
                         {
                             matchingPrecursors = MatchingPrecursors.FromPrecursors(GetMatchingPrecursorClasses(document,
-                                precursorClasses, spectrumGroup.Select(row => row.SpectrumMetadata.SpectrumMetadata)));
+                                precursorClasses, spectrumGroup.Select(row => row.SpectrumMetadata)));
                         }
                         spectrumClass = new SpectrumClassRow(matchingPrecursors, new SpectrumClass(spectrumGroup.Key));
                         spectrumClasses.Add(spectrumGroup.Key, spectrumClass);
@@ -368,7 +368,7 @@ namespace pwiz.Skyline.Controls.Spectra
                         continue;
                     }
 
-                    _spectrumLists.Add(key, SpectrumMetadataList.Ms2Only(resultFileMetadata.SpectrumMetadatas, _allSpectrumClassColumns));
+                    _spectrumLists.Add(key, SpectrumMetadataList.Ms2Only(resultFileMetadata.SpectrumMetadatas.SpectrumMetadatas, _allSpectrumClassColumns));
                     _dataFileList.Add(key);
                     listBoxFiles.Items.Add(key);
                 }
@@ -489,7 +489,7 @@ namespace pwiz.Skyline.Controls.Spectra
             }
         }
 
-        public void SetSpectra(MsDataFileUri dataFile, IList<DigestedSpectrumMetadata> spectra)
+        public void SetSpectra(MsDataFileUri dataFile, IList<SpectrumMetadata> spectra)
         {
             _spectrumLists[new DataFileItem(null, dataFile)] = SpectrumMetadataList.Ms2Only(spectra, _allSpectrumClassColumns);
             QueueUpdateSpectrumRows();
@@ -604,7 +604,7 @@ namespace pwiz.Skyline.Controls.Spectra
                 CommonActionUtil.SafeBeginInvoke(_form, () => _form.UpdateProgress(message, 0, file));
                 using (var msDataFile = file.OpenMsDataFile(true, false, false, false, true))
                 {
-                    var spectra = new List<DigestedSpectrumMetadata>();
+                    var spectra = new List<SpectrumMetadata>();
                     int spectrumCount = msDataFile.SpectrumCount;
                     int lastProgress = 0;
                     for (int i = 0; i < spectrumCount; i++)
@@ -624,7 +624,7 @@ namespace pwiz.Skyline.Controls.Spectra
                             CommonActionUtil.SafeBeginInvoke(_form, () => _form.UpdateProgress(message, progress, file));
                         }
 
-                        var spectrumMetadata = DigestedSpectrumMetadata.FromSpectrum(msDataFile.GetSpectrum(i));
+                        var spectrumMetadata = msDataFile.GetSpectrumMetadata(i);
                         if (spectrumMetadata != null)
                         {
                             spectra.Add(spectrumMetadata);
@@ -753,7 +753,7 @@ namespace pwiz.Skyline.Controls.Spectra
                             {
                                 var docNode = (TransitionGroupDocNode) document.FindNode(path);
                                 return docNode != null &&
-                                       FindMatchingTransitionGroups(transitionSettings, firstSpectrumMetadata.SpectrumMetadata,
+                                       FindMatchingTransitionGroups(transitionSettings, firstSpectrumMetadata,
                                                new[] {docNode})
                                            .Any();
                             }).ToList();

@@ -4,7 +4,7 @@ using pwiz.Common.Collections;
 using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.Lib;
-using pwiz.Skyline.Model.Results.Spectra;
+using pwiz.Skyline.Model.Results.Spectra.Alignment;
 using pwiz.Skyline.Util;
 
 namespace pwiz.Skyline.Model.Alignment
@@ -12,7 +12,7 @@ namespace pwiz.Skyline.Model.Alignment
     public class RetentionTimeData : Immutable
     {
         private LibKeyMap<double> _libKeyMap;
-        public RetentionTimeData(IEnumerable<MeasuredRetentionTime> measuredRetentionTimes, SpectrumMetadataList spectra, IRetentionScoreSource calculator)
+        public RetentionTimeData(IEnumerable<MeasuredRetentionTime> measuredRetentionTimes, SpectrumSummaryList spectra, IRetentionScoreSource calculator)
         {
             Spectra = spectra;
             SetMeasuredRetentionTimes(measuredRetentionTimes);
@@ -49,9 +49,9 @@ namespace pwiz.Skyline.Model.Alignment
             _libKeyMap = new LibKeyMap<double>(ImmutableList.ValueOf(MeasuredRetentionTimes.Select(rt => rt.RetentionTime)), MeasuredRetentionTimes.Select(rt => rt.PeptideSequence.GetLibKey(Adduct.EMPTY).LibraryKey));
         }
 
-        public SpectrumMetadataList Spectra { get; private set; }
+        public SpectrumSummaryList Spectra { get; private set; }
 
-        public RetentionTimeData ChangeSpectra(SpectrumMetadataList spectra)
+        public RetentionTimeData ChangeSpectra(SpectrumSummaryList spectra)
         {
             if (ReferenceEquals(spectra, Spectra))
             {

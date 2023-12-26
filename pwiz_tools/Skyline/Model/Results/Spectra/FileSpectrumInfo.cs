@@ -26,6 +26,7 @@ using pwiz.Common.DataBinding.Attributes;
 using pwiz.Common.Spectra;
 using pwiz.Skyline.Model.Databinding;
 using pwiz.Skyline.Model.Databinding.Entities;
+using pwiz.Skyline.Model.Results.Spectra.Alignment;
 using pwiz.Skyline.Properties;
 
 namespace pwiz.Skyline.Model.Results.Spectra
@@ -33,9 +34,9 @@ namespace pwiz.Skyline.Model.Results.Spectra
     [InvariantDisplayName("Info")]
     public class FileSpectrumInfo : RootSkylineObject, ILinkValue
     {
-        private ImmutableList<DigestedSpectrumMetadata> _spectra;
+        private ImmutableList<SpectrumMetadata> _spectra;
         private MsDataFileUri _dataFileUri;
-        public FileSpectrumInfo(SkylineDataSchema dataSchema, MsDataFileUri dataFileUri, IEnumerable<DigestedSpectrumMetadata> spectra) : base(dataSchema)
+        public FileSpectrumInfo(SkylineDataSchema dataSchema, MsDataFileUri dataFileUri, IEnumerable<SpectrumMetadata> spectra) : base(dataSchema)
         {
             _dataFileUri = dataFileUri;
             _spectra = ImmutableList.ValueOf(spectra);
@@ -69,7 +70,7 @@ namespace pwiz.Skyline.Model.Results.Spectra
                         Source = chromSource,
                         ExtractionWidth = 0,
                     };
-                    var msDataFileScanIds = new ResultFileMetaData(_spectra).ToMsDataFileScanIds();
+                    var msDataFileScanIds = new ResultFileMetaData(_spectra.Select(metadata=>new SpectrumSummary(metadata, null))).ToMsDataFileScanIds();
                     IScanProvider scanProvider = new ScanProvider(DataSchema.SkylineWindow.DocumentFilePath,
                         _dataFileUri, chromSource, timeIntensities.Times,
                         new[] {transitionFullScanInfo}, null, msDataFileScanIds);
@@ -88,7 +89,7 @@ namespace pwiz.Skyline.Model.Results.Spectra
             return string.Format(Resources.FileSpectrumInfo_ToString__0__Spectra, SpectrumCount);
         }
 
-        public ImmutableList<DigestedSpectrumMetadata> GetSpectra()
+        public ImmutableList<SpectrumMetadata> GetSpectra()
         {
             return _spectra;
         }

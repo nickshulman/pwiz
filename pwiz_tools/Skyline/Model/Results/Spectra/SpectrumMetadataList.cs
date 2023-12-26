@@ -23,8 +23,6 @@ using pwiz.Common.Collections;
 using pwiz.Common.DataBinding;
 using pwiz.Common.Spectra;
 using pwiz.Common.SystemUtil;
-using pwiz.Skyline.Model.Alignment;
-using ZedGraph;
 
 namespace pwiz.Skyline.Model.Results.Spectra
 {
@@ -34,7 +32,7 @@ namespace pwiz.Skyline.Model.Results.Spectra
         private readonly ImmutableList<int> _ms1SpectrumIndices;
         private readonly ImmutableSortedList<double, ImmutableList<int>> _spectrumIndicesByPrecursor;
         private readonly Dictionary<string, int> _columnIndices;
-        public SpectrumMetadataList(IEnumerable<DigestedSpectrumMetadata> spectrumMetadatas, IEnumerable<SpectrumClassColumn> columns)
+        public SpectrumMetadataList(IEnumerable<SpectrumMetadata> spectrumMetadatas, IEnumerable<SpectrumClassColumn> columns)
         {
             AllSpectra = ImmutableList.ValueOfOrEmpty(spectrumMetadatas);
             Columns = ImmutableList.ValueOf(columns);
@@ -42,10 +40,10 @@ namespace pwiz.Skyline.Model.Results.Spectra
             var valueCache = new ValueCache();
             _columnValues = Columns.Select(col => GetColumnValues(valueCache, col, AllSpectra)).ToArray();
 
-            _ms1SpectrumIndices = ImmutableList.ValueOf(Enumerable.Range(0, AllSpectra.Count).Where(i => AllSpectra[i].SpectrumMetadata.MsLevel == 1));
+            _ms1SpectrumIndices = ImmutableList.ValueOf(Enumerable.Range(0, AllSpectra.Count).Where(i => AllSpectra[i].MsLevel == 1));
             var spectraByPrecursor = new List<KeyValuePair<double, ImmutableList<int>>>();
             var precursorGroups = AllRows
-                .SelectMany(row=> row.SpectrumMetadata.SpectrumMetadata.GetPrecursors(1).Select(p => Tuple.Create(p.PrecursorMz, row)))
+                .SelectMany(row=> row.SpectrumMetadata.GetPrecursors(1).Select(p => Tuple.Create(p.PrecursorMz, row)))
                 .GroupBy(tuple => tuple.Item1, tuple => tuple.Item2.RowIndex);
             foreach (var group in precursorGroups)
             {
@@ -55,9 +53,9 @@ namespace pwiz.Skyline.Model.Results.Spectra
             _spectrumIndicesByPrecursor = ImmutableSortedList.FromValues(spectraByPrecursor);
         }
 
-        public static SpectrumMetadataList Ms2Only(IEnumerable<DigestedSpectrumMetadata> spectrumMetadatas, IEnumerable<SpectrumClassColumn> columns)
+        public static SpectrumMetadataList Ms2Only(IEnumerable<SpectrumMetadata> spectrumMetadatas, IEnumerable<SpectrumClassColumn> columns)
         {
-            return new SpectrumMetadataList(spectrumMetadatas.Where(s => s.SpectrumMetadata.MsLevel > 1), columns);
+            return new SpectrumMetadataList(spectrumMetadatas.Where(s => s.MsLevel > 1), columns);
         }
 
         public ImmutableList<SpectrumClassColumn> Columns { get; }
@@ -86,7 +84,7 @@ namespace pwiz.Skyline.Model.Results.Spectra
             return -1;
         }
 
-        public ImmutableList<DigestedSpectrumMetadata> AllSpectra { get; private set; }
+        public ImmutableList<SpectrumMetadata> AllSpectra { get; private set; }
 
         public IList<Row> AllRows
         {
@@ -129,7 +127,7 @@ namespace pwiz.Skyline.Model.Results.Spectra
 
             public SpectrumMetadataList SpectrumMetadataList { get; }
             public int RowIndex { get; }
-            public DigestedSpectrumMetadata SpectrumMetadata
+            public SpectrumMetadata SpectrumMetadata
             {
                 get { return SpectrumMetadataList.AllSpectra[RowIndex]; }
             }
@@ -149,13 +147,13 @@ namespace pwiz.Skyline.Model.Results.Spectra
             }
         }
 
-        public static Array GetColumnValues(ValueCache valueCache, SpectrumClassColumn column, IList<DigestedSpectrumMetadata> spectrumMetadatas)
+        public static Array GetColumnValues(ValueCache valueCache, SpectrumClassColumn column, IList<SpectrumMetadata> spectrumMetadatas)
         {
             bool isValueType = column.ValueType.IsValueType;
             var array = Array.CreateInstance(column.ValueType, spectrumMetadatas.Count);
             for (int i = 0; i < spectrumMetadatas.Count; i++)
             {
-                var value = column.GetValue(spectrumMetadatas[i].SpectrumMetadata);
+                var value = column.GetValue(spectrumMetadatas[i]);
                 if (!isValueType)
                 {
                     value = valueCache.CacheValue(value);
@@ -164,98 +162,6 @@ namespace pwiz.Skyline.Model.Results.Spectra
             }
 
             return array;
-        }
-
-        public SpectrumMetadataList SetDigestLength(int length)
-        {
-            bool anyChanges = false;
-            var newSpectra = new List<DigestedSpectrumMetadata>();
-            foreach (var spectrum in AllSpectra)
-            {
-                if (spectrum.Digest.Count <= length)
-                {
-                    newSpectra.Add(spectrum);
-                }
-                else
-                {
-                    newSpectra.Add(new DigestedSpectrumMetadata(spectrum.SpectrumMetadata, spectrum.Digest.ShortenTo(length)));
-                    anyChanges = true;
-                }
-            }
-
-            return anyChanges ? new SpectrumMetadataList(newSpectra, Columns) : this;
-        }
-
-        public IEnumerable<KeyValuePair<int, double>> GetSimilarityVector(DigestedSpectrumMetadata spectrum)
-        {
-            for (int i = 0; i < AllSpectra.Count; i++)
-            {
-                if (!AreCompatible(spectrum.SpectrumMetadata, AllSpectra[i].SpectrumMetadata))
-                {
-                    continue;
-                }
-
-                var similarity = spectrum.Digest.SimilarityScore(AllSpectra[i].Digest);
-                if (similarity.HasValue)
-                {
-                    yield return new KeyValuePair<int, double>(i, similarity.Value);
-                }
-            }
-        }
-
-        public SimilarityMatrix GetSimilarityMatrix(IProgressMonitor progressMonitor, IProgressStatus status, SpectrumMetadataList that)
-        {
-            int completedCount = 0;
-            var lists = new List<PointPair>[that.AllSpectra.Count];
-            ParallelEx.For(0, that.AllSpectra.Count, i =>
-            {
-                var list = new List<PointPair>();
-                var thatSpectrum = that.AllSpectra[i];
-                var y = thatSpectrum.SpectrumMetadata.RetentionTime;
-                foreach (var entry in GetSimilarityVector(thatSpectrum))
-                {
-                    if (progressMonitor.IsCanceled)
-                    {
-                        break;
-                    }
-                    list.Add(new PointPair(AllSpectra[entry.Key].RetentionTime, y, entry.Value));
-                }
-
-                lists[i] = list;
-                lock (lists)
-                {
-                    completedCount++;
-                    status = status.ChangePercentComplete(completedCount * 100 / lists.Length);
-                    progressMonitor.UpdateProgress(status);
-                }
-            });
-            return new SimilarityMatrix(lists.SelectMany(list => list));
-        }
-
-        public static bool AreCompatible(SpectrumMetadata metadata1, SpectrumMetadata metadata2)
-        {
-            return metadata1.GetPrecursors(0).Equals(metadata2.GetPrecursors(0));
-        }
-
-        protected bool Equals(SpectrumMetadataList other)
-        {
-            return Columns.Equals(other.Columns) && AllSpectra.Equals(other.AllSpectra);
-        }
-
-        public override bool Equals(object obj)
-        {
-            if (ReferenceEquals(null, obj)) return false;
-            if (ReferenceEquals(this, obj)) return true;
-            if (obj.GetType() != this.GetType()) return false;
-            return Equals((SpectrumMetadataList)obj);
-        }
-
-        public override int GetHashCode()
-        {
-            unchecked
-            {
-                return (Columns.GetHashCode() * 397) ^ AllSpectra.GetHashCode();
-            }
         }
     }
 }

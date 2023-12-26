@@ -78,7 +78,7 @@ namespace pwiz.Skyline.Model.Results.Spectra
             var spectrumMetadatas = measuredResults.Chromatograms.SelectMany(c => c.MSDataFilePaths).Distinct()
                 .Select(path => measuredResults.GetResultFileMetaData(path))
                 .Where(metadata=>null != metadata)
-                .SelectMany(metadata => metadata.SpectrumMetadatas);
+                .SelectMany(metadata => metadata.SpectrumMetadatas.SpectrumMetadatas);
             var spectrumMetadataList = new SpectrumMetadataList(spectrumMetadatas, SpectrumClassColumn.ALL);
             SetUniqueValues(cancellationToken, document, spectrumMetadataList);
         }

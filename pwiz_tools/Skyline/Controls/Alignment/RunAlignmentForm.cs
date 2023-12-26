@@ -11,8 +11,7 @@ using pwiz.Skyline.Controls.Clustering;
 using pwiz.Skyline.Model;
 using pwiz.Skyline.Model.Alignment;
 using pwiz.Skyline.Model.DocSettings;
-using pwiz.Skyline.Model.Results;
-using pwiz.Skyline.Model.Results.Spectra;
+using pwiz.Skyline.Model.Results.Spectra.Alignment;
 using pwiz.Skyline.Model.RetentionTimes;
 using pwiz.Skyline.Util;
 using ZedGraph;
@@ -186,8 +185,8 @@ namespace pwiz.Skyline.Controls.Alignment
         private SimilarityMatrix GetSimilarityMatrix(CalculatedValues calculatedValues, RetentionTimeData dataX,
             RetentionTimeData dataY, RegressionOptions regressionOptions)
         {
-            dataX = dataX.ChangeSpectra(dataX.Spectra.SetDigestLength(regressionOptions.SpectrumDigestLength));
-            dataY = dataY.ChangeSpectra(dataY.Spectra.SetDigestLength(regressionOptions.SpectrumDigestLength));
+            dataX = dataX.ChangeSpectra(dataX.Spectra.TruncateSummariesTo(regressionOptions.SpectrumDigestLength));
+            dataY = dataY.ChangeSpectra(dataY.Spectra.TruncateSummariesTo(regressionOptions.SpectrumDigestLength));
             var key = Tuple.Create(dataX, dataY);
             if (calculatedValues.TryGetValue(key, out SimilarityMatrix similarityMatrix))
             {
@@ -202,16 +201,6 @@ namespace pwiz.Skyline.Controls.Alignment
                 calculatedValues.AddValue(key, similarityMatrix);
             });
             return similarityMatrix;
-        }
-
-        private IList<DigestedSpectrumMetadata> FilterMetadatas(IList<DigestedSpectrumMetadata> metadatas, int? msLevel)
-        {
-            if (!msLevel.HasValue)
-            {
-                return metadatas;
-            }
-
-            return metadatas.Where(metadata => metadata.SpectrumMetadata.MsLevel == msLevel).ToList();
         }
 
         private LineItem PerformKdeAlignment(IList<PointPair> pointPairList)
@@ -250,15 +239,14 @@ namespace pwiz.Skyline.Controls.Alignment
             }
 
             
-            SpectrumMetadataList spectrumMetadataList = null;
+            SpectrumSummaryList spectrumMetadataList = null;
             if (retentionTimeSource.MsDataFileUri != null)
             {
                 var resultFileMetadata =
                     document.Settings.MeasuredResults?.GetResultFileMetaData(retentionTimeSource.MsDataFileUri);
                 if (resultFileMetadata != null)
                 {
-                    spectrumMetadataList = new SpectrumMetadataList(resultFileMetadata.SpectrumMetadatas,
-                        ImmutableList.Empty<SpectrumClassColumn>());
+                    spectrumMetadataList = new SpectrumSummaryList(resultFileMetadata.SpectrumMetadatas);
                     spectrumMetadataList = ReduceMetadataList(spectrumMetadataList);
                 }
             }
@@ -266,33 +254,36 @@ namespace pwiz.Skyline.Controls.Alignment
             return new RetentionTimeData(Array.Empty<MeasuredRetentionTime>(), spectrumMetadataList, null);
         }
 
-        private SpectrumMetadataList ReduceMetadataList(SpectrumMetadataList metadataList)
+        private SpectrumSummaryList ReduceMetadataList(SpectrumSummaryList metadataList)
         {
             int? msLevel = null;
-            var spectra = new List<DigestedSpectrumMetadata>();
+            var spectra = new List<SpectrumSummary>();
             int? digestLength = 16;
             bool halfPrecision = true;
-            foreach (var spectrum in metadataList.AllSpectra)
+            foreach (var spectrum in metadataList)
             {
                 if (msLevel.HasValue && msLevel != spectrum.SpectrumMetadata.MsLevel)
                 {
                     continue;
                 }
 
-                SpectrumDigest digest = spectrum.Digest;
-                if (digestLength.HasValue)
+                IList<double> digest = spectrum.SummaryValue;
+                if (digest?.Count > 0)
                 {
-                    digest = digest.ShortenTo(digestLength.Value);
+                    while (digest.Count > digestLength.Value)
+                    {
+                        digest = SpectrumSummary.HaarWaveletTransform(digest);
+                    }
                 }
 
                 if (halfPrecision)
                 {
-                    digest = new SpectrumDigest(digest.Select(v => (double)((HalfPrecisionFloat)v)));
+                    digest = digest.Select(v => (double)((HalfPrecisionFloat)v)).ToList();
                 }
-                spectra.Add(new DigestedSpectrumMetadata(spectrum.SpectrumMetadata, digest));
+                spectra.Add(new SpectrumSummary(spectrum.SpectrumMetadata, digest));
             }
 
-            return new SpectrumMetadataList(spectra, metadataList.Columns);
+            return new SpectrumSummaryList(spectra);
         }
 
         private void propertyGrid_PropertyValueChanged(object s, System.Windows.Forms.PropertyValueChangedEventArgs e)

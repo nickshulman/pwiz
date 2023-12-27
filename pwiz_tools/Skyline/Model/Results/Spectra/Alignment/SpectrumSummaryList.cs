@@ -171,5 +171,23 @@ namespace pwiz.Skyline.Model.Results.Spectra.Alignment
                 return this.Select(summary => summary.SpectrumMetadata);
             }
         }
+
+        protected bool Equals(SpectrumSummaryList other)
+        {
+            return _summaries.Equals(other._summaries);
+        }
+
+        public override bool Equals(object obj)
+        {
+            if (ReferenceEquals(null, obj)) return false;
+            if (ReferenceEquals(this, obj)) return true;
+            if (obj.GetType() != this.GetType()) return false;
+            return Equals((SpectrumSummaryList)obj);
+        }
+
+        public override int GetHashCode()
+        {
+            return _summaries.GetHashCode();
+        }
     }
 }

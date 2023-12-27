@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
 using System.Threading;
-using NHibernate.Util;
+using EnvDTE;
 using pwiz.Common.Collections;
 using pwiz.Common.Spectra;
 using pwiz.Common.SystemUtil;
@@ -29,7 +29,6 @@ namespace pwiz.Skyline.Controls.Alignment
             InitializeComponent();
             SkylineWindow = skylineWindow;
             IfNotUpdating(UpdateComboCurves);
-            _curves.Add(new CurveSettings(skylineWindow));
             propertyGrid.SelectedObject = _curves[0];
         }
 
@@ -75,10 +74,13 @@ namespace pwiz.Skyline.Controls.Alignment
             UpdateComboXAxis();
             UpdateGraph();
             propertyGrid.Refresh();
-            toolButtonAddCurve.Enabled = true;
-            toolButtonDelete.Enabled = _curves.Count > 1;
+            bool currentCurveIsNotBlank = comboCurves.SelectedIndex >= 0 && comboCurves.SelectedIndex < _curves.Count &&
+                                          !Equals(_curves[comboCurves.SelectedIndex], new CurveSettings(SkylineWindow));
+            toolButtonAddCurve.Enabled = currentCurveIsNotBlank;
+            toolButtonDelete.Enabled = _curves.Count > 1 || _curves.Count == 1 && currentCurveIsNotBlank;
             toolButtonUp.Enabled = comboCurves.SelectedIndex > 0;
             toolButtonDown.Enabled = comboCurves.SelectedIndex < _curves.Count - 1;
+            comboCurves.Visible = _curves.Count > 1;
         }
 
         private void UpdateComboXAxis()

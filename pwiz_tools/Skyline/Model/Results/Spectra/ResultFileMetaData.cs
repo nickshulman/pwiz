@@ -44,10 +44,15 @@ namespace pwiz.Skyline.Model.Results.Spectra
     {
         public ResultFileMetaData(IEnumerable<SpectrumSummary> spectrumMetadatas)
         {
-            SpectrumMetadatas = new SpectrumSummaryList(spectrumMetadatas);
+            SpectrumSummaries = new SpectrumSummaryList(spectrumMetadatas);
         }
 
-        public SpectrumSummaryList SpectrumMetadatas { get; private set; }
+        public SpectrumSummaryList SpectrumSummaries { get; private set; }
+
+        public IEnumerable<SpectrumMetadata> SpectrumMetadatas
+        {
+            get { return SpectrumSummaries.SpectrumMetadatas; }
+        }
 
         public static ResultFileMetaData FromProtoBuf(ResultFileMetaDataProto proto)
         {
@@ -79,6 +84,12 @@ namespace pwiz.Skyline.Model.Results.Spectra
                 {
                     spectrumMetadata =
                         spectrumMetadata.ChangeAnalyzer(proto.Analyzers[protoSpectrum.AnalyzerIndex - 1]);
+                }
+
+                if (protoSpectrum.ScanWindowIndex > 0)
+                {
+                    var scanWindow = proto.ScanWindows[protoSpectrum.ScanWindowIndex - 1];
+                    spectrumMetadata = spectrumMetadata.ChangeScanWindow(scanWindow.LowerLimit, scanWindow.UpperLimit);
                 }
 
                 var precursorsByLevel =
@@ -113,14 +124,15 @@ namespace pwiz.Skyline.Model.Results.Spectra
             var precursors = new DistinctList<(int MsLevel, SpectrumPrecursor SpectrumPrecuror)>();
             var scanDescriptions = new DistinctList<string>{null};
             var analyzers = new DistinctList<string>{null};
-            foreach (var digestedSpectrumMetadata in SpectrumMetadatas)
+            var scanWindows = new DistinctList<Tuple<double, double>> { null };
+            foreach (var spectrumSummary in SpectrumSummaries)
             {
-                var spectrumMetadata = digestedSpectrumMetadata.SpectrumMetadata;
+                var spectrumMetadata = spectrumSummary.SpectrumMetadata;
                 var spectrum = new ResultFileMetaDataProto.Types.SpectrumMetadata
                 {
                     RetentionTime = spectrumMetadata.RetentionTime,
                 };
-                spectrum.Signature.AddRange(digestedSpectrumMetadata.SummaryValue.Select(v=>(float) v));
+                spectrum.Signature.AddRange(spectrumSummary.SummaryValue.Select(v=>(float) v));
                 spectrum.PresetScanConfiguration = spectrumMetadata.PresetScanConfiguration;
                 var intParts = GetScanIdParts(spectrumMetadata.Id);
                 if (intParts == null)
@@ -141,11 +153,22 @@ namespace pwiz.Skyline.Model.Results.Spectra
                         spectrum.PrecursorIndex.Add(precursors.Add((msLevel, precursor)) + 1);
                     }
                 }
+
+                if (spectrumMetadata.ScanWindowLowerLimit.HasValue && spectrumMetadata.ScanWindowUpperLimit.HasValue)
+                {
+                    spectrum.ScanWindowIndex = scanWindows.Add(Tuple.Create(spectrumMetadata.ScanWindowLowerLimit.Value,
+                        spectrumMetadata.ScanWindowUpperLimit.Value));
+                }
                 proto.Spectra.Add(spectrum);
             }
 
             proto.ScanDescriptions.AddRange(scanDescriptions.Skip(1));
             proto.Analyzers.AddRange(analyzers.Skip(1));
+            proto.ScanWindows.AddRange(scanWindows.Skip(1).Select(tuple=>new ResultFileMetaDataProto.Types.ScanWindow
+            {
+                LowerLimit = tuple.Item1,
+                UpperLimit = tuple.Item2
+            }));
             foreach (var precursorTuple in precursors)
             {
                 var spectrumPrecursor = precursorTuple.SpectrumPrecuror;
@@ -168,9 +191,9 @@ namespace pwiz.Skyline.Model.Results.Spectra
             var byteStream = new MemoryStream();
             var startBytesList = new List<int>();
             var lengths = new List<int>();
-            for (int i = 0; i < SpectrumMetadatas.Count; i++)
+            for (int i = 0; i < SpectrumSummaries.Count; i++)
             {
-                var spectrum = SpectrumMetadatas[i];
+                var spectrum = SpectrumSummaries[i];
                 var startIndex = byteStream.Length;
                 var scanIdBytes = Encoding.UTF8.GetBytes(spectrum.SpectrumMetadata.Id);
                 byteStream.Write(scanIdBytes, 0, scanIdBytes.Length);

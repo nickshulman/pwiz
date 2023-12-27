@@ -368,7 +368,7 @@ namespace pwiz.Skyline.Controls.Spectra
                         continue;
                     }
 
-                    _spectrumLists.Add(key, SpectrumMetadataList.Ms2Only(resultFileMetadata.SpectrumMetadatas.SpectrumMetadatas, _allSpectrumClassColumns));
+                    _spectrumLists.Add(key, SpectrumMetadataList.Ms2Only(resultFileMetadata.SpectrumSummaries.SpectrumMetadatas, _allSpectrumClassColumns));
                     _dataFileList.Add(key);
                     listBoxFiles.Items.Add(key);
                 }

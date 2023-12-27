@@ -265,7 +265,7 @@ namespace pwiz.Skyline.Controls.Alignment
                     document.Settings.MeasuredResults?.GetResultFileMetaData(retentionTimeSource.MsDataFileUri);
                 if (resultFileMetadata != null)
                 {
-                    spectrumMetadataList = new SpectrumSummaryList(resultFileMetadata.SpectrumMetadatas);
+                    spectrumMetadataList = new SpectrumSummaryList(resultFileMetadata.SpectrumSummaries);
                     spectrumMetadataList = ReduceMetadataList(spectrumMetadataList);
                 }
             }

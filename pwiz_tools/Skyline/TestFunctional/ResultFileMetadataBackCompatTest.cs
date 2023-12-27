@@ -77,9 +77,9 @@ namespace pwiz.SkylineTestFunctional
         /// </summary>
         private void VerifyEquivalent(MsDataFileScanIds msDataFileScanIds, ResultFileMetaData resultFileMetadata)
         {
-            for (int i = 0; i < resultFileMetadata.SpectrumMetadatas.Count; i++)
+            for (int i = 0; i < resultFileMetadata.SpectrumSummaries.Count; i++)
             {
-                Assert.AreEqual(resultFileMetadata.SpectrumMetadatas[i].SpectrumMetadata.Id, msDataFileScanIds.GetMsDataFileSpectrumId(i), "Mismatch on scan #{0}", i);
+                Assert.AreEqual(resultFileMetadata.SpectrumSummaries[i].SpectrumMetadata.Id, msDataFileScanIds.GetMsDataFileSpectrumId(i), "Mismatch on scan #{0}", i);
             }
         }
 

@@ -24,7 +24,6 @@ using System.Linq;
 using pwiz.Common.PeakFinding;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.Results.Scoring;
-using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
 
 namespace pwiz.Skyline.Model.Results
@@ -144,7 +143,7 @@ namespace pwiz.Skyline.Model.Results
             foreach (var set in _dataSets.ToArray())
             {
                 Color peptideColor = NodePep != null ? NodePep.Color : PeptideDocNode.UNKNOWN_COLOR;
-                if (!set.Load(provider, NodePep != null ? NodePep.ModifiedTarget : null, peptideColor))
+                if (!set.Load(provider, ChromatogramGroupId.ForPeptide(NodePep, null), peptideColor))
                     _dataSets.Remove(set);
             }
             //Console.Out.WriteLine("Ending {0} {1} {2}", NodePep, _dataSets.Count, RuntimeHelpers.GetHashCode(this));
@@ -786,7 +785,7 @@ namespace pwiz.Skyline.Model.Results
                     var dataSet = listUnmerged[i];
                     var dataPeakList = listEnumerators[i].Current;
                     if (dataPeakList == null)
-                        throw new InvalidOperationException(Resources.PeptideChromDataSets_MergePeakGroups_Unexpected_null_peak_list);
+                        throw new InvalidOperationException(ResultsResources.PeptideChromDataSets_MergePeakGroups_Unexpected_null_peak_list);
                     if (Compare(dataPeakList, dataSet.IsStandard, maxPeak, maxStandard) > 0)
                     {
                         maxPeak = dataPeakList;
@@ -879,7 +878,7 @@ namespace pwiz.Skyline.Model.Results
                 {
                     string peptideName = NodePep == null ? string.Empty : NodePep.ModifiedSequenceDisplay;
                     string message = string.Format(
-                        Resources.PeptideChromDataSets_AddDataSet_Unable_to_process_chromatograms_for_the_molecule___0___because_one_chromatogram_ends_at_time___1___and_the_other_ends_at_time___2___,
+                        ResultsResources.PeptideChromDataSets_AddDataSet_Unable_to_process_chromatograms_for_the_molecule___0___because_one_chromatogram_ends_at_time___1___and_the_other_ends_at_time___2___,
                         peptideName, firstMaxTime, nextMaxTime);
                     throw new InvalidOperationException(message);
                 }
@@ -929,7 +928,9 @@ namespace pwiz.Skyline.Model.Results
             for (int i = 0; i < DataSets.Count; i++)
             {
                 var firstKey = DataSets[i].FirstKey;
-                if (Equals(chromDataSet.FirstKey.Precursor, firstKey.Precursor)) // Don't merge dissimilar precursors
+                if (Equals(chromDataSet.FirstKey.Precursor, firstKey.Precursor)
+                    && Equals(chromDataSet.FirstKey.ChromatogramGroupId?.SpectrumClassFilter, 
+                        firstKey.ChromatogramGroupId?.SpectrumClassFilter)) // Don't merge dissimilar precursors
                 {
                     DataSets[i].Merge(chromDataSet);
                 }

@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Original author: Don Marsh <donmarsh .at. u.washington.edu>,
  *                  MacCoss Lab, Department of Genome Sciences, UW
  *
@@ -25,7 +25,6 @@ using System.Linq;
 using pwiz.Common.Chemistry;
 using pwiz.ProteowizardWrapper;
 using pwiz.Skyline.Model.DocSettings;
-using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
 
 namespace pwiz.Skyline.Model.Results
@@ -39,7 +38,7 @@ namespace pwiz.Skyline.Model.Results
         public SignedMz PrecursorMz;
         public SignedMz ProductMz;
         public double? ExtractionWidth;
-        public IonMobilityFilter _ionMobilityInfo;
+        public IonMobilityFilter IonMobilityInfo;
         public Identity Id;  // ID of the associated TransitionDocNode
         public bool MatchMz(double mz)
         {
@@ -49,7 +48,7 @@ namespace pwiz.Skyline.Model.Results
 
         public override string ToString() // Not user facing, for debug convenience only
         {
-            return $@"name={Name} src={Source} Q1={PrecursorMz} Q2={ProductMz} w={ExtractionWidth} im={_ionMobilityInfo} Id={Id}";
+            return $@"name={Name} src={Source} Q1={PrecursorMz} Q2={ProductMz} w={ExtractionWidth} im={IonMobilityInfo} Id={Id}";
         }
     }
 
@@ -83,13 +82,20 @@ namespace pwiz.Skyline.Model.Results
         private WeakReference<MeasuredResults> _measuredResultsReference;
 
         public ScanProvider(string docFilePath, MsDataFileUri dataFilePath, ChromSource source,
-            IList<float> times, TransitionFullScanInfo[] transitions, MeasuredResults measuredResults)
+            IList<float> times, TransitionFullScanInfo[] transitions, MeasuredResults measuredResults) :
+            this(docFilePath, dataFilePath, source, times, transitions, measuredResults, null)
+        {
+        }
+
+        public ScanProvider(string docFilePath, MsDataFileUri dataFilePath, ChromSource source,
+            IList<float> times, TransitionFullScanInfo[] transitions, MeasuredResults measuredResults, MsDataFileScanIds msDataFileScanIds)
         {
             DocFilePath = docFilePath;
             DataFilePath = dataFilePath;
             Source = source;
             Times = times;
             Transitions = transitions;
+            _msDataFileScanIds = msDataFileScanIds;
             _measuredResults = measuredResults;
             _measuredResultsReference = new WeakReference<MeasuredResults>(measuredResults);
         }
@@ -259,7 +265,7 @@ namespace pwiz.Skyline.Model.Results
                     var lockMassParameters = DataFilePath.GetLockMassParameters();
                     if (dataFilePath == null)
                         throw new FileNotFoundException(string.Format(
-                            Resources
+                            ResultsResources
                                 .ScanProvider_GetScans_The_data_file__0__could_not_be_found__either_at_its_original_location_or_in_the_document_or_document_parent_folder_,
                             DataFilePath));
                     int sampleIndex = SampleHelp.GetPathSampleIndexPart(dataFilePath);

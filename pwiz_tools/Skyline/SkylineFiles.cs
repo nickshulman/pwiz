@@ -29,6 +29,7 @@ using System.Xml;
 using System.Xml.Serialization;
 using Ionic.Zip;
 using Newtonsoft.Json.Linq;
+using pwiz.PanoramaClient;
 using pwiz.Common.Collections;
 using pwiz.Common.DataBinding;
 using pwiz.Common.SystemUtil;
@@ -58,6 +59,7 @@ using pwiz.Skyline.Model.Proteome;
 using pwiz.Skyline.Model.Results;
 using pwiz.Skyline.Model.Serialization;
 using pwiz.Skyline.Properties;
+using pwiz.Skyline.ToolsUI;
 using pwiz.Skyline.Util;
 using pwiz.Skyline.Util.Extensions;
 using DatabaseOpeningException = pwiz.Skyline.Model.Irt.DatabaseOpeningException;
@@ -182,15 +184,13 @@ namespace pwiz.Skyline
         {
             if (!CheckSaveDocument())
                 return;
-            using (OpenFileDialog dlg = new OpenFileDialog
+            using (OpenFileDialog dlg = new OpenFileDialog())
             {
-                InitialDirectory = Settings.Default.ActiveDirectory,
-                CheckPathExists = true,
-                SupportMultiDottedExtensions = true,
-                DefaultExt = SrmDocument.EXT,
-                Filter = TextUtil.FileDialogFiltersAll(SrmDocument.FILTER_DOC_AND_SKY_ZIP, SrmDocumentSharing.FILTER_SHARING, SkypFile.FILTER_SKYP)
-            })
-            {
+                dlg.InitialDirectory = Settings.Default.ActiveDirectory;
+                dlg.CheckPathExists = true;
+                dlg.SupportMultiDottedExtensions = true;
+                dlg.DefaultExt = SrmDocument.EXT;
+                dlg.Filter = TextUtil.FileDialogFiltersAll(SrmDocument.FILTER_DOC_AND_SKY_ZIP, SrmDocumentSharing.FILTER_SHARING, SkypFile.FILTER_SKYP);
                 if (dlg.ShowDialog(this) == DialogResult.OK)
                 {
                     Settings.Default.ActiveDirectory = Path.GetDirectoryName(dlg.FileName);
@@ -217,11 +217,9 @@ namespace pwiz.Skyline
             {
                 var sharing = new SrmDocumentSharing(zipPath);
 
-                using (var longWaitDlg = new LongWaitDlg
+                using (var longWaitDlg = new LongWaitDlg())
                 {
-                    Text = Resources.SkylineWindow_OpenSharedFile_Extracting_Files,
-                })
-                {
+                    longWaitDlg.Text = Resources.SkylineWindow_OpenSharedFile_Extracting_Files;
                     longWaitDlg.PerformWork(parentWindow ?? this, 1000, sharing.Extract);
                     if (longWaitDlg.IsCanceled)
                         return false;
@@ -235,7 +233,7 @@ namespace pwiz.Skyline
             }
             catch (ZipException zipException)
             {
-                MessageDlg.ShowWithException(parentWindow ?? this, string.Format(Resources.SkylineWindow_OpenSharedFile_The_zip_file__0__cannot_be_read,
+                MessageDlg.ShowWithException(parentWindow ?? this, string.Format(SkylineResources.SkylineWindow_OpenSharedFile_The_zip_file__0__cannot_be_read,
                                                     zipPath), zipException);
                 return false;
             }
@@ -308,13 +306,11 @@ namespace pwiz.Skyline
 
             try
             {
-                using (var longWaitDlg = new LongWaitDlg(this)
+                using (var longWaitDlg = new LongWaitDlg(this))
                 {
-                    Text = Resources.SkylineWindow_OpenFile_Loading___,
-                    Message = Path.GetFileName(path),
-                    ProgressValue = 0
-                })
-                {
+                    longWaitDlg.Text = SkylineResources.SkylineWindow_OpenFile_Loading___;
+                    longWaitDlg.Message = Path.GetFileName(path);
+                    longWaitDlg.ProgressValue = 0;
                     longWaitDlg.PerformWork(parentWindow ?? this, 500, progressMonitor =>
                     {
                         string skylineDocumentHash;
@@ -416,7 +412,7 @@ namespace pwiz.Skyline
             if (exception != null)
             {
                 new MessageBoxHelper(parentWindow ?? this).ShowXmlParsingError(
-                    string.Format(Resources.SkylineWindow_OpenFile_Failure_opening__0__, path), path, exception);
+                    string.Format(SkylineResources.SkylineWindow_OpenFile_Failure_opening__0__, path), path, exception);
                 return false;
             }
 
@@ -459,7 +455,7 @@ namespace pwiz.Skyline
                 docLibFile = BiblioSpecLiteSpec.GetLibraryFileName(documentPath);
                 if (!File.Exists(docLibFile))
                 {
-                    MessageDlg.Show(parent, string.Format(Resources.SkylineWindow_ConnectLibrarySpecs_Could_not_find_the_spectral_library__0__for_this_document__Without_the_library__no_spectrum_ID_information_will_be_available_, docLibFile));
+                    MessageDlg.Show(parent, string.Format(SkylineResources.SkylineWindow_ConnectLibrarySpecs_Could_not_find_the_spectral_library__0__for_this_document__Without_the_library__no_spectrum_ID_information_will_be_available_, docLibFile));
                 }
             }
 
@@ -488,16 +484,14 @@ namespace pwiz.Skyline
                             return CreateLibrarySpec(library, librarySpec, pathLibrary, false);
                     }
 
-                    using (var dlg = new MissingFileDlg
-                                  {
-                                      ItemName = name,
-                                      ItemType = Resources.SkylineWindow_ConnectLibrarySpecs_Spectral_Library,
-                                      Filter = library != null ? library.SpecFilter : librarySpec.Filter,
-                                      FileHint = fileName,
-                                      FileDlgInitialPath = Path.GetDirectoryName(documentPath),
-                                      Title = Resources.SkylineWindow_ConnectLibrarySpecs_Find_Spectral_Library
-                                  })
+                    using (var dlg = new MissingFileDlg())
                     {
+                        dlg.ItemName = name;
+                        dlg.ItemType = SkylineResources.SkylineWindow_ConnectLibrarySpecs_Spectral_Library;
+                        dlg.Filter = library != null ? library.SpecFilter : librarySpec.Filter;
+                        dlg.FileHint = fileName;
+                        dlg.FileDlgInitialPath = Path.GetDirectoryName(documentPath);
+                        dlg.Title = SkylineResources.SkylineWindow_ConnectLibrarySpecs_Find_Spectral_Library;
                         if (dlg.ShowDialog(parent) == DialogResult.OK)
                         {
                             Settings.Default.LibraryDirectory = Path.GetDirectoryName(dlg.FilePath);
@@ -573,16 +567,14 @@ namespace pwiz.Skyline
 
             do
             {
-                using (var dlg = new MissingFileDlg
-                         {
-                             ItemName = irtCalc.Name,
-                             ItemType = Resources.SkylineWindow_FindIrtDatabase_iRT_Calculator,
-                             Filter = TextUtil.FileDialogFilterAll(Resources.SkylineWindow_FindIrtDatabase_iRT_Database_Files, IrtDb.EXT),
-                             FileHint = Path.GetFileName(irtCalc.DatabasePath),
-                             FileDlgInitialPath = Path.GetDirectoryName(documentPath),
-                             Title = Resources.SkylineWindow_FindIrtDatabase_Find_iRT_Calculator
-                         })
+                using (var dlg = new MissingFileDlg())
                 {
+                    dlg.ItemName = irtCalc.Name;
+                    dlg.ItemType = SkylineResources.SkylineWindow_FindIrtDatabase_iRT_Calculator;
+                    dlg.Filter = TextUtil.FileDialogFilterAll(SkylineResources.SkylineWindow_FindIrtDatabase_iRT_Database_Files, IrtDb.EXT);
+                    dlg.FileHint = Path.GetFileName(irtCalc.DatabasePath);
+                    dlg.FileDlgInitialPath = Path.GetDirectoryName(documentPath);
+                    dlg.Title = SkylineResources.SkylineWindow_FindIrtDatabase_Find_iRT_Calculator;
                     if (dlg.ShowDialog(parent) == DialogResult.OK)
                     {
                         if (dlg.FilePath == null)
@@ -595,7 +587,7 @@ namespace pwiz.Skyline
                         catch (DatabaseOpeningException e)
                         {
                             var message = TextUtil.SpaceSeparate(
-                                Resources.SkylineWindow_FindIrtDatabase_The_database_file_specified_could_not_be_opened,
+                                SkylineResources.SkylineWindow_FindIrtDatabase_The_database_file_specified_could_not_be_opened,
                                 e.Message);
                             MessageDlg.Show(parent, message);
                         }
@@ -651,16 +643,14 @@ namespace pwiz.Skyline
 
             do
             {
-                using (var dlg = new MissingFileDlg
+                using (var dlg = new MissingFileDlg())
                 {
-                    ItemName = optLib.Name,
-                    ItemType = Resources.SkylineWindow_FindOptimizationDatabase_Optimization_Library,
-                    Filter = TextUtil.FileDialogFilterAll(Resources.SkylineWindow_FindOptimizationDatabase_Optimization_Library_Files, OptimizationDb.EXT),
-                    FileHint = Path.GetFileName(optLib.DatabasePath),
-                    FileDlgInitialPath = Path.GetDirectoryName(documentPath),
-                    Title = Resources.SkylineWindow_FindOptimizationDatabase_Find_Optimization_Library
-                })
-                {
+                    dlg.ItemName = optLib.Name;
+                    dlg.ItemType = SkylineResources.SkylineWindow_FindOptimizationDatabase_Optimization_Library;
+                    dlg.Filter = TextUtil.FileDialogFilterAll(SkylineResources.SkylineWindow_FindOptimizationDatabase_Optimization_Library_Files, OptimizationDb.EXT);
+                    dlg.FileHint = Path.GetFileName(optLib.DatabasePath);
+                    dlg.FileDlgInitialPath = Path.GetDirectoryName(documentPath);
+                    dlg.Title = SkylineResources.SkylineWindow_FindOptimizationDatabase_Find_Optimization_Library;
                     if (dlg.ShowDialog(parent) == DialogResult.OK)
                     {
                         if (dlg.FilePath == null)
@@ -673,7 +663,7 @@ namespace pwiz.Skyline
                         catch (OptimizationsOpeningException e)
                         {
                             var message = TextUtil.SpaceSeparate(
-                                Resources.SkylineWindow_FindOptimizationDatabase_The_database_file_specified_could_not_be_opened_,
+                                SkylineResources.SkylineWindow_FindOptimizationDatabase_The_database_file_specified_could_not_be_opened_,
                                 e.Message);
                             MessageDlg.Show(parent, message);
                         }
@@ -726,16 +716,14 @@ namespace pwiz.Skyline
 
             do
             {
-                using (var dlg = new MissingFileDlg
+                using (var dlg = new MissingFileDlg())
                 {
-                    ItemName = ionMobilityLibrary.Name,
-                    ItemType = Resources.SkylineWindow_FindIonMobilityLibrary_Ion_Mobility_Library,
-                    Filter = TextUtil.FileDialogFilterAll(Resources.SkylineWindow_FindIonMobilityDatabase_ion_mobility_library_files, IonMobilityDb.EXT),
-                    FileHint = Path.GetFileName(ionMobilityLibrary.FilePath),
-                    FileDlgInitialPath = Path.GetDirectoryName(documentPath),
-                    Title = Resources.SkylineWindow_FindIonMobilityLibrary_Find_Ion_Mobility_Library
-                })
-                {
+                    dlg.ItemName = ionMobilityLibrary.Name;
+                    dlg.ItemType = SkylineResources.SkylineWindow_FindIonMobilityLibrary_Ion_Mobility_Library;
+                    dlg.Filter = TextUtil.FileDialogFilterAll(SkylineResources.SkylineWindow_FindIonMobilityDatabase_ion_mobility_library_files, IonMobilityDb.EXT);
+                    dlg.FileHint = Path.GetFileName(ionMobilityLibrary.FilePath);
+                    dlg.FileDlgInitialPath = Path.GetDirectoryName(documentPath);
+                    dlg.Title = SkylineResources.SkylineWindow_FindIonMobilityLibrary_Find_Ion_Mobility_Library;
                     if (dlg.ShowDialog(parent) == DialogResult.OK)
                     {
                         if (dlg.FilePath == null)
@@ -748,7 +736,7 @@ namespace pwiz.Skyline
                         catch (DatabaseOpeningException e)
                         {
                             var message = TextUtil.SpaceSeparate(
-                                Resources.SkylineWindow_FindIonMobilityDatabase_The_ion_mobility_library_specified_could_not_be_opened_,
+                                SkylineResources.SkylineWindow_FindIonMobilityDatabase_The_ion_mobility_library_specified_could_not_be_opened_,
                                 e.Message); 
                             MessageDlg.Show(parent, message);
                         }
@@ -797,16 +785,14 @@ namespace pwiz.Skyline
             pathBackgroundProteome = Path.Combine(Settings.Default.ProteomeDbDirectory ?? string.Empty, fileName ?? string.Empty);
             if (File.Exists(pathBackgroundProteome))
                 return new BackgroundProteomeSpec(backgroundProteomeSpec.Name, pathBackgroundProteome);
-            using (var dlg = new MissingFileDlg
-                    {
-                        FileHint = fileName,
-                        ItemName = backgroundProteomeSpec.Name,
-                        ItemType = Resources.SkylineWindow_FindBackgroundProteome_Background_Proteome,
-                        Filter = TextUtil.FileDialogFilterAll(Resources.SkylineWindow_FindBackgroundProteome_Proteome_File, ProteomeDb.EXT_PROTDB),
-                        FileDlgInitialPath = Settings.Default.ProteomeDbDirectory,
-                        Title = Resources.SkylineWindow_FindBackgroundProteome_Find_Background_Proteome
-                    })
+            using (var dlg = new MissingFileDlg())
             {
+                dlg.FileHint = fileName;
+                dlg.ItemName = backgroundProteomeSpec.Name;
+                dlg.ItemType = SkylineResources.SkylineWindow_FindBackgroundProteome_Background_Proteome;
+                dlg.Filter = TextUtil.FileDialogFilterAll(SkylineResources.SkylineWindow_FindBackgroundProteome_Proteome_File, ProteomeDb.EXT_PROTDB);
+                dlg.FileDlgInitialPath = Settings.Default.ProteomeDbDirectory;
+                dlg.Title = SkylineResources.SkylineWindow_FindBackgroundProteome_Find_Background_Proteome;
                 if (dlg.ShowDialog(parent) == DialogResult.OK)
                 {
                     if (dlg.FilePath == null)
@@ -878,12 +864,12 @@ namespace pwiz.Skyline
                 // TODO: Ask the user to locate the missing data files
                 string missingFilesString = TextUtil.LineSeparate(missingFiles);
                 string message = TextUtil.LineSeparate(string.Format(
-                                    Resources.SkylineWindow_CheckResults_The_data_file___0___is_missing__and_the_following_original_instrument_output_could_not_be_found_,
+                                    SkylineResources.SkylineWindow_CheckResults_The_data_file___0___is_missing__and_the_following_original_instrument_output_could_not_be_found_,
                                     ChromatogramCache.FinalPathForName(path, null)),
                                     string.Empty,
                                     missingFilesString,
                                     string.Empty,
-                                    Resources.SkylineWindow_CheckResults_Click_OK_to_open_the_document_anyway);
+                                    SkylineResources.SkylineWindow_CheckResults_Click_OK_to_open_the_document_anyway);
 
                 if (MultiButtonMsgDlg.Show(parent ?? this, message, MultiButtonMsgDlg.BUTTON_OK) == DialogResult.Cancel)
                 {
@@ -892,6 +878,175 @@ namespace pwiz.Skyline
             }
 
             return true;
+        }
+
+        private void openPanorama_Click(object sender, EventArgs e)
+        {
+            if (!CheckSaveDocument())
+            {
+                return;
+            }
+            OpenFromPanorama();
+        }
+
+        /// <summary>
+        /// Allows user to browse Skyline documents on a Panorama server, and choose a document to download
+        /// and open in Skyline. 
+        /// </summary>
+        /// <param name="downloadFilePath">Local path where the file from Panorama is downloaded.
+        /// If null, the user selects the download path with the SaveFileDialog. Automated tests 
+        /// can set the download path to avoid using SaveFileDialog.
+        /// </param>
+        public void OpenFromPanorama(string downloadFilePath = null)
+        {
+            var servers = Settings.Default.ServerList;
+            if (servers.Count == 0)
+            {
+                if (MultiButtonMsgDlg.Show(this,
+                        TextUtil.LineSeparate(
+                            SkylineResources.SkylineWindow_OpenFromPanorama_No_Panorama_servers_were_found_,
+                            SkylineResources.SkylineWindow_OpenFromPanorama_Press__Add__to_add_a_new_server_),
+                        SkylineResources.SkylineWindow_Add) == DialogResult.Cancel)
+                    return;
+
+                var serverPanoramaWeb = new Server(PanoramaUtil.PANORAMA_WEB, string.Empty, string.Empty);
+                var newServer = servers.EditItem(this, serverPanoramaWeb, null, null);
+                if (newServer == null)
+                    return;
+
+                servers.Add(newServer);
+            }
+
+            var panoramaServers = servers.Cast<PanoramaServer>().ToList();
+
+            var state = string.Empty;
+            if (!string.IsNullOrEmpty(Settings.Default.PanoramaTreeState))
+            {
+                state = Settings.Default.PanoramaTreeState;
+            }
+
+            try
+            {
+                using var dlg = new PanoramaFilePicker(panoramaServers, state);
+                dlg.Text = SkylineResources.SkylineWindow_OpenFromPanorama_Open_From_Panorama;
+                var longOptionRunner = new LongOperationRunner
+                {
+                    ParentControl = this,
+                    JobTitle = SkylineResources.SkylineWindow_OpenFromPanorama_Loading_remote_server_folders,
+                };
+                // TODO: This needs to be possible to cancel
+                longOptionRunner.Run(broker => dlg.InitializeDialog());
+
+                if (dlg.ShowDialog(this) != DialogResult.Cancel)
+                {
+                    Settings.Default.PanoramaTreeState = dlg.FolderBrowser.TreeState;
+                    var folderPath = string.Empty;
+                    if (!string.IsNullOrEmpty(Settings.Default.PanoramaLocalSavePath))
+                    {
+                        folderPath = Settings.Default.PanoramaLocalSavePath;
+                    }
+                    var curServer = dlg.FolderBrowser.GetActiveServer();
+
+                    var downloadPath = string.Empty;
+                    var extension = dlg.FileName.EndsWith(SrmDocumentSharing.EXT) ? SrmDocumentSharing.EXT : SrmDocument.EXT;
+                    if (downloadFilePath == null)
+                    {
+                        using (var saveAsDlg = new SaveFileDialog())
+                        {
+                            saveAsDlg.FileName = dlg.FileName;
+                            saveAsDlg.DefaultExt = extension;
+                            saveAsDlg.SupportMultiDottedExtensions = true;
+                            saveAsDlg.Filter = TextUtil.FileDialogFiltersAll(SrmDocument.FILTER_DOC_AND_SKY_ZIP, SrmDocumentSharing.FILTER_SHARING, SkypFile.FILTER_SKYP);
+                            saveAsDlg.InitialDirectory = folderPath;
+                            saveAsDlg.OverwritePrompt = true;
+                            if (saveAsDlg.ShowDialog(this) != DialogResult.OK)
+                            {
+                                return;
+                            }
+
+                            Settings.Default.PanoramaLocalSavePath = Path.GetDirectoryName(saveAsDlg.FileName);
+                            var folder = Path.GetDirectoryName(saveAsDlg.FileName);
+                            if (!string.IsNullOrEmpty(folder))
+                            {
+                                downloadPath = saveAsDlg.FileName;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        downloadPath = downloadFilePath;
+                    }
+
+                    if (!string.IsNullOrEmpty(downloadPath))
+                    {
+                        var size = dlg.FileSize;
+                        var success = DownloadPanoramaFile(downloadPath, dlg.FileName, dlg.FileUrl, curServer, size);
+                        if (dlg.FileName.EndsWith(SrmDocumentSharing.EXT) && success)
+                        {
+                            OpenSharedFile(downloadPath);
+                        }
+                        else if (dlg.FileName.EndsWith(SrmDocument.EXT) && success)
+                        {
+                            OpenFile(downloadPath);
+                        }
+                    }
+                }
+                Settings.Default.PanoramaTreeState = dlg.FolderBrowser.TreeState;
+            }
+            catch (Exception e)
+            {
+                MessageDlg.ShowException(this, e);
+            }
+        }
+
+        public bool DownloadPanoramaFile(string downloadPath, string fileName, string fileUrl, PanoramaServer curServer, long size, 
+            IPanoramaClient panoramaClient = null /* Automated tests can provide their own IPanoramaClient when they call this method */)
+        {
+            try
+            {
+                panoramaClient ??= new WebPanoramaClient(curServer.URI, curServer.Username, curServer.Password);
+                using (var fileSaver = new FileSaver(downloadPath))
+                {
+                    using (var longWaitDlg = new LongWaitDlg())
+                    {
+                        longWaitDlg.Text = string.Format(SkylineResources.SkylineWindow_OpenFromPanorama_Downloading_file__0_, fileName);
+                        var progressStatus = longWaitDlg.PerformWork(this, 800,
+                            progressMonitor => panoramaClient.DownloadFile(fileUrl, fileSaver.SafeName, size, fileName,
+                                progressMonitor, new ProgressStatus()));
+
+                        if (progressStatus.IsCanceled || progressStatus.IsError)
+                        {
+                            FileEx.SafeDelete(downloadPath, true);
+                            if (progressStatus.IsError)
+                            {
+                                var message = progressStatus.ErrorException.Message;
+                                if (message.Contains(@"404"))
+                                {
+                                    message = Resources.SkylineWindow_DownloadPanoramaFile_File_does_not_exist__It_may_have_been_deleted_on_the_server_;
+                                }
+                                MessageDlg.ShowWithException(this, message, progressStatus.ErrorException);
+                                return false;
+                            }
+                            return false;
+
+                        }
+                        else
+                        {
+                            fileSaver.Commit();
+                        }
+                        if (longWaitDlg.IsCanceled)
+                            return false;
+                    }
+
+                }
+
+                return true;
+            }
+            catch (Exception e)
+            {
+                MessageDlg.ShowException(this, e);
+                return false;
+            }
         }
 
         private void saveMenuItem_Click(object sender, EventArgs e)
@@ -909,8 +1064,8 @@ namespace pwiz.Skyline
             if (Dirty)
             {
                 var result = MultiButtonMsgDlg.Show(this,
-                    Resources.SkylineWindow_CheckSaveDocument_Do_you_want_to_save_changes,
-                    Resources.SkylineWindow_CheckSaveDocument_Yes, Resources.SkylineWindow_CheckSaveDocument_No, true);
+                    SkylineResources.SkylineWindow_CheckSaveDocument_Do_you_want_to_save_changes,
+                    SkylineResources.SkylineWindow_CheckSaveDocument_Yes, SkylineResources.SkylineWindow_CheckSaveDocument_No, true);
                 switch (result)
                 {
                     case DialogResult.Yes:
@@ -937,18 +1092,16 @@ namespace pwiz.Skyline
             // since the results cache must be copied to the new location.
             if (!DocumentUI.IsSavable)
             {
-                MessageDlg.Show(this, Resources.SkylineWindow_SaveDocumentAs_The_document_must_be_fully_loaded_before_it_can_be_saved_to_a_new_name);
+                MessageDlg.Show(this, SkylineResources.SkylineWindow_SaveDocumentAs_The_document_must_be_fully_loaded_before_it_can_be_saved_to_a_new_name);
                 return false;
             }
 
-            using (var dlg = new SaveFileDialog
+            using (var dlg = new SaveFileDialog())
             {
-                InitialDirectory = Settings.Default.ActiveDirectory,
-                OverwritePrompt = true,
-                DefaultExt = SrmDocument.EXT,
-                Filter = TextUtil.FileDialogFiltersAll(SrmDocument.FILTER_DOC)
-            })
-            {
+                dlg.InitialDirectory = Settings.Default.ActiveDirectory;
+                dlg.OverwritePrompt = true;
+                dlg.DefaultExt = SrmDocument.EXT;
+                dlg.Filter = TextUtil.FileDialogFiltersAll(SrmDocument.FILTER_DOC);
                 if (!string.IsNullOrEmpty(DocumentFilePath))
                     dlg.FileName = Path.GetFileName(DocumentFilePath);
 
@@ -996,12 +1149,10 @@ namespace pwiz.Skyline
                 {
                     saver.CheckException();
 
-                    using (var longWaitDlg = new LongWaitDlg(this)
-                        {
-                            Text = Resources.SkylineWindow_SaveDocument_Saving___,
-                            Message = Path.GetFileName(fileName)
-                        })
+                    using (var longWaitDlg = new LongWaitDlg(this))
                     {
+                        longWaitDlg.Text = Resources.SkylineWindow_SaveDocument_Saving___;
+                        longWaitDlg.Message = Path.GetFileName(fileName);
                         longWaitDlg.PerformWork(this, 800, progressMonitor =>
                         {
                             document.SerializeToFile(saver.SafeName, fileName, SkylineVersion.CURRENT, progressMonitor);
@@ -1026,7 +1177,7 @@ namespace pwiz.Skyline
             }
             catch (Exception ex) 
             {
-                var message = TextUtil.LineSeparate(string.Format(Resources.SkylineWindow_SaveDocument_Failed_writing_to__0__, fileName), ex.Message);
+                var message = TextUtil.LineSeparate(string.Format(SkylineResources.SkylineWindow_SaveDocument_Failed_writing_to__0__, fileName), ex.Message);
                 MessageDlg.ShowWithException(this, message, ex);
                 return false;
             }
@@ -1046,12 +1197,10 @@ namespace pwiz.Skyline
                 // CONSIDER: Is this really optional?
                 if (includingCacheFile)
                 {
-                    using (var longWaitDlg = new LongWaitDlg(this)
+                    using (var longWaitDlg = new LongWaitDlg(this))
                     {
-                        Text = Resources.SkylineWindow_SaveDocument_Optimizing_data_file___,
-                        Message = Path.GetFileName(fileName)
-                    })
-                    {
+                        longWaitDlg.Text = SkylineResources.SkylineWindow_SaveDocument_Optimizing_data_file___;
+                        longWaitDlg.Message = Path.GetFileName(fileName);
                         longWaitDlg.PerformWork(this, 800, () =>
                             OptimizeCache(fileName, longWaitDlg));
                     }
@@ -1203,7 +1352,7 @@ namespace pwiz.Skyline
                 }
                 catch (Exception e)
                 {
-                    MessageDlg.ShowWithException(this, Resources.SkylineWindow_shareDocumentMenuItem_Click_The_document_must_be_fully_loaded_before_it_can_be_shared, e);
+                    MessageDlg.ShowWithException(this, SkylineResources.SkylineWindow_shareDocumentMenuItem_Click_The_document_must_be_fully_loaded_before_it_can_be_shared, e);
                 }
                 return;
             }
@@ -1234,16 +1383,14 @@ namespace pwiz.Skyline
         /// </summary>
         private string GetShareFileName()
         {
-            using var dlg = new SaveFileDialog
-            {
-                Title = Resources.SkylineWindow_shareDocumentMenuItem_Click_Share_Document,
-                OverwritePrompt = true,
-                DefaultExt = SrmDocumentSharing.EXT_SKY_ZIP,
-                SupportMultiDottedExtensions = true,
-                Filter = TextUtil.FileDialogFilterAll(
-                    Resources.SkylineWindow_shareDocumentMenuItem_Click_Skyline_Shared_Documents,
-                    SrmDocumentSharing.EXT),
-            };
+            using var dlg = new SaveFileDialog();
+            dlg.Title = SkylineResources.SkylineWindow_shareDocumentMenuItem_Click_Share_Document;
+            dlg.OverwritePrompt = true;
+            dlg.DefaultExt = SrmDocumentSharing.EXT_SKY_ZIP;
+            dlg.SupportMultiDottedExtensions = true;
+            dlg.Filter = TextUtil.FileDialogFilterAll(
+                SkylineResources.SkylineWindow_shareDocumentMenuItem_Click_Skyline_Shared_Documents,
+                SrmDocumentSharing.EXT);
             string fileName = DocumentFilePath;
             if (fileName != null)
             {
@@ -1264,8 +1411,9 @@ namespace pwiz.Skyline
             try
             {
                 bool success;
-                using (var longWaitDlg = new LongWaitDlg { Text = Resources.SkylineWindow_ShareDocument_Compressing_Files, })
+                using (var longWaitDlg = new LongWaitDlg())
                 {
+                    longWaitDlg.Text = SkylineResources.SkylineWindow_ShareDocument_Compressing_Files;
                     var sharing = new SrmDocumentSharing(DocumentUI, DocumentFilePath, fileDest, shareType);
                     if (shareType.MustSaveNewDocument)
                     {
@@ -1290,7 +1438,7 @@ namespace pwiz.Skyline
             }
             catch (Exception x)
             {
-                var message = TextUtil.LineSeparate(string.Format(Resources.SkylineWindow_ShareDocument_Failed_attempting_to_create_sharing_file__0__, fileDest),
+                var message = TextUtil.LineSeparate(string.Format(SkylineResources.SkylineWindow_ShareDocument_Failed_attempting_to_create_sharing_file__0__, fileDest),
                                                     x.Message); 
                 MessageDlg.ShowWithException(this, message, x);
             }
@@ -1345,14 +1493,12 @@ namespace pwiz.Skyline
                 return;
             }
 
-            using (var dlg = new SaveFileDialog
+            using (var dlg = new SaveFileDialog())
             {
-                Title = Resources.SkylineWindow_ShowExportSpectralLibraryDialog_Export_Spectral_Library,
-                OverwritePrompt = true,
-                DefaultExt = BiblioSpecLiteSpec.EXT,
-                Filter = TextUtil.FileDialogFiltersAll(BiblioSpecLiteSpec.FILTER_BLIB)
-            })
-            {
+                dlg.Title = SkylineResources.SkylineWindow_ShowExportSpectralLibraryDialog_Export_Spectral_Library;
+                dlg.OverwritePrompt = true;
+                dlg.DefaultExt = BiblioSpecLiteSpec.EXT;
+                dlg.Filter = TextUtil.FileDialogFiltersAll(BiblioSpecLiteSpec.FILTER_BLIB);
                 if (!string.IsNullOrEmpty(DocumentFilePath))
                     dlg.InitialDirectory = Path.GetDirectoryName(DocumentFilePath);
 
@@ -1361,12 +1507,10 @@ namespace pwiz.Skyline
 
                 try
                 {
-                    using (var longWaitDlg = new LongWaitDlg
+                    using (var longWaitDlg = new LongWaitDlg())
                     {
-                        Text = Resources.SkylineWindow_ShowExportSpectralLibraryDialog_Export_Spectral_Library,
-                        Message = string.Format(Resources.SkylineWindow_ShowExportSpectralLibraryDialog_Exporting_spectral_library__0____, Path.GetFileName(dlg.FileName))
-                    })
-                    {
+                        longWaitDlg.Text = SkylineResources.SkylineWindow_ShowExportSpectralLibraryDialog_Export_Spectral_Library;
+                        longWaitDlg.Message = string.Format(SkylineResources.SkylineWindow_ShowExportSpectralLibraryDialog_Exporting_spectral_library__0____, Path.GetFileName(dlg.FileName));
                         longWaitDlg.PerformWork(this, 800, monitor =>
                             new SpectralLibraryExporter(Document, DocumentFilePath).ExportSpectralLibrary(dlg.FileName, monitor));
                     }
@@ -1374,7 +1518,7 @@ namespace pwiz.Skyline
                 catch (Exception x)
                 {
                     MessageDlg.ShowWithException(this, TextUtil.LineSeparate(string.Format(
-                        Resources.SkylineWindow_ShowExportSpectralLibraryDialog_Failed_exporting_spectral_library_to__0__, dlg.FileName), x.Message), x);
+                        SkylineResources.SkylineWindow_ShowExportSpectralLibraryDialog_Failed_exporting_spectral_library_to__0__, dlg.FileName), x.Message), x);
                 }
             }
         }
@@ -1402,18 +1546,16 @@ namespace pwiz.Skyline
         {
             if (DocumentUI.MoleculeCount == 0)
             {
-                MessageDlg.Show(this, Resources.SkylineWindow_ShowExportEspFeaturesDialog_The_document_must_contain_targets_for_which_to_export_features_);
+                MessageDlg.Show(this, SkylineResources.SkylineWindow_ShowExportEspFeaturesDialog_The_document_must_contain_targets_for_which_to_export_features_);
                 return;
             }
 
-            using (var dlg = new SaveFileDialog
+            using (var dlg = new SaveFileDialog())
             {
-                Title = Resources.SkylineWindow_ShowExportEspFeaturesDialog_Export_ESP_Features,
-                OverwritePrompt = true,
-                DefaultExt = EspFeatureCalc.EXT,
-                Filter = TextUtil.FileDialogFilterAll(Resources.SkylineWindow_ShowExportEspFeaturesDialog_ESP_Feature_Files,EspFeatureCalc.EXT),
-            })
-            {
+                dlg.Title = SkylineResources.SkylineWindow_ShowExportEspFeaturesDialog_Export_ESP_Features;
+                dlg.OverwritePrompt = true;
+                dlg.DefaultExt = EspFeatureCalc.EXT;
+                dlg.Filter = TextUtil.FileDialogFilterAll(SkylineResources.SkylineWindow_ShowExportEspFeaturesDialog_ESP_Feature_Files,EspFeatureCalc.EXT);
                 if (!string.IsNullOrEmpty(DocumentFilePath))
                 {
                     dlg.InitialDirectory = Path.GetDirectoryName(DocumentFilePath);
@@ -1429,7 +1571,7 @@ namespace pwiz.Skyline
                 }
                 catch (IOException x)
                 {
-                    var message = TextUtil.LineSeparate(string.Format(Resources.SkylineWindow_ShowExportEspFeaturesDialog_Failed_attempting_to_save_ESP_features_to__0__, dlg.FileName),
+                    var message = TextUtil.LineSeparate(string.Format(SkylineResources.SkylineWindow_ShowExportEspFeaturesDialog_Failed_attempting_to_save_ESP_features_to__0__, dlg.FileName),
                                     x.Message);
                     MessageDlg.ShowWithException(this, message, x);
                 }
@@ -1475,12 +1617,12 @@ namespace pwiz.Skyline
         {
             if (!DocumentUI.Settings.HasResults)
             {
-                MessageDlg.Show(this, Resources.SkylineWindow_ShowMProphetFeaturesDialog_The_document_must_have_imported_results_);
+                MessageDlg.Show(this, SkylineResources.SkylineWindow_ShowMProphetFeaturesDialog_The_document_must_have_imported_results_);
                 return;
             }
             if (DocumentUI.MoleculeCount == 0)
             {
-                MessageDlg.Show(this, Resources.SkylineWindow_ShowMProphetFeaturesDialog_The_document_must_contain_targets_for_which_to_export_features_);
+                MessageDlg.Show(this, SkylineResources.SkylineWindow_ShowMProphetFeaturesDialog_The_document_must_contain_targets_for_which_to_export_features_);
                 return;
             }
 
@@ -1497,12 +1639,10 @@ namespace pwiz.Skyline
             {
                 MessageDlg.Show(this, Resources.SkylineWindow_ShowChromatogramFeaturesDialog_The_document_must_have_imported_results_);
             }
-            using (OpenFileDialog dlg = new OpenFileDialog
+            using (OpenFileDialog dlg = new OpenFileDialog())
             {
-                Title = Resources.SkylineWindow_ImportPeakBoundaries_Import_PeakBoundaries,
-                CheckPathExists = true
-            })
-            {
+                dlg.Title = SkylineResources.SkylineWindow_ImportPeakBoundaries_Import_PeakBoundaries;
+                dlg.CheckPathExists = true;
                 if (dlg.ShowDialog(this) == DialogResult.OK)
                 {
                     ImportPeakBoundariesFile(dlg.FileName);
@@ -1515,13 +1655,13 @@ namespace pwiz.Skyline
             try
             {
                 long lineCount = Helpers.CountLinesInFile(peakBoundariesFile);
-                ImportPeakBoundaries(peakBoundariesFile, lineCount, Resources.SkylineWindow_ImportPeakBoundaries_Import_PeakBoundaries);
+                ImportPeakBoundaries(peakBoundariesFile, lineCount, SkylineResources.SkylineWindow_ImportPeakBoundaries_Import_PeakBoundaries);
             }
             catch (Exception x)
             {
                 // Specify that we want a MessageDlg that ignores UI mode
                 MessageDlg.ShowWithException(this, TextUtil.LineSeparate(
-                    string.Format(Resources.SkylineWindow_ImportPeakBoundariesFile_Failed_reading_the_file__0__,
+                    string.Format(SkylineResources.SkylineWindow_ImportPeakBoundariesFile_Failed_reading_the_file__0__,
                         peakBoundariesFile), x.Message), x, true); // "true" here means that we want to ignore the UI mode in the context of the MessageDlg
             }
         }
@@ -1537,8 +1677,9 @@ namespace pwiz.Skyline
             SrmDocument docNew = null;
 
             var peakBoundaryImporter = new PeakBoundaryImporter(docCurrent);
-            using (var longWaitDlg = new LongWaitDlg(this) { Text = description })
-            {       
+            using (var longWaitDlg = new LongWaitDlg(this))
+            {
+                longWaitDlg.Text = description;
                 longWaitDlg.PerformWork(this, 1000, longWaitBroker =>
                            docNew = peakBoundaryImporter.Import(fileName, longWaitBroker, lineCount));
 
@@ -1549,7 +1690,7 @@ namespace pwiz.Skyline
                     return;
                 if (longWaitDlg.IsDocumentChanged(docCurrent))
                 {
-                    MessageDlg.Show(this, Resources.SkylineWindow_ImportPeakBoundaries_Unexpected_document_change_during_operation);
+                    MessageDlg.Show(this, SkylineResources.SkylineWindow_ImportPeakBoundaries_Unexpected_document_change_during_operation);
                     return;
                 }                
             }
@@ -1557,7 +1698,7 @@ namespace pwiz.Skyline
             ModifyDocument(description, doc =>
             {
                 if (!ReferenceEquals(doc, docCurrent))
-                    throw new InvalidDataException(Resources.SkylineWindow_ImportPeakBoundaries_Unexpected_document_change_during_operation);
+                    throw new InvalidDataException(SkylineResources.SkylineWindow_ImportPeakBoundaries_Unexpected_document_change_during_operation);
                 return docNew;
             }, docPair =>
             {
@@ -1575,14 +1716,11 @@ namespace pwiz.Skyline
 
         private void importFASTAMenuItem_Click(object sender, EventArgs e)
         {
-            using (OpenFileDialog dlg = new OpenFileDialog
+            using (OpenFileDialog dlg = new OpenFileDialog())
             {
-                Title = Resources.SkylineWindow_ImportFastaFile_Import_FASTA,
-                InitialDirectory = Settings.Default.FastaDirectory,
-                CheckPathExists = true
-                // FASTA files often have no extension as well as .fasta and others
-            })
-            {
+                dlg.Title = Resources.SkylineWindow_ImportFastaFile_Import_FASTA;
+                dlg.InitialDirectory = Settings.Default.FastaDirectory;
+                dlg.CheckPathExists = true; // FASTA files often have no extension as well as .fasta and others
                 if (dlg.ShowDialog(this) == DialogResult.OK)
                 {
                     Settings.Default.FastaDirectory = Path.GetDirectoryName(dlg.FileName);
@@ -1647,11 +1785,11 @@ namespace pwiz.Skyline
                     var strNameMatches = matcher.FoundMatches;
                     if (!string.IsNullOrEmpty(strNameMatches))
                     {
-                        var message = TextUtil.LineSeparate(Resources.SkylineWindow_ImportFasta_Would_you_like_to_use_the_Unimod_definitions_for_the_following_modifications,
+                        var message = TextUtil.LineSeparate(SkylineResources.SkylineWindow_ImportFasta_Would_you_like_to_use_the_Unimod_definitions_for_the_following_modifications,
                                                             string.Empty, strNameMatches);
                         if (DialogResult.Cancel == MultiButtonMsgDlg.Show(
                             this,
-                            message, Resources.SkylineWindow_ImportFasta_OK))
+                            message, SkylineResources.SkylineWindow_ImportFasta_OK))
                         {
                             return;
                         }
@@ -1667,11 +1805,11 @@ namespace pwiz.Skyline
 
             SrmDocument docNew = null;
             int emptyPeptideGroups = 0;
-            using (var longWaitDlg = new LongWaitDlg(this) { Text = description })
+            using (var longWaitDlg = new LongWaitDlg(this))
             {
-                IdentityPath nextAdded;
+                longWaitDlg.Text = description;
                 longWaitDlg.PerformWork(this, 1000, longWaitBroker =>
-                    docNew = docCurrent.ImportFasta(reader, longWaitBroker, lineCount, matcher, to, out selectPath, out nextAdded, out emptyPeptideGroups));
+                    docNew = docCurrent.ImportFasta(reader, longWaitBroker, lineCount, matcher, to, out selectPath, out _, out emptyPeptideGroups));
 
                 if (docNew == null)
                     return;
@@ -1779,16 +1917,16 @@ namespace pwiz.Skyline
                 {
                     SrmDocument docNew = null;
                     selectPath = null;
-                    using (var longWaitDlg = new LongWaitDlg(this) {Text = description})
+                    using (var longWaitDlg = new LongWaitDlg(this))
                     {
+                        longWaitDlg.Text = description;
                         var smallMoleculeTransitionListReader = new SmallMoleculeTransitionListCSVReader(MassListInputs.ReadLinesFromText(csvText), columnPositions);
                         if (smallMoleculeTransitionListReader.RowCount == 0)
                         {
                             throw new InvalidDataException(Resources.MassListImporter_Import_Empty_transition_list);
                         }
-                        IdentityPath firstAdded;
                         longWaitDlg.PerformWork(this, 1000,
-                            () => docNew = smallMoleculeTransitionListReader.CreateTargets(doc, null, out firstAdded));
+                            () => docNew = smallMoleculeTransitionListReader.CreateTargets(doc, null, out _));
                             // CONSIDER: cancelable / progress monitor ?  This is normally pretty quick.
 
                         transitionCount = smallMoleculeTransitionListReader.RowCount - 1;
@@ -1838,17 +1976,15 @@ namespace pwiz.Skyline
 
         private void importAssayLibraryMenuItem_Click(object sender, EventArgs e)
         {
-            using (var dlg = new OpenFileDialog
+            using (var dlg = new OpenFileDialog())
             {
-                Title = Resources.SkylineWindow_importAssayLibraryMenuItem_Click_Import_Assay_Library,
-                InitialDirectory = Settings.Default.ActiveDirectory,
-                CheckPathExists = true,
-                SupportMultiDottedExtensions = true,
-                DefaultExt = TextUtil.EXT_CSV,
-                Filter = TextUtil.FileDialogFiltersAll(TextUtil.FileDialogFilter(
-                    Resources.SkylineWindow_importAssayLibraryMenuItem_Click_Assay_Library, TextUtil.EXT_CSV, TextUtil.EXT_TSV))
-            })
-            {
+                dlg.Title = SkylineResources.SkylineWindow_importAssayLibraryMenuItem_Click_Import_Assay_Library;
+                dlg.InitialDirectory = Settings.Default.ActiveDirectory;
+                dlg.CheckPathExists = true;
+                dlg.SupportMultiDottedExtensions = true;
+                dlg.DefaultExt = TextUtil.EXT_CSV;
+                dlg.Filter = TextUtil.FileDialogFiltersAll(TextUtil.FileDialogFilter(
+                    SkylineResources.SkylineWindow_importAssayLibraryMenuItem_Click_Assay_Library, TextUtil.EXT_CSV, TextUtil.EXT_TSV));
                 if (dlg.ShowDialog(this) == DialogResult.OK)
                 {
                     Settings.Default.ActiveDirectory = Path.GetDirectoryName(dlg.FileName);
@@ -1861,7 +1997,7 @@ namespace pwiz.Skyline
         {
             try
             {
-                ImportAssayLibrary(new MassListInputs(fileName), Resources.SkylineWindow_importAssayLibraryMenuItem_Click_Import_Assay_Library);
+                ImportAssayLibrary(new MassListInputs(fileName), SkylineResources.SkylineWindow_importAssayLibraryMenuItem_Click_Import_Assay_Library);
             }
             catch (Exception x)
             {
@@ -1873,7 +2009,7 @@ namespace pwiz.Skyline
         {
             if (DocumentFilePath == null &&
                 (MultiButtonMsgDlg.Show(this,
-                     Resources.SkylineWindow_ImportAssayLibrary_You_must_save_the_Skyline_document_in_order_to_import_an_assay_library_, MultiButtonMsgDlg.BUTTON_OK) == DialogResult.Cancel ||
+                     SkylineResources.SkylineWindow_ImportAssayLibrary_You_must_save_the_Skyline_document_in_order_to_import_an_assay_library_, MultiButtonMsgDlg.BUTTON_OK) == DialogResult.Cancel ||
                  !SaveDocumentAs()))
             {
                 return;
@@ -1881,7 +2017,7 @@ namespace pwiz.Skyline
 
             if (File.Exists(AssayLibraryFileName) &&
                 MultiButtonMsgDlg.Show(this,
-                    string.Format(Resources.SkylineWindow_ImportAssayLibrary_There_is_an_existing_library_with_the_same_name__0__as_the_document_library_to_be_created__Overwrite_, AssayLibraryName),
+                    string.Format(SkylineResources.SkylineWindow_ImportAssayLibrary_There_is_an_existing_library_with_the_same_name__0__as_the_document_library_to_be_created__Overwrite_, AssayLibraryName),
                     MultiButtonMsgDlg.BUTTON_OK) == DialogResult.Cancel)
             {
                 return;
@@ -1896,17 +2032,15 @@ namespace pwiz.Skyline
 
         private void importMassListMenuItem_Click(object sender, EventArgs e)
         {
-            using (OpenFileDialog dlg = new OpenFileDialog
+            using (OpenFileDialog dlg = new OpenFileDialog())
             {
-                Title = Resources.SkylineWindow_importMassListMenuItem_Click_Import_Transition_List_title,
-                InitialDirectory = Settings.Default.ActiveDirectory,    // TODO: Better value?
-                CheckPathExists = true,
-                SupportMultiDottedExtensions = true,
-                DefaultExt = TextUtil.EXT_CSV,
-                Filter = TextUtil.FileDialogFiltersAll(TextUtil.FileDialogFilter(
-                    Resources.SkylineWindow_importMassListMenuItem_Click_Transition_List, TextUtil.EXT_CSV, TextUtil.EXT_TSV)),
-            })
-            {
+                dlg.Title = SkylineResources.SkylineWindow_importMassListMenuItem_Click_Import_Transition_List_title;
+                dlg.InitialDirectory = Settings.Default.ActiveDirectory; // TODO: Better value?
+                dlg.CheckPathExists = true;
+                dlg.SupportMultiDottedExtensions = true;
+                dlg.DefaultExt = TextUtil.EXT_CSV;
+                dlg.Filter = TextUtil.FileDialogFiltersAll(TextUtil.FileDialogFilter(
+                    Resources.SkylineWindow_importMassListMenuItem_Click_Transition_List, TextUtil.EXT_CSV, TextUtil.EXT_TSV));
                 if (dlg.ShowDialog(this) == DialogResult.OK)
                 {
                     Settings.Default.ActiveDirectory = Path.GetDirectoryName(dlg.FileName);
@@ -1919,7 +2053,7 @@ namespace pwiz.Skyline
         {
             try
             {
-                ImportMassList(new MassListInputs(fileName), Resources.SkylineWindow_importMassListMenuItem_Click_Import_transition_list, false);
+                ImportMassList(new MassListInputs(fileName), SkylineResources.SkylineWindow_importMassListMenuItem_Click_Import_transition_list, false);
             }
             catch (Exception x)
             {
@@ -1954,12 +2088,10 @@ namespace pwiz.Skyline
             SrmDocument docNew = null;
             Dictionary<string, FastaSequence> proteinAssociations = null;
             MassListImporter importer = null;
-            var analyzingMessage = string.Format(Resources.SkylineWindow_ImportMassList_Analyzing_input__0_, inputs.InputFilename ?? string.Empty);
-            using (var longWaitDlg0 = new LongWaitDlg(this)
+            var analyzingMessage = string.Format(SkylineResources.SkylineWindow_ImportMassList_Analyzing_input__0_, inputs.InputFilename ?? string.Empty);
+            using (var longWaitDlg0 = new LongWaitDlg(this))
             {
-                Text = analyzingMessage,
-            })
-            {
+                longWaitDlg0.Text = analyzingMessage;
                 var current = docCurrent;
                 var status = longWaitDlg0.PerformWork(this, 1000, longWaitBroker =>
                 {
@@ -2053,10 +2185,10 @@ namespace pwiz.Skyline
             {
                 var missingMessage = new List<string>();
                 if (!irtPeptides.Any())
-                    missingMessage.Add(TextUtil.LineSeparate(Resources.SkylineWindow_ImportMassList_The_file_does_not_contain_iRTs__Valid_column_names_for_iRTs_are_,
+                    missingMessage.Add(TextUtil.LineSeparate(SkylineResources.SkylineWindow_ImportMassList_The_file_does_not_contain_iRTs__Valid_column_names_for_iRTs_are_,
                                                              TextUtil.LineSeparate(ColumnIndices.IrtColumnNames)));
                 if (!librarySpectra.Any())
-                    missingMessage.Add(TextUtil.LineSeparate(Resources.SkylineWindow_ImportMassList_The_file_does_not_contain_intensities__Valid_column_names_for_intensities_are_,
+                    missingMessage.Add(TextUtil.LineSeparate(SkylineResources.SkylineWindow_ImportMassList_The_file_does_not_contain_intensities__Valid_column_names_for_intensities_are_,
                                                              TextUtil.LineSeparate(ColumnIndices.LibraryColumnNames)));
                 if (missingMessage.Any())
                 {
@@ -2092,7 +2224,7 @@ namespace pwiz.Skyline
                 {
                     var addLibraryMessage = Resources.SkylineWindow_ImportMassList_The_transition_list_appears_to_contain_spectral_library_intensities___Create_a_document_library_from_these_intensities_;
                     var addLibraryResult = MultiButtonMsgDlg.Show(this, addLibraryMessage,
-                        Resources.SkylineWindow_ImportMassList__Create___, Resources.SkylineWindow_ImportMassList__Skip, true);
+                        SkylineResources.SkylineWindow_ImportMassList__Create___, SkylineResources.SkylineWindow_ImportMassList__Skip, true);
                     if (addLibraryResult == DialogResult.Cancel)
                         return;
                     importIntensities = addLibraryResult == DialogResult.Yes;
@@ -2134,10 +2266,43 @@ namespace pwiz.Skyline
                     }
                     if (!ReferenceEquals(doc.Settings, newSettings))
                         doc = doc.ChangeSettings(newSettings);
+
+                    if (importer.InputType == SrmDocument.DOCUMENT_TYPE.small_molecules)
+                    {
+                        // We create new nodes with automanage turned off, but it might be interesting to user to have that on for isotopes etc
+                        // Try applying auto-pick refinement to see if that changes anything 
+                        var refine = new RefinementSettings { AutoPickChildrenAll = PickLevel.precursors | PickLevel.transitions, AutoPickChildrenOff = false };
+                        var docManaged = refine.Refine(doc);
+                        if (docManaged.MoleculeTransitionCount != 0 && // Automanage would turn everything off, not interesting
+                            !Equals(docManaged.MoleculeTransitionCount, doc.MoleculeTransitionCount))
+                        {
+                            var existingPrecursorCount = docCurrent.MoleculeTransitions?.Where(t => t.IsMs1).Count();
+                            var existingFragmentCount = docCurrent.MoleculeTransitions?.Where(t => !t.IsMs1).Count();
+                            var managedPrecursorCount = docManaged.MoleculeTransitions?.Where(t => t.IsMs1).Count();
+                            var managedFragmentCount = docManaged.MoleculeTransitions?.Where(t => !t.IsMs1).Count();
+                            var docPrecursorCount = doc.MoleculeTransitions?.Where(t => t.IsMs1).Count();
+                            var docFragmentCount = doc.MoleculeTransitions?.Where(t => !t.IsMs1).Count();
+                            var prompt = string.Format(
+                                Resources.SkylineWindow_ImportMassList_Do_you_want_to_use_the_document_settings_to_automanage_these_new_transitions,
+                                managedPrecursorCount - existingPrecursorCount,
+                                managedFragmentCount - existingFragmentCount,
+                                docPrecursorCount - existingPrecursorCount,
+                                docFragmentCount - existingFragmentCount);
+                            var result = MultiButtonMsgDlg.Show(this, prompt, SkylineResources.SkylineWindow_ImportMassList_Enable, SkylineResources.SkylineWindow_ImportMassList_Disable, true);
+                            if (result == DialogResult.Cancel)
+                            {
+                                doc = docCurrent;
+                            }
+                            else if (result != DialogResult.No)
+                            {
+                                doc = docManaged;
+                            }
+                        }
+                    }
                 }
                 catch (Exception x)
                 {
-                    throw new InvalidDataException(string.Format(Resources.SkylineWindow_ImportMassList_Unexpected_document_change_during_operation___0_, x.Message, x));
+                    throw new InvalidDataException(string.Format(SkylineResources.SkylineWindow_ImportMassList_Unexpected_document_change_during_operation___0_, x.Message, x));
                 }
                 return doc;
             }, docPair =>
@@ -2149,16 +2314,16 @@ namespace pwiz.Skyline
                 // CONSIDER(brendanx): It would be better to use an object that subclasses AuditLogOperationSettings
                 var columnsUsed = (colSelections == null || colSelections.Count == 0)
                     ? null
-                    : string.Format(Resources.SkylineWindow_ImportMassList_Columns_identified_as__0_, TextUtil.ToCsvLine(colSelections.Select(s => $@"'{s}'")));
+                    : string.Format(SkylineResources.SkylineWindow_ImportMassList_Columns_identified_as__0_, TextUtil.ToCsvLine(colSelections.Select(s => $@"'{s}'")));
 
                 var extraInfo = new List<string>
                 {
-                    string.Format(Resources.SkylineWindow_ImportMassList__0__transitions_added,
+                    string.Format(SkylineResources.SkylineWindow_ImportMassList__0__transitions_added,
                         docPair.NewDoc.MoleculeTransitionCount - docPair.OldDoc.MoleculeTransitionCount)
                 };
                 if (isAssociateProteins)
                 {
-                    extraInfo.Add(Resources.SkylineWindow_ImportMassList_Associate_Proteins_enabled);
+                    extraInfo.Add(SkylineResources.SkylineWindow_ImportMassList_Associate_Proteins_enabled);
                 }
                 extraInfo.Add(columnsUsed);
 
@@ -2235,9 +2400,9 @@ namespace pwiz.Skyline
                     ? Resources.SkylineWindow_ImportMassList_The_transition_list_appears_to_contain_iRT_values__but_the_document_does_not_have_an_iRT_calculator___Create_a_new_calculator_and_add_these_iRT_values_
                     : Resources.SkylineWindow_ImportMassList_The_transition_list_appears_to_contain_iRT_library_values___Add_these_iRT_values_to_the_iRT_calculator_;
                 var yesButton = calcIrt == null
-                    ? Resources.SkylineWindow_ImportMassList__Create___
-                    : Resources.SkylineWindow_ImportMassList_Add;
-                switch (MultiButtonMsgDlg.Show(this, useIrtMessage, yesButton, Resources.SkylineWindow_ImportMassList__Skip, true))
+                    ? SkylineResources.SkylineWindow_ImportMassList__Create___
+                    : SkylineResources.SkylineWindow_Add;
+                switch (MultiButtonMsgDlg.Show(this, useIrtMessage, yesButton, SkylineResources.SkylineWindow_ImportMassList__Skip, true))
                 {
                     case DialogResult.No:
                         return true;
@@ -2285,7 +2450,7 @@ namespace pwiz.Skyline
                         if (dlg.Regression != null && !(1 - slopeTolerance <= dlg.Regression.Slope && dlg.Regression.Slope <= 1 + slopeTolerance))
                         {
                             using (var scaleDlg = new MultiButtonMsgDlg(
-                                Resources.SkylineWindow_ImportMassListIrts_The_standard_peptides_do_not_appear_to_be_on_the_iRT_C18_scale__Would_you_like_to_recalibrate_them_to_this_scale_,
+                                SkylineResources.SkylineWindow_ImportMassListIrts_The_standard_peptides_do_not_appear_to_be_on_the_iRT_C18_scale__Would_you_like_to_recalibrate_them_to_this_scale_,
                                 MultiButtonMsgDlg.BUTTON_YES, MultiButtonMsgDlg.BUTTON_NO, false))
                             {
                                 if (scaleDlg.ShowDialog(this) == DialogResult.Yes)
@@ -2318,15 +2483,16 @@ namespace pwiz.Skyline
                 var overwriteResult = MultiButtonMsgDlg.Show(this,
                     TextUtil.LineSeparate(messageOverwrite, conflicts.Count == 1
                         ? Resources.SkylineWindow_ImportMassList_Keep_the_existing_iRT_value_or_overwrite_with_the_imported_value_
-                        : Resources.SkylineWindow_ImportMassList_Keep_the_existing_iRT_values_or_overwrite_with_imported_values_),
-                    Resources.SkylineWindow_ImportMassList__Keep, Resources.SkylineWindow_ImportMassList__Overwrite,
+                        : SkylineResources.SkylineWindow_ImportMassList_Keep_the_existing_iRT_values_or_overwrite_with_imported_values_),
+                    SkylineResources.SkylineWindow_ImportMassList__Keep, SkylineResources.SkylineWindow_ImportMassList__Overwrite,
                     true);
                 if (overwriteResult == DialogResult.Cancel)
                     return false;
                 overwriteExisting = overwriteResult == DialogResult.No;
             }
-            using (var longWaitDlg = new LongWaitDlg(this) { Text = Resources.SkylineWindow_ImportMassList_Adding_iRT_values_ })
+            using (var longWaitDlg = new LongWaitDlg(this))
             {
+                longWaitDlg.Text = SkylineResources.SkylineWindow_ImportMassList_Adding_iRT_values_;
                 var newDoc = doc;
                 longWaitDlg.PerformWork(this, 100, progressMonitor => newDoc = newDoc.AddIrtPeptides(dbIrtPeptides, overwriteExisting, progressMonitor));
                 doc = newDoc;
@@ -2348,7 +2514,7 @@ namespace pwiz.Skyline
             // In this case, prompt to save
             if (DocumentFilePath == null &&
                 (MultiButtonMsgDlg.Show(this,
-                     Resources.SkylineWindow_ImportMassList_You_must_save_the_Skyline_document_in_order_to_create_a_spectral_library_from_a_transition_list_,
+                     SkylineResources.SkylineWindow_ImportMassList_You_must_save_the_Skyline_document_in_order_to_create_a_spectral_library_from_a_transition_list_,
                      MultiButtonMsgDlg.BUTTON_OK) == DialogResult.Cancel ||
                  !SaveDocumentAs()))
             {
@@ -2376,7 +2542,7 @@ namespace pwiz.Skyline
                 var replaceLibraryMessage = string.Format(Resources.SkylineWindow_ImportMassList_There_is_an_existing_library_with_the_same_name__0__as_the_document_library_to_be_created___Overwrite_this_library_or_skip_import_of_library_intensities_, AssayLibraryName);
                 // If the document does not have an assay library linked to it, then ask if user wants to delete the one that we have found
                 var replaceLibraryResult = MultiButtonMsgDlg.Show(this, replaceLibraryMessage,
-                    Resources.SkylineWindow_ImportMassList__Overwrite, Resources.SkylineWindow_ImportMassList__Skip, true);
+                    SkylineResources.SkylineWindow_ImportMassList__Overwrite, SkylineResources.SkylineWindow_ImportMassList__Skip, true);
                 if (replaceLibraryResult == DialogResult.Cancel)
                     return false;
                 if (replaceLibraryResult == DialogResult.No)
@@ -2394,8 +2560,9 @@ namespace pwiz.Skyline
             using (var blibDb = BlibDb.CreateBlibDb(AssayLibraryFileName))
             {
                 docLibrarySpec = new BiblioSpecLiteSpec(AssayLibraryName ?? Path.GetFileNameWithoutExtension(AssayLibraryFileName), AssayLibraryFileName);
-                using (var longWaitDlg = new LongWaitDlg(this) { Text = Resources.SkylineWindow_ImportMassListIntensities_Creating_Spectral_Library })
+                using (var longWaitDlg = new LongWaitDlg(this))
                 {
+                    longWaitDlg.Text = SkylineResources.SkylineWindow_ImportMassListIntensities_Creating_Spectral_Library;
                     var docNew = doc;
                     BiblioSpecLiteLibrary docLibraryNew = null;
                     var docLibrarySpec2 = docLibrarySpec;
@@ -2407,7 +2574,7 @@ namespace pwiz.Skyline
                         if (docLibraryNew == null)
                             return;
                         var newSettings = docNew.Settings.ChangePeptideLibraries(libs => libs.ChangeLibrary(docLibraryNew, docLibrarySpec2, indexOldLibrary2));
-                        progressMonitor.UpdateProgress(status = status.ChangeMessage(Resources.SkylineWindow_ImportMassList_Finishing_up_import).ChangePercentComplete(0));
+                        progressMonitor.UpdateProgress(status = status.ChangeMessage(SkylineResources.SkylineWindow_ImportMassList_Finishing_up_import).ChangePercentComplete(0));
                         docNew = docNew.ChangeSettings(newSettings, new SrmSettingsChangeMonitor(progressMonitor, Resources.LibraryManager_LoadBackground_Updating_library_settings_for__0_, status));
                     });
                     doc = docNew;
@@ -2421,18 +2588,15 @@ namespace pwiz.Skyline
 
         private void importDocumentMenuItem_Click(object sender, EventArgs e)
         {
-            using (OpenFileDialog dlg = new OpenFileDialog
+            using (OpenFileDialog dlg = new OpenFileDialog())
             {
-                Title = Resources.SkylineWindow_importDocumentMenuItem_Click_Import_Skyline_Document,
-
-                InitialDirectory = Settings.Default.ActiveDirectory,
-                CheckPathExists = true,
-                Multiselect = true,
-                SupportMultiDottedExtensions = true,
-                DefaultExt = SrmDocument.EXT,
-                Filter = TextUtil.FileDialogFiltersAll(SrmDocument.FILTER_DOC),
-            })
-            {
+                dlg.Title = SkylineResources.SkylineWindow_importDocumentMenuItem_Click_Import_Skyline_Document;
+                dlg.InitialDirectory = Settings.Default.ActiveDirectory;
+                dlg.CheckPathExists = true;
+                dlg.Multiselect = true;
+                dlg.SupportMultiDottedExtensions = true;
+                dlg.DefaultExt = SrmDocument.EXT;
+                dlg.Filter = TextUtil.FileDialogFiltersAll(SrmDocument.FILTER_DOC);
                 if (dlg.ShowDialog(this) == DialogResult.OK)
                 {
                     try
@@ -2441,10 +2605,10 @@ namespace pwiz.Skyline
                     }
                     catch (Exception x)
                     {
-                        var failedImportingFiles = TextUtil.LineSeparate(Resources.SkylineWindow_importDocumentMenuItem_Click_Failed_importing_files, string.Empty,
+                        var failedImportingFiles = TextUtil.LineSeparate(SkylineResources.SkylineWindow_importDocumentMenuItem_Click_Failed_importing_files, string.Empty,
                                                                            TextUtil.LineSeparate(dlg.FileNames), string.Empty, x.Message);
                         string message = dlg.FileNames.Length == 1
-                            ? string.Format(Resources.SkylineWindow_importDocumentMenuItem_Click_Failed_importing_file__0__1__, dlg.FileNames[0], x.Message)
+                            ? string.Format(SkylineResources.SkylineWindow_importDocumentMenuItem_Click_Failed_importing_file__0__1__, dlg.FileNames[0], x.Message)
                             : failedImportingFiles;
                         MessageDlg.ShowWithException(this, message, x);
                     }
@@ -2475,11 +2639,9 @@ namespace pwiz.Skyline
 
             var docCurrent = DocumentUI;
             SrmDocument docNew = null;
-            using (var longWaitDlg = new LongWaitDlg(this)
-                {
-                    Text = Resources.SkylineWindow_ImportFiles_Import_Skyline_document_data,
-                })
+            using (var longWaitDlg = new LongWaitDlg(this))
             {
+                longWaitDlg.Text = SkylineResources.SkylineWindow_ImportFiles_Import_Skyline_document_data;
                 longWaitDlg.PerformWork(this, 1000, longWaitBroker =>
                     docNew = ImportFiles(docCurrent,
                                          longWaitBroker,
@@ -2499,7 +2661,7 @@ namespace pwiz.Skyline
                 }
             }
 
-            ModifyDocument(Resources.SkylineWindow_ImportFiles_Import_Skyline_document_data, doc =>
+            ModifyDocument(SkylineResources.SkylineWindow_ImportFiles_Import_Skyline_document_data, doc =>
             {
                 docNew.ValidateResults();
                 if (!ReferenceEquals(doc, docCurrent))
@@ -2580,14 +2742,12 @@ namespace pwiz.Skyline
             string result = null;
             RunUIAction(() =>
                             {
-                                using (var dlg = new MissingFileDlg
+                                using (var dlg = new MissingFileDlg())
                                 {
-                                    ItemName = libraryName,
-                                    FileHint = fileName,
-                                    ItemType = Resources.SkylineWindow_ConnectLibrarySpecs_Spectral_Library,
-                                    Title = Resources.SkylineWindow_ConnectLibrarySpecs_Find_Spectral_Library
-                                })
-                                {
+                                    dlg.ItemName = libraryName;
+                                    dlg.FileHint = fileName;
+                                    dlg.ItemType = SkylineResources.SkylineWindow_ConnectLibrarySpecs_Spectral_Library;
+                                    dlg.Title = SkylineResources.SkylineWindow_ConnectLibrarySpecs_Find_Spectral_Library;
                                     if (dlg.ShowDialog(this) == DialogResult.OK)
                                         result = dlg.FilePath;
                                 }
@@ -2609,10 +2769,10 @@ namespace pwiz.Skyline
         {
             if (DocumentUI.MoleculeTransitionCount == 0)
             {
-                MessageDlg.Show(this, Resources.SkylineWindow_ImportResults_You_must_add_at_least_one_target_transition_before_importing_results_);
+                MessageDlg.Show(this, SkylineResources.SkylineWindow_ImportResults_You_must_add_at_least_one_target_transition_before_importing_results_);
                 return;
             }
-            if (!CheckDocumentExists(Resources.SkylineWindow_ImportResults_You_must_save_this_document_before_importing_results))
+            if (!CheckDocumentExists(SkylineResources.SkylineWindow_ImportResults_You_must_save_this_document_before_importing_results))
             {
                 return;
             }
@@ -2630,11 +2790,11 @@ namespace pwiz.Skyline
                 var numDocument = numStandards - missingIrtPeptides.Length;
                 var numRequired = RCalcIrt.MinStandardCount(numStandards);
                 var message = TextUtil.LineSeparate(
-                    Resources.SkylineWindow_ImportResults_The_following_iRT_standard_peptides_are_missing_from_the_document_,
+                    SkylineResources.SkylineWindow_ImportResults_The_following_iRT_standard_peptides_are_missing_from_the_document_,
                     string.Empty,
                     TextUtil.LineSeparate(missingIrtPeptides.Select(t=>t.ToString())),
                     string.Empty,
-                    string.Format(Resources.SkylineWindow_ImportResults_With__0__standard_peptides___1__are_required_with_a_correlation_of__2__,
+                    string.Format(SkylineResources.SkylineWindow_ImportResults_With__0__standard_peptides___1__are_required_with_a_correlation_of__2__,
                                   numStandards, numRequired, RCalcIrt.MIN_IRT_TO_TIME_CORRELATION));
                 if (numDocument < numRequired)
                 {
@@ -2658,7 +2818,7 @@ namespace pwiz.Skyline
                             ? string.Format(Resources.SkylineWindow_ImportResults_A_maximum_of__0__may_be_missing_and_or_outliers_for_a_successful_import_, numExceptions)
                             : Resources.SkylineWindow_ImportResults_None_may_be_missing_or_outliers_for_a_successful_import_,
                         string.Empty,
-                        Resources.SkylineWindow_ImportResults_Do_you_want_to_continue_);
+                        SkylineResources.SkylineWindow_ImportResults_Do_you_want_to_continue_);
                     using (var dlg = new MultiButtonMsgDlg(message, MultiButtonMsgDlg.BUTTON_YES, MultiButtonMsgDlg.BUTTON_NO, false))
                     {
                         if (dlg.ShowDialog(this) == DialogResult.No)
@@ -2677,7 +2837,7 @@ namespace pwiz.Skyline
                 {
                     var sb = new StringBuilder();
                     sb.AppendLine(decoyGroup.PeptideCount == 1
-                        ? Resources.SkylineWindow_ImportResults_The_document_contains_a_decoy_that_does_not_match_the_targets_
+                        ? SkylineResources.SkylineWindow_ImportResults_The_document_contains_a_decoy_that_does_not_match_the_targets_
                         : string.Format(Resources.SkylineWindow_ImportResults_The_document_contains_decoys_that_do_not_match_the_targets__Out_of__0__decoys_, decoyGroup.PeptideCount));
 
                     sb.AppendLine(string.Empty);
@@ -2690,9 +2850,9 @@ namespace pwiz.Skyline
                     else if (numWrongTransitionCount > 0)
                         sb.AppendLine(string.Format(Resources.SkylineWindow_ImportResults__0__decoys_do_not_have_the_same_number_of_transitions_as_their_matching_targets, numWrongTransitionCount));
                     sb.AppendLine(string.Empty);
-                    sb.AppendLine(Resources.SkylineWindow_ImportResults_Do_you_want_to_generate_new_decoys_or_continue_with_the_current_decoys_);
+                    sb.AppendLine(SkylineResources.SkylineWindow_ImportResults_Do_you_want_to_generate_new_decoys_or_continue_with_the_current_decoys_);
                     using (var dlg = new MultiButtonMsgDlg(sb.ToString(),
-                        Resources.SkylineWindow_ImportResults_Generate, Resources.SkylineWindow_ImportResults_Continue, true))
+                        SkylineResources.SkylineWindow_ImportResults_Generate, SkylineResources.SkylineWindow_ImportResults_Continue, true))
                     {
                         switch (dlg.ShowDialog(this))
                         {
@@ -2702,7 +2862,7 @@ namespace pwiz.Skyline
                                 break;
                             case DialogResult.No:
                                 using (var dlg2 = new MultiButtonMsgDlg(
-                                    Resources.SkylineWindow_ImportResults_Are_you_sure__Peak_scoring_models_trained_with_non_matching_targets_and_decoys_may_produce_incorrect_results_,
+                                    SkylineResources.SkylineWindow_ImportResults_Are_you_sure__Peak_scoring_models_trained_with_non_matching_targets_and_decoys_may_produce_incorrect_results_,
                                     MultiButtonMsgDlg.BUTTON_YES, MultiButtonMsgDlg.BUTTON_NO, false))
                                 {
                                     if (dlg2.ShowDialog(dlg) == DialogResult.No)
@@ -2718,7 +2878,7 @@ namespace pwiz.Skyline
             else if (ShouldPromptForDecoys(DocumentUI))
             {
                 using (var dlg = new MultiButtonMsgDlg(
-                    Resources.SkylineWindow_ImportResults_This_document_does_not_contain_decoy_peptides__Would_you_like_to_add_decoy_peptides_before_extracting_chromatograms__After_chromatogram_extraction_is_finished__Skyline_will_use_the_decoy_and_target_chromatograms_to_train_a_peak_scoring_model_in_order_to_choose_better_peaks_,
+                    SkylineResources.SkylineWindow_ImportResults_This_document_does_not_contain_decoy_peptides__Would_you_like_to_add_decoy_peptides_before_extracting_chromatograms__After_chromatogram_extraction_is_finished__Skyline_will_use_the_decoy_and_target_chromatograms_to_train_a_peak_scoring_model_in_order_to_choose_better_peaks_,
                     MultiButtonMsgDlg.BUTTON_YES, MultiButtonMsgDlg.BUTTON_NO, true))
                 {
                     switch (dlg.ShowDialog(this))
@@ -2747,9 +2907,9 @@ namespace pwiz.Skyline
                         return;
                     }
                     var namedResults = dlg.NamedPathSets.ToList();
-                    string description = Resources.SkylineWindow_ImportResults_Import_results;
+                    string description = SkylineResources.SkylineWindow_ImportResults_Import_results;
                     if (namedResults.Count == 1)
-                        description = string.Format(Resources.SkylineWindow_ImportResults_Import__0__, namedResults[0].Key); 
+                        description = string.Format(SkylineResources.SkylineWindow_ImportResults_Import__0__, namedResults[0].Key); 
 
                     // Check with user for Waters lockmass settings if any, results written to Settings.Default
                     // If lockmass correction is desired, MsDataFileUri values in namedResults are modified by this call.
@@ -2825,7 +2985,7 @@ namespace pwiz.Skyline
             {
                 if (!canChooseReplicatesForCalibration)
                 {
-                    if (MultiButtonMsgDlg.Show(this, Resources.SkylineWindow_CheckRetentionTimeFilter_NoReplicatesAvailableForPrediction,
+                    if (MultiButtonMsgDlg.Show(this, SkylineResources.SkylineWindow_CheckRetentionTimeFilter_NoReplicatesAvailableForPrediction,
                         MessageBoxButtons.OKCancel) == DialogResult.Cancel)
                     {
                         return false;
@@ -2962,7 +3122,7 @@ namespace pwiz.Skyline
             var documentUI = DocumentUI;
             if (!documentUI.Settings.HasResults && !documentUI.Settings.HasDocumentLibrary)
             {
-                MessageDlg.Show(this, Resources.SkylineWindow_ManageResults_The_document_must_contain_mass_spec_data_to_manage_results_);
+                MessageDlg.Show(this, SkylineResources.SkylineWindow_ManageResults_The_document_must_contain_mass_spec_data_to_manage_results_);
                 return;                
             }
 
@@ -2979,11 +3139,11 @@ namespace pwiz.Skyline
                     }
                     catch (Exception exception)
                     {
-                        MessageDlg.ShowWithException(this, Resources.SkylineWindow_ManageResults_A_failure_occurred_attempting_to_reimport_results, exception);
+                        MessageDlg.ShowWithException(this, SkylineResources.SkylineWindow_ManageResults_A_failure_occurred_attempting_to_reimport_results, exception);
                     }
 
                     // And update the document to reflect real changes to the results structure
-                    ModifyDocument(Resources.SkylineWindow_ManageResults_Manage_results, doc =>
+                    ModifyDocument(SkylineResources.SkylineWindow_ManageResults_Manage_results, doc =>
                     {
                         if (dlg.IsRemoveAllLibraryRuns)
                         {
@@ -3016,7 +3176,7 @@ namespace pwiz.Skyline
                                 }
                                 catch (Exception x)
                                 {
-                                    throw new IOException(TextUtil.LineSeparate(Resources.SkylineWindow_ManageResults_Failed_to_remove_library_runs_from_the_document_library_, x.Message));
+                                    throw new IOException(TextUtil.LineSeparate(SkylineResources.SkylineWindow_ManageResults_Failed_to_remove_library_runs_from_the_document_library_, x.Message));
                                 }
                             }
 
@@ -3029,7 +3189,7 @@ namespace pwiz.Skyline
                                 }
                                 catch (Exception x)
                                 {
-                                    throw new IOException(TextUtil.LineSeparate(Resources.SkylineWindow_ManageResults_Failed_to_remove_library_runs_from_the_MIDAS_library_, x.Message));
+                                    throw new IOException(TextUtil.LineSeparate(SkylineResources.SkylineWindow_ManageResults_Failed_to_remove_library_runs_from_the_MIDAS_library_, x.Message));
                                 }
                             }
 
@@ -3110,7 +3270,7 @@ namespace pwiz.Skyline
             new LongOperationRunner
                 {
                     ParentControl = this,
-                    JobTitle = Resources.SkylineWindow_ReimportChromatograms_Reimporting_chromatograms
+                    JobTitle = SkylineResources.SkylineWindow_ReimportChromatograms_Reimporting_chromatograms
                 }
                 .Run(longWaitBroker =>
                 {
@@ -3151,15 +3311,20 @@ namespace pwiz.Skyline
             ShowImportPeptideSearchDlg();
         }
 
+        private void encyclopeDiaSearchMenuItem_Click(object sender, EventArgs e)
+        {
+            ShowEncyclopeDiaSearchDlg();
+        }
+
         public void ShowImportPeptideSearchDlg(ImportPeptideSearchDlg.Workflow? workflowType)
         {
-            if (!CheckDocumentExists(Resources.SkylineWindow_ShowImportPeptideSearchDlg_You_must_save_this_document_before_importing_a_peptide_search_))
+            if (!CheckDocumentExists(SkylineResources.SkylineWindow_ShowImportPeptideSearchDlg_You_must_save_this_document_before_importing_a_peptide_search_))
             {
                 return;
             }
             else if (!Document.IsLoaded)
             {
-                MessageDlg.Show(this, Resources.SkylineWindow_ShowImportPeptideSearchDlg_The_document_must_be_fully_loaded_before_importing_a_peptide_search_);
+                MessageDlg.Show(this, SkylineResources.SkylineWindow_ShowImportPeptideSearchDlg_The_document_must_be_fully_loaded_before_importing_a_peptide_search_);
                 return;
             }
 
@@ -3177,6 +3342,28 @@ namespace pwiz.Skyline
         public void ShowImportPeptideSearchDlg()
         {
             ShowImportPeptideSearchDlg(null);
+        }
+
+        public void ShowEncyclopeDiaSearchDlg()
+        {
+
+            if (!CheckDocumentExists(SkylineResources.SkylineWindow_ShowImportPeptideSearchDlg_You_must_save_this_document_before_importing_a_peptide_search_))
+            {
+                return;
+            }
+            else if (!Document.IsLoaded)
+            {
+                MessageDlg.Show(this, SkylineResources.SkylineWindow_ShowImportPeptideSearchDlg_The_document_must_be_fully_loaded_before_importing_a_peptide_search_);
+                return;
+            }
+
+            using (var dlg = new EncyclopeDiaSearchDlg(this, _libraryManager))
+            {
+                if (dlg.ShowDialog(this) == DialogResult.OK)
+                {
+                    // Nothing to do; the dialog does all the work.
+                }
+            }
         }
 
         private bool CheckDocumentExists(String errorMsg)
@@ -3205,14 +3392,14 @@ namespace pwiz.Skyline
             var document = DocumentUI;
             if (!document.IsLoaded)
             {
-                MessageDlg.Show(this, Resources.SkylineWindow_ShowPublishDlg_The_document_must_be_fully_loaded_before_it_can_be_uploaded_);
+                MessageDlg.Show(this, SkylineResources.SkylineWindow_ShowPublishDlg_The_document_must_be_fully_loaded_before_it_can_be_uploaded_);
                 return;
             }
 
             string fileName = DocumentFilePath;
             if (string.IsNullOrEmpty(fileName))
             {
-                if (MultiButtonMsgDlg.Show(this, Resources.SkylineWindow_ShowPublishDlg_The_document_must_be_saved_before_it_can_be_uploaded_,
+                if (MultiButtonMsgDlg.Show(this, SkylineResources.SkylineWindow_ShowPublishDlg_The_document_must_be_saved_before_it_can_be_uploaded_,
                     MessageBoxButtons.OKCancel) == DialogResult.Cancel)
                     return;
 
@@ -3237,10 +3424,10 @@ namespace pwiz.Skyline
                 DialogResult buttonPress = MultiButtonMsgDlg.Show(
                     this,
                     TextUtil.LineSeparate(
-                        Resources.SkylineWindow_ShowPublishDlg_There_are_no_Panorama_servers_to_upload_to,
+                        SkylineResources.SkylineWindow_ShowPublishDlg_There_are_no_Panorama_servers_to_upload_to,
                         Resources.SkylineWindow_ShowPublishDlg_Press_Register_to_register_for_a_project_on_PanoramaWeb_,
-                        Resources.SkylineWindow_ShowPublishDlg_Press_Continue_to_use_the_server_of_your_choice_),
-                    Resources.SkylineWindow_ShowPublishDlg_Register, Resources.SkylineWindow_ShowPublishDlg_Continue,
+                        SkylineResources.SkylineWindow_ShowPublishDlg_Press_Continue_to_use_the_server_of_your_choice_),
+                    SkylineResources.SkylineWindow_ShowPublishDlg_Register, SkylineResources.SkylineWindow_ShowPublishDlg_Continue,
                     true);
                 if (buttonPress == DialogResult.Cancel)
                     return;
@@ -3260,10 +3447,65 @@ namespace pwiz.Skyline
 
                 servers.Add(newServer);
             }
+            if (!servers.Any(server => server.HasUserAccount())) // None of the servers have a user account
+            {
+                DialogResult buttonPress = MultiButtonMsgDlg.Show(
+                    this,
+                    TextUtil.LineSeparate(
+                        Resources.SkylineWindow_ShowPublishDlg_There_are_no_Panorama_servers_with_a_user_account__To_upload_documents_to_a_server_a_user_account_is_required_,
+                        string.Empty,
+                        SkylineResources.SkylineWindow_ShowPublishDlg_Press_Edit_existing_to_add_user_account_information_for_an_existing_server_,
+                        SkylineResources.SkylineWindow_OpenFromPanorama_Press__Add__to_add_a_new_server_),
+                    SkylineResources.SkylineWindow_ShowPublishDlg_Edit_existing, SkylineResources.SkylineWindow_Add,
+                    true);
+                if (buttonPress == DialogResult.Cancel)
+                    return;
+
+                if (buttonPress == DialogResult.Yes)
+                {
+                    // User intends to edit an existing server
+                    if (servers.Count == 1)
+                    {
+                        var anonymousServer = servers[0];
+                        var editedServer = servers.AddCredentials(this, anonymousServer, servers);
+                        if (editedServer == null)
+                            return;
+
+                        if (!editedServer.HasUserAccount())
+                        {
+                            var alertDlg = new AlertDlg(SkylineResources.SkylineWindow_ShowPublishDlg_Document_cannot_be_uploaded_to_a_Panorama_server_without_a_user_account_, MessageBoxButtons.OK);
+                            alertDlg.ShowAndDispose(this);
+                            return;
+                        }
+                        servers[0] = editedServer; // Replace with edited server
+                    }
+                    else
+                    {
+                        ShowToolOptionsUI(ToolOptionsUI.TABS.Panorama);
+                        return;
+                    }
+                }
+                else
+                {
+                    // User wants to add a new server
+                    var newServer = servers.AddServerWithAccount(this, servers);
+                    if (newServer == null)
+                        return;
+
+                    if (!newServer.HasUserAccount())
+                    {
+                        var alertDlg = new AlertDlg(SkylineResources.SkylineWindow_ShowPublishDlg_Document_cannot_be_uploaded_to_a_Panorama_server_without_a_user_account_, MessageBoxButtons.OK);
+                        alertDlg.ShowAndDispose(this);
+                        return;
+                    }
+                    servers.Add(newServer);
+                }
+            }
+
             var panoramaSavedUri = document.Settings.DataSettings.PanoramaPublishUri;
             var showPublishDocDlg = true;
 
-            // if the document has a saved uri prompt user for acton, check servers, and permissions, then publish
+            // if the document has a saved uri prompt user for action, check servers, and permissions, then publish
             // if something fails in the attempt to publish to the saved uri will bring up the usual PublishDocumentDlg
             if (panoramaSavedUri != null && !string.IsNullOrEmpty(panoramaSavedUri.ToString()))
             {
@@ -3288,8 +3530,8 @@ namespace pwiz.Skyline
         private bool PublishToSavedUri(IPanoramaPublishClient publishClient, Uri panoramaSavedUri, string fileName,
             ServerList servers)
         {
-            var message = TextUtil.LineSeparate(Resources.SkylineWindow_PublishToSavedUri_This_file_was_last_uploaded_to___0_,
-                Resources.SkylineWindow_PublishToSavedUri_Upload_to_the_same_location_);
+            var message = TextUtil.LineSeparate(SkylineResources.SkylineWindow_PublishToSavedUri_This_file_was_last_uploaded_to___0_,
+                SkylineResources.SkylineWindow_PublishToSavedUri_Upload_to_the_same_location_);
             var result = MultiButtonMsgDlg.Show(this, string.Format(message, panoramaSavedUri),
                 MultiButtonMsgDlg.BUTTON_YES, MultiButtonMsgDlg.BUTTON_NO, true);
             switch (result)
@@ -3351,10 +3593,10 @@ namespace pwiz.Skyline
             }
 
             // must escape uri string as panorama api does not and strings are escaped in schema
-            if (folders == null || !folderPath.Contains(Uri.EscapeUriString(folders[@"path"].ToString()))) 
+            if (folders?[@"path"] == null || !folderPath.Contains(Uri.EscapeUriString(folders[@"path"].ToString())))
                 return false;
 
-            if (!PanoramaUtil.CheckFolderPermissions(folders) || !PanoramaUtil.CheckFolderType(folders))
+            if (!(PanoramaUtil.CheckInsertPermissions(folders) && PanoramaUtil.HasTargetedMsModule(folders)))
                 return false;
 
             var fileInfo = new FolderInformation(server, true);
@@ -3417,7 +3659,7 @@ namespace pwiz.Skyline
                     }
                     if (newDocument != null)
                     {
-                        ModifyDocument(Resources.SkylineWindow_ImportAnnotations_Import_Annotations, doc =>
+                        ModifyDocument(SkylineResources.SkylineWindow_ImportAnnotations_Import_Annotations, doc =>
                         {
                             if (!ReferenceEquals(doc, originalDocument))
                             {
@@ -3459,7 +3701,7 @@ namespace pwiz.Skyline
                 }
                 if (newDocument != null)
                 {
-                    ModifyDocument(Resources.SkylineWindow_ImportAnnotations_Import_Annotations, doc =>
+                    ModifyDocument(SkylineResources.SkylineWindow_ImportAnnotations_Import_Annotations, doc =>
                     {
                         if (!ReferenceEquals(doc, originalDocument))
                         {
@@ -3475,13 +3717,11 @@ namespace pwiz.Skyline
 
         private void importAnnotationsMenuItem_Click(object sender, EventArgs e)
         {
-            using (var dlg = new OpenFileDialog
+            using (var dlg = new OpenFileDialog())
             {
-                DefaultExt = TextUtil.EXT_CSV,
-                Filter = TextUtil.FileDialogFiltersAll(TextUtil.FILTER_CSV),
-                InitialDirectory = Settings.Default.ExportDirectory,
-            })
-            {
+                dlg.DefaultExt = TextUtil.EXT_CSV;
+                dlg.Filter = TextUtil.FileDialogFiltersAll(TextUtil.FILTER_CSV);
+                dlg.InitialDirectory = Settings.Default.ExportDirectory;
                 if (dlg.ShowDialog(this) != DialogResult.OK)
                 {
                     return;

@@ -112,8 +112,8 @@ namespace pwiz.Skyline.Model
 
         protected virtual AAModMatch? GetMatch(AAModKey key)
         {
-            return Matches.ContainsKey(key)
-                ? Matches[key]
+            return Matches.TryGetValue(key, out var match)
+                ? match
                 : (AAModMatch?)null;
         }
 
@@ -438,7 +438,7 @@ namespace pwiz.Skyline.Model
             get
             {
 
-                return TextUtil.LineSeparate(Resources.AbstractModificationMatcher_UninterpretedMods_The_following_modifications_could_not_be_interpreted,
+                return TextUtil.LineSeparate(ModelResources.AbstractModificationMatcher_UninterpretedMods_The_following_modifications_could_not_be_interpreted,
                                      string.Empty,
                                      TextUtil.SpaceSeparate(UnmatchedSequences.OrderBy(s => s)));
             }
@@ -1061,8 +1061,7 @@ namespace pwiz.Skyline.Model
 
         public PeptideDocNode CreateDocNodeFromMatches(PeptideDocNode nodePep, IEnumerable<AAModInfo> infos)
         {
-            bool hasHeavy;
-            return CreateDocNodeFromMatches(nodePep, infos, true, out hasHeavy);
+            return CreateDocNodeFromMatches(nodePep, infos, true, out _);
         }
 
         public PeptideDocNode CreateDocNodeFromMatches(PeptideDocNode nodePep, IEnumerable<AAModInfo> infos, bool stringPaste, out bool hasHeavy)
@@ -1087,9 +1086,9 @@ namespace pwiz.Skyline.Model
                 var heavyMod = modMatch.HeavyMod;
                 if (heavyMod != null)
                 {
-                    var type = UserDefinedTypedMods.ContainsKey(modMatch.HeavyMod)
-                                   ? UserDefinedTypedMods[modMatch.HeavyMod]
-                                   : DocDefHeavyLabelType;
+                    var type = UserDefinedTypedMods.TryGetValue(modMatch.HeavyMod, out var mod)
+                        ? mod
+                        : DocDefHeavyLabelType;
                     List<ExplicitMod> listHeavyMods;
                     if (!dictHeavyMods.TryGetValue(type, out listHeavyMods))
                     {

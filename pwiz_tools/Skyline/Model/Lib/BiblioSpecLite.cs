@@ -52,7 +52,7 @@ namespace pwiz.Skyline.Model.Lib
 
         public static string FILTER_BLIB
         {
-            get { return TextUtil.FileDialogFilter(Resources.BiblioSpecLiteSpec_FILTER_BLIB_BiblioSpec_Library, EXT); }
+            get { return TextUtil.FileDialogFilter(LibResources.BiblioSpecLiteSpec_FILTER_BLIB_BiblioSpec_Library, EXT); }
         }
 
         public const string EXT_REDUNDANT = ".redundant.blib";
@@ -98,7 +98,7 @@ namespace pwiz.Skyline.Model.Lib
 
         public override string GetLibraryTypeName()
         {
-            return Resources.BiblioSpecLiteSpec_FILTER_BLIB_BiblioSpec_Library;
+            return LibResources.BiblioSpecLiteSpec_FILTER_BLIB_BiblioSpec_Library;
         }
 
         #region Implementation of IXmlSerializable
@@ -203,7 +203,7 @@ namespace pwiz.Skyline.Model.Lib
 
         public override string SpecFilter
         {
-            get { return TextUtil.FileDialogFilterAll(Resources.BiblioSpecLiteLibrary_SpecFilter_BiblioSpec_Library, BiblioSpecLiteSpec.EXT); }
+            get { return TextUtil.FileDialogFilterAll(LibResources.BiblioSpecLiteLibrary_SpecFilter_BiblioSpec_Library, BiblioSpecLiteSpec.EXT); }
         }
 
         public override IList<RetentionTimeSource> ListRetentionTimeSources()
@@ -266,7 +266,7 @@ namespace pwiz.Skyline.Model.Lib
             get
             {
                 var dataFiles = GetDataFileDetails();
-                var uniquePeptideCount = Keys.Select(entry => entry.Target).Distinct().Count();
+                var uniquePeptideCount = Keys.Select(entry => entry.Target.Sequence).Distinct().Count();
 
                 LibraryDetails details = new LibraryDetails
                                              {
@@ -632,9 +632,9 @@ namespace pwiz.Skyline.Model.Lib
         // ReSharper restore InconsistentNaming
         // ReSharper restore UnusedMember.Local
 
-        private byte[] CreateCache(ILoadMonitor loader, IProgressStatus status, int percent)
+        private MemoryStream CreateCache(ILoadMonitor loader, IProgressStatus status, int percent)
         {
-            byte[] cacheBytes = null;
+            MemoryStream outStream;
             var sm = loader.StreamManager;
             EnsureConnections(sm);
             using (SQLiteCommand select = new SQLiteCommand(_sqliteConnection.Connection))
@@ -648,7 +648,7 @@ namespace pwiz.Skyline.Model.Lib
                 using (SQLiteDataReader reader = select.ExecuteReader())
                 {
                     if (!reader.Read())
-                        throw new IOException(string.Format(Resources.BiblioSpecLiteLibrary_CreateCache_Failed_reading_library_header_for__0__, FilePath));
+                        throw new IOException(string.Format(LibResources.BiblioSpecLiteLibrary_CreateCache_Failed_reading_library_header_for__0__, FilePath));
 
                     rows = reader.GetInt32(LibInfo.numSpecs);
 
@@ -670,7 +670,7 @@ namespace pwiz.Skyline.Model.Lib
                     using (SQLiteDataReader reader = select.ExecuteReader())
                     {
                         if (!reader.Read())
-                            throw new InvalidDataException(string.Format(Resources.BiblioSpecLiteLibrary_CreateCache_Unable_to_get_a_valid_count_of_spectra_in_the_library__0__, FilePath));
+                            throw new InvalidDataException(string.Format(LibResources.BiblioSpecLiteLibrary_CreateCache_Unable_to_get_a_valid_count_of_spectra_in_the_library__0__, FilePath));
                         rows = reader.GetInt32(0);
                     }
                 }
@@ -797,7 +797,7 @@ namespace pwiz.Skyline.Model.Lib
                                 TypedMass monoMass = precursorAdduct.MassFromMz(precursorMz, MassType.Monoisotopic);
                                 TypedMass avgMass = precursorAdduct.MassFromMz(precursorMz, MassType.Average);
                                 smallMoleculeLibraryAttributes = SmallMoleculeLibraryAttributes.Create(moleculeName,
-                                    null, monoMass, avgMass, inChiKey, otherKeys);
+                                    ParsedMolecule.Create(monoMass, avgMass), inChiKey, otherKeys);
                             }
                             else
                             {
@@ -881,7 +881,7 @@ namespace pwiz.Skyline.Model.Lib
 
                 }
 
-                var outStream = new MemoryStream();
+                outStream = new MemoryStream();
                 foreach (var info in libraryEntries)
                 {
                     // Write the spectrum header - order must match enum SpectrumCacheHeader
@@ -965,13 +965,13 @@ namespace pwiz.Skyline.Model.Lib
                 outStream.Write(BitConverter.GetBytes(libraryEntries.Count), 0, sizeof (int));
                 outStream.Write(BitConverter.GetBytes(sourcePosition), 0, sizeof (long));
                 outStream.Write(BitConverter.GetBytes(scoreTypesPosition), 0, sizeof(long));
-                cacheBytes = outStream.ToArray();
                 try
                 {
                     using (FileSaver fs = new FileSaver(CachePath, sm))
                     using (Stream cacheFileStream = sm.CreateStream(fs.SafeName, FileMode.Create, true))
                     {
-                        cacheFileStream.Write(cacheBytes, 0, cacheBytes.Length);
+                        outStream.Seek(0, SeekOrigin.Begin);
+                        outStream.CopyTo(cacheFileStream);
                         sm.Finish(cacheFileStream);
                         fs.Commit();
                         sm.SetCache(FilePath, CachePath);
@@ -984,7 +984,7 @@ namespace pwiz.Skyline.Model.Lib
             }
 
             loader.UpdateProgress(status.Complete());
-            return cacheBytes;
+            return outStream;
         }
 
         private Dictionary<int, string> ProteinsBySpectraID()
@@ -1050,12 +1050,12 @@ namespace pwiz.Skyline.Model.Lib
             {
                 var valueCache = new ValueCache();
                 int loadPercent = 100;
-                byte[] cacheBytes = null;
+                MemoryStream cacheBytes = null;
                 if (!cached)
                 {
                     // Building the cache will take 95% of the load time.
                     loadPercent = 5;
-                    status = status.ChangeMessage(string.Format(Resources.BiblioSpecLiteLibrary_Load_Building_binary_cache_for__0__library,
+                    status = status.ChangeMessage(string.Format(LibResources.BiblioSpecLiteLibrary_Load_Building_binary_cache_for__0__library,
                                                            Path.GetFileName(FilePath)));
                     status = status.ChangePercentComplete(0);
                     loader.UpdateProgress(status);
@@ -1068,7 +1068,7 @@ namespace pwiz.Skyline.Model.Lib
 
                 }
 
-                status = status.ChangeMessage(string.Format(Resources.BiblioSpecLiteLibraryLoadLoading__0__library,
+                status = status.ChangeMessage(string.Format(LibResources.BiblioSpecLiteLibraryLoadLoading__0__library,
                                                             Path.GetFileName(FilePath)));
                 loader.UpdateProgress(status);
 
@@ -1076,7 +1076,8 @@ namespace pwiz.Skyline.Model.Lib
                 Stream stream;
                 if (cacheBytes != null)
                 {
-                    stream = new MemoryStream(cacheBytes, false);
+                    cacheBytes.Seek(0, SeekOrigin.Begin);
+                    stream = cacheBytes;
                 }
                 else
                 {
@@ -1305,6 +1306,10 @@ namespace pwiz.Skyline.Model.Lib
 
         protected override SpectrumPeaksInfo.MI[] ReadSpectrum(BiblioLiteSpectrumInfo info)
         {
+            if (info.NumPeaks == 0)
+            {
+                return Array.Empty<SpectrumPeaksInfo.MI>();
+            }
             return _sqliteConnection.ExecuteWithConnection(connection =>
             {
                 using (SQLiteCommand select = new SQLiteCommand(_sqliteConnection.Connection))
@@ -1391,7 +1396,7 @@ namespace pwiz.Skyline.Model.Lib
         private SpectrumPeaksInfo.MI[] ReadRedundantSpectrum(int spectrumId)
         {
             if (_sqliteConnectionRedundant == null)
-                throw new IOException(string.Format(Resources.BiblioSpecLiteLibrary_ReadRedundantSpectrum_The_redundant_library__0__does_not_exist, FilePathRedundant));
+                throw new IOException(string.Format(LibResources.BiblioSpecLiteLibrary_ReadRedundantSpectrum_The_redundant_library__0__does_not_exist, FilePathRedundant));
 
             try
             {
@@ -1425,6 +1430,10 @@ namespace pwiz.Skyline.Model.Lib
 
         private SpectrumPeaksInfo.MI[] ReadPeaks(SQLiteDataReader reader, int numPeaks, int refSpectraId, PooledSqliteConnection connection)
         {
+            if (numPeaks == 0)
+            {
+                return Array.Empty<SpectrumPeaksInfo.MI>();
+            }
             const int sizeMz = sizeof(double);
             const int sizeInten = sizeof(float);
 
@@ -1601,7 +1610,7 @@ namespace pwiz.Skyline.Model.Lib
 
             new LongOperationRunner
             {
-                JobTitle = Resources.BiblioSpecLiteLibrary_CalculateFileRetentionTimeAlignments_Aligning_library_retention_times
+                JobTitle = LibResources.BiblioSpecLiteLibrary_CalculateFileRetentionTimeAlignments_Aligning_library_retention_times
             }.Run(longWaitBroker =>
             {
                 var targetTimes = libraryRetentionTimes.Find(dataFileName);
@@ -1935,7 +1944,7 @@ namespace pwiz.Skyline.Model.Lib
                     {
                         string filePath = reader.GetString(iFilePath);
                         int redundantId = iRedundantId < 0 ? -1 : reader.GetInt32(iRedundantId);
-                        double retentionTime = reader.GetDouble(iRetentionTime);
+                        var retentionTime = UtilDB.GetNullableDouble(reader, iRetentionTime);
                         bool isBest = !hasRetentionTimesTable || reader.GetInt16(iBestSpectrum) != 0;
 
                         IonMobilityAndCCS ionMobilityInfo = IonMobilityAndCCS.EMPTY;
@@ -2020,7 +2029,7 @@ namespace pwiz.Skyline.Model.Lib
                 using (SQLiteDataReader reader = select.ExecuteReader())
                 {
                         if (!reader.Read())
-                        throw new InvalidDataException(string.Format(Resources.BiblioSpecLiteLibrary_RetentionTimesPsmCount_Unable_to_get_a_valid_count_of_all_spectra_in_the_library__0__, FilePath));
+                        throw new InvalidDataException(string.Format(LibResources.BiblioSpecLiteLibrary_RetentionTimesPsmCount_Unable_to_get_a_valid_count_of_all_spectra_in_the_library__0__, FilePath));
                     int rows = reader.GetInt32(0);
                     return rows;
                 }
@@ -2207,9 +2216,9 @@ namespace pwiz.Skyline.Model.Lib
             using (var saver = new FileSaver(FilePath))
             {
                 var blibFilter = new BlibFilter();
-                IProgressStatus status = new ProgressStatus(Resources.BiblioSpecLiteLibrary_DeleteDataFiles_Removing_library_runs_from_document_library_);
+                IProgressStatus status = new ProgressStatus(LibResources.BiblioSpecLiteLibrary_DeleteDataFiles_Removing_library_runs_from_document_library_);
                 if (!blibFilter.Filter(FilePathRedundant, saver.SafeName, monitor, ref status))
-                    throw new IOException(string.Format(Resources.BiblioSpecLiteLibrary_DeleteDataFiles_Failed_attempting_to_filter_redundant_library__0__to__1_, FilePathRedundant, FilePath));
+                    throw new IOException(string.Format(LibResources.BiblioSpecLiteLibrary_DeleteDataFiles_Failed_attempting_to_filter_redundant_library__0__to__1_, FilePathRedundant, FilePath));
 
                 _sqliteConnectionRedundant.CloseStream();
                 _sqliteConnection.CloseStream();
@@ -2745,9 +2754,8 @@ namespace pwiz.Skyline.Model.Lib
         }
     }
 
-    public struct BiblioLiteSpectrumInfo : ICachedSpectrumInfo
+    public class BiblioLiteSpectrumInfo : ICachedSpectrumInfo
     {
-
         public BiblioLiteSpectrumInfo(LibKey key, int copies, int numPeaks, int id, string protein,
             IndexedRetentionTimes retentionTimesByFileId = default(IndexedRetentionTimes), 
             IndexedIonMobilities ionMobilitiesByFileId = default(IndexedIonMobilities),
@@ -2768,7 +2776,6 @@ namespace pwiz.Skyline.Model.Lib
         }
 
         public LibKey Key { get; }
-        public SmallMoleculeLibraryAttributes SmallMoleculeLibraryAttributes { get { return Key.SmallMoleculeLibraryAttributes; } }
         public int Copies { get; }
         public int NumPeaks { get; }
         public int Id { get; }

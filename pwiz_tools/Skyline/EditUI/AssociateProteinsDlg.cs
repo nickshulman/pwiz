@@ -140,9 +140,16 @@ namespace pwiz.Skyline.EditUI
                 gbParsimonyOptions.Location = FormUtil.Offset(gbParsimonyOptions.Location, 0, -proteinSourcePanel.Height);
                 MinimumSize = new Size(MinimumSize.Width, MinimumSize.Height - proteinSourcePanel.Height);
                 Height -= proteinSourcePanel.Height;
-                lblDescription.Text = Resources.AssociateProteinsDlg_OnShown_Organize_all_document_peptides_into_associated_proteins_or_protein_groups;
+                lblDescription.Text = EditUIResources.AssociateProteinsDlg_OnShown_Organize_all_document_peptides_into_associated_proteins_or_protein_groups;
                 if (_hasExistingProteinAssociations)
-                    lblDescription.Text += @" " + Resources.AssociateProteinsDlg_OnShown_Existing_protein_associations_will_be_discarded_;
+                    lblDescription.Text += @" " + EditUIResources.AssociateProteinsDlg_OnShown_Existing_protein_associations_will_be_discarded_;
+            }
+            else
+            {
+                numMinPeptides.Visible = lblMinPeptides.Visible = false;
+                int minPeptidesHeight = numMinPeptides.Height + lblMinPeptides.Height;
+                gbParsimonyOptions.Height -= minPeptidesHeight;
+                Height -= minPeptidesHeight;
             }
 
             if (_document.PeptideCount == 0)
@@ -291,9 +298,9 @@ namespace pwiz.Skyline.EditUI
 
             if (GroupProteins)
             {
-                lblMinimalProteinList.Text = Resources.AssociateProteinsDlg_Find_minimal_protein_group_list_that_explains_all_peptides;
-                lblRemoveSubsetProteins.Text = Resources.AssociateProteinsDlg_Remove_subset_protein_groups;
-                lblMinPeptides.Text = Resources.AssociateProteinsDlg_Min_peptides_per_protein_group;
+                lblMinimalProteinList.Text = EditUIResources.AssociateProteinsDlg_Find_minimal_protein_group_list_that_explains_all_peptides;
+                lblRemoveSubsetProteins.Text = EditUIResources.AssociateProteinsDlg_Remove_subset_protein_groups;
+                lblMinPeptides.Text = EditUIResources.AssociateProteinsDlg_Min_peptides_per_protein_group;
             }
             else
             {
@@ -358,7 +365,7 @@ namespace pwiz.Skyline.EditUI
             }
 
             if (Results.PeptidesMapped == 0)
-                MessageDlg.Show(this, Resources.AssociateProteinsDlg_UseBackgroundProteome_No_matches_were_found_using_the_background_proteome_);
+                MessageDlg.Show(this, EditUIResources.AssociateProteinsDlg_UseBackgroundProteome_No_matches_were_found_using_the_background_proteome_);
             UpdateParsimonyResults();
             btnOk.Enabled = true;
         }
@@ -378,8 +385,7 @@ namespace pwiz.Skyline.EditUI
 
         private void tbxFastaTargets_TextChanged(object sender, EventArgs e)
         {
-            if (File.Exists(tbxFastaTargets.Text))
-                UseFastaFile(tbxFastaTargets.Text);
+            UseFastaFile(tbxFastaTargets.Text);
         }
 
         private void comboBackgroundProteome_SelectedIndexChanged(object sender, EventArgs e)
@@ -392,14 +398,12 @@ namespace pwiz.Skyline.EditUI
         // prompts user to select a fasta file to use for matching proteins
         public void ImportFasta()
         {
-            using (OpenFileDialog dlg = new OpenFileDialog
+            using (OpenFileDialog dlg = new OpenFileDialog())
             {
-                Title = Resources.SkylineWindow_ImportFastaFile_Import_FASTA,
-                InitialDirectory = Settings.Default.FastaDirectory,
-                CheckPathExists = true,
-                Filter = TextUtil.FileDialogFiltersAll(TextUtil.FileDialogFilter(Resources.OpenFileDialog_FASTA_files, DataSourceUtil.EXT_FASTA))
-            })
-            {
+                dlg.Title = Resources.SkylineWindow_ImportFastaFile_Import_FASTA;
+                dlg.InitialDirectory = Settings.Default.FastaDirectory;
+                dlg.CheckPathExists = true;
+                dlg.Filter = TextUtil.FileDialogFiltersAll(TextUtil.FileDialogFilter(EditUIResources.OpenFileDialog_FASTA_files, DataSourceUtil.EXT_FASTA));
                 if (dlg.ShowDialog(this) == DialogResult.OK)
                 {
                     Settings.Default.FastaDirectory = Path.GetDirectoryName(dlg.FileName);
@@ -439,7 +443,7 @@ namespace pwiz.Skyline.EditUI
             }
 
             if (Results.PeptidesMapped == 0)
-                MessageDlg.Show(this, Resources.AssociateProteinsDlg_FindProteinMatchesWithFasta_No_matches_were_found_using_the_imported_fasta_file_);
+                MessageDlg.Show(this, EditUIResources.AssociateProteinsDlg_FindProteinMatchesWithFasta_No_matches_were_found_using_the_imported_fasta_file_);
             UpdateParsimonyResults();
             btnOk.Enabled = true;
         }
@@ -467,22 +471,6 @@ namespace pwiz.Skyline.EditUI
 
             if (_overrideFastaPath != null)
                 result = ImportPeptideSearch.AddStandardsToDocument(result, _irtStandard);
-
-            // Move iRT proteins to top
-            var irtPeptides = new HashSet<Target>(RCalcIrt.IrtPeptides(result));
-            var proteins = new List<PeptideGroupDocNode>(result.PeptideGroups);
-            var proteinsIrt = new List<PeptideGroupDocNode>();
-            for (var i = 0; i < proteins.Count; i++)
-            {
-                var nodePepGroup = proteins[i];
-                if (nodePepGroup.Peptides.All(nodePep => irtPeptides.Contains(new Target(nodePep.ModifiedSequence))))
-                {
-                    proteinsIrt.Add(nodePepGroup);
-                    proteins.RemoveAt(i--);
-                }
-            }
-            if (proteinsIrt.Any())
-                return (SrmDocument)result.ChangeChildrenChecked(proteinsIrt.Concat(proteins).Cast<DocNode>().ToArray());
 
             return result;
         }
@@ -567,8 +555,8 @@ namespace pwiz.Skyline.EditUI
             var culture = LocalizationHelper.CurrentCulture;
             Func<int, string> resultToString = count => count < separatorThreshold ? count.ToString(culture) : count.ToString(@"N0", culture);
 
-            return string.Format(_statusBarResultFormat, resultToString(FinalResults.FinalProteinCount),
-                resultToString(FinalResults.FinalPeptideCount),
+            return string.Format(_statusBarResultFormat, resultToString(DocumentFinal.PeptideGroupCount),
+                resultToString(DocumentFinal.PeptideCount),
                 resultToString(DocumentFinal.PeptideTransitionGroupCount),
                 resultToString(DocumentFinal.PeptideTransitionCount));
         }
@@ -593,7 +581,7 @@ namespace pwiz.Skyline.EditUI
                 else if (e.RowIndex == peptideRowIndex)
                     e.Value = Resources.AnnotationDef_AnnotationTarget_Peptides;
                 else if (e.RowIndex == sharedRowIndex)
-                    e.Value = Resources.AssociateProteinsDlg_CellValueNeeded_Shared_Peptides;
+                    e.Value = EditUIResources.AssociateProteinsDlg_CellValueNeeded_Shared_Peptides;
             }
             else if (e.ColumnIndex == mappedColumn.Index)
             {
@@ -704,14 +692,14 @@ namespace pwiz.Skyline.EditUI
 
         public void NewTargetsFinalSync(out int proteins, out int peptides, out int precursors, out int transitions)
         {
-            int? emptyProteins;
-            NewTargetsFinalSync(out proteins, out peptides, out precursors, out transitions, out emptyProteins);
+            NewTargetsFinalSync(out proteins, out peptides, out precursors, out transitions, out _);
         }
 
-        public void NewTargetsFinalSync(out int proteins, out int peptides, out int precursors, out int transitions, out int? emptyProteins)
+        public void NewTargetsFinalSync(out int proteins, out int peptides, out int precursors, out int transitions, out int unmappedOrRemoved)
         {
             var doc = DocumentFinal;
-            emptyProteins = 0;
+            var unmappedPeptideGroup = doc.PeptideGroups.FirstOrDefault(pg => pg.Name == Resources.ProteinAssociation_CreateDocTree_Unmapped_Peptides);
+            unmappedOrRemoved = _proteinAssociation.PeptidesRemovedByFiltersCount + (unmappedPeptideGroup?.PeptideCount ?? 0);
             proteins = doc.PeptideGroupCount;
             peptides = doc.PeptideCount;
             precursors = doc.PeptideTransitionGroupCount;

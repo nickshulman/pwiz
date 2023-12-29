@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Original author: Brendan MacLean <brendanx .at. u.washington.edu>,
  *                  MacCoss Lab, Department of Genome Sciences, UW
  *
@@ -311,9 +311,9 @@ namespace pwiz.Skyline
                     }
                     catch (Exception x)
                     {
-                        var message = TextUtil.LineSeparate(string.Format(Resources.SkylineWindow_UpdateGraphUI_Failure_attempting_to_load_the_window_layout_file__0__, layoutFile),
-                                                                            Resources.SkylineWindow_UpdateGraphUI_Rename_or_delete_this_file_to_restore_the_default_layout, 
-                                                                            Resources.SkylineWindow_UpdateGraphUI_Skyline_may_also_need_to_be_restarted);
+                        var message = TextUtil.LineSeparate(string.Format(SkylineResources.SkylineWindow_UpdateGraphUI_Failure_attempting_to_load_the_window_layout_file__0__, layoutFile),
+                                                                            SkylineResources.SkylineWindow_UpdateGraphUI_Rename_or_delete_this_file_to_restore_the_default_layout, 
+                                                                            SkylineResources.SkylineWindow_UpdateGraphUI_Skyline_may_also_need_to_be_restarted);
                         throw new IOException(message, x);
                     }
                 }
@@ -338,11 +338,10 @@ namespace pwiz.Skyline
                         // Look for matching chromatogram sets across the documents
                         ChromatogramSet chromSetOld;
                         ChromatogramSet chromSetNew;
-                        int index;
                         if (settingsOld.HasResults &&
-                            settingsOld.MeasuredResults.TryGetChromatogramSet(name, out chromSetOld, out index) &&
+                            settingsOld.MeasuredResults.TryGetChromatogramSet(name, out chromSetOld, out _) &&
                             settingsNew.HasResults &&
-                            settingsNew.MeasuredResults.TryGetChromatogramSet(chromSetOld.Id.GlobalIndex, out chromSetNew, out index))
+                            settingsNew.MeasuredResults.TryGetChromatogramSet(chromSetOld.Id.GlobalIndex, out chromSetNew, out _))
                         {
                             // If matching chromatogram found, but name has changed, then
                             // update the graph pane
@@ -785,7 +784,7 @@ namespace pwiz.Skyline
                 if (InvokeRequired)
                 {
                     throw new InvalidOperationException(
-                        Resources.SkylineWindow_IsGraphUpdatePending_Must_be_called_from_event_thread);
+                        SkylineResources.SkylineWindow_IsGraphUpdatePending_Must_be_called_from_event_thread);
                 }
                 return _timerGraphs.Enabled || (_graphSpectrum != null && _graphSpectrum.IsGraphUpdatePending);
             }
@@ -1109,10 +1108,15 @@ namespace pwiz.Skyline
             ToggleObservedMzValues();
         }
 
-        private void showSpectrumPropertiesContextMenuItem_Click(object sender, EventArgs e)
+        private void showLibSpectrumPropertiesContextMenuItem_Click(object sender, EventArgs e)
         {
             if (_graphSpectrum != null && _graphSpectrum.Visible)
-                _graphSpectrum.ShowPropertiesSheet = !showSpectrumPropertiesContextMenuItem.Checked;
+                _graphSpectrum.ShowPropertiesSheet = !showLibSpectrumPropertiesContextMenuItem.Checked;
+        }
+        private void showFullScanSpectrumPropertiesContextMenuItem_Click(object sender, EventArgs e)
+        {
+            if (_graphFullScan != null && _graphFullScan.Visible)
+                _graphFullScan.ShowPropertiesSheet = !showFullScanSpectrumPropertiesContextMenuItem.Checked;
         }
 
         public void ToggleObservedMzValues()
@@ -1196,12 +1200,20 @@ namespace pwiz.Skyline
             if (control != null)
             {
                 menuStrip.Items.Insert(iInsert++, spectrumGraphPropsContextMenuItem);
-                showSpectrumPropertiesContextMenuItem.Checked = control.ShowPropertiesSheet;
+                if (control.ControlType == SpectrumControlType.LibraryMatch)
+                {
+                    showLibSpectrumPropertiesContextMenuItem.Checked = control.ShowPropertiesSheet;
+                    menuStrip.Items.Insert(iInsert++, showLibSpectrumPropertiesContextMenuItem);
+                }
+                else if (control.ControlType == SpectrumControlType.FullScanViewer)
+                {
+                    showFullScanSpectrumPropertiesContextMenuItem.Checked = control.ShowPropertiesSheet;
+                    menuStrip.Items.Insert(iInsert++, showFullScanSpectrumPropertiesContextMenuItem);
+                }
             }
 
-            menuStrip.Items.Insert(iInsert++, showSpectrumPropertiesContextMenuItem);
 
-            if (_listGraphChrom.Any(c => c.Visible)) // Don't offer to show chromatograms when there are none
+            if (control is { HasChromatogramData: true }) // Don't offer to show chromatograms when there are none
             {
                 showLibraryChromatogramsSpectrumContextMenuItem.Checked = set.ShowLibraryChromatograms;
                 menuStrip.Items.Insert(iInsert++, showLibraryChromatogramsSpectrumContextMenuItem);
@@ -1213,7 +1225,7 @@ namespace pwiz.Skyline
                 synchMzScaleToolStripMenuItem.Checked = Settings.Default.SyncMZScale;
             }
             */
-            menuStrip.Items.Insert(iInsert, toolStripSeparator15);
+            //menuStrip.Items.Insert(iInsert, toolStripSeparator15);
 
             // Remove some ZedGraph menu items not of interest
             foreach (var item in items)
@@ -1440,7 +1452,7 @@ namespace pwiz.Skyline
                 _graphFullScan.Hide();
         }
 
-        private void ShowGraphFullScan(IScanProvider scanProvider, int transitionIndex, int scanIndex, int? optStep)
+        internal void ShowGraphFullScan(IScanProvider scanProvider, int transitionIndex, int scanIndex, int? optStep)
         {
             if (_graphFullScan != null)
             {
@@ -1880,8 +1892,7 @@ namespace pwiz.Skyline
         {
             get
             {
-                MsDataFileUri temp;
-                return GetGraphChromStrings(SelectedResultsIndex, null, out temp);
+                return GetGraphChromStrings(SelectedResultsIndex, null, out _);
             }
         }
 
@@ -1939,8 +1950,7 @@ namespace pwiz.Skyline
             {
                 var graphPosition = GetGraphChrom(namePosition);
 
-                IDockableForm formBefore;
-                DockPane paneExisting = FindChromatogramPane(graphPosition, out formBefore);
+                DockPane paneExisting = FindChromatogramPane(graphPosition);
                 if (paneExisting == null)
                     graphChrom.Show(dockPanel.Panes[firstDocumentPane], DockPaneAlignment.Left, 0.5);
                 else if (!split)
@@ -1965,7 +1975,7 @@ namespace pwiz.Skyline
             }
         }
 
-        private DockPane FindChromatogramPane(GraphChromatogram graphChrom, out IDockableForm formBefore)
+        private DockPane FindChromatogramPane(GraphChromatogram graphChrom)
         {
             foreach (var pane in dockPanel.Panes)
             {
@@ -1974,12 +1984,10 @@ namespace pwiz.Skyline
                     if (form is GraphChromatogram &&
                         (graphChrom == null || graphChrom == form))
                     {
-                        formBefore = form;
                         return pane;
                     }
                 }
             }
-            formBefore = null;
             return null;
         }
 
@@ -2004,7 +2012,7 @@ namespace pwiz.Skyline
                 graphChrom.LockZoom();
             try
             {
-                ModifyDocument(string.Format(Resources.SkylineWindow_graphChromatogram_PickedPeak_Pick_peak__0_F01_, e.RetentionTime), 
+                ModifyDocument(string.Format(SkylineResources.SkylineWindow_graphChromatogram_PickedPeak_Pick_peak__0_F01_, e.RetentionTime), 
                     doc => PickPeak(doc, e), docPair =>
                     {
                         var name = GetPropertyName(docPair.OldDoc, e.GroupPath, e.TransitionId);
@@ -2038,7 +2046,7 @@ namespace pwiz.Skyline
                 if (e.ScanIndex == -1)
                 {
                     MessageDlg.Show(this, 
-                        string.Format(Resources.SkylineWindow_graphChromatogram_ClickedChromatogram_The_raw_file_must_be_re_imported_in_order_to_show_full_scans___0_, dataFile));
+                        string.Format(SkylineResources.SkylineWindow_graphChromatogram_ClickedChromatogram_The_raw_file_must_be_re_imported_in_order_to_show_full_scans___0_, dataFile));
                     return;
                 }
             }
@@ -2128,17 +2136,17 @@ namespace pwiz.Skyline
                 {
                     ChangedPeakBoundsEventArgs e = eMulti.Changes[0];
                     if (Equals(e.StartTime, e.EndTime))
-                        message = Resources.SkylineWindow_graphChromatogram_ChangedPeakBounds_Remove_peak;
+                        message = SkylineResources.SkylineWindow_graphChromatogram_ChangedPeakBounds_Remove_peak;
                     else if (e.ChangeType == PeakBoundsChangeType.both)
-                        message = string.Format(Resources.SkylineWindow_graphChromatogram_ChangedPeakBounds_Change_peak_to__0_F01___1_F01_, e.StartTime, e.EndTime); 
+                        message = string.Format(SkylineResources.SkylineWindow_graphChromatogram_ChangedPeakBounds_Change_peak_to__0_F01___1_F01_, e.StartTime, e.EndTime); 
                     else if (e.ChangeType == PeakBoundsChangeType.start)
-                        message = string.Format(Resources.SkylineWindow_graphChromatogram_ChangedPeakBounds_Change_peak_start_to__0_F01_, e.StartTime); 
+                        message = string.Format(SkylineResources.SkylineWindow_graphChromatogram_ChangedPeakBounds_Change_peak_start_to__0_F01_, e.StartTime); 
                     else
-                        message = string.Format(Resources.SkylineWindow_graphChromatogram_ChangedPeakBounds_Change_peak_end_to__0_F01_, e.EndTime); 
+                        message = string.Format(SkylineResources.SkylineWindow_graphChromatogram_ChangedPeakBounds_Change_peak_end_to__0_F01_, e.EndTime); 
                 }
                 else
                 {
-                    message = Resources.SkylineWindow_graphChromatogram_ChangedPeakBounds_Change_peaks;
+                    message = SkylineResources.SkylineWindow_graphChromatogram_ChangedPeakBounds_Change_peaks;
                 }
                 ModifyDocument(message,
                     doc => ChangePeakBounds(doc, eMulti.Changes.SelectMany(change => GetSynchronizedPeakBoundChanges(doc, change, true))),
@@ -2192,10 +2200,9 @@ namespace pwiz.Skyline
                 ? transitionGroupDocNode.Transitions.FirstOrDefault(tr => ReferenceEquals(tr.Id, args.Transition))
                 : null;
 
-            ChromatogramSet chromatograms;
             int indexSet;
             if (!Document.Settings.HasResults ||
-                !Document.Settings.MeasuredResults.TryGetChromatogramSet(args.NameSet, out chromatograms, out indexSet))
+                !Document.Settings.MeasuredResults.TryGetChromatogramSet(args.NameSet, out _, out indexSet))
                 return result;
 
             float? startTime = null;
@@ -2728,9 +2735,8 @@ namespace pwiz.Skyline
         public void ActivateReplicate(string name)
         {
             int index;
-            ChromatogramSet chromatogramSet;
 
-            if (DocumentUI.Settings.MeasuredResults.TryGetChromatogramSet(name, out chromatogramSet, out index))
+            if (DocumentUI.Settings.MeasuredResults.TryGetChromatogramSet(name, out _, out index))
             {
                 SelectedResultsIndex = index;
             }
@@ -3099,7 +3105,7 @@ namespace pwiz.Skyline
                 RTGraphController.GraphType == GraphTypeSummary.score_to_run_regression)
             {
                 using (var dlg = new MultiButtonMsgDlg(
-                    Resources.SkylineWindow_targetsAt1FDRToolStripMenuItem_Click_Showing_targets_at_1__FDR_will_set_the_replicate_display_type_to_single__Do_you_want_to_continue_,
+                    SkylineResources.SkylineWindow_targetsAt1FDRToolStripMenuItem_Click_Showing_targets_at_1__FDR_will_set_the_replicate_display_type_to_single__Do_you_want_to_continue_,
                     MultiButtonMsgDlg.BUTTON_YES, MultiButtonMsgDlg.BUTTON_NO, false))
                 {
                     if (dlg.ShowDialog(this) != DialogResult.Yes)
@@ -3253,8 +3259,9 @@ namespace pwiz.Skyline
 
         public void ShowRegressionRTThresholdDlg()
         {
-            using (var dlg = new RegressionRTThresholdDlg {Threshold = Settings.Default.RTResidualRThreshold})
+            using (var dlg = new RegressionRTThresholdDlg())
             {
+                dlg.Threshold = Settings.Default.RTResidualRThreshold;
                 if (dlg.ShowDialog(this) == DialogResult.OK)
                 {
                     Settings.Default.RTResidualRThreshold = dlg.Threshold;
@@ -3282,15 +3289,16 @@ namespace pwiz.Skyline
             if (regression != null)
                 regression = (RetentionTimeRegression) regression.ChangeName(name);
 
-            using (var dlg = new EditRTDlg(listRegression) { Regression = regression })
+            using (var dlg = new EditRTDlg(listRegression))
             {
+                dlg.Regression = regression;
                 dlg.ShowPeptides(true);
                 if (dlg.ShowDialog(this) == DialogResult.OK)
                 {
                     regression = dlg.Regression;
                     listRegression.Add(regression);
 
-                    ModifyDocument(string.Format(Resources.SkylineWindow_CreateRegression_Set_regression__0__, regression.Name),
+                    ModifyDocument(string.Format(SkylineResources.SkylineWindow_CreateRegression_Set_regression__0__, regression!.Name),
                                    doc =>
                                    doc.ChangeSettings(
                                        doc.Settings.ChangePeptidePrediction(p => p.ChangeRetentionTime(regression))), AuditLogEntry.SettingsLogFunction);
@@ -3309,7 +3317,7 @@ namespace pwiz.Skyline
                 chooseCalculatorContextMenuItem.DropDownItems.RemoveAt(0);
 
             //If no calculator has been picked for use in the graph, get the best one.
-            var autoItem = new ToolStripMenuItem(Resources.SkylineWindow_SetupCalculatorChooser_Auto, null, delegate { ChooseCalculator(string.Empty); })
+            var autoItem = new ToolStripMenuItem(SkylineResources.SkylineWindow_SetupCalculatorChooser_Auto, null, delegate { ChooseCalculator(string.Empty); })
                                {
                                    Checked = string.IsNullOrEmpty(Settings.Default.RTCalculatorName)
                                };
@@ -3362,7 +3370,7 @@ namespace pwiz.Skyline
                     if (regressionRTDoc != null && Equals(calcOld.Name, regressionRTDoc.Calculator.Name) &&
                         !Equals(calcNew, regressionRTDoc.Calculator))
                     {
-                        ModifyDocument(string.Format(Resources.SkylineWindow_ShowEditCalculatorDlg_Update__0__calculator, calcNew.Name), doc =>
+                        ModifyDocument(string.Format(SkylineResources.SkylineWindow_ShowEditCalculatorDlg_Update__0__calculator, calcNew.Name), doc =>
                             doc.ChangeSettings(doc.Settings.ChangePeptidePrediction(predict =>
                                 predict.ChangeRetentionTime(predict.RetentionTime.ChangeCalculator(calcNew)))), AuditLogEntry.SettingsLogFunction);
                     }
@@ -3382,7 +3390,7 @@ namespace pwiz.Skyline
             foreach (var outlier in outliers)
                 outlierIds.Add(outlier.Id.GlobalIndex);
 
-            ModifyDocument(Resources.SkylineWindow_RemoveRTOutliers_Remove_retention_time_outliers,
+            ModifyDocument(SkylineResources.SkylineWindow_RemoveRTOutliers_Remove_retention_time_outliers,
                 doc => (SrmDocument) doc.RemoveAll(outlierIds),
                 docPair => AuditLogEntry.CreateCountChangeEntry(MessageType.removed_rt_outlier,
                     MessageType.removed_rt_outliers, docPair.OldDocumentType, RTGraphController.Outliers, outlier =>  MessageArgs.Create(AuditLogEntry.GetNodeName(docPair.OldDoc, outlier)), null));
@@ -3728,8 +3736,8 @@ namespace pwiz.Skyline
                     {
                         showLibraryPeakAreaContextMenuItem.Checked = set.ShowLibraryPeakArea;
                         showLibraryPeakAreaContextMenuItem.Text = expectedVisible == AreaExpectedValue.library
-                                                                      ? Resources.SkylineWindow_BuildAreaGraphMenu_Show_Library
-                                                                      : Resources.SkylineWindow_BuildAreaGraphMenu_Show_Expected;
+                                                                      ? SkylineResources.SkylineWindow_BuildAreaGraphMenu_Show_Library
+                                                                      : SkylineResources.SkylineWindow_BuildAreaGraphMenu_Show_Expected;
                         menuStrip.Items.Insert(iInsert++, showLibraryPeakAreaContextMenuItem);
                     }
 
@@ -4089,13 +4097,13 @@ namespace pwiz.Skyline
 
         private int AddReplicateOrderAndGroupByMenuItems(ToolStrip menuStrip, int iInsert)
         {
-            string currentGroupBy = SummaryReplicateGraphPane.GroupByReplicateAnnotation;
+            ReplicateValue currentGroupBy = ReplicateValue.FromPersistedString(DocumentUI.Settings, SummaryReplicateGraphPane.GroupByReplicateAnnotation);
             var groupByValues = ReplicateValue.GetGroupableReplicateValues(DocumentUI).ToArray();
             if (groupByValues.Length == 0)
                 currentGroupBy = null;
 
             // If not grouped by an annotation, show the order-by menuitem
-            if (string.IsNullOrEmpty(currentGroupBy))
+            if (currentGroupBy == null)
             {
                 var orderByReplicateAnnotationDef = groupByValues.FirstOrDefault(
                     value => SummaryReplicateGraphPane.OrderByReplicateAnnotation == value.ToPersistedString());
@@ -4124,11 +4132,11 @@ namespace pwiz.Skyline
                 menuStrip.Items.Insert(iInsert++, groupReplicatesByContextMenuItem);
                 groupReplicatesByContextMenuItem.DropDownItems.Clear();
                 groupReplicatesByContextMenuItem.DropDownItems.Add(groupByReplicateContextMenuItem);
-                groupByReplicateContextMenuItem.Checked = string.IsNullOrEmpty(currentGroupBy);
+                groupByReplicateContextMenuItem.Checked = currentGroupBy == null;
                 foreach (var replicateValue in groupByValues)
                 {
                     groupReplicatesByContextMenuItem.DropDownItems
-                        .Add(GroupByReplicateAnnotationMenuItem(replicateValue, currentGroupBy));
+                        .Add(GroupByReplicateAnnotationMenuItem(replicateValue, Equals(replicateValue, currentGroupBy)));
                 }
             }
             return iInsert;
@@ -4142,12 +4150,18 @@ namespace pwiz.Skyline
             }
         }
 
-        private ToolStripMenuItem GroupByReplicateAnnotationMenuItem(ReplicateValue replicateValue, string groupBy)
+        public ToolStripMenuItem ReplicateGroupByContextMenuItem
         {
-            return new ToolStripMenuItem(replicateValue.Title, null, (sender, eventArgs)=>GroupByReplicateValue(replicateValue))
-                       {
-                           Checked = replicateValue.ToPersistedString() == groupBy
-                       };
+            get { return groupReplicatesByContextMenuItem; }
+        }
+
+        private ToolStripMenuItem GroupByReplicateAnnotationMenuItem(ReplicateValue replicateValue, bool isChecked)
+        {
+            return new ToolStripMenuItem(replicateValue.Title, null,
+                (sender, eventArgs) => GroupByReplicateValue(replicateValue))
+            {
+                Checked = isChecked
+            };
         }
 
         private ToolStripMenuItem OrderByReplicateAnnotationMenuItem(ReplicateValue replicateValue, string currentOrderBy)
@@ -4180,7 +4194,7 @@ namespace pwiz.Skyline
 
             var nodeCount = 0;
             // Remove everything not in the set
-            ModifyDocument(Resources.SkylineWindow_RemoveAboveCVCutoff_Remove_peptides_above_CV_cutoff, doc =>
+            ModifyDocument(SkylineResources.SkylineWindow_RemoveAboveCVCutoff_Remove_peptides_above_CV_cutoff, doc =>
             {
                 var setRemove = AreaCVRefinementData.IndicesToRemove(doc, ids);
                 nodeCount = setRemove.Count;
@@ -4233,7 +4247,7 @@ namespace pwiz.Skyline
             }
 
             areaCVtargetsToolStripMenuItem.Checked = pointsType == PointsTypePeakArea.targets;
-            areaCVtargetsToolStripMenuItem.Text = shouldUseQValues ? string.Format(Resources.SkylineWindow_UpdateAreaPointsTypeMenuItems_Targets_at__0___FDR, Settings.Default.AreaCVQValueCutoff * 100.0) : Resources.SkylineWindow_UpdateAreaPointsTypeMenuItems_Targets;
+            areaCVtargetsToolStripMenuItem.Text = shouldUseQValues ? string.Format(SkylineResources.SkylineWindow_UpdateAreaPointsTypeMenuItems_Targets_at__0___FDR, Settings.Default.AreaCVQValueCutoff * 100.0) : SkylineResources.SkylineWindow_UpdateAreaPointsTypeMenuItems_Targets;
             areaCVdecoysToolStripMenuItem.Visible = decoys;
             areaCVdecoysToolStripMenuItem.Checked = pointsType == PointsTypePeakArea.decoys;
         }
@@ -5506,6 +5520,9 @@ namespace pwiz.Skyline
                 if (_auditLogForm != null)
                 {
                     var rectFloat = GetFloatingRectangleForNewWindow();
+                    // Ensure the audit log window is wide enough to show the "Enable audit logging" checkbox
+                    rectFloat.Width = Math.Max(800, rectFloat.Width);
+
                     _auditLogForm.Show(dockPanel, rectFloat);
                 }
             }
@@ -5628,6 +5645,7 @@ namespace pwiz.Skyline
             else
             {
                 rows = 1;
+                // ReSharper disable once PossibleLossOfFraction
                 while ((height / rows) / (width / (groups / rows + (groups % rows > 0 ? 1 : 0))) > MAX_TILED_ASPECT_RATIO)
                     rows++;
             }
@@ -5806,8 +5824,7 @@ namespace pwiz.Skyline
                 // already be.
                 foreach (var graph in listGraphs)
                 {
-                    int i;
-                    if (!dictOrder.TryGetValue(graph, out i))
+                    if (!dictOrder.TryGetValue(graph, out _))
                         dictOrder.Add(graph, iOrder++);
                 }
 

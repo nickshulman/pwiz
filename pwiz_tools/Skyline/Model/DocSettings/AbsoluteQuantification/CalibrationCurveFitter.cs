@@ -35,21 +35,69 @@ namespace pwiz.Skyline.Model.DocSettings.AbsoluteQuantification
         private readonly IDictionary<CalibrationPoint, ImmutableList<PeptideQuantifier.Quantity>> _replicateQuantities
             = new Dictionary<CalibrationPoint, ImmutableList<PeptideQuantifier.Quantity>>();
         private HashSet<IdentityPath> _transitionsToQuantifyOn;
-
-        public CalibrationCurveFitter(PeptideQuantifier peptideQuantifier, SrmSettings srmSettings)
+        
+        private CalibrationCurveFitter(PeptideQuantifier peptideQuantifier, PeptideQuantifier standardPeptideQuantifier, SrmSettings srmSettings)
         {
             PeptideListQuantifier = new PeptideListQuantifier(ImmutableList.Singleton(peptideQuantifier));
+            if (standardPeptideQuantifier != null)
+            {
+                StandardPeptideListQuantifier =
+                    new PeptideListQuantifier(ImmutableList.Singleton(standardPeptideQuantifier));
+            }
             SrmSettings = srmSettings;
             IsotopologResponseCurve = peptideQuantifier.PeptideDocNode.HasPrecursorConcentrations;
         }
 
-        public static CalibrationCurveFitter GetCalibrationCurveFitter(SrmSettings srmSettings,
+        public static CalibrationCurveFitter GetCalibrationCurveFitter(Lazy<NormalizationData> getNormalizationDataFunc, SrmSettings settings,
+            IdPeptideDocNode idPeptideDocNode)
+        {
+            var peptideQuantifier = PeptideQuantifier.GetPeptideQuantifier(getNormalizationDataFunc, settings, idPeptideDocNode.PeptideGroup, idPeptideDocNode.PeptideDocNode);
+            PeptideQuantifier standardPeptideQuantifier = null;
+            if (null != idPeptideDocNode.PeptideDocNode.SurrogateCalibrationCurve)
+            {
+                var standard = settings.GetSurrogateStandards(idPeptideDocNode.PeptideDocNode.SurrogateCalibrationCurve).FirstOrDefault();
+                if (standard != null)
+                {
+                    standardPeptideQuantifier = PeptideQuantifier.GetPeptideQuantifier(getNormalizationDataFunc, settings, standard.PeptideGroup, standard.PeptideDocNode);
+                }
+            }
+            return new CalibrationCurveFitter(peptideQuantifier, standardPeptideQuantifier, settings);
+        }
+
+        public static CalibrationCurveFitter GetCalibrationCurveFitter(SrmDocument document,
+            IdPeptideDocNode idPeptideDocNode)
+        {
+            return GetCalibrationCurveFitter(NormalizationData.LazyNormalizationData(document), document.Settings,
+                idPeptideDocNode);
+        }
+
+
+        public static CalibrationCurveFitter GetCalibrationCurveFitter(SrmDocument document,
             PeptideGroupDocNode peptideGroup, PeptideDocNode peptide)
         {
-            return new CalibrationCurveFitter(PeptideQuantifier.GetPeptideQuantifier(null, srmSettings, peptideGroup, peptide), srmSettings);
+            return GetCalibrationCurveFitter(document, new IdPeptideDocNode(peptideGroup.PeptideGroup, peptide));
         }
 
         public PeptideListQuantifier PeptideListQuantifier { get; private set; }
+        public PeptideListQuantifier StandardPeptideListQuantifier { get; private set; }
+
+        public PeptideListQuantifier GetPeptideQuantifier(SampleType sampleType)
+        {
+            if (SampleType.UNKNOWN.Equals(sampleType) || SampleType.QC.Equals(sampleType))
+            {
+                return PeptideListQuantifier;
+            }
+            return StandardPeptideListQuantifier ?? PeptideListQuantifier;
+        }
+
+        public PeptideListQuantifier GetPeptideQuantifier(CalibrationPoint calibrationPoint)
+        {
+            if (calibrationPoint.LabelType != null)
+            {
+                return PeptideListQuantifier;
+            }
+            return GetPeptideQuantifier(GetSampleType(calibrationPoint));
+        }
         public QuantificationSettings QuantificationSettings
         {
             get { return PeptideListQuantifier.QuantificationSettings; }
@@ -68,7 +116,7 @@ namespace pwiz.Skyline.Model.DocSettings.AbsoluteQuantification
                 IDictionary<IdentityPath, PeptideQuantifier.Quantity> quantityDictionary;
                 if (calibrationPoint.LabelType == null)
                 {
-                    quantityDictionary = PeptideListQuantifier.GetTransitionIntensities(SrmSettings, calibrationPoint.ReplicateIndex, false);
+                    quantityDictionary = GetPeptideQuantifier(calibrationPoint).GetTransitionIntensities(SrmSettings, calibrationPoint.ReplicateIndex, false);
                 }
                 else
                 {
@@ -76,8 +124,9 @@ namespace pwiz.Skyline.Model.DocSettings.AbsoluteQuantification
                     {
                         {
                             IdentityPath.ROOT,
-                            new PeptideQuantifier.Quantity(PeptideListQuantifier.PeptideQuantifiers.Single().GetIsotopologArea(SrmSettings, calibrationPoint.ReplicateIndex,
-                                calibrationPoint.LabelType), 1)
+                            new PeptideQuantifier.Quantity(GetPeptideQuantifier(calibrationPoint).PeptideQuantifiers
+                                .Single().GetIsotopologArea(SrmSettings, calibrationPoint.ReplicateIndex,
+                                    calibrationPoint.LabelType), 1)
                         }
                     };
                 }
@@ -111,7 +160,8 @@ namespace pwiz.Skyline.Model.DocSettings.AbsoluteQuantification
                 return null;
             }
 
-            var peptideConcentrations = PeptideListQuantifier.PeptideQuantifiers.Select(q =>
+            var peptideListQuantifier = GetPeptideQuantifier(new CalibrationPoint(replicateIndex, null));
+            var peptideConcentrations = peptideListQuantifier.PeptideQuantifiers.Select(q =>
                     q.PeptideDocNode.GetSafeChromInfo(replicateIndex).FirstOrDefault()?.AnalyteConcentration)
                 .Distinct().ToList();
             if (peptideConcentrations.Count == 1 && peptideConcentrations[0].HasValue)
@@ -119,7 +169,7 @@ namespace pwiz.Skyline.Model.DocSettings.AbsoluteQuantification
                 return peptideConcentrations[0];
             }
 
-            var concentrationMultipliers = PeptideListQuantifier.PeptideQuantifiers
+            var concentrationMultipliers = peptideListQuantifier.PeptideQuantifiers
                 .Select(q => q.PeptideDocNode.ConcentrationMultiplier.GetValueOrDefault(1.0)).Distinct().ToList();
             double concentrationMultiplier = 1;
             if (concentrationMultipliers.Count == 1)
@@ -220,7 +270,7 @@ namespace pwiz.Skyline.Model.DocSettings.AbsoluteQuantification
                     {
                         continue;
                     }
-                    if (PeptideListQuantifier.IsExcludeFromCalibration(replicateIndex))
+                    if (GetPeptideQuantifier(chromatogramSet.SampleType).IsExcludeFromCalibration(replicateIndex))
                     {
                         continue;
                     }
@@ -530,8 +580,10 @@ namespace pwiz.Skyline.Model.DocSettings.AbsoluteQuantification
             }
             if (null != calibrationPoint.LabelType)
             {
-                var transitionGroup = PeptideListQuantifier.PeptideQuantifiers.SelectMany(q=>q.PeptideDocNode.TransitionGroups)
-                    .FirstOrDefault(tg => Equals(tg.LabelType, calibrationPoint.LabelType) && tg.PrecursorConcentration.HasValue);
+                var transitionGroup = GetPeptideQuantifier(calibrationPoint).PeptideQuantifiers
+                    .SelectMany(q => q.PeptideDocNode.TransitionGroups)
+                    .FirstOrDefault(tg =>
+                        Equals(tg.LabelType, calibrationPoint.LabelType) && tg.PrecursorConcentration.HasValue);
                 if (transitionGroup != null)
                 {
                     return transitionGroup.PrecursorConcentration / chromatogramSet.SampleDilutionFactor;
@@ -626,6 +678,11 @@ namespace pwiz.Skyline.Model.DocSettings.AbsoluteQuantification
         public bool IsAllowMissingTransitions()
         {
             if (IsotopologResponseCurve)
+            {
+                return true;
+            }
+
+            if (StandardPeptideListQuantifier != null)
             {
                 return true;
             }

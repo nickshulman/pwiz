@@ -25,7 +25,6 @@ using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Model.Crosslinking;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.Lib;
-using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
 
 namespace pwiz.Skyline.Model
@@ -46,7 +45,7 @@ namespace pwiz.Skyline.Model
             _progressMonitor = progressMonitor;
             if (progressMonitor != null)
             {
-                _status = (status ?? new ProgressStatus()).ChangeMessage(Resources.ModificationMatcher_CreateMatches_Matching_modifications);
+                _status = (status ?? new ProgressStatus()).ChangeMessage(ModelResources.ModificationMatcher_CreateMatches_Matching_modifications);
                 var countable = sequences as ICollection<string>;
                 if (countable == null)
                 {
@@ -73,10 +72,9 @@ namespace pwiz.Skyline.Model
             if(!MoveNextSingleSequence())
                 return false;
             // Skip sequences that can be created from the current settings.
-            TransitionGroupDocNode nodeGroup;
             // Check first if the sequence has any modifications, because creating doc nodes is expensive
             while (!HasMods(_sequences.Current) ||
-                   CreateDocNodeFromSettings(new Target(_sequences.Current), null, DIFF_GROUPS, out nodeGroup) != null)
+                   CreateDocNodeFromSettings(new Target(_sequences.Current), null, DIFF_GROUPS, out _) != null)
             {
                 if (!MoveNextSingleSequence())
                     return false;
@@ -389,12 +387,12 @@ namespace pwiz.Skyline.Model
             if (UniMod.IsValidUnimodId(uniModId))
             {
                 throw new FormatException(
-                    string.Format(Resources.ModificationMatcher_ThrowUnimodException_Unrecognized_modification_placement_for_Unimod_id__0__in_modified_peptide_sequence__1___amino_acid__2____3___,
+                    string.Format(ModelResources.ModificationMatcher_ThrowUnimodException_Unrecognized_modification_placement_for_Unimod_id__0__in_modified_peptide_sequence__1___amino_acid__2____3___,
                         uniModId, seq, indexAA + 1, unrecognizedAaMod));
             }
 
             throw new FormatException(
-                string.Format(Resources.ModificationMatcher_ThrowUnimodException_Unrecognized_Unimod_id__0__in_modified_peptide_sequence__1___amino_acid__2____3___,
+                string.Format(ModelResources.ModificationMatcher_ThrowUnimodException_Unrecognized_Unimod_id__0__in_modified_peptide_sequence__1___amino_acid__2____3___,
                     uniModId, seq, indexAA + 1, unrecognizedAaMod));
         }
 
@@ -437,9 +435,8 @@ namespace pwiz.Skyline.Model
               : new Peptide(null, seqUnmod, null, null,
                             Settings.PeptideSettings.Enzyme.CountCleavagePoints(seqUnmod));
             // First, try to create the peptide using the current settings.
-            TransitionGroupDocNode nodeGroup;
             PeptideDocNode nodePep = 
-                CreateDocNodeFromSettings(new Target(seq), peptide, SrmSettingsDiff.ALL, out nodeGroup);
+                CreateDocNodeFromSettings(new Target(seq), peptide, SrmSettingsDiff.ALL, out _);
             if (nodePep != null)
                 return nodePep;
             // Create the peptideDocNode.

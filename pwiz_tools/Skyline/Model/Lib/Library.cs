@@ -902,7 +902,7 @@ namespace pwiz.Skyline.Model.Lib
         protected static void ReadComplete(Stream stream, byte[] buffer, int size)
         {
             if (stream.Read(buffer, 0, size) != size)
-                throw new InvalidDataException(Resources.Library_ReadComplete_Data_truncation_in_library_header_File_may_be_corrupted);
+                throw new InvalidDataException(LibResources.Library_ReadComplete_Data_truncation_in_library_header_File_may_be_corrupted);
         }
 
         protected static void SafeReadComplete(Stream stream, ref byte[] buffer, int size)
@@ -910,7 +910,7 @@ namespace pwiz.Skyline.Model.Lib
             if (size > buffer.Length)
                 buffer = new byte[size];
             if (stream.Read(buffer, 0, size) != size)
-                throw new InvalidDataException(Resources.Library_ReadComplete_Data_truncation_in_library_header_File_may_be_corrupted);
+                throw new InvalidDataException(LibResources.Library_ReadComplete_Data_truncation_in_library_header_File_may_be_corrupted);
         }
 
         #endregion
@@ -1117,7 +1117,7 @@ namespace pwiz.Skyline.Model.Lib
         {
             var spectrumPeaks = ReadSpectrum(_libraryEntries[(int)spectrumKey]);
             if (spectrumPeaks == null)
-                throw new IOException(string.Format(Resources.CachedLibrary_LoadSpectrum_Library_entry_not_found__0__, spectrumKey));
+                throw new IOException(string.Format(LibResources.CachedLibrary_LoadSpectrum_Library_entry_not_found__0__, spectrumKey));
 
             return new SpectrumPeaksInfo(spectrumPeaks);
         }
@@ -1498,11 +1498,11 @@ namespace pwiz.Skyline.Model.Lib
     public abstract class LibrarySpec : XmlNamedElement, IHasItemDescription
     {
         public static readonly PeptideRankId PEP_RANK_COPIES =
-            new PeptideRankId(@"Spectrum count", () => Resources.LibrarySpec_PEP_RANK_COPIES_Spectrum_count);
+            new PeptideRankId(@"Spectrum count", () => LibResources.LibrarySpec_PEP_RANK_COPIES_Spectrum_count);
         public static readonly PeptideRankId PEP_RANK_TOTAL_INTENSITY =
-            new PeptideRankId(@"Total intensity", () => Resources.LibrarySpec_PEP_RANK_TOTAL_INTENSITY_Total_intensity);
+            new PeptideRankId(@"Total intensity", () => LibResources.LibrarySpec_PEP_RANK_TOTAL_INTENSITY_Total_intensity);
         public static readonly PeptideRankId PEP_RANK_PICKED_INTENSITY =
-            new PeptideRankId(@"Picked intensity", () => Resources.LibrarySpec_PEP_RANK_PICKED_INTENSITY_Picked_intensity);
+            new PeptideRankId(@"Picked intensity", () => LibResources.LibrarySpec_PEP_RANK_PICKED_INTENSITY_Picked_intensity);
 
         public static LibrarySpec CreateFromPath(string name, string path)
         {
@@ -1573,7 +1573,7 @@ namespace pwiz.Skyline.Model.Lib
                 lines.Add(TextUtil.ColonSeparate(PropertyNames.LibrarySpec_FilePathAuditLog, FilePath));
                 if (!UseExplicitPeakBounds)
                 {
-                    lines.Add(Resources.LibrarySpec_ItemDescription_Ignore_explicit_peak_boundaries);
+                    lines.Add(LibResources.LibrarySpec_ItemDescription_Ignore_explicit_peak_boundaries);
                 }
 
                 return new ItemDescription(FilePath).ChangeTitle(Name).ChangeDetailLines(lines);
@@ -1633,10 +1633,10 @@ namespace pwiz.Skyline.Model.Lib
         public override void WriteXml(XmlWriter writer)
         {
             if (IsDocumentLocal)
-                throw new InvalidOperationException(Resources.LibrarySpec_WriteXml_Document_local_library_specs_cannot_be_persisted_to_XML);
+                throw new InvalidOperationException(LibResources.LibrarySpec_WriteXml_Document_local_library_specs_cannot_be_persisted_to_XML);
 
             if (IsDocumentLibrary)
-                throw new InvalidOperationException(Resources.LibrarySpec_WriteXml_Document_library_specs_cannot_be_persisted_to_XML_);
+                throw new InvalidOperationException(LibResources.LibrarySpec_WriteXml_Document_library_specs_cannot_be_persisted_to_XML_);
 
             // Write tag attributes
             base.WriteXml(writer);
@@ -1735,12 +1735,19 @@ namespace pwiz.Skyline.Model.Lib
 
     public abstract class SpectrumHeaderInfo : Immutable, IXmlSerializable
     {
-        protected SpectrumHeaderInfo(string libraryName)
+        protected SpectrumHeaderInfo(string libraryName, double? score = null, string scoreType = null)
         {
             LibraryName = libraryName;
+            Score = score;
+            ScoreType = scoreType;
         }
 
+        public abstract string LibraryTypeName { get; }
+
         public string LibraryName { get; private set; }
+
+        public double? Score { get; private set; }
+        public string ScoreType { get; private set; }
 
         public SpectrumHeaderInfo ChangeLibraryName(string prop)
         {
@@ -1750,7 +1757,7 @@ namespace pwiz.Skyline.Model.Lib
         /// <summary>
         /// Value used in ranking peptides.
         /// </summary>
-        /// <param name="rankId">Indentifier of the value to return</param>
+        /// <param name="rankId">Identifier of the value to return</param>
         /// <returns>The value to use in ranking</returns>
         public virtual float GetRankValue(PeptideRankId rankId)
         {
@@ -1760,7 +1767,14 @@ namespace pwiz.Skyline.Model.Lib
             return float.MinValue;
         }
 
-        public abstract IEnumerable<KeyValuePair<PeptideRankId, string>> RankValues { get; }
+        public virtual IEnumerable<KeyValuePair<PeptideRankId, string>> RankValues
+        {
+            get
+            {
+                return Array.Empty<KeyValuePair<PeptideRankId, string>>();
+            }
+        }
+
         public string Protein { get; protected set; } // Some .blib and .clib files provide a protein accession (or Molecule List Name for small molecules)
 
         #region Implementation of IXmlSerializable
@@ -1775,7 +1789,9 @@ namespace pwiz.Skyline.Model.Lib
         private enum ATTR
         {
             library_name,
-            protein
+            protein,
+            score,
+            score_type
         }
 
         public XmlSchema GetSchema()
@@ -1788,6 +1804,8 @@ namespace pwiz.Skyline.Model.Lib
             // Read tag attributes
             LibraryName = reader.GetAttribute(ATTR.library_name);
             Protein = reader.GetAttribute(ATTR.protein);
+            Score = reader.GetNullableDoubleAttribute(ATTR.score);
+            ScoreType = reader.GetAttribute(ATTR.score_type);
         }
 
         public virtual void WriteXml(XmlWriter writer)
@@ -1795,6 +1813,11 @@ namespace pwiz.Skyline.Model.Lib
             // Write tag attributes
             writer.WriteAttributeString(ATTR.library_name, LibraryName);
             writer.WriteAttributeIfString(ATTR.protein, Protein);
+            if (Score.HasValue)
+            {
+                writer.WriteAttribute(ATTR.score, Score.Value);
+                writer.WriteAttribute(ATTR.score_type, ScoreType);
+            }
         }
 
         #endregion
@@ -1866,6 +1889,7 @@ namespace pwiz.Skyline.Model.Lib
 
     public sealed class SpectrumPeaksInfo
     {
+        public static SpectrumPeaksInfo EMPTY = new SpectrumPeaksInfo(Array.Empty<MI>());
         public SpectrumPeaksInfo(MI[] spectrum)
         {
             Peaks = spectrum;
@@ -2030,12 +2054,17 @@ namespace pwiz.Skyline.Model.Lib
                     return hashCode;
                 }
             }
+
+            public override string ToString()
+            {
+                return string.Format(@"Mz = {0:F06}, Intensity = {1}{2}", Mz, Intensity, _notQuantitative ? string.Empty : @" quant"); // For debugging
+            }
         }
     }
 
     public class SmallMoleculeLibraryAttributes : IEquatable<SmallMoleculeLibraryAttributes>
     {
-        public static SmallMoleculeLibraryAttributes EMPTY = new SmallMoleculeLibraryAttributes(null, null, null, null, null, null);
+        public static SmallMoleculeLibraryAttributes EMPTY = new SmallMoleculeLibraryAttributes(null, null, TypedMass.ZERO_MONO_MASSNEUTRAL, TypedMass.ZERO_AVERAGE_MASSNEUTRAL, null, null);
         public static int nItems = 4;
 
         public bool IsEmpty
@@ -2047,95 +2076,54 @@ namespace pwiz.Skyline.Model.Lib
         }
 
         // Helper for library caches
-        public static SmallMoleculeLibraryAttributes FromBytes(byte[] buf, int offset)
+        public static void ParseMolecularFormulaOrMassesString(string molecularFormulaOrMassesString, out ParsedMolecule mol)
         {
-            var itemLengths = new int[nItems];
-            var itemStarts = new int[nItems];
-            for (var i = 0; i < nItems; i++)
-            {
-                // read item length
-                itemLengths[i] = Library.GetInt32(buf, i, offset);
-                itemStarts[i] = i == 0 ? offset + nItems * sizeof(int) : itemStarts[i - 1] + itemLengths[i - 1];
-            }
-            return Create(
-                Encoding.UTF8.GetString(buf, itemStarts[0], itemLengths[0]),
-                Encoding.UTF8.GetString(buf, itemStarts[1], itemLengths[1]),
-                Encoding.UTF8.GetString(buf, itemStarts[2], itemLengths[2]),
-                Encoding.UTF8.GetString(buf, itemStarts[3], itemLengths[3]));
-        }
-
-        public static void ParseMolecularFormulaOrMassesString(string molecularFormulaOrMassesString,
-            out string molecularFormula, out TypedMass? massMono, out TypedMass? massAverage)
-        {
-            if (molecularFormulaOrMassesString != null && molecularFormulaOrMassesString.Contains(CustomMolecule.MASS_SPLITTER))
+            var massMono = TypedMass.ZERO_MONO_MASSNEUTRAL;
+            var massAverage = TypedMass.ZERO_AVERAGE_MASSNEUTRAL;
+            string molecularFormula = null;
+            if (molecularFormulaOrMassesString != null && 
+                molecularFormulaOrMassesString.Contains(CustomMolecule.MASS_SPLITTER) && // e.g. "1.23/1.24", a mass-only record
+                !molecularFormulaOrMassesString.Contains(MoleculeMassOffset.MASS_MOD_CUE_PLUS) &&  // But not "[+1.23/1.24]" or  "[-1.23/1.24]" a mass offset record
+                !molecularFormulaOrMassesString.Contains(MoleculeMassOffset.MASS_MOD_CUE_MINUS))
             {
                 var parts = molecularFormulaOrMassesString.Split(CustomMolecule.MASS_SPLITTER); // We didn't have a formula so we saved masses
                 massMono = new TypedMass(double.Parse(parts[0], CultureInfo.InvariantCulture), MassType.Monoisotopic);
                 massAverage = new TypedMass(double.Parse(parts[1], CultureInfo.InvariantCulture), MassType.Average);
-                molecularFormula = null;
             }
             else
             {
-                massMono = null;
-                massAverage = null;
                 molecularFormula = molecularFormulaOrMassesString;
             }
+            mol = ParsedMolecule.Create(molecularFormula, massMono, massAverage);
         }
 
-        public static string FormatChemicalFormulaOrMassesString(string chemicalFormula, TypedMass? massMono, TypedMass? massAverage) // For serialization - represents formula or masses, depending on what's available
+        public string FormatChemicalFormulaOrMassesString() // For serialization - represents formula or masses, depending on what's available
         {
-            if (!string.IsNullOrEmpty(chemicalFormula))
+            if (ParsedMolecule.IsNullOrEmpty(ChemicalFormulaOrMasses))
             {
-                return chemicalFormula;
-
+                return string.Empty;
             }
-            if (massMono != null && massAverage != null)
+            if (!ChemicalFormulaOrMasses.IsMassOnly)
             {
-                Assume.IsTrue(massMono.Value.IsMonoIsotopic());
-                Assume.IsTrue(massAverage.Value.IsAverage());
-                return CustomMolecule.FormattedMasses(massMono.Value.Value, massAverage.Value.Value); // Format as dd.ddd/dd.ddd
+                // Return formula and mass offsets if any e.g. "C12H5[-1.23/1.24]"
+                return ChemicalFormulaOrMasses.ToString();
             }
-
-            return string.Empty;
+            else
+            {
+                // Return our traditional mass-only description y e.g. "1.23/1.24"
+                return CustomMolecule.FormattedMasses(ChemicalFormulaOrMasses.MonoMassOffset.Value, ChemicalFormulaOrMasses.AverageMassOffset.Value); // Format as dd.ddd/dd.ddd
+            }
         }
 
-        public static byte[] ToBytes(SmallMoleculeLibraryAttributes attributes)
-        {
-            attributes = attributes ?? EMPTY;
-            // Encode as <length><item><length><item>etc
-            var items = new List<byte[]>
-            {
-                Encoding.UTF8.GetBytes(attributes.MoleculeName ?? string.Empty),
-                Encoding.UTF8.GetBytes(attributes.ChemicalFormulaOrMassesString ?? string.Empty), // If no formula provided, encode monoMass and averageMass instead
-                Encoding.UTF8.GetBytes(attributes.InChiKey ?? string.Empty),
-                Encoding.UTF8.GetBytes(attributes.OtherKeys ?? string.Empty)
-            };
-            Assume.IsTrue(Equals(nItems,items.Count));
-            var results = new byte[items.Sum(item => item.Length + sizeof(int))];
-            var index = 0;
-            foreach (var item in items)
-            {
-                Array.Copy(BitConverter.GetBytes(item.Length), 0, results, index, sizeof(int));
-                index += sizeof(int);
-            }
-            foreach (var item in items)
-            {
-                Array.Copy(item, 0, results, index, item.Length);
-                index += item.Length;
-            }
-            return results;
-        }
-
-        public static SmallMoleculeLibraryAttributes Create(string moleculeName, string chemicalFormula, TypedMass? massMono, TypedMass? massAverage,
+        public static SmallMoleculeLibraryAttributes Create(string moleculeName, ParsedMolecule molecule,
             string inChiKey, string otherKeys)
         {
-            if (string.IsNullOrEmpty(moleculeName) && string.IsNullOrEmpty(chemicalFormula) &&
-                massMono == null && massAverage == null &&
+            if (string.IsNullOrEmpty(moleculeName) && ParsedMolecule.IsNullOrEmpty(molecule) &&
                 string.IsNullOrEmpty(inChiKey) && string.IsNullOrEmpty(otherKeys))
             {
                 return EMPTY;
             }
-            return new SmallMoleculeLibraryAttributes(moleculeName, chemicalFormula, massMono, massAverage, inChiKey, otherKeys);
+            return new SmallMoleculeLibraryAttributes(moleculeName, molecule, inChiKey, otherKeys);
         }
 
         public static SmallMoleculeLibraryAttributes Create(string moleculeName, string chemicalFormulaOrMassesString,
@@ -2147,29 +2135,49 @@ namespace pwiz.Skyline.Model.Lib
         public static SmallMoleculeLibraryAttributes Create(string moleculeName, string chemicalFormulaOrMassesString,
             string inChiKey, string otherKeys)
         {
-            ParseMolecularFormulaOrMassesString(chemicalFormulaOrMassesString,
-                out var chemicalFormula, out var massMono, out var massAverage);
-            if (string.IsNullOrEmpty(moleculeName) && string.IsNullOrEmpty(chemicalFormula) &&
-                massMono == null && massAverage == null &&
-                string.IsNullOrEmpty(inChiKey) && string.IsNullOrEmpty(otherKeys))
+            try
             {
-                return EMPTY;
+                var moleculeMassOffset = ParsedMolecule.Create(chemicalFormulaOrMassesString);
+                if (string.IsNullOrEmpty(moleculeName) && ParsedMolecule.IsNullOrEmpty(moleculeMassOffset) &&
+                    string.IsNullOrEmpty(inChiKey) && string.IsNullOrEmpty(otherKeys))
+                {
+                    return EMPTY;
+                }
+                return new SmallMoleculeLibraryAttributes(moleculeName, moleculeMassOffset, inChiKey, otherKeys);
             }
-            return new SmallMoleculeLibraryAttributes(moleculeName, chemicalFormula, massMono, massAverage, inChiKey, otherKeys);
+            catch (ArgumentException e)
+            {
+                throw new InvalidDataException(e.Message) ;
+            }
         }
 
-        private SmallMoleculeLibraryAttributes(string moleculeName, string chemicalFormula, TypedMass? massMono, TypedMass? massAverage, string inChiKey, string otherKeys)
+        private SmallMoleculeLibraryAttributes(string moleculeName, ParsedMolecule mol, string inChiKey, string otherKeys)
         {
             MoleculeName = moleculeName;
-            ChemicalFormulaOrMassesString = FormatChemicalFormulaOrMassesString(chemicalFormula, massMono, massAverage); // If no formula provided, encode monoMass and averageMass instead
+            ChemicalFormulaOrMasses = mol ?? ParsedMolecule.EMPTY; // If no formula provided, encodes monoMass and averageMass instead
             InChiKey = inChiKey;
             OtherKeys = otherKeys;
         }
 
+        private SmallMoleculeLibraryAttributes(string moleculeName, string chemicalFormula, TypedMass massMono, TypedMass massAverage, string inChiKey, string otherKeys)
+        {
+            try 
+            {
+                MoleculeName = moleculeName;
+                ChemicalFormulaOrMasses = ParsedMolecule.Create(chemicalFormula, massMono, massAverage); // If no formula provided, encode monoMass and averageMass instead
+                InChiKey = inChiKey;
+                OtherKeys = otherKeys;
+            }
+            catch (ArgumentException e)
+            {
+                throw new InvalidDataException(e.Message);
+            }
+        }
+
         public string MoleculeName { get; private set; }
-        public string ChemicalFormulaOrMassesString { get; private set; } // If no formula provided, encodes monoMass and averageMass instead as <mono>-slash-<average>
-        public string ChemicalFormula => ChemicalFormulaOrMassesString != null && !ChemicalFormulaOrMassesString.Contains(CustomMolecule.MASS_SPLITTER) // Returns null if ChemicalFormulaOrMassesString encodes masses instead of formula
-            ? ChemicalFormulaOrMassesString
+        public ParsedMolecule ChemicalFormulaOrMasses { get; private set; } // If no formula provided, encodes monoMass and averageMass instead as <mono>-slash-<average>
+        public string ChemicalFormula => ChemicalFormulaOrMasses.HasChemicalFormula // Return null if ChemicalFormulaOrMassesString encodes masses instead of formula
+            ? ChemicalFormulaOrMasses.ToString()
             : null;
 
         public string InChiKey { get; private set; }
@@ -2182,9 +2190,9 @@ namespace pwiz.Skyline.Model.Lib
 
         public string Validate()
         {
-            return string.IsNullOrEmpty(ChemicalFormulaOrMassesString) ||
+            return ParsedMolecule.IsNullOrEmpty(ChemicalFormulaOrMasses) ||
                     (string.IsNullOrEmpty(MoleculeName) && string.IsNullOrEmpty(InChiKey) && string.IsNullOrEmpty(OtherKeys))
-                ? Resources.SmallMoleculeLibraryAttributes_Validate_A_small_molecule_is_defined_by_a_chemical_formula_and_at_least_one_of_Name__InChiKey__or_other_keys__HMDB_etc_
+                ? LibResources.SmallMoleculeLibraryAttributes_Validate_A_small_molecule_is_defined_by_a_chemical_formula_and_at_least_one_of_Name__InChiKey__or_other_keys__HMDB_etc_
                 : null;
         }
 
@@ -2202,18 +2210,20 @@ namespace pwiz.Skyline.Model.Lib
                 {
                     smallMolLines.Add(new KeyValuePair<string, string> (Resources.SmallMoleculeLibraryAttributes_KeyValuePairs_Name, MoleculeName));
                 }
-                ParseMolecularFormulaOrMassesString(ChemicalFormulaOrMassesString, out var chemicalFormula, out var massMono, out var massAverage);
+                var chemicalFormula = ChemicalFormulaOrMasses.IsMassOnly ? null : ChemicalFormulaOrMasses.ToString();
                 if (!string.IsNullOrEmpty(chemicalFormula))
                 {
                     smallMolLines.Add(new KeyValuePair<string, string> (Resources.SmallMoleculeLibraryAttributes_KeyValuePairs_Formula, chemicalFormula));
                 }
-                if (massMono != null)
+                var massMono = BioMassCalc.MONOISOTOPIC.CalculateMass(ChemicalFormulaOrMasses);
+                if (massMono != 0)
                 {
-                    smallMolLines.Add(new KeyValuePair<string, string>(Resources.SmallMoleculeLibraryAttributes_KeyValuePairs_Monoisotopic_mass, massMono.ToString()));
+                    smallMolLines.Add(new KeyValuePair<string, string>(LibResources.SmallMoleculeLibraryAttributes_KeyValuePairs_Monoisotopic_mass, massMono.ToString()));
                 }
-                if (massAverage != null)
+                var massAverage = BioMassCalc.AVERAGE.CalculateMass(ChemicalFormulaOrMasses);
+                if (massAverage != 0)
                 {
-                    smallMolLines.Add(new KeyValuePair<string, string>(Resources.SmallMoleculeLibraryAttributes_KeyValuePairs_Average_mass, chemicalFormula));
+                    smallMolLines.Add(new KeyValuePair<string, string>(LibResources.SmallMoleculeLibraryAttributes_KeyValuePairs_Average_mass, chemicalFormula));
                 }
                 if (!string.IsNullOrEmpty(InChiKey))
                 {
@@ -2241,7 +2251,7 @@ namespace pwiz.Skyline.Model.Lib
             if (other == null)
                 return false;
             return Equals(MoleculeName, other.MoleculeName) &&
-                   Equals(ChemicalFormulaOrMassesString, other.ChemicalFormulaOrMassesString) &&
+                   Equals(ChemicalFormulaOrMasses, other.ChemicalFormulaOrMasses) &&
                    Equals(InChiKey, other.InChiKey) &&
                    Equals(OtherKeys, other.OtherKeys);
         }
@@ -2250,7 +2260,7 @@ namespace pwiz.Skyline.Model.Lib
             unchecked
             {
                 var hashCode = (MoleculeName != null ? MoleculeName.GetHashCode() : 0);
-                hashCode = (hashCode * 397) ^ (ChemicalFormulaOrMassesString != null ? ChemicalFormulaOrMassesString.GetHashCode() : 0);
+                hashCode = (hashCode * 397) ^ (ChemicalFormulaOrMasses != null ? ChemicalFormulaOrMasses.GetHashCode() : 0);
                 hashCode = (hashCode * 397) ^ (InChiKey != null ? InChiKey.GetHashCode() : 0);
                 hashCode = (hashCode * 397) ^ (OtherKeys != null ? OtherKeys.GetHashCode() : 0);
                 return hashCode;
@@ -2280,7 +2290,7 @@ namespace pwiz.Skyline.Model.Lib
                 }
             }
 
-            if (!Equals(ChemicalFormulaOrMassesString, other.ChemicalFormulaOrMassesString))
+            if (!Equals(ChemicalFormulaOrMasses, other.ChemicalFormulaOrMasses))
             {
                 return null; // Conflict
             }
@@ -2298,7 +2308,7 @@ namespace pwiz.Skyline.Model.Lib
                 consensusOtherKeys = consensusAccession.GetNonInChiKeys();
             }
             
-            return Create(consensusName, ChemicalFormulaOrMassesString, consensusInChiKey,
+            return Create(consensusName, ChemicalFormulaOrMasses, consensusInChiKey,
                 consensusOtherKeys);
         }
 
@@ -2358,7 +2368,7 @@ namespace pwiz.Skyline.Model.Lib
             {
                 for (int i = 0; i < infoOther.SpectrumPeaks.Peaks.Length; ++i)
                 {
-                    spectrumErrors.Add(new TransitionImportErrorInfo(string.Format(Resources.SpectrumMzInfo_CombineSpectrumInfo_Two_incompatible_transition_groups_for_sequence__0___precursor_m_z__1__, 
+                    spectrumErrors.Add(new TransitionImportErrorInfo(string.Format(LibResources.SpectrumMzInfo_CombineSpectrumInfo_Two_incompatible_transition_groups_for_sequence__0___precursor_m_z__1__, 
                                                                                    Key.Target,
                             Key.Target,
                             PrecursorMz),
@@ -2410,7 +2420,7 @@ namespace pwiz.Skyline.Model.Lib
                 var info = library.GetSpectra(key, null, LibraryRedundancy.best).FirstOrDefault();
                 if (info == null)
                 {
-                    throw new IOException(string.Format(Resources.SpectrumMzInfo_GetInfoFromLibrary_Library_spectrum_for_sequence__0__is_missing_, key.Target));
+                    throw new IOException(string.Format(LibResources.SpectrumMzInfo_GetInfoFromLibrary_Library_spectrum_for_sequence__0__is_missing_, key.Target));
                 }
                 spectrumMzInfos.Add(new SpectrumMzInfo
                 {
@@ -2567,7 +2577,7 @@ namespace pwiz.Skyline.Model.Lib
             {
                 LibraryName = Name,
                 PrecursorMz = precursorInfo.PrecursorMz.Value.ToString(Formats.Mz),
-                Score = (SpectrumHeaderInfo as BiblioSpecSpectrumHeaderInfo)?.Score,
+                Score = SpectrumHeaderInfo?.Score,
                 Charge = pepInfo.Charge,
                 RetentionTime = baseRT,
                 CCS = baseCCS,
@@ -2735,7 +2745,6 @@ namespace pwiz.Skyline.Model.Lib
     {
         public static readonly LibraryLink PEPTIDEATLAS = new LibraryLink(@"PeptideAtlas", @"http://www.peptideatlas.org/speclib/");
         public static readonly LibraryLink NIST = new LibraryLink(@"NIST", @"http://peptide.nist.gov/");
-        public static readonly LibraryLink GPM = new LibraryLink(@"GPM", @"ftp://ftp.thegpm.org/projects/xhunter/libs/");
 
         private LibraryLink(string name, string href)
         {
@@ -2869,7 +2878,7 @@ namespace pwiz.Skyline.Model.Lib
             }
             else
             {
-                LibraryKey = new MoleculeLibraryKey(SmallMoleculeLibraryAttributes.Create(primaryKey, null, null, string.Empty), adduct);
+                LibraryKey = new MoleculeLibraryKey(SmallMoleculeLibraryAttributes.Create(primaryKey, string.Empty, null, string.Empty), adduct);
             }
         }
 

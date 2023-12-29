@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Original author: Matt Chambers <matt.chambers42 .at. gmail.com >
  *
  * Copyright 2021 University of Washington - Seattle, WA
@@ -70,8 +70,8 @@ namespace pwiz.Skyline.Model.DdaSearch
             @"c,z",
         };
 
-        public static string MSFRAGGER_VERSION = @"3.4";
-        public static string MSFRAGGER_FILENAME = @"MSFragger-3.4";
+        public static string MSFRAGGER_VERSION = @"3.8";
+        public static string MSFRAGGER_FILENAME = @"MSFragger-3.8";
         public static string MsFraggerDirectory => Path.Combine(ToolDescriptionHelpers.GetToolsDirectory(), MSFRAGGER_FILENAME);
         public static string MsFraggerBinary => Path.Combine(MsFraggerDirectory, MSFRAGGER_FILENAME, MSFRAGGER_FILENAME + @".jar");
         public static FileDownloadInfo MsFraggerDownloadInfo => new FileDownloadInfo { Filename = MSFRAGGER_FILENAME, InstallPath = MsFraggerDirectory, OverwriteExisting = true, Unzip = true };
@@ -214,7 +214,7 @@ namespace pwiz.Skyline.Model.DdaSearch
             }
             catch (Exception ex)
             {
-                _progressStatus = _progressStatus.ChangeErrorException(ex).ChangeMessage(string.Format(Resources.DdaSearch_Search_failed__0, ex.Message));
+                _progressStatus = _progressStatus.ChangeErrorException(ex).ChangeMessage(string.Format(DdaSearchResources.DdaSearch_Search_failed__0, ex.Message));
                 _success = false;
             }
 
@@ -315,9 +315,12 @@ namespace pwiz.Skyline.Model.DdaSearch
 
         // Fix bugs in Crux pepXML output:
         // - base_name attributes not populated (BiblioSpec needs that to associate with spectrum source file)
+        // - wrong search engine (assumes Crux)
         // - search database not set
         private void FixPercolatorPepXml(string cruxOutputFilepath, string finalOutputFilepath, MsDataFileUri spectrumFilename, Dictionary<int, string> nativeIdByScanNumber)
         {
+            bool isBrukerSource = DataSourceUtil.GetSourceType(spectrumFilename.GetFilePath()) == DataSourceUtil.TYPE_BRUKER;
+
             using (var pepXmlFile = new StreamReader(cruxOutputFilepath))
             using (var fixedPepXmlFile = new StreamWriter(finalOutputFilepath))
             {
@@ -326,14 +329,22 @@ namespace pwiz.Skyline.Model.DdaSearch
                 {
                     if (line.Contains(@"base_name"))
                         line = Regex.Replace(line, "base_name=\"NA\"", $"base_name=\"{PathEx.EscapePathForXML(spectrumFilename.GetFileNameWithoutExtension())}\"");
+                    if (line.Contains(@"search_engine="))
+                        line = Regex.Replace(line, "search_engine=\"Crux\"", $"search_engine=\"X!Tandem\" search_engine_version=\"MSFragger-{MSFRAGGER_VERSION}\"");
                     if (line.Contains(@"search_database"))
                         line = Regex.Replace(line, "search_database local_path=\"\\(null\\)\"", $"search_database local_path=\"{PathEx.EscapePathForXML(_fastaFilepath)}\"");
 
                     if (line.Contains(@"<spectrum_query") &&
-                        int.TryParse(Regex.Replace(line, ".* start_scan=\"(\\d+)\" .*", "$1"), out int scanNumber) &&
-                        nativeIdByScanNumber.TryGetValue(scanNumber, out string nativeId))
+                        int.TryParse(Regex.Replace(line, ".* start_scan=\"(\\d+)\" .*", "$1"), out int scanNumber))
                     {
-                        line = line.Replace(@"start_scan=", $@"spectrumNativeID=""{nativeId}"" start_scan=");
+                        if (isBrukerSource)
+                        {
+                            line = line.Replace(@"start_scan=", $@"spectrumNativeID=""scan={scanNumber}"" start_scan=");
+                        }
+                        else if (nativeIdByScanNumber.TryGetValue(scanNumber, out string nativeId))
+                        {
+                            line = line.Replace(@"start_scan=", $@"spectrumNativeID=""{nativeId}"" start_scan=");
+                        }
                     }
 
                     else if (line.Contains(@"output-dir") || line.Contains(@"temp-dir") || line.Contains(@"parameter-file") || line.Contains(@"output-file"))
@@ -350,7 +361,6 @@ namespace pwiz.Skyline.Model.DdaSearch
         // - bug in MSFragger PIN output (or bug in Crux Percolator PIN input): it doesn't like the underscore after charge_
         // - bug in Crux pepXML writer where it doesn't ignore the N-terminal mod annotation (n[123]); the writer doesn't handle terminal mods anyway, so just remove the n and move the mod over to be an AA mod
         // - change in MSFragger 3.4 PIN output: it no longer has charge features which Crux Percolator requires for putting charge in pepXML
-        // - bug in MSFragger output where scan numbers always start from 1 instead of matching the native_id
         private void FixMSFraggerPin(string cruxInputFilepath, string cruxFixedInputFilepath, string msfraggerPepxmlFilepath, out Dictionary<int, string> nativeIdByScanNumber)
         {
             nativeIdByScanNumber = new Dictionary<int, string>();
@@ -362,12 +372,12 @@ namespace pwiz.Skyline.Model.DdaSearch
                 {
                     if (line.Contains(@"<spectrum_query"))
                     {
-                        if (!int.TryParse(Regex.Replace(line, ".* native_id=\"controllerType=0 controllerNumber=1 scan=(\\d+)\" .*", "$1"), out int scanNumber))
+                        if (!int.TryParse(Regex.Replace(line, ".* spectrumNativeID=\"controllerType=0 controllerNumber=1 scan=(\\d+)\" .*", "$1"), out int scanNumber))
                             scanNumber = int.Parse(Regex.Replace(line, ".* start_scan=\"(\\d+)\" .*", "$1"));
 
                         scanNumbers.Add(scanNumber);
 
-                        string nativeId = Regex.Replace(line, ".* native_id=\"([^\"]+)\" .*", "$1");
+                        string nativeId = Regex.Replace(line, ".* spectrumNativeID=\"([^\"]+)\" .*", "$1");
                         if (nativeId.Length < line.Length)
                             nativeIdByScanNumber[scanNumber] = nativeId;
                     }
@@ -388,6 +398,7 @@ namespace pwiz.Skyline.Model.DdaSearch
                         if (line.Contains(@"charge_"))
                         {
                             line = line.Replace(@"charge_", @"Charge");
+                            line = line.Replace(@"_or_more", ""); // MSFragger 3.8
                         }
                         else
                         {
@@ -452,7 +463,7 @@ namespace pwiz.Skyline.Model.DdaSearch
             _fastaFilepath ??= string.Empty;    // For ReSharper
             Assume.IsFalse(string.IsNullOrEmpty(_fastaFilepath));
 
-            _progressStatus = _progressStatus.ChangeMessage(string.Format(Resources.EnsureFastaHasDecoys_Detecting_decoy_prefix_in__0__, Path.GetFileName(_fastaFilepath)));
+            _progressStatus = _progressStatus.ChangeMessage(string.Format(DdaSearchResources.EnsureFastaHasDecoys_Detecting_decoy_prefix_in__0__, Path.GetFileName(_fastaFilepath)));
             UpdateProgress(_progressStatus);
 
             // ReSharper disable LocalizableElement 
@@ -489,7 +500,7 @@ namespace pwiz.Skyline.Model.DdaSearch
                     .ToDictionary(kvp => kvp.Key, kvp => (double)kvp.Value / entryCount)
                     .OrderByDescending(kvp => kvp.Value)
                     .ToList();
-                decoyPrefixDetectionMessages.AppendLine(Resources.EnsureFastaHasDecoys_Some_common_prefixes_were_found_);
+                decoyPrefixDetectionMessages.AppendLine(DdaSearchResources.EnsureFastaHasDecoys_Some_common_prefixes_were_found_);
                 foreach (var kvp in prefixPercentages)
                     decoyPrefixDetectionMessages.AppendFormat($@"{kvp.Key}: {kvp.Value:P1}{Environment.NewLine}");
                 decoyPrefixDetectionMessages.AppendLine();
@@ -497,14 +508,14 @@ namespace pwiz.Skyline.Model.DdaSearch
                 if (prefixPercentages.First().Value > 0.4)
                 {
                     _decoyPrefix = prefixPercentages.Select(kvp => kvp.Key).First();
-                    decoyPrefixDetectionMessages.AppendLine(string.Format(Resources.EnsureFastaHasDecoys_Using__0__as_the_most_likely_decoy_prefix_, _decoyPrefix));
+                    decoyPrefixDetectionMessages.AppendLine(string.Format(DdaSearchResources.EnsureFastaHasDecoys_Using__0__as_the_most_likely_decoy_prefix_, _decoyPrefix));
                 }
                 else
-                    decoyPrefixDetectionMessages.AppendLine(Resources.EnsureFastaHasDecoys_No_prefixes_were_frequent_enough_to_be_a_decoy_prefix__present_in_at_least_40__of_entries__);
+                    decoyPrefixDetectionMessages.AppendLine(DdaSearchResources.EnsureFastaHasDecoys_No_prefixes_were_frequent_enough_to_be_a_decoy_prefix__present_in_at_least_40__of_entries__);
             }
             else
             {
-                decoyPrefixDetectionMessages.AppendLine(Resources.EnsureFastaHasDecoys_No_common_prefixes_were_found_);
+                decoyPrefixDetectionMessages.AppendLine(DdaSearchResources.EnsureFastaHasDecoys_No_common_prefixes_were_found_);
                 decoyPrefixDetectionMessages.AppendLine();
 
                 if (suffixCounts.Any(kvp => kvp.Value > 0))
@@ -513,18 +524,18 @@ namespace pwiz.Skyline.Model.DdaSearch
                         .ToDictionary(kvp => kvp.Key, kvp => (double)kvp.Value / entryCount)
                         .OrderByDescending(kvp => kvp.Value)
                         .ToList();
-                    decoyPrefixDetectionMessages.AppendLine(Resources.EnsureFastaHasDecoys_Some_common_suffixes_were_found_but_these_are_not_supported_);
+                    decoyPrefixDetectionMessages.AppendLine(DdaSearchResources.EnsureFastaHasDecoys_Some_common_suffixes_were_found_but_these_are_not_supported_);
                     foreach (var kvp in suffixPercentages)
                         decoyPrefixDetectionMessages.AppendFormat($@"{kvp.Key}: {kvp.Value:P1}{Environment.NewLine}");
                     decoyPrefixDetectionMessages.AppendLine();
 
                     if (suffixPercentages.First().Value > 0.4 && suffixPercentages.First().Value < 0.6)
                     {
-                        decoyPrefixDetectionMessages.AppendLine(string.Format(Resources.EnsureFastaHasDecoys_The_suffix__0__was_likely_intended_as_a_decoy_suffix__but_Skyline_s_DDA_search_tools_do_not_support_decoy_suffixes, suffixPercentages.First().Key));
+                        decoyPrefixDetectionMessages.AppendLine(string.Format(DdaSearchResources.EnsureFastaHasDecoys_The_suffix__0__was_likely_intended_as_a_decoy_suffix__but_Skyline_s_DDA_search_tools_do_not_support_decoy_suffixes, suffixPercentages.First().Key));
                     }
                 }
                 else
-                    decoyPrefixDetectionMessages.AppendLine(Resources.EnsureFastaHasDecoys_No_common_suffixes_were_found_);
+                    decoyPrefixDetectionMessages.AppendLine(DdaSearchResources.EnsureFastaHasDecoys_No_common_suffixes_were_found_);
             }
             _progressStatus = _progressStatus.ChangeMessage(decoyPrefixDetectionMessages.ToString());
             UpdateProgress(_progressStatus);
@@ -534,7 +545,7 @@ namespace pwiz.Skyline.Model.DdaSearch
                 string decoyFastaFilepath = Path.Combine(Path.GetDirectoryName(_fastaFilepath) ?? "", @"decoy_" + Path.GetFileName(_fastaFilepath));
                 if (File.Exists(decoyFastaFilepath))
                 {
-                    _progressStatus = _progressStatus.ChangeMessage(string.Format(Resources.EnsureFastaHasDecoys_No_decoy_prefix_detected__but_an_existing_decoy_database_seems_to_exist_at__0__, Path.GetFileName(decoyFastaFilepath)));
+                    _progressStatus = _progressStatus.ChangeMessage(string.Format(DdaSearchResources.EnsureFastaHasDecoys_No_decoy_prefix_detected__but_an_existing_decoy_database_seems_to_exist_at__0__, Path.GetFileName(decoyFastaFilepath)));
                     UpdateProgress(_progressStatus);
                     _fastaFilepath = decoyFastaFilepath;
                     EnsureFastaHasDecoys();
@@ -542,7 +553,7 @@ namespace pwiz.Skyline.Model.DdaSearch
                 }
 
                 _decoyPrefix = @"DECOY_";
-                _progressStatus = _progressStatus.ChangeMessage(string.Format(Resources.EnsureFastaHasDecoys_No_decoy_prefix_detected__A_new_FASTA_will_be_generated_using_reverse_sequences_as_decoys__with_prefix___0____, _decoyPrefix));
+                _progressStatus = _progressStatus.ChangeMessage(string.Format(DdaSearchResources.EnsureFastaHasDecoys_No_decoy_prefix_detected__A_new_FASTA_will_be_generated_using_reverse_sequences_as_decoys__with_prefix___0____, _decoyPrefix));
                 UpdateProgress(_progressStatus);
 
                 File.Copy(_fastaFilepath, decoyFastaFilepath);
@@ -559,7 +570,7 @@ namespace pwiz.Skyline.Model.DdaSearch
                         fastaWriter.WriteLine();
                     }
                 }
-                _progressStatus = _progressStatus.ChangeMessage(string.Format(Resources.EnsureFastaHasDecoys_Using_decoy_database_at__0___1_, Path.GetFileName(decoyFastaFilepath), Environment.NewLine));
+                _progressStatus = _progressStatus.ChangeMessage(string.Format(DdaSearchResources.EnsureFastaHasDecoys_Using_decoy_database_at__0___1_, Path.GetFileName(decoyFastaFilepath), Environment.NewLine));
                 UpdateProgress(_progressStatus);
                 _fastaFilepath = decoyFastaFilepath;
             }
@@ -645,7 +656,7 @@ add_Nterm_protein = 0.000000
             foreach (var mod in fixedAndVariableModifs)
             {
                 // can't use mod with no formula or mass; CONSIDER throwing exception
-                if (mod.LabelAtoms == LabelAtoms.None && mod.Formula == null && mod.MonoisotopicMass == null ||
+                if (mod.LabelAtoms == LabelAtoms.None && ParsedMolecule.IsNullOrEmpty(mod.ParsedMolecule) && mod.MonoisotopicMass == null ||
                     mod.LabelAtoms != LabelAtoms.None && mod.AAs.IsNullOrEmpty())
                     continue;
 
@@ -692,7 +703,7 @@ add_Nterm_protein = 0.000000
 
                 if (mod.LabelAtoms == LabelAtoms.None)
                 {
-                    double mass = mod.MonoisotopicMass ?? SequenceMassCalc.FormulaMass(BioMassCalc.MONOISOTOPIC, mod.Formula, SequenceMassCalc.MassPrecision).Value;
+                    double mass = mod.MonoisotopicMass ?? SequenceMassCalc.FormulaMass(BioMassCalc.MONOISOTOPIC, mod.ParsedMolecule, SequenceMassCalc.MassPrecision).Value;
 
                     string residues = string.Empty;
                     if (position.IsNullOrEmpty() || mod.AAs == null)
@@ -728,8 +739,8 @@ add_Nterm_protein = 0.000000
                 modParamLines.Add(@"add_C_cysteine = 0"); // disable default cysteine static mod
 
             foreach (var kvp in staticModsByAA)
-                if (AminoAcidFormulas.FullNames.ContainsKey(kvp.Key))
-                    modParamLines.Add($@"add_{kvp.Key}_{AminoAcidFormulas.FullNames[kvp.Key].ToLowerInvariant().Replace(' ', '_')} = {kvp.Value.ToString(CultureInfo.InvariantCulture)}");
+                if (AminoAcidFormulas.FullNames.TryGetValue(kvp.Key, out var fullName))
+                    modParamLines.Add($@"add_{kvp.Key}_{fullName.ToLowerInvariant().Replace(' ', '_')} = {kvp.Value.ToString(CultureInfo.InvariantCulture)}");
 
             modParamLines.Sort();
             _modParams = string.Join(Environment.NewLine, modParamLines);
@@ -777,11 +788,11 @@ add_Nterm_protein = 0.000000
             return false;
         }
 
-        public bool IsCanceled => _cancelToken.IsCancellationRequested;
+        public bool IsCanceled => _cancelToken?.IsCancellationRequested ?? false;
         public UpdateProgressResponse UpdateProgress(IProgressStatus status)
         {
             SearchProgressChanged?.Invoke(this, status);
-            return _cancelToken.IsCancellationRequested ? UpdateProgressResponse.cancel : UpdateProgressResponse.normal;
+            return IsCanceled ? UpdateProgressResponse.cancel : UpdateProgressResponse.normal;
         }
 
         public bool HasUI => false;

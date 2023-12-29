@@ -26,7 +26,6 @@ using pwiz.Common.Collections;
 using pwiz.Common.PeakFinding;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.Results.Scoring;
-using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
 
 namespace pwiz.Skyline.Model.Results
@@ -101,8 +100,8 @@ namespace pwiz.Skyline.Model.Results
         {
             get
             {
-                return _listChromData.Where(d => d.DocNode != null).Select(d => d.DocNode.Id)
-                    .Distinct(new IdentityEqualityComparer<Identity>()).Count();
+                return _listChromData.Where(d => d.DocNode != null).Select(d => ReferenceValue.Of(d.DocNode.Id))
+                    .Distinct().Count();
             }
         }
 
@@ -185,19 +184,15 @@ namespace pwiz.Skyline.Model.Results
         /// </summary>
         public bool OverrideTextId { get; }
 
-        public Target ModifiedSequence
+        public ChromatogramGroupId ChromatogramGroupId
         {
             get
             {
                 if (OverrideTextId)
                 {
-                    var peptideDocNode = NodeGroups.FirstOrDefault()?.Item1;
-                    if (peptideDocNode != null)
-                    {
-                        return peptideDocNode.ModifiedTarget;
-                    }
+                    return ChromatogramGroupId.ForPeptide(NodeGroups.FirstOrDefault()?.Item1, NodeGroups.FirstOrDefault()?.Item2);
                 }
-                return _listChromData.Count > 0 ? BestChromatogram.Key.Target : null;
+                return _listChromData.Count > 0 ? BestChromatogram.Key.ChromatogramGroupId : null;
             }
         }
 
@@ -229,11 +224,6 @@ namespace pwiz.Skyline.Model.Results
         public float ExtractionWidth
         {
             get { return _listChromData.Count > 0 ? BestChromatogram.Key.ExtractionWidth : 0; }
-        }
-
-        public bool HasCalculatedMzs
-        {
-            get { return _listChromData.Count > 0 && BestChromatogram.Key.HasCalculatedMzs; }
         }
 
         public int StatusId
@@ -289,11 +279,11 @@ namespace pwiz.Skyline.Model.Results
             }
         }
 
-        public bool Load(ChromDataProvider provider, Target modifiedSequence, Color peptideColor)
+        public bool Load(ChromDataProvider provider, ChromatogramGroupId chromatogramGroupId, Color peptideColor)
         {
             foreach (var chromData in _listChromData.ToArray())
             {
-                if (!chromData.Load(provider, modifiedSequence, peptideColor))
+                if (!chromData.Load(provider, chromatogramGroupId, peptideColor))
                 {
                     Remove(chromData);
                 }
@@ -481,7 +471,7 @@ namespace pwiz.Skyline.Model.Results
             }
             // Make sure the final time interval contains at least one time.
             if (start > end)
-                throw new InvalidOperationException(string.Format(Resources.ChromDataSet_GetExtents_The_time_interval__0__to__1__is_not_valid, start, end));
+                throw new InvalidOperationException(string.Format(ResultsResources.ChromDataSet_GetExtents_The_time_interval__0__to__1__is_not_valid, start, end));
         }
 
         private const double NOISE_CORRELATION_THRESHOLD = 0.95;
@@ -863,7 +853,7 @@ namespace pwiz.Skyline.Model.Results
                 {
                     var peak = listEnumerators[i].Current;
                     if (peak == null)
-                        throw new InvalidOperationException(Resources.ChromDataSet_MergePeaks_Unexpected_null_peak);
+                        throw new InvalidOperationException(ResultsResources.ChromDataSet_MergePeaks_Unexpected_null_peak);
                     float intensity = peak.Area;
                     int isId = peak.Identified ? 1 : 0;
                     if (isId > maxId  || (isId == maxId && intensity > maxIntensity))
@@ -1313,7 +1303,7 @@ namespace pwiz.Skyline.Model.Results
 
         public override string ToString()
         {
-            return Count > 0 ? _listChromData[0].ToString() : Resources.ChromDataSet_ToString_empty;
+            return Count > 0 ? _listChromData[0].ToString() : ResultsResources.ChromDataSet_ToString_empty;
         }
 
         public void Truncate(double startTime, double endTime)
@@ -1407,8 +1397,6 @@ namespace pwiz.Skyline.Model.Results
             ChromGroupHeaderInfo.FlagValues flags = 0;
             if (groupOfTimeIntensities.HasMassErrors)
                 flags |= ChromGroupHeaderInfo.FlagValues.has_mass_errors;
-            if (HasCalculatedMzs)
-                flags |= ChromGroupHeaderInfo.FlagValues.has_calculated_mzs;
             if (Extractor == ChromExtractor.base_peak)
                 flags |= ChromGroupHeaderInfo.FlagValues.extracted_base_peak;
             else if (Extractor == ChromExtractor.qc)
@@ -1439,8 +1427,6 @@ namespace pwiz.Skyline.Model.Results
                 uncompressedSize,
                 groupOfTimeIntensities.NumInterpolatedPoints,
                 GetFlagValues(groupOfTimeIntensities),
-                StatusId,
-                StatusRank,
                 MinRawTime,
                 MaxRawTime,
                 CollisionalCrossSectionSqA,
@@ -1454,7 +1440,7 @@ namespace pwiz.Skyline.Model.Results
             var chromTransitions = Chromatograms.Select(chromData => chromData.MakeChromTransition()).ToList();
             var chromPeaks = Chromatograms.SelectMany(chromData => chromData.Peaks).ToList();
             var scores = _listPeakSets.SelectMany(peakSet => peakSet.DetailScores).ToArray();
-            var chromatogramGroupInfo = new ChromatogramGroupInfo(groupHeaderInfo, chromTransitions,
+            var chromatogramGroupInfo = new ChromatogramGroupInfo(groupHeaderInfo, chromCachedFile, chromTransitions,
                 chromPeaks, timeIntensitiesGroup, featureNames, scores);
             return chromatogramGroupInfo;
         }

@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Original author: Tahmina Jahan <tabaker .at. u.washington.edu>,
  *                  UWPR, Department of Genome Sciences, UW
  *
@@ -103,12 +103,10 @@ namespace pwiz.Skyline.FileUI.PeptideSearch
         private void browseToResultsFileButton_Click(object sender, EventArgs e)
         {
             MsDataFileUri[] dataSources;
-            using (var dlg = new OpenDataSourceDialog(Settings.Default.RemoteAccountList)
+            using (var dlg = new OpenDataSourceDialog(Settings.Default.RemoteAccountList))
             {
-                Text = Resources.ImportResultsControl_browseToResultsFileButton_Click_Import_Peptide_Search,
-                InitialDirectory = new MsDataFilePath(DocumentDirectory)
-            })
-            {
+                dlg.Text = PeptideSearchResources.ImportResultsControl_browseToResultsFileButton_Click_Import_Peptide_Search;
+                dlg.InitialDirectory = new MsDataFilePath(DocumentDirectory);
                 // Use saved source type, if there is one.
                 string sourceType = Settings.Default.SrmResultsSourceType;
                 if (!string.IsNullOrEmpty(sourceType))
@@ -133,13 +131,11 @@ namespace pwiz.Skyline.FileUI.PeptideSearch
         private void findResultsFilesButton_Click(object sender, EventArgs e)
         {
             // Ask the user for the directory to search
-            using (var dlg = new FolderBrowserDialog
+            using (var dlg = new FolderBrowserDialog())
             {
-                Description = Resources.ImportResultsControl_findResultsFilesButton_Click_Results_Directory,
-                ShowNewFolderButton = false,
-                SelectedPath = Path.GetDirectoryName(DocumentDirectory)
-            })
-            {
+                dlg.Description = PeptideSearchResources.ImportResultsControl_findResultsFilesButton_Click_Results_Directory;
+                dlg.ShowNewFolderButton = false;
+                dlg.SelectedPath = Path.GetDirectoryName(DocumentDirectory);
                 if (dlg.ShowDialog(WizardForm) != DialogResult.OK)
                     return;
 
@@ -148,18 +144,16 @@ namespace pwiz.Skyline.FileUI.PeptideSearch
                 dirsToSearch.AddRange(ImportPeptideSearch.GetSubdirectories(dlg.SelectedPath));
                 if (!UpdateResultsFiles(dirsToSearch, true))
                 {
-                    MessageDlg.Show(WizardForm, Resources.ImportResultsControl_findResultsFilesButton_Click_Could_not_find_all_the_missing_results_files_);
+                    MessageDlg.Show(WizardForm, PeptideSearchResources.ImportResultsControl_findResultsFilesButton_Click_Could_not_find_all_the_missing_results_files_);
                 }
             }
         }
 
         public bool UpdateResultsFiles(IEnumerable<string> dirPaths, bool overwrite)
         {
-            using (var longWaitDlg = new LongWaitDlg
-                {
-                    Text = Resources.ImportResultsControl_FindResultsFiles_Searching_for_Results_Files
-                })
+            using (var longWaitDlg = new LongWaitDlg())
             {
+                longWaitDlg.Text = Resources.ImportResultsControl_FindResultsFiles_Searching_for_Results_Files;
                 try
                 {
                     longWaitDlg.PerformWork(WizardForm, 1000, longWaitBroker =>

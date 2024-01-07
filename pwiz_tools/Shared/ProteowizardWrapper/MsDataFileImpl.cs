@@ -1233,6 +1233,7 @@ namespace pwiz.ProteowizardWrapper
             {
                 metadata = metadata.ChangeScanWindow(scanWindowLowerLimit.Value, scanWindowUpperLimit.Value);
             }
+
             return metadata;
         }
 

@@ -356,7 +356,6 @@ namespace pwiz.Skyline.Controls.Alignment
                 UpdateComboCurves();
                 propertyGrid.SelectedObject = _curves[comboCurves.SelectedIndex];
                 UpdateUI();
-
             });
         }
 

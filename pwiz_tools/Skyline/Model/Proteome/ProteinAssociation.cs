@@ -139,10 +139,13 @@ namespace pwiz.Skyline.Model.Proteome
                     if (!peptidesMatched.Add(result.Keyword))
                         continue;
 
-                    // check that peptide is in the digest of the protein (if the result is non-empty)
-                    digestedPeptides ??= digestProteinToPeptides(fastaRecord.Sequence).ToList();
-                    if (!digestedPeptides.Contains(p => p.Sequence == result.Keyword))
-                        continue;
+                    if (false)
+                    {
+                        // check that peptide is in the digest of the protein (if the result is non-empty)
+                        digestedPeptides ??= digestProteinToPeptides(fastaRecord.Sequence).ToList();
+                        if (!digestedPeptides.Contains(p => p.Sequence == result.Keyword))
+                            continue;
+                    }
 
                     matches.AddRange(_peptideToPath[result.Keyword]);
                 }

@@ -21,6 +21,7 @@ using System.ComponentModel;
 using pwiz.Common.DataBinding.Attributes;
 using pwiz.Skyline.Model.Hibernate;
 using pwiz.Skyline.Model.Results;
+using pwiz.Skyline.Util;
 using pwiz.Skyline.Util.Extensions;
 
 namespace pwiz.Skyline.Model.Databinding.Entities
@@ -112,6 +113,50 @@ namespace pwiz.Skyline.Model.Databinding.Entities
         protected Lazy<MsDataFileScanIds> GetLazyMsDataFileScanIds()
         {
             return new Lazy<MsDataFileScanIds>(ChromatogramGroup.ReadMsDataFileScanIds);
+        }
+
+        public class Data
+        {
+            private TimeIntensities _timeIntensities;
+            private Lazy<MsDataFileScanIds> _scanIds;
+            public Data(TimeIntensities timeIntensities, Lazy<MsDataFileScanIds> scanIds)
+            {
+                _timeIntensities = timeIntensities;
+                _scanIds = scanIds;
+            }
+            [Format(NullValue = TextUtil.EXCEL_NA)]
+            public int NumberOfPoints { get { return _timeIntensities.NumPoints; } }
+            [Format(Formats.RETENTION_TIME)]
+            public FormattableList<float> Times { get { return new FormattableList<float>(_timeIntensities.Times); } }
+            [Format(Formats.PEAK_AREA)]
+            public FormattableList<float> Intensities { get { return new FormattableList<float>(_timeIntensities.Intensities); } }
+            [Format(Formats.MASS_ERROR)]
+            public FormattableList<float> MassErrors { get { return new FormattableList<float>(_timeIntensities.MassErrors); }}
+
+            public FormattableList<string> SpectrumIds
+            {
+                get
+                {
+                    if (_timeIntensities.ScanIds == null || _scanIds == null)
+                    {
+                        return null;
+                    }
+
+                    var scanIds = _scanIds.Value;
+                    if (scanIds == null)
+                    {
+                        return null;
+                    }
+
+                    return new FormattableList<string>(_timeIntensities.ScanIds
+                        .Select(index => scanIds.GetMsDataFileSpectrumId(index)).ToArray());
+                }
+            }
+
+            public override string ToString()
+            {
+                return string.Format(EntitiesResources.Data_ToString__0__points, NumberOfPoints);
+            }
         }
 
         [Format(Formats.Mz, NullValue = TextUtil.EXCEL_NA)]

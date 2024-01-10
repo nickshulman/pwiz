@@ -25,6 +25,7 @@ using pwiz.Common.SystemUtil;
 using pwiz.ProteowizardWrapper;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.Results.Spectra;
+using pwiz.Skyline.Util;
 
 namespace pwiz.Skyline.Model.Results
 {
@@ -164,14 +165,16 @@ namespace pwiz.Skyline.Model.Results
             return _dataFile.GetChromatogramId(index, out indexId);
         }
 
-        public bool GetChromatogram(int index, out float[] times, out float[] intensities)
+        public bool GetChromatogram(int index, out string name, out float[] times, out float[] intensities)
         {
             index -= IndexOffset;
+            name = null;
 
             if (QcTraceByIndex.TryGetValue(index, out MsDataFileImpl.QcTrace qcTrace))
             {
                 times = MsDataFileImpl.ToFloatArray(qcTrace.Times);
                 intensities = MsDataFileImpl.ToFloatArray(qcTrace.Intensities);
+                name = qcTrace.Name;
             }
             else if (index == TicChromatogramIndex || index == BpcChromatogramIndex)
             {
@@ -181,7 +184,7 @@ namespace pwiz.Skyline.Model.Results
             {
                 times = intensities = null;
             }
-
+            Console.Out.WriteLine("Global Chromatogram Extractor: GetChromatogram Index: {0} Start: {1} End: {2}", index, times?.First(), times?.Last());
             return times != null;
         }
 
@@ -197,7 +200,7 @@ namespace pwiz.Skyline.Model.Results
             }
 
             float[] times;
-            if (!GetChromatogram(TicChromatogramIndex.Value, out times, out _))
+            if (!GetChromatogram(TicChromatogramIndex.Value, out _, out times, out _))
             {
                 return false;
             }
@@ -484,7 +487,11 @@ namespace pwiz.Skyline.Model.Results
         public override bool GetChromatogram(int id, ChromatogramGroupId chromatogramGroupId, Color color, out ChromExtra extra, out TimeIntensities timeIntensities)
         {
             float[] times, intensities;
-            if (!_globalChromatogramExtractor.GetChromatogram(id, out times, out intensities))
+            if (_globalChromatogramExtractor.GetChromatogram(id, out string qcTraceName, out times, out intensities))
+            {
+                Assume.AreEqual(qcTraceName, chromatogramGroupId.QcTraceName);
+            }
+            else
             {
                 _dataFile.GetChromatogram(id, out _, out times, out intensities);
             }

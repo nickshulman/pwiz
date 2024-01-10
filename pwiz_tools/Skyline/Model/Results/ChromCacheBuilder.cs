@@ -1388,6 +1388,10 @@ namespace pwiz.Skyline.Model.Results
                 CacheFormat.ChromPeakSerializer().WriteItems(_fsPeaks.FileStream, chromData.Peaks);
             }
 
+            if (header.Precursor.Equals(SignedMz.ZERO))
+            {
+                Console.Out.WriteLine("Id: {0} Start: {1} End: {2}", chromDataSet.ChromatogramGroupId, chromDataSet.MinRawTime, chromDataSet.MaxRawTime);
+            }
             AddChromGroup(new ChromGroupHeaderEntry(indexInFile, header));
         }
     }

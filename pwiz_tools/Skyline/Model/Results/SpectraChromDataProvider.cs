@@ -24,6 +24,7 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using pwiz.Common.Chemistry;
+using pwiz.Common.Collections;
 using pwiz.Common.Spectra;
 using pwiz.Common.SystemUtil;
 using pwiz.ProteowizardWrapper;
@@ -608,8 +609,9 @@ namespace pwiz.Skyline.Model.Results
             extra = null;
             if (SignedMz.ZERO.Equals(chromKey?.Precursor ?? SignedMz.ZERO))
             {
-                if (_globalChromatogramExtractor.GetChromatogram(id, out float[] times, out float[] intensities))
+                if (_globalChromatogramExtractor.GetChromatogram(id, out string qcName, out float[] times, out float[] intensities))
                 {
+                    Assume.AreEqual(qcName, chromatogramGroupId?.QcTraceName);
                     timeIntensities = new TimeIntensities(times, intensities, null, null);
                     extra = new ChromExtra(0, 0);
                 }
@@ -629,6 +631,10 @@ namespace pwiz.Skyline.Model.Results
             }
 
             UpdatePercentComplete();
+            if (SignedMz.ZERO.Equals(chromKey?.Precursor))
+            {
+                Console.Out.WriteLine("SpectraChromDataProvider.GetChromatogram ID: {0} Start: {1} End: {2}", chromKey, timeIntensities?.Times.First(), timeIntensities?.Times.Last());
+            }
             return timeIntensities.NumPoints > 0;
         }
 
@@ -1209,32 +1215,22 @@ namespace pwiz.Skyline.Model.Results
             {
                 IsRunningAsync = runningAsync;
 
-                // Sort ChromKeys in order of max retention time, and note the sort order.
-                var chromKeyArray = chromKeys.ToArray();
-                if (chromKeyArray.Length > 1)
+                var chromKeyIndexes = chromKeys.Select((chromKey, index) => Tuple.Create(chromKey, index));
+                var groupedByEndTime = chromKeyIndexes.GroupBy(tuple => tuple.Item1.OptionalMaxTime ?? float.MaxValue)
+                    .OrderBy(group => group.Key).ToList();
+                ChromKeys = ImmutableList.ValueOf(groupedByEndTime.SelectMany(group => group.Select(tuple => tuple.Item1)));
+                if (groupedByEndTime.Count > 1)
                 {
-                    var lastMaxTime = chromKeyArray[0].OptionalMaxTime ?? float.MaxValue;
-                    for (int i = 1; i < chromKeyArray.Length; i++)
-                    {
-                        var maxTime = chromKeyArray[i].OptionalMaxTime ?? float.MaxValue;
-                        if (maxTime < lastMaxTime)
-                        {
-                            int[] sortIndexes;
-                            ArrayUtil.Sort(chromKeyArray, out sortIndexes);
-                            // The sort indexes tell us where the keys used to live. For lookup, we need
-                            // to go the other way. Chromatograms will come in indexed by where they used to
-                            // be, and we need to put them into the _chromList array in the new location of
-                            // the ChromKey.
-                            _chromKeyLookup = new int[sortIndexes.Length];
-                            for (int j = 0; j < sortIndexes.Length; j++)
-                                _chromKeyLookup[sortIndexes[j]] = j;
-                            break;
-                        }
-                        lastMaxTime = maxTime;
-                    }
+                    var sortIndexes = groupedByEndTime.SelectMany(group => group.Select(tuple => tuple.Item2)).ToArray();
+                    _chromKeyLookup = sortIndexes;
+                    // // The sort indexes tell us where the keys used to live. For lookup, we need
+                    // // to go the other way. Chromatograms will come in indexed by where they used to
+                    // // be, and we need to put them into the _chromList array in the new location of
+                    // // the ChromKey.
+                    // _chromKeyLookup = new int[sortIndexes.Length];
+                    // for (int j = 0; j < sortIndexes.Length; j++)
+                    //     _chromKeyLookup[sortIndexes[j]] = j;
                 }
-                ChromKeys = chromKeyArray;
-
                 // Create empty chromatograms for each ChromKey.
                 _collectors = new ChromCollector[chromKeys.Count];
             }

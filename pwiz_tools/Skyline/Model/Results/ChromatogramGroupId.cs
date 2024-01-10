@@ -180,6 +180,11 @@ namespace pwiz.Skyline.Model.Results
                 parts.Add(Target.ToString());
             }
 
+            if (QcTraceName != null)
+            {
+                parts.Add(QcTraceName);
+            }
+
             if (!SpectrumClassFilter.IsEmpty)
             {
                 parts.Add(SpectrumClassFilter.ToString());

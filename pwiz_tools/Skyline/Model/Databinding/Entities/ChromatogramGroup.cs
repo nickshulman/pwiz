@@ -1,6 +1,5 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using pwiz.Common.DataBinding.Attributes;
 using pwiz.Skyline.Model.Results;
 

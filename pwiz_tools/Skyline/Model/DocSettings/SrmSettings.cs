@@ -264,7 +264,7 @@ namespace pwiz.Skyline.Model.DocSettings
             if (precursorCalc == null)
             {
                 // Try to track down this exception:
-                // https://skyline.gs.washington.edu/labkey/announcements/home/issues/exceptions/thread.view?entityId=217d79c8-9a84-1032-ae5f-da2025829168&_anchor=19667#row:19667
+                // https://skyline.ms/announcements/home/issues/exceptions/thread.view?entityId=217d79c8-9a84-1032-ae5f-da2025829168&_anchor=19667#row:19667
                 throw new InvalidDataException(
                     String.Format(@"unable to locate precursor calculator for isotope label type {0} and mods {1}",
                         labelType == null ? @"(null)" : labelType.ToString(),
@@ -1846,7 +1846,7 @@ namespace pwiz.Skyline.Model.DocSettings
                 {
                     var librarySpec = libraries.LibrarySpecs[i];
                     if (librarySpec == null)
-                        throw new InvalidDataException(Resources.SrmSettings_ConnectLibrarySpecs_Settings_missing_library_spec);
+                        throw new InvalidDataException(DocSettingsResources.SrmSettings_ConnectLibrarySpecs_Settings_missing_library_spec);
                     librarySpecs[iSpec] = librarySpec;
                     if (!File.Exists(librarySpec.FilePath))
                     {
@@ -1935,7 +1935,7 @@ namespace pwiz.Skyline.Model.DocSettings
                         if (defSet.StaticModList.Any(existingMod => Equals(existingMod.Name, modName)))
                         {
                             throw new InvalidDataException(
-                                string.Format(Resources.SrmSettings_UpdateDefaultModifications_The_modification__0__already_exists_with_a_different_definition,
+                                string.Format(DocSettingsResources.SrmSettings_UpdateDefaultModifications_The_modification__0__already_exists_with_a_different_definition,
                                     modName));
                         }
                     }
@@ -1955,7 +1955,7 @@ namespace pwiz.Skyline.Model.DocSettings
                             if (defSet.HeavyModList.Any(existingMod => Equals(existingMod.Name, modName)))
                             {
                                 throw new InvalidDataException(
-                                    string.Format(Resources.SrmSettings_UpdateDefaultModifications_The_modification__0__already_exists_with_a_different_definition,
+                                    string.Format(DocSettingsResources.SrmSettings_UpdateDefaultModifications_The_modification__0__already_exists_with_a_different_definition,
                                         modName));
                             }
                         }

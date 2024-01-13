@@ -152,7 +152,7 @@ namespace pwiz.Skyline.Model.Results.Spectra.Alignment
                 return null;
             }
 
-            return Statistics.AngleToNormalizedContrastAngle(sumXY / Math.Sqrt(sumXX * sumYY));
+            return sumXY / Math.Sqrt(sumXX * sumYY);
         }
 
         public SpectrumSummaryList TruncateSummariesTo(int length)

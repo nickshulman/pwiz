@@ -83,7 +83,7 @@ namespace pwiz.Skyline.Model.Results.Spectra.Alignment
                     yValues.Add(point.Y);
                 }
 
-                yield return new PointPair(point.X, point.Y);
+                yield return new PointPair(point.X, point.Y, point.Z);
             }
         }
 

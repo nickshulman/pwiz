@@ -5,16 +5,20 @@ using System.Drawing.Imaging;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Security.Policy;
 using System.Threading;
-using System.Web.UI.Design;
+using Microsoft.VisualBasic.Logging;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using NHibernate.Mapping.ByCode;
 using pwiz.Common.Spectra;
 using pwiz.MSGraph;
 using pwiz.ProteowizardWrapper;
-using pwiz.Skyline.Model.Databinding.Entities;
+using pwiz.Skyline.Model.AuditLog;
+using pwiz.Skyline.Model.GroupComparison;
 using pwiz.Skyline.Model.Results.Spectra;
 using pwiz.Skyline.Model.Results.Spectra.Alignment;
 using pwiz.Skyline.Model.RetentionTimes;
+using pwiz.Skyline.Util;
 using pwiz.SkylineTestUtil;
 using ZedGraph;
 
@@ -23,6 +27,13 @@ namespace pwiz.SkylineTestData
     [TestClass]
     public class SpectrumSummaryTest : AbstractUnitTest
     {
+
+        enum Weighting
+        {
+            none,
+            dotProduct,
+            normalizedContrastAngle,
+        }
         private const int MAX_DIGEST_LENGTH = 4096;
         [TestMethod]
         public void GenerateResultFileMetadatas()
@@ -33,25 +44,30 @@ namespace pwiz.SkylineTestData
                 using var msDataFile = new MsDataFileImpl(TestFilesDir.GetTestPath(baseFileName + ".raw"));
                 foreach (bool log in new[] { false, true })
                 {
-                    var spectrumSummaries = new List<SpectrumSummary>();
-                    for (int spectrumIndex = 0; spectrumIndex < msDataFile.SpectrumCount; spectrumIndex++)
-                    {
-                        var spectrum = msDataFile.GetSpectrum(spectrumIndex);
-                        var summaryValue =
-                            GetSummaryValue(spectrum.Metadata, spectrum.Mzs, spectrum.Intensities, log, 1024);
-                        spectrumSummaries.Add(new SpectrumSummary(spectrum.Metadata, summaryValue));
-                    }
-
-                    var resultFileMetadata = new ResultFileMetaData(spectrumSummaries);
                     var suffix = "_" + MAX_DIGEST_LENGTH + ".resultfilemetadata";
                     if (log)
                     {
                         suffix = "_log" + suffix;
                     }
                     File.WriteAllBytes(TestFilesDir.GetTestPath(baseFileName + suffix),
-                        resultFileMetadata.ToByteArray());
+                        GetResultFileMetadata(TestFilesDir.GetTestPath(baseFileName + ".raw"), MAX_DIGEST_LENGTH, log).ToByteArray());
                 }
             }
+        }
+
+        private ResultFileMetaData GetResultFileMetadata(string path, int summaryLength, bool log)
+        {
+            using var msDataFile = new MsDataFileImpl(TestFilesDir.GetTestPath(path));
+            var spectrumSummaries = new List<SpectrumSummary>();
+            for (int spectrumIndex = 0; spectrumIndex < msDataFile.SpectrumCount; spectrumIndex++)
+            {
+                var spectrum = msDataFile.GetSpectrum(spectrumIndex);
+                var summaryValue =
+                    GetSummaryValue(spectrum.Metadata, spectrum.Mzs, spectrum.Intensities, log, 4096);
+                spectrumSummaries.Add(new SpectrumSummary(spectrum.Metadata, summaryValue));
+            }
+
+            return new ResultFileMetaData(spectrumSummaries);
         }
 
         [TestMethod]
@@ -60,11 +76,11 @@ namespace pwiz.SkylineTestData
             TestFilesDir = new TestFilesDir(TestContext, @"TestData\SpectrumSummaryTest.zip");
             foreach (var baseFileName in new[] { "S_1", "S_13" })
             {
-                foreach (bool log in new[] { false, true })
+                foreach (Weighting weighting in Enum.GetValues(typeof(Weighting)))
                 {
                     var resultFileMetadata = ResultFileMetaData.FromByteArray(
-                        File.ReadAllBytes(TestFilesDir.GetTestPath(baseFileName + Qualifier(log, MAX_DIGEST_LENGTH) + ".resultfilemetadata")));
-                    File.WriteAllText(TestFilesDir.GetTestPath(baseFileName + Qualifier(log, MAX_DIGEST_LENGTH) + ".ms1"), ToMs1File(resultFileMetadata));
+                        File.ReadAllBytes(TestFilesDir.GetTestPath(baseFileName + Qualifier(weighting, MAX_DIGEST_LENGTH) + ".resultfilemetadata")));
+                    File.WriteAllText(TestFilesDir.GetTestPath(baseFileName + Qualifier(weighting, MAX_DIGEST_LENGTH) + ".ms1"), ToMs1File(resultFileMetadata));
                 }
             }
         }
@@ -73,62 +89,90 @@ namespace pwiz.SkylineTestData
         public void GenerateSimilarityMatrices()
         {
             TestFilesDir = new TestFilesDir(TestContext, @"TestData\SpectrumSummaryTest.zip");
-            foreach (bool log in new[] { false })
+            var fullMetadata1 = GetResultFileMetadata(TestFilesDir.GetTestPath("S_1.raw"), MAX_DIGEST_LENGTH, false);
+            var fullMetadata2 = GetResultFileMetadata(TestFilesDir.GetTestPath("S_13.raw"), MAX_DIGEST_LENGTH, false);
+            var goldStandardSimilarityMatrix =
+                fullMetadata1.SpectrumSummaries.GetSimilarityMatrix(null, null, fullMetadata2.SpectrumSummaries);
+            var goldAlignments = new Dictionary<Weighting, KdeAligner>();
+            foreach (Weighting weighting in Enum.GetValues(typeof(Weighting)))
             {
-                var fullMetadata1 = ResultFileMetaData.FromByteArray(
-                    File.ReadAllBytes(TestFilesDir.GetTestPath("S_1" + Qualifier(log, MAX_DIGEST_LENGTH) + ".resultfilemetadata")));
-                var fullMetadata2 = ResultFileMetaData.FromByteArray(
-                    File.ReadAllBytes(TestFilesDir.GetTestPath("S_13" + Qualifier(log, MAX_DIGEST_LENGTH) + ".resultfilemetadata")));
-                for (var digestLength = MAX_DIGEST_LENGTH; digestLength >= MAX_DIGEST_LENGTH; digestLength /= 2)
-                {
-                    var spectrumSummaries1 = SetDigestLength(fullMetadata1.SpectrumSummaries, digestLength);
-                    var spectrumSummaries2 = SetDigestLength(fullMetadata2.SpectrumSummaries, digestLength);
-                    var similarityMatrix =
-                        spectrumSummaries1.GetSimilarityMatrix(null, null, spectrumSummaries2);
-                    File.WriteAllText(TestFilesDir.GetTestPath("S_1_vs_S_13" + Qualifier(log, digestLength) + "_similaritymatrix.tsv"),
-                        similarityMatrix.ToTsv());
-                    // var bitmap = ToHeatMap(similarityMatrix);
-                    // bitmap.Save(TestFilesDir.GetTestPath("S_1_vs_S_13" + Qualifier(log, digestLength) + "_heatmap.png"), ImageFormat.Png);
-
-                    var alignment = Align(similarityMatrix);
-                    GetAlignmentBitmap(alignment).Save(TestFilesDir.GetTestPath("S_1_vs_S_13" + Qualifier(log, digestLength) + "_alignment.png"));
-                    HistogramToBitmap(alignment.Histogram)
-                        .Save(TestFilesDir.GetTestPath("S_1_vs_S_13" + Qualifier(log, digestLength) +
-                                                       "_histogram.png"));
-                }
+                var alignment = Align(goldStandardSimilarityMatrix, weighting);
+                goldAlignments.Add(weighting, alignment.Item1);
             }
+            
+            for (var digestLength = 4096; digestLength >= 4; digestLength /= 2)
+            {
+                var spectrumSummaries1 = SetDigestLength(fullMetadata1.SpectrumSummaries, digestLength);
+                var spectrumSummaries2 = SetDigestLength(fullMetadata2.SpectrumSummaries, digestLength);
+                var similarityMatrix =
+                    spectrumSummaries1.GetSimilarityMatrix(null, null, spectrumSummaries2);
+                File.WriteAllText(TestFilesDir.GetTestPath("S_1_vs_S_13_" + digestLength + "_similaritymatrix.tsv"),
+                    similarityMatrix.ToTsv());
+                foreach (Weighting weighting in Enum.GetValues(typeof(Weighting)))
+                {
+                    var alignment = Align(similarityMatrix, weighting);
+                    GetAlignmentBitmap(alignment.Item1).Save(TestFilesDir.GetTestPath("S_1_vs_S_13" + Qualifier(weighting, digestLength) + "_alignment.png"));
+                    DrawHeatMap(alignment.Item2)
+                        .Save(TestFilesDir.GetTestPath("S_1_vs_S_13" + Qualifier(weighting, digestLength) +
+                                                       "_heatmap.png"));
+                    foreach (var goldEntry in goldAlignments)
+                    {
+                        var score = ScoreAlignment(goldEntry.Value, alignment.Item1);
+                        Console.Out.WriteLine("DigestLength: {0} Weighting: {1} GoldWeighting: {2} Score: {3}", digestLength, weighting, goldEntry.Key, score);
+                    }
+                }
+                // var bitmap = ToHeatMap(similarityMatrix);
+                // bitmap.Save(TestFilesDir.GetTestPath("S_1_vs_S_13" + Qualifier(log, digestLength) + "_heatmap.png"), ImageFormat.Png);
+
+                
+            }
+        }
+
+        private double ScoreAlignment(KdeAligner goldStandard, KdeAligner aligner)
+        {
+            double totalDifference = 0;
+            for (int i = 0; i < goldStandard.Resolution; i++)
+            {
+                var goldValue = goldStandard.GetValue(goldStandard.GetScaledX(i));
+                var value = aligner.GetValue(aligner.GetScaledX(i));
+                totalDifference += Math.Abs(goldValue - value);
+            }
+            return totalDifference;
         }
 
         [TestMethod]
         public void TestKdeAligner()
         {
-            var kdeAligner = new WeightedKdeAligner(100);
+            var kdeAligner = new KdeAligner(100);
             var points = Enumerable.Range(0, 100).Select(i => new PointPair(i, i / 2.0, 1)).ToList();
-            var result = kdeAligner.Train(points,
+            var result = kdeAligner.TrainPoints(points,
                 CancellationToken.None);
-            Assert.AreEqual(100, result.Length);
-            HistogramToBitmap(kdeAligner.Histogram).Save(TestContext.GetTestPath("Histogram.png"), ImageFormat.Png);
-            GetAlignmentBitmap(kdeAligner).Save(TestContext.GetTestPath("Alignment.png"), ImageFormat.Png);
+            Assert.AreEqual(100, result.GetLength(0));
+            Assert.AreEqual(100, result.GetLength(1));
+            DrawHeatMap(result).Save(TestContext.GetTestPath("Histogram.png"), ImageFormat.Png);
+            //GetAlignmentBitmap(kdeAligner).Save(TestContext.GetTestPath("Alignment.png"), ImageFormat.Png);
         }
 
-        public Bitmap HistogramToBitmap(double[][] histogram)
+        public Bitmap DrawHeatMap(float[,] histogram)
         {
-            var bitmap = new Bitmap(histogram.Length, histogram.Length);
-            double min = double.MaxValue;
-            double max = double.MinValue;
-            foreach (var pt in histogram.SelectMany(col => col))
+            var bitmap = new Bitmap(histogram.GetLength(0), histogram.GetLength(1));
+            if (0 == histogram.Length)
             {
-                min = Math.Min(min, pt);
-                max = Math.Max(max, pt);
+                return bitmap;
             }
 
-            for (int x = 0; x < histogram.Length; x++)
+            double min = histogram.Cast<float>().Min();
+            double max = histogram.Cast<float>().Max();
+            if (min == max)
             {
-                var col = histogram[x];
-                Assert.AreEqual(histogram.Length, col.Length);
-                for (int y = 0; y < col.Length; y++)
+                return bitmap;
+            }
+
+            for (int x = 0; x < histogram.GetLength(0); x++)
+            {
+                for (int y = 0; y < histogram.GetLength(1); y++)
                 {
-                    double value = col[y];
+                    double value = histogram[x,y];
                     int colorValue = (int)((value - min) / (max - min) * 255);
                     bitmap.SetPixel(x, y, Color.FromArgb(colorValue, colorValue, colorValue));
                 }
@@ -137,18 +181,40 @@ namespace pwiz.SkylineTestData
             return bitmap;
         }
 
-        private WeightedKdeAligner Align(SimilarityMatrix similarityMatrix)
+        private Tuple<KdeAligner, float[,]> Align(SimilarityMatrix similarityMatrix, Weighting weighting)
         {
             var resolution = 1000;
-            var weightedKdeAligner = new WeightedKdeAligner(resolution);
-            var normalizedPoints = WeightedKdeAligner.NormalizePoints(similarityMatrix.Points, resolution)
-                .Take(10000000)
-                .ToList();
-            weightedKdeAligner.Train(normalizedPoints, CancellationToken.None);
-            return weightedKdeAligner;
+            var kdeAligner = new KdeAligner(resolution);
+            var bestPath = similarityMatrix.FindBestPath(false).Select(point =>
+            {
+                switch (weighting)
+                {
+                    case Weighting.none:
+                        point = new PointPair(point.X, point.Y, 1.0);
+                        break;
+                    case Weighting.normalizedContrastAngle:
+                        point = new PointPair(point.X, point.Y, Statistics.AngleToNormalizedContrastAngle(point.Z));
+                        break;
+                    case Weighting.dotProduct:
+                        break;
+                }
+                return point;
+            }).ToList();
+            double minX = similarityMatrix.Points.Min(pt => pt.X);
+            double maxX = similarityMatrix.Points.Max(pt => pt.X);
+            double minY = similarityMatrix.Points.Min(pt => pt.Y);
+            double maxY = similarityMatrix.Points.Max(pt => pt.Y);
+            bestPath.Add(new PointPair(minX, minY, 0));
+            bestPath.Add(new PointPair(maxX, maxY, 0));
+            
+            var histogram = kdeAligner.TrainPoints(bestPath, CancellationToken.None);
+            // var normalizedPoints = WeightedKdeAligner.NormalizePoints(similarityMatrix.Points, resolution)
+            //     .Take(10000000)
+            //     .ToList();
+            return Tuple.Create(kdeAligner, histogram);
         }
 
-        private Bitmap GetAlignmentBitmap(WeightedKdeAligner aligner)
+        private Bitmap GetAlignmentBitmap(KdeAligner aligner)
         {
             var resolution = aligner.Resolution;
             var bitmap = new Bitmap(resolution, resolution);
@@ -161,17 +227,17 @@ namespace pwiz.SkylineTestData
             }
             for (int x = 0; x < resolution; x++)
             {
-                var y = aligner.GetYValue(x);
-                bitmap.SetPixel(x, y, Color.Black);
+                var y = aligner.GetValue(aligner.GetScaledX(x));
+                bitmap.SetPixel(x, aligner.GetYCoordinate(y), Color.Black);
             }
 
             return bitmap;
 
         }
 
-        private string Qualifier(bool log, int digestLength)
+        private string Qualifier(Weighting weighting, int digestLength)
         {
-            return "_" + (log ? "log_" : "") + digestLength;
+            return "_" + weighting + "_" + digestLength;
         }
 
         private SpectrumSummaryList SetDigestLength(SpectrumSummaryList summaryList, int digestLength)

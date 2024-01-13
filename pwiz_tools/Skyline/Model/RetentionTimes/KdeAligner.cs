@@ -19,8 +19,10 @@
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using MathNet.Numerics.Statistics;
+using ZedGraph;
 
 namespace pwiz.Skyline.Model.RetentionTimes
 {
@@ -62,8 +64,8 @@ namespace pwiz.Skyline.Model.RetentionTimes
         private int _minXi;
         private int _maxYi;
         private int _minYi;
-        private int[] _consolodatedXY;
-        private int[] _consolodatedYX;
+        private int[] _consolidatedXY;
+        private int[] _consolidatedYX;
         private double _rmsd;
         private double[] _smoothedY;
         private double[] _xArr;
@@ -77,10 +79,45 @@ namespace pwiz.Skyline.Model.RetentionTimes
         {
             _resolution = resolution;
         }
+        
+        public int Resolution
+        {
+            get { return _resolution; }
+        }
 
+        public double GetScaledX(int coordinate)
+        {
+            return _minX + coordinate * (_maxX - _minX) / _resolution;
+        }
+        public int GetXCoordinate(double x)
+        {
+            return (int)Math.Round(_resolution * (x - _minX) / (_maxX - _minX));
+        }
+
+        public double GetScaledY(int coordinate)
+        {
+            return _minY + coordinate * (_maxY - _minY) / _resolution;
+        }
+
+        public int GetYCoordinate(double y)
+        {
+            return (int)Math.Round(_resolution * (y - _minY) / (_maxY - _minY));
+        }
+        
         public override void Train(double[] xArr, double[] yArr, CancellationToken token)
         {
-            Array.Sort(xArr,yArr);
+            Array.Sort(xArr, yArr);
+            TrainWithWeights(xArr, yArr, Enumerable.Repeat(1.0, xArr.Length).ToArray(), token);
+        }
+
+        public float[,] TrainPoints(ICollection<PointPair> points, CancellationToken cancellationToken)
+        {
+            return TrainWithWeights(points.Select(pt => pt.X).ToArray(), points.Select(pt => pt.Y).ToArray(),
+                points.Select(pt => pt.Z).ToArray(), cancellationToken);
+        }
+        
+        public float[,] TrainWithWeights(double[] xArr, double[] yArr, double[] weights, CancellationToken cancellationToken)
+        {
             _xArr = xArr;
             double[] xNormal;
             double[] yNormal;
@@ -99,7 +136,13 @@ namespace pwiz.Skyline.Model.RetentionTimes
 
             float[,] histogram = new float[_resolution, _resolution];
 
-            StampOutHistogram(histogram, stamp, xNormal, yNormal, token);
+            for (int p = 0; p < xNormal.Length; p++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                int x = (int)xNormal[p];
+                int y = (int)yNormal[p];
+                Stamp(histogram, stamp, x, y, (float) weights[p]);
+            }
 
             int bestXi = -1;
             int bestYi = -1;
@@ -122,7 +165,11 @@ namespace pwiz.Skyline.Model.RetentionTimes
             points.AddFirst(new Tuple<int, int>(bestXi, bestYi));
             TraceNorthEast(histogram, bestXi, bestYi, points);
             TraceSouthWest(histogram,bestXi,bestYi,points);
-            GetConsolodatedArrays(points,out _consolodatedXY, out _consolodatedYX);
+            _consolidatedXY = GetConsolidatedXY(points);
+            if (CanCalculateReverseRegression)
+            {
+                _consolidatedYX = GetConsolidateYX(points);
+            }
             _rmsd = 0;
             _smoothedY = new double[xArr.Length];
             for (int i = 0; i < xArr.Length; i++)
@@ -135,57 +182,53 @@ namespace pwiz.Skyline.Model.RetentionTimes
                 _rmsd += diff * diff / xArr.Length;
             }
             _rmsd = Math.Sqrt(_rmsd);
+            return histogram;
         }
 
-        private void GetConsolodatedArrays(ICollection<Tuple<int, int>> points, out int[] consolodatedXY,
-            out int[] consolodatedYX)
+        private int[] GetConsolidatedXY(ICollection<Tuple<int, int>> points)
         {
-            consolodatedXY = new int[_resolution];
-            using (var iterator = points.GetEnumerator())
+            var consolidatedXY = new int[_resolution];
+            using var iterator = points.GetEnumerator();
+            bool notFinished = iterator.MoveNext();
+            while (notFinished && iterator.Current != null)
             {
-                bool notFinished = iterator.MoveNext();
-                while (notFinished && iterator.Current != null)
+                var minY = iterator.Current.Item2;
+                var maxY = minY;
+                var x = iterator.Current.Item1;
+                var lastX = x;
+                while ((notFinished = iterator.MoveNext()) && iterator.Current != null)
                 {
-                    var minY = iterator.Current.Item2;
-                    var maxY = minY;
-                    var x = iterator.Current.Item1;
-                    var lastX = x;
-                    while ((notFinished = iterator.MoveNext()) && iterator.Current != null)
-                    {
-                        if (iterator.Current.Item1 != lastX)
-                            break;
-                        maxY = iterator.Current.Item2;
-                    }
-                    consolodatedXY[x] = (int)Math.Round((minY + maxY) / 2.0);
+                    if (iterator.Current.Item1 != lastX)
+                        break;
+                    maxY = iterator.Current.Item2;
                 }
+                consolidatedXY[x] = (int)Math.Round((minY + maxY) / 2.0);
             }
 
-            if (CanCalculateReverseRegression)
+            return consolidatedXY;
+        }
+
+        private int[] GetConsolidateYX(ICollection<Tuple<int, int>> points)
+        {
+            var consolidatedYX = new int[_resolution];
+            using var iterator = points.GetEnumerator();
+            bool notFinished = iterator.MoveNext();
+            while (notFinished && iterator.Current != null)
             {
-                consolodatedYX = new int[_resolution];
-                using (var iterator = points.GetEnumerator())
+                var minX = iterator.Current.Item1;
+                var maxX = minX;
+                var y = iterator.Current.Item2;
+                var lastY = y;
+                while ((notFinished = iterator.MoveNext()) && iterator.Current != null)
                 {
-                    bool notFinished = iterator.MoveNext();
-                    while (notFinished && iterator.Current != null)
-                    {
-                        var minX = iterator.Current.Item1;
-                        var maxX = minX;
-                        var y = iterator.Current.Item2;
-                        var lastY = y;
-                        while ((notFinished = iterator.MoveNext()) && iterator.Current != null)
-                        {
-                            if (iterator.Current.Item2 != lastY)
-                                break;
-                            maxX = iterator.Current.Item1;
-                        }
-                        consolodatedYX[y] = (int) Math.Round((minX + maxX) / 2.0);
-                    }
+                    if (iterator.Current.Item2 != lastY)
+                        break;
+                    maxX = iterator.Current.Item1;
                 }
+                consolidatedYX[y] = (int)Math.Round((minX + maxX) / 2.0);
             }
-            else
-            {
-                consolodatedYX = null;
-            }
+
+            return consolidatedYX;
         }
 
         private void TraceNorthEast(float[,] histogram, int bestXi, int bestYi, LinkedList<Tuple<int, int>> points)
@@ -258,19 +301,9 @@ namespace pwiz.Skyline.Model.RetentionTimes
             }
         }
 
-        private void StampOutHistogram(float[,] histogram, float[,] stamp, double[] xArr, double[] yArr, CancellationToken token)
+        private void Stamp(float[,] histogram, float[,] stamp, int x, int y, float weight)
         {
-            for (int p = 0; p < xArr.Length; p ++)
-            {
-                token.ThrowIfCancellationRequested();
-                int x = (int)xArr[p];
-                int y = (int) yArr[p];
-                Stamp(histogram,stamp,x,y);
-            }    
-        }
-
-        private void Stamp(float[,] histogram, float[,] stamp, int x, int y)
-        {
+            
             for (int i = x - stamp.GetLength(0)/2; i <= x + stamp.GetLength(0)/2; i++)
             {
                 if(i < 0)
@@ -283,7 +316,7 @@ namespace pwiz.Skyline.Model.RetentionTimes
                         continue;
                     if (j >= histogram.GetLength(1))
                         break;
-                    histogram[i, j] += stamp[i - x + stamp.GetLength(0)/2, j - y + stamp.GetLength(1)/2];
+                    histogram[i, j] += stamp[i - x + stamp.GetLength(0)/2, j - y + stamp.GetLength(1)/2] * weight;
                 }
             }
         }
@@ -347,14 +380,14 @@ namespace pwiz.Skyline.Model.RetentionTimes
 
         public override double GetValue(double x)
         {
-            return _GetValueFor(x, _minX, _maxX, _minXi, _maxXi, _minY, _maxY, _minYi, _maxYi, _consolodatedXY);
+            return _GetValueFor(x, _minX, _maxX, _minXi, _maxXi, _minY, _maxY, _minYi, _maxYi, _consolidatedXY);
         }
 
         public override double GetValueReversed(double y)
         {
             if(!CanCalculateReverseRegression)
                 throw new Exception(@"KDE has not calculated reverse regression");
-            return _GetValueFor(y, _minY, _maxY, _minYi, _maxYi, _minX, _maxX, _minXi, _maxXi, _consolodatedYX);
+            return _GetValueFor(y, _minY, _maxY, _minYi, _maxYi, _minX, _maxX, _minXi, _maxXi, _consolidatedYX);
         }
 
         private double _GetValueFor(double ind, double minInd, double maxInd, int minIndNormal, int maxIndNormal,

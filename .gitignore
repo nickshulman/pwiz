@@ -454,6 +454,7 @@ SkylineTester Results
 /pwiz_tools/Skyline/Executables/Installer/FileList64.txt
 /pwiz_tools/Skyline/TestSettings_x??.testsettings
 /pwiz_tools/Skyline/SignAfterPublishPW.bat
+/pwiz_tools/Skyline/TestData/SpectrumSummaryTestFullData.zip
 /BrowseOnly
 /x64/BrowseOnly
 /qb64.bat

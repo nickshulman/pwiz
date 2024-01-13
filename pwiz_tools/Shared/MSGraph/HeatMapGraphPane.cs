@@ -116,7 +116,7 @@ namespace pwiz.MSGraph
         /// <summary>
         /// Fixed array of heat map colors.
         /// </summary>
-        private static readonly Color[] _heatMapColors =
+        public static readonly Color[] _heatMapColors =
         {
             Color.FromArgb(0, 0, 255),
             Color.FromArgb(0, 1, 255),

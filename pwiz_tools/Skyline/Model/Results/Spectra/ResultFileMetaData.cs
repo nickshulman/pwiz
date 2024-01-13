@@ -24,10 +24,10 @@ using System.Linq;
 using System.Text;
 using Google.Protobuf;
 using pwiz.Common.Chemistry;
-using pwiz.Common.Collections;
 using pwiz.Common.Spectra;
 using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Model.Results.ProtoBuf;
+using pwiz.Skyline.Model.Results.Spectra.Alignment;
 using pwiz.Skyline.Util;
 
 namespace pwiz.Skyline.Model.Results.Spectra
@@ -42,15 +42,26 @@ namespace pwiz.Skyline.Model.Results.Spectra
     /// </summary>
     public class ResultFileMetaData : Immutable, IResultFileMetadata
     {
-        public ResultFileMetaData(IEnumerable<SpectrumMetadata> spectrumMetadatas)
+        public ResultFileMetaData(IEnumerable<SpectrumSummary> spectrumSummaries)
         {
-            SpectrumMetadatas = ImmutableList.ValueOf(spectrumMetadatas);
+            SpectrumSummaries = new SpectrumSummaryList(spectrumSummaries);
         }
-        public ImmutableList<SpectrumMetadata> SpectrumMetadatas { get; private set; }
+
+        public ResultFileMetaData(IEnumerable<SpectrumMetadata> spectrumMetadatas) : this(
+            spectrumMetadatas.Select(metadata => new SpectrumSummary(metadata, null)))
+        {
+        }
+
+        public SpectrumSummaryList SpectrumSummaries { get; private set; }
+
+        public IEnumerable<SpectrumMetadata> SpectrumMetadatas
+        {
+            get { return SpectrumSummaries.SpectrumMetadatas; }
+        }
 
         public static ResultFileMetaData FromProtoBuf(ResultFileMetaDataProto proto)
         {
-            var spectrumMetadatas = new List<SpectrumMetadata>();
+            var spectrumMetadatas = new List<SpectrumSummary>();
             var precursors = proto.Precursors.Select(SpectrumPrecursorFromProto).ToList();
             foreach (var protoSpectrum in proto.Spectra)
             {
@@ -93,7 +104,7 @@ namespace pwiz.Skyline.Model.Results.Spectra
                     spectrumMetadata = spectrumMetadata.ChangePrecursors(Enumerable
                         .Range(1, precursorsByLevel.Max(group => group.Key)).Select(level => precursorsByLevel[level]));
                 }
-                spectrumMetadatas.Add(spectrumMetadata);
+                spectrumMetadatas.Add(new SpectrumSummary(spectrumMetadata, protoSpectrum.Signature.Select(v=>(double) v)));
             }
 
             return new ResultFileMetaData(spectrumMetadatas);
@@ -119,12 +130,14 @@ namespace pwiz.Skyline.Model.Results.Spectra
             var scanDescriptions = new DistinctList<string>{null};
             var analyzers = new DistinctList<string>{null};
             var scanWindows = new DistinctList<Tuple<double, double>> { null };
-            foreach (var spectrumMetadata in SpectrumMetadatas)
+            foreach (var spectrumSummary in SpectrumSummaries)
             {
+                var spectrumMetadata = spectrumSummary.SpectrumMetadata;
                 var spectrum = new ResultFileMetaDataProto.Types.SpectrumMetadata
                 {
                     RetentionTime = spectrumMetadata.RetentionTime,
                 };
+                spectrum.Signature.AddRange(spectrumSummary.SummaryValue.Select(v=>(float) v));
                 spectrum.PresetScanConfiguration = spectrumMetadata.PresetScanConfiguration;
                 var intParts = GetScanIdParts(spectrumMetadata.Id);
                 if (intParts == null)
@@ -183,11 +196,11 @@ namespace pwiz.Skyline.Model.Results.Spectra
             var byteStream = new MemoryStream();
             var startBytesList = new List<int>();
             var lengths = new List<int>();
-            for (int i = 0; i < SpectrumMetadatas.Count; i++)
+            for (int i = 0; i < SpectrumSummaries.Count; i++)
             {
-                var spectrum = SpectrumMetadatas[i];
+                var spectrum = SpectrumSummaries[i];
                 var startIndex = byteStream.Length;
-                var scanIdBytes = Encoding.UTF8.GetBytes(spectrum.Id);
+                var scanIdBytes = Encoding.UTF8.GetBytes(spectrum.SpectrumMetadata.Id);
                 byteStream.Write(scanIdBytes, 0, scanIdBytes.Length);
                 Assume.AreEqual(startIndex + scanIdBytes.Length, byteStream.Length);
                 startBytesList.Add(Convert.ToInt32(startIndex));

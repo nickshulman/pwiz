@@ -137,7 +137,7 @@ namespace pwiz.Skyline.Model.RetentionTimes
             _rmsd = Math.Sqrt(_rmsd);
         }
 
-        private void GetConsolodatedArrays(LinkedList<Tuple<int, int>> points, out int[] consolodatedXY,
+        private void GetConsolodatedArrays(ICollection<Tuple<int, int>> points, out int[] consolodatedXY,
             out int[] consolodatedYX)
         {
             consolodatedXY = new int[_resolution];

@@ -63,7 +63,7 @@ namespace pwiz.Skyline.Model.Results.Spectra.Alignment
             IList<double> summaryValue = null;
             if (metadata.ScanWindowLowerLimit.HasValue && metadata.ScanWindowUpperLimit.HasValue)
             {
-                var binnedSpectrum = BinnedSpectrum.BinSpectrum(8192, metadata.ScanWindowLowerLimit.Value,
+                var binnedSpectrum = BinnedSpectrum.BinSpectrum(Math.Max(8192, summaryLength * 2), metadata.ScanWindowLowerLimit.Value,
                     metadata.ScanWindowUpperLimit.Value, mzIntensities);
                 summaryValue = binnedSpectrum.Intensities;
                 while (summaryValue.Count > summaryLength)

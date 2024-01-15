@@ -44,10 +44,17 @@ namespace pwiz.Skyline.Model.RetentionTimes
 
         public float GetDensity(float x, float y)
         {
-            var delta = Math.Sqrt(x*x + y*y);
+            return (float) GetDensity(Math.Sqrt(x*x + y*y));
+        }
+
+        public double GetDensity(double delta)
+        {
             if (delta > _max || delta < _min)
-                return 0f;
-            return (float)(_A*Math.Cos(-delta*_M));
+            {
+                return 0;
+            }
+
+            return _A * Math.Cos(-delta * _M);
         }
 
         public double Stdev { get { return _stdev;} }
@@ -69,15 +76,22 @@ namespace pwiz.Skyline.Model.RetentionTimes
         private double _rmsd;
         private double[] _smoothedY;
         private double[] _xArr;
+        private double _stretchFactor;
 
         public KdeAligner(int origXFileIndex, int origYFileIndex, int resolution = 1000) : base(origXFileIndex, origYFileIndex)
         {
             _resolution = resolution;
         }
 
-        public KdeAligner(int resolution = 1000) 
+        /// <summary>
+        /// Constructs a KdeAligner with a specific resolution and stretchFactor
+        /// </summary>
+        /// <param name="resolution">The number of points in the X and Y axes </param>
+        /// <param name="stretchFactor">The amount that the CosineGaussian stamp is stretched along the Y=X axis</param>
+        public KdeAligner(int resolution = 1000, double stretchFactor = 1) 
         {
             _resolution = resolution;
+            _stretchFactor = stretchFactor;
         }
         
         public int Resolution
@@ -132,7 +146,7 @@ namespace pwiz.Skyline.Model.RetentionTimes
 
             var stdev = (float) Math.Min(_resolution/40f, bandWidth/2.3548);
 
-            float[,] stamp = GetCosineGaussianStamp(new CosineGaussian(stdev));
+            float[,] stamp = GetCosineGaussianStamp(new CosineGaussian(stdev), _stretchFactor);
 
             float[,] histogram = new float[_resolution, _resolution];
 
@@ -321,19 +335,30 @@ namespace pwiz.Skyline.Model.RetentionTimes
             }
         }
 
-        private float[,] GetCosineGaussianStamp(CosineGaussian cG)
+        public static float[,] GetCosineGaussianStamp(CosineGaussian cG, double stretchFactor = 1)
         {
-            int stampRadius = (int) Math.Round(2.0f * cG.Stdev);
+            int stampRadius = (int) Math.Round(2.0f * cG.Stdev * stretchFactor);
 
             var stamp = new float[stampRadius*2+1, stampRadius*2+1];
             for (int i = 0; i < stampRadius*2 + 1; i++)
             {
                 for (int j = 0; j < stampRadius*2 + 1; j++)
                 {
-                    int deltaX = Math.Abs(i - stampRadius);
-                    int deltaY = Math.Abs(j - stampRadius);
+                    double deltaX = i - stampRadius;
+                    double deltaY = j - stampRadius;
+                    double delta;
+                    if (stretchFactor == 1)
+                    {
+                        delta = Math.Sqrt(deltaX + deltaY);
+                    }
+                    else
+                    {
+                        double xPrime = (deltaX + deltaY) / stretchFactor;
+                        double yPrime = (deltaY - deltaX);
+                        delta = Math.Sqrt(xPrime * xPrime + yPrime * yPrime) / 2;
+                    }
 
-                    stamp[i, j] = cG.GetDensity(deltaX, deltaY);
+                    stamp[i, j] = (float) cG.GetDensity(delta);
                 }
             }
             return stamp;

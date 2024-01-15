@@ -23,7 +23,6 @@ using System.Linq;
 using pwiz.Common.Collections;
 using pwiz.Common.Spectra;
 using pwiz.Common.SystemUtil;
-using pwiz.Skyline.Util;
 using ZedGraph;
 
 namespace pwiz.Skyline.Model.Results.Spectra.Alignment
@@ -72,27 +71,36 @@ namespace pwiz.Skyline.Model.Results.Spectra.Alignment
                 spectrumSummary.SpectrumMetadata.ScanWindowUpperLimit.Value, precursorsByMsLevel);
         }
 
+        /// <summary>
+        /// Minimum number of a spectra with the same key (i.e. same MS Level and Precursor)
+        /// to do an alignment between. (That is, it does not make sense to try to align to
+        /// DDA spectra which happen to have the same precursor m/z-- the same precursor
+        /// needs to have been sampled several times)
+        /// </summary>
+        private const int MIN_SPECTRA_FOR_ALIGNMENT = 4;
+
         public SimilarityMatrix GetSimilarityMatrix(
             IProgressMonitor progressMonitor,
             IProgressStatus status,
             IEnumerable<SpectrumSummary> spectrumSummaries)
         {
             var byDigestKey = spectrumSummaries.ToLookup(GetSpectrumDigestKey);
-            // var sortedByPrecursor = byDigestKey
-            //     .Select(grouping => Tuple.Create(GetFirstPrecursor(grouping.Key), grouping))
-            //     .OrderBy(x => x).ToList();
-            // Console.Out.WriteLine(sortedByPrecursor.Count);
+
+            // Skip the groups which have less than MIN_SPECTRA_FOR_ALIGNMENT spectra in them
+            var digestKeysToSkip = byDigestKey
+                .Concat(this.GroupBy(GetSpectrumDigestKey))
+                .Where(g => g.Count() < MIN_SPECTRA_FOR_ALIGNMENT)
+                .Select(g=>g.Key)
+                .ToHashSet();
+
             int completedCount = 0;
             var lists = new IList<PointPair>[Count];
             ParallelEx.For(0, Count, index =>
             {
                 var spectrum = this[index];
                 var key = GetSpectrumDigestKey(spectrum);
-                if (key != null)
+                if (key != null && !digestKeysToSkip.Contains(key))
                 {
-                    // var precursor = GetFirstPrecursor(key);
-                    // var matches = sortedByPrecursor.Where(tuple => precursor == tuple.Item1).ToList();
-                    // Console.Out.WriteLine(matches.Count);
                     var pointPairs = new List<PointPair>();
                     foreach (var otherSpectrum in byDigestKey[key])
                     {

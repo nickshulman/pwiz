@@ -51,6 +51,59 @@ namespace pwiz.SkylineTestData
             }
         }
 
+        [TestMethod]
+        public void TestGenerateSpectrumSummaries()
+        {
+            TestFilesDir = new TestFilesDir(TestContext, @"TestData\SpectrumSummaryTest.zip");
+            foreach (var baseFileName in new[] { "S_1", "S_2", "S_12", "S_13" })
+            {
+                for (int digestLength = MAX_DIGEST_LENGTH; digestLength >= 4; digestLength /= 2)
+                {
+                    var resultFileMetadata =
+                        GetResultFileMetadata(TestFilesDir.GetTestPath(baseFileName) + ".raw", digestLength, false);
+                    File.WriteAllBytes(TestFilesDir.GetTestPath(baseFileName + "_" + digestLength + ".resultfilemetadata"), resultFileMetadata.ToByteArray());
+                    File.WriteAllText(TestFilesDir.GetTestPath(baseFileName + "_" + digestLength + ".ms1"), ToMs1File(resultFileMetadata));
+                }
+            }
+        }
+
+        [TestMethod]
+        public void TestGenerateGoldenAlignments()
+        {
+            TestFilesDir = new TestFilesDir(TestContext, @"TestData\SpectrumSummaryTest.zip");
+            var baseFileNames = new[] { "S_1", "S_2", "S_12", "S_13" };
+            foreach (var file1 in baseFileNames)
+            {
+                var resultFileMetadata1 =
+                    GetResultFileMetadata(TestFilesDir.GetTestPath(file1 + ".raw"), MAX_DIGEST_LENGTH, false);
+                foreach (var file2 in baseFileNames)
+                {
+                    if (file1 == file2)
+                    {
+                        continue;
+                    }
+                    var resultFileMetadata2 =
+                        GetResultFileMetadata(TestFilesDir.GetTestPath(file2 + ".raw"), MAX_DIGEST_LENGTH, false);
+                    var similarityMatrix =
+                        resultFileMetadata1.SpectrumSummaries.GetSimilarityMatrix(null, null,
+                            resultFileMetadata2.SpectrumSummaries);
+                    ToHeatMap(similarityMatrix).Save(TestFilesDir.GetTestPath(file1 + "_vs_" + file2 + "_heatmap.png"), ImageFormat.Png);
+                    foreach (Weighting weighting in Enum.GetValues(typeof(Weighting)))
+                    {
+                        foreach (var stretchFactor in new[] {1.0, 2.0})
+                        {
+                            var fileName = file1 + "_vs_" + file2 + "_" + weighting + "_" + stretchFactor;
+                            ;
+                            var alignment = Align(similarityMatrix, weighting, stretchFactor);
+                            DrawHeatMap(alignment.Item2).Save(TestFilesDir.GetTestPath(fileName + "_alignment_heatmap.png"), ImageFormat.Png);
+                            GetAlignmentBitmap(alignment.Item1).Save(TestFilesDir.GetTestPath(fileName + "_alignment.png"), ImageFormat.Png);
+                        }
+
+                    }
+                }
+            }
+        }
+
         private ResultFileMetaData GetResultFileMetadata(string path, int summaryLength, bool log)
         {
             using var msDataFile = new MsDataFileImpl(TestFilesDir.GetTestPath(path));
@@ -87,12 +140,14 @@ namespace pwiz.SkylineTestData
             Console.Out.WriteLine("GoldFile\tFile\tDigestLength\tWeighting\tAvgScore\tvsNone\tvsDotProduct\tvsContrastAngle");
             TestFilesDir = new TestFilesDir(TestContext, @"TestData\SpectrumSummaryTest.zip");
             var fullMetadata1 = GetResultFileMetadata(TestFilesDir.GetTestPath("S_1.raw"), MAX_DIGEST_LENGTH, false);
-            ParallelEx.ForEach(new[] { "S_10", "S_11", "S_12" }, otherFile =>
+            ParallelEx.ForEach(new[] { "S_2","S_3","S_4","S_5","S_6","S_7","S_8","S_9","S_10","S_11","S_12","S_13" }, otherFile =>
             {
                 var fullMetadata2 = GetResultFileMetadata(TestFilesDir.GetTestPath(otherFile + ".raw"),
                     MAX_DIGEST_LENGTH, false);
                 var goldStandardSimilarityMatrix =
                     fullMetadata1.SpectrumSummaries.GetSimilarityMatrix(null, null, fullMetadata2.SpectrumSummaries);
+                File.WriteAllText(TestFilesDir.GetTestPath("S_1_vs_" + otherFile + "_GoldStandard_similaritymatrix.tsv"),
+                    goldStandardSimilarityMatrix.ToTsv());
                 var goldAlignments = new Dictionary<Weighting, KdeAligner>();
                 foreach (Weighting weighting in Enum.GetValues(typeof(Weighting)))
                 {
@@ -132,6 +187,27 @@ namespace pwiz.SkylineTestData
             });
         }
 
+        [TestMethod]
+        public void TestStretchFactor2()
+        {
+            TestFilesDir = new TestFilesDir(TestContext, @"TestData\SpectrumSummaryTest.zip");
+            int digestLength = 4096;
+            var fullMetadata1 = GetResultFileMetadata(TestFilesDir.GetTestPath("S_1.raw"), digestLength, false);
+            var otherFile = "S_10";
+            var fullMetadata2 = GetResultFileMetadata(TestFilesDir.GetTestPath(otherFile + ".raw"),
+                digestLength, false);
+            var similarityMatrix =
+                fullMetadata1.SpectrumSummaries.GetSimilarityMatrix(null, null, fullMetadata2.SpectrumSummaries);
+            foreach (double stretchFactor in new[] { 1.0, 2.0 })
+            {
+                var alignment = Align(similarityMatrix, Weighting.normalizedContrastAngle, 2);
+                var name = "S_1_vs_S_10_stretchfactor_" + stretchFactor;
+                GetAlignmentBitmap(alignment.Item1).Save(TestFilesDir.GetTestPath(name + "alignment.png"));
+                DrawHeatMap(alignment.Item2)
+                    .Save(TestFilesDir.GetTestPath(name + "heatmap.png"));
+            }
+        }
+
         private double ScoreAlignment(KdeAligner goldStandard, KdeAligner aligner)
         {
             double totalDifference = 0;
@@ -155,6 +231,17 @@ namespace pwiz.SkylineTestData
             Assert.AreEqual(100, result.GetLength(1));
             DrawHeatMap(result).Save(TestContext.GetTestPath("Histogram.png"), ImageFormat.Png);
             //GetAlignmentBitmap(kdeAligner).Save(TestContext.GetTestPath("Alignment.png"), ImageFormat.Png);
+        }
+
+        [TestMethod]
+        public void TestStretchFactor()
+        {
+            var kdeAligner = new KdeAligner(100, 2.0);
+            var points = new[] { new PointPair(0, 0, 1), new PointPair(10, 10, 1), new PointPair(80, 60, 1) , new PointPair(100, 100, 1)};
+            var result = kdeAligner.TrainPoints(points,
+                CancellationToken.None);
+            DrawHeatMap(result).Save(TestContext.GetTestPath("StretchHeatMap.png"), ImageFormat.Png);
+            
         }
 
         public Bitmap DrawHeatMap(float[,] histogram)
@@ -185,10 +272,10 @@ namespace pwiz.SkylineTestData
             return bitmap;
         }
 
-        private Tuple<KdeAligner, float[,]> Align(SimilarityMatrix similarityMatrix, Weighting weighting)
+        private Tuple<KdeAligner, float[,]> Align(SimilarityMatrix similarityMatrix, Weighting weighting, double stretchFactor = 1)
         {
             var resolution = 1000;
-            var kdeAligner = new KdeAligner(resolution);
+            var kdeAligner = new KdeAligner(resolution, stretchFactor);
             var bestPath = similarityMatrix.FindBestPath(false).Select(point =>
             {
                 switch (weighting)
@@ -323,6 +410,10 @@ namespace pwiz.SkylineTestData
             for (int spectrumIndex = 0; spectrumIndex < resultFileMetadata.SpectrumSummaries.Count; spectrumIndex++)
             {
                 var spectrumSummary = resultFileMetadata.SpectrumSummaries[spectrumIndex];
+                if (spectrumSummary.SpectrumMetadata.MsLevel != 1)
+                {
+                    continue;
+                }
                 writer.WriteLine("S\t{0}\t{1}", spectrumIndex, spectrumSummary.RetentionTime);
                 writer.WriteLine("I\tNativeID\t{0}", spectrumSummary.SpectrumMetadata.Id);
                 writer.WriteLine("I\tRTime\t{0}", spectrumSummary.RetentionTime);

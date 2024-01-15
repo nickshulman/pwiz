@@ -77,7 +77,7 @@ namespace pwiz.Skyline.Model.Results.Spectra.Alignment
         /// DDA spectra which happen to have the same precursor m/z-- the same precursor
         /// needs to have been sampled several times)
         /// </summary>
-        private const int MIN_SPECTRA_FOR_ALIGNMENT = 4;
+        private const int MIN_SPECTRA_FOR_ALIGNMENT = 20;
 
         public SimilarityMatrix GetSimilarityMatrix(
             IProgressMonitor progressMonitor,

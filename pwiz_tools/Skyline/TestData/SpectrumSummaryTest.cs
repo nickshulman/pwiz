@@ -70,12 +70,13 @@ namespace pwiz.SkylineTestData
         [TestMethod]
         public void TestGenerateGoldenAlignments()
         {
+            var digestLength = MAX_DIGEST_LENGTH;
             TestFilesDir = new TestFilesDir(TestContext, @"TestData\SpectrumSummaryTest.zip");
             var baseFileNames = new[] { "S_1", "S_2", "S_12", "S_13" };
             foreach (var file1 in baseFileNames)
             {
                 var resultFileMetadata1 =
-                    GetResultFileMetadata(TestFilesDir.GetTestPath(file1 + ".raw"), MAX_DIGEST_LENGTH, false);
+                    GetResultFileMetadata(TestFilesDir.GetTestPath(file1 + ".raw"), digestLength, false);
                 foreach (var file2 in baseFileNames)
                 {
                     if (file1 == file2)
@@ -83,7 +84,7 @@ namespace pwiz.SkylineTestData
                         continue;
                     }
                     var resultFileMetadata2 =
-                        GetResultFileMetadata(TestFilesDir.GetTestPath(file2 + ".raw"), MAX_DIGEST_LENGTH, false);
+                        GetResultFileMetadata(TestFilesDir.GetTestPath(file2 + ".raw"), digestLength, false);
                     var similarityMatrix =
                         resultFileMetadata1.SpectrumSummaries.GetSimilarityMatrix(null, null,
                             resultFileMetadata2.SpectrumSummaries);

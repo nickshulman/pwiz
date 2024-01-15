@@ -42,11 +42,6 @@ namespace pwiz.Skyline.Model.RetentionTimes
             _max = 2*stdev;
         }
 
-        public float GetDensity(float x, float y)
-        {
-            return (float) GetDensity(Math.Sqrt(x*x + y*y));
-        }
-
         public double GetDensity(double delta)
         {
             if (delta > _max || delta < _min)
@@ -349,7 +344,7 @@ namespace pwiz.Skyline.Model.RetentionTimes
                     double delta;
                     if (stretchFactor == 1)
                     {
-                        delta = Math.Sqrt(deltaX + deltaY);
+                        delta = Math.Sqrt(deltaX * deltaX + deltaY * deltaY);
                     }
                     else
                     {

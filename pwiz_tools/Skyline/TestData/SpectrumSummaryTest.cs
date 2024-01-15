@@ -380,7 +380,7 @@ namespace pwiz.SkylineTestData
                     }
                     else
                     {
-                        bitmap.SetPixel(iRow, iCol, Color.Transparent);
+                        bitmap.SetPixel(iCol, iRow, Color.Transparent);
                     }
                 }
             }

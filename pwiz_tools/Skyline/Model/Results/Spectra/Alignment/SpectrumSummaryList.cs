@@ -53,7 +53,7 @@ namespace pwiz.Skyline.Model.Results.Spectra.Alignment
         private static Tuple<double, double, ImmutableList<ImmutableList<SpectrumPrecursor>>> GetSpectrumDigestKey(
             SpectrumSummary spectrumSummary)
         {
-            if (spectrumSummary.SummaryValue.Count == 0)
+            if (spectrumSummary.SummaryValueLength == 0)
             {
                 return null;
             }
@@ -109,8 +109,7 @@ namespace pwiz.Skyline.Model.Results.Spectra.Alignment
                             break;
                         }
 
-                        var score = CalculateSimilarityScore(spectrum.SummaryValue,
-                            otherSpectrum.SummaryValue);
+                        var score = spectrum.SimilarityScore(otherSpectrum);
                         if (score.HasValue)
                         {
                             pointPairs.Add(new PointPair(spectrum.RetentionTime, otherSpectrum.RetentionTime, score.Value));
@@ -132,59 +131,7 @@ namespace pwiz.Skyline.Model.Results.Spectra.Alignment
             });
             return new SimilarityMatrix(lists.SelectMany(v=> v ?? Array.Empty<PointPair>()));
         }
-
-        private double? GetFirstPrecursor(Tuple<double, double, ImmutableList<ImmutableList<SpectrumPrecursor>>> key)
-        {
-            return key.Item3?.FirstOrDefault()?.FirstOrDefault()?.PrecursorMz;
-        }
-        public static double? CalculateSimilarityScore(IList<double> xList, IList<double> yList)
-        {
-            if (xList.Count != yList.Count)
-            {
-                return null;
-            }
-            double sumXX = 0;
-            double sumXY = 0;
-            double sumYY = 0;
-            for (int i = 0; i < xList.Count; i++)
-            {
-                double x = xList[i];
-                double y = yList[i];
-                sumXX += x * x;
-                sumXY += x * y;
-                sumYY += y * y;
-            }
-
-            if (sumXX <= 0 || sumYY <= 0)
-            {
-                return null;
-            }
-
-            return sumXY / Math.Sqrt(sumXX * sumYY);
-        }
-
-        public SpectrumSummaryList TruncateSummariesTo(int length)
-        {
-            var newSpectra = new List<SpectrumSummary>();
-            foreach (var spectrum in this)
-            {
-                if (spectrum.SummaryValue.Count <= length)
-                {
-                    newSpectra.Add(spectrum);
-                    continue;
-                }
-
-                IList<double> summaryValue = spectrum.SummaryValue;
-                while (summaryValue.Count > length)
-                {
-                    summaryValue = SpectrumSummary.HaarWaveletTransform(summaryValue);
-                }
-                newSpectra.Add(new SpectrumSummary(spectrum.SpectrumMetadata, summaryValue));
-            }
-
-            return new SpectrumSummaryList(newSpectra);
-        }
-
+        
         public IEnumerable<SpectrumMetadata> SpectrumMetadatas
         {
             get

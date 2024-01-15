@@ -94,7 +94,6 @@ namespace pwiz.SkylineTestData
                         foreach (var stretchFactor in new[] {1.0, 2.0})
                         {
                             var fileName = file1 + "_vs_" + file2 + "_" + weighting + "_" + stretchFactor;
-                            ;
                             var alignment = Align(similarityMatrix, weighting, stretchFactor);
                             DrawHeatMap(alignment.Item2).Save(TestFilesDir.GetTestPath(fileName + "_alignment_heatmap.png"), ImageFormat.Png);
                             GetAlignmentBitmap(alignment.Item1).Save(TestFilesDir.GetTestPath(fileName + "_alignment.png"), ImageFormat.Png);
@@ -346,8 +345,8 @@ namespace pwiz.SkylineTestData
                     continue;
                 }
 
-                IList<double> digest = summary.SummaryValue;
-                while (digest.Count > digestLength)
+                var digest = summary.SummaryValue.ToArray();
+                while (digest.Length > digestLength)
                 {
                     digest = SpectrumSummary.HaarWaveletTransform(digest);
                 }
@@ -418,9 +417,11 @@ namespace pwiz.SkylineTestData
                 writer.WriteLine("S\t{0}\t{1}", spectrumIndex, spectrumSummary.RetentionTime);
                 writer.WriteLine("I\tNativeID\t{0}", spectrumSummary.SpectrumMetadata.Id);
                 writer.WriteLine("I\tRTime\t{0}", spectrumSummary.RetentionTime);
-                for (int i = 0; i < spectrumSummary.SummaryValue.Count; i++)
+
+                int mz = 1;
+                foreach (var intensity in spectrumSummary.SummaryValue)
                 {
-                    writer.WriteLine("{0}\t{1}", i + 1, (float)spectrumSummary.SummaryValue[i]);
+                    writer.WriteLine("{0}\t{1}", mz++, intensity);
                 }
             }
 

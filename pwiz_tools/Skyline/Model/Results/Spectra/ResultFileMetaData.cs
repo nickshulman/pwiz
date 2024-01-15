@@ -48,7 +48,7 @@ namespace pwiz.Skyline.Model.Results.Spectra
         }
 
         public ResultFileMetaData(IEnumerable<SpectrumMetadata> spectrumMetadatas) : this(
-            spectrumMetadatas.Select(metadata => new SpectrumSummary(metadata, null)))
+            spectrumMetadatas.Select(metadata => new SpectrumSummary(metadata)))
         {
         }
 
@@ -104,7 +104,7 @@ namespace pwiz.Skyline.Model.Results.Spectra
                     spectrumMetadata = spectrumMetadata.ChangePrecursors(Enumerable
                         .Range(1, precursorsByLevel.Max(group => group.Key)).Select(level => precursorsByLevel[level]));
                 }
-                spectrumMetadatas.Add(new SpectrumSummary(spectrumMetadata, protoSpectrum.Signature.Select(v=>(double) v)));
+                spectrumMetadatas.Add(new SpectrumSummary(spectrumMetadata, protoSpectrum.Signature));
             }
 
             return new ResultFileMetaData(spectrumMetadatas);
@@ -137,7 +137,7 @@ namespace pwiz.Skyline.Model.Results.Spectra
                 {
                     RetentionTime = spectrumMetadata.RetentionTime,
                 };
-                spectrum.Signature.AddRange(spectrumSummary.SummaryValue.Select(v=>(float) v));
+                spectrum.Signature.AddRange(spectrumSummary.SummaryValueFloats);
                 spectrum.PresetScanConfiguration = spectrumMetadata.PresetScanConfiguration;
                 var intParts = GetScanIdParts(spectrumMetadata.Id);
                 if (intParts == null)
@@ -177,7 +177,7 @@ namespace pwiz.Skyline.Model.Results.Spectra
             foreach (var precursorTuple in precursors)
             {
                 var spectrumPrecursor = precursorTuple.SpectrumPrecuror;
-                var protoPrecursor = new ResultFileMetaDataProto.Types.Precursor()
+                var protoPrecursor = new ResultFileMetaDataProto.Types.Precursor
                 {
                     MsLevel = precursorTuple.MsLevel,
                     TargetMz = spectrumPrecursor.PrecursorMz.RawValue

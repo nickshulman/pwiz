@@ -152,10 +152,8 @@ namespace pwiz.Skyline.Model.Results
             return _dataFile.GetChromatogramId(index, out indexId);
         }
 
-        public bool GetChromatogram(int index, out string name, out float[] times, out float[] intensities)
+        public bool GetChromatogram(int index, out float[] times, out float[] intensities)
         {
-            index -= IndexOffset;
-            name = null;
             if (index == TicChromatogramIndex || index == BpcChromatogramIndex)
             {
                 return ReadChromatogramFromDataFile(index, out times, out intensities);
@@ -189,7 +187,7 @@ namespace pwiz.Skyline.Model.Results
             }
 
             float[] times;
-            if (!GetChromatogram(TicChromatogramIndex.Value, out _, out times, out _))
+            if (!GetChromatogram(TicChromatogramIndex.Value, out times, out _))
             {
                 return false;
             }
@@ -559,11 +557,7 @@ namespace pwiz.Skyline.Model.Results
         public override bool GetChromatogram(int id, ChromatogramGroupId chromatogramGroupId, Color color, out ChromExtra extra, out TimeIntensities timeIntensities)
         {
             float[] times, intensities;
-            if (_globalChromatogramExtractor.GetChromatogram(id, out string qcTraceName, out times, out intensities))
-            {
-                Assume.AreEqual(qcTraceName, chromatogramGroupId.QcTraceName);
-            }
-            else
+            if (!_globalChromatogramExtractor.GetChromatogram(id, out times, out intensities))
             {
                 _dataFile.GetChromatogram(id, out _, out times, out intensities);
             }

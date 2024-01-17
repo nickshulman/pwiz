@@ -627,7 +627,6 @@ namespace pwiz.Skyline.Model.Results
                 int indexInGlobalChromatogramExtractor = id - indexFirstGlobalChromatogram;
                 if (_globalChromatogramExtractor.GetChromatogramAt(indexInGlobalChromatogramExtractor, out float[] times, out float[] intensities))
                 {
-                    Assume.AreEqual(qcName, chromatogramGroupId?.QcTraceName);
                     timeIntensities = new TimeIntensities(times, intensities, null, null);
                     extra = new ChromExtra(0, 0);
                 }

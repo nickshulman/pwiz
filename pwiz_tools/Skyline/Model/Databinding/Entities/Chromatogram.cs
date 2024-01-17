@@ -18,6 +18,7 @@
  */
 using System;
 using System.ComponentModel;
+using System.Linq;
 using pwiz.Common.DataBinding.Attributes;
 using pwiz.Skyline.Model.Hibernate;
 using pwiz.Skyline.Model.Results;

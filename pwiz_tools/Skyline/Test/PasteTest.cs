@@ -31,6 +31,7 @@ using pwiz.Skyline.Model.Results;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
 using pwiz.SkylineTestUtil;
+using pwiz.Common.SystemUtil;
 
 namespace pwiz.SkylineTest
 {
@@ -68,7 +69,7 @@ namespace pwiz.SkylineTest
             _yeastDoc = new SrmDocument(SrmSettingsList.GetDefault().ChangeTransitionInstrument(instrument => instrument.ChangeMaxMz(1600)));
             _yeastDoc = _yeastDoc.ChangeSettings(_yeastDoc.Settings.ChangeTransitionFilter(filter =>
                                                                                            filter.ChangeMeasuredIons(new MeasuredIon[0])));
-            _yeastDocReadOnly = _yeastDoc = _yeastDoc.ImportFasta(new StringReader(ExampleText.TEXT_FASTA_YEAST_LIB),
+            _yeastDocReadOnly = _yeastDoc = _yeastDoc.ImportFasta(ExampleText.TEXT_FASTA_YEAST_LIB,
                 false, IdentityPath.ROOT, out _);
 
             _study7DocReadOnly = _study7Doc = CreateStudy7Doc();

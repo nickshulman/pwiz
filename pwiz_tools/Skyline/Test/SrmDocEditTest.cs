@@ -20,6 +20,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Model;
 using pwiz.Skyline.Properties;
 using pwiz.SkylineTestUtil;
@@ -40,7 +41,7 @@ namespace pwiz.SkylineTest
         {
             SrmDocument document = new SrmDocument(SrmSettingsList.GetDefault0_6());
             IdentityPath path = IdentityPath.ROOT;
-            SrmDocument docFasta = document.ImportFasta(new StringReader(ExampleText.TEXT_FASTA_YEAST), false, path, out path);
+            SrmDocument docFasta = document.ImportFasta(ExampleText.TEXT_FASTA_YEAST, false, path, out path);
             AssertEx.IsDocumentState(docFasta, 1, 2, 98, 311);
             Assert.AreEqual("YAL001C", ((PeptideGroupDocNode)docFasta.Children[0]).Name);
             Assert.AreEqual("YAL002W", ((PeptideGroupDocNode)docFasta.Children[1]).Name);
@@ -107,14 +108,14 @@ namespace pwiz.SkylineTest
 
             // Re-paste of fasta should have no impact.
             // path = IdentityPath.ROOT; use null as substitute for Root
-            SrmDocument docFasta2 = docFasta.ImportFasta(new StringReader(ExampleText.TEXT_FASTA_YEAST), false, null, out path);
+            SrmDocument docFasta2 = docFasta.ImportFasta(ExampleText.TEXT_FASTA_YEAST, false, null, out path);
             // Returns the original document to avoid adding undo record in running app
             Assert.AreSame(docFasta, docFasta2);
             Assert.IsNull(path);
 
             // Discard double-insert document, and add peptides list into previous document
             path = IdentityPath.ROOT;
-            SrmDocument docPeptides = docFasta.ImportFasta(new StringReader(TEXT_BOVINE_PEPTIDES1), true, path, out path);
+            SrmDocument docPeptides = docFasta.ImportFasta(TEXT_BOVINE_PEPTIDES1, true, path, out path);
             AssertEx.IsDocumentState(docPeptides, 2, 3, 111, 352);
             Assert.AreEqual(1, path.Length);
             Assert.IsNotInstanceOfType(path.GetIdentity(0), typeof(FastaSequence));
@@ -162,7 +163,7 @@ namespace pwiz.SkylineTest
             // 1. Root (already done)
             // 1. Before another group
             path = docPeptides.GetPathTo(0);
-            SrmDocument docPeptides2 = docPeptides.ImportFasta(new StringReader(TEXT_BOVINE_PEPTIDES1), true, path, out path);
+            SrmDocument docPeptides2 = docPeptides.ImportFasta(TEXT_BOVINE_PEPTIDES1, true, path, out path);
             AssertEx.IsDocumentState(docPeptides2, 3, 4, 124, 393);
             Assert.IsNotInstanceOfType(docPeptides2.Children[0].Id, typeof(FastaSequence));
             Assert.AreEqual(docPeptides2.Children[0].Id, path.GetIdentity(0));
@@ -174,7 +175,7 @@ namespace pwiz.SkylineTest
 
             // 2. Inside a FASTA group
             path = docPeptides2.GetPathTo((int) SrmDocument.Level.Transitions, 100);
-            SrmDocument docPeptides3 = docPeptides2.ImportFasta(new StringReader(TEXT_BOVINE_PEPTIDES1), true, path, out path);
+            SrmDocument docPeptides3 = docPeptides2.ImportFasta(TEXT_BOVINE_PEPTIDES1, true, path, out path);
             AssertEx.IsDocumentState(docPeptides3, 4, 5, 137, 434);
             Assert.AreEqual(2, docPeptides3.FindNodeIndex(path));
             // Make sure previously existing groups are unchanged
@@ -184,7 +185,7 @@ namespace pwiz.SkylineTest
             // 3. To a peptide list
             //    a. Same peptides
             path = docPeptides2.GetPathTo(0);
-            docPeptides3 = docPeptides2.ImportFasta(new StringReader(TEXT_BOVINE_PEPTIDES1), true, path, out path);
+            docPeptides3 = docPeptides2.ImportFasta(TEXT_BOVINE_PEPTIDES1, true, path, out path);
             // No longer filter repeated peptides, because they are useful for explicit modifictations.
             Assert.AreNotSame(docPeptides2, docPeptides3);
             Assert.IsNotNull(path);
@@ -192,7 +193,7 @@ namespace pwiz.SkylineTest
             //    b. Different paptides
             path = docPeptides2.GetPathTo(0);
             IdentityPath pathFirstPep = docPeptides3.GetPathTo((int) SrmDocument.Level.Molecules, 0);
-            docPeptides3 = docPeptides2.ImportFasta(new StringReader(TEXT_BOVINE_PEPTIDES2), true, path, out path);
+            docPeptides3 = docPeptides2.ImportFasta(TEXT_BOVINE_PEPTIDES2, true, path, out path);
             AssertEx.IsDocumentState(docPeptides3, 4, 4, 140, 448);
             Assert.AreSame(docPeptides2.Children[0].Id, docPeptides3.Children[0].Id);
             Assert.AreNotSame(docPeptides2.Children[0], docPeptides3.Children[0]);
@@ -204,7 +205,7 @@ namespace pwiz.SkylineTest
 
             // 4. At a peptide in a peptide list
             path = docPeptides2.GetPathTo((int) SrmDocument.Level.Molecules, 0);
-            docPeptides3 = docPeptides2.ImportFasta(new StringReader(TEXT_BOVINE_PEPTIDES2), true, path, out path);
+            docPeptides3 = docPeptides2.ImportFasta(TEXT_BOVINE_PEPTIDES2, true, path, out path);
             AssertEx.IsDocumentState(docPeptides3, 4, 4, 140, 448);
             Assert.AreSame(docPeptides2.Children[0].Id, docPeptides3.Children[0].Id);
             Assert.AreNotSame(docPeptides2.Children[0], docPeptides3.Children[0]);
@@ -213,7 +214,7 @@ namespace pwiz.SkylineTest
 
             // 5. Inside a peptide in a peptide list
             path = docPeptides2.GetPathTo((int)SrmDocument.Level.Transitions, 0);
-            docPeptides3 = docPeptides2.ImportFasta(new StringReader(TEXT_BOVINE_PEPTIDES2), true, path, out path);
+            docPeptides3 = docPeptides2.ImportFasta(TEXT_BOVINE_PEPTIDES2, true, path, out path);
             AssertEx.IsDocumentState(docPeptides3, 4, 4, 140, 448);
             Assert.AreSame(docPeptides2.Children[0].Id, docPeptides3.Children[0].Id);
             Assert.AreNotSame(docPeptides2.Children[0], docPeptides3.Children[0]);
@@ -229,7 +230,7 @@ namespace pwiz.SkylineTest
         {
             SrmDocument document = new SrmDocument(SrmSettingsList.GetDefault());
             IdentityPath path = IdentityPath.ROOT;
-            SrmDocument docFasta = document.ImportFasta(new StringReader(ExampleText.TEXT_FASTA_YEAST), false, path, out path);
+            SrmDocument docFasta = document.ImportFasta(ExampleText.TEXT_FASTA_YEAST, false, path, out path);
             // 1. From peptide group to root
             SrmDocument docMoved = docFasta.MoveNode(docFasta.GetPathTo(0), IdentityPath.ROOT, out path);
             Assert.AreEqual(1, docMoved.FindNodeIndex(path));
@@ -243,9 +244,9 @@ namespace pwiz.SkylineTest
 
             // Some peptide lists
             IdentityPath pathPeptides;
-            SrmDocument docPeptides = docFasta.ImportFasta(new StringReader(TEXT_BOVINE_PEPTIDES2), true,
+            SrmDocument docPeptides = docFasta.ImportFasta(TEXT_BOVINE_PEPTIDES2, true,
                                                            docFasta.GetPathTo(1), out pathPeptides);
-            docPeptides = docPeptides.ImportFasta(new StringReader(TEXT_BOVINE_PEPTIDES1), true,
+            docPeptides = docPeptides.ImportFasta(TEXT_BOVINE_PEPTIDES1, true,
                                                IdentityPath.ROOT, out path);
             docPeptides = docPeptides.MoveNode(path, pathPeptides, out pathPeptides);
             Assert.AreEqual(1, docPeptides.FindNodeIndex(pathPeptides));
@@ -306,22 +307,22 @@ namespace pwiz.SkylineTest
         {
             // First try removals with no impact
             SrmDocument document = new SrmDocument(SrmSettingsList.GetDefault0_6());
-            SrmDocument docFasta = document.ImportFasta(new StringReader(string.Format(TEXT_FASTA_YEAST_FRAGMENT, 1)),
+            SrmDocument docFasta = document.ImportFasta(string.Format(TEXT_FASTA_YEAST_FRAGMENT, 1),
                 false, IdentityPath.ROOT, out _);
             AssertEx.IsDocumentState(docFasta, 1, 1, 11, 36);
             var refinementSettings = new RefinementSettings {RemoveDuplicatePeptides = true};
             SrmDocument docFasta2 = refinementSettings.Refine(docFasta);
             Assert.AreSame(docFasta, docFasta2);
 
-            docFasta2 = docFasta.ImportFasta(new StringReader(string.Format(TEXT_FASTA_YEAST_FRAGMENT, 2)),
+            docFasta2 = docFasta.ImportFasta(string.Format(TEXT_FASTA_YEAST_FRAGMENT, 2),
                 false, IdentityPath.ROOT, out _);
             // Adding same sequence twice, even with different custom names is ignored
             Assert.AreSame(docFasta, docFasta2);
 
             // Try a successful removal of duplicates that leaves no peptides
-            SrmDocument docPeptides = document.ImportFasta(new StringReader(TEXT_BOVINE_PEPTIDES1),
+            SrmDocument docPeptides = document.ImportFasta(TEXT_BOVINE_PEPTIDES1,
                 true, IdentityPath.ROOT, out _);
-            SrmDocument docPeptides2 = docPeptides.ImportFasta(new StringReader(TEXT_BOVINE_PEPTIDES1),
+            SrmDocument docPeptides2 = docPeptides.ImportFasta(TEXT_BOVINE_PEPTIDES1,
                 true, IdentityPath.ROOT, out _);            
             AssertEx.IsDocumentState(docPeptides2, 2, 2, 26, 82);
             SrmDocument docPeptides3 = refinementSettings.Refine(docPeptides2);
@@ -329,7 +330,7 @@ namespace pwiz.SkylineTest
             AssertEx.IsDocumentState(docPeptides3, 3, 2, 0, 0);
 
             // Try again leaving a single peptide
-            docPeptides2 = docPeptides.ImportFasta(new StringReader(TEXT_BOVINE_PEPTIDES1 + "\n" + TEXT_BOVINE_SINGLE_PEPTIDE),
+            docPeptides2 = docPeptides.ImportFasta(TEXT_BOVINE_PEPTIDES1 + "\n" + TEXT_BOVINE_SINGLE_PEPTIDE,
                 true, IdentityPath.ROOT, out _);
             docPeptides3 = refinementSettings.Refine(docPeptides2);
             Assert.AreNotSame(docPeptides2, docPeptides3);

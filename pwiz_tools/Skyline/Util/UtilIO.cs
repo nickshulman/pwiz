@@ -1063,34 +1063,28 @@ namespace pwiz.Skyline.Util
     /// <summary>
     /// Utility class to update progress while reading a large file line by line.
     /// </summary>
-    public sealed class LineReaderWithProgress : StreamReader
+    public sealed class LineReaderWithProgress : LineReader.StreamLineReader
     {
         private readonly IProgressMonitor _progressMonitor;
         private IProgressStatus _status;
-        private long _totalChars;
-        private long _charsRead;
 
-        public LineReaderWithProgress(string path, IProgressMonitor progressMonitor, IProgressStatus status = null) : base(path, Encoding.UTF8)
+        public LineReaderWithProgress(string path, IProgressMonitor progressMonitor, IProgressStatus status = null) :
+            base(new FileStream(path, FileMode.Open), Encoding.UTF8)
         {
             _progressMonitor = progressMonitor;
             _status = (status ?? new ProgressStatus()).ChangeMessage(Path.GetFileName(path));
-            _totalChars = new FileInfo(PathEx.SafePath(path)).Length;
         }
 
         public override string ReadLine()
         {
             var result = base.ReadLine();
-            if (result != null)
-            {
-                _charsRead += result.Length + 1; // This will be increasingly wrong if file has CRLF instead of just LF but should be good enough for a progress bar 
-            }
             if (_progressMonitor != null)
             {
                 if (_progressMonitor.IsCanceled)
                 {
                     throw new OperationCanceledException();
                 }
-                _status = _status.UpdatePercentCompleteProgress(_progressMonitor, _charsRead, _totalChars);
+                _status = _status.UpdatePercentCompleteProgress(_progressMonitor, Position, Length);
             }
             return result;
         }
@@ -1099,7 +1093,7 @@ namespace pwiz.Skyline.Util
         {
             // Make sure we reach 100%
             if (_progressMonitor != null)
-                _status.UpdatePercentCompleteProgress(_progressMonitor, _totalChars, _totalChars);
+                _status.UpdatePercentCompleteProgress(_progressMonitor, Position, Length);
 
             base.Dispose(disposing);
         }

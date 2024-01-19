@@ -22,6 +22,7 @@ using System.IO;
 using System.Linq;
 using System.Windows.Forms;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using pwiz.Common.SystemUtil;
 using pwiz.Skyline;
 using pwiz.Skyline.Alerts;
 using pwiz.Skyline.Controls;
@@ -164,7 +165,7 @@ namespace pwiz.SkylineTestFunctional
             });
             OkDialog(tranSettings,tranSettings.OkDialog);
             const string fasta = ">peptide1\nPEPMCIDEPR";
-            RunUI(() => SkylineWindow.ImportFasta(new StringReader(fasta), 2, true, string.Empty,
+            RunUI(() => SkylineWindow.ImportFasta(LineReader.FromText(fasta), true, string.Empty,
                 new SkylineWindow.ImportFastaInfo(false, fasta)));
             var newDoc = SkylineWindow.Document;
 

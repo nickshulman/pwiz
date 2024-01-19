@@ -28,6 +28,7 @@ using System.Xml.Serialization;
 using pwiz.Common.Collections;
 using pwiz.Common.DataBinding;
 using pwiz.Common.DataBinding.Filtering;
+using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Alerts;
 using pwiz.Skyline.Controls;
 using pwiz.Skyline.Controls.Graphs;
@@ -453,7 +454,7 @@ namespace pwiz.Skyline.Menus
                             throw new InvalidDataException(x.Message, x);
                         }
 
-                        SkylineWindow.ImportFasta(new StringReader(textFasta), Helpers.CountLinesInString(textFasta),
+                        SkylineWindow.ImportFasta(LineReader.FromText(textFasta),
                             false, MenusResources.SkylineWindow_Paste_Paste_proteins,
                             new SkylineWindow.ImportFastaInfo(false, textFasta));
                     }
@@ -531,8 +532,8 @@ namespace pwiz.Skyline.Menus
             }
 
             string description = (peptideList ? MenusResources.SkylineWindow_Paste_Paste_peptide_list : MenusResources.SkylineWindow_Paste_Paste_FASTA);
-            SkylineWindow.ImportFasta(new StringReader(text), Helpers.CountLinesInString(text),
-                peptideList, description, new SkylineWindow.ImportFastaInfo(false, text));
+            SkylineWindow.ImportFasta(LineReader.FromText(text), peptideList, description,
+                new SkylineWindow.ImportFastaInfo(false, text));
         }
         private string FilterPeptideList(string text)
         {

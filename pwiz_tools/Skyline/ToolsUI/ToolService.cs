@@ -299,7 +299,7 @@ namespace pwiz.Skyline.ToolsUI
         {
             Program.MainWindow.Invoke(new Action(() =>
             {
-                _skylineWindow.ImportFasta(new StringReader(textFasta), Helpers.CountLinesInString(textFasta),
+                _skylineWindow.ImportFasta(LineReader.FromText(textFasta),
                     false, ToolsUIResources.ToolService_ImportFasta_Insert_proteins, new SkylineWindow.ImportFastaInfo(false, textFasta));
             }));
         }
@@ -538,8 +538,7 @@ namespace pwiz.Skyline.ToolsUI
                             document = LocalizationHelper.CallWithCulture(CultureInfo.InvariantCulture, () =>
                             {
                                 var peakBoundaryImporter = new PeakBoundaryImporter(originalDocument);
-                                return peakBoundaryImporter.Import(new StringReader(csvText), progressMonitor,
-                                    Helpers.CountLinesInString(csvText), true);
+                                return peakBoundaryImporter.Import(LineReader.FromText(csvText), progressMonitor, true);
                             });
                         });
                         if (longWaitDlg.IsCanceled)

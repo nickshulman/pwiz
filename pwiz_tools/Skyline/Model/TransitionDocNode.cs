@@ -768,7 +768,7 @@ namespace pwiz.Skyline.Model
                         }
                     }
                 }
-                var complexFragmentIon = new NeutralFragmentIon(parts, losses);
+                var complexFragmentIon = NeutralFragmentIon.FromParts(parts, losses);
                 var chargedIon = new ComplexFragmentIon(transition, complexFragmentIon, mods);
                 transitionDocNode = crosslinkBuilder.MakeTransitionDocNode(chargedIon, isotopeDist, annotations, transitionQuantInfo, explicitTransitionValues, results);
             }

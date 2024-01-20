@@ -32,10 +32,60 @@ namespace pwiz.Skyline.Model.Crosslinking
     /// </summary>
     public class NeutralFragmentIon : Immutable, IComparable<NeutralFragmentIon>
     {
-        public NeutralFragmentIon(IEnumerable<IonOrdinal> parts, TransitionLosses losses)
+        private static readonly Dictionary<IonChain, NeutralFragmentIon> _commonNeutralFragmentIons;
+
+        static NeutralFragmentIon()
         {
-            IonChain = IonChain.FromIons(parts);
+            var commonIonChains = new List<IonChain>
+            {
+                IonChain.FromIons(),
+                IonChain.FromIons(IonOrdinal.Empty),
+                IonChain.FromIons(IonOrdinal.Precursor),
+            };
+            foreach (var ionType in new[]
+                         { IonType.a, IonType.b, IonType.c, IonType.x, IonType.y, IonType.z, IonType.zh, IonType.zhh })
+            {
+                for (int ordinal = 1; ordinal <= 32; ordinal++)
+                {
+                    commonIonChains.Add(IonChain.FromIons(ImmutableList.Singleton(new IonOrdinal(ionType, ordinal))));
+                }
+            }
+
+            _commonNeutralFragmentIons = commonIonChains.ToDictionary(ionChain => ionChain,
+                ionChain => new NeutralFragmentIon(ionChain, null));
+        }
+
+        public static NeutralFragmentIon FromParts(params IonOrdinal[] parts)
+        {
+            return FromParts(parts, null);
+        }
+
+        public static NeutralFragmentIon FromParts(IonOrdinal[] parts, TransitionLosses losses)
+        {
+            return FromParts((IEnumerable<IonOrdinal>) parts, losses);
+        }
+
+
+        public static NeutralFragmentIon FromParts(IEnumerable<IonOrdinal> parts, TransitionLosses losses)
+        {
+            var ionChain = IonChain.FromIons(parts);
+            if (_commonNeutralFragmentIons.TryGetValue(ionChain, out var neutralFragmentIon))
+            {
+                if (losses == null)
+                {
+                    return neutralFragmentIon;
+                }
+
+                ionChain = neutralFragmentIon.IonChain;
+            }
+            return new NeutralFragmentIon(ionChain, losses);
+        }
+        
+        private NeutralFragmentIon(IonChain ionChain, TransitionLosses losses)
+        {
+            IonChain = ionChain;
             Losses = losses;
+            IsIonTypePrecursor = IonChain.All(ionOrdinal => ionOrdinal.Type == IonType.precursor);
         }
 
         public IonChain IonChain { get; private set; }
@@ -55,7 +105,7 @@ namespace pwiz.Skyline.Model.Crosslinking
 
         public static NeutralFragmentIon Simple(Transition transition, TransitionLosses losses)
         {
-            return new NeutralFragmentIon(ImmutableList.Singleton(IonOrdinal.FromTransition(transition)), losses);
+            return FromParts(IonChain.FromIons(IonOrdinal.FromTransition(transition)), losses);
         }
 
         public bool IsMs1
@@ -68,10 +118,7 @@ namespace pwiz.Skyline.Model.Crosslinking
 
         public bool IsIonTypePrecursor
         {
-            get
-            {
-                return IonChain.IsPrecursor;
-            }
+            get; private set;
         }
 
         /// <summary>

@@ -1677,7 +1677,7 @@ namespace pwiz.Skyline.Model.Serialization
                 parts = parts.Prepend(info.OrphanedCrosslinkIon
                     ? IonOrdinal.Empty
                     : IonOrdinal.FromTransition(transition));
-                var complexFragmentIon = new NeutralFragmentIon(parts, info.Losses);
+                var complexFragmentIon = NeutralFragmentIon.FromParts(parts, info.Losses);
                 var chargedIon = new ComplexFragmentIon(transition, complexFragmentIon, mods);
                 node = crosslinkBuilder.MakeTransitionDocNode(chargedIon, isotopeDist, info.Annotations, quantInfo,
                     info.ExplicitValues, info.Results);

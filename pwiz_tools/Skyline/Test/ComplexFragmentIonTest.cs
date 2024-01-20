@@ -43,7 +43,7 @@ namespace pwiz.SkylineTest
 
             };
             var neutralFragmentIons = ionChains.OrderBy(chain => random.Next())
-                .Select(chain => new NeutralFragmentIon(chain, null)).ToList();
+                .Select(chain => NeutralFragmentIon.FromParts(chain, null)).ToList();
             neutralFragmentIons.Sort();
             var sortedIonChains = neutralFragmentIons.Select(ion => ion.IonChain).ToList();
             AssertSameOrder(ionChains, sortedIonChains);

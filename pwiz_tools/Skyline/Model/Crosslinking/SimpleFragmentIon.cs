@@ -56,7 +56,7 @@ namespace pwiz.Skyline.Model.Crosslinking
         {
             if (left == null)
             {
-                return new NeutralFragmentIon(ImmutableList.Singleton(Id), Losses);
+                return NeutralFragmentIon.FromParts(ImmutableList.Singleton(Id), Losses);
             }
 
             var newLosses = left.Losses;
@@ -72,7 +72,7 @@ namespace pwiz.Skyline.Model.Crosslinking
                         newLosses.MassType);
                 }
             }
-            return new NeutralFragmentIon(left.IonChain.Append(Id), newLosses);
+            return NeutralFragmentIon.FromParts(left.IonChain.Append(Id), newLosses);
         }
 
         public IonOrdinal Id { get; private set; }

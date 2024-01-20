@@ -425,23 +425,21 @@ namespace pwiz.SkylineTest
 
 
             var peptideStructure = new PeptideStructure(mainPeptide, explicitMods);
-            var b4_b2 = new NeutralFragmentIon(new[] { new IonOrdinal(IonType.b, 4), IonOrdinal.Empty, new IonOrdinal(IonType.b, 2) }, null);
+            var b4_b2 = NeutralFragmentIon.FromParts(new IonOrdinal(IonType.b, 4), IonOrdinal.Empty, new IonOrdinal(IonType.b, 2));
             AssertEx.IsTrue(b4_b2.IsAllowed(peptideStructure));
             AssertEx.IsTrue(b4_b2.IsConnected(peptideStructure));
-            var b2b2_= new NeutralFragmentIon(new[] { new IonOrdinal(IonType.b, 2), new IonOrdinal(IonType.b, 2), IonOrdinal.Empty},
-                null);
+            var b2b2_= NeutralFragmentIon.FromParts(new IonOrdinal(IonType.b, 2), new IonOrdinal(IonType.b, 2), IonOrdinal.Empty);
             AssertEx.IsTrue(b2b2_.IsAllowed(peptideStructure));
             AssertEx.IsFalse(b2b2_.IsConnected(peptideStructure));
-            var _y2y4 = new NeutralFragmentIon(
-                new[] { IonOrdinal.Empty, new IonOrdinal(IonType.y, 2), new IonOrdinal(IonType.y, 4) }, null);
+            var _y2y4 = NeutralFragmentIon.FromParts(
+                IonOrdinal.Empty, new IonOrdinal(IonType.y, 2), new IonOrdinal(IonType.y, 4));
             AssertEx.IsTrue(_y2y4.IsAllowed(peptideStructure));
             AssertEx.IsTrue(_y2y4.IsConnected(peptideStructure));
-            var b2y2y4 = new NeutralFragmentIon(new[] { new IonOrdinal(IonType.b, 2), new IonOrdinal(IonType.y, 2), 
-                new IonOrdinal(IonType.y, 4) }, null);
+            var b2y2y4 = NeutralFragmentIon.FromParts(new IonOrdinal(IonType.b, 2), new IonOrdinal(IonType.y, 2), 
+                new IonOrdinal(IonType.y, 4));
             AssertEx.IsTrue(b2y2y4.IsAllowed(peptideStructure));
             AssertEx.IsFalse(b2y2y4.IsConnected(peptideStructure));
-            var b4y2p = new NeutralFragmentIon(
-                new[] { new IonOrdinal(IonType.b, 4), new IonOrdinal(IonType.y, 2), IonOrdinal.Precursor }, null);
+            var b4y2p = NeutralFragmentIon.FromParts(new IonOrdinal(IonType.b, 4), new IonOrdinal(IonType.y, 2), IonOrdinal.Precursor);
             AssertEx.IsTrue(b4y2p.IsAllowed(peptideStructure));
             AssertEx.IsTrue(b4y2p.IsConnected(peptideStructure));
         }

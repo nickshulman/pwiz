@@ -48,23 +48,23 @@ namespace pwiz.Skyline.Model.Results.Spectra
         }
         public ImmutableList<SpectrumMetadata> SpectrumMetadatas { get; private set; }
 
-        public static ResultFileMetaData FromProtoBuf(ResultFileMetaDataProto proto)
+        public static ResultFileMetaData FromProtoBuf(ValueCache valueCache, ResultFileMetaDataProto proto)
         {
             var spectrumMetadatas = new List<SpectrumMetadata>();
             var precursors = proto.Precursors.Select(SpectrumPrecursorFromProto).ToList();
             foreach (var protoSpectrum in proto.Spectra)
             {
-                string id;
+                SpectrumId id;
                 if (string.IsNullOrEmpty(protoSpectrum.ScanIdText))
                 {
-                    id = string.Join(@".",
-                        protoSpectrum.ScanIdParts.Select(part => part.ToString(CultureInfo.InvariantCulture)));
+                    id = SpectrumId.FromIntegers(protoSpectrum.ScanIdParts);
                 }
                 else
                 {
-                    id = protoSpectrum.ScanIdText;
+                    id = SpectrumId.FromString(protoSpectrum.ScanIdText);
                 }
 
+                id = valueCache.CacheValue(id);
                 var spectrumMetadata = new SpectrumMetadata(id, protoSpectrum.RetentionTime)
                     .ChangePresetScanConfiguration(protoSpectrum.PresetScanConfiguration);
                 if (protoSpectrum.ScanDescriptionIndex > 0)
@@ -90,6 +90,7 @@ namespace pwiz.Skyline.Model.Results.Spectra
                     protoSpectrum.PrecursorIndex.ToLookup(index => proto.Precursors[index - 1].MsLevel, index=>precursors[index - 1]);
                 if (precursorsByLevel.Any())
                 {
+                    precursorsByLevel = valueCache.CacheValue(precursorsByLevel);
                     spectrumMetadata = spectrumMetadata.ChangePrecursors(Enumerable
                         .Range(1, precursorsByLevel.Max(group => group.Key)).Select(level => precursorsByLevel[level]));
                 }
@@ -126,10 +127,10 @@ namespace pwiz.Skyline.Model.Results.Spectra
                     RetentionTime = spectrumMetadata.RetentionTime,
                 };
                 spectrum.PresetScanConfiguration = spectrumMetadata.PresetScanConfiguration;
-                var intParts = GetScanIdParts(spectrumMetadata.Id);
+                var intParts = spectrumMetadata.Id.AsIntegers();
                 if (intParts == null)
                 {
-                    spectrum.ScanIdText = spectrumMetadata.Id;
+                    spectrum.ScanIdText = spectrumMetadata.Id.ToString();
                 }
                 else
                 {
@@ -187,7 +188,7 @@ namespace pwiz.Skyline.Model.Results.Spectra
             {
                 var spectrum = SpectrumMetadatas[i];
                 var startIndex = byteStream.Length;
-                var scanIdBytes = Encoding.UTF8.GetBytes(spectrum.Id);
+                var scanIdBytes = Encoding.UTF8.GetBytes(spectrum.Id.ToString());
                 byteStream.Write(scanIdBytes, 0, scanIdBytes.Length);
                 Assume.AreEqual(startIndex + scanIdBytes.Length, byteStream.Length);
                 startBytesList.Add(Convert.ToInt32(startIndex));
@@ -222,11 +223,11 @@ namespace pwiz.Skyline.Model.Results.Spectra
             return ToProtoBuf().ToByteArray();
         }
 
-        public static ResultFileMetaData FromByteArray(byte[] bytes)
+        public static ResultFileMetaData FromByteArray(ValueCache valueCache, byte[] bytes)
         {
             var proto = new ResultFileMetaDataProto();
             proto.MergeFrom(bytes);
-            return FromProtoBuf(proto);
+            return FromProtoBuf(valueCache, proto);
         }
     }
 }

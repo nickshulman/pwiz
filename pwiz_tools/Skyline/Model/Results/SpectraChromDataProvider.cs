@@ -44,7 +44,7 @@ namespace pwiz.Skyline.Model.Results
         private IDemultiplexer _demultiplexer;
         private readonly IRetentionTimePredictor _retentionTimePredictor;
         private List<SpectrumMetadata> _spectrumMetadatas = new List<SpectrumMetadata>();
-        private Dictionary<string, int> _scanIdDictionary = new Dictionary<string, int>();
+        private Dictionary<SpectrumId, int> _scanIdDictionary = new Dictionary<SpectrumId, int>();
         private readonly bool _isProcessedScans;
         private double? _maxIonMobilityValue;
         private bool _isSingleMzMatch;

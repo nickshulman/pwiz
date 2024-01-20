@@ -18,6 +18,7 @@
  */
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Model.Results;
 using pwiz.Skyline.Model.Results.Spectra;
 using pwiz.SkylineTestUtil;
@@ -43,7 +44,7 @@ namespace pwiz.SkylineTestData.Results
                 Assert.AreNotEqual(0, spectrumMetadatas.Count);
                 var resultFileData = new ResultFileMetaData(spectrumMetadatas);
                 var bytes = resultFileData.ToByteArray();
-                var resultFileData2 = ResultFileMetaData.FromByteArray(bytes);
+                var resultFileData2 = ResultFileMetaData.FromByteArray(new ValueCache(), bytes);
                 AssertEx.AreEqual(resultFileData.SpectrumMetadatas, resultFileData2.SpectrumMetadatas);
             }
         }

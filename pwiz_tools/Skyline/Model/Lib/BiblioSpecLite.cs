@@ -1250,7 +1250,7 @@ namespace pwiz.Skyline.Model.Lib
                 details);
         }
 
-        private ImmutableSortedList<int, ExplicitPeakBounds> ReadPeakBoundaries(Stream stream)
+        private ImmutableSortedList<int, ExplicitPeakBounds> ReadPeakBoundaries(ValueCache valueCache, Stream stream)
         {
             int peakBoundCount = PrimitiveArrays.ReadOneValue<int>(stream);
             if (peakBoundCount == 0)
@@ -1264,9 +1264,10 @@ namespace pwiz.Skyline.Model.Lib
                 double peakStart = PrimitiveArrays.ReadOneValue<double>(stream);
                 double peakEnd = PrimitiveArrays.ReadOneValue<double>(stream);
                 double score = PrimitiveArrays.ReadOneValue<double>(stream);
-                peakBoundaryValues.Add(new KeyValuePair<int, ExplicitPeakBounds>(fileId, new ExplicitPeakBounds(peakStart, peakEnd, score)));
+                var explicitPeakBounds = valueCache.CacheValue(new ExplicitPeakBounds(peakStart, peakEnd, score));
+                peakBoundaryValues.Add(new KeyValuePair<int, ExplicitPeakBounds>(fileId, explicitPeakBounds));
             }
-            return ImmutableSortedList.FromValues(peakBoundaryValues);
+            return valueCache.CacheValue(ImmutableSortedList.FromValues(peakBoundaryValues));
         }
 
         private void WritePeakBoundaries(Stream stream, ImmutableSortedList<int, ExplicitPeakBounds> peakBoundaries)

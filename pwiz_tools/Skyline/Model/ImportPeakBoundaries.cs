@@ -212,11 +212,10 @@ namespace pwiz.Skyline.Model
         /// </summary>
         /// <param name="inputFile">path to the input file</param>
         /// <param name="progressMonitor"></param>
-        /// <param name="lineCount">number of lines in the file</param>
         /// <param name="removeMissing">if true, all results in the document that are NOT found in the file will have peak boundaries removed</param>
         /// <param name="changePeaks">set to false to to only import annotations, not actually adjust peaks</param>
         /// <returns></returns>
-        public SrmDocument Import(string inputFile, IProgressMonitor progressMonitor, long lineCount, bool removeMissing = false, bool changePeaks = true)
+        public SrmDocument Import(string inputFile, IProgressMonitor progressMonitor, bool removeMissing = false, bool changePeaks = true)
         {
             CountMissing = 0;
             // Determine if the peak times are in minutes or seconds
@@ -231,9 +230,9 @@ namespace pwiz.Skyline.Model
 
             // Import the peak times
             SrmDocument doc;
-            using (var reader = new StreamReader(inputFile))
+            using (var reader = new LineReader.StreamLineReader(File.OpenRead(inputFile)))
             {
-                doc = Import(reader, progressMonitor, lineCount, isMinutes, removeMissing, changePeaks);
+                doc = Import(reader, progressMonitor, isMinutes, removeMissing, changePeaks);
             }
             return doc;
         }
@@ -273,11 +272,10 @@ namespace pwiz.Skyline.Model
             return maxRt != 0 ? maxRt : 720;    // 12 hours as default maximum RT in minutes
         }
 
-        public SrmDocument Import(TextReader reader, IProgressMonitor progressMonitor, long lineCount, bool isMinutes, bool removeMissing = false, bool changePeaks = true)
+        public SrmDocument Import(LineReader reader, IProgressMonitor progressMonitor, bool isMinutes, bool removeMissing = false, bool changePeaks = true)
         {
             IProgressStatus status = new ProgressStatus(ModelResources.PeakBoundaryImporter_Import_Importing_Peak_Boundaries);
             double timeConversionFactor = isMinutes ? 1.0 : 60.0;
-            int linesRead = 0;
             int progressPercent = -1;
             var docNew = (SrmDocument) Document.ChangeIgnoreChangingChildren(true);
             var docReference = docNew;
@@ -294,7 +292,6 @@ namespace pwiz.Skyline.Model
                                    select new[] { def.Name });
 
             string line = reader.ReadLine();
-            linesRead++;
             int[] fieldIndices;
             int fieldsTotal;
             // If we aren't changing peaks, allow start and end time to be missing
@@ -308,12 +305,11 @@ namespace pwiz.Skyline.Model
 
             while ((line = reader.ReadLine()) != null)
             {
-                linesRead++;
                 if (progressMonitor != null)
                 {
                     if (progressMonitor.IsCanceled)
                         return Document;
-                    int progressNew = (int) (linesRead*100/lineCount);
+                    int progressNew = reader.ProgressValue;
                     if (progressPercent != progressNew)
                     {
                         progressMonitor.UpdateProgress(status = status.ChangePercentComplete(progressNew));
@@ -324,11 +320,11 @@ namespace pwiz.Skyline.Model
                 if (dataFields.Length != fieldsTotal)
                 {
                     throw new IOException(string.Format(Resources.PeakBoundaryImporter_Import_Line__0__field_count__1__differs_from_the_first_line__which_has__2_,
-                        linesRead, dataFields.Length, fieldsTotal));
+                        reader.LineNumber, dataFields.Length, fieldsTotal));
                 }
                 string modifiedPeptideString = dataFields.GetField(Field.modified_peptide);
                 string fileName = dataFields.GetField(Field.filename);
-                bool isDecoy = dataFields.IsDecoy(linesRead);
+                bool isDecoy = dataFields.IsDecoy(reader.LineNumber);
                 IList<IdentityPath> pepPaths;
 
                 // When used in a mixed peptide/molecule document, the "molecule peak boundaries" report will set the molecule name
@@ -372,7 +368,7 @@ namespace pwiz.Skyline.Model
                                     string.Format(
                                         ModelResources
                                             .PeakBoundaryImporter_Import_Peptide_has_unrecognized_modifications__0__at_line__1_,
-                                        modifiedPeptideString, linesRead);
+                                        modifiedPeptideString, reader.LineNumber);
                                 throw new IOException(message, modificationException);
                             }
                             nodeForModPep = nodeForModPep.ChangeSettings(Document.Settings, SrmSettingsDiff.ALL);
@@ -393,27 +389,27 @@ namespace pwiz.Skyline.Model
                     continue;
                 }
                 Adduct charge;
-                bool chargeSpecified = dataFields.TryGetCharge(linesRead, out charge, lineIsProteomic);
+                bool chargeSpecified = dataFields.TryGetCharge(reader.LineNumber, out charge, lineIsProteomic);
                 string sampleName = dataFields.GetField(Field.sample_name);
 
                 double? apexTime = dataFields.GetTime(Field.apex_time, timeConversionFactor,
-                    Resources.PeakBoundaryImporter_Import_The_value___0___on_line__1__is_not_a_valid_time_, linesRead);
+                    Resources.PeakBoundaryImporter_Import_The_value___0___on_line__1__is_not_a_valid_time_, reader.LineNumber);
                 double? startTime = dataFields.GetTime(Field.start_time, timeConversionFactor,
-                    Resources.PeakBoundaryImporter_Import_The_value___0___on_line__1__is_not_a_valid_start_time_, linesRead);
+                    Resources.PeakBoundaryImporter_Import_The_value___0___on_line__1__is_not_a_valid_start_time_, reader.LineNumber);
                 double? endTime = dataFields.GetTime(Field.end_time, timeConversionFactor,
-                    Resources.PeakBoundaryImporter_Import_The_value___0___on_line__1__is_not_a_valid_end_time_, linesRead);
+                    Resources.PeakBoundaryImporter_Import_The_value___0___on_line__1__is_not_a_valid_end_time_, reader.LineNumber);
 
                 // Error if only one of startTime and endTime is null
                 if (startTime == null && endTime != null)
                 {
                     if (changePeaks)
-                        throw new IOException(string.Format(Resources.PeakBoundaryImporter_Import_Missing_start_time_on_line__0_, linesRead));
+                        throw new IOException(string.Format(Resources.PeakBoundaryImporter_Import_Missing_start_time_on_line__0_, reader.LineNumber));
                     endTime = null;
                 }
                 if (startTime != null && endTime == null)
                 {
                     if (changePeaks)
-                        throw new IOException(string.Format(Resources.PeakBoundaryImporter_Import_Missing_end_time_on_line__0_, linesRead));
+                        throw new IOException(string.Format(Resources.PeakBoundaryImporter_Import_Missing_end_time_on_line__0_, reader.LineNumber));
                     startTime = null;
                 }
 
@@ -432,7 +428,7 @@ namespace pwiz.Skyline.Model
                             var bareFileMatch = Document.Settings.MeasuredResults.FindMatchingMSDataFile(dataFileUri);
                             if (bareFileMatch != null)
                             {
-                                throw new IOException(string.Format(Resources.PeakBoundaryImporter_Import_Sample__0__on_line__1__does_not_match_the_file__2__, sampleName, linesRead, fileName));
+                                throw new IOException(string.Format(Resources.PeakBoundaryImporter_Import_Sample__0__on_line__1__does_not_match_the_file__2__, sampleName, reader.LineNumber, fileName));
                             }
                         }
                     }

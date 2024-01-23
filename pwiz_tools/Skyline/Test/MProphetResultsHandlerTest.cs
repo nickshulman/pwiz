@@ -117,8 +117,7 @@ namespace pwiz.SkylineTest
                 resultsHandlerQAll.ScoreFeatures();
                 var docNewQAll = resultsHandlerQAll.ChangePeaks();
                 var peakBoundaryImporter = new PeakBoundaryImporter(docNewQAll);
-                long lineCount = Helpers.CountLinesInFile(mProphetActual);
-                peakBoundaryImporter.Import(mProphetActual, null, lineCount);
+                peakBoundaryImporter.Import(mProphetActual, null);
                 var docImport = peakBoundaryImporter.Document;
                 // Serialized documents are easier to debug when something is different
                 string strDocNew = SerializeDoc(docNewQAll);

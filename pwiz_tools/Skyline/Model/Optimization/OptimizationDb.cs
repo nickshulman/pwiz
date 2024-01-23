@@ -339,7 +339,7 @@ namespace pwiz.Skyline.Model.Optimization
             // ReSharper disable LocalizableElement
             string text = string.Format(">>{0}\r\n{1}", newDoc.GetPeptideGroupId(true), TextUtil.LineSeparate(peptideList));
             // ReSharper restore LocalizableElement
-            PeptideGroupDocNode imported = importer.Import(new StringReader(text), null, Helpers.CountLinesInString(text)).First();
+            PeptideGroupDocNode imported = importer.Import(LineReader.FromText(text), null).First();
 
             int optimizationsUpdated = 0;
             foreach (PeptideDocNode nodePep in imported.Children)

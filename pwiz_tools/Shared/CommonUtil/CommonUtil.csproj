@@ -169,6 +169,7 @@
     <Compile Include="SystemUtil\FileSizeFormatProvider.cs" />
     <Compile Include="SystemUtil\IFormView.cs" />
     <Compile Include="SystemUtil\ItemDescription.cs" />
+    <Compile Include="SystemUtil\LineReader.cs" />
     <Compile Include="SystemUtil\ProcessEx.cs" />
     <Compile Include="SystemUtil\StreamEx.cs" />
     <Compile Include="SystemUtil\StringSearch.cs" />

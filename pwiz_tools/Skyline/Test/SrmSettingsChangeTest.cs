@@ -22,6 +22,7 @@ using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Model;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.DocSettings.Extensions;
@@ -410,11 +411,11 @@ namespace pwiz.SkylineTest
         {
             SrmDocument document = new SrmDocument(SrmSettingsList.GetDefault0_6());
             // Add fasta sequences
-            SrmDocument docFasta = document.ImportFasta(new StringReader(ExampleText.TEXT_FASTA_YEAST),
+            SrmDocument docFasta = document.ImportFasta(ExampleText.TEXT_FASTA_YEAST,
                 false, IdentityPath.ROOT, out _);
             AssertEx.IsDocumentState(docFasta, 1, 2, 98, 311);
             // Insert peptide list at beginnning
-            SrmDocument docMixed = docFasta.ImportFasta(new StringReader(SrmDocEditTest.TEXT_BOVINE_PEPTIDES1),
+            SrmDocument docMixed = docFasta.ImportFasta(SrmDocEditTest.TEXT_BOVINE_PEPTIDES1,
                 true, docFasta.GetPathTo(0), out _);
             AssertEx.IsDocumentState(docMixed, 2, 3, 111, 352);
             return docMixed;            

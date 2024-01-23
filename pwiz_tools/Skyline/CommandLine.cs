@@ -579,10 +579,9 @@ namespace pwiz.Skyline
                 
             {
                 _out.WriteLine(SkylineResources.CommandLine_ImportPeakBoundaries_Importing_peak_boundaries_from__0_, Path.GetFileName(commandArgs.ImportPeakBoundariesPath));
-                long lineCount = Helpers.CountLinesInFile(commandArgs.ImportPeakBoundariesPath);
                 PeakBoundaryImporter importer = new PeakBoundaryImporter(_doc);
                 var progressMonitor = new CommandProgressMonitor(_out, new ProgressStatus(string.Empty));
-                ModifyDocument(d => importer.Import(commandArgs.ImportPeakBoundariesPath, progressMonitor, lineCount));
+                ModifyDocument(d => importer.Import(commandArgs.ImportPeakBoundariesPath, progressMonitor));
             }, SkylineResources.CommandLine_ImportPeakBoundaries_Error__Failed_importing_peak_boundaries_);
         }
 
@@ -2693,11 +2692,10 @@ namespace pwiz.Skyline
         public void ImportFasta(string path, bool keepEmptyProteins)
         {
             _out.WriteLine(Resources.CommandLine_ImportFasta_Importing_FASTA_file__0____, Path.GetFileName(path));
-            using (var readerFasta = new StreamReader(PathEx.SafePath(path)))
+            using (var readerFasta = LineReader.FromPath(PathEx.SafePath(path)))
             {
                 var progressMonitor = new CommandProgressMonitor(_out, new ProgressStatus(string.Empty));
-                long lines = Helpers.CountLinesInFile(path);
-                ModifyDocument(d => d.ImportFasta(readerFasta, progressMonitor, lines, false, null, out _, out _));
+                ModifyDocument(d => d.ImportFasta(readerFasta, progressMonitor, false, null, out _, out _));
             }
             
             // Remove all empty proteins unless otherwise specified

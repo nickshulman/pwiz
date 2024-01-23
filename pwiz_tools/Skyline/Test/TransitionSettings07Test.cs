@@ -21,6 +21,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Model;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.DocSettings.Extensions;
@@ -43,7 +44,7 @@ namespace pwiz.SkylineTest
         public void SpecialFragmentTest()
         {
             var docOriginal = new SrmDocument(SrmSettingsList.GetDefault());
-            var docPeptide = docOriginal.ImportFasta(new StringReader(">peptide1\nPEPMCIDEPR"),
+            var docPeptide = docOriginal.ImportFasta(">peptide1\nPEPMCIDEPR",
                 true, IdentityPath.ROOT, out _);
             // One of the prolines should have caused an extra transition
             Assert.AreEqual(4, docPeptide.PeptideTransitionCount);
@@ -98,7 +99,7 @@ namespace pwiz.SkylineTest
             Assert.AreEqual("CO2H", ParsedMolecule.Create("CO2").AdjustElementCount("H", 1).ToString());
 
             var docOriginal = new SrmDocument(SrmSettingsList.GetDefault().ChangeTransitionInstrument(instrument => instrument.ChangeMinMz(10)));  // H2O2 is not very heavy!
-            SrmDocument docPeptide = docOriginal.ImportFasta(new StringReader(">peptide1\nPEPMCIDEPR"),
+            SrmDocument docPeptide = docOriginal.ImportFasta(">peptide1\nPEPMCIDEPR",
                 true, IdentityPath.ROOT, out _);
             // One of the prolines should have caused an extra transition
             Assert.AreEqual(4, docPeptide.PeptideTransitionCount);
@@ -188,7 +189,7 @@ namespace pwiz.SkylineTest
                       .ChangeFragmentRangeFirstName("ion 1")
                       .ChangeFragmentRangeLastName("last ion"));
             var docOriginal = new SrmDocument(settings);
-            var docPeptides = docOriginal.ImportFasta(new StringReader(">peptides\nESTIGNSAFELLLEVAK\nTVYHAGTK"),
+            var docPeptides = docOriginal.ImportFasta(">peptides\nESTIGNSAFELLLEVAK\nTVYHAGTK",
                 true, IdentityPath.ROOT, out _);
             AssertEx.IsDocumentState(docPeptides, revisionIndex++, 1, 2, 2, 40);
             // Both precursors should contain 1 and 2 ions

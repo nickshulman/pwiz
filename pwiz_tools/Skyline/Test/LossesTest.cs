@@ -21,6 +21,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Model;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.DocSettings.Extensions;
@@ -95,7 +96,7 @@ namespace pwiz.SkylineTest
                         .ChangePeptidePrecursorCharges(new[] {Adduct.FromChargeProtonated(precursorCharge)}))
                 .ChangeTransitionInstrument(ti => ti.ChangeMaxMz(2000)));   // Allow precursor charge loss
             IdentityPath path = IdentityPath.ROOT;
-            SrmDocument docFasta = document.ImportFasta(new StringReader(TEXT_FASTA_YEAST_7), false, path, out path);
+            SrmDocument docFasta = document.ImportFasta(TEXT_FASTA_YEAST_7, false, path, out path);
 
             Assert.AreEqual(0, GetLossCount(docFasta, 1));
             const int expectedTransitions = 25;

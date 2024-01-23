@@ -1526,10 +1526,10 @@ namespace pwiz.Skyline.EditUI
             var importer = new FastaImporter(document, irtStandard);
             try
             {
-                var reader = new StringReader(TbxFasta.Text);
+                var reader = LineReader.FromText(TbxFasta.Text);
                 IdentityPath to = selectedPath;
                 IdentityPath firstAdded;
-                newPeptideGroups = importer.Import(reader, monitor, -1).ToList();
+                newPeptideGroups = importer.Import(reader, monitor).ToList();
                 document = document.AddPeptideGroups(newPeptideGroups, false, to, out firstAdded, out _);
                 selectedPath = firstAdded;
             }

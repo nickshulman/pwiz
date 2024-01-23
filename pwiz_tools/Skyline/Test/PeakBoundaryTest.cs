@@ -34,7 +34,6 @@ using pwiz.Skyline.Model.DocSettings.Extensions;
 using pwiz.Skyline.Model.Lib;
 using pwiz.Skyline.Model.Results.Scoring;
 using pwiz.Skyline.Properties;
-using pwiz.Skyline.Util;
 using pwiz.Skyline.Util.Extensions;
 using pwiz.SkylineTestUtil;
 
@@ -364,10 +363,9 @@ namespace pwiz.SkylineTest
         {
             var peakBoundaryImporter = new PeakBoundaryImporter(docResults);
             importText = UpdateReportForTestMode(importText);
-            using (var readerPeakBoundaries = new StringReader(importText))
+            using (var readerPeakBoundaries = LineReader.FromText(importText))
             {
-                long lineCount = Helpers.CountLinesInString(importText);
-                AssertEx.ThrowsException<IOException>(() => peakBoundaryImporter.Import(readerPeakBoundaries, null, lineCount, isMinutes, removeMissing, changePeaks), message);
+                AssertEx.ThrowsException<IOException>(() => peakBoundaryImporter.Import(readerPeakBoundaries, null, isMinutes, removeMissing, changePeaks), message);
             }
         }
 
@@ -375,10 +373,9 @@ namespace pwiz.SkylineTest
         {
             var peakBoundaryImporter = new PeakBoundaryImporter(docResults);
             importText = UpdateReportForTestMode(importText);
-            using (var readerPeakBoundaries = new StringReader(importText))
+            using (var readerPeakBoundaries = LineReader.FromText(importText))
             {
-                long lineCount = Helpers.CountLinesInString(importText);
-                AssertEx.NoExceptionThrown<Exception>(() => peakBoundaryImporter.Import(readerPeakBoundaries, null, lineCount, isMinutes, removeMissing, changePeaks));
+                AssertEx.NoExceptionThrown<Exception>(() => peakBoundaryImporter.Import(readerPeakBoundaries, null, isMinutes, removeMissing, changePeaks));
             }
         }
 
@@ -442,8 +439,7 @@ namespace pwiz.SkylineTest
                 }
             }
             var peakBoundaryImporter = new PeakBoundaryImporter(docOld);
-            long lineCount = Helpers.CountLinesInFile(importFile);
-            SrmDocument docNew = peakBoundaryImporter.Import(importFile, null, lineCount);
+            SrmDocument docNew = peakBoundaryImporter.Import(importFile, null);
             return docNew;
         }
 

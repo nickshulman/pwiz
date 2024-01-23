@@ -477,9 +477,9 @@ namespace pwiz.Skyline.Model
             IdentityPath to, out IdentityPath firstAdded, out IdentityPath nextAdd, out List<PeptideGroupDocNode> peptideGroupsNew)
         {
             var importer = new FastaImporter(document, irtStandard);
-            using (TextReader reader = File.OpenText(fastaPath))
+            using (var reader = LineReader.FromPath(fastaPath))
             {
-                peptideGroupsNew = importer.Import(reader, monitor, Helpers.CountLinesInFile(fastaPath)).ToList();
+                peptideGroupsNew = importer.Import(reader, monitor).ToList();
                 document = document.AddPeptideGroups(peptideGroupsNew, false, to, out firstAdded, out nextAdd);
             }
             return document;

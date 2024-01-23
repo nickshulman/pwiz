@@ -22,6 +22,7 @@ using System.IO;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using pwiz.Common.Chemistry;
+using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Model;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.DocSettings.Extensions;
@@ -100,7 +101,7 @@ namespace pwiz.SkylineTest
 
             // Add some FASTA
             IdentityPath path = IdentityPath.ROOT;
-            SrmDocument docFasta = docLibraries.ImportFasta(new StringReader(textFasta), peptideList, path, out path);
+            SrmDocument docFasta = docLibraries.ImportFasta(textFasta, peptideList, path, out path);
             ++startRev;
 
             // Until libraries are loaded, only the sequences should appear            

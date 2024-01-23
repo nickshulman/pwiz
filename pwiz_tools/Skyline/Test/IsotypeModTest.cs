@@ -21,6 +21,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Model;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.DocSettings.Extensions;
@@ -59,7 +60,7 @@ namespace pwiz.SkylineTest
 
             // Add some FASTA
             IdentityPath pathRoot = IdentityPath.ROOT;
-            SrmDocument docFasta = document.ImportFasta(new StringReader(ExampleText.TEXT_FASTA_YEAST_LIB), false, pathRoot, out _);
+            SrmDocument docFasta = document.ImportFasta(ExampleText.TEXT_FASTA_YEAST_LIB, false, pathRoot, out _);
             const int initProt = 2, initPep = 26, initTran = 89;
             AssertEx.IsDocumentState(docFasta, ++startRev, initProt, initPep, initTran);
 
@@ -106,7 +107,7 @@ namespace pwiz.SkylineTest
             var docEmpty = (SrmDocument) docNoAutoLabeled.ChangeChildren(new PeptideGroupDocNode[0]);
 
             // Paste FASTA back in
-            var docRePaste = docEmpty.ImportFasta(new StringReader(ExampleText.TEXT_FASTA_YEAST_LIB), false, pathRoot, out _);
+            var docRePaste = docEmpty.ImportFasta(ExampleText.TEXT_FASTA_YEAST_LIB, false, pathRoot, out _);
             // This should produce the same document as the original settings change
             Assert.AreEqual(docMulti, docRePaste);
         }
@@ -119,7 +120,7 @@ namespace pwiz.SkylineTest
 
             // Add some FASTA
             IdentityPath pathRoot = IdentityPath.ROOT;
-            SrmDocument docFasta = document.ImportFasta(new StringReader(ExampleText.TEXT_FASTA_YEAST_LIB), false, pathRoot, out _);
+            SrmDocument docFasta = document.ImportFasta(ExampleText.TEXT_FASTA_YEAST_LIB, false, pathRoot, out _);
             const int initProt = 2, initPep = 26, initTran = 89;
             AssertEx.IsDocumentState(docFasta, ++startRev, initProt, initPep, initTran);
 
@@ -162,9 +163,9 @@ namespace pwiz.SkylineTest
             SrmDocument document = new SrmDocument(SrmSettingsList.GetDefault());
             const string pepSequence1 = "QFVLSCVILR";
             const string pepSequence2 = "DIEVYCDGAITTK";
-            var reader = new StringReader(string.Join("\n", new[] {">peptides1", pepSequence1, pepSequence2}));
             IdentityPath path;
-            document = document.ImportFasta(reader, true, IdentityPath.ROOT, out path);
+            document = document.ImportFasta(string.Join("\n", new[] { ">peptides1", pepSequence1, pepSequence2 }), true,
+                IdentityPath.ROOT, out path);
             Assert.AreEqual(2, document.PeptideCount);
 
             // Add some modifications in two new label types

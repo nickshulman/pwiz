@@ -132,7 +132,7 @@ namespace pwiz.Skyline.Model
                         PeakBoundaryImporter.REQUIRED_NO_CHROM, out fieldIndices, out _);
                     ApexPresent = separator != null && fieldIndices[(int) PeakBoundaryImporter.Field.apex_time] != -1;
                 }
-                _docCompare = Importer.Import(FilePath, progressMonitor, lineCount, true, !ApexPresent);
+                _docCompare = Importer.Import(FilePath, progressMonitor, true, !ApexPresent);
                 if (progressMonitor.IsCanceled)
                     return;
             }

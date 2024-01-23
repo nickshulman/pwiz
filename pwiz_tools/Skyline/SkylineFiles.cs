@@ -1682,7 +1682,7 @@ namespace pwiz.Skyline
             {
                 longWaitDlg.Text = description;
                 longWaitDlg.PerformWork(this, 1000, longWaitBroker =>
-                           docNew = peakBoundaryImporter.Import(fileName, longWaitBroker, lineCount));
+                           docNew = peakBoundaryImporter.Import(fileName, longWaitBroker));
 
 
                 if (docNew == null)
@@ -1736,10 +1736,9 @@ namespace pwiz.Skyline
         {
             try
             {
-                long lineCount = Helpers.CountLinesInFile(fastaFile);
-                using (var readerFasta = new StreamReader(fastaFile))
+                using (var readerFasta = LineReader.FromPath(fastaFile))
                 {
-                    ImportFasta(readerFasta, lineCount, false, Resources.SkylineWindow_ImportFastaFile_Import_FASTA, new ImportFastaInfo(true, fastaFile));
+                    ImportFasta(readerFasta, false, Resources.SkylineWindow_ImportFastaFile_Import_FASTA, new ImportFastaInfo(true, fastaFile));
                 }
             }
             catch (Exception x)
@@ -1762,7 +1761,7 @@ namespace pwiz.Skyline
             public string Text { get; private set;}
         }
 
-        public void ImportFasta(TextReader reader, long lineCount, bool peptideList, string description, ImportFastaInfo importInfo)
+        public void ImportFasta(LineReader reader, bool peptideList, string description, ImportFastaInfo importInfo)
         {
             SrmTreeNode nodePaste = SequenceTree.SelectedNode as SrmTreeNode;
             IdentityPath selectPath = null;
@@ -1803,7 +1802,7 @@ namespace pwiz.Skyline
                     MessageDlg.ShowException(this, x);
                     return;
                 }
-                reader = new StringReader(TextUtil.LineSeparate(header, TextUtil.LineSeparate(sequences.ToArray())));
+                reader = LineReader.FromText(TextUtil.LineSeparate(header, TextUtil.LineSeparate(sequences.ToArray())));
             }
 
             SrmDocument docNew = null;
@@ -1812,7 +1811,7 @@ namespace pwiz.Skyline
             {
                 longWaitDlg.Text = description;
                 longWaitDlg.PerformWork(this, 1000, longWaitBroker =>
-                    docNew = docCurrent.ImportFasta(reader, longWaitBroker, lineCount, matcher, to, out selectPath, out _, out emptyPeptideGroups));
+                    docNew = docCurrent.ImportFasta(reader, longWaitBroker, matcher, to, out selectPath, out _, out emptyPeptideGroups));
 
                 if (docNew == null)
                     return;

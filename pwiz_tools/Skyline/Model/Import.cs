@@ -78,7 +78,7 @@ namespace pwiz.Skyline.Model
         public bool PeptideList { get; private set; }
         public int EmptyPeptideGroupCount { get; private set; }
 
-        public IEnumerable<PeptideGroupDocNode> Import(TextReader reader, IProgressMonitor progressMonitor, long lineCount)
+        public IEnumerable<PeptideGroupDocNode> Import(LineReader reader, IProgressMonitor progressMonitor)
         {
             bool requireLibraryMatch = Document.Settings.PeptideSettings.Libraries.Pick == PeptidePick.library
                                        || Document.Settings.PeptideSettings.Libraries.Pick == PeptidePick.both;
@@ -118,7 +118,8 @@ namespace pwiz.Skyline.Model
                         EmptyPeptideGroupCount = 0;
                         return new PeptideGroupDocNode[0];
                     }
-                    int progressNew = (int) (linesRead*100/lineCount);
+
+                    int progressNew = reader.ProgressValue;
                     if (progressPercent != progressNew)
                         progressMonitor.UpdateProgress(status = status.ChangePercentComplete(progressPercent = progressNew));
                 }

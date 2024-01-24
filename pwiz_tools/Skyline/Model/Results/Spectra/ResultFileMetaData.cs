@@ -54,14 +54,15 @@ namespace pwiz.Skyline.Model.Results.Spectra
             var precursors = proto.Precursors.Select(SpectrumPrecursorFromProto).ToList();
             foreach (var protoSpectrum in proto.Spectra)
             {
-                SpectrumId id;
+                string id;
                 if (string.IsNullOrEmpty(protoSpectrum.ScanIdText))
                 {
-                    id = SpectrumId.FromIntegers(protoSpectrum.ScanIdParts);
+                    id = string.Join(@".",
+                        protoSpectrum.ScanIdParts.Select(part => part.ToString(CultureInfo.InvariantCulture)));
                 }
                 else
                 {
-                    id = SpectrumId.FromString(protoSpectrum.ScanIdText);
+                    id = protoSpectrum.ScanIdText;
                 }
 
                 id = valueCache.CacheValue(id);
@@ -127,10 +128,10 @@ namespace pwiz.Skyline.Model.Results.Spectra
                     RetentionTime = spectrumMetadata.RetentionTime,
                 };
                 spectrum.PresetScanConfiguration = spectrumMetadata.PresetScanConfiguration;
-                var intParts = spectrumMetadata.Id.AsIntegers();
+                var intParts = GetScanIdParts(spectrumMetadata.Id);
                 if (intParts == null)
                 {
-                    spectrum.ScanIdText = spectrumMetadata.Id.ToString();
+                    spectrum.ScanIdText = spectrumMetadata.Id;
                 }
                 else
                 {
@@ -188,7 +189,7 @@ namespace pwiz.Skyline.Model.Results.Spectra
             {
                 var spectrum = SpectrumMetadatas[i];
                 var startIndex = byteStream.Length;
-                var scanIdBytes = Encoding.UTF8.GetBytes(spectrum.Id.ToString());
+                var scanIdBytes = Encoding.UTF8.GetBytes(spectrum.Id);
                 byteStream.Write(scanIdBytes, 0, scanIdBytes.Length);
                 Assume.AreEqual(startIndex + scanIdBytes.Length, byteStream.Length);
                 startBytesList.Add(Convert.ToInt32(startIndex));

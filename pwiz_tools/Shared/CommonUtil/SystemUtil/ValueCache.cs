@@ -50,11 +50,13 @@ namespace pwiz.Common.SystemUtil
             {
                 return true;
             }
-            object objectFromCache;
-            if (_cachedValues.TryGetValue(value, out objectFromCache))
+            lock (_cachedValues)
             {
-                value = (T) objectFromCache;
-                return true;
+                if (_cachedValues.TryGetValue(value, out var objectFromCache))
+                {
+                    value = (T)objectFromCache;
+                    return true;
+                }
             }
             return false;
         }
@@ -65,9 +67,17 @@ namespace pwiz.Common.SystemUtil
         /// </summary>
         public T CacheValue<T>(T value)
         {
-            if (!TryGetCachedValue(ref value))
+            if (_cachedValues == null)
             {
-                _cachedValues.Add(value);
+                return value;
+            }
+
+            lock (_cachedValues)
+            {
+                if (!TryGetCachedValue(ref value))
+                {
+                    _cachedValues.Add(value);
+                }
             }
             return value;
         }

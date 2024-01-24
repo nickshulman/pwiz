@@ -1190,7 +1190,7 @@ namespace pwiz.Skyline.Model.Lib
                         var retentionTimesByFileId = IndexedRetentionTimes.Read(stream);
                         var driftTimesByFileId = IndexedIonMobilities.Read(stream);
                         ImmutableSortedList<int, ExplicitPeakBounds> peakBoundaries =
-                            ReadPeakBoundaries(stream);
+                            ReadPeakBoundaries(valueCache, stream);
                         _anyExplicitPeakBounds = _anyExplicitPeakBounds || peakBoundaries.Count > 0;
                         libraryEntries[i] = new BiblioLiteSpectrumInfo(key, copies, numPeaks, id, proteinOrMoleculeList,
                             retentionTimesByFileId, driftTimesByFileId, peakBoundaries, score, scoreType);

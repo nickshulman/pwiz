@@ -28,17 +28,13 @@ namespace pwiz.Common.Spectra
         private ImmutableList<ImmutableList<SpectrumPrecursor>> _precursorsByMsLevel =
             ImmutableList<ImmutableList<SpectrumPrecursor>>.EMPTY;
 
-        public SpectrumMetadata(string id, double retentionTime) : this(SpectrumId.FromString(id), retentionTime)
-        {
-        }
-        
-        public SpectrumMetadata(SpectrumId id, double retentionTime)
+        public SpectrumMetadata(string id, double retentionTime)
         {
             Id = id;
             RetentionTime = retentionTime;
         }
 
-        public SpectrumId Id { get; private set; }
+        public string Id { get; private set; }
         public double RetentionTime { get; private set; }
         public int MsLevel
         {
@@ -117,7 +113,7 @@ namespace pwiz.Common.Spectra
 
         protected bool Equals(SpectrumMetadata other)
         {
-            return _precursorsByMsLevel.Equals(other._precursorsByMsLevel) && Equals(Id, other.Id) &&
+            return _precursorsByMsLevel.Equals(other._precursorsByMsLevel) && Id == other.Id &&
                    RetentionTime.Equals(other.RetentionTime) && NegativeCharge == other.NegativeCharge &&
                    ScanDescription == other.ScanDescription &&
                    Nullable.Equals(ScanWindowLowerLimit, other.ScanWindowLowerLimit) &&

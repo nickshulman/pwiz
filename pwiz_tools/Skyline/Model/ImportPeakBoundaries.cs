@@ -250,7 +250,7 @@ namespace pwiz.Skyline.Model
                 if (string.IsNullOrEmpty(line = reader.ReadLine()))
                     break;
                 linesRead++;
-                var dataFields = new DataFields(fieldIndices, line.ParseDsvFields(correctSeparator), FIELD_NAMES);
+                var dataFields = new DataFields(-1, fieldIndices, line.ParseDsvFields(correctSeparator), FIELD_NAMES);
                 double? startTime = dataFields.GetTime(Field.start_time, 1.0,
                         Resources.PeakBoundaryImporter_Import_The_value___0___on_line__1__is_not_a_valid_start_time_,
                         linesRead);
@@ -299,9 +299,10 @@ namespace pwiz.Skyline.Model
             char correctSeparator = ReadFirstLine(line, allFieldNames, requiredFields, out fieldIndices, out fieldsTotal);
 
             // Determine whether the input list is proteomic or small molecule
-            var header = new DataFields(fieldIndices, line.ParseDsvFields(correctSeparator), allFieldNames);
+            var header = new DataFields(reader.LineNumber, fieldIndices, line.ParseDsvFields(correctSeparator), allFieldNames);
             var peptideColumnName = header.GetField(Field.modified_peptide);
             var listIsProteomic = !MOLECULE_SYNONYMS.Any(s => string.Equals(s, peptideColumnName, StringComparison.CurrentCultureIgnoreCase));
+            var rows = new List<DataFields>();
 
             while ((line = reader.ReadLine()) != null)
             {
@@ -316,12 +317,22 @@ namespace pwiz.Skyline.Model
                         progressPercent = progressNew;
                     }
                 }
-                var dataFields = new DataFields(fieldIndices, line.ParseDsvFields(correctSeparator), allFieldNames);
+
+                var dataFields = new DataFields(reader.LineNumber, fieldIndices, line.ParseDsvFields(correctSeparator),
+                    allFieldNames);
                 if (dataFields.Length != fieldsTotal)
                 {
-                    throw new IOException(string.Format(Resources.PeakBoundaryImporter_Import_Line__0__field_count__1__differs_from_the_first_line__which_has__2_,
+                    throw new IOException(string.Format(
+                        Resources
+                            .PeakBoundaryImporter_Import_Line__0__field_count__1__differs_from_the_first_line__which_has__2_,
                         reader.LineNumber, dataFields.Length, fieldsTotal));
                 }
+                rows.Add(dataFields);
+            }
+
+            var rowGroups = rows.GroupBy(row => Tuple.Create(row.GetField(Field.modified_peptide), row.IsDecoy())).ToList();
+
+            {
                 string modifiedPeptideString = dataFields.GetField(Field.modified_peptide);
                 string fileName = dataFields.GetField(Field.filename);
                 bool isDecoy = dataFields.IsDecoy(reader.LineNumber);
@@ -753,12 +764,15 @@ namespace pwiz.Skyline.Model
             private readonly string[] _dataFields;
             private readonly IList<string[]> _fieldNames;
 
-            public DataFields(int[] fieldIndices, string[] dataFields, IList<string[]> fieldNames)
+            public DataFields(long lineNumber, int[] fieldIndices, string[] dataFields, IList<string[]> fieldNames)
             {
+                LineNumber = lineNumber;
                 _fieldIndices = fieldIndices;
                 _dataFields = dataFields;
                 _fieldNames = fieldNames;
             }
+
+            public long LineNumber { get; }
 
             public int Length { get { return _dataFields.Length; } }
 
@@ -814,7 +828,7 @@ namespace pwiz.Skyline.Model
                 throw new IOException(string.Format(message, timeText, linesRead));
             }
 
-            public bool IsDecoy(long linesRead)
+            public bool IsDecoy()
             {
                 bool isDecoy = false;
                 string decoyString = GetField(Field.is_decoy);
@@ -833,13 +847,13 @@ namespace pwiz.Skyline.Model
                                 break;
                             default:
                                 throw new IOException(string.Format(Resources.PeakBoundaryImporter_Import_The_decoy_value__0__on_line__1__is_invalid__must_be_0_or_1_,
-                                                                    decoyString, linesRead));
+                                                                    decoyString, LineNumber));
                         }
                     }
                     if (decoyNum != 1 && decoyNum != 0)
                     {
                         throw new IOException(string.Format(Resources.PeakBoundaryImporter_Import_The_decoy_value__0__on_line__1__is_invalid__must_be_0_or_1_,
-                                                            decoyString, linesRead));
+                                                            decoyString, LineNumber));
                     }
                     isDecoy = decoyNum == 1;
                 }
@@ -860,6 +874,28 @@ namespace pwiz.Skyline.Model
                     throw new IOException(string.Format(Resources.PeakBoundaryImporter_Import_The_value___0___on_line__1__is_not_a_valid_charge_state_, chargeString, linesRead));
                 }
                 return true;
+            }
+        }
+
+        private class RowProcessor
+        {
+            public RowProcessor(SrmDocument document)
+            {
+                Document = document;
+            }
+            public SrmDocument Document { get; private set; }
+
+            public void ProcessRows(IEnumerable<DataFields> rows)
+            {
+                var rowGroups = rows.GroupBy(row => Tuple.Create(row.GetField(Field.modified_peptide), row.IsDecoy())).ToList();
+
+            }
+
+            public void ProcessChunk(IEnumerable<IGrouping<Tuple<string, bool>, DataFields>> groups)
+            {
+                var streamManager = new FileStreamManager();
+                var chromatogramCache = Document.Settings.MeasuredResults.
+
             }
         }
     }

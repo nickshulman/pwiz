@@ -548,7 +548,7 @@ namespace pwiz.Skyline.Util
 
         private readonly ConnectionPool _connectionPool = new ConnectionPool();
 
-        private FileStreamManager()
+        public FileStreamManager()
         {            
         }
 

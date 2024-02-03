@@ -707,9 +707,19 @@ namespace pwiz.Skyline.Model.Results
             return null;
         }
 
-        public bool HasAllIonsChromatograms
+        public bool HasTicChromatogram
         {
-            get { return Caches.Any(cache => cache.HasAllIonsChromatograms); }
+            get { return Caches.Any(cache => cache.HasTicChromatogram); }
+        }
+
+        public bool HasBasePeakChromatogram 
+        {
+            get { return Caches.Any(cache => cache.HasBasePeakChromatogram); }
+        }
+
+        public bool HasInjectionTime
+        {
+            get { return Caches.Any(cache => cache.HasInjectionTime); }
         }
 
         /// <summary>

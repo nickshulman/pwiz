@@ -58,7 +58,6 @@
             this.idTimesOtherContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.toolStripSeparator16 = new System.Windows.Forms.ToolStripSeparator();
             this.transitionsContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-            this.relativeAbundanceFormattingMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.allTranContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.precursorsTranContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.productsTranContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
@@ -72,6 +71,7 @@
             this.onlyQuantitativeContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.toolStripSeparatorSplitGraph = new System.Windows.Forms.ToolStripSeparator();
             this.splitGraphContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.relativeAbundanceFormattingMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.transformChromContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.transformChromNoneContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.transformChromInterpolatedContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
@@ -90,6 +90,7 @@
             this.toolStripSeparator19 = new System.Windows.Forms.ToolStripSeparator();
             this.zoomChromContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.toolStripSeparator26 = new System.Windows.Forms.ToolStripSeparator();
+            this.injectionTimeContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.contextMenuChromatogram.SuspendLayout();
             this.SuspendLayout();
             // 
@@ -312,6 +313,7 @@
             this.basePeakContextMenuItem,
             this.ticContextMenuItem,
             this.qcContextMenuItem,
+            this.injectionTimeContextMenuItem,
             this.toolStripSeparatorOnlyQuantitative,
             this.onlyQuantitativeContextMenuItem,
             this.toolStripSeparatorSplitGraph,
@@ -319,12 +321,6 @@
             this.transitionsContextMenuItem.Name = "transitionsContextMenuItem";
             resources.ApplyResources(this.transitionsContextMenuItem, "transitionsContextMenuItem");
             this.transitionsContextMenuItem.DropDownOpening += new System.EventHandler(this.transitionsMenuItem_DropDownOpening);
-            // 
-            // relativeAbundanceFormattingMenuItem
-            // 
-            this.relativeAbundanceFormattingMenuItem.Name = "relativeAbundanceFormattingMenuItem";
-            resources.ApplyResources(this.relativeAbundanceFormattingMenuItem, "relativeAbundanceFormattingMenuItem");
-            this.relativeAbundanceFormattingMenuItem.Click += new System.EventHandler(this.relativeAbundanceFormattingMenuItem_Click);
             // 
             // allTranContextMenuItem
             // 
@@ -399,6 +395,12 @@
             this.splitGraphContextMenuItem.Name = "splitGraphContextMenuItem";
             resources.ApplyResources(this.splitGraphContextMenuItem, "splitGraphContextMenuItem");
             this.splitGraphContextMenuItem.Click += new System.EventHandler(this.splitChromGraphMenuItem_Click);
+            // 
+            // relativeAbundanceFormattingMenuItem
+            // 
+            this.relativeAbundanceFormattingMenuItem.Name = "relativeAbundanceFormattingMenuItem";
+            resources.ApplyResources(this.relativeAbundanceFormattingMenuItem, "relativeAbundanceFormattingMenuItem");
+            this.relativeAbundanceFormattingMenuItem.Click += new System.EventHandler(this.relativeAbundanceFormattingMenuItem_Click);
             // 
             // transformChromContextMenuItem
             // 
@@ -515,6 +517,12 @@
             this.toolStripSeparator26.Name = "toolStripSeparator26";
             resources.ApplyResources(this.toolStripSeparator26, "toolStripSeparator26");
             // 
+            // injectionTimeContextMenuItem
+            // 
+            this.injectionTimeContextMenuItem.Name = "injectionTimeContextMenuItem";
+            resources.ApplyResources(this.injectionTimeContextMenuItem, "injectionTimeContextMenuItem");
+            this.injectionTimeContextMenuItem.Click += new System.EventHandler(this.injectionTimeMenuItem_Click);
+            // 
             // ChromatogramContextMenu
             // 
             resources.ApplyResources(this, "$this");
@@ -587,5 +595,6 @@
         private System.Windows.Forms.ToolStripSeparator toolStripSeparator26;
         private System.Windows.Forms.ToolStripSeparator toolStripSeparator1;
         private System.Windows.Forms.ToolStripMenuItem synchronizeIntegrationContextMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem injectionTimeContextMenuItem;
     }
 }

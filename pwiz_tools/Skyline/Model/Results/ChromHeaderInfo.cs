@@ -29,6 +29,7 @@ using JetBrains.Annotations;
 using pwiz.Common.Chemistry;
 using pwiz.Common.Collections;
 using pwiz.Common.PeakFinding;
+using pwiz.Common.Spectra;
 using pwiz.Common.SystemUtil;
 using pwiz.ProteowizardWrapper;
 using pwiz.Skyline.Model.DocSettings;
@@ -2560,6 +2561,18 @@ namespace pwiz.Skyline.Model.Results
                 }
             }
         }
+
+        public IEnumerable<KeyValuePair<int, SpectrumMetadata>> GetSpectrumMetadatas(TimeIntensities timeIntensities)
+        {
+            var resultFileMetadata = _chromatogramCache?.GetResultFileMetadata(Header.FileIndex);
+            if (resultFileMetadata == null || timeIntensities.ScanIds == null)
+            {
+                return Array.Empty<KeyValuePair<int, SpectrumMetadata>>();
+            }
+
+            return timeIntensities.ScanIds.Select(scanId => 
+                new KeyValuePair<int, SpectrumMetadata>(scanId, resultFileMetadata.SpectrumMetadatas[scanId]));
+        }
     }
 
 // ReSharper disable InconsistentNaming
@@ -2721,6 +2734,10 @@ namespace pwiz.Skyline.Model.Results
                 }
 
                 return _timeIntensities;
+            }
+            set
+            {
+                _timeIntensities = value;
             }
         }
 
@@ -2904,6 +2921,11 @@ namespace pwiz.Skyline.Model.Results
                 }
                 _timeIntensities = TimeIntensities.MergeTimesAndAddIntensities(chromatogramInfo.TimeIntensities);
             }
+        }
+
+        public IEnumerable<KeyValuePair<int, SpectrumMetadata>> GetSpectrumMetadatas()
+        {
+            return GroupInfo.GetSpectrumMetadatas(RawTimeIntensities);
         }
 
         public TransformChrom TransformChrom

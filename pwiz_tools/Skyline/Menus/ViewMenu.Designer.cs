@@ -134,6 +134,7 @@
             this.toolStripSeparator36 = new System.Windows.Forms.ToolStripSeparator();
             this.toolBarToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.statusToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.injectionTimeMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.menuStrip1.SuspendLayout();
             this.SuspendLayout();
             // 
@@ -479,6 +480,7 @@
             this.basePeakMenuItem,
             this.ticMenuItem,
             this.qcMenuItem,
+            this.injectionTimeMenuItem,
             this.toolStripSeparator56,
             this.onlyQuantitativeMenuItem,
             this.toolStripSeparator48,
@@ -897,6 +899,12 @@
             resources.ApplyResources(this.statusToolStripMenuItem, "statusToolStripMenuItem");
             this.statusToolStripMenuItem.Click += new System.EventHandler(this.statusToolStripMenuItem_Click);
             // 
+            // injectionTimeMenuItem
+            // 
+            this.injectionTimeMenuItem.Name = "injectionTimeMenuItem";
+            resources.ApplyResources(this.injectionTimeMenuItem, "injectionTimeMenuItem");
+            this.injectionTimeMenuItem.Click += new System.EventHandler(this.injectionTimeMenuItem_Click);
+            // 
             // ViewMenu
             // 
             resources.ApplyResources(this, "$this");
@@ -908,6 +916,11 @@
             this.ResumeLayout(false);
             this.PerformLayout();
 
+        }
+
+        private void InjectionTimeMenuItem_Click(object sender, System.EventArgs e)
+        {
+            throw new System.NotImplementedException();
         }
 
         #endregion
@@ -1017,5 +1030,6 @@
         private System.Windows.Forms.ToolStripMenuItem candidatePeaksToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem viewTargetsMenuItem;
         private System.Windows.Forms.ToolStripMenuItem spectrumGridMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem injectionTimeMenuItem;
     }
 }

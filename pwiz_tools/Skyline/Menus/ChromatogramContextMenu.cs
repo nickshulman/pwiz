@@ -559,63 +559,23 @@ namespace pwiz.Skyline.Menus
         #region Transitions
         private void transitionsMenuItem_DropDownOpening(object sender, EventArgs e)
         {
-            var displayType = GraphChromatogram.DisplayType;
-
-            // If both MS1 and MS/MS ions are not possible, then menu items to differentiate precursors and
-            // products are not necessary.
-            bool showIonTypeOptions = SkylineWindow.IsMultipleIonSources;
-            precursorsTranContextMenuItem.Visible =
-                productsTranContextMenuItem.Visible = showIonTypeOptions;
-
-            if (!showIonTypeOptions &&
-                (displayType == DisplayTypeChrom.precursors || displayType == DisplayTypeChrom.products))
-                displayType = DisplayTypeChrom.all;
-
-            // Only show all ions chromatogram options when at least one chromatogram of this type exists
-            bool showAllIonsOptions = DocumentUI.Settings.HasResults &&
-                                      DocumentUI.Settings.MeasuredResults.HasAllIonsChromatograms;
-
-            basePeakContextMenuItem.Visible =
-                ticContextMenuItem.Visible =
-                    qcContextMenuItem.Visible =
-                        toolStripSeparatorTran.Visible = showAllIonsOptions;
-
-            if (!showAllIonsOptions &&
-                (displayType == DisplayTypeChrom.base_peak || displayType == DisplayTypeChrom.tic ||
-                 displayType == DisplayTypeChrom.qc))
-                displayType = DisplayTypeChrom.all;
-
-            if (showAllIonsOptions)
+            var chromatogramTransitionMenuItems = new ChromatogramTransitionMenuItems
             {
-                qcContextMenuItem.DropDownItems.Clear();
-                var qcTraceNames = DocumentUI.MeasuredResults.QcTraceNames.ToList();
-                if (qcTraceNames.Count > 0)
-                {
-                    var qcContextTraceItems = new ToolStripItem[qcTraceNames.Count];
-                    for (int i = 0; i < qcTraceNames.Count; i++)
-                    {
-                        qcContextTraceItems[i] = new ToolStripMenuItem(qcTraceNames[i], null, qcMenuItem_Click)
-                        {
-                            Checked = displayType == DisplayTypeChrom.qc &&
-                                      Settings.Default.ShowQcTraceName == qcTraceNames[i]
-                        };
-                    }
-
-                    qcContextMenuItem.DropDownItems.AddRange(qcContextTraceItems);
-                }
-                else
-                    qcContextMenuItem.Visible = false;
-            }
-
-            precursorsTranContextMenuItem.Checked = (displayType == DisplayTypeChrom.precursors);
-            productsTranContextMenuItem.Checked = (displayType == DisplayTypeChrom.products);
-            singleTranContextMenuItem.Checked = (displayType == DisplayTypeChrom.single);
-            allTranContextMenuItem.Checked = (displayType == DisplayTypeChrom.all);
-            totalTranContextMenuItem.Checked = (displayType == DisplayTypeChrom.total);
-            basePeakContextMenuItem.Checked = (displayType == DisplayTypeChrom.base_peak);
-            ticContextMenuItem.Checked = (displayType == DisplayTypeChrom.tic);
-            splitGraphContextMenuItem.Checked = Settings.Default.SplitChromatogramGraph;
-            onlyQuantitativeContextMenuItem.Checked = Settings.Default.ShowQuantitativeOnly;
+                AllMenuItem = allTranContextMenuItem,
+                PrecursorsMenuItem = precursorsTranContextMenuItem,
+                ProductsMenuItem = productsTranContextMenuItem,
+                SingleMenuItem = singleTranContextMenuItem,
+                TotalMenuItem = totalTranContextMenuItem,
+                GlobalChromatogramSeparator = toolStripSeparatorTran,
+                TicMenuItem = ticContextMenuItem,
+                BasePeakMenuItem = basePeakContextMenuItem,
+                InjectionTimeMenuItem = injectionTimeContextMenuItem,
+                QcMenuItem = qcContextMenuItem,
+                OnlyQuantitativeMenuItem = onlyQuantitativeContextMenuItem,
+                SplitGraphMenuItem = splitGraphContextMenuItem,
+                QcMenuItem_Click = qcMenuItem_Click
+            };
+            chromatogramTransitionMenuItems.UpdateMenuItems(SkylineWindow.DocumentUI, SkylineWindow.SequenceTree.GetNodeOfType<PeptideTreeNode>()?.DocNode);
         }
         private void qcMenuItem_Click(object sender, EventArgs e)
         {
@@ -657,6 +617,11 @@ namespace pwiz.Skyline.Menus
         private void ticMenuItem_Click(object sender, EventArgs e)
         {
             SkylineWindow.ShowTic();
+        }
+
+        private void injectionTimeMenuItem_Click(object sender, EventArgs e)
+        {
+            SkylineWindow.SetDisplayTypeChrom(DisplayTypeChrom.injection_time);
         }
         private void onlyQuantitativeMenuItem_Click(object sender, EventArgs e)
         {

@@ -26,6 +26,7 @@ using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
+using pwiz.Common.Spectra;
 using pwiz.Common.SystemUtil;
 using pwiz.MSGraph;
 using pwiz.ProteowizardWrapper;
@@ -47,7 +48,7 @@ namespace pwiz.Skyline.Controls.Graphs
 
     public enum AutoZoomChrom { none, peak, window, both }
 
-    public enum DisplayTypeChrom { single, precursors, products, all, total, base_peak, tic, qc }
+    public enum DisplayTypeChrom { single, precursors, products, all, total, base_peak, tic, qc, injection_time }
 
     public partial class GraphChromatogram : DockableFormEx, IGraphContainer
     {
@@ -119,10 +120,19 @@ namespace pwiz.Skyline.Controls.Graphs
         public static DisplayTypeChrom GetDisplayType(SrmDocument documentUI)
         {
             var displayType = DisplayType;
-            if (displayType == DisplayTypeChrom.base_peak || displayType == DisplayTypeChrom.tic || displayType == DisplayTypeChrom.qc)
+            var measuredResults = documentUI.Settings.MeasuredResults;
+            foreach (var tuple in new[]
+                     {
+                         Tuple.Create(DisplayTypeChrom.base_peak, measuredResults?.HasBasePeakChromatogram),
+                         Tuple.Create(DisplayTypeChrom.tic, measuredResults?.HasTicChromatogram),
+                         Tuple.Create(DisplayTypeChrom.injection_time, measuredResults?.HasInjectionTime),
+                         Tuple.Create(DisplayTypeChrom.qc, measuredResults?.QcTraceNames?.Any())
+                     })
             {
-                if (!documentUI.Settings.HasResults || !documentUI.Settings.MeasuredResults.HasAllIonsChromatograms)
+                if (displayType == tuple.Item1 && true != tuple.Item2)
+                {
                     displayType = DisplayTypeChrom.all;
+                }
             }
             return displayType;
         }
@@ -1000,7 +1010,7 @@ namespace pwiz.Skyline.Controls.Graphs
                     }
 
                     // If displaying multiple groups or the total of a single group
-                    if (multipleGroupsPerPane || DisplayType == DisplayTypeChrom.total)
+                    if (multipleGroupsPerPane || DisplayType == DisplayTypeChrom.total || DisplayType == DisplayTypeChrom.injection_time)
                     {
                         int countLabelTypes = settings.PeptideSettings.Modifications.CountLabelTypes;
                         DisplayTotals(timeRegressionFunction, chromatograms, mzMatchTolerance, 
@@ -2036,7 +2046,14 @@ namespace pwiz.Skyline.Controls.Graphs
                         infoPrimary = listChromInfo[0];
 
                     // Sum the intensities of all transitions into the first chromatogram
-                    infoPrimary.SumIntensities(listChromInfo);
+                    if (DisplayType == DisplayTypeChrom.injection_time)
+                    {
+                        infoPrimary.TimeIntensities = GetInjectionTimes(listChromInfo);
+                    }
+                    else
+                    {
+                        infoPrimary.SumIntensities(listChromInfo);
+                    }
 
                     // Apply any transform the user has chosen
                     infoPrimary.Transform(Transform);
@@ -3508,6 +3525,31 @@ namespace pwiz.Skyline.Controls.Graphs
             return iCharge * countLabelTypes * spectrumFilters.Count  + iSpectrumFilter * countLabelTypes + nodeGroup.TransitionGroup.LabelType.SortOrder;
         }
 
+        public static TimeIntensities GetInjectionTimes(IEnumerable<ChromatogramInfo> chromatogramInfos)
+        {
+            return GetInjectionTimes(chromatogramInfos.SelectMany(chromInfo => chromInfo.GetSpectrumMetadatas()));
+        }
+
+        public static TimeIntensities GetInjectionTimes(IEnumerable<KeyValuePair<int, SpectrumMetadata>> spectrumMetadatas)
+        {
+            var times = new List<float>();
+            var intensities = new List<float>();
+            var scanIds = new List<int>();
+            foreach (var retentionTimeGroup in spectrumMetadatas.Where(kvp => kvp.Value.InjectionTime.HasValue)
+                         .GroupBy(kvp => (float) kvp.Value.RetentionTime).OrderBy(group => group.Key))
+            {
+                foreach (var injectionTimeAndScanId in retentionTimeGroup
+                             .Select(kvp => Tuple.Create((float) kvp.Value.InjectionTime.Value, kvp.Key)).Distinct())
+                {
+                    times.Add(retentionTimeGroup.Key);
+                    intensities.Add(injectionTimeAndScanId.Item1);
+                    scanIds.Add(injectionTimeAndScanId.Item2);
+                }
+            }
+
+            return new TimeIntensities(times, intensities, null, scanIds);
+        }
+        
         #region Test support
 
         public void TestMouseMove(double x, double y, PaneKey? paneKey)
@@ -3847,7 +3889,6 @@ namespace pwiz.Skyline.Controls.Graphs
             return string.Format(@"{0} ({1})", MeasuredTime, DisplayTime);
         }
     }
-
     public struct RawTimesInfoItem
     {
         public double StartBound { get; set; }

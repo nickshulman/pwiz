@@ -45,8 +45,11 @@ namespace pwiz.Skyline.Model.Results.Spectra
         public ResultFileMetaData(IEnumerable<SpectrumMetadata> spectrumMetadatas)
         {
             SpectrumMetadatas = ImmutableList.ValueOf(spectrumMetadatas);
+            HasInjectionTime = SpectrumMetadatas.Any(spectrum => spectrum.InjectionTime.HasValue);
         }
         public ImmutableList<SpectrumMetadata> SpectrumMetadatas { get; private set; }
+
+        public bool HasInjectionTime { get; private set; }
 
         public static ResultFileMetaData FromProtoBuf(ResultFileMetaDataProto proto)
         {
@@ -85,6 +88,8 @@ namespace pwiz.Skyline.Model.Results.Spectra
                     var scanWindow = proto.ScanWindows[protoSpectrum.ScanWindowIndex - 1];
                     spectrumMetadata = spectrumMetadata.ChangeScanWindow(scanWindow.LowerLimit, scanWindow.UpperLimit);
                 }
+
+                spectrumMetadata = spectrumMetadata.ChangeInjectionTime(protoSpectrum.InjectionTime);
 
                 var precursorsByLevel =
                     protoSpectrum.PrecursorIndex.ToLookup(index => proto.Precursors[index - 1].MsLevel, index=>precursors[index - 1]);
@@ -151,6 +156,7 @@ namespace pwiz.Skyline.Model.Results.Spectra
                     spectrum.ScanWindowIndex = scanWindows.Add(Tuple.Create(spectrumMetadata.ScanWindowLowerLimit.Value,
                         spectrumMetadata.ScanWindowUpperLimit.Value));
                 }
+                spectrum.InjectionTime = (float?) spectrumMetadata.InjectionTime;
                 proto.Spectra.Add(spectrum);
             }
 

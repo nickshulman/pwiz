@@ -1203,8 +1203,14 @@ namespace pwiz.ProteowizardWrapper
             }
             double? scanWindowLowerLimit = null;
             double? scanWindowUpperLimit = null;
+            double? injectionTime = null;
             foreach (var scan in spectrum.scanList.scans)
             {
+                var cvInjectionTime = scan.cvParam(CVID.MS_ion_injection_time);
+                if (cvInjectionTime != null)
+                {
+                    injectionTime = (injectionTime ?? 0) + (double) cvInjectionTime.value;
+                }
                 foreach (var window in scan.scanWindows)
                 {
                     var cvParamLowerLimit = window.cvParam(CVID.MS_scan_window_lower_limit);
@@ -1232,6 +1238,11 @@ namespace pwiz.ProteowizardWrapper
             if (scanWindowLowerLimit.HasValue && scanWindowUpperLimit.HasValue)
             {
                 metadata = metadata.ChangeScanWindow(scanWindowLowerLimit.Value, scanWindowUpperLimit.Value);
+            }
+
+            if (injectionTime.HasValue)
+            {
+                metadata = metadata.ChangeInjectionTime(injectionTime);
             }
 
             return metadata;

@@ -263,11 +263,29 @@ namespace pwiz.Skyline.Model.Results
             return GetHeaderInfos(nodePep, nodeGroup?.SpectrumClassFilter ?? default, precursorMz, explicitRT, tolerance, chromatograms);
         }
 
-        public bool HasAllIonsChromatograms
+        public bool HasTicChromatogram
         {
             get
             {
-                return LoadChromatogramInfos(null, null, 0, null).Any();
+                return LoadChromatogramInfos(null, null, 0, null)
+                    .Any(chromGroupInfo => chromGroupInfo.Header.Extractor == ChromExtractor.summed);
+            }
+        }
+
+        public bool HasBasePeakChromatogram
+        {
+            get
+            {
+                return LoadChromatogramInfos(null, null, 0, null)
+                    .Any(chromGroupInfo => chromGroupInfo.Header.Extractor == ChromExtractor.base_peak);
+            }
+        }
+
+        public bool HasInjectionTime
+        {
+            get
+            {
+                return true == _rawData.ResultFileDatas?.Any(resultFileMetadata => resultFileMetadata.HasInjectionTime);
             }
         }
 

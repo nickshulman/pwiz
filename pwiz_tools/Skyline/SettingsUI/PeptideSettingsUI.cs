@@ -78,6 +78,7 @@ namespace pwiz.Skyline.SettingsUI
         private readonly SettingsListBoxDriver<StaticMod> _driverStaticMod;
         private readonly SettingsListBoxDriver<StaticMod> _driverHeavyMod;
         private readonly SettingsListComboDriver<PeakScoringModelSpec> _driverPeakScoringModel;
+        private readonly SettingsListComboDriver<MultiplexMatrix> _driverMultiplexMatrix;
         private readonly LabelTypeComboDriver _driverLabelType;
         private static readonly IList<int?> _quantMsLevels = ImmutableList.ValueOf(new int?[] {null, 1, 2});
         private readonly LabelTypeComboDriver _driverSmallMolInternalStandardTypes;
@@ -186,6 +187,9 @@ namespace pwiz.Skyline.SettingsUI
             comboRegressionFit.SelectedItem = _peptideSettings.Quantification.RegressionFit;
             comboQuantMsLevel.SelectedIndex = Math.Max(0, _quantMsLevels.IndexOf(_peptideSettings.Quantification.MsLevel));
             tbxQuantUnits.Text = _peptideSettings.Quantification.Units;
+            _driverMultiplexMatrix =
+                new SettingsListComboDriver<MultiplexMatrix>(comboMultiplexing, Settings.Default.MultiplexMatrices);
+            _driverMultiplexMatrix.LoadList(_peptideSettings.Quantification.MultiplexMatrix?.Name);
 
             comboLodMethod.Items.AddRange(LodCalculation.ALL.Cast<object>().ToArray());
             comboLodMethod.SelectedItem = _peptideSettings.Quantification.LodCalculation;

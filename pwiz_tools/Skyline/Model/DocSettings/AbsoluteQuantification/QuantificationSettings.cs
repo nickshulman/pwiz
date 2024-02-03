@@ -124,6 +124,18 @@ namespace pwiz.Skyline.Model.DocSettings.AbsoluteQuantification
             return ChangeProp(ImClone(this), im => im.QualitativeIonRatioThreshold = ionRatioThreshold);
         }
 
+        [Track(defaultValues: typeof(DefaultValuesNull))]
+        public MultiplexMatrix MultiplexMatrix { get; private set; }
+
+        public QuantificationSettings ChangeMultiplexMatrix(MultiplexMatrix multiplexMatrix)
+        {
+            if (Equals(MultiplexMatrix.NONE, multiplexMatrix))
+            {
+                multiplexMatrix = null;
+            }
+            return ChangeProp(ImClone(this), im => im.MultiplexMatrix = multiplexMatrix);
+        }
+
         #region Equality Members
 
         protected bool Equals(QuantificationSettings other)
@@ -137,7 +149,8 @@ namespace pwiz.Skyline.Model.DocSettings.AbsoluteQuantification
                    Equals(MaxLoqBias, other.MaxLoqBias) &&
                    Equals(MaxLoqCv, other.MaxLoqCv) &&
                    Equals(QualitativeIonRatioThreshold, other.QualitativeIonRatioThreshold) &&
-                   Equals(SimpleRatios, other.SimpleRatios);
+                   Equals(SimpleRatios, other.SimpleRatios) &&
+                   Equals(MultiplexMatrix, other.MultiplexMatrix);
         }
 
         public override bool Equals(object obj)
@@ -161,6 +174,7 @@ namespace pwiz.Skyline.Model.DocSettings.AbsoluteQuantification
                 hashCode = (hashCode*397) ^ MaxLoqBias.GetHashCode();
                 hashCode = (hashCode*397) ^ MaxLoqCv.GetHashCode();
                 hashCode = (hashCode*397) ^ SimpleRatios.GetHashCode();
+                hashCode = (hashCode*397) ^ (MultiplexMatrix == null ? 0 : MultiplexMatrix.GetHashCode());
                 return hashCode;
             }
         }
@@ -202,10 +216,12 @@ namespace pwiz.Skyline.Model.DocSettings.AbsoluteQuantification
             MaxLoqCv = reader.GetNullableDoubleAttribute(Attr.max_loq_cv);
             QualitativeIonRatioThreshold = reader.GetNullableDoubleAttribute(Attr.qualitative_ion_ratio_threshold);
             SimpleRatios = reader.GetBoolAttribute(Attr.simple_ratios, false);
+            
             bool empty = reader.IsEmptyElement;
             reader.Read();
             if (!empty)
             {
+                MultiplexMatrix = reader.DeserializeElement<MultiplexMatrix>();
                 reader.ReadEndElement();
             }
         }
@@ -234,6 +250,11 @@ namespace pwiz.Skyline.Model.DocSettings.AbsoluteQuantification
             writer.WriteAttributeNullable(Attr.max_loq_cv, MaxLoqCv);
             writer.WriteAttributeNullable(Attr.qualitative_ion_ratio_threshold, QualitativeIonRatioThreshold);
             writer.WriteAttribute(Attr.simple_ratios, SimpleRatios, false);
+            if (null != MultiplexMatrix)
+            {
+                MultiplexMatrix.WriteXml(writer);
+            }
+            writer.WriteEndElement();
         }
 
         public static QuantificationSettings Deserialize(XmlReader reader)

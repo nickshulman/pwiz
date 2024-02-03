@@ -63,6 +63,7 @@ namespace pwiz.Skyline.SettingsUI
         private readonly SettingsListComboDriver<CompensationVoltageParameters> _driverCoV;
         private readonly SettingsListComboDriver<OptimizationLibrary> _driverOptimizationLibrary;
         private readonly SettingsListBoxDriver<MeasuredIon> _driverIons;
+        private readonly SettingsListComboDriver<MultiplexMatrix> _driverMultiplexMatrices;
         public const double DEFAULT_TIME_AROUND_MS2_IDS = 5;
         public const double DEFAULT_TIME_AROUND_PREDICTION = 5;
         private readonly int _lower_margin;
@@ -196,6 +197,9 @@ namespace pwiz.Skyline.SettingsUI
 
             DoIsolationSchemeChanged();
             cbxTriggeredAcquisition.Checked = Instrument.TriggeredAcquisition;
+            _driverMultiplexMatrices =
+                new SettingsListComboDriver<MultiplexMatrix>(comboMultiplexMatrix, Settings.Default.MultiplexMatrices);
+            _driverMultiplexMatrices.LoadList(_transitionSettings.MultipleMatrix?.Name);
         }
 
         public const double SureQuantMzMatchTolerance = 0.007;
@@ -653,6 +657,8 @@ namespace pwiz.Skyline.SettingsUI
 
             TransitionSettings settings = new TransitionSettings(prediction,
                 filter, libraries, integration, instrument, fullScan, ionMobilityFiltering);
+            
+            var 
 
             // Only update, if anything changed
             if (!Equals(settings, _transitionSettings))

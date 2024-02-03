@@ -131,6 +131,8 @@ namespace pwiz.Skyline.SettingsUI
             this.addCalculatorContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.editCalculatorCurrentContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.editCalculatorListContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.lblMultiplexing = new System.Windows.Forms.Label();
+            this.comboMultiplexing = new System.Windows.Forms.ComboBox();
             this.tabControl1.SuspendLayout();
             this.tabDigestion.SuspendLayout();
             this.tabPrediction.SuspendLayout();
@@ -780,6 +782,8 @@ namespace pwiz.Skyline.SettingsUI
             // 
             // tabQuantification
             // 
+            this.tabQuantification.Controls.Add(this.comboMultiplexing);
+            this.tabQuantification.Controls.Add(this.lblMultiplexing);
             this.tabQuantification.Controls.Add(this.cbxSimpleRatios);
             this.tabQuantification.Controls.Add(this.groupBoxFiguresOfMerit);
             this.tabQuantification.Controls.Add(this.tbxQuantUnits);
@@ -899,6 +903,18 @@ namespace pwiz.Skyline.SettingsUI
             this.editCalculatorListContextMenuItem.Name = "editCalculatorListContextMenuItem";
             resources.ApplyResources(this.editCalculatorListContextMenuItem, "editCalculatorListContextMenuItem");
             this.editCalculatorListContextMenuItem.Click += new System.EventHandler(this.editCalculatorListContextMenuItem_Click);
+            // 
+            // lblMultiplexing
+            // 
+            resources.ApplyResources(this.lblMultiplexing, "lblMultiplexing");
+            this.lblMultiplexing.Name = "lblMultiplexing";
+            // 
+            // comboMultiplexing
+            // 
+            this.comboMultiplexing.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.comboMultiplexing.FormattingEnabled = true;
+            resources.ApplyResources(this.comboMultiplexing, "comboMultiplexing");
+            this.comboMultiplexing.Name = "comboMultiplexing";
             // 
             // PeptideSettingsUI
             // 
@@ -1041,5 +1057,7 @@ namespace pwiz.Skyline.SettingsUI
         private System.Windows.Forms.TextBox tbxIonRatioThreshold;
         private System.Windows.Forms.Label lblIonRatioThreshold;
         private System.Windows.Forms.CheckBox cbxSimpleRatios;
+        private System.Windows.Forms.ComboBox comboMultiplexing;
+        private System.Windows.Forms.Label lblMultiplexing;
     }
 }

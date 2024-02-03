@@ -1302,6 +1302,28 @@ namespace pwiz.Skyline.Properties
                 NormalizeOptionValue = value.PersistedName;
             }
         }
+
+        [UserScopedSetting]
+        public MultiplexMatrixList MultiplexMatrices
+        {
+            get
+            {
+                var matrices = (MultiplexMatrixList)this[nameof(MultiplexMatrices)];
+                if (matrices == null)
+                {
+                    matrices = new MultiplexMatrixList();
+                    matrices.AddDefaults();
+                    MultiplexMatrices = matrices;
+                }
+
+                return matrices;
+            }
+            set
+            {
+                this[nameof(MultiplexMatrices)] = value;
+            }
+        }
+            
     }
 
     /// <summary>

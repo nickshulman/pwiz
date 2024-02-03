@@ -1278,6 +1278,30 @@ Alternatively, z* and z" can be used.</value>
   <data name="&gt;&gt;textPeptideIonTypes.ZOrder" xml:space="preserve">
     <value>1</value>
   </data>
+  <data name="&gt;&gt;comboMultiplexMatrix.Name" xml:space="preserve">
+    <value>comboMultiplexMatrix</value>
+  </data>
+  <data name="&gt;&gt;comboMultiplexMatrix.Type" xml:space="preserve">
+    <value>System.Windows.Forms.ComboBox, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="&gt;&gt;comboMultiplexMatrix.Parent" xml:space="preserve">
+    <value>groupBox1</value>
+  </data>
+  <data name="&gt;&gt;comboMultiplexMatrix.ZOrder" xml:space="preserve">
+    <value>0</value>
+  </data>
+  <data name="&gt;&gt;lblMultiplexMatrix.Name" xml:space="preserve">
+    <value>lblMultiplexMatrix</value>
+  </data>
+  <data name="&gt;&gt;lblMultiplexMatrix.Type" xml:space="preserve">
+    <value>System.Windows.Forms.Label, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="&gt;&gt;lblMultiplexMatrix.Parent" xml:space="preserve">
+    <value>groupBox1</value>
+  </data>
+  <data name="&gt;&gt;lblMultiplexMatrix.ZOrder" xml:space="preserve">
+    <value>1</value>
+  </data>
   <data name="&gt;&gt;btnEditSpecialTransitions.Name" xml:space="preserve">
     <value>btnEditSpecialTransitions</value>
   </data>
@@ -1288,7 +1312,7 @@ Alternatively, z* and z" can be used.</value>
     <value>groupBox1</value>
   </data>
   <data name="&gt;&gt;btnEditSpecialTransitions.ZOrder" xml:space="preserve">
-    <value>0</value>
+    <value>2</value>
   </data>
   <data name="&gt;&gt;label18.Name" xml:space="preserve">
     <value>label18</value>
@@ -1300,7 +1324,7 @@ Alternatively, z* and z" can be used.</value>
     <value>groupBox1</value>
   </data>
   <data name="&gt;&gt;label18.ZOrder" xml:space="preserve">
-    <value>1</value>
+    <value>3</value>
   </data>
   <data name="&gt;&gt;listAlwaysAdd.Name" xml:space="preserve">
     <value>listAlwaysAdd</value>
@@ -1312,7 +1336,7 @@ Alternatively, z* and z" can be used.</value>
     <value>groupBox1</value>
   </data>
   <data name="&gt;&gt;listAlwaysAdd.ZOrder" xml:space="preserve">
-    <value>2</value>
+    <value>4</value>
   </data>
   <data name="&gt;&gt;comboRangeFrom.Name" xml:space="preserve">
     <value>comboRangeFrom</value>
@@ -1324,7 +1348,7 @@ Alternatively, z* and z" can be used.</value>
     <value>groupBox1</value>
   </data>
   <data name="&gt;&gt;comboRangeFrom.ZOrder" xml:space="preserve">
-    <value>3</value>
+    <value>5</value>
   </data>
   <data name="&gt;&gt;label3.Name" xml:space="preserve">
     <value>label3</value>
@@ -1336,7 +1360,7 @@ Alternatively, z* and z" can be used.</value>
     <value>groupBox1</value>
   </data>
   <data name="&gt;&gt;label3.ZOrder" xml:space="preserve">
-    <value>4</value>
+    <value>6</value>
   </data>
   <data name="&gt;&gt;comboRangeTo.Name" xml:space="preserve">
     <value>comboRangeTo</value>
@@ -1348,7 +1372,7 @@ Alternatively, z* and z" can be used.</value>
     <value>groupBox1</value>
   </data>
   <data name="&gt;&gt;comboRangeTo.ZOrder" xml:space="preserve">
-    <value>5</value>
+    <value>7</value>
   </data>
   <data name="&gt;&gt;label4.Name" xml:space="preserve">
     <value>label4</value>
@@ -1360,7 +1384,7 @@ Alternatively, z* and z" can be used.</value>
     <value>groupBox1</value>
   </data>
   <data name="&gt;&gt;label4.ZOrder" xml:space="preserve">
-    <value>6</value>
+    <value>8</value>
   </data>
   <data name="groupBox1.Location" type="System.Drawing.Point, System.Drawing">
     <value>8, 75</value>
@@ -1411,7 +1435,7 @@ Alternatively, z* and z" can be used.</value>
     <value>groupBox1</value>
   </data>
   <data name="&gt;&gt;btnEditSpecialTransitions.ZOrder" xml:space="preserve">
-    <value>0</value>
+    <value>2</value>
   </data>
   <data name="label18.AutoSize" type="System.Boolean, mscorlib">
     <value>True</value>
@@ -1438,7 +1462,7 @@ Alternatively, z* and z" can be used.</value>
     <value>groupBox1</value>
   </data>
   <data name="&gt;&gt;label18.ZOrder" xml:space="preserve">
-    <value>1</value>
+    <value>3</value>
   </data>
   <data name="listAlwaysAdd.Location" type="System.Drawing.Point, System.Drawing">
     <value>16, 103</value>
@@ -1463,7 +1487,7 @@ the filtered range</value>
     <value>groupBox1</value>
   </data>
   <data name="&gt;&gt;listAlwaysAdd.ZOrder" xml:space="preserve">
-    <value>2</value>
+    <value>4</value>
   </data>
   <data name="comboRangeFrom.Location" type="System.Drawing.Point, System.Drawing">
     <value>16, 44</value>
@@ -1487,7 +1511,7 @@ the filtered range</value>
     <value>groupBox1</value>
   </data>
   <data name="&gt;&gt;comboRangeFrom.ZOrder" xml:space="preserve">
-    <value>3</value>
+    <value>5</value>
   </data>
   <data name="label3.AutoSize" type="System.Boolean, mscorlib">
     <value>True</value>
@@ -1514,7 +1538,7 @@ the filtered range</value>
     <value>groupBox1</value>
   </data>
   <data name="&gt;&gt;label3.ZOrder" xml:space="preserve">
-    <value>4</value>
+    <value>6</value>
   </data>
   <data name="comboRangeTo.Location" type="System.Drawing.Point, System.Drawing">
     <value>163, 43</value>
@@ -1538,7 +1562,7 @@ the filtered range</value>
     <value>groupBox1</value>
   </data>
   <data name="&gt;&gt;comboRangeTo.ZOrder" xml:space="preserve">
-    <value>5</value>
+    <value>7</value>
   </data>
   <data name="label4.AutoSize" type="System.Boolean, mscorlib">
     <value>True</value>
@@ -1565,7 +1589,7 @@ the filtered range</value>
     <value>groupBox1</value>
   </data>
   <data name="&gt;&gt;label4.ZOrder" xml:space="preserve">
-    <value>6</value>
+    <value>8</value>
   </data>
   <data name="label6.AutoSize" type="System.Boolean, mscorlib">
     <value>True</value>
@@ -3580,7 +3604,7 @@ with predicted transition m/z values.
     <value>ionMobilityFilteringControl</value>
   </data>
   <data name="&gt;&gt;ionMobilityFilteringControl.Type" xml:space="preserve">
-    <value>pwiz.Skyline.SettingsUI.IonMobility.IonMobilityFilteringUserControl, Skyline, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null</value>
+    <value>pwiz.Skyline.SettingsUI.IonMobility.IonMobilityFilteringUserControl, Skyline-daily, Version=23.1.1.397, Culture=neutral, PublicKeyToken=null</value>
   </data>
   <data name="&gt;&gt;ionMobilityFilteringControl.Parent" xml:space="preserve">
     <value>tabIonMobility</value>
@@ -3625,7 +3649,7 @@ with predicted transition m/z values.
     <value>ionMobilityFilteringControl</value>
   </data>
   <data name="&gt;&gt;ionMobilityFilteringControl.Type" xml:space="preserve">
-    <value>pwiz.Skyline.SettingsUI.IonMobility.IonMobilityFilteringUserControl, Skyline, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null</value>
+    <value>pwiz.Skyline.SettingsUI.IonMobility.IonMobilityFilteringUserControl, Skyline-daily, Version=23.1.1.397, Culture=neutral, PublicKeyToken=null</value>
   </data>
   <data name="&gt;&gt;ionMobilityFilteringControl.Parent" xml:space="preserve">
     <value>tabIonMobility</value>
@@ -3637,7 +3661,7 @@ with predicted transition m/z values.
     <value>155, 17</value>
   </metadata>
   <metadata name="contextMenuStripPrecursorAdduct.TrayLocation" type="System.Drawing.Point, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a">
-    <value>247, 17</value>
+    <value>248, 17</value>
   </metadata>
   <data name="contextMenuStripPrecursorAdduct.Size" type="System.Drawing.Size, System.Drawing">
     <value>61, 4</value>
@@ -3649,7 +3673,7 @@ with predicted transition m/z values.
     <value>System.Windows.Forms.ContextMenuStrip, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </data>
   <metadata name="contextMenuStripFragmentAdduct.TrayLocation" type="System.Drawing.Point, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a">
-    <value>487, 17</value>
+    <value>486, 17</value>
   </metadata>
   <data name="contextMenuStripFragmentAdduct.Size" type="System.Drawing.Size, System.Drawing">
     <value>61, 4</value>
@@ -3659,6 +3683,54 @@ with predicted transition m/z values.
   </data>
   <data name="&gt;&gt;contextMenuStripFragmentAdduct.Type" xml:space="preserve">
     <value>System.Windows.Forms.ContextMenuStrip, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="lblMultiplexMatrix.AutoSize" type="System.Boolean, mscorlib">
+    <value>True</value>
+  </data>
+  <data name="lblMultiplexMatrix.Location" type="System.Drawing.Point, System.Drawing">
+    <value>16, 200</value>
+  </data>
+  <data name="lblMultiplexMatrix.Size" type="System.Drawing.Size, System.Drawing">
+    <value>51, 13</value>
+  </data>
+  <data name="lblMultiplexMatrix.TabIndex" type="System.Int32, mscorlib">
+    <value>7</value>
+  </data>
+  <data name="lblMultiplexMatrix.Text" xml:space="preserve">
+    <value>Multiplex:</value>
+  </data>
+  <data name="&gt;&gt;lblMultiplexMatrix.Name" xml:space="preserve">
+    <value>lblMultiplexMatrix</value>
+  </data>
+  <data name="&gt;&gt;lblMultiplexMatrix.Type" xml:space="preserve">
+    <value>System.Windows.Forms.Label, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="&gt;&gt;lblMultiplexMatrix.Parent" xml:space="preserve">
+    <value>groupBox1</value>
+  </data>
+  <data name="&gt;&gt;lblMultiplexMatrix.ZOrder" xml:space="preserve">
+    <value>1</value>
+  </data>
+  <data name="comboMultiplexMatrix.Location" type="System.Drawing.Point, System.Drawing">
+    <value>70, 197</value>
+  </data>
+  <data name="comboMultiplexMatrix.Size" type="System.Drawing.Size, System.Drawing">
+    <value>223, 21</value>
+  </data>
+  <data name="comboMultiplexMatrix.TabIndex" type="System.Int32, mscorlib">
+    <value>8</value>
+  </data>
+  <data name="&gt;&gt;comboMultiplexMatrix.Name" xml:space="preserve">
+    <value>comboMultiplexMatrix</value>
+  </data>
+  <data name="&gt;&gt;comboMultiplexMatrix.Type" xml:space="preserve">
+    <value>System.Windows.Forms.ComboBox, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="&gt;&gt;comboMultiplexMatrix.Parent" xml:space="preserve">
+    <value>groupBox1</value>
+  </data>
+  <data name="&gt;&gt;comboMultiplexMatrix.ZOrder" xml:space="preserve">
+    <value>0</value>
   </data>
   <metadata name="$this.Localizable" type="System.Boolean, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">
     <value>True</value>
@@ -3682,7 +3754,7 @@ with predicted transition m/z values.
     <value>modeUIHandler</value>
   </data>
   <data name="&gt;&gt;modeUIHandler.Type" xml:space="preserve">
-    <value>pwiz.Skyline.Util.Helpers+ModeUIExtender, Skyline, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null</value>
+    <value>pwiz.Skyline.Util.Helpers+ModeUIExtender, Skyline-daily, Version=23.1.1.397, Culture=neutral, PublicKeyToken=null</value>
   </data>
   <data name="&gt;&gt;helpTip.Name" xml:space="preserve">
     <value>helpTip</value>
@@ -3694,6 +3766,6 @@ with predicted transition m/z values.
     <value>TransitionSettingsUI</value>
   </data>
   <data name="&gt;&gt;$this.Type" xml:space="preserve">
-    <value>pwiz.Skyline.Util.FormEx, Skyline, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null</value>
+    <value>pwiz.Skyline.Util.FormEx, Skyline-daily, Version=23.1.1.397, Culture=neutral, PublicKeyToken=null</value>
   </data>
 </root>

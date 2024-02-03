@@ -524,6 +524,7 @@
       <DependentUpon>ColumnToolTips.resx</DependentUpon>
     </Compile>
     <Compile Include="Model\Databinding\SurrogateStandardDataGridViewColumn.cs" />
+    <Compile Include="Model\DocSettings\MultiplexMatrix.cs" />
     <Compile Include="Model\FullScanPropertiesRes.Designer.cs">
       <AutoGen>True</AutoGen>
       <DesignTime>True</DesignTime>
@@ -723,6 +724,7 @@
     <Compile Include="Model\Results\Scoring\ScoreQValueMap.cs" />
     <Compile Include="Model\TransitionLossMap.cs" />
     <Compile Include="Properties\MetadataRuleSetList.cs" />
+    <Compile Include="Properties\MultiplexMatrixList.cs" />
     <Compile Include="Properties\RemoteAccountList.cs" />
     <Compile Include="Model\Results\Spectra\FileSpectrumInfo.cs" />
     <Compile Include="Model\Results\Spectra\ResultFileMetaData.cs" />
@@ -881,6 +883,12 @@
     </Compile>
     <Compile Include="FileUI\PeptideSearch\SearchSettingsControl.Designer.cs">
       <DependentUpon>SearchSettingsControl.cs</DependentUpon>
+    </Compile>
+    <Compile Include="SettingsUI\MultiplexingDlg.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="SettingsUI\MultiplexingDlg.Designer.cs">
+      <DependentUpon>MultiplexingDlg.cs</DependentUpon>
     </Compile>
     <Compile Include="ToolsUI\ToolDescriptionRunUI.cs" />
     <Compile Include="ToolsUI\ToolService.cs" />
@@ -4230,6 +4238,9 @@
     <EmbeddedResource Include="Controls\Graphs\MsGraphExtension.resx">
       <DependentUpon>MsGraphExtension.cs</DependentUpon>
       <SubType>Designer</SubType>
+    </EmbeddedResource>
+    <EmbeddedResource Include="SettingsUI\MultiplexingDlg.resx">
+      <DependentUpon>MultiplexingDlg.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="SettingsUI\Optimization\AddOptimizationLibraryDlg.ja.resx">
       <DependentUpon>AddOptimizationLibraryDlg.cs</DependentUpon>

@@ -11,7 +11,7 @@ namespace pwiz.Skyline.Properties
     {
         public override IEnumerable<MultiplexMatrix> GetDefaults(int revisionIndex)
         {
-            return Array.Empty<MultiplexMatrix>();
+            return new[] { MultiplexMatrix.NONE };
         }
 
         public override string Title
@@ -44,6 +44,12 @@ namespace pwiz.Skyline.Properties
         public override MultiplexMatrix CopyItem(MultiplexMatrix item)
         {
             return (MultiplexMatrix) item.ChangeName(string.Empty);
+        }
+
+        public override string GetDisplayName(MultiplexMatrix item)
+        {
+            // Use the localized text in the UI
+            return Equals(item, MultiplexMatrix.NONE) ? Resources.SettingsList_ELEMENT_NONE_None : base.GetDisplayName(item);
         }
     }
 }

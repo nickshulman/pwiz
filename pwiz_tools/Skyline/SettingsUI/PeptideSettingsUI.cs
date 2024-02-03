@@ -189,7 +189,7 @@ namespace pwiz.Skyline.SettingsUI
             tbxQuantUnits.Text = _peptideSettings.Quantification.Units;
             _driverMultiplexMatrix =
                 new SettingsListComboDriver<MultiplexMatrix>(comboMultiplexing, Settings.Default.MultiplexMatrices);
-            _driverMultiplexMatrix.LoadList(_peptideSettings.Quantification.MultiplexMatrix?.Name);
+            _driverMultiplexMatrix.LoadList(_peptideSettings.Quantification.MultiplexMatrix?.Name ?? MultiplexMatrix.NONE.Name);
 
             comboLodMethod.Items.AddRange(LodCalculation.ALL.Cast<object>().ToArray());
             comboLodMethod.SelectedItem = _peptideSettings.Quantification.LodCalculation;
@@ -1911,6 +1911,11 @@ namespace pwiz.Skyline.SettingsUI
                 _librariesOriginalTooltip = helpTip.GetToolTip(listLibraries);
             }
             ChangeTooltip(listLibraries, librarySpec?.ItemDescription?.ToString() ?? _librariesOriginalTooltip);
+        }
+
+        private void comboMultiplexing_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            _driverMultiplexMatrix.SelectedIndexChangedEvent(sender, e);
         }
     }
 }

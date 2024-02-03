@@ -63,7 +63,6 @@
             // btnOk
             // 
             this.btnOk.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Right)));
-            this.btnOk.DialogResult = System.Windows.Forms.DialogResult.OK;
             this.btnOk.ImeMode = System.Windows.Forms.ImeMode.NoControl;
             this.btnOk.Location = new System.Drawing.Point(632, 415);
             this.btnOk.Name = "btnOk";
@@ -71,6 +70,7 @@
             this.btnOk.TabIndex = 5;
             this.btnOk.Text = "OK";
             this.btnOk.UseVisualStyleBackColor = true;
+            this.btnOk.Click += new System.EventHandler(this.btnOk_Click);
             // 
             // lblMultiplexName
             // 

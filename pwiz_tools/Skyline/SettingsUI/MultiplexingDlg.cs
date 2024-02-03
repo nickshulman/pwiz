@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Data;
 using System.Linq;
 using System.Windows.Forms;
@@ -19,16 +20,20 @@ namespace pwiz.Skyline.SettingsUI
         public MultiplexingDlg(ICollection<MeasuredIon> customIons, MultiplexMatrix multiplexMatrix, IEnumerable<MultiplexMatrix> existing)
         {
             InitializeComponent();
-            _existing = existing.ToList();
+            _originalMatrix = multiplexMatrix;
+            _existing = (existing ?? Array.Empty<MultiplexMatrix>()).ToList();
             _dataTable = new DataTable();
             _dataTable.Columns.Add(new DataColumn("MultiplexName", typeof(string))
             {
                 Unique = true,
                 Caption = "Multiplex Name"
             });
-            foreach (var customIonName in GetColumnNames(customIons, multiplexMatrix))
+            foreach (var customIonName in GetColumnNames(customIons, multiplexMatrix ?? MultiplexMatrix.NONE))
             {
-                _dataTable.Columns.Add(new DataColumn(ION_COL_PREFIX + customIonName, typeof(double)));
+                _dataTable.Columns.Add(new DataColumn(ION_COL_PREFIX + customIonName, typeof(double))
+                {
+                    Caption = customIonName
+                });
             }
             dataGridView1.AutoGenerateColumns = true;
             dataGridView1.DataSource = _dataTable;
@@ -102,6 +107,7 @@ namespace pwiz.Skyline.SettingsUI
             }
 
             _multiplexMatrix = multiplexMatrix;
+            DialogResult = DialogResult.OK;
         }
 
         public MultiplexMatrix GetMultiplexMatrix(string matrixName)
@@ -138,6 +144,8 @@ namespace pwiz.Skyline.SettingsUI
                         ShowDataError(rowIndex, columnIndex, "Invalid number");
                         return null;
                     }
+                    var column = _dataTable.Columns[columnIndex];
+                    weights.Add(new KeyValuePair<string, double>(column.ColumnName.Substring(ION_COL_PREFIX.Length), value.Value));
                 }
                 replicates.Add(new MultiplexMatrix.Replicate(replicateName, weights));
             }
@@ -166,6 +174,11 @@ namespace pwiz.Skyline.SettingsUI
             // Lastly, add the rest of the ion names
             allColumnNames.AddRange(measuredIons.Where(ion=>!matrixColumnNames.Contains(ion.Name)).Select(ion=>ion.Name));
             return allColumnNames;
+        }
+
+        private void btnOk_Click(object sender, EventArgs e)
+        {
+            OkDialog();
         }
     }
 }

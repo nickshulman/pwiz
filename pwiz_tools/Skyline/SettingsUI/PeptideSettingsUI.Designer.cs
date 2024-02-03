@@ -114,6 +114,8 @@ namespace pwiz.Skyline.SettingsUI
             this.tabIntegration = new System.Windows.Forms.TabPage();
             this.label36 = new System.Windows.Forms.Label();
             this.tabQuantification = new System.Windows.Forms.TabPage();
+            this.comboMultiplexing = new System.Windows.Forms.ComboBox();
+            this.lblMultiplexing = new System.Windows.Forms.Label();
             this.groupBoxFiguresOfMerit = new System.Windows.Forms.GroupBox();
             this.label20 = new System.Windows.Forms.Label();
             this.lblIonRatioThreshold = new System.Windows.Forms.Label();
@@ -131,8 +133,6 @@ namespace pwiz.Skyline.SettingsUI
             this.addCalculatorContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.editCalculatorCurrentContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.editCalculatorListContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-            this.lblMultiplexing = new System.Windows.Forms.Label();
-            this.comboMultiplexing = new System.Windows.Forms.ComboBox();
             this.tabControl1.SuspendLayout();
             this.tabDigestion.SuspendLayout();
             this.tabPrediction.SuspendLayout();
@@ -800,6 +800,19 @@ namespace pwiz.Skyline.SettingsUI
             this.tabQuantification.Name = "tabQuantification";
             this.tabQuantification.UseVisualStyleBackColor = true;
             // 
+            // comboMultiplexing
+            // 
+            this.comboMultiplexing.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.comboMultiplexing.FormattingEnabled = true;
+            resources.ApplyResources(this.comboMultiplexing, "comboMultiplexing");
+            this.comboMultiplexing.Name = "comboMultiplexing";
+            this.comboMultiplexing.SelectedIndexChanged += new System.EventHandler(this.comboMultiplexing_SelectedIndexChanged);
+            // 
+            // lblMultiplexing
+            // 
+            resources.ApplyResources(this.lblMultiplexing, "lblMultiplexing");
+            this.lblMultiplexing.Name = "lblMultiplexing";
+            // 
             // groupBoxFiguresOfMerit
             // 
             resources.ApplyResources(this.groupBoxFiguresOfMerit, "groupBoxFiguresOfMerit");
@@ -903,18 +916,6 @@ namespace pwiz.Skyline.SettingsUI
             this.editCalculatorListContextMenuItem.Name = "editCalculatorListContextMenuItem";
             resources.ApplyResources(this.editCalculatorListContextMenuItem, "editCalculatorListContextMenuItem");
             this.editCalculatorListContextMenuItem.Click += new System.EventHandler(this.editCalculatorListContextMenuItem_Click);
-            // 
-            // lblMultiplexing
-            // 
-            resources.ApplyResources(this.lblMultiplexing, "lblMultiplexing");
-            this.lblMultiplexing.Name = "lblMultiplexing";
-            // 
-            // comboMultiplexing
-            // 
-            this.comboMultiplexing.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
-            this.comboMultiplexing.FormattingEnabled = true;
-            resources.ApplyResources(this.comboMultiplexing, "comboMultiplexing");
-            this.comboMultiplexing.Name = "comboMultiplexing";
             // 
             // PeptideSettingsUI
             // 

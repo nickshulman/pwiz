@@ -123,8 +123,6 @@
             this.helpTip = new System.Windows.Forms.ToolTip(this.components);
             this.contextMenuStripPrecursorAdduct = new System.Windows.Forms.ContextMenuStrip(this.components);
             this.contextMenuStripFragmentAdduct = new System.Windows.Forms.ContextMenuStrip(this.components);
-            this.lblMultiplexMatrix = new System.Windows.Forms.Label();
-            this.comboMultiplexMatrix = new System.Windows.Forms.ComboBox();
             this.tabControl1.SuspendLayout();
             this.tabGeneral.SuspendLayout();
             this.tabFilter.SuspendLayout();
@@ -355,8 +353,6 @@
             // 
             // groupBox1
             // 
-            this.groupBox1.Controls.Add(this.comboMultiplexMatrix);
-            this.groupBox1.Controls.Add(this.lblMultiplexMatrix);
             this.groupBox1.Controls.Add(this.btnEditSpecialTransitions);
             this.groupBox1.Controls.Add(this.label18);
             this.groupBox1.Controls.Add(this.listAlwaysAdd);
@@ -813,18 +809,6 @@
             this.contextMenuStripFragmentAdduct.Name = "contextMenuStripFragmentAdduct";
             resources.ApplyResources(this.contextMenuStripFragmentAdduct, "contextMenuStripFragmentAdduct");
             // 
-            // lblMultiplexMatrix
-            // 
-            resources.ApplyResources(this.lblMultiplexMatrix, "lblMultiplexMatrix");
-            this.lblMultiplexMatrix.Name = "lblMultiplexMatrix";
-            // 
-            // comboMultiplexMatrix
-            // 
-            this.comboMultiplexMatrix.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
-            this.comboMultiplexMatrix.FormattingEnabled = true;
-            resources.ApplyResources(this.comboMultiplexMatrix, "comboMultiplexMatrix");
-            this.comboMultiplexMatrix.Name = "comboMultiplexMatrix";
-            // 
             // TransitionSettingsUI
             // 
             this.AcceptButton = this.btnOk;
@@ -957,7 +941,5 @@
         private System.Windows.Forms.CheckBox cbxTriggeredAcquisition;
         private System.Windows.Forms.Label label23;
         private System.Windows.Forms.ComboBox comboToleranceUnits;
-        private System.Windows.Forms.ComboBox comboMultiplexMatrix;
-        private System.Windows.Forms.Label lblMultiplexMatrix;
     }
 }

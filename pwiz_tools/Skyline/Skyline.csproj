@@ -512,6 +512,7 @@
       <DependentUpon>PropertyNames.resx</DependentUpon>
     </Compile>
     <Compile Include="Model\Databinding\Collections\FixedSkylineObjectList.cs" />
+    <Compile Include="Model\Databinding\Collections\ResultFileList.cs" />
     <Compile Include="Model\Databinding\Entities\CalibrationCurveMetrics.cs" />
     <Compile Include="Model\Databinding\Entities\ColumnCaptions.Designer.cs">
       <AutoGen>True</AutoGen>

@@ -7,6 +7,7 @@ using pwiz.Skyline.Alerts;
 using pwiz.Skyline.Controls;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Util;
+using pwiz.Skyline.Util.Extensions;
 
 namespace pwiz.Skyline.SettingsUI
 {
@@ -18,25 +19,27 @@ namespace pwiz.Skyline.SettingsUI
         private MultiplexMatrix _originalMatrix;
         private MultiplexMatrix _multiplexMatrix;
         private IList<MultiplexMatrix> _existing;
+        private ICollection<MeasuredIon> _customIons;
         public MultiplexingDlg(ICollection<MeasuredIon> customIons, MultiplexMatrix multiplexMatrix, IEnumerable<MultiplexMatrix> existing)
         {
             InitializeComponent();
-            _originalMatrix = multiplexMatrix;
+            _customIons = customIons;
+            _originalMatrix = _multiplexMatrix = multiplexMatrix;
             _existing = (existing ?? Array.Empty<MultiplexMatrix>()).ToList();
             _dataTable = new DataTable();
             _dataTable.Columns.Add(new DataColumn(COLNAME_MultiplexName, typeof(string))
             {
                 Unique = true
             });
-            foreach (var customIonName in GetColumnNames(customIons, multiplexMatrix ?? MultiplexMatrix.NONE))
+            foreach (var customIon in customIons)
             {
-                _dataTable.Columns.Add(new DataColumn(COL_PREFIX + customIonName, typeof(double)));
+                _dataTable.Columns.Add(new DataColumn(COL_PREFIX + customIon.Name, typeof(double)));
             }
             
             dataGridView1.AutoGenerateColumns = true;
             dataGridView1.DataSource = _dataTable;
             dataGridView1.Columns[0].Frozen = true;
-            DisplayMultipleMatrix(_originalMatrix);
+            DisplayMultiplexMatrix(_originalMatrix);
         }
 
         private void dataGridView1_DataError(object sender, DataGridViewDataErrorEventArgs e)
@@ -55,15 +58,19 @@ namespace pwiz.Skyline.SettingsUI
                 if (!Equals(_multiplexMatrix, value))
                 {
                     _multiplexMatrix = value;
-                    DisplayMultipleMatrix(value);
+                    DisplayMultiplexMatrix(value);
                 }
             }
         }
 
-        private void DisplayMultipleMatrix(MultiplexMatrix matrix)
+        private void DisplayMultiplexMatrix(MultiplexMatrix matrix)
         {
-            tbxMultiplexName.Text = matrix.Name;
+            tbxMultiplexName.Text = matrix?.Name;
             _dataTable.Clear();
+            if (matrix == null)
+            {
+                return;
+            }
             foreach (var replicate in matrix.Replicates)
             {
                 var rowValues = new List<object>{replicate.Name};
@@ -83,6 +90,7 @@ namespace pwiz.Skyline.SettingsUI
 
                 _dataTable.Rows.Add(rowValues.ToArray());
             }
+            ReorderColumns(matrix);
         }
 
         public void OkDialog()
@@ -158,23 +166,6 @@ namespace pwiz.Skyline.SettingsUI
             dataGridView1.CurrentCell = dataGridView1.Rows[rowIndex].Cells[columnIndex];
         }
 
-        private IEnumerable<string> GetColumnNames(ICollection<MeasuredIon> measuredIons,
-            MultiplexMatrix multiplexMatrix)
-        {
-            var ionNames = measuredIons.Select(ion => ion.Name).ToHashSet();
-            var matrixColumnNames = multiplexMatrix.Replicates.SelectMany(replicate => replicate.Weights.Keys).ToHashSet();
-            
-            var allColumnNames = new List<string>();
-            // First, return the column names that are being used by the matrix
-            allColumnNames.AddRange(measuredIons.Where(ion => matrixColumnNames.Contains(ion.Name))
-                .Select(ion => ion.Name));
-            // Then, add the column names that are being used by the matrix, but which have no matching ion
-            allColumnNames.AddRange(matrixColumnNames.Where(name => !ionNames.Contains(name)).OrderBy(name => name));
-            // Lastly, add the rest of the ion names
-            allColumnNames.AddRange(measuredIons.Where(ion=>!matrixColumnNames.Contains(ion.Name)).Select(ion=>ion.Name));
-            return allColumnNames;
-        }
-
         private void btnOk_Click(object sender, EventArgs e)
         {
             OkDialog();
@@ -190,8 +181,75 @@ namespace pwiz.Skyline.SettingsUI
                 }
                 else if (col.Name.StartsWith(COL_PREFIX))
                 {
-                    col.HeaderText = col.Name.Substring(COL_PREFIX.Length);
+                    string ionName = col.Name.Substring(COL_PREFIX.Length);
+                    col.HeaderText = ionName;
                 }
+            }
+
+        }
+        private void ReorderColumns(MultiplexMatrix matrix)
+        {
+            if (matrix == null)
+            {
+                return;
+            }
+            var activeIonNames = new HashSet<string>();
+            activeIonNames.UnionWith(matrix.Replicates.SelectMany(replicate => replicate.Weights.Keys));
+            var activeColumns = new List<DataGridViewColumn>();
+            var inactiveColumns = new List<DataGridViewColumn>();
+            foreach (DataGridViewColumn col in dataGridView1.Columns)
+            {
+                if (col.Name == COLNAME_MultiplexName)
+                {
+                    activeColumns.Insert(0, col);
+                }
+                else if (col.Name.StartsWith(COL_PREFIX))
+                {
+                    string ionName = col.Name.Substring(COL_PREFIX.Length);
+                    if (activeIonNames.Contains(ionName))
+                    {
+                        activeColumns.Add(col);
+                    }
+                    else
+                    {
+                        inactiveColumns.Add(col);
+                    }
+                }
+            }
+
+            int displayIndex = 0;
+            foreach (var col in activeColumns.Concat(inactiveColumns))
+            {
+                col.DisplayIndex = displayIndex++;
+            }
+        }
+
+        private void btnImport_Click(object sender, EventArgs e)
+        {
+            var dlg = new OpenFileDialog();
+            dlg.Filter = TextUtil.FileDialogFilter("Proteome Discoverer", ".msf");
+            if (dlg.ShowDialog(this) == DialogResult.OK)
+            {
+                ReadMatrixFromFile(dlg.FileName);
+            }
+        }
+
+        public void ReadMatrixFromFile(string filePath)
+        {
+            try
+            {
+                var matrix = new MsfMultiplexReader(_customIons).ReadMultiplexMatrix(filePath);
+                if (matrix == null)
+                {
+                    MessageDlg.Show(this, string .Format("No multiplex scheme was found in {0}.", filePath));
+                    return;
+                }
+                DisplayMultiplexMatrix(matrix);
+            }
+            catch (Exception e)
+            {
+                MessageDlg.ShowWithException(this, e.Message, e);
+                return;
             }
         }
     }

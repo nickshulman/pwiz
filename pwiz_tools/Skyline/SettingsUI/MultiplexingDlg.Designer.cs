@@ -42,10 +42,11 @@
             | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
             this.dataGridView1.ColumnHeadersHeightSizeMode = System.Windows.Forms.DataGridViewColumnHeadersHeightSizeMode.AutoSize;
-            this.dataGridView1.Location = new System.Drawing.Point(12, 49);
+            this.dataGridView1.Location = new System.Drawing.Point(12, 32);
             this.dataGridView1.Name = "dataGridView1";
-            this.dataGridView1.Size = new System.Drawing.Size(776, 360);
+            this.dataGridView1.Size = new System.Drawing.Size(776, 377);
             this.dataGridView1.TabIndex = 0;
+            this.dataGridView1.DataBindingComplete += new System.Windows.Forms.DataGridViewBindingCompleteEventHandler(this.dataGridView1_DataBindingComplete);
             this.dataGridView1.DataError += new System.Windows.Forms.DataGridViewDataErrorEventHandler(this.dataGridView1_DataError);
             // 
             // btnCancel
@@ -77,13 +78,13 @@
             this.lblMultiplexName.AutoSize = true;
             this.lblMultiplexName.Location = new System.Drawing.Point(19, 9);
             this.lblMultiplexName.Name = "lblMultiplexName";
-            this.lblMultiplexName.Size = new System.Drawing.Size(80, 13);
+            this.lblMultiplexName.Size = new System.Drawing.Size(120, 13);
             this.lblMultiplexName.TabIndex = 7;
-            this.lblMultiplexName.Text = "Multiplex name:";
+            this.lblMultiplexName.Text = "Multiplex scheme name:";
             // 
             // tbxMultiplexName
             // 
-            this.tbxMultiplexName.Location = new System.Drawing.Point(105, 6);
+            this.tbxMultiplexName.Location = new System.Drawing.Point(145, 6);
             this.tbxMultiplexName.Name = "tbxMultiplexName";
             this.tbxMultiplexName.Size = new System.Drawing.Size(142, 20);
             this.tbxMultiplexName.TabIndex = 8;
@@ -99,7 +100,7 @@
             this.Controls.Add(this.btnOk);
             this.Controls.Add(this.dataGridView1);
             this.Name = "MultiplexingDlg";
-            this.Text = "VirtualReplicatesDlg";
+            this.Text = "Multiplex Scheme Editor";
             ((System.ComponentModel.ISupportInitialize)(this.dataGridView1)).EndInit();
             this.ResumeLayout(false);
             this.PerformLayout();

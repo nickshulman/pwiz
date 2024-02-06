@@ -593,6 +593,26 @@ namespace pwiz.Skyline.Controls.Databinding
                     columnsToRemove.Add(PropertyPath.Root.Property(nameof(Replicate.BatchName)));
                     addRoot = true;
                 }
+                else if (columnDescriptor.PropertyType == typeof(ResultFile))
+                {
+                    var document = ((SkylineDataSchema)columnDescriptor.DataSchema).Document;
+                    var columns = new List<ColumnSpec>
+                    {
+                        new ColumnSpec(PropertyPath.Root.Property(nameof(ResultFile.FileName))),
+                        new ColumnSpec(PropertyPath.Root.Property(nameof(ResultFile.Replicate)))
+                    };
+                    if (true == document.Settings.MeasuredResults?.MSDataFileInfos.Any(dataFileInfo =>
+                            !string.IsNullOrEmpty(dataFileInfo.FilePath.GetSampleName())))
+                    {
+                        columns.Add(new ColumnSpec(PropertyPath.Root.Property(nameof(ResultFile.SampleName))));
+                    }
+                    columns.Add(new ColumnSpec(PropertyPath.Root.Property(nameof(ResultFile.AcquiredTime))));
+                    if (document.Settings.HasTicArea)
+                    {
+                        columns.Add(new ColumnSpec(PropertyPath.Root.Property(nameof(ResultFile.TicArea))));
+                    }
+                    viewSpec = viewSpec.SetColumns(columns);
+                }
                 viewSpec = viewSpec.SetSublistId(GetReplicateSublist(columnDescriptor.PropertyType));
                 if (addRoot)
                 {

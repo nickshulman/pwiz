@@ -341,6 +341,8 @@ namespace pwiz.Skyline.Model.Results
         /// </summary>
         private ImmutableList<ChromFileInfo> _msDataFileInfo;
 
+        private Dictionary<string, ReplicateProperties> _replicateProperties;
+
         /// <summary>
         /// Ids used in XML to refer to the files in this replicate
         /// </summary>
@@ -967,6 +969,44 @@ namespace pwiz.Skyline.Model.Results
         }
 
         #endregion
+
+
+        public class ReplicateProperties : Immutable
+        {
+            public ReplicateProperties()
+            {
+                Annotations = Annotations.EMPTY;
+                SampleType = SampleType.DEFAULT;
+                SampleDilutionFactor = DEFAULT_DILUTION_FACTOR;
+            }
+            public Annotations Annotations { get; private set; }
+
+            public ReplicateProperties ChangeAnnotations(Annotations value)
+            {
+                return ChangeProp(ImClone(this), im => im.Annotations = value);
+            }
+
+            public double? AnalyteConcentration { get; private set; }
+
+            public ReplicateProperties ChangeAnalyteConcentration(double? value)
+            {
+                return ChangeProp(ImClone(this), im => im.AnalyteConcentration = value);
+            }
+
+            public double SampleDilutionFactor { get; private set; }
+
+            public ReplicateProperties ChangeSampleDilutionFactor(double value)
+            {
+                return ChangeProp(ImClone(this), im => im.SampleDilutionFactor = value);
+            }
+
+            public SampleType SampleType { get; private set; }
+
+            public ReplicateProperties ChangeSampleType(SampleType value)
+            {
+                return ChangeProp(ImClone(this), im => im.SampleType = value);
+            }
+        }
     }
 
     /// <summary>

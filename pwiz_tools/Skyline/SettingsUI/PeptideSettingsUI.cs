@@ -564,7 +564,8 @@ namespace pwiz.Skyline.SettingsUI
                 quantification = quantification.ChangeQualitativeIonRatioThreshold(ionRatioThreshold);
             }
 
-            quantification = quantification.ChangeSimpleRatios(cbxSimpleRatios.Checked);
+            quantification = quantification.ChangeSimpleRatios(cbxSimpleRatios.Checked)
+                .ChangeMultiplexMatrix(_driverMultiplexMatrix.SelectedItem);
 
             return new PeptideSettings(enzyme, digest, prediction, filter, libraries, modifications, integration, backgroundProteome, _peptideSettings.ProteinAssociationSettings)
                     .ChangeAbsoluteQuantification(quantification);

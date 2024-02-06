@@ -33,9 +33,18 @@ namespace pwiz.Skyline.Model.Databinding.Collections
         {
             if (!DataSchema.Document.Settings.HasResults)
             {
-                return Array.Empty<Replicate>();
+                yield break;
             }
-            return Enumerable.Range(0, DataSchema.Document.Settings.MeasuredResults.Chromatograms.Count).Select(i=>new Replicate(DataSchema, i));
+
+            var measuredResults = DataSchema.Document.Settings.MeasuredResults;
+            var multiplexMatrix = DataSchema.Document.Settings.PeptideSettings.Quantification.MultiplexMatrix;
+            for (int iReplicate = 0; iReplicate < measuredResults.Chromatograms.Count; iReplicate++)
+            {
+                foreach (var multiplexReplicate in multiplexMatrix.Replicates)
+                {
+                    yield return new Replicate(DataSchema, iReplicate, multiplexReplicate.Name);
+                }
+            }
         }
     }
 }

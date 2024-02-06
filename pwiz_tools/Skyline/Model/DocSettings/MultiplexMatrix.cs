@@ -73,7 +73,6 @@ namespace pwiz.Skyline.Model.DocSettings
                 }
                 writer.WriteEndElement();
             }
-            writer.WriteEndElement();
         }
 
         public ImmutableList<Replicate> Replicates { get; private set; }
@@ -84,7 +83,6 @@ namespace pwiz.Skyline.Model.DocSettings
             {
                 Name = name;
                 Weights = ImmutableSortedList.FromValues(weights);
-                
             }
             public string Name { get; private set; }
             public ImmutableSortedList<string, double> Weights { get; private set; }

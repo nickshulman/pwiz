@@ -16,7 +16,7 @@ namespace pwiz.Skyline.Model.Databinding.Collections
             var measuredResults = SrmDocument.Settings.MeasuredResults;
             for (int iReplicate = 0; iReplicate < measuredResults.Chromatograms.Count; iReplicate++)
             {
-                var replicate = new Replicate(DataSchema, iReplicate);
+                var replicate = new Replicate(DataSchema, iReplicate, string.Empty);
                 var chromatogramSet = measuredResults.Chromatograms[iReplicate];
                 foreach (var msDataFileInfo in chromatogramSet.MSDataFileInfos)
                 {

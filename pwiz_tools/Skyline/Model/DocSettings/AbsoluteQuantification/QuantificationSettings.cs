@@ -252,9 +252,8 @@ namespace pwiz.Skyline.Model.DocSettings.AbsoluteQuantification
             writer.WriteAttribute(Attr.simple_ratios, SimpleRatios, false);
             if (null != MultiplexMatrix)
             {
-                MultiplexMatrix.WriteXml(writer);
+                writer.WriteElement(MultiplexMatrix);
             }
-            writer.WriteEndElement();
         }
 
         public static QuantificationSettings Deserialize(XmlReader reader)

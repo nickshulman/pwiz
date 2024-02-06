@@ -27,6 +27,7 @@ using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.DocSettings.AbsoluteQuantification;
 using pwiz.Skyline.Model.ElementLocators;
 using pwiz.Skyline.Model.Results;
+using pwiz.Skyline.Util.Extensions;
 
 namespace pwiz.Skyline.Model.Databinding.Entities
 {
@@ -36,7 +37,7 @@ namespace pwiz.Skyline.Model.Databinding.Entities
         private static readonly ChromatogramSet EMPTY_CHROMATOGRAM_SET = (ChromatogramSet) new ChromatogramSet(
             XmlNamedElement.NAME_INTERNAL, new MsDataFileUri[0]).ChangeName(string.Empty);
         private readonly CachedValue<ChromatogramSet> _chromatogramSet;
-        public Replicate(SkylineDataSchema dataSchema, int replicateIndex) : base(dataSchema)
+        public Replicate(SkylineDataSchema dataSchema, int replicateIndex, string multiplexName = "") : base(dataSchema)
         {
             ReplicateIndex = replicateIndex;
             _chromatogramSet = CachedValue.Create(DataSchema, FindChromatogramSet);
@@ -81,9 +82,18 @@ namespace pwiz.Skyline.Model.Databinding.Entities
             }
         }
 
+        public string MultiplexName
+        {
+            get; private set;
+        }
+
         public override string ToString()
         {
-            return Name;
+            if (string.IsNullOrEmpty(MultiplexName))
+            {
+                return Name;
+            }
+            return TextUtil.ColonSeparate(Name, MultiplexName);
         }
 
         private ChromatogramSet FindChromatogramSet()

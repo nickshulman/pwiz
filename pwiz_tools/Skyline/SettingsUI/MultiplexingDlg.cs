@@ -12,7 +12,8 @@ namespace pwiz.Skyline.SettingsUI
 {
     public partial class MultiplexingDlg : Form
     {
-        private const string ION_COL_PREFIX = "Col";
+        private const string COL_PREFIX = "Col";
+        private const string COLNAME_MultiplexName = "MultipleName";
         private DataTable _dataTable;
         private MultiplexMatrix _originalMatrix;
         private MultiplexMatrix _multiplexMatrix;
@@ -23,21 +24,19 @@ namespace pwiz.Skyline.SettingsUI
             _originalMatrix = multiplexMatrix;
             _existing = (existing ?? Array.Empty<MultiplexMatrix>()).ToList();
             _dataTable = new DataTable();
-            _dataTable.Columns.Add(new DataColumn("MultiplexName", typeof(string))
+            _dataTable.Columns.Add(new DataColumn(COLNAME_MultiplexName, typeof(string))
             {
-                Unique = true,
-                Caption = "Multiplex Name"
+                Unique = true
             });
             foreach (var customIonName in GetColumnNames(customIons, multiplexMatrix ?? MultiplexMatrix.NONE))
             {
-                _dataTable.Columns.Add(new DataColumn(ION_COL_PREFIX + customIonName, typeof(double))
-                {
-                    Caption = customIonName
-                });
+                _dataTable.Columns.Add(new DataColumn(COL_PREFIX + customIonName, typeof(double)));
             }
+            
             dataGridView1.AutoGenerateColumns = true;
             dataGridView1.DataSource = _dataTable;
             dataGridView1.Columns[0].Frozen = true;
+            DisplayMultipleMatrix(_originalMatrix);
         }
 
         private void dataGridView1_DataError(object sender, DataGridViewDataErrorEventArgs e)
@@ -68,10 +67,10 @@ namespace pwiz.Skyline.SettingsUI
             foreach (var replicate in matrix.Replicates)
             {
                 var rowValues = new List<object>{replicate.Name};
-                foreach (DataColumn col in _dataTable.Columns)
+                foreach (DataColumn col in _dataTable.Columns.Cast<DataColumn>().Skip(1))
                 {
-                    Assume.IsTrue(col.ColumnName.StartsWith(ION_COL_PREFIX));
-                    var ionName = col.ColumnName.Substring(ION_COL_PREFIX.Length);
+                    Assume.IsTrue(col.ColumnName.StartsWith(COL_PREFIX));
+                    var ionName = col.ColumnName.Substring(COL_PREFIX.Length);
                     if (replicate.Weights.TryGetValue(ionName, out var weight))
                     {
                         rowValues.Add(weight);
@@ -145,7 +144,7 @@ namespace pwiz.Skyline.SettingsUI
                         return null;
                     }
                     var column = _dataTable.Columns[columnIndex];
-                    weights.Add(new KeyValuePair<string, double>(column.ColumnName.Substring(ION_COL_PREFIX.Length), value.Value));
+                    weights.Add(new KeyValuePair<string, double>(column.ColumnName.Substring(COL_PREFIX.Length), value.Value));
                 }
                 replicates.Add(new MultiplexMatrix.Replicate(replicateName, weights));
             }
@@ -179,6 +178,21 @@ namespace pwiz.Skyline.SettingsUI
         private void btnOk_Click(object sender, EventArgs e)
         {
             OkDialog();
+        }
+
+        private void dataGridView1_DataBindingComplete(object sender, DataGridViewBindingCompleteEventArgs e)
+        {
+            foreach (DataGridViewColumn col in dataGridView1.Columns)
+            {
+                if (col.Name == COLNAME_MultiplexName)
+                {
+                    col.HeaderText = "Multiplex Replicate Name";
+                }
+                else if (col.Name.StartsWith(COL_PREFIX))
+                {
+                    col.HeaderText = col.Name.Substring(COL_PREFIX.Length);
+                }
+            }
         }
     }
 }

@@ -1,10 +1,14 @@
 ﻿using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Xml;
 using System.Xml.Linq;
 using System.Xml.Serialization;
+using Accord.Statistics.Models.Regression.Fitting;
+using Accord.Statistics.Models.Regression.Linear;
 using pwiz.Common.Collections;
 using pwiz.Common.SystemUtil;
+using pwiz.Skyline.Model.DocSettings.AbsoluteQuantification;
 using pwiz.Skyline.Util;
 
 namespace pwiz.Skyline.Model.DocSettings
@@ -173,6 +177,55 @@ namespace pwiz.Skyline.Model.DocSettings
             var matrix = new MultiplexMatrix();
             matrix.ReadXml(reader);
             return matrix;
+        }
+
+        public double[] GetReplicateQuantities(Dictionary<string, double> observedAreas)
+        {
+            var reporterIonIndexes = MakeIndexDictionary(observedAreas.Keys.Intersect(Replicates.SelectMany(replicate=>replicate.Weights.Keys)));
+            
+            var observedVector = new double[reporterIonIndexes.Count];
+            foreach (var kvp in observedAreas)
+            {
+                if (reporterIonIndexes.TryGetValue(kvp.Key, out int index))
+                {
+                    observedVector[index] += kvp.Value;
+                }
+            }
+
+            var inputs = Enumerable.Range(0, observedVector.Length)
+                .Select(i => new double[Replicates.Count]).ToArray();
+            for (int iReplicate = 0; iReplicate < Replicates.Count; iReplicate++)
+            {
+                foreach (var weight in Replicates[iReplicate].Weights)
+                {
+                    if (reporterIonIndexes.TryGetValue(weight.Key, out int index))
+                    {
+                        inputs[index][iReplicate] = weight.Value;
+                    }
+                }
+            }
+
+            var nonNegativeLeastSquares = new NonNegativeLeastSquares()
+            {
+                MaxIterations = 100
+            };
+            MultipleLinearRegression regression = nonNegativeLeastSquares.Learn(inputs, observedVector);
+            double[] coefficients = regression.Weights;
+            return coefficients;
+        }
+
+
+        private Dictionary<string, int> MakeIndexDictionary(IEnumerable<string> names)
+        {
+            var dictionary = new Dictionary<string, int>();
+            foreach (var name in names)
+            {
+                if (!dictionary.ContainsKey(name))
+                {
+                    dictionary.Add(name, dictionary.Count);
+                }
+            }
+            return dictionary;
         }
     }
 }

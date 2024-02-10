@@ -62,5 +62,25 @@ namespace pwiz.SkylineTest
             }
         }
 
+
+        [TestMethod]
+        public void TestGetReplicateQuantities()
+        {
+            var multiplexMatrix = new MultiplexMatrix("test", new[]
+            {
+                MakeReplicate("A", new[] { "a" }, new[] { 1.0 }),
+                MakeReplicate("B", new[] { "b", "c" }, new[] { 2.0, 3.0 })
+            });
+            var observations = new Dictionary<string, double>
+            {
+                { "a", 2 },
+                { "b", 6 },
+                { "c", 9 }
+            };
+            var result = multiplexMatrix.GetReplicateQuantities(observations);
+            Assert.AreEqual(2.0, result[0]);
+            Assert.AreEqual(3.0, result[1]);
+            
+        }
     }
 }

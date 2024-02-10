@@ -1,6 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Web.Caching;
+using Accord.Statistics.Models.Regression.Fitting;
+using Accord.Statistics.Models.Regression.Linear;
+using IdentityModel.Jwk;
+using MathNet.Numerics.LinearAlgebra.Double;
 using pwiz.Common.Collections;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.DocSettings.AbsoluteQuantification;

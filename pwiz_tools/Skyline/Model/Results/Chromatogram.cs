@@ -24,6 +24,7 @@ using System.Linq;
 using System.Text;
 using System.Xml;
 using System.Xml.Serialization;
+using JetBrains.Annotations;
 using pwiz.Common.Chemistry;
 using pwiz.Common.Collections;
 using pwiz.Common.SystemUtil;
@@ -340,8 +341,8 @@ namespace pwiz.Skyline.Model.Results
         /// Info for all files contained in this replicate
         /// </summary>
         private ImmutableList<ChromFileInfo> _msDataFileInfo;
-
-        private Dictionary<string, ReplicateProperties> _replicateProperties;
+        [CanBeNull]
+        private Dictionary<string, ReplicateProperties> _multiplexReplicateProperties;
 
         /// <summary>
         /// Ids used in XML to refer to the files in this replicate
@@ -490,6 +491,50 @@ namespace pwiz.Skyline.Model.Results
         public SampleType SampleType { get; private set; }
 
         public string BatchName { get; private set; }
+
+        public ReplicateProperties GetReplicateProperties(string multiplexName)
+        {
+            if (string.IsNullOrEmpty(multiplexName))
+            {
+                return ReplicateProperties.DEFAULT
+                    .ChangeAnalyteConcentration(AnalyteConcentration)
+                    .ChangeAnnotations(Annotations)
+                    .ChangeSampleDilutionFactor(SampleDilutionFactor)
+                    .ChangeSampleType(SampleType);
+            }
+
+            ReplicateProperties replicateProperties = null;
+            _multiplexReplicateProperties?.TryGetValue(multiplexName, out replicateProperties);
+            return replicateProperties ?? ReplicateProperties.DEFAULT;
+        }
+
+        public ChromatogramSet ChangeReplicateProperties(string multiplexName, ReplicateProperties replicateProperties)
+        {
+            if (string.IsNullOrEmpty(multiplexName))
+            {
+                return ChangeProp(ImClone(this), im => im.SetReplicateProperties(replicateProperties));
+            }
+
+            Dictionary<string, ReplicateProperties> newDict;
+            if (_multiplexReplicateProperties == null)
+            {
+                newDict = new Dictionary<string, ReplicateProperties>();
+            }
+            else
+            {
+                newDict = new Dictionary<string, ReplicateProperties>(_multiplexReplicateProperties);
+            }
+            newDict[multiplexName] = replicateProperties;
+            return ChangeProp(ImClone(this), im => im._multiplexReplicateProperties = newDict);
+        }
+
+        private void SetReplicateProperties(ReplicateProperties replicateProperties)
+        {
+            AnalyteConcentration = replicateProperties.AnalyteConcentration;
+            Annotations = replicateProperties.Annotations;
+            SampleDilutionFactor = replicateProperties.SampleDilutionFactor;
+            SampleType = replicateProperties.SampleType;
+        }
 
         #region Property change methods
 
@@ -706,6 +751,7 @@ namespace pwiz.Skyline.Model.Results
             analyzer,
             detector,
             alignment,
+            multiplex,
         }
 
         public enum ATTR
@@ -746,13 +792,25 @@ namespace pwiz.Skyline.Model.Results
             // Read tag attributes
             base.ReadXml(reader);
             UseForRetentionTimeFilter = reader.GetBoolAttribute(ATTR.use_for_retention_time_prediction, false);
-            AnalyteConcentration = reader.GetNullableDoubleAttribute(ATTR.analyte_concentration);
-            SampleType = SampleType.FromName(reader.GetAttribute(ATTR.sample_type));
-            SampleDilutionFactor = reader.GetDoubleAttribute(ATTR.sample_dilution_factor, DEFAULT_DILUTION_FACTOR);
+            SetReplicateProperties(ReadReplicatePropertiesAttributes(reader));
             BatchName = reader.GetAttribute(ATTR.batch_name);
             // Consume tag
             reader.Read();
-
+            while (reader.IsStartElement(EL.multiplex))
+            {
+                _multiplexReplicateProperties ??= new Dictionary<string, ReplicateProperties>();
+                var multiplexName = reader.GetAttribute(ATTR.name);
+                var multiplexReplicateProperties = ReadReplicatePropertiesAttributes(reader);
+                bool isEmpty = reader.IsEmptyElement;
+                reader.Read();
+                if (!isEmpty)
+                {
+                    multiplexReplicateProperties =
+                        multiplexReplicateProperties.ChangeAnnotations(DocumentReader.ReadAnnotations(reader));
+                    reader.ReadEndElement();
+                }
+                _multiplexReplicateProperties[multiplexName] = multiplexReplicateProperties;
+            }
             // Check if there is an optimization function element, and read
             // if if there is.
             IXmlElementHelper<OptimizableRegression> helper =
@@ -803,9 +861,28 @@ namespace pwiz.Skyline.Model.Results
 
             MSDataFileInfos = chromFileInfos;
             _fileLoadIds = fileLoadIds.ToArray();
-
+            
             // Consume end tag
             reader.ReadEndElement();
+        }
+
+        private static void WriteReplicatePropertiesAttributes(XmlWriter writer, ReplicateProperties replicateProperties)
+        {
+            writer.WriteAttributeNullable(ATTR.analyte_concentration, replicateProperties.AnalyteConcentration);
+            var sampleType = replicateProperties.SampleType;
+            if (null != sampleType && !Equals(sampleType, SampleType.DEFAULT))
+            {
+                writer.WriteAttribute(ATTR.sample_type, sampleType.Name);
+            }
+            writer.WriteAttribute(ATTR.sample_dilution_factor, replicateProperties.SampleDilutionFactor, DEFAULT_DILUTION_FACTOR);
+        }
+        private static ReplicateProperties ReadReplicatePropertiesAttributes(XmlReader reader)
+        {
+            return ReplicateProperties.DEFAULT
+                .ChangeAnalyteConcentration(reader.GetNullableDoubleAttribute(ATTR.analyte_concentration))
+                .ChangeSampleType(SampleType.FromName(reader.GetAttribute(ATTR.sample_type)))
+                .ChangeSampleDilutionFactor(reader.GetDoubleAttribute(ATTR.sample_dilution_factor,
+                    DEFAULT_DILUTION_FACTOR));
         }
 
         public ChromatogramSet RestoreLegacyUriParameters()
@@ -818,14 +895,23 @@ namespace pwiz.Skyline.Model.Results
             // Write tag attributes
             base.WriteXml(writer);
             writer.WriteAttribute(ATTR.use_for_retention_time_prediction, false);
-            writer.WriteAttributeNullable(ATTR.analyte_concentration, AnalyteConcentration);
-            if (null != SampleType && !Equals(SampleType, SampleType.DEFAULT))
-            {
-                writer.WriteAttribute(ATTR.sample_type, SampleType.Name);
-            }
-            writer.WriteAttribute(ATTR.sample_dilution_factor, SampleDilutionFactor, DEFAULT_DILUTION_FACTOR);
+            WriteReplicatePropertiesAttributes(writer, GetReplicateProperties(null));
             writer.WriteAttributeIfString(ATTR.batch_name, BatchName);
-
+            if (null != _multiplexReplicateProperties)
+            {
+                foreach (var entry in _multiplexReplicateProperties)
+                {
+                    if (Equals(entry.Value, ReplicateProperties.DEFAULT))
+                    {
+                        continue;
+                    }
+                    writer.WriteStartElement(EL.multiplex);
+                    writer.WriteAttribute(ATTR.name, entry.Key);
+                    WriteReplicatePropertiesAttributes(writer, entry.Value);
+                    DocumentWriter.WriteAnnotations(writer, entry.Value.Annotations);
+                    writer.WriteEndElement();
+                }
+            }
             // Write optimization element, if present
             if (OptimizationFunction != null)
             {
@@ -973,7 +1059,8 @@ namespace pwiz.Skyline.Model.Results
 
         public class ReplicateProperties : Immutable
         {
-            public ReplicateProperties()
+            public static readonly ReplicateProperties DEFAULT = new ReplicateProperties();
+            private ReplicateProperties()
             {
                 Annotations = Annotations.EMPTY;
                 SampleType = SampleType.DEFAULT;

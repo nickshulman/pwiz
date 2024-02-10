@@ -17,10 +17,10 @@
  * limitations under the License.
  */
 
-using System;
 using System.Collections;
 using System.Linq;
 using pwiz.Skyline.Model.Databinding.Entities;
+using pwiz.Skyline.Model.DocSettings;
 
 namespace pwiz.Skyline.Model.Databinding.Collections
 {
@@ -37,12 +37,12 @@ namespace pwiz.Skyline.Model.Databinding.Collections
             }
 
             var measuredResults = DataSchema.Document.Settings.MeasuredResults;
-            var multiplexMatrix = DataSchema.Document.Settings.PeptideSettings.Quantification.MultiplexMatrix;
+            var multiplexMatrix = DataSchema.Document.Settings.PeptideSettings.Quantification.MultiplexMatrix ?? MultiplexMatrix.NONE;
             for (int iReplicate = 0; iReplicate < measuredResults.Chromatograms.Count; iReplicate++)
             {
-                foreach (var multiplexReplicate in multiplexMatrix.Replicates)
+                foreach (var multiplexName in multiplexMatrix.Replicates.Select(replicate=>replicate.Name).Prepend(string.Empty))
                 {
-                    yield return new Replicate(DataSchema, iReplicate, multiplexReplicate.Name);
+                    yield return new Replicate(DataSchema, iReplicate, multiplexName);
                 }
             }
         }

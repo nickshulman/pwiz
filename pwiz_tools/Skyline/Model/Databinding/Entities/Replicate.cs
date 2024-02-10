@@ -40,6 +40,7 @@ namespace pwiz.Skyline.Model.Databinding.Entities
         public Replicate(SkylineDataSchema dataSchema, int replicateIndex, string multiplexName = "") : base(dataSchema)
         {
             ReplicateIndex = replicateIndex;
+            MultiplexName = multiplexName;
             _chromatogramSet = CachedValue.Create(DataSchema, FindChromatogramSet);
         }
 
@@ -108,13 +109,19 @@ namespace pwiz.Skyline.Model.Databinding.Entities
 
         public override object GetAnnotation(AnnotationDef annotationDef)
         {
-            return DataSchema.AnnotationCalculator.GetAnnotation(annotationDef, this, ChromatogramSet.Annotations);
+            return DataSchema.AnnotationCalculator.GetAnnotation(annotationDef, this, ChromatogramSet.GetReplicateProperties(MultiplexName).Annotations);
         }
 
         public override void SetAnnotation(AnnotationDef annotationDef, object value)
         {
+            var replicateProperties = ChromatogramSet.GetReplicateProperties(MultiplexName);
+            replicateProperties =
+                replicateProperties.ChangeAnnotations(
+                    replicateProperties.Annotations.ChangeAnnotation(annotationDef, value));
+            
             ChangeChromatogramSet(EditDescription.SetAnnotation(annotationDef, value), 
-                ChromatogramSet.ChangeAnnotations(ChromatogramSet.Annotations.ChangeAnnotation(annotationDef, value)));
+                ChromatogramSet.ChangeReplicateProperties(
+                    MultiplexName, replicateProperties));
         }
 
         private void LinkValueOnClick(object sender, EventArgs args)
@@ -156,32 +163,38 @@ namespace pwiz.Skyline.Model.Databinding.Entities
         {
             get
             {
-                return ChromatogramSet.SampleType;
+                return ChromatogramSet.GetReplicateProperties(MultiplexName).SampleType;
             }
             set
             {
                 ChangeChromatogramSet(EditColumnDescription(nameof(SampleType), value),
-                    ChromatogramSet.ChangeSampleType(value));
+                    ChromatogramSet.ChangeReplicateProperties(MultiplexName,
+                        ChromatogramSet.GetReplicateProperties(MultiplexName).ChangeSampleType(value)));
             }
         }
 
         [Importable]
         public double? AnalyteConcentration
         {
-            get { return ChromatogramSet.AnalyteConcentration; }
+            get { return ChromatogramSet.GetReplicateProperties(MultiplexName).AnalyteConcentration; }
             set
             {
                 ChangeChromatogramSet(EditColumnDescription(nameof(AnalyteConcentration), value),
-                    ChromatogramSet.ChangeAnalyteConcentration(value));
+                    ChromatogramSet.ChangeReplicateProperties(MultiplexName,
+                        ChromatogramSet.GetReplicateProperties(MultiplexName).ChangeAnalyteConcentration(value)));
             }
         }
 
         [Importable]
         public double SampleDilutionFactor
         {
-            get { return ChromatogramSet.SampleDilutionFactor; }
-            set { ChangeChromatogramSet(EditColumnDescription(nameof(SampleDilutionFactor), value),
-                ChromatogramSet.ChangeDilutionFactor(value));}
+            get { return ChromatogramSet.GetReplicateProperties(MultiplexName).SampleDilutionFactor; }
+            set
+            {
+                ChangeChromatogramSet(EditColumnDescription(nameof(SampleDilutionFactor), value),
+                    ChromatogramSet.ChangeReplicateProperties(MultiplexName,
+                        ChromatogramSet.GetReplicateProperties(MultiplexName).ChangeAnalyteConcentration(value)));
+            }
         }
 
         [Importable]

@@ -523,6 +523,17 @@
       <xs:element name="replicate" minOccurs="0" maxOccurs="unbounded">
         <xs:complexType>
           <xs:sequence>
+            <xs:element name="multiplex" minOccurs="0" maxOccurs="unbounded">
+              <xs:complexType>
+                <xs:sequence>
+                  <xs:element name="annotation" type="annotation_type" minOccurs="0" maxOccurs="unbounded"/>
+                </xs:sequence>
+                <xs:attribute name="name" type="xs:string" use="required" />
+                <xs:attribute name="sample_type" type="xs:string" />
+                <xs:attribute name="analyte_concentration" type="xs:double" />
+                <xs:attribute name="sample_dilution_factor" type="xs:double"/>
+              </xs:complexType>
+            </xs:element>
             <xs:choice minOccurs="0" maxOccurs="1">
               <xs:element name="predict_collision_energy"
                   type="predict_collision_energy_type"/>

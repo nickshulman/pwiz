@@ -324,7 +324,8 @@ namespace pwiz.Skyline.Model.Databinding.Entities
             }
             protected override QuantificationResult CalculateValue2(PeptideResult owner)
             {
-                return GetValue1(owner).GetPeptideQuantificationResult(owner.ResultFile.Replicate.ReplicateIndex);
+                var replicate = owner.ResultFile.Replicate;
+                return GetCalibrationCurveFitter(owner).GetPeptideQuantificationResult(replicate.ReplicateIndex, replicate.MultiplexName);
             }
             public QuantificationResult GetQuantificationResult(PeptideResult owner) { return GetValue2(owner); }
         }

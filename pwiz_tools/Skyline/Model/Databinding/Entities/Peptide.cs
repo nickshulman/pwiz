@@ -71,7 +71,33 @@ namespace pwiz.Skyline.Model.Databinding.Entities
 
         private IDictionary<ResultKey, PeptideResult> MakeResults()
         {
-            return MakeChromInfoResultsMap(DocNode.Results, file => new PeptideResult(this, file));
+            return AddMultiplexResults(MakeChromInfoResultsMap(DocNode.Results, file => new PeptideResult(this, file)));
+        }
+
+        private IDictionary<ResultKey, PeptideResult> AddMultiplexResults(IDictionary<ResultKey, PeptideResult> ordinaryResults)
+        {
+            if (DocNode.Results == null || DocNode.Results.Count == 0)
+            {
+                return ordinaryResults;
+            }
+            var matrix = SrmDocument.Settings.PeptideSettings.Quantification.MultiplexMatrix;
+            if (matrix == null || matrix.Replicates.Count == 0)
+            {
+                return ordinaryResults;
+            }
+
+            var entries = ordinaryResults.ToList();
+            foreach (var entry in ordinaryResults)
+            {
+                foreach (var multiplexReplicate in matrix.Replicates)
+                {
+                    var replicate = new Replicate(DataSchema, entry.Key.ReplicateIndex, multiplexReplicate.Name);
+                    var resultFile = new ResultFile(replicate, entry.Value.ResultFile.ChromFileInfoId, 0);
+                    entries.Add(new KeyValuePair<ResultKey, PeptideResult>(new ResultKey(replicate, entry.Key.FileIndex), new PeptideResult(this, resultFile)));
+                }
+            }
+
+            return ImmutableSortedList.FromValues(entries).AsDictionary();
         }
 
         public bool IsSmallMolecule()

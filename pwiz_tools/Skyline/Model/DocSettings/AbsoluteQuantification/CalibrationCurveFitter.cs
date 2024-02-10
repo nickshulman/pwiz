@@ -699,10 +699,66 @@ namespace pwiz.Skyline.Model.DocSettings.AbsoluteQuantification
                 result = result.ChangeAccuracy(calculatedConcentration / expectedConcentration);
                 result = result.ChangeUnits(QuantificationSettings.Units);
             }
-
-
             return result;
         }
+
+        public QuantificationResult GetPeptideQuantificationResult(int replicateIndex, string multiplexName)
+        {
+            if (string.IsNullOrEmpty(multiplexName))
+            {
+                return GetPeptideQuantificationResult(replicateIndex);
+            }
+
+            return GetMultiplexQuantificationResult(replicateIndex, multiplexName);
+        }
+
+        public QuantificationResult GetMultiplexQuantificationResult(int replicateIndex, string multiplexName)
+        {
+            return new QuantificationResult().ChangeNormalizedArea(GetMultiplexArea(replicateIndex, multiplexName));
+        }
+
+        private double? GetMultiplexArea(int replicateIndex, string multiplexName)
+        {
+            var multiplexMatrix = QuantificationSettings.MultiplexMatrix;
+            if (multiplexMatrix == null)
+            {
+                return null;
+            }
+
+            int multiplexReplicateIndex = multiplexMatrix.GetReplicateIndex(multiplexName);
+            if (multiplexReplicateIndex < 0)
+            {
+                return null;
+            }
+
+            var observedAreas =
+                GetReporterIonAreas(PeptideQuantifier.PeptideDocNode.TransitionGroups.SelectMany(tg => tg.Transitions),
+                        replicateIndex).GroupBy(kvp => kvp.Key, kvp => kvp.Value)
+                    .ToDictionary(group => group.Key, group => group.Sum());
+            if (observedAreas.Count == 0)
+            {
+                return null;
+            }
+            var replicateQuantities = multiplexMatrix.GetMultiplexAreas(observedAreas);
+            return replicateQuantities[multiplexReplicateIndex];
+        }
+
+        public static IEnumerable<KeyValuePair<string, double>> GetReporterIonAreas(IEnumerable<TransitionDocNode> transitionDocNodes, int replicateIndex)
+        {
+            foreach (var transitionDocNode in transitionDocNodes)
+            {
+                if (transitionDocNode.Transition.CustomIon is SettingsCustomIon)
+                {
+                    foreach (var transitionChromInfo in transitionDocNode.GetSafeChromInfo(replicateIndex)
+                                 .Where(chromInfo => 0 == chromInfo.OptimizationStep && !chromInfo.IsEmpty))
+                    {
+                        yield return new KeyValuePair<string, double>(transitionDocNode.Transition.CustomIon.Name,
+                            transitionChromInfo.Area);
+                    }
+                }
+            }
+        }
+        
 
         public PrecursorQuantificationResult GetPrecursorQuantificationResult(int replicateIndex, TransitionGroupDocNode transitionGroupDocNode)
         {
@@ -835,6 +891,7 @@ namespace pwiz.Skyline.Model.DocSettings.AbsoluteQuantification
             ReplicateIndex = replicateIndex;
             LabelType = labelType;
         }
+        
         public int ReplicateIndex { get; private set; }
         public IsotopeLabelType LabelType { get; private set; }
     }

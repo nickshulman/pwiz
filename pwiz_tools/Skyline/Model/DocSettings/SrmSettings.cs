@@ -1609,6 +1609,13 @@ namespace pwiz.Skyline.Model.DocSettings
             //           but differing values will be overwritten.
             if (!defSet.EnzymeList.Contains(PeptideSettings.Enzyme))
                 defSet.EnzymeList.SetValue(PeptideSettings.Enzyme);
+            if (PeptideSettings.Quantification.MultiplexMatrix != null)
+            {
+                if (!defSet.MultiplexMatrices.Contains(PeptideSettings.Quantification.MultiplexMatrix))
+                {
+                    defSet.MultiplexMatrices.SetValue(PeptideSettings.Quantification.MultiplexMatrix);
+                }
+            }
             // Extra null checks to avoid ReSharper warnings.
             if (PeptideSettings.Prediction != null)
             {

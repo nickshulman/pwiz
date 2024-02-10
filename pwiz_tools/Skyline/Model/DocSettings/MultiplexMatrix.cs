@@ -80,6 +80,11 @@ namespace pwiz.Skyline.Model.DocSettings
         }
 
         public ImmutableList<Replicate> Replicates { get; private set; }
+
+        public int GetReplicateIndex(string name)
+        {
+            return Replicates.IndexOf(replicate => replicate.Name == name);
+        }
         
         public class Replicate : Immutable
         {
@@ -179,7 +184,7 @@ namespace pwiz.Skyline.Model.DocSettings
             return matrix;
         }
 
-        public double[] GetReplicateQuantities(Dictionary<string, double> observedAreas)
+        public double[] GetMultiplexAreas(Dictionary<string, double> observedAreas)
         {
             var reporterIonIndexes = MakeIndexDictionary(observedAreas.Keys.Intersect(Replicates.SelectMany(replicate=>replicate.Weights.Keys)));
             
@@ -205,7 +210,7 @@ namespace pwiz.Skyline.Model.DocSettings
                 }
             }
 
-            var nonNegativeLeastSquares = new NonNegativeLeastSquares()
+            var nonNegativeLeastSquares = new NonNegativeLeastSquares
             {
                 MaxIterations = 100
             };

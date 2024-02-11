@@ -211,7 +211,8 @@ namespace pwiz.Skyline.Model.Databinding.Entities
         protected bool Equals(Replicate other)
         {
             return Equals(DataSchema, other.DataSchema) &&
-                ReplicateIndex == other.ReplicateIndex;
+                   ReplicateIndex == other.ReplicateIndex &&
+                   MultiplexName == other.MultiplexName;
         }
 
         public override bool Equals(object obj)
@@ -224,7 +225,13 @@ namespace pwiz.Skyline.Model.Databinding.Entities
 
         public override int GetHashCode()
         {
-            return DataSchema.GetHashCode() * 397 ^ ReplicateIndex;
+            unchecked
+            {
+                int hashCode = DataSchema.GetHashCode();
+                hashCode = (hashCode * 397) ^ ReplicateIndex;
+                hashCode = (hashCode * 397) ^ (MultiplexName == null ? 0 : MultiplexName.GetHashCode());
+                return hashCode;
+            }
         }
 
         [InvariantDisplayName("ReplicateLocator")]

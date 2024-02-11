@@ -82,11 +82,11 @@ namespace pwiz.Skyline.Model.DocSettings
             return GetAnnotation(annotationDef, typeof(T), skylineObject, annotations);
         }
 
-        public object GetReplicateAnnotation(AnnotationDef annotationDef, ChromatogramSet chromatogramSet)
+        public object GetReplicateAnnotation(AnnotationDef annotationDef, ChromatogramSet chromatogramSet, string multiplexName = "")
         {
             if (annotationDef.Expression == null)
             {
-                return chromatogramSet.Annotations.GetAnnotation(annotationDef);
+                return chromatogramSet.GetReplicateProperties(multiplexName).Annotations.GetAnnotation(annotationDef);
             }
 
             if (!SrmDocument.Settings.HasResults)
@@ -95,13 +95,13 @@ namespace pwiz.Skyline.Model.DocSettings
             }
 
             int replicateIndex;
-            if (!SrmDocument.Settings.MeasuredResults.TryGetChromatogramSet(chromatogramSet.Name, out _,
-                out replicateIndex))
+            if (!SrmDocument.Settings.MeasuredResults.TryGetChromatogramSet(chromatogramSet.Name, out _, 
+                    out replicateIndex))
             {
                 return null;
             }
 
-            return GetAnnotation(annotationDef, new Replicate(SkylineDataSchema, replicateIndex),
+            return GetAnnotation(annotationDef, new Replicate(SkylineDataSchema, replicateIndex, multiplexName),
                 chromatogramSet.Annotations);
         }
 

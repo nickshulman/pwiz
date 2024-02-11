@@ -1369,8 +1369,9 @@ namespace pwiz.Skyline.Model
                     {
                         var calc = _listResultCalcs[i];
                         calc.AddChromInfoList(nodeGroup);
-                        foreach (TransitionDocNode nodeTran in nodeGroup.GetQuantitativeTransitions(Settings))
+                        foreach (TransitionDocNode nodeTran in nodeGroup.Transitions)
                             calc.AddChromInfoList(nodeGroup, nodeTran);
+
                     }
                 }
             }
@@ -1670,6 +1671,7 @@ namespace pwiz.Skyline.Model
                 ResultsIndex = resultsIndex;
                 TranTypes = new HashSet<IsotopeLabelType>();
                 TranAreas = new Dictionary<TransitionKey, float>();
+                ReporterIonAreas = new List<KeyValuePair<string, float>>();
             }
 
             private SrmSettings Settings { get; set; }
@@ -1684,6 +1686,7 @@ namespace pwiz.Skyline.Model
 
             private HashSet<IsotopeLabelType> TranTypes { get; set; }
             private Dictionary<TransitionKey, float> TranAreas { get; set; }
+            private List<KeyValuePair<string, float>> ReporterIonAreas { get; set; }
 
             public bool HasGlobalArea { get { return Settings.HasGlobalStandardArea; }}
             public bool IsSetMatching { get; private set; }
@@ -1722,14 +1725,20 @@ namespace pwiz.Skyline.Model
                 if (info.IsEmpty)
                     return;
 
-                var key = new TransitionKey(nodeGroup, nodeTran.Key(nodeGroup), nodeGroup.TransitionGroup.LabelType);
-                if (TranAreas.ContainsKey(key))
+                if (nodeTran.IsQuantitative(Settings))
                 {
-                    return;
+                    var key = new TransitionKey(nodeGroup, nodeTran.Key(nodeGroup), nodeGroup.TransitionGroup.LabelType);
+                    if (!TranAreas.ContainsKey(key))
+                    {
+                        TranAreas.Add(key, info.Area);
+                        TranTypes.Add(nodeGroup.TransitionGroup.LabelType);
+                    }
                 }
 
-                TranAreas.Add(key, info.Area);
-                TranTypes.Add(nodeGroup.TransitionGroup.LabelType);
+                if (nodeTran.Transition.CustomIon is SettingsCustomIon)
+                {
+                    ReporterIonAreas.Add(new KeyValuePair<string, float>(nodeTran.Transition.CustomIon.Name, info.Area));
+                }
             }
 
             public PeptideChromInfo CalcChromInfo(int transitionGroupCount)
@@ -1745,7 +1754,27 @@ namespace pwiz.Skyline.Model
                 var mods = Settings.PeptideSettings.Modifications;
                 var listRatios = mods.CalcPeptideRatios((l, h) => CalcTransitionGroupRatio(PrecursorKey.EMPTY, l, h),
                     l => CalcTransitionGroupGlobalRatio(PrecursorKey.EMPTY, l));
-                return new PeptideChromInfo(FileId, peakCountRatio, retentionTime, listRatios);
+                return new PeptideChromInfo(FileId, peakCountRatio, retentionTime, listRatios, CalculateMultiplexAreas());
+            }
+
+            public ImmutableSortedList<string, float> CalculateMultiplexAreas()
+            {
+                var multiplexMatrix = Settings.PeptideSettings.Quantification.MultiplexMatrix;
+                if (multiplexMatrix == null || multiplexMatrix.Replicates.Count == 0)
+                {
+                    return null;
+                }
+
+                var reporterIonAreas = ReporterIonAreas
+                    .GroupBy(entry => entry.Key, entry => (double)entry.Value)
+                    .ToDictionary(group => group.Key, group => group.Sum());
+                var areaArray = multiplexMatrix.GetMultiplexAreas(reporterIonAreas);
+                if (areaArray == null)
+                {
+                    return null;
+                }
+
+                return ImmutableSortedList.FromValues(areaArray.Select(kvp=>new KeyValuePair<string, float>(kvp.Key, (float) kvp.Value)));
             }
 
             public float? CalcTransitionGlobalRatio(TransitionGroupDocNode nodeGroup, TransitionDocNode nodeTran, IsotopeLabelType labelType)

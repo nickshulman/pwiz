@@ -79,7 +79,22 @@ namespace pwiz.Skyline.Model.Serialization
             float? retentionTime = reader.GetNullableFloatAttribute(ATTR.retention_time);
             bool excludeFromCalibration = reader.GetBoolAttribute(ATTR.exclude_from_calibration);
             double? analyteConcentration = reader.GetNullableDoubleAttribute(ATTR.analyte_concentration);
-            return new PeptideChromInfo(fileInfo.FileId, peakCountRatio, retentionTime, ImmutableList<PeptideLabelRatio>.EMPTY)
+            bool empty = reader.IsEmptyElement;
+            reader.Read();
+
+            List<float> multiplexedAreas = null;
+            if (!empty)
+            {
+                multiplexedAreas = new List<float>();
+                while (reader.IsStartElement(EL.multiplex))
+                {
+                    multiplexedAreas.Add(reader.GetFloatAttribute(ATTR.area));
+                    reader.Read();
+                }
+                reader.Read();
+            }
+
+            return new PeptideChromInfo(fileInfo.FileId, peakCountRatio, retentionTime, ImmutableList<PeptideLabelRatio>.EMPTY, multiplexedAreas)
                 .ChangeExcludeFromCalibration(excludeFromCalibration)
                 .ChangeAnalyteConcentration(analyteConcentration);
         }
@@ -145,6 +160,7 @@ namespace pwiz.Skyline.Model.Serialization
             const UserSet userSet = UserSet.FALSE;
             var transitionGroupIonMobilityInfo = TransitionGroupIonMobilityInfo.GetTransitionGroupIonMobilityInfo(ccs,
                 ionMobilityMS1, ionMobilityFragment, ionMobilityWindow, ionMobilityUnits);
+            reader.Read();
             return new TransitionGroupChromInfo(fileInfo.FileId,
                 optimizationStep,
                 peakCountRatio,
@@ -501,6 +517,8 @@ namespace pwiz.Skyline.Model.Serialization
                     peakShapeValues = new PeakShapeValues(stdDev.Value, skewness.Value, kurtosis.Value, shapeCorrelation??1);
                 }
 
+                reader.Read();
+
                 return new TransitionChromInfo(fileInfo.FileId,
                     optimizationStep,
                     massError,
@@ -561,8 +579,6 @@ namespace pwiz.Skyline.Model.Serialization
                 var fileInfo = chromatogramSet.GetFileInfo(fileInfoId);
 
                 TItem chromInfo = readInfo(reader, fileInfo);
-                // Consume the tag
-                reader.Read();
 
                 if (!ReferenceEquals(chromInfo, default(TItem)))
                 {

@@ -82,6 +82,8 @@ namespace pwiz.Skyline.Model.Serialization
             public const string crosslinks = "crosslinks";
             public const string crosslink = "crosslink";
             public const string site = "site";
+
+            public const string multiplex = "multiplex";
             // ReSharper restore LocalizableElement
         }
 

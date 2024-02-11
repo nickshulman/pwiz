@@ -349,7 +349,7 @@ namespace pwiz.Skyline.Controls.Graphs.Calibration
                 else
                 {
                     selectionIdentifier =
-                        new CalibrationPoint(_skylineWindow.SelectedResultsIndex, null);
+                        new CalibrationPoint(_skylineWindow.SelectedResultsIndex);
                 }
             }
             if (selectionIdentifier.HasValue) {
@@ -488,8 +488,7 @@ namespace pwiz.Skyline.Controls.Graphs.Calibration
             }
             else
             {
-                if (_skylineWindow.Document.Settings.HasResults && _skylineWindow.Document.Settings.MeasuredResults
-                    .Chromatograms.Select(c => c.BatchName).Distinct().Count() > 1)
+                if (curveFitter.IsEnableSingleBatch)
                 {
                     title = TextUtil.SpaceSeparate(title, QuantificationStrings.CalibrationForm_GetFormTitle__All_Replicates_);
                 }

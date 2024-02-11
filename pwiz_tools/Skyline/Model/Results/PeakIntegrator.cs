@@ -121,6 +121,10 @@ namespace pwiz.Skyline.Model.Results
                     endTime = Math.Max(startTime, Math.Min(endTime, TimeIntervals.Ends[intervalIndex]));
                 }
             }
+            if (FullScanAcquisitionMethod.DDA.Equals(FullScanAcquisitionMethod) && ChromSource == ChromSource.fragment)
+            {
+                return ChromPeak.IntegrateDda(RawTimeIntensities ?? InterpolatedTimeIntensities, startTime, endTime, flags);
+            }
             return ChromPeak.IntegrateWithoutBackground(RawTimeIntensities ?? InterpolatedTimeIntensities, startTime,
                 endTime, flags, PeakGroupIntegrator.GetMedianChromatogram(startTime, endTime));
         }

@@ -142,7 +142,7 @@ namespace pwiz.Skyline.Model
                                     else
                                     {
                                         value = calibrationCurveFitter.GetNormalizedPeakArea(
-                                            new CalibrationPoint(replicateIndex, null));
+                                            new CalibrationPoint(replicateIndex));
                                     }
                                     if (!value.HasValue)
                                     {

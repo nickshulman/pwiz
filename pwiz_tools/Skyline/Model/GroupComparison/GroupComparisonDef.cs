@@ -165,7 +165,7 @@ namespace pwiz.Skyline.Model.GroupComparison
             return ChangeProp(ImClone(this), im => im.QValueCutoff = qValueCutoff);
         }
 
-        public GroupIdentifier GetGroupIdentifier(AnnotationCalculator annotationCalculator, ChromatogramSet chromatogramSet)
+        public GroupIdentifier GetGroupIdentifier(AnnotationCalculator annotationCalculator, ChromatogramSet chromatogramSet, string multiplexName)
         {
             AnnotationDef annotationDef =
                 annotationCalculator.SrmDocument.Settings.DataSettings.AnnotationDefs.FirstOrDefault(a => a.Name == ControlAnnotation);
@@ -173,7 +173,7 @@ namespace pwiz.Skyline.Model.GroupComparison
             {
                 return default(GroupIdentifier);
             }
-            return GroupIdentifier.MakeGroupIdentifier(annotationCalculator.GetReplicateAnnotation(annotationDef, chromatogramSet));
+            return GroupIdentifier.MakeGroupIdentifier(annotationCalculator.GetReplicateAnnotation(annotationDef, chromatogramSet, multiplexName));
         }
 
         public GroupIdentifier GetControlGroupIdentifier(SrmSettings settings)

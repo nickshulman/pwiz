@@ -132,7 +132,7 @@ namespace pwiz.Skyline.Controls.GroupComparison
                     
                     foreach (var runAbundance in resultRow.RunAbundances)
                     {
-                        Replicate replicate = new Replicate(_skylineDataSchema, runAbundance.ReplicateIndex);
+                        Replicate replicate = new Replicate(_skylineDataSchema, runAbundance.ReplicateIndex.ReplicateIndex, runAbundance.ReplicateIndex.MultiplexName);
                         runAbundances.Add(replicate, new ReplicateRow(replicate, runAbundance.Control ?
                                 controlGroupIdentifier : resultRow.Selector.GroupIdentifier
                             , runAbundance.BioReplicate, Math.Pow(2, runAbundance.Log2Abundance)));

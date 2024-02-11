@@ -33,7 +33,7 @@ namespace pwiz.Skyline.Model.GroupComparison
 {
     public class GroupComparer 
     {
-        private readonly IList<KeyValuePair<int, ReplicateDetails>> _replicateIndexes;
+        private readonly IList<KeyValuePair<ReplicateId, ReplicateDetails>> _replicateIndexes;
         private QrFactorizationCache _qrFactorizationCache;
         private Lazy<NormalizationData> _normalizationData;
         private ImmutableList<int> _msLevels;
@@ -43,17 +43,17 @@ namespace pwiz.Skyline.Model.GroupComparison
             ComparisonDef = comparisonDef;
             var annotationCalculator = new AnnotationCalculator(document);
             _qrFactorizationCache = qrFactorizationCache;
-            List<KeyValuePair<int, ReplicateDetails>> replicateIndexes = new List<KeyValuePair<int, ReplicateDetails>>();
+            List<KeyValuePair<ReplicateId, ReplicateDetails>> replicateIndexes = new List<KeyValuePair<ReplicateId, ReplicateDetails>>();
             var controlGroupIdentifier = ComparisonDef.GetControlGroupIdentifier(SrmDocument.Settings);
             if (SrmDocument.Settings.HasResults)
             {
                 var chromatograms = SrmDocument.Settings.MeasuredResults.Chromatograms;
-                for (int i = 0; i < chromatograms.Count; i++)
+                foreach (var replicateId in ReplicateId.Enumerate(SrmDocument.Settings))
                 {
-                    var chromatogramSet = chromatograms[i];
+                    var chromatogramSet = chromatograms[replicateId.ReplicateIndex];
                     ReplicateDetails replicateDetails = new ReplicateDetails()
                     {
-                        GroupIdentifier = comparisonDef.GetGroupIdentifier(annotationCalculator, chromatogramSet)
+                        GroupIdentifier = comparisonDef.GetGroupIdentifier(annotationCalculator, chromatogramSet, replicateId.MultiplexName)
                     };
                     if (Equals(controlGroupIdentifier, replicateDetails.GroupIdentifier))
                     {
@@ -63,7 +63,7 @@ namespace pwiz.Skyline.Model.GroupComparison
                     {
                         if (!string.IsNullOrEmpty(ComparisonDef.CaseValue))
                         {
-                            var annotationValue = chromatogramSet.Annotations.GetAnnotation(ComparisonDef.ControlAnnotation);
+                            var annotationValue = chromatogramSet.GetReplicateProperties(replicateId.MultiplexName).Annotations.GetAnnotation(ComparisonDef.ControlAnnotation);
                             if (!Equals(annotationValue, ComparisonDef.CaseValue))
                             {
                                 continue;
@@ -75,7 +75,7 @@ namespace pwiz.Skyline.Model.GroupComparison
                         replicateDetails.BioReplicate =
                             chromatogramSet.Annotations.GetAnnotation(ComparisonDef.IdentityAnnotation);
                     }
-                    replicateIndexes.Add(new KeyValuePair<int, ReplicateDetails>(i, replicateDetails));
+                    replicateIndexes.Add(new KeyValuePair<ReplicateId, ReplicateDetails>(replicateId, replicateDetails));
                 }
             }
             _replicateIndexes = ImmutableList.ValueOf(replicateIndexes);
@@ -227,7 +227,7 @@ namespace pwiz.Skyline.Model.GroupComparison
                 int iRow = runQuantificationDataSet.Runs.IndexOf(run);
                 subjects.Add(runQuantificationDataSet.Subjects[iRow]);
                 var replicateIndex = runNumberToReplicateIndex[run];
-                var replicateDetails = _replicateIndexes.First(kvp => kvp.Key == replicateIndex).Value;
+                var replicateDetails = _replicateIndexes.First(kvp => Equals(kvp.Key, replicateIndex)).Value;
 
                 runAbundances.Add(new RunAbundance
                 {
@@ -284,7 +284,7 @@ namespace pwiz.Skyline.Model.GroupComparison
                         {
                             BioReplicate = grouping.Key.Key,
                             Control = grouping.Key.Value,
-                            ReplicateIndex = -1,
+                            ReplicateIndex = null,
                             Log2Abundance = grouping.Average(row => row.Log2Abundance),
                         };
                     }).ToList();
@@ -359,7 +359,7 @@ namespace pwiz.Skyline.Model.GroupComparison
                 return ImmutableList.Empty<RunAbundance>();
             }
             var rows = new List<double?[]>();
-            IDictionary<int, int> replicateRowIndexes = new Dictionary<int, int>();
+            IDictionary<ReplicateId, int> replicateRowIndexes = new Dictionary<ReplicateId, int>();
             for (int iFeature = 0; iFeature < dataRowsByFeature.Count; iFeature++)
             {
                 foreach (DataRowDetails dataRowDetails in dataRowsByFeature[iFeature])
@@ -413,7 +413,7 @@ namespace pwiz.Skyline.Model.GroupComparison
             }
             var dataRowsByReplicateIndexAndTransitionGroup =
                 dataRows.ToLookup(row =>
-                    new Tuple<int, IdentityPath>(row.ReplicateIndex,
+                    new Tuple<ReplicateId, IdentityPath>(row.ReplicateIndex,
                         row.IdentityPath.GetPathTo((int)SrmDocument.Level.TransitionGroups)));
             var newDataRows = new List<DataRowDetails>();
             foreach (var grouping in dataRowsByReplicateIndexAndTransitionGroup)
@@ -463,7 +463,7 @@ namespace pwiz.Skyline.Model.GroupComparison
             return grouping.Count(dataRow => dataRow.Intensity > 1) > 1;
         }
 
-        private IEnumerable<IGrouping<int, DataRowDetails>> RemoveIncompleteReplicates(IList<DataRowDetails> dataRows)
+        private IEnumerable<IGrouping<ReplicateId, DataRowDetails>> RemoveIncompleteReplicates(IList<DataRowDetails> dataRows)
         {
             var rowsByReplicateIndex = dataRows.ToLookup(row => row.ReplicateIndex);
             if (NormalizationMethod is NormalizationMethod.RatioToLabel)
@@ -492,6 +492,7 @@ namespace pwiz.Skyline.Model.GroupComparison
                 normalizationMethod = SrmDocument.Settings.PeptideSettings.Quantification.NormalizationMethod;
                 useCalibrationCurve = true;
             }
+
             foreach (var replicateEntry in _replicateIndexes)
             {
                 if (!replicateEntry.Value.IsControl &&
@@ -510,15 +511,25 @@ namespace pwiz.Skyline.Model.GroupComparison
                     {
                         QValueCutoff = ComparisonDef.QValueCutoff
                     };
-                    if (useCalibrationCurve)
+                    if (useCalibrationCurve || !string.IsNullOrEmpty(replicateEntry.Key.MultiplexName))
                     {
                         var calibrationCurveFitter = CalibrationCurveFitter.GetCalibrationCurveFitter(
                             _normalizationData, SrmDocument.Settings,
                             new IdPeptideDocNode(selector.Protein.PeptideGroup, peptide));
-                        calibrationCurveFitter.SingleBatchReplicateIndex = replicateEntry.Key;
-                        var calculatedConcentration =
-                            calibrationCurveFitter.GetCalculatedConcentration(
-                                calibrationCurveFitter.GetCalibrationCurve(), replicateEntry.Key);
+                        calibrationCurveFitter.SingleBatchReplicateIndex = replicateEntry.Key.ReplicateIndex;
+                        double? calculatedConcentration;
+                        var calibrationPoint = new CalibrationPoint(replicateEntry.Key.ReplicateIndex,
+                            replicateEntry.Key.MultiplexName);
+                        if (useCalibrationCurve)
+                        {
+                            calculatedConcentration =
+                                calibrationCurveFitter.GetCalculatedConcentration(
+                                    calibrationCurveFitter.GetCalibrationCurve(), calibrationPoint);
+                        }
+                        else
+                        {
+                            calculatedConcentration = calibrationCurveFitter.GetNormalizedPeakArea(calibrationPoint);
+                        }
                         if (calculatedConcentration.HasValue)
                         {
                             var dataRowDetails = new DataRowDetails
@@ -538,8 +549,9 @@ namespace pwiz.Skyline.Model.GroupComparison
                     {
                         peptideQuantifier.MeasuredLabelTypes = ImmutableList.Singleton(selector.LabelType);
                     }
+
                     foreach (var quantityEntry in peptideQuantifier.GetTransitionIntensities(SrmDocument.Settings,
-                                 replicateEntry.Key, ComparisonDef.UseZeroForMissingPeaks))
+                                 replicateEntry.Key.ReplicateIndex, ComparisonDef.UseZeroForMissingPeaks))
                     {
                         var dataRowDetails = new DataRowDetails
                         {
@@ -558,7 +570,7 @@ namespace pwiz.Skyline.Model.GroupComparison
 
         public struct RunAbundance
         {
-            public int ReplicateIndex { get; set; }
+            public ReplicateId ReplicateIndex { get; set; }
             public bool Control { get; set; }
             public string BioReplicate { get; set; }
             public double Log2Abundance { get; set; }
@@ -567,7 +579,7 @@ namespace pwiz.Skyline.Model.GroupComparison
         private class DataRowDetails
         {
             public IdentityPath IdentityPath { get; set; }
-            public int ReplicateIndex { get; set; }
+            public ReplicateId ReplicateIndex { get; set; }
             public bool Control { get; set; }
             public string BioReplicate { get; set; }
             public double Intensity;
@@ -586,7 +598,7 @@ namespace pwiz.Skyline.Model.GroupComparison
             public GroupIdentifier GroupIdentifier { get; set; }
         }
 
-        private abstract class FoldChangeCalculator : FoldChangeCalculator<int, IdentityPath, string>
+        private abstract class FoldChangeCalculator : FoldChangeCalculator<ReplicateId, IdentityPath, string>
         {
         }
 

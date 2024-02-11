@@ -8,7 +8,6 @@ using Accord.Statistics.Models.Regression.Fitting;
 using Accord.Statistics.Models.Regression.Linear;
 using pwiz.Common.Collections;
 using pwiz.Common.SystemUtil;
-using pwiz.Skyline.Model.DocSettings.AbsoluteQuantification;
 using pwiz.Skyline.Util;
 
 namespace pwiz.Skyline.Model.DocSettings
@@ -184,9 +183,13 @@ namespace pwiz.Skyline.Model.DocSettings
             return matrix;
         }
 
-        public double[] GetMultiplexAreas(Dictionary<string, double> observedAreas)
+        public Dictionary<string, double> GetMultiplexAreas(Dictionary<string, double> observedAreas)
         {
             var reporterIonIndexes = MakeIndexDictionary(observedAreas.Keys.Intersect(Replicates.SelectMany(replicate=>replicate.Weights.Keys)));
+            if (reporterIonIndexes.Count == 0)
+            {
+                return null;
+            }
             
             var observedVector = new double[reporterIonIndexes.Count];
             foreach (var kvp in observedAreas)
@@ -215,8 +218,13 @@ namespace pwiz.Skyline.Model.DocSettings
                 MaxIterations = 100
             };
             MultipleLinearRegression regression = nonNegativeLeastSquares.Learn(inputs, observedVector);
-            double[] coefficients = regression.Weights;
-            return coefficients;
+            var result = new Dictionary<string, double>();
+            foreach (var entry in reporterIonIndexes)
+            {
+                result.Add(entry.Key, regression.Weights[entry.Value]);
+            }
+
+            return result;
         }
 
 

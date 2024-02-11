@@ -546,6 +546,16 @@ namespace pwiz.Skyline.Model.Serialization
                                                                                       chromInfo.FileId);
                 writer.WriteAttributeNullable(ATTR.predicted_retention_time, rt);
             }
+
+            if (null != chromInfo.MultiplexedAreas)
+            {
+                foreach (var multiplexArea in chromInfo.MultiplexedAreas)
+                {
+                    writer.WriteStartElement(EL.multiplex);
+                    writer.WriteAttribute(ATTR.area, multiplexArea);
+                    writer.WriteEndElement();
+                }
+            }
         }
 
         /// <summary>

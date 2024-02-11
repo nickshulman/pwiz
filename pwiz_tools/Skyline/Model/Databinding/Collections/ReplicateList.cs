@@ -40,9 +40,16 @@ namespace pwiz.Skyline.Model.Databinding.Collections
             var multiplexMatrix = DataSchema.Document.Settings.PeptideSettings.Quantification.MultiplexMatrix ?? MultiplexMatrix.NONE;
             for (int iReplicate = 0; iReplicate < measuredResults.Chromatograms.Count; iReplicate++)
             {
-                foreach (var multiplexName in multiplexMatrix.Replicates.Select(replicate=>replicate.Name).Prepend(string.Empty))
+                if (multiplexMatrix?.Replicates.Count > 0)
                 {
-                    yield return new Replicate(DataSchema, iReplicate, multiplexName);
+                    foreach (var multiplexName in multiplexMatrix.Replicates.Select(replicate => replicate.Name))
+                    {
+                        yield return new Replicate(DataSchema, iReplicate, multiplexName);
+                    }
+                }
+                else
+                {
+                    yield return new Replicate(DataSchema, iReplicate, string.Empty);
                 }
             }
         }

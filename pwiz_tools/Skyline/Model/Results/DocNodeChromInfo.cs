@@ -40,12 +40,13 @@ namespace pwiz.Skyline.Model.Results
         private ImmutableList<PeptideLabelRatio> _labelRatios;
 
         public PeptideChromInfo(ChromFileInfoId fileId, float peakCountRatio, float? retentionTime,
-                IList<PeptideLabelRatio> labelRatios)
+                IList<PeptideLabelRatio> labelRatios, IEnumerable<float> multiplexedAreas)
             : base(fileId)
         {
             PeakCountRatio = peakCountRatio;
             RetentionTime = retentionTime;
             LabelRatios = labelRatios;
+            MultiplexedAreas = ImmutableList.ValueOf(multiplexedAreas);
         }
 
         public float PeakCountRatio { get; private set; }
@@ -80,7 +81,7 @@ namespace pwiz.Skyline.Model.Results
             return ChangeProp(ImClone(this), im => im.AnalyteConcentration = analyteConcentration);
         }
 
-
+        public ImmutableList<float> MultiplexedAreas { get; }
         #region object overrides
 
         public bool Equals(PeptideChromInfo other)
@@ -92,7 +93,8 @@ namespace pwiz.Skyline.Model.Results
                    other.RetentionTime.Equals(RetentionTime) &&
                    other.ExcludeFromCalibration.Equals(ExcludeFromCalibration) &&
                    other.AnalyteConcentration.Equals(AnalyteConcentration) &&
-                   ArrayUtil.EqualsDeep(other.LabelRatios, LabelRatios);
+                   ArrayUtil.EqualsDeep(other.LabelRatios, LabelRatios) &&
+                   Equals(other.MultiplexedAreas, MultiplexedAreas);
         }
 
         public override bool Equals(object obj)
@@ -112,6 +114,7 @@ namespace pwiz.Skyline.Model.Results
                 result = (result * 397) ^ ExcludeFromCalibration.GetHashCode();
                 result = (result * 397) ^ AnalyteConcentration.GetHashCode();
                 result = (result * 397) ^ LabelRatios.GetHashCodeDeep();
+                result = (result * 397) ^ (MultiplexedAreas == null ? 0 : MultiplexedAreas.GetHashCode());
                 return result;
             }
         }

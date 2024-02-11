@@ -446,16 +446,27 @@ namespace pwiz.Skyline.Controls.GroupComparison
             var newSettings = GroupComparisonModel.Document.Settings;
             var annotationDef = newSettings.DataSettings.AnnotationDefs.FirstOrDefault(
                 def => def.Name == GroupComparisonDef.ControlAnnotation);
+            IList<string> multiplexNames;
+            if (newSettings.PeptideSettings.Quantification.MultiplexMatrix?.Replicates.Count > 0)
+            {
+                multiplexNames =
+                    newSettings.PeptideSettings.Quantification.MultiplexMatrix.Replicates.Select(replicate =>
+                        replicate.Name).ToList();
+            }
+            else
+            {
+                multiplexNames = new[] { string.Empty };
+            }
             if (null != annotationDef && newSettings.HasResults)
             {
-                string[] controlValues = newSettings.MeasuredResults.Chromatograms.Select(
-                    chromatogram => chromatogram.Annotations.GetAnnotation(annotationDef.Name) ?? string.Empty)
-                    .Distinct()
-                    .ToArray();
+                string[] controlValues = newSettings.MeasuredResults.Chromatograms.SelectMany(chromatogram =>
+                        multiplexNames.Select(multiplex =>
+                            chromatogram.GetReplicateProperties(multiplex).Annotations.GetAnnotation(annotationDef.Name) ?? string.Empty))
+                    .Distinct().ToArray();
                 Array.Sort(controlValues);
                 return controlValues;
             }
-            return new string[0];
+            return Array.Empty<string>();
         }
 
         protected void ReplaceComboItems<T>(ComboBox comboBox, IEnumerable<T> items, T selectedItem)

@@ -1526,7 +1526,7 @@ namespace pwiz.Skyline.Controls.Graphs
                     if (calibrationCurve == null)
                     {
                         return calibrationCurveFitter.GetNormalizedPeakArea(
-                            new CalibrationPoint(replicateIndex, null));
+                            new CalibrationPoint(replicateIndex));
                     }
 
                     return calibrationCurveFitter.GetCalculatedConcentration(calibrationCurve, replicateIndex);

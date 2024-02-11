@@ -78,8 +78,8 @@ namespace pwiz.SkylineTest
                 { "c", 9 }
             };
             var result = multiplexMatrix.GetMultiplexAreas(observations);
-            Assert.AreEqual(2.0, result[0]);
-            Assert.AreEqual(3.0, result[1]);
+            Assert.AreEqual(2.0, result["A"]);
+            Assert.AreEqual(3.0, result["B"]);
             
         }
     }

@@ -32,6 +32,7 @@ using pwiz.Common.PeakFinding;
 using pwiz.Common.SystemUtil;
 using pwiz.ProteowizardWrapper;
 using pwiz.Skyline.Model.DocSettings;
+using pwiz.Skyline.Model.Lib.ChromLib.Data;
 using pwiz.Skyline.Model.Results.Crawdad;
 using pwiz.Skyline.Model.Results.Legacy;
 using pwiz.Skyline.Model.Results.Scoring;
@@ -1286,6 +1287,56 @@ namespace pwiz.Skyline.Model.Results
                 ItemSizeOnDisk = chromPeakSize,
                 DirectSerializer = DirectSerializer.Create(ReadArray, WriteArray)
             };
+        }
+
+        public static ChromPeak IntegrateDda(TimeIntensities timeIntensities, float startTime, float endTime,
+            FlagValues flags)
+        {
+            int firstIndex = CollectionUtil.BinarySearch(timeIntensities.Times, startTime);
+            if (firstIndex < 0)
+            {
+                firstIndex = ~firstIndex + 1;
+            }
+
+            float height = 0;
+            double totalArea = 0;
+            float? apexTime = null;
+            double totalMassError = 0;
+            int pointsAcrossPeak = 0;
+            for (int i = firstIndex; i < timeIntensities.Times.Count; i++)
+            {
+                var time = timeIntensities.Times[i];
+                if (time > endTime)
+                {
+                    break;
+                }
+
+                pointsAcrossPeak++;
+                var intensity = timeIntensities.Intensities[i];
+                if (!apexTime.HasValue || intensity > height)
+                {
+                    apexTime = time;
+                    height = intensity;
+                }
+
+                totalArea += intensity;
+                if (timeIntensities.MassErrors != null)
+                {
+                    totalMassError += intensity * timeIntensities.MassErrors[i];
+                }
+            }
+
+            if (pointsAcrossPeak == 0)
+            {
+                return EMPTY;
+            }
+
+            double? massError = null;
+            if (timeIntensities.MassErrors != null)
+            {
+                massError = totalMassError / totalArea;
+            }
+            return new ChromPeak(apexTime.Value, startTime, endTime, (float) totalArea, 0, height, 0, flags, massError, pointsAcrossPeak, null);
         }
 
         public static ChromPeak IntegrateWithoutBackground(TimeIntensities timeIntensities, float startTime,

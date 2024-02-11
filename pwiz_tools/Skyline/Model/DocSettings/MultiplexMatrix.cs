@@ -183,7 +183,7 @@ namespace pwiz.Skyline.Model.DocSettings
             return matrix;
         }
 
-        public Dictionary<string, double> GetMultiplexAreas(Dictionary<string, double> observedAreas)
+        public double[] GetMultiplexAreas(Dictionary<string, double> observedAreas)
         {
             var reporterIonIndexes = MakeIndexDictionary(observedAreas.Keys.Intersect(Replicates.SelectMany(replicate=>replicate.Weights.Keys)));
             if (reporterIonIndexes.Count == 0)
@@ -218,13 +218,7 @@ namespace pwiz.Skyline.Model.DocSettings
                 MaxIterations = 100
             };
             MultipleLinearRegression regression = nonNegativeLeastSquares.Learn(inputs, observedVector);
-            var result = new Dictionary<string, double>();
-            foreach (var entry in reporterIonIndexes)
-            {
-                result.Add(entry.Key, regression.Weights[entry.Value]);
-            }
-
-            return result;
+            return regression.Weights;
         }
 
 

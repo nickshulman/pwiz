@@ -1757,7 +1757,7 @@ namespace pwiz.Skyline.Model
                 return new PeptideChromInfo(FileId, peakCountRatio, retentionTime, listRatios, CalculateMultiplexAreas());
             }
 
-            public ImmutableSortedList<string, float> CalculateMultiplexAreas()
+            public ImmutableList<float> CalculateMultiplexAreas()
             {
                 var multiplexMatrix = Settings.PeptideSettings.Quantification.MultiplexMatrix;
                 if (multiplexMatrix == null || multiplexMatrix.Replicates.Count == 0)
@@ -1768,13 +1768,8 @@ namespace pwiz.Skyline.Model
                 var reporterIonAreas = ReporterIonAreas
                     .GroupBy(entry => entry.Key, entry => (double)entry.Value)
                     .ToDictionary(group => group.Key, group => group.Sum());
-                var areaArray = multiplexMatrix.GetMultiplexAreas(reporterIonAreas);
-                if (areaArray == null)
-                {
-                    return null;
-                }
-
-                return ImmutableSortedList.FromValues(areaArray.Select(kvp=>new KeyValuePair<string, float>(kvp.Key, (float) kvp.Value)));
+                return ImmutableList.ValueOf(multiplexMatrix.GetMultiplexAreas(reporterIonAreas)
+                    ?.Select(value => (float)value));
             }
 
             public float? CalcTransitionGlobalRatio(TransitionGroupDocNode nodeGroup, TransitionDocNode nodeTran, IsotopeLabelType labelType)

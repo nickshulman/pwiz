@@ -1747,7 +1747,7 @@ namespace pwiz.ProteowizardWrapper
 
             try
             {
-                var msd = new MSData();
+                using var msd = new MSData();
                 FULL_READER_LIST.read(filepath, msd);
                 return true;
             }

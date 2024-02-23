@@ -7,7 +7,6 @@ using pwiz.Common.Collections;
 using pwiz.Skyline.Controls.Graphs;
 using pwiz.Skyline.Model.Crosslinking;
 using pwiz.Skyline.Model.DocSettings;
-using pwiz.Skyline.Util;
 
 namespace pwiz.Skyline.Model.Results
 {
@@ -20,11 +19,11 @@ namespace pwiz.Skyline.Model.Results
 
         public ImmutableList<MassDistribution> MassDistributions { get; }
 
-        public IList<TimeIntensities> Deconvolute(IList<Tuple<MzRange, TimeIntensities>> chromatogramChannels)
+        public IList<TimeIntensities> Deconvolute(IDictionary<MzRange, TimeIntensities> chromatogramChannels)
         {
             var candidateVectors = MassDistributions.Select(massDistribution =>
-                GetCandidateVector(chromatogramChannels.Select(channel => channel.Item1), massDistribution)).ToArray();
-            var timeIntensitiesList = MergeTimes(chromatogramChannels.Select(channel => channel.Item2));
+                GetCandidateVector(chromatogramChannels.Keys, massDistribution)).ToArray();
+            var timeIntensitiesList = MergeTimes(chromatogramChannels.Values);
             return Deconvolute(candidateVectors, timeIntensitiesList);
         }
 

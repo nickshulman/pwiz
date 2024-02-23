@@ -2476,6 +2476,12 @@ namespace pwiz.Skyline
             UpdateGraphPanes();
         }
 
+        public void SetDeconvoluteChromatograms(bool deconvolute)
+        {
+            Settings.Default.DeconvoluteChromatograms = deconvolute;
+            UpdateGraphPanes();
+        }
+
         public bool ShowIonMobility
         {
             get { return Settings.Default.ShowIonMobility; }

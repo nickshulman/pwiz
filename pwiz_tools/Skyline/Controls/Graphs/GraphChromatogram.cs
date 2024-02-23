@@ -90,6 +90,12 @@ namespace pwiz.Skyline.Controls.Graphs
             }
         }
 
+        public static bool Deconvolute
+        {
+            get;
+            set;
+        }
+
         public static DisplayTypeChrom GetDisplayType(SrmDocument documentUI, SrmTreeNode selectedTreeNode)
         {
             TransitionGroupDocNode nodeGroup = null;
@@ -119,10 +125,18 @@ namespace pwiz.Skyline.Controls.Graphs
         public static DisplayTypeChrom GetDisplayType(SrmDocument documentUI)
         {
             var displayType = DisplayType;
-            if (displayType == DisplayTypeChrom.base_peak || displayType == DisplayTypeChrom.tic || displayType == DisplayTypeChrom.qc)
+            var measuredResults = documentUI.Settings.MeasuredResults;
+            foreach (var tuple in new[]
+                     {
+                         Tuple.Create(DisplayTypeChrom.base_peak, measuredResults?.HasBasePeakChromatogram),
+                         Tuple.Create(DisplayTypeChrom.tic, measuredResults?.HasTicChromatogram),
+                         Tuple.Create(DisplayTypeChrom.qc, measuredResults?.QcTraceNames?.Any())
+                     })
             {
-                if (!documentUI.Settings.HasResults || !documentUI.Settings.MeasuredResults.HasAllIonsChromatograms)
+                if (displayType == tuple.Item1 && true != tuple.Item2)
+                {
                     displayType = DisplayTypeChrom.all;
+                }
             }
             return displayType;
         }
@@ -958,9 +972,8 @@ namespace pwiz.Skyline.Controls.Graphs
                             EndDrag(false);
                         }
 
-                        int countLabelTypes = settings.PeptideSettings.Modifications.CountLabelTypes;
                         DisplayPeptides(timeRegressionFunction, chromatograms, mzMatchTolerance,
-                            countLabelTypes, nodePeps, out firstBestPeak, out lastBestPeak);
+                            nodePeps, out firstBestPeak, out lastBestPeak);
                         foreach (var msGraphPane in GraphPanes)
                         {
                             msGraphPane.Legend.IsVisible = false;
@@ -2102,7 +2115,6 @@ namespace pwiz.Skyline.Controls.Graphs
         private void DisplayPeptides(RegressionLine timeRegressionFunction,
                                    ChromatogramSet chromatograms,
                                    float mzMatchTolerance,
-                                   int countLabelTypes,
                                    IList<PeptideDocNode> peptideDocNodes,
                                    out RetentionTimeValues firstPeak,
                                    out RetentionTimeValues lastPeak)

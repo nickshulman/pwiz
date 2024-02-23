@@ -12,7 +12,7 @@ namespace pwiz.Skyline.Properties {
     
     
     [global::System.Runtime.CompilerServices.CompilerGeneratedAttribute()]
-    [global::System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.VisualStudio.Editors.SettingsDesigner.SettingsSingleFileGenerator", "17.2.0.0")]
+    [global::System.CodeDom.Compiler.GeneratedCodeAttribute("Microsoft.VisualStudio.Editors.SettingsDesigner.SettingsSingleFileGenerator", "17.8.0.0")]
     public sealed partial class Settings : global::System.Configuration.ApplicationSettingsBase {
         
         private static Settings defaultInstance = ((Settings)(global::System.Configuration.ApplicationSettingsBase.Synchronized(new Settings())));
@@ -991,52 +991,7 @@ namespace pwiz.Skyline.Properties {
                 this["AreaLogScale"] = value;
             }
         }
-
-        [global::System.Configuration.UserScopedSettingAttribute()]
-        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("False")]
-        public bool AreaProteinTargets
-        {
-            get
-            {
-                return ((bool)(this["AreaProteinTargets"]));
-            }
-            set
-            {
-                this["AreaProteinTargets"] = value;
-            }
-        }
-
-        [global::System.Configuration.UserScopedSettingAttribute()]
-        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("False")]
-        public bool ExcludePeptideListsFromAbundanceGraph
-        {
-            get
-            {
-                return ((bool)(this["ExcludePeptideListsFromAbundanceGraph"]));
-            }
-            set
-            {
-                this["ExcludePeptideListsFromAbundanceGraph"] = value;
-            }
-        }
-
-        [global::System.Configuration.UserScopedSettingAttribute()]
-        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
-        [global::System.Configuration.DefaultSettingValueAttribute("False")]
-        public bool ExcludeStandardsFromAbundanceGraph
-        {
-            get
-            {
-                return ((bool)(this["ExcludeStandardsFromAbundanceGraph"]));
-            }
-            set
-            {
-                this["ExcludeStandardsFromAbundanceGraph"] = value;
-            }
-        }
-
+        
         [global::System.Configuration.UserScopedSettingAttribute()]
         [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
         [global::System.Configuration.DefaultSettingValueAttribute("document")]
@@ -3483,6 +3438,18 @@ namespace pwiz.Skyline.Properties {
             }
             set {
                 this["FullScanPropertySheetVisible"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("False")]
+        public bool DeconvoluteChromatograms {
+            get {
+                return ((bool)(this["DeconvoluteChromatograms"]));
+            }
+            set {
+                this["DeconvoluteChromatograms"] = value;
             }
         }
     }

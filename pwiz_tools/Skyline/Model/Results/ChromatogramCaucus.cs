@@ -85,12 +85,40 @@ namespace pwiz.Skyline.Model.Results
             return crosslinkBuilder.GetPrecursorFormula();
         }
 
-        public IList<TimeIntensities> GetDeconvolutedChromatograms()
+        public IList<TimeIntensities> GetMs1DeconvolutedChromatograms()
         {
             var deconvoluter = new IsotopeDeconvoluter(Entries.Select(entry =>
                 GetMassDistribution(entry.PeptideDocNode, entry.TransitionGroupDocNode)));
             var chromatogramChannels = GetChromatogramChannels();
             return deconvoluter.Deconvolute(chromatogramChannels);
+        }
+
+        public Dictionary<string, TimeIntensities> GetMultiplexedChromatograms()
+        {
+            var multiplexMatrix = Document.Settings.PeptideSettings.Quantification.MultiplexMatrix;
+            if (!(multiplexMatrix?.Replicates.Count > 0))
+            {
+                return null;
+            }
+
+            var reporterIonChromatograms = new Dictionary<string, TimeIntensities>();
+            foreach (var entry in Entries)
+            {
+                if (entry.ChromatogramGroupInfo == null)
+                {
+                    continue;
+                }
+
+                foreach (var transition in entry.TransitionGroupDocNode.Transitions)
+                {
+                    if (!transition.Transition.IsCustom())
+                    {
+
+                    }
+                }
+            }
+
+            return null;
         }
 
         public int IndexOf(TransitionGroup transitionGroup)

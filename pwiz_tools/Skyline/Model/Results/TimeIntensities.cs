@@ -245,7 +245,7 @@ namespace pwiz.Skyline.Model.Results
 
         /// <summary>
         /// Adds the intensities from the other TimeIntensities to the intensities in this.
-        /// The returned TimeIntensities whill have a set of times which is the union of the 
+        /// The returned TimeIntensities will have a set of times which is the union of the 
         /// times in this and <paramref name="other"/>.
         /// </summary>
         public TimeIntensities MergeTimesAndAddIntensities(TimeIntensities other)

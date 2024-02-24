@@ -1403,7 +1403,7 @@ namespace pwiz.Skyline.Controls.Graphs
                         if (indexTransitionGroup >= 0)
                         {
                             var timeIntensities =
-                                chromatogramCaucus.GetDeconvolutedChromatograms()[indexTransitionGroup];
+                                chromatogramCaucus.GetMs1DeconvolutedChromatograms()[indexTransitionGroup];
                             arrayChromInfo[i].TimeIntensities = timeIntensities;
                         }
                     }
@@ -2093,7 +2093,7 @@ namespace pwiz.Skyline.Controls.Graphs
                         if (transitionGroupIndex >= 0)
                         {
                             info.TimeIntensities =
-                                chromatogramCaucus.GetDeconvolutedChromatograms()[transitionGroupIndex];
+                                chromatogramCaucus.GetMs1DeconvolutedChromatograms()[transitionGroupIndex];
                         }
                     }
                     listChromInfo.Add(info);

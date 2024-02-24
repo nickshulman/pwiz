@@ -2082,6 +2082,12 @@ namespace pwiz.Skyline.Model.DocSettings
                             transitionSettings.Libraries.ChangeIonMatchMzTolerance(new MzTolerance(newToleranceValue))));
                 }
             }
+            if (documentFormat < DocumentFormat.VERSION_23_12)
+            {
+                result = result.ChangePeptideSettings(peptideSettings =>
+                    peptideSettings.ChangeAbsoluteQuantification(
+                        peptideSettings.Quantification.ChangeMultiplexMatrix(null)));
+            }
 
             return result;
         }

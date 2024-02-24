@@ -8,6 +8,7 @@ using Accord.Statistics.Models.Regression.Fitting;
 using Accord.Statistics.Models.Regression.Linear;
 using pwiz.Common.Collections;
 using pwiz.Common.SystemUtil;
+using pwiz.Skyline.Model.Results;
 using pwiz.Skyline.Util;
 
 namespace pwiz.Skyline.Model.DocSettings
@@ -185,22 +186,56 @@ namespace pwiz.Skyline.Model.DocSettings
 
         public double[] GetMultiplexAreas(Dictionary<string, double> observedAreas)
         {
-            var reporterIonIndexes = MakeIndexDictionary(observedAreas.Keys.Intersect(Replicates.SelectMany(replicate=>replicate.Weights.Keys)));
+            return GetMultiplexAreaLists(observedAreas.ToDictionary(
+                    kvp => kvp.Key, 
+                    kvp => new[] { kvp.Value }), 1)
+                .FirstOrDefault();
+        }
+
+        public TimeIntensities[] GetMultiplexChromatograms(Dictionary<string, TimeIntensities> reporterIonChromatograms)
+        {
+            var timeIntensitiesList = IsotopeDeconvoluter.MergeTimes(reporterIonChromatograms.Values);
+            int iEntry = 0;
+            var observedAreaLists = new Dictionary<string, double[]>();
+            var firstTimeIntensities = timeIntensitiesList[0];
+            foreach (var entry in reporterIonChromatograms)
+            {
+                var timeIntensities = timeIntensitiesList[iEntry++];
+                var intensityDoubles = timeIntensities.Intensities.Select(value => (double)value).ToArray();
+                Assume.AreEqual(firstTimeIntensities.NumPoints, intensityDoubles.Length);
+                observedAreaLists.Add(entry.Key, intensityDoubles);
+            }
+            var multiplexAreaLists = GetMultiplexAreaLists(observedAreaLists, firstTimeIntensities.NumPoints);
+            return multiplexAreaLists.Select(list =>
+            {
+                return new TimeIntensities(firstTimeIntensities.Times, list.Select(value => (float)value), null,
+                    firstTimeIntensities.ScanIds);
+            }).ToArray();
+        }
+
+        private IEnumerable<double[]> GetMultiplexAreaLists(Dictionary<string, double[]> observedAreaLists, int observationCount)
+        {
+            var reporterIonIndexes = MakeIndexDictionary(observedAreaLists.Keys.Intersect(Replicates.SelectMany(replicate => replicate.Weights.Keys)));
             if (reporterIonIndexes.Count == 0)
             {
-                return null;
+                yield break;
             }
-            
-            var observedVector = new double[reporterIonIndexes.Count];
-            foreach (var kvp in observedAreas)
+
+            var observedVectors = Enumerable.Range(0, observationCount)
+                .Select(i => new double[reporterIonIndexes.Count]).ToList();
+            foreach (var kvp in observedAreaLists)
             {
                 if (reporterIonIndexes.TryGetValue(kvp.Key, out int index))
                 {
-                    observedVector[index] += kvp.Value;
+                    int observationIndex = 0;
+                    foreach (var value in kvp.Value)
+                    {
+                        observedVectors[observationIndex++][index] += value;
+                    }
                 }
             }
 
-            var inputs = Enumerable.Range(0, observedVector.Length)
+            var inputs = Enumerable.Range(0, reporterIonIndexes.Count)
                 .Select(i => new double[Replicates.Count]).ToArray();
             for (int iReplicate = 0; iReplicate < Replicates.Count; iReplicate++)
             {
@@ -213,14 +248,16 @@ namespace pwiz.Skyline.Model.DocSettings
                 }
             }
 
-            var nonNegativeLeastSquares = new NonNegativeLeastSquares
+            for (int i = 0; i < observationCount; i++)
             {
-                MaxIterations = 100
-            };
-            MultipleLinearRegression regression = nonNegativeLeastSquares.Learn(inputs, observedVector);
-            return regression.Weights;
+                var nonNegativeLeastSquares = new NonNegativeLeastSquares
+                {
+                    MaxIterations = 100
+                };
+                MultipleLinearRegression regression = nonNegativeLeastSquares.Learn(inputs, observedVectors[i]);
+                yield return regression.Weights;
+            }
         }
-
 
         private Dictionary<string, int> MakeIndexDictionary(IEnumerable<string> names)
         {

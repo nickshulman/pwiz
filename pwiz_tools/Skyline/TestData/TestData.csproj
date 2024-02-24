@@ -159,7 +159,8 @@
     <Compile Include="CommandLineWiffTest.cs" />
     <Compile Include="ConsoleAddAnnotationsTest.cs" />
     <Compile Include="ConsoleVerboseExceptionsTest.cs" />
-    <Compile Include="DeconvolutionTest.cs" />
+    <Compile Include="DeconvoluteTmtTest.cs" />
+    <Compile Include="DeconvoluteMs1Test.cs" />
     <Compile Include="ExportMethodShimadzuTest.cs" />
     <Compile Include="FullScanAcquisitionMethodTest.cs" />
     <Compile Include="InstrumentInfoUtilTest.cs" />
@@ -248,7 +249,8 @@
     <None Include="ConsoleExportAnnotationsTest.zip" />
     <None Include="ConsoleExportMProphetTest.zip" />
     <None Include="ConsoleExportSpecLibTest.zip" />
-    <None Include="DeconvolutionTest.zip" />
+    <None Include="DeconvoluteMs1Test.zip" />
+    <None Include="DeconvoluteTmtTest.zip" />
     <None Include="ImportAllCmdLineTest.zip" />
     <None Include="ImportAllCmdLineTestMzml.zip" />
     <None Include="ImportCommandLineSameName.zip" />

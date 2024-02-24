@@ -8,12 +8,12 @@ using pwiz.SkylineTestUtil;
 namespace pwiz.SkylineTestData
 {
     [TestClass]
-    public class DeconvolutionTest : AbstractUnitTest
+    public class DeconvoluteMs1Test : AbstractUnitTest
     {
         [TestMethod]
-        public void TestDeconvolution()
+        public void TestDeconvoluteMs1()
         {
-            TestFilesDir = new TestFilesDir(TestContext, @"TestData\DeconvolutionTest.zip");
+            TestFilesDir = new TestFilesDir(TestContext, @"TestData\DeconvoluteMs1Test.zip");
             string docPath = TestFilesDir.GetTestPath("DeconvolutionTest.sky");
             using var documentContainer =
                 new ResultsTestDocumentContainer(new SrmDocument(SrmSettingsList.GetDefault()), docPath);

@@ -19,6 +19,7 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Windows.Forms;
 using pwiz.Common.Chemistry;
 using pwiz.Skyline.Controls.Graphs;
@@ -344,6 +345,7 @@ namespace pwiz.Skyline.Menus
                     onlyQuantitativeContextMenuItem,
                     toolStripSeparatorSplitGraph,
                     splitGraphContextMenuItem,
+                    deconvoluteContextMenuItem
                 });
             }
         }

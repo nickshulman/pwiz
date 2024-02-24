@@ -30,6 +30,7 @@ namespace pwiz.Skyline.Model.Results
         private List<TimeIntensities> Deconvolute(double[][] candidateVectors,
             IList<TimeIntensities> timeIntensitiesList)
         {
+            var transposedCandidates = Transpose(candidateVectors);
             var intensityLists = candidateVectors.Select(vector => new List<float>()).ToList();
             var firstTimeIntensities = timeIntensitiesList[0];
             for (int i = 0; i < firstTimeIntensities.Times.Count; i++)
@@ -40,7 +41,7 @@ namespace pwiz.Skyline.Model.Results
                 };
                 var observedValues = timeIntensitiesList.Select(timeIntensities => (double) timeIntensities.Intensities[i])
                     .ToArray();
-                var regression = nonNegativeLeastSquares.Learn(candidateVectors, observedValues);
+                var regression = nonNegativeLeastSquares.Learn(transposedCandidates, observedValues);
                 for (int iCandidate = 0; iCandidate < intensityLists.Count; iCandidate++)
                 {
                     intensityLists[iCandidate].Add((float) regression.Weights[iCandidate]);
@@ -50,6 +51,18 @@ namespace pwiz.Skyline.Model.Results
             return intensityLists.Select(intensityList =>
                     new TimeIntensities(firstTimeIntensities.Times, intensityList, null, firstTimeIntensities.ScanIds))
                 .ToList();
+        }
+
+        private T[][] Transpose<T>(T[][] vectors)
+        {
+            if (vectors.Length == 0)
+            {
+                return Array.Empty<T[]>();
+            }
+
+            return Enumerable.Range(0, vectors[0].Length)
+                .Select(i => vectors.Select(vector => vector[i]).ToArray())
+                .ToArray();
         }
 
         public static List<TimeIntensities> MergeTimes(

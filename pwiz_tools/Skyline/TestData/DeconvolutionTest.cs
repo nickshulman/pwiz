@@ -2,6 +2,7 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using pwiz.Skyline.Model;
 using pwiz.Skyline.Model.Results;
+using pwiz.Skyline.Properties;
 using pwiz.SkylineTestUtil;
 
 namespace pwiz.SkylineTestData
@@ -14,7 +15,10 @@ namespace pwiz.SkylineTestData
         {
             TestFilesDir = new TestFilesDir(TestContext, @"TestData\DeconvolutionTest.zip");
             string docPath = TestFilesDir.GetTestPath("DeconvolutionTest.sky");
-            using var documentContainer = new ResultsTestDocumentContainer(ResultsUtil.DeserializeDocument(docPath), docPath, true);
+            using var documentContainer =
+                new ResultsTestDocumentContainer(new SrmDocument(SrmSettingsList.GetDefault()), docPath);
+            documentContainer.SetDocument(ResultsUtil.DeserializeDocument(docPath), documentContainer.Document);
+            documentContainer.WaitForComplete();
             var doc = documentContainer.Document;
             var chromatogramCaucus = new ChromatogramCaucus(documentContainer.Document, 0,
                 doc.Settings.MeasuredResults.Chromatograms[0].MSDataFilePaths.First());
@@ -22,7 +26,7 @@ namespace pwiz.SkylineTestData
             var peptideDocNode = (PeptideDocNode) doc.FindNode(peptideIdentityPath);
             foreach (var transitionGroup in peptideDocNode.TransitionGroups)
             {
-                chromatogramCaucus.AddPrecursor(new IdentityPath(peptideIdentityPath, transitionGroup.TransitionGroup));
+                Assert.IsTrue(chromatogramCaucus.AddPrecursor(new IdentityPath(peptideIdentityPath, transitionGroup.TransitionGroup)));
             }
 
             var deconvolutedChromatograms = chromatogramCaucus.GetDeconvolutedChromatograms();

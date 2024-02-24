@@ -92,8 +92,7 @@ namespace pwiz.Skyline.Controls.Graphs
 
         public static bool Deconvolute
         {
-            get;
-            set;
+            get { return Settings.Default.DeconvoluteChromatograms;}
         }
 
         public static DisplayTypeChrom GetDisplayType(SrmDocument documentUI, SrmTreeNode selectedTreeNode)
@@ -1357,17 +1356,23 @@ namespace pwiz.Skyline.Controls.Graphs
 
             // Get points for all transitions, and pick maximum peaks.
             ChromatogramInfo[] arrayChromInfo;
-            var displayTrans = GetDisplayTransitions(nodeGroup, displayType).ToArray();
-            int numTrans = displayTrans.Length;
+            IList<TransitionDocNode> displayTrans = GetDisplayTransitions(nodeGroup, displayType).ToList();
+            int numTrans;
             int numSteps = 0;
             bool allowEmpty = false;
-            
+            ChromatogramCaucus chromatogramCaucus = null;
+            if (Deconvolute)
+            {
+                chromatogramCaucus =
+                    new ChromatogramCaucus(_documentContainer.DocumentUI, _chromIndex, chromGroupInfo.FilePath);
+                chromatogramCaucus.AddMolecule(_groupPaths[0].GetPathTo((int) SrmDocument.Level.Molecules));
+            }
             if (IsSingleTransitionDisplay && nodeTranSelected != null)
             {
                 if (!displayTrans.Contains(nodeTranSelected))
                 {
-                    arrayChromInfo = new ChromatogramInfo[0];
-                    displayTrans = new TransitionDocNode[0];
+                    arrayChromInfo = Array.Empty<ChromatogramInfo>();
+                    displayTrans = Array.Empty<TransitionDocNode>();
                     numTrans = 0;
                 }
                 else
@@ -1384,12 +1389,24 @@ namespace pwiz.Skyline.Controls.Graphs
             }
             else
             {
+                displayTrans = FilterForDeconvolution(displayTrans);
+                numTrans = displayTrans.Count;
                 arrayChromInfo = new ChromatogramInfo[numTrans];
                 for (int i = 0; i < numTrans; i++)
                 {
                     var nodeTran = displayTrans[i];
                     // Get chromatogram info for this transition
                     arrayChromInfo[i] = chromGroupInfo.GetTransitionInfo(nodeTran, mzMatchTolerance, TransformChrom.raw);
+                    if (Deconvolute && nodeTran.IsMs1)
+                    {
+                        int indexTransitionGroup = chromatogramCaucus.IndexOf(nodeGroup.TransitionGroup);
+                        if (indexTransitionGroup >= 0)
+                        {
+                            var timeIntensities =
+                                chromatogramCaucus.GetDeconvolutedChromatograms()[indexTransitionGroup];
+                            arrayChromInfo[i].TimeIntensities = timeIntensities;
+                        }
+                    }
                 }
             }
 
@@ -1643,6 +1660,46 @@ namespace pwiz.Skyline.Controls.Graphs
                 graphPane.CurveList.Insert(FULLSCAN_TRACKING_INDEX, CreateScanPoint(Color.Black));
                 graphPane.CurveList.Insert(FULLSCAN_SELECTED_INDEX, CreateScanPoint(Color.Red));
             }
+        }
+
+        private IList<TransitionDocNode> FilterForDeconvolution(IEnumerable<TransitionDocNode> transitions)
+        {
+            var transitionsList = transitions.ToList();
+            if (!Deconvolute)
+            {
+                return transitionsList;
+            }
+
+            var result = transitionsList.Where(t => !t.IsMs1).ToList();
+            var primaryMs1Transition = GetPrimaryMs1Transition(transitionsList);
+            if (primaryMs1Transition != null)
+            {
+                result.Insert(0, primaryMs1Transition);
+            }
+
+            return result;
+        }
+
+        private TransitionDocNode GetPrimaryMs1Transition(IEnumerable<TransitionDocNode> transitions)
+        {
+            return transitions.Where(t => t.IsMs1).OrderBy(t => (uint)t.Transition.MassIndex).FirstOrDefault();
+        }
+
+        private ChromatogramCaucus GetChromatogramCaucus()
+        {
+            if (!Deconvolute)
+            {
+                return null;
+            }
+            var chromatogramCaucus =
+                new ChromatogramCaucus(_documentContainer.DocumentUI, _chromIndex, FilePath);
+            foreach (var moleculePath in _groupPaths.Select(path => path.GetPathTo((int)SrmDocument.Level.Molecules))
+                         .Distinct())
+            {
+                chromatogramCaucus.AddMolecule(moleculePath);
+            }
+
+            return chromatogramCaucus;
         }
 
         private void ShadeGraph(TransitionChromInfo tranPeakInfo, ChromatogramInfo chromatogramInfo,
@@ -1996,6 +2053,7 @@ namespace pwiz.Skyline.Controls.Graphs
             float fontSize = FontSize;
             int lineWidth = LineWidth;
             var chromGroupInfos = ChromGroupInfos;
+            var chromatogramCaucus = GetChromatogramCaucus();
             for (int i = 0; i < _nodeGroups.Length; i++)
             {
                 var nodeGroup = _nodeGroups[i];
@@ -2014,14 +2072,30 @@ namespace pwiz.Skyline.Controls.Graphs
                 bool anyQuantitative = nodeGroup.Transitions.Any(IsQuantitative);
                 foreach (TransitionDocNode nodeTran in nodeGroup.Children)
                 {
-                    if (anyQuantitative && !IsQuantitative(nodeTran))
+                    if (chromatogramCaucus != null && nodeTran.IsMs1)
+                    {
+                        if (!ReferenceEquals(nodeTran.Transition,
+                                GetPrimaryMs1Transition(nodeGroup.Transitions)?.Transition))
+                        {
+                            continue;
+                        }
+                    }
+                    else if (anyQuantitative && !IsQuantitative(nodeTran))
                     {
                         continue;
                     }
                     var info = chromGroupInfo.GetTransitionInfo(nodeTran, mzMatchTolerance, TransformChrom.raw);
                     if (info == null)
                         continue;
-
+                    if (chromatogramCaucus != null && nodeTran.IsMs1)
+                    {
+                        int transitionGroupIndex = chromatogramCaucus.IndexOf(nodeGroup.TransitionGroup);
+                        if (transitionGroupIndex >= 0)
+                        {
+                            info.TimeIntensities =
+                                chromatogramCaucus.GetDeconvolutedChromatograms()[transitionGroupIndex];
+                        }
+                    }
                     listChromInfo.Add(info);
 
                     // Keep track of which chromatogram owns the tallest member of

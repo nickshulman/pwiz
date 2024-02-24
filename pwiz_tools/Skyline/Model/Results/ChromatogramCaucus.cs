@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using JetBrains.Annotations;
 using pwiz.Common.Chemistry;
 using pwiz.Skyline.Controls.Graphs;
 using pwiz.Skyline.Model.Crosslinking;
@@ -13,12 +14,12 @@ namespace pwiz.Skyline.Model.Results
         {
             Document = document;
             ReplicateIndex = replicateIndex;
-            MsDataFileUri = dataFileUri.GetLocation();
+            MsDataFileUri = dataFileUri?.GetLocation();
         }
 
         public SrmDocument Document { get; }
         public int ReplicateIndex { get; }
-        public MsDataFileUri MsDataFileUri { get; }
+        [CanBeNull] public MsDataFileUri MsDataFileUri { get; }
 
         public List<Entry> Entries { get; } = new List<Entry>();
 
@@ -29,7 +30,8 @@ namespace pwiz.Skyline.Model.Results
                 return null;
             }
 
-            return chromatogramGroupInfos.FirstOrDefault(groupInfo => Equals(groupInfo.FilePath.GetLocation()));
+            return chromatogramGroupInfos.FirstOrDefault(groupInfo =>
+                MsDataFileUri?.Equals(groupInfo.FilePath.GetLocation()) ?? true);
         }
 
         public bool AddPrecursor(IdentityPath precursorIdentityPath)
@@ -50,7 +52,7 @@ namespace pwiz.Skyline.Model.Results
             var chromatogramGroupInfo = LoadChromatogramGroupInfo(peptideDocNode, transitionGroupDocNode);
             var entry = new Entry(precursorIdentityPath, chromatogramGroupInfo, peptideDocNode, transitionGroupDocNode);
             Entries.Add(entry);
-            return true;
+            return chromatogramGroupInfo != null;
         }
 
         public void AddMolecule(IdentityPath moleculeIdentityPath)
@@ -89,6 +91,19 @@ namespace pwiz.Skyline.Model.Results
                 GetMassDistribution(entry.PeptideDocNode, entry.TransitionGroupDocNode)));
             var chromatogramChannels = GetChromatogramChannels();
             return deconvoluter.Deconvolute(chromatogramChannels);
+        }
+
+        public int IndexOf(TransitionGroup transitionGroup)
+        {
+            for (int i = 0; i < Entries.Count; i++)
+            {
+                if (ReferenceEquals(transitionGroup, Entries[i].TransitionGroupDocNode.TransitionGroup))
+                {
+                    return i;
+                }
+            }
+
+            return -1;
         }
 
         private Dictionary<MzRange, TimeIntensities> GetChromatogramChannels()

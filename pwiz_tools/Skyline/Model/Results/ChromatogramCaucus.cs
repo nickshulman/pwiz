@@ -5,6 +5,7 @@ using JetBrains.Annotations;
 using pwiz.Common.Chemistry;
 using pwiz.Skyline.Controls.Graphs;
 using pwiz.Skyline.Model.Crosslinking;
+using pwiz.Skyline.Util;
 
 namespace pwiz.Skyline.Model.Results
 {
@@ -21,11 +22,19 @@ namespace pwiz.Skyline.Model.Results
         public int ReplicateIndex { get; }
         [CanBeNull] public MsDataFileUri MsDataFileUri { get; }
 
+        public float MzMatchTolerance
+        {
+            get
+            {
+                return (float)Document.Settings.TransitionSettings.Instrument.MzMatchTolerance;
+            }
+        }
+
         public List<Entry> Entries { get; } = new List<Entry>();
 
         public ChromatogramGroupInfo LoadChromatogramGroupInfo(PeptideDocNode peptideDocNode, TransitionGroupDocNode transitionGroupDocNode)
         {
-            if (!Document.Settings.MeasuredResults.TryLoadChromatogram(ReplicateIndex, peptideDocNode, transitionGroupDocNode, (float) Document.Settings.TransitionSettings.Instrument.MzMatchTolerance, out var chromatogramGroupInfos))
+            if (!Document.Settings.MeasuredResults.TryLoadChromatogram(ReplicateIndex, peptideDocNode, transitionGroupDocNode, MzMatchTolerance, out var chromatogramGroupInfos))
             {
                 return null;
             }
@@ -111,14 +120,20 @@ namespace pwiz.Skyline.Model.Results
 
                 foreach (var transition in entry.TransitionGroupDocNode.Transitions)
                 {
-                    if (!transition.Transition.IsCustom())
+                    string customIonName = transition.CustomIon?.Name;
+                    if (customIonName != null)
                     {
-
+                        var chromatogramInfo =
+                            entry.ChromatogramGroupInfo.GetTransitionInfo(transition, MzMatchTolerance);
+                        if (chromatogramInfo != null)
+                        {
+                            reporterIonChromatograms[customIonName] = chromatogramInfo.TimeIntensities;
+                        }
                     }
                 }
             }
 
-            return null;
+            return multiplexMatrix.GetMultiplexChromatograms(reporterIonChromatograms);
         }
 
         public int IndexOf(TransitionGroup transitionGroup)

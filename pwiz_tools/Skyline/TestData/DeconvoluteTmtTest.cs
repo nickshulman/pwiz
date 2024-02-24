@@ -27,18 +27,18 @@ namespace pwiz.SkylineTestData
             documentContainer.SetDocument(ResultsUtil.DeserializeDocument(docPath), documentContainer.Document);
             documentContainer.WaitForComplete();
             var doc = documentContainer.Document;
+            var multiplexMatrix = GetMultiplexMatrix();
             doc = doc.ChangeSettings(doc.Settings.ChangePeptideSettings(
                 doc.Settings.PeptideSettings.ChangeAbsoluteQuantification(
-                    doc.Settings.PeptideSettings.Quantification.ChangeMultiplexMatrix(GetMultiplexMatrix()))));
+                    doc.Settings.PeptideSettings.Quantification.ChangeMultiplexMatrix(multiplexMatrix))));
             var chromatogramCaucus = new ChromatogramCaucus(doc, 0,
                 doc.Settings.MeasuredResults.Chromatograms[0].MSDataFilePaths.First());
             var precursorIdentityPath = doc.GetPathTo((int)SrmDocument.Level.TransitionGroups, 0);
             Assert.IsTrue(chromatogramCaucus.AddPrecursor(precursorIdentityPath));
 
 
-            var deconvolutedChromatograms = chromatogramCaucus.GetDeconvolutedChromatograms();
-            Assert.IsNotNull(deconvolutedChromatograms);
-
+            var multiplexChromatograms = chromatogramCaucus.GetMultiplexedChromatograms();
+            Assert.AreEqual(multiplexMatrix.Replicates.Count, multiplexChromatograms.Count);
         }
 
         private static MultiplexMatrix GetMultiplexMatrix()

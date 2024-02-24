@@ -29,7 +29,7 @@ namespace pwiz.SkylineTestData
                 Assert.IsTrue(chromatogramCaucus.AddPrecursor(new IdentityPath(peptideIdentityPath, transitionGroup.TransitionGroup)));
             }
 
-            var deconvolutedChromatograms = chromatogramCaucus.GetDeconvolutedChromatograms();
+            var deconvolutedChromatograms = chromatogramCaucus.GetMs1DeconvolutedChromatograms();
             Assert.IsNotNull(deconvolutedChromatograms);
         }
     }

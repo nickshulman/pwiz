@@ -245,6 +245,15 @@
     <Setting Name="AreaLogScale" Type="System.Boolean" Scope="User">
       <Value Profile="(Default)">False</Value>
     </Setting>
+    <Setting Name="AreaProteinTargets" Type="System.Boolean" Scope="User">
+      <Value Profile="(Default)">False</Value>
+    </Setting>
+    <Setting Name="ExcludePeptideListsFromAbundanceGraph" Type="System.Boolean" Scope="User">
+      <Value Profile="(Default)">False</Value>
+    </Setting>
+    <Setting Name="ExcludeStandardsFromAbundanceGraph" Type="System.Boolean" Scope="User">
+      <Value Profile="(Default)">False</Value>
+    </Setting>
     <Setting Name="AreaPeptideOrderEnum" Type="System.String" Scope="User">
       <Value Profile="(Default)">document</Value>
     </Setting>
@@ -858,6 +867,9 @@
       <Value Profile="(Default)">0.02</Value>
     </Setting>
     <Setting Name="FullScanPropertySheetVisible" Type="System.Boolean" Scope="User">
+      <Value Profile="(Default)">False</Value>
+    </Setting>
+    <Setting Name="DeconvoluteChromatograms" Type="System.Boolean" Scope="User">
       <Value Profile="(Default)">False</Value>
     </Setting>
   </Settings>

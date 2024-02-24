@@ -484,6 +484,7 @@
     <Compile Include="FileUI\PeptideSearch\BuildLibraryGridView.cs">
       <SubType>Component</SubType>
     </Compile>
+    <Compile Include="Menus\ChromatogramTransitionMenuItems.cs" />
     <Compile Include="Model\AuditLog\EnumNames.Designer.cs">
       <AutoGen>True</AutoGen>
       <DesignTime>True</DesignTime>
@@ -543,6 +544,8 @@
     <Compile Include="Model\GroupComparison\ReplicateId.cs" />
     <Compile Include="Model\IdPeptideDocNode.cs" />
     <Compile Include="Model\Results\ReplicateProperties.cs" />
+    <Compile Include="Model\Results\ChromatogramCaucus.cs" />
+    <Compile Include="Model\Results\IsotopeDeconvoluter.cs" />
     <Compile Include="Model\Results\Spectra\SpectrumClassFilter.cs" />
     <Compile Include="Model\Results\Spectra\SpectrumFilterAutoComplete.cs" />
     <Compile Include="Model\RetentionTimes\RetentionTimesResources.Designer.cs">

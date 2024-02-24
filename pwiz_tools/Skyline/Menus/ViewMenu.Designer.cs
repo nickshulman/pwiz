@@ -134,6 +134,7 @@
             this.toolStripSeparator36 = new System.Windows.Forms.ToolStripSeparator();
             this.toolBarToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.statusToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.deconvoluteMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.menuStrip1.SuspendLayout();
             this.SuspendLayout();
             // 
@@ -482,7 +483,8 @@
             this.toolStripSeparator56,
             this.onlyQuantitativeMenuItem,
             this.toolStripSeparator48,
-            this.splitGraphMenuItem});
+            this.splitGraphMenuItem,
+            this.deconvoluteMenuItem});
             resources.ApplyResources(this.transitionsMenuItem, "transitionsMenuItem");
             this.transitionsMenuItem.Name = "transitionsMenuItem";
             this.transitionsMenuItem.DropDownOpening += new System.EventHandler(this.transitionsMenuItem_DropDownOpening);
@@ -897,6 +899,12 @@
             resources.ApplyResources(this.statusToolStripMenuItem, "statusToolStripMenuItem");
             this.statusToolStripMenuItem.Click += new System.EventHandler(this.statusToolStripMenuItem_Click);
             // 
+            // deconvoluteMenuItem
+            // 
+            this.deconvoluteMenuItem.Name = "deconvoluteMenuItem";
+            resources.ApplyResources(this.deconvoluteMenuItem, "deconvoluteMenuItem");
+            this.deconvoluteMenuItem.Click += new System.EventHandler(this.deconvoluteMenuItem_Click);
+            // 
             // ViewMenu
             // 
             resources.ApplyResources(this, "$this");
@@ -909,7 +917,6 @@
             this.PerformLayout();
 
         }
-
         #endregion
 
         private System.Windows.Forms.MenuStrip menuStrip1;
@@ -1017,5 +1024,6 @@
         private System.Windows.Forms.ToolStripMenuItem candidatePeaksToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem viewTargetsMenuItem;
         private System.Windows.Forms.ToolStripMenuItem spectrumGridMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem deconvoluteMenuItem;
     }
 }

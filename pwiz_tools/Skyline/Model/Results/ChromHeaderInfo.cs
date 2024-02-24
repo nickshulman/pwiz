@@ -2773,6 +2773,10 @@ namespace pwiz.Skyline.Model.Results
 
                 return _timeIntensities;
             }
+            set
+            {
+                _timeIntensities = value;
+            }
         }
 
         public TimeIntensities GetTransformedTimeIntensities(TransformChrom transformChrom)

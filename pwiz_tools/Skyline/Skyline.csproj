@@ -543,6 +543,7 @@
     <Compile Include="Model\FullScanProperties.cs" />
     <Compile Include="Model\GroupComparison\ReplicateId.cs" />
     <Compile Include="Model\IdPeptideDocNode.cs" />
+    <Compile Include="Model\Results\ChromatogramOwner.cs" />
     <Compile Include="Model\Results\ReplicateProperties.cs" />
     <Compile Include="Model\Results\ChromatogramCaucus.cs" />
     <Compile Include="Model\Results\IsotopeDeconvoluter.cs" />

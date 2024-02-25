@@ -5,7 +5,7 @@ using JetBrains.Annotations;
 using pwiz.Common.Chemistry;
 using pwiz.Skyline.Controls.Graphs;
 using pwiz.Skyline.Model.Crosslinking;
-using pwiz.Skyline.Util;
+using pwiz.Skyline.Model.DocSettings;
 
 namespace pwiz.Skyline.Model.Results
 {
@@ -21,6 +21,20 @@ namespace pwiz.Skyline.Model.Results
         public SrmDocument Document { get; }
         public int ReplicateIndex { get; }
         [CanBeNull] public MsDataFileUri MsDataFileUri { get; }
+
+        public MultiplexMatrix MultiplexMatrix
+        {
+            get
+            {
+                var multiplexMatrix = Document.Settings.PeptideSettings.Quantification.MultiplexMatrix;
+                if (multiplexMatrix == null || multiplexMatrix.Replicates.Count < 1)
+                {
+                    return null;
+                }
+
+                return multiplexMatrix;
+            }
+        }
 
         public float MzMatchTolerance
         {
@@ -102,10 +116,10 @@ namespace pwiz.Skyline.Model.Results
             return deconvoluter.Deconvolute(chromatogramChannels);
         }
 
-        public Dictionary<string, TimeIntensities> GetMultiplexedChromatograms()
+        public Dictionary<string, TimeIntensities> GetMultiplexedChromatograms(TransitionGroup transitionGroup)
         {
-            var multiplexMatrix = Document.Settings.PeptideSettings.Quantification.MultiplexMatrix;
-            if (!(multiplexMatrix?.Replicates.Count > 0))
+            var multiplexMatrix = MultiplexMatrix;
+            if (multiplexMatrix == null)
             {
                 return null;
             }
@@ -113,6 +127,11 @@ namespace pwiz.Skyline.Model.Results
             var reporterIonChromatograms = new Dictionary<string, TimeIntensities>();
             foreach (var entry in Entries)
             {
+                if (transitionGroup != null &&
+                    !ReferenceEquals(transitionGroup, entry.TransitionGroupDocNode.TransitionGroup))
+                {
+                    continue;
+                }
                 if (entry.ChromatogramGroupInfo == null)
                 {
                     continue;

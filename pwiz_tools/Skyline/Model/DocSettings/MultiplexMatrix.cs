@@ -86,7 +86,27 @@ namespace pwiz.Skyline.Model.DocSettings
         {
             return Replicates.IndexOf(replicate => replicate.Name == name);
         }
-        
+
+        public List<TransitionDocNode> GetAssociatedTransitions(TransitionGroupDocNode transitionGroupDocNode)
+        {
+            return Replicates.Select(replicate => GetAssociatedTransition(replicate, transitionGroupDocNode)).ToList();
+        }
+
+        public TransitionDocNode GetAssociatedTransition(Replicate replicate,
+            TransitionGroupDocNode transitionGroupDocNode)
+        {
+            foreach (var weight in replicate.Weights.OrderByDescending(weight => weight.Value))
+            {
+                var transition = transitionGroupDocNode.Transitions.FirstOrDefault(t => t.CustomIon?.Name == weight.Key);
+                if (transition != null)
+                {
+                    return transition;
+                }
+            }
+
+            return null;
+        }
+
         public class Replicate : Immutable
         {
             public Replicate(string name, IEnumerable<KeyValuePair<string, double>> weights)

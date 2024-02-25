@@ -37,7 +37,7 @@ namespace pwiz.SkylineTestData
             Assert.IsTrue(chromatogramCaucus.AddPrecursor(precursorIdentityPath));
 
 
-            var multiplexChromatograms = chromatogramCaucus.GetMultiplexedChromatograms();
+            var multiplexChromatograms = chromatogramCaucus.GetMultiplexedChromatograms((TransitionGroup) precursorIdentityPath.Child);
             Assert.AreEqual(multiplexMatrix.Replicates.Count, multiplexChromatograms.Count);
         }
 

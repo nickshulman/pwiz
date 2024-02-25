@@ -1407,6 +1407,10 @@ namespace pwiz.Skyline.Controls.Graphs
                             arrayChromInfo[i].TimeIntensities = timeIntensities;
                         }
                     }
+                    else if (null != chromatogramCaucus?.MultiplexMatrix && !nodeTran.IsMs1)
+                    {
+
+                    }
                 }
             }
 

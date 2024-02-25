@@ -165,6 +165,7 @@ namespace pwiz.Skyline.Controls.Graphs
         public TransitionChromInfo TransitionChromInfo { get; private set; }
         public RegressionLine TimeRegressionFunction { get; private set; }
         public TransformChrom? TransformChrom { get; set; }
+        public MultiplexMatrix.Replicate MultiplexMatrixReplicate { get; set; }
         public ScaledRetentionTime ScaleRetentionTime(double measuredTime)
         {
             return new ScaledRetentionTime(measuredTime, MeasuredTimeToDisplayTime(measuredTime));
@@ -294,6 +295,10 @@ namespace pwiz.Skyline.Controls.Graphs
         {
             get
             {
+                if (MultiplexMatrixReplicate != null)
+                {
+                    return MultiplexMatrixReplicate.Name;
+                }
                 if (_isSummary)
                 {
                     string title = Chromatogram.FilePath.GetSampleOrFileName();

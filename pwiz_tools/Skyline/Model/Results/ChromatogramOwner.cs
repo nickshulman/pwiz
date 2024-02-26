@@ -23,5 +23,9 @@ namespace pwiz.Skyline.Model.Results
         {
             return ChangeProp(ImClone(this), im => im.MultiplexReplicate = value);
         }
+        public bool IsMs1
+        {
+            get { return TransitionDocNode?.IsMs1 ?? false; }
+        }
     }
 }

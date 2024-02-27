@@ -79,31 +79,59 @@ namespace pwiz.Skyline.Controls.Graphs
         private PeakBoundsDragInfo _dragInfo;
 
         public ChromGraphItem(TransitionGroupDocNode transitionGroupNode,
-                              TransitionDocNode transition,
-                              ChromatogramInfo chromatogram,
-                              TransitionChromInfo tranPeakInfo,
-                              RegressionLine timeRegressionFunction,
-                              bool[] annotatePeaks,
-                              double[] dotProducts,
-                              double bestProduct,
-                              bool isFullScanMs,
-                              bool isSummary,
-                              RawTimesInfoItem? displayRawTimes,
-                              int? step,
-                              Color color,
-                              float fontSize,
-                              int width,
-                              FullScanInfo fullScanInfo = null)
+            TransitionDocNode transition,
+            ChromatogramInfo chromatogram,
+            TransitionChromInfo tranPeakInfo,
+            RegressionLine timeRegressionFunction,
+            bool[] annotatePeaks,
+            double[] dotProducts,
+            double bestProduct,
+            bool isFullScanMs,
+            bool isSummary,
+            RawTimesInfoItem? displayRawTimes,
+            int? step,
+            Color color,
+            float fontSize,
+            int width,
+            FullScanInfo fullScanInfo = null)
+            : this(new ChromatogramOwner(null, null, transitionGroupNode, transition).ChangeOptimizationStep(step),
+                chromatogram,
+                tranPeakInfo,
+                timeRegressionFunction,
+                annotatePeaks,
+                dotProducts,
+                bestProduct,
+                isFullScanMs,
+                isSummary,
+                displayRawTimes,
+                color,
+                fontSize,
+                width,
+                fullScanInfo)
         {
-            TransitionGroupNode = transitionGroupNode;
-            TransitionNode = transition;
+
+        }
+
+        public ChromGraphItem(ChromatogramOwner owner, ChromatogramInfo chromatogram,
+            TransitionChromInfo tranPeakInfo,
+            RegressionLine timeRegressionFunction,
+            bool[] annotatePeaks,
+            double[] dotProducts,
+            double bestProduct,
+            bool isFullScanMs, bool isSummary,
+            RawTimesInfoItem? displayRawTimes,
+            Color color,
+            float fontSize,
+            int width,
+            FullScanInfo fullScanInfo = null)
+        {
+            Owner = owner;
             Chromatogram = chromatogram;
             TransitionChromInfo = tranPeakInfo;
             TimeRegressionFunction = timeRegressionFunction;
             Color = color;
             FullScanInfo = fullScanInfo;
 
-            OptimizationStep = step;
             _fontSpec = CreateFontSpec(color, fontSize);
             _width = width;
 
@@ -157,10 +185,16 @@ namespace pwiz.Skyline.Controls.Graphs
                 }
             }
         }
-
+        public ChromatogramOwner Owner { get; private set; }
         public FullScanInfo FullScanInfo { get; private set; }
-        public TransitionGroupDocNode TransitionGroupNode { get; private set; }
-        public TransitionDocNode TransitionNode { get; private set; }
+        public TransitionGroupDocNode TransitionGroupNode
+        {
+            get { return Owner.TransitionGroupDocNode; }
+        }
+        public TransitionDocNode TransitionNode
+        {
+            get { return Owner.TransitionDocNode; }
+        }
         public ChromatogramInfo Chromatogram { get; private set; }
         public TransitionChromInfo TransitionChromInfo { get; private set; }
         public RegressionLine TimeRegressionFunction { get; private set; }
@@ -171,7 +205,10 @@ namespace pwiz.Skyline.Controls.Graphs
             return new ScaledRetentionTime(measuredTime, MeasuredTimeToDisplayTime(measuredTime));
         }
 
-        public int? OptimizationStep { get; }
+        public int? OptimizationStep
+        {
+            get { return Owner.OptimizationStep; }
+        }
 
         public double? RetentionPrediction { get; set; }
         public ExplicitRetentionTimeInfo RetentionExplicit { get; set; }
@@ -312,7 +349,7 @@ namespace pwiz.Skyline.Controls.Graphs
                 if (OptimizationStep.HasValue && !OptimizationStep.Value.Equals(0))
                     return string.Format(GraphsResources.ChromGraphItem_Title_Step__0_, OptimizationStep);
 
-                return GetTitle(TransitionGroupNode, TransitionNode);
+                return Owner.GetTitle();
             }
         }
 

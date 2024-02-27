@@ -2451,7 +2451,7 @@ namespace pwiz.Skyline.Model.Results
             {
                 var info = GetTransitionInfo(nodeTran, tolerance, transform);
                 return info != null ? OptStepChromatograms.FromChromatogram(info) : OptStepChromatograms.EMPTY;
-                }
+            }
 
             var listChromInfo = new List<ChromatogramInfo>();
             var iBest = GetBestProductIndex(nodeTran, tolerance);

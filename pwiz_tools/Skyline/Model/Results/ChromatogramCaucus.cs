@@ -44,6 +44,15 @@ namespace pwiz.Skyline.Model.Results
             }
         }
 
+        public OptimizableRegression OptimizableRegression
+        {
+            get
+            {
+                return Document.Settings.MeasuredResults?.Chromatograms.ElementAtOrDefault(ReplicateIndex)
+                    ?.OptimizationFunction;
+            }
+        }
+
         public List<Entry> Entries { get; } = new List<Entry>();
 
         public ChromatogramGroupInfo LoadChromatogramGroupInfo(PeptideDocNode peptideDocNode, TransitionGroupDocNode transitionGroupDocNode)
@@ -137,6 +146,11 @@ namespace pwiz.Skyline.Model.Results
                     continue;
                 }
 
+                if (transitionGroup != null && entry.MultiplexChromatograms != null)
+                {
+                    return entry.MultiplexChromatograms;
+                }
+
                 foreach (var transition in entry.TransitionGroupDocNode.Transitions)
                 {
                     string customIonName = transition.CustomIon?.Name;
@@ -149,6 +163,11 @@ namespace pwiz.Skyline.Model.Results
                             reporterIonChromatograms[customIonName] = chromatogramInfo.TimeIntensities;
                         }
                     }
+                }
+
+                if (transitionGroup != null)
+                {
+                    return entry.MultiplexChromatograms = multiplexMatrix.GetMultiplexChromatograms(reporterIonChromatograms);
                 }
             }
 
@@ -213,6 +232,52 @@ namespace pwiz.Skyline.Model.Results
             public ChromatogramGroupInfo ChromatogramGroupInfo { get; }
             public PeptideDocNode PeptideDocNode { get; }
             public TransitionGroupDocNode TransitionGroupDocNode { get; }
+            public Dictionary<string, TimeIntensities> MultiplexChromatograms { get; set; }
+        }
+
+        public ChromatogramInfo GetChromatogramInfo(ChromatogramOwner owner)
+        {
+            var entryIndex = IndexOf(owner.TransitionGroupDocNode.TransitionGroup);
+            if (entryIndex < 0)
+            {
+                return null;
+            }
+
+            var entry = Entries[entryIndex];
+            if (entry.ChromatogramGroupInfo == null)
+            {
+                return null;
+            }
+            if (owner.OptimizationStep.HasValue && owner.OptimizationStep != 0)
+            {
+                return entry.ChromatogramGroupInfo.GetAllTransitionInfo(owner.TransitionDocNode, MzMatchTolerance,
+                    OptimizableRegression, TransformChrom.raw).GetChromatogramForStep(owner.OptimizationStep.Value);
+
+            }
+
+            var chromatogramInfo = entry.ChromatogramGroupInfo.GetTransitionInfo(owner.TransitionDocNode, MzMatchTolerance, TransformChrom.raw);
+            if (chromatogramInfo == null)
+            {
+                return null;
+            }
+            if (owner.TransitionDocNode.IsMs1 && owner.DeconvoluteIsotopes)
+            {
+                var timeIntensities = GetMs1DeconvolutedChromatograms().ElementAtOrDefault(entryIndex);
+                if (timeIntensities != null)
+                {
+                    chromatogramInfo.TimeIntensities = timeIntensities;
+                }
+            }
+            else if (owner.MultiplexReplicate != null)
+            {
+                if (GetMultiplexedChromatograms(owner.TransitionGroupDocNode.TransitionGroup)
+                    .TryGetValue(owner.MultiplexReplicate.Name, out var timeIntensities))
+                {
+                    chromatogramInfo.TimeIntensities = timeIntensities;
+                } 
+            }
+
+            return chromatogramInfo;
         }
     }
 }

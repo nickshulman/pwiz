@@ -129,6 +129,7 @@ namespace pwiz.Skyline
         private readonly List<BackgroundLoader> _backgroundLoaders;
         private readonly object _documentChangeLock = new object();
         private readonly List<SkylineControl> _skylineMenuControls = new List<SkylineControl>();
+        private readonly ImmediateWindowWarningListener _immediateWindowWarningListener;
 
         /// <summary>
         /// Constructor for the main window of the Skyline program.
@@ -186,6 +187,7 @@ namespace pwiz.Skyline
             _autoTrainManager = new AutoTrainManager();
             _autoTrainManager.ProgressUpdateEvent += UpdateProgress;
             _autoTrainManager.Register(this);
+            _immediateWindowWarningListener = new ImmediateWindowWarningListener(this);
 
             // RTScoreCalculatorList.DEFAULTS[2].ScoreProvider
             //    .Attach(this);
@@ -1106,6 +1108,7 @@ namespace pwiz.Skyline
 
         protected override void OnClosed(EventArgs e)
         {
+            _immediateWindowWarningListener.Dispose();
             _chromatogramManager.Dispose();
 
             _timerGraphs.Dispose();
@@ -2926,6 +2929,15 @@ namespace pwiz.Skyline
                 _immediateWindow.Show(dockPanel, DockState.DockBottom);
                 //                ActiveDocumentChanged();
             }
+        }
+
+        public TextWriter GetTextWriter()
+        {
+            if (_skylineTextBoxStreamWriterHelper == null)
+            {
+                ShowImmediateWindow();
+            }
+            return _skylineTextBoxStreamWriterHelper;
         }
 
         private TextBoxStreamWriterHelper _skylineTextBoxStreamWriterHelper;

@@ -22,6 +22,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using MathNet.Numerics.Statistics;
+using pwiz.Skyline.Util;
 using ZedGraph;
 
 namespace pwiz.Skyline.Model.RetentionTimes
@@ -82,11 +83,12 @@ namespace pwiz.Skyline.Model.RetentionTimes
         /// Constructs a KdeAligner with a specific resolution and stretchFactor
         /// </summary>
         /// <param name="resolution">The number of points in the X and Y axes </param>
-        /// <param name="stretchFactor">The amount that the CosineGaussian stamp is stretched along the Y=X axis</param>
-        public KdeAligner(int resolution = 1000, double stretchFactor = 1) 
+        /// <param name="eccentricity">Experimental parameter controlling the amount that the CosineGaussian stamp is stretched.
+        /// This value is interpreted as the eccentricity of an ellipse whose major axis is along the Y=X axis.</param>
+        public KdeAligner(int resolution = 1000, double eccentricity = 0) 
         {
             _resolution = resolution;
-            _stretchFactor = stretchFactor;
+            _stretchFactor = Math.Sqrt(1-eccentricity);
         }
         
         public int Resolution
@@ -124,7 +126,9 @@ namespace pwiz.Skyline.Model.RetentionTimes
             return TrainWithWeights(points.Select(pt => pt.X).ToArray(), points.Select(pt => pt.Y).ToArray(),
                 points.Select(pt => pt.Z).ToArray(), cancellationToken);
         }
-        
+
+        private static readonly double BANDWIDTH_TO_STDEV = 2.0 * Math.Sqrt(2.0 * Math.Log(2.0));
+
         public float[,] TrainWithWeights(double[] xArr, double[] yArr, double[] weights, CancellationToken cancellationToken)
         {
             _xArr = xArr;
@@ -137,9 +141,10 @@ namespace pwiz.Skyline.Model.RetentionTimes
             var indStdev = xNormal.StandardDeviation();
             var depStdev = yNormal.StandardDeviation();
 
+            // Silverman's rule of thumb
             var bandWidth = Math.Pow(xArr.Length, -1f/6f)*(indStdev + depStdev)/2.0f;
-
-            var stdev = (float) Math.Min(_resolution/40f, bandWidth/2.3548);
+            // division by 2.3548 converts bandwidth (fwhm) to stdev for gaussians
+            var stdev = (float) Math.Min(_resolution/40f, bandWidth/BANDWIDTH_TO_STDEV);
 
             float[,] stamp = GetCosineGaussianStamp(new CosineGaussian(stdev), _stretchFactor);
 
@@ -252,6 +257,7 @@ namespace pwiz.Skyline.Model.RetentionTimes
                 var east = xi + 1 < histogram.GetLength(0) ? histogram[xi + 1, yi] : -1;
                 var northeast = north != -1 && east != -1 ? histogram[xi + 1, yi + 1] : -1;
                 var max = Math.Max(north, Math.Max(east, northeast));
+                Assume.IsFalse(double.IsNaN(max));
                 if (max == -1)
                     break;
                 if (northeast == max || east == north)
@@ -287,6 +293,7 @@ namespace pwiz.Skyline.Model.RetentionTimes
                 var west = xi - 1 >= 0 ? histogram[xi - 1, yi] : -1;
                 var southwest = south != -1 && west != -1 ? histogram[xi - 1, yi - 1] : -1;
                 var max = Math.Max(south, Math.Max(west, southwest));
+                Assume.IsFalse(double.IsNaN(max));
                 if (max == -1)
                     break;
                 if (southwest == max || south == west)
@@ -312,7 +319,6 @@ namespace pwiz.Skyline.Model.RetentionTimes
 
         private void Stamp(float[,] histogram, float[,] stamp, int x, int y, float weight)
         {
-            
             for (int i = x - stamp.GetLength(0)/2; i <= x + stamp.GetLength(0)/2; i++)
             {
                 if(i < 0)
@@ -348,12 +354,20 @@ namespace pwiz.Skyline.Model.RetentionTimes
                     }
                     else
                     {
+                        // xPrime and yPrime are x and y rotated 45 degrees clockwise
+                        // and then shrunk based on the eccentricity of the ellipse
                         double xPrime = (deltaX + deltaY) / stretchFactor;
-                        double yPrime = (deltaY - deltaX);
+                        double yPrime = deltaY - deltaX;
                         delta = Math.Sqrt(xPrime * xPrime + yPrime * yPrime) / 2;
                     }
 
-                    stamp[i, j] = (float) cG.GetDensity(delta);
+                    var value = (float) cG.GetDensity(delta);
+                    if (float.IsNaN(value) || float.IsInfinity(value))
+                    {
+                        throw new InvalidOperationException(string.Format(@"Invalid value {0} at ({1},{2})",
+                            value, i, j));
+                    }
+                    stamp[i, j] = value;
                 }
             }
             return stamp;

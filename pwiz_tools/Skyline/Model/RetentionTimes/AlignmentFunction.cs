@@ -96,5 +96,65 @@ namespace pwiz.Skyline.Model.RetentionTimes
                 return Parts.Reverse().Aggregate(y, (v, part) => part.GetX(v));
             }
         }
+
+    }
+    public class PiecewiseLinearAlignment : AlignmentFunction
+    {
+        public PiecewiseLinearAlignment(IEnumerable<double> xValues, IEnumerable<double> yValues)
+        {
+            XValues = ImmutableList.ValueOf(xValues);
+            YValues = ImmutableList.ValueOf(yValues);
+            if (XValues.Count != YValues.Count)
+            {
+                throw new ArgumentException();
+            }
+
+            for (int i = 1; i < XValues.Count; i++)
+            {
+                if (XValues[i - 1] > XValues[i])
+                {
+                    throw new ArgumentException();
+                }
+            }
+        }
+
+        public ImmutableList<double> XValues { get; }
+        public ImmutableList<double> YValues { get; }
+        
+        public override double GetY(double x)
+        {
+            return Interpolate(x, XValues, YValues);
+        }
+
+        private static double Interpolate(double x, IList<double> xList, IList<double> yList)
+        {
+            int index = CollectionUtil.BinarySearch(xList, x);
+            if (index >= 0)
+            {
+                return yList[index];
+            }
+
+            index = ~index;
+            if (index <= 0)
+            {
+                return yList[0];
+            }
+
+            if (index >= xList.Count)
+            {
+                return yList[yList.Count - 1];
+            }
+
+            double xPrev = xList[index - 1];
+            double xNext = xList[index];
+            double yPrev = yList[index - 1];
+            double yNext = yList[index];
+            return yPrev + (x - xPrev) / (xNext - xPrev) * (yNext - yPrev);
+        }
+
+        public override double GetX(double y)
+        {
+            return Interpolate(y, YValues, XValues);
+        }
     }
 }

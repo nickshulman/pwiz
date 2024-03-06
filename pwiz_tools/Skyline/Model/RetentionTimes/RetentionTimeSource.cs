@@ -43,6 +43,18 @@ namespace pwiz.Skyline.Model.RetentionTimes
 
         public string Library { get; private set; }
 
+        public RetentionTimeSource ChangeLibrary(string library)
+        {
+            return ChangeProp(ImClone(this), im => im.Library = library);
+        }
+
+        public bool SpectrumSummaryValues { get; private set; }
+
+        public RetentionTimeSource ChangeSpectrumSummaryValues(bool value)
+        {
+            return ChangeProp(ImClone(this), im => im.SpectrumSummaryValues = value);
+        }
+
         #region object overrides
         public bool Equals(RetentionTimeSource other)
         {
@@ -93,7 +105,7 @@ namespace pwiz.Skyline.Model.RetentionTimes
         public override void WriteXml(XmlWriter writer)
         {
             base.WriteXml(writer);
-            writer.WriteAttribute(Attr.library, Library);
+            writer.WriteAttributeIfString(Attr.library, Library);
         }
         #endregion
 

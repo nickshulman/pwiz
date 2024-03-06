@@ -542,6 +542,7 @@
     <Compile Include="Model\Results\Spectra\SpectrumClassFilter.cs" />
     <Compile Include="Model\Results\Spectra\SpectrumFilterAutoComplete.cs" />
     <Compile Include="Model\RetentionTimes\AlignmentFunction.cs" />
+    <Compile Include="Model\RetentionTimes\PiecewiseLinearRegression.cs" />
     <Compile Include="Model\RetentionTimes\RetentionTimesResources.Designer.cs">
       <AutoGen>True</AutoGen>
       <DesignTime>True</DesignTime>

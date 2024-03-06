@@ -278,14 +278,38 @@ namespace pwiz.Skyline.Model.RetentionTimes
             {
                 return ResultNameMap<RetentionTimeSource>.EMPTY;
             }
-            IEnumerable<RetentionTimeSource> sources = Array.Empty<RetentionTimeSource>();
+            var names = new HashSet<string>();
+            List<RetentionTimeSource> sources = new List<RetentionTimeSource>();
             foreach (var library in settings.PeptideSettings.Libraries.Libraries)
             {
                 if (library == null || !library.IsLoaded)
                 {
                     continue;
                 }
-                sources = sources.Concat(library.ListRetentionTimeSources());
+
+                foreach (var source in library.ListRetentionTimeSources())
+                {
+                    if (names.Add(source.Name))
+                    {
+                        sources.Add(source);
+                    }
+                }
+            }
+
+            if (settings.HasResults)
+            {
+                foreach (var msDataFileInfo in settings.MeasuredResults.MSDataFileInfos)
+                {
+                    var resultFileMetadata = settings.MeasuredResults.GetResultFileMetaData(msDataFileInfo.FilePath);
+                    if (true == resultFileMetadata?.SpectrumSummaries.Any(spectrum => spectrum.SummaryValueLength > 0))
+                    {
+                        string name = msDataFileInfo.FilePath.GetFileNameWithoutExtension();
+                        if (names.Add(name))
+                        {
+                            sources.Add(new RetentionTimeSource(name, null));
+                        }
+                    }
+                }
             }
             return ResultNameMap.FromNamedElements(sources);
         }
@@ -432,7 +456,7 @@ namespace pwiz.Skyline.Model.RetentionTimes
                 var endAlignment = fileAlignment.RetentionTimeAlignments.Find(alignFrom);
                 if (endAlignment != null)
                 {
-                    return MakeAlignmentFunc(list.Select(tuple => tuple.Value.RegressionLine).Prepend(endAlignment.RegressionLine));
+                    return MakeAlignmentFunc(list.Select(tuple => tuple.Value.LibraryAlignment).Prepend(endAlignment.LibraryAlignment));
                 }
 
                 if (list.Count < maxStopovers)

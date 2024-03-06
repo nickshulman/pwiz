@@ -77,6 +77,7 @@ namespace pwiz.Skyline.Model.RetentionTimes
         public KdeAligner(int origXFileIndex, int origYFileIndex, int resolution = 1000) : base(origXFileIndex, origYFileIndex)
         {
             _resolution = resolution;
+            _stretchFactor = 1;
         }
 
         /// <summary>
@@ -449,6 +450,11 @@ namespace pwiz.Skyline.Model.RetentionTimes
         {
             xArr = _xArr;
             yArr = _smoothedY;
+        }
+
+        public PiecewiseLinearRegression ToAlignmentFunction()
+        {
+            return new PiecewiseLinearRegression(_xArr, _smoothedY);
         }
     }
 }

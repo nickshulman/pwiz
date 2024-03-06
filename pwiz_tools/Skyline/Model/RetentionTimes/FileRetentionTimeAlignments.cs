@@ -19,7 +19,9 @@
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Xml;
+using System.Xml.Linq;
 using System.Xml.Serialization;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.Results;
@@ -37,7 +39,7 @@ namespace pwiz.Skyline.Model.RetentionTimes
         {
             RetentionTimeAlignments = ResultNameMap.FromNamedElements(alignments);
         }
-
+        
         public ResultNameMap<RetentionTimeAlignment> RetentionTimeAlignments { get; private set; }
 
         #region Object Overrides
@@ -107,9 +109,9 @@ namespace pwiz.Skyline.Model.RetentionTimes
     [XmlRoot("rt_alignment")]
     public class RetentionTimeAlignment : XmlNamedElement
     {
-        public RetentionTimeAlignment(string name, RegressionLine regressionLine) : base(name)
+        public RetentionTimeAlignment(string name, RegressionLine libraryAlignment) : base(name)
         {
-            RegressionLine = regressionLine;
+            LibraryAlignment = libraryAlignment;
         }
 
         public RetentionTimeAlignment(string name, RegressionLineElement regressionLineElement) 
@@ -117,13 +119,19 @@ namespace pwiz.Skyline.Model.RetentionTimes
         {
         }
 
-        public RegressionLine RegressionLine { get; private set; }
+        public RegressionLine LibraryAlignment { get; private set; }
+        public PiecewiseLinearRegression SpectralAlignment { get; private set; }
+
+        public RetentionTimeAlignment ChangeSpectralAlignment(PiecewiseLinearRegression spectralAlignment)
+        {
+            return ChangeProp(ImClone(this), im => im.SpectralAlignment = spectralAlignment);
+        }
         #region Object Overrides
         public bool Equals(RetentionTimeAlignment other)
         {
             if (ReferenceEquals(null, other)) return false;
             if (ReferenceEquals(this, other)) return true;
-            return base.Equals(other) && Equals(other.RegressionLine, RegressionLine);
+            return base.Equals(other) && Equals(other.LibraryAlignment, LibraryAlignment);
         }
 
         public override bool Equals(object obj)
@@ -137,12 +145,27 @@ namespace pwiz.Skyline.Model.RetentionTimes
         {
             unchecked
             {
-                return (base.GetHashCode() * 397) ^ RegressionLine.GetHashCode();
+                return (base.GetHashCode() * 397) ^ LibraryAlignment.GetHashCode();
             }
         }
-        
+
         #endregion
         #region Implementation of IXmlSerializable
+        enum ATTR
+        {
+            name,
+            slope,
+            intercept,
+            x,
+            y
+        }
+
+        enum EL
+        {
+            spectral_alignment,
+            point
+        }
+
         /// <summary>
         /// For serialization
         /// </summary>
@@ -157,15 +180,50 @@ namespace pwiz.Skyline.Model.RetentionTimes
 
         public override void ReadXml(XmlReader reader)
         {
-            base.ReadXml(reader);
-            RegressionLine = RegressionLine.Deserialize(reader);
+            var xElement = (XElement)XNode.ReadFrom(reader);
+            ReadXmlName(xElement.Attribute(ATTR.name)?.Value);
+            var slope = xElement.GetNullableDouble(ATTR.slope);
+            if (slope.HasValue)
+            {
+                LibraryAlignment = new RegressionLine(slope.Value, xElement.GetNullableDouble(ATTR.intercept) ?? 0);
+            }
+
+            var elSpectralAlignment = xElement.Elements(EL.spectral_alignment).FirstOrDefault();
+            if (elSpectralAlignment != null)
+            {
+                var xValues = new List<double>();
+                var yValues = new List<double>();
+                foreach (var elPoint in elSpectralAlignment.Elements(EL.point))
+                {
+                    xValues.Add(elPoint.GetNullableDouble(ATTR.x).Value);
+                    yValues.Add(elPoint.GetNullableDouble(ATTR.y).Value);
+                }
+
+                SpectralAlignment = new PiecewiseLinearRegression(xValues, yValues);
+            }
             reader.Read();
         }
 
         public override void WriteXml(XmlWriter writer)
         {
             base.WriteXml(writer);
-            RegressionLine.WriteXmlAttributes(writer);
+            if (LibraryAlignment != null)
+            {
+                LibraryAlignment.WriteXmlAttributes(writer);
+            }
+
+            if (SpectralAlignment != null)
+            {
+                writer.WriteStartElement(EL.spectral_alignment);
+                for (int i = 0; i < SpectralAlignment.XValues.Count; i++)
+                {
+                    writer.WriteStartElement(EL.point);
+                    writer.WriteAttribute(ATTR.x, SpectralAlignment.XValues[i]);
+                    writer.WriteAttribute(ATTR.y, SpectralAlignment.YValues[i]);
+                    writer.WriteEndElement();
+                }
+                writer.WriteEndElement();
+            }
         }
         #endregion
     }

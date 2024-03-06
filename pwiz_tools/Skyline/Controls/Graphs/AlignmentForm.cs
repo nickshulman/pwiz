@@ -383,7 +383,7 @@ namespace pwiz.Skyline.Controls.Graphs
                     }
                     if (Alignment != null)
                     {
-                        return Alignment.RegressionLine;
+                        return Alignment.LibraryAlignment;
                     }
                     return null;
                 }
@@ -395,7 +395,7 @@ namespace pwiz.Skyline.Controls.Graphs
                     var regressionLine = RegressionLine;
                     if (regressionLine != null)
                     {
-                        return regressionLine.Slope;
+                        //return regressionLine.Slope;
                     }
                     return null;
                 }
@@ -407,7 +407,7 @@ namespace pwiz.Skyline.Controls.Graphs
                     var regressionLine = RegressionLine;
                     if (regressionLine != null)
                     {
-                        return regressionLine.Intercept;
+                        //return regressionLine.Intercept;
                     }
                     return null;
                 }

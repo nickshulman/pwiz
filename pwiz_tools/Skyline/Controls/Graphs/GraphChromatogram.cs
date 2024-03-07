@@ -736,7 +736,7 @@ namespace pwiz.Skyline.Controls.Graphs
             get
             {
                 // CONSIDER: Is this really the selected file?
-                return ChromGroupInfos.FirstOrDefault(info => info != null);
+                return ChromGroupInfos?.FirstOrDefault(info => info != null);
             }
         }
 
@@ -1252,6 +1252,10 @@ namespace pwiz.Skyline.Controls.Graphs
             if (nodeGroup == null)
                 nodeTranSelected = null;
             var info = chromGroupInfo.GetTransitionInfo(null, 0, TransformChrom.raw);
+            if (info == null)
+            {
+                return;
+            }
 
             TransitionChromInfo tranPeakInfo = null;
             RetentionTimeValues bestQuantitativePeakTimes = null;

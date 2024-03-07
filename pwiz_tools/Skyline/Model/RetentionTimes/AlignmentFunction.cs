@@ -96,7 +96,6 @@ namespace pwiz.Skyline.Model.RetentionTimes
                 return Parts.Reverse().Aggregate(y, (v, part) => part.GetX(v));
             }
         }
-
     }
     public class PiecewiseLinearAlignment : AlignmentFunction
     {

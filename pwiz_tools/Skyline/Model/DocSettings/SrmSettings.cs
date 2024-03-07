@@ -1220,7 +1220,7 @@ namespace pwiz.Skyline.Model.DocSettings
                     var unalignedTimes = GetRetentionTimes(MsDataFileUri.Parse(alignmentIndex.Alignment.Name), peptideSequence, explicitMods, alignmentIndex);
                     foreach (var unalignedTime in unalignedTimes)
                     {
-                        var alignedTime = alignmentIndex.Alignment.LibraryAlignment.GetY(unalignedTime);
+                        var alignedTime = alignmentIndex.Alignment.RegressionLine.GetY(unalignedTime);
                         times.Add(alignedTime);
                     }
                 }

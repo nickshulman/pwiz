@@ -548,6 +548,7 @@
       <DesignTime>True</DesignTime>
       <DependentUpon>RetentionTimesResources.resx</DependentUpon>
     </Compile>
+    <Compile Include="Model\RetentionTimes\SpectralAlignments.cs" />
     <Compile Include="Model\SpectrumPropertiesResx.Designer.cs">
       <AutoGen>True</AutoGen>
       <DesignTime>True</DesignTime>

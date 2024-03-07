@@ -20,8 +20,10 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using System.Xml;
+using System.Xml.Serialization;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using pwiz.Skyline.Model.DocSettings;
+using pwiz.Skyline.Model.Results;
 using pwiz.Skyline.Model.RetentionTimes;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
@@ -71,6 +73,25 @@ namespace pwiz.SkylineTestData.Results
             Assert.AreEqual(2, compare.RetentionTimeAlignments.Count);
             Assert.AreNotEqual(compare.RetentionTimeAlignments.Values[0], compare.RetentionTimeAlignments.Values[1]);
         }
+
+        [TestMethod]
+        public void TestDocumentRetentionTimesSerialize()
+        {
+            var documentRetentionTimes = new DocumentRetentionTimes(
+                new[] { new RetentionTimeSource("source1", "library1") },
+                new[]
+                {
+                    new FileRetentionTimeAlignments("file1",
+                        new[] { new RetentionTimeAlignment("file2", new RegressionLine(2.4, 1.3)) })
+                }, new[]{new SpectralAlignments(new MsDataFilePath("path1"), new []{new KeyValuePair<MsDataFileUri, PiecewiseLinearRegression>(new MsDataFilePath("path2"), new PiecewiseLinearRegression(new[]{1.6, 1.5}, new []{2.4, 3.6}))})});
+            var xmlSerializer = new XmlSerializer(typeof(DocumentRetentionTimes));
+            var stringWriter = new StringWriter();
+            xmlSerializer.Serialize(stringWriter, documentRetentionTimes);
+            var roundTrip =
+                (DocumentRetentionTimes)xmlSerializer.Deserialize(new StringReader(stringWriter.ToString()));
+            Assert.AreEqual(documentRetentionTimes, roundTrip);
+        }
+
 
         [TestMethod]
         public void TestSettings()

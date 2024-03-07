@@ -108,6 +108,5 @@ namespace pwiz.Skyline.Model.RetentionTimes
             writer.WriteAttributeIfString(Attr.library, Library);
         }
         #endregion
-
     }
 }

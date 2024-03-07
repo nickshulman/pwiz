@@ -383,7 +383,7 @@ namespace pwiz.Skyline.Controls.Graphs
                     }
                     if (Alignment != null)
                     {
-                        return Alignment.LibraryAlignment;
+                        return Alignment.RegressionLine;
                     }
                     return null;
                 }

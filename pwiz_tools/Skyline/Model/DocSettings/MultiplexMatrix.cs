@@ -36,6 +36,7 @@ namespace pwiz.Skyline.Model.DocSettings
         enum ATTR
         {
             name,
+            mz,
             weight
         }
         public override void ReadXml(XmlReader reader)
@@ -46,13 +47,15 @@ namespace pwiz.Skyline.Model.DocSettings
             foreach (var elReplicate in el.Elements(EL.replicate.ToString()))
             {
                 string replicateName = elReplicate.Attribute(ATTR.name)?.Value;
-                var ionWeights = new List<KeyValuePair<string, double>>();
+                var ionWeights = new List<Weighting>();
                 foreach (var elIon in elReplicate.Elements(EL.ion))
                 {
-                    var weight = elIon.GetNullableDouble(ATTR.weight);
+                    var mz = elIon.GetNullableDouble(ATTR.mz).GetValueOrDefault();
+                    var weight = elIon.GetNullableDouble(ATTR.weight).GetValueOrDefault();
+                    string name = elIon.Attribute(ATTR.name)?.Value ?? string.Empty;
                     if (weight != 0)
                     {
-                        ionWeights.Add(new KeyValuePair<string, double>(elIon.Attribute(ATTR.name)?.Value, weight.Value));
+                        ionWeights.Add(new Weighting(name, mz, weight));
                     }
                 }
                 replicates.Add(new Replicate(replicateName, ionWeights));
@@ -72,8 +75,9 @@ namespace pwiz.Skyline.Model.DocSettings
                 foreach (var weight in replicate.Weights)
                 {
                     writer.WriteStartElement(EL.ion);
-                    writer.WriteAttribute(ATTR.name, weight.Key);
-                    writer.WriteAttribute(ATTR.weight, weight.Value);
+                    writer.WriteAttribute(ATTR.name, weight.Name);
+                    writer.WriteAttribute(ATTR.mz, weight.Mz);
+                    writer.WriteAttribute(ATTR.weight, weight.Weight);
                     writer.WriteEndElement();
                 }
                 writer.WriteEndElement();
@@ -95,9 +99,9 @@ namespace pwiz.Skyline.Model.DocSettings
         public TransitionDocNode GetAssociatedTransition(Replicate replicate,
             TransitionGroupDocNode transitionGroupDocNode)
         {
-            foreach (var weight in replicate.Weights.OrderByDescending(weight => weight.Value))
+            foreach (var weight in replicate.Weights.OrderByDescending(weight => weight.Weight))
             {
-                var transition = transitionGroupDocNode.Transitions.FirstOrDefault(t => t.CustomIon?.Name == weight.Key);
+                var transition = transitionGroupDocNode.Transitions.FirstOrDefault(t => t.CustomIon?.Name == weight.Name);
                 if (transition != null)
                 {
                     return transition;
@@ -109,13 +113,13 @@ namespace pwiz.Skyline.Model.DocSettings
 
         public class Replicate : Immutable
         {
-            public Replicate(string name, IEnumerable<KeyValuePair<string, double>> weights)
+            public Replicate(string name, IEnumerable<Weighting> weights)
             {
                 Name = name;
-                Weights = ImmutableSortedList.FromValues(weights);
+                Weights = ImmutableList.ValueOf(weights);
             }
-            public string Name { get; private set; }
-            public ImmutableSortedList<string, double> Weights { get; private set; }
+            public string Name { get; }
+            public ImmutableList<Weighting> Weights { get; private set; }
 
             protected bool Equals(Replicate other)
             {
@@ -137,6 +141,20 @@ namespace pwiz.Skyline.Model.DocSettings
                     return (Name.GetHashCode() * 397) ^ Weights.GetHashCode();
                 }
             }
+
+            public double GetWeight(ReporterIon reporterIon)
+            {
+                double weight = 0;
+                foreach (var weighting in Weights)
+                {
+                    if (weighting.Overlaps(reporterIon))
+                    {
+                        weight += weighting.Weight;
+                    }
+                }
+
+                return weight;
+            }
         }
 
         public void Validate()
@@ -157,9 +175,9 @@ namespace pwiz.Skyline.Model.DocSettings
                             Name));
                 }
                 var weightNames = new HashSet<string>();
-                foreach (var weight in replicate.Weights)
+                foreach (var weighting in replicate.Weights)
                 {
-                    string ionName = weight.Key;
+                    string ionName = weighting.Name;
                     if (string.IsNullOrEmpty(ionName))
                     {
                         string message = string.Format("Missing ion name in replicate '{0}' of multiplex matrix '{1}'",
@@ -205,7 +223,7 @@ namespace pwiz.Skyline.Model.DocSettings
             return matrix;
         }
 
-        public double[] GetMultiplexAreas(Dictionary<string, double> observedAreas)
+        public double[] GetMultiplexAreas(Dictionary<ReporterIon, double> observedAreas)
         {
             return GetMultiplexAreaLists(observedAreas.ToDictionary(
                     kvp => kvp.Key, 
@@ -213,11 +231,11 @@ namespace pwiz.Skyline.Model.DocSettings
                 .FirstOrDefault();
         }
 
-        public Dictionary<string, TimeIntensities> GetMultiplexChromatograms(Dictionary<string, TimeIntensities> reporterIonChromatograms)
+        public Dictionary<string, TimeIntensities> GetMultiplexChromatograms(Dictionary<ReporterIon, TimeIntensities> reporterIonChromatograms)
         {
             var timeIntensitiesList = IsotopeDeconvoluter.MergeTimes(reporterIonChromatograms.Values);
             int iEntry = 0;
-            var observedAreaLists = new Dictionary<string, double[]>();
+            var observedAreaLists = new Dictionary<ReporterIon, double[]>();
             var firstTimeIntensities = timeIntensitiesList[0];
             foreach (var entry in reporterIonChromatograms)
             {
@@ -238,9 +256,10 @@ namespace pwiz.Skyline.Model.DocSettings
             return multiplexTimeIntensities;
         }
 
-        private IList<double[]> GetMultiplexAreaLists(Dictionary<string, double[]> observedAreaLists, int observationCount)
+        private IList<double[]> GetMultiplexAreaLists(Dictionary<ReporterIon, double[]> observedAreaLists, int observationCount)
         {
-            var reporterIonIndexes = MakeIndexDictionary(observedAreaLists.Keys.Intersect(Replicates.SelectMany(replicate => replicate.Weights.Keys)));
+            var reporterIonIndexes = MakeIndexDictionary(observedAreaLists.Keys.Where(reporterIon =>
+                Replicates.SelectMany(replicate => replicate.Weights).Any(reporterIon.Overlaps)));
             if (reporterIonIndexes.Count == 0)
             {
                 return Array.Empty<double[]>();
@@ -266,9 +285,12 @@ namespace pwiz.Skyline.Model.DocSettings
             {
                 foreach (var weight in Replicates[iReplicate].Weights)
                 {
-                    if (reporterIonIndexes.TryGetValue(weight.Key, out int index))
+                    foreach (var reporterIonIndex in reporterIonIndexes)
                     {
-                        inputs[index][iReplicate] = weight.Value;
+                        if (reporterIonIndex.Key.Overlaps(weight))
+                        {
+                            inputs[reporterIonIndex.Value][iReplicate] += weight.Weight;
+                        }
                     }
                 }
             }
@@ -287,9 +309,9 @@ namespace pwiz.Skyline.Model.DocSettings
             return areaLists;
         }
 
-        private Dictionary<string, int> MakeIndexDictionary(IEnumerable<string> names)
+        private Dictionary<T, int> MakeIndexDictionary<T>(IEnumerable<T> names)
         {
-            var dictionary = new Dictionary<string, int>();
+            var dictionary = new Dictionary<T, int>();
             foreach (var name in names)
             {
                 if (!dictionary.ContainsKey(name))
@@ -298,6 +320,128 @@ namespace pwiz.Skyline.Model.DocSettings
                 }
             }
             return dictionary;
+        }
+
+        public class Weighting
+        {
+            public Weighting(string name, double mz, double weight)
+            {
+                Name = name;
+                Mz = mz;
+                Weight = weight;
+            }
+            public string Name { get; }
+            public double? Mz { get; }
+            public double Weight { get; }
+
+            protected bool Equals(Weighting other)
+            {
+                return Name == other.Name && Mz.Equals(other.Mz) && Weight.Equals(other.Weight);
+            }
+
+            public override bool Equals(object obj)
+            {
+                if (ReferenceEquals(null, obj)) return false;
+                if (ReferenceEquals(this, obj)) return true;
+                if (obj.GetType() != GetType()) return false;
+                return Equals((Weighting)obj);
+            }
+
+            public override int GetHashCode()
+            {
+                unchecked
+                {
+                    var hashCode = Name?.GetHashCode() ?? 0;
+                    hashCode = (hashCode * 397) ^ Mz.GetHashCode();
+                    hashCode = (hashCode * 397) ^ Weight.GetHashCode();
+                    return hashCode;
+                }
+            }
+
+            public bool Overlaps(ReporterIon reporterIon)
+            {
+                if (Name != null && Name == reporterIon.Name) 
+                    return true;
+                if (Mz.HasValue && reporterIon.MzMin <= Mz && reporterIon.MzMax >= Mz)
+                    return true;
+                return false;
+            }
+        }
+
+        public class ReporterIon
+        {
+            public ReporterIon(string name, double? mzMin, double? mzMax)
+            {
+                Name = name;
+                MzMin = mzMin;
+                MzMax = mzMax;
+            }
+
+            public string Name { get; }
+            public double? MzMin { get; }
+            public double? MzMax { get; }
+
+            protected bool Equals(ReporterIon other)
+            {
+                return Name == other.Name && Nullable.Equals(MzMin, other.MzMin) && Nullable.Equals(MzMax, other.MzMax);
+            }
+
+            public override bool Equals(object obj)
+            {
+                if (ReferenceEquals(null, obj)) return false;
+                if (ReferenceEquals(this, obj)) return true;
+                if (obj.GetType() != GetType()) return false;
+                return Equals((ReporterIon)obj);
+            }
+
+            public override int GetHashCode()
+            {
+                unchecked
+                {
+                    var hashCode = Name != null ? Name.GetHashCode() : 0;
+                    hashCode = (hashCode * 397) ^ MzMin.GetHashCode();
+                    hashCode = (hashCode * 397) ^ MzMax.GetHashCode();
+                    return hashCode;
+                }
+            }
+
+            public bool Overlaps(Weighting weighting)
+            {
+                if (Name != null && Name == weighting.Name)
+                    return true;
+                if (weighting.Mz.HasValue && MzMin <= weighting.Mz && MzMax >= weighting.Mz)
+                    return true;
+                return false;
+            }
+
+        }
+
+        public static ReporterIon GetReporterIon(SrmSettings settings, TransitionDocNode nodeTran)
+        {
+            var name = nodeTran.CustomIon?.Name;
+            if (name == null)
+            {
+                return null;
+            }
+            double? mzMin = null, mzMax = null;
+            var fullScan = settings.TransitionSettings.FullScan;
+            if (fullScan.IsEnabled)
+            {
+                double filterWindow;
+                if (nodeTran.IsMs1 && fullScan.IsEnabledMs)
+                {
+                    filterWindow = fullScan.GetPrecursorFilterWindow(nodeTran.Mz);
+                }
+                else
+                {
+                    filterWindow = fullScan.GetProductFilterWindow(nodeTran.Mz);
+                }
+
+                mzMin = nodeTran.Mz - filterWindow / 2;
+                mzMax = nodeTran.Mz + filterWindow / 2;
+            }
+
+            return new ReporterIon(name, mzMin, mzMax);
         }
     }
 }

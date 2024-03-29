@@ -78,9 +78,10 @@ namespace pwiz.Skyline.SettingsUI
                 {
                     Assume.IsTrue(col.ColumnName.StartsWith(COL_PREFIX));
                     var ionName = col.ColumnName.Substring(COL_PREFIX.Length);
-                    if (replicate.Weights.TryGetValue(ionName, out var weight))
+                    var weighting = replicate.Weights.FirstOrDefault(w => w.Name == ionName);
+                    if (weighting != null)
                     {
-                        rowValues.Add(weight);
+                        rowValues.Add(weighting.Weight);
                     }
                     else
                     {
@@ -125,7 +126,7 @@ namespace pwiz.Skyline.SettingsUI
             {
                 var dataRow = _dataTable.Rows[rowIndex];
                 string replicateName = dataRow[0] as string;
-                var weights = new List<KeyValuePair<string, double>>();
+                var weights = new List<MultiplexMatrix.Weighting>();
                 if (string.IsNullOrEmpty(replicateName))
                 {
                     ShowDataError(rowIndex, 0, "Name cannot be blank");
@@ -152,7 +153,9 @@ namespace pwiz.Skyline.SettingsUI
                         return null;
                     }
                     var column = _dataTable.Columns[columnIndex];
-                    weights.Add(new KeyValuePair<string, double>(column.ColumnName.Substring(COL_PREFIX.Length), value.Value));
+                    var ionName = column.ColumnName.Substring(COL_PREFIX.Length);
+                    var customIon = _customIons.First(ion => ion.Name == ionName);
+                    weights.Add(new MultiplexMatrix.Weighting(ionName, customIon.SettingsCustomIon.MonoisotopicMassMz, value.Value));
                 }
                 replicates.Add(new MultiplexMatrix.Replicate(replicateName, weights));
             }
@@ -194,7 +197,7 @@ namespace pwiz.Skyline.SettingsUI
                 return;
             }
             var activeIonNames = new HashSet<string>();
-            activeIonNames.UnionWith(matrix.Replicates.SelectMany(replicate => replicate.Weights.Keys));
+            activeIonNames.UnionWith(matrix.Replicates.SelectMany(replicate => replicate.Weights.Select(weight=>weight.Name)));
             var activeColumns = new List<DataGridViewColumn>();
             var inactiveColumns = new List<DataGridViewColumn>();
             foreach (DataGridViewColumn col in dataGridView1.Columns)

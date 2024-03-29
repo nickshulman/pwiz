@@ -79,7 +79,7 @@ namespace pwiz.Skyline.Model.DocSettings
                 return null;
             }
 
-            var tagElements = new List<Tuple<XElement, MeasuredIon>>();
+            var tagElements = new List<Tuple<XElement, MeasuredIon, double>>();
 
             foreach (var elTag in xDocument.Root.Elements(@"MethodPart").Elements(@"MethodPart"))
             {
@@ -92,18 +92,13 @@ namespace pwiz.Skyline.Model.DocSettings
 
                 var monoisotopicMz = double.Parse(strMonoisotopicMz, CultureInfo.InvariantCulture);
                 var closestMatch = FindMeasuredIon(monoisotopicMz);
-                if (closestMatch == null)
-                {
-                    throw new InvalidDataException(string.Format("No special ion with mz {0}", monoisotopicMz));
-                }
-
-                tagElements.Add(Tuple.Create(elTag, closestMatch));
+                tagElements.Add(Tuple.Create(elTag, closestMatch, monoisotopicMz));
             }
 
             var replicates = new List<MultiplexMatrix.Replicate>();
-            foreach (var (elTag, measuredIon) in tagElements)
+            foreach (var (elTag, measuredIon, mz) in tagElements)
             {
-                var weights = new List<KeyValuePair<string, double>>();
+                var weights = new List<MultiplexMatrix.Weighting>();
                 var elCorrectionFactors = elTag.Elements(@"MethodPart")
                     .FirstOrDefault(el => @"CorrectionFactors" == el.Attribute(@"name")?.Value);
                 if (elCorrectionFactors == null)
@@ -138,7 +133,8 @@ namespace pwiz.Skyline.Model.DocSettings
                     }
 
                     var factorValue = double.Parse(elFactor.Value, CultureInfo.InvariantCulture);
-                    weights.Add(new KeyValuePair<string, double>(tagElements[affectsValue-1].Item2.Name, factorValue));
+                    var tagElement = tagElements[affectsValue - 1];
+                    weights.Add(new MultiplexMatrix.Weighting(tagElement.Item2?.Name, tagElement.Item3, factorValue));
                 }
                 replicates.Add(new MultiplexMatrix.Replicate(elTag.Attribute(@"name")?.Value, weights));
             }

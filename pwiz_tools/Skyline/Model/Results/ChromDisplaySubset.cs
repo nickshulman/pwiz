@@ -126,9 +126,9 @@ namespace pwiz.Skyline.Model.Results
 
         private static TransitionDocNode GetReporterIonForMultiplexReplicate(MultiplexMatrix.Replicate replicate, Dictionary<string, TransitionDocNode> reporterIons)
         {
-            foreach (var weight in replicate.Weights.OrderByDescending(weight => weight.Value))
+            foreach (var weight in replicate.Weights.OrderByDescending(weight => weight.Weight))
             {
-                if (reporterIons.TryGetValue(weight.Key, out var reporterIon))
+                if (reporterIons.TryGetValue(weight.Name, out var reporterIon))
                 {
                     return reporterIon;
                 }

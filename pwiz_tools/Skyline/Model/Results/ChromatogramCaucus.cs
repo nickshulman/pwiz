@@ -133,7 +133,7 @@ namespace pwiz.Skyline.Model.Results
                 return null;
             }
 
-            var reporterIonChromatograms = new Dictionary<string, TimeIntensities>();
+            var reporterIonChromatograms = new Dictionary<MultiplexMatrix.ReporterIon, TimeIntensities>();
             foreach (var entry in Entries)
             {
                 if (transitionGroup != null &&
@@ -153,14 +153,14 @@ namespace pwiz.Skyline.Model.Results
 
                 foreach (var transition in entry.TransitionGroupDocNode.Transitions)
                 {
-                    string customIonName = transition.CustomIon?.Name;
-                    if (customIonName != null)
+                    var reporterIon = MultiplexMatrix.GetReporterIon(Document.Settings, transition);
+                    if (reporterIon != null)
                     {
                         var chromatogramInfo =
                             entry.ChromatogramGroupInfo.GetTransitionInfo(transition, MzMatchTolerance);
                         if (chromatogramInfo != null)
                         {
-                            reporterIonChromatograms[customIonName] = chromatogramInfo.TimeIntensities;
+                            reporterIonChromatograms[reporterIon] = chromatogramInfo.TimeIntensities;
                         }
                     }
                 }

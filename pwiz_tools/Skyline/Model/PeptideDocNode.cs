@@ -20,6 +20,7 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
+using NHibernate.Mapping;
 using pwiz.Common.Collections;
 using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Controls.SeqNode;
@@ -1671,7 +1672,7 @@ namespace pwiz.Skyline.Model
                 ResultsIndex = resultsIndex;
                 TranTypes = new HashSet<IsotopeLabelType>();
                 TranAreas = new Dictionary<TransitionKey, float>();
-                ReporterIonAreas = new List<KeyValuePair<string, float>>();
+                ReporterIonAreas = new List<KeyValuePair<MultiplexMatrix.ReporterIon, float>>();
             }
 
             private SrmSettings Settings { get; set; }
@@ -1686,7 +1687,7 @@ namespace pwiz.Skyline.Model
 
             private HashSet<IsotopeLabelType> TranTypes { get; set; }
             private Dictionary<TransitionKey, float> TranAreas { get; set; }
-            private List<KeyValuePair<string, float>> ReporterIonAreas { get; set; }
+            private List<KeyValuePair<MultiplexMatrix.ReporterIon, float>> ReporterIonAreas { get; set; }
 
             public bool HasGlobalArea { get { return Settings.HasGlobalStandardArea; }}
             public bool IsSetMatching { get; private set; }
@@ -1737,7 +1738,26 @@ namespace pwiz.Skyline.Model
 
                 if (nodeTran.Transition.CustomIon is SettingsCustomIon)
                 {
-                    ReporterIonAreas.Add(new KeyValuePair<string, float>(nodeTran.Transition.CustomIon.Name, info.Area));
+                    double? mzMin = null, mzMax = null;
+                    var fullScan = Settings.TransitionSettings.FullScan;
+                    if (fullScan.IsEnabled)
+                    {
+                        double filterWindow;
+                        if (nodeTran.IsMs1 && fullScan.IsEnabledMs)
+                        {
+                            filterWindow = fullScan.GetPrecursorFilterWindow(nodeTran.Mz);
+                        }
+                        else
+                        {
+                            filterWindow = fullScan.GetProductFilterWindow(nodeTran.Mz);
+                        }
+
+                        mzMin = nodeTran.Mz - filterWindow / 2;
+                        mzMax = nodeTran.Mz + filterWindow / 2;
+                    }
+
+                    var reporterIon = new MultiplexMatrix.ReporterIon(nodeTran.Transition.CustomIon.Name, mzMin, mzMax);
+                    ReporterIonAreas.Add(new KeyValuePair<MultiplexMatrix.ReporterIon, float>(reporterIon, info.Area));
                 }
             }
 

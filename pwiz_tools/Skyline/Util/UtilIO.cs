@@ -30,6 +30,7 @@ using System.Threading;
 using System.Windows.Forms;
 using NHibernate;
 using pwiz.Common.Database.NHibernate;
+using pwiz.Common.DataBinding;
 using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Alerts;
 using pwiz.Skyline.Model;
@@ -383,6 +384,8 @@ namespace pwiz.Skyline.Util
         /// document.
         /// </summary>
         void CloseStream();
+
+        QueryLock QueryLock { get; }
     }
 
     /// <summary>
@@ -399,6 +402,7 @@ namespace pwiz.Skyline.Util
             FilePath = filePath;
             Buffered = buffered;
             FileTime = File.GetLastWriteTime(FilePath);
+            QueryLock = new QueryLock(CancellationToken.None);
         }
 
         public IStreamManager StreamManager { get; private set; }
@@ -481,6 +485,8 @@ namespace pwiz.Skyline.Util
         {
             Disconnect();
         }
+
+        public QueryLock QueryLock { get; }
     }
 
     public sealed class PooledSessionFactory : ConnectionId<ISessionFactory>, IPooledStream
@@ -534,6 +540,11 @@ namespace pwiz.Skyline.Util
         public void CloseStream()
         {
             Disconnect();
+        }
+
+        QueryLock IPooledStream.QueryLock
+        {
+            get { return null; }
         }
     }
 

@@ -21,6 +21,7 @@ using System.Data.Common;
 using System.Data.SQLite;
 using System.IO;
 using pwiz.Common.Database.NHibernate;
+using pwiz.Common.DataBinding;
 using pwiz.Skyline.Properties;
 
 namespace pwiz.Skyline.Util
@@ -108,5 +109,7 @@ namespace pwiz.Skyline.Util
                 }
             }
         }
+
+        QueryLock IPooledStream.QueryLock => null;
     }
 }

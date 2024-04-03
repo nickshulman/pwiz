@@ -20,6 +20,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
+using pwiz.Common.DataBinding;
 using pwiz.Skyline.Util;
 
 namespace pwiz.SkylineTestUtil
@@ -203,7 +204,7 @@ namespace pwiz.SkylineTestUtil
 
     public class MemoryPooledStream : IPooledStream
     {
-        private static int _indexNext;        
+        private static int _indexNext;
 
         public MemoryPooledStream(Stream stream)
         {
@@ -233,5 +234,7 @@ namespace pwiz.SkylineTestUtil
             // Do nothing for in-memory read-only streams.
             IsOpen = false;
         }
+
+        QueryLock IPooledStream.QueryLock => null;
     }
 }

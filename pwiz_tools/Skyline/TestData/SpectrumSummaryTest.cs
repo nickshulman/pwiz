@@ -140,12 +140,13 @@ namespace pwiz.SkylineTestData
             var spectrumSummaryList1 = ReadSpectrumSummaryList(TestFilesDir.GetTestPath("2021_01_20_coraleggs_10B_23.spectrumsummaries.tsv"));
             var spectrumSummaryList2 = ReadSpectrumSummaryList(TestFilesDir.GetTestPath("2021_01_20_coraleggs_10NB_13.spectrumsummaries.tsv"));
             var similarityGrid = spectrumSummaryList1.GetSimilarityGrid(spectrumSummaryList2);
-            var bestQuadrants = similarityGrid.ToQuadrant().FindBestQuadrants().ToList();
-            DrawPath(similarityGrid, bestQuadrants).Save(TestFilesDir.GetTestPath("coral.png"));
-            var kdeAligner = new KdeAligner();
-            kdeAligner.Train(bestQuadrants.Select(q => q.Grid.XEntries[q.XStart].RetentionTime).ToArray(),
-                bestQuadrants.Select(q => q.Grid.YEntries[q.YStart].RetentionTime).ToArray(), CancellationToken.None);
-            DrawAligner(similarityGrid, kdeAligner).Save(TestFilesDir.GetTestPath("coral.kde.png"));
+            DrawGrid("BigAlignment", similarityGrid);
+            // var bestQuadrants = similarityGrid.ToQuadrant().FindBestQuadrants().ToList();
+            // DrawPath(similarityGrid, bestQuadrants).Save(TestFilesDir.GetTestPath("coral.png"));
+            // var kdeAligner = new KdeAligner();
+            // kdeAligner.Train(bestQuadrants.Select(q => q.Grid.XEntries[q.XStart].RetentionTime).ToArray(),
+            //     bestQuadrants.Select(q => q.Grid.YEntries[q.YStart].RetentionTime).ToArray(), CancellationToken.None);
+            // DrawAligner(similarityGrid, kdeAligner).Save(TestFilesDir.GetTestPath("coral.kde.png"));
         }
 
         [TestMethod]
@@ -242,6 +243,23 @@ namespace pwiz.SkylineTestData
             DrawGrid("s1_vs_s12", grid);
         }
 
+        [TestMethod]
+        public void TestMikeBDataset()
+        {
+            TestFilesDir = new TestFilesDir(TestContext, @"TestData\SpectrumSummaryTest.zip");
+            var files = new[] { "S_1", "S_2", "S_12", "S_13" };
+            var spectrumSummaries = files.Select(file =>
+                GetSpectrumSummaryList(Path.Combine("F:\\skydata\\20110215_MikeB", file + ".raw"), 128)).ToList();
+            for (int iFile1 = 0; iFile1 < files.Length - 1; iFile1++)
+            {
+                for (int iFile2 = iFile1 + 1; iFile2 < files.Length; iFile2++)
+                {
+                    var grid = spectrumSummaries[iFile1].GetSimilarityGrid(spectrumSummaries[iFile2]);
+                    DrawGrid(files[iFile1] + "_vs_" + files[iFile2], grid);
+                }
+            }
+        }
+
 
         private void EvaluateDigestParams(string path)
         {
@@ -296,20 +314,12 @@ namespace pwiz.SkylineTestData
         void DrawGrid(string name, SimilarityGrid grid)
         {
             var path = grid.ToQuadrant().FindBestQuadrants().OrderByDescending(q => q.CalculateAverageScore()).ToList();
-            var halfPath = path.Take(path.Count / 2).ToList();
-            var shortPath = path.Take(Math.Max(grid.XEntries.Count, grid.YEntries.Count)).ToList();
-            var otherShortPath = ShortenPath(path).ToList();
-            var otherOtherShortPath = OtherShortenPath(path).ToList();
+            var shortPath = ShortenPath(path).ToList();
             DrawPath(grid, path).Save(TestFilesDir.GetTestPath(name + ".png"));
-            DrawPath(grid, halfPath).Save(TestFilesDir.GetTestPath(name + "_halfPoints.png"));
             DrawPath(grid, shortPath).Save(TestFilesDir.GetTestPath(name + "_short.png"));
-            DrawPath(grid, otherShortPath).Save(TestFilesDir.GetTestPath(name + "_othershort.png"));
-            DrawPath(grid, otherOtherShortPath).Save(TestFilesDir.GetTestPath(name + "_otherothershort.png"));
             // DrawAligner(grid, GetKdeAligner(path)).Save(TestFilesDir.GetTestPath(name + "_kde.png"));
             // DrawAligner(grid, GetKdeAligner(halfPath)).Save(TestFilesDir.GetTestPath(name + "_halfPoints_kde.png"));
             DrawKdeAligner(grid, shortPath, name + "_short");
-            DrawKdeAligner(grid, otherShortPath, name + "_othershort");
-            DrawKdeAligner(grid, otherOtherShortPath, name +"_otherothershort");
         }
 
         private void DrawKdeAligner(SimilarityGrid grid, IEnumerable<SimilarityGrid.Quadrant> path, string name)
@@ -325,23 +335,7 @@ namespace pwiz.SkylineTestData
             var yValues = new HashSet<int>();
             foreach (var q in quadrants)
             {
-                if (xValues.Contains(q.XStart) || yValues.Contains(q.YStart))
-                {
-                    continue;
-                }
-
-                xValues.Add(q.XStart);
-                yValues.Add(q.YStart);
-                yield return q;
-            }
-        }
-        private IEnumerable<SimilarityGrid.Quadrant> OtherShortenPath(IEnumerable<SimilarityGrid.Quadrant> quadrants)
-        {
-            var xValues = new HashSet<int>();
-            var yValues = new HashSet<int>();
-            foreach (var q in quadrants)
-            {
-                if (!xValues.Contains(q.XStart) || !yValues.Contains(q.YStart))
+                if (xValues.Add(q.XStart) | yValues.Add(q.YStart))
                 {
                     xValues.Add(q.XStart);
                     yValues.Add(q.YStart);
@@ -349,7 +343,6 @@ namespace pwiz.SkylineTestData
                 }
             }
         }
-
         public static string ToTsv(IEnumerable<SpectrumSummary> spectrumSummaryList)
         {
             StringBuilder sb = new StringBuilder();
@@ -477,9 +470,8 @@ namespace pwiz.SkylineTestData
         {
             var path = ToSummaryPairs(quadrants).ToList();
             var kdeAligner = new KdeAligner();
-            histogram = kdeAligner.TrainWithWeights(path.Select(s => s.Item1.RetentionTime).ToArray(),
-                path.Select(s => s.Item2.RetentionTime).ToArray(), Enumerable.Repeat(1.0, path.Count).ToArray(),
-                CancellationToken.None);
+            histogram = kdeAligner.GetHistogramAndTrain(path.Select(s => s.Item1.RetentionTime).ToArray(),
+                path.Select(s => s.Item2.RetentionTime).ToArray(), CancellationToken.None);
             return kdeAligner;
         }
 

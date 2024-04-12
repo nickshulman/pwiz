@@ -19,11 +19,9 @@
 
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading;
 using MathNet.Numerics.Statistics;
 using pwiz.Skyline.Util;
-using ZedGraph;
 
 namespace pwiz.Skyline.Model.RetentionTimes
 {
@@ -87,7 +85,6 @@ namespace pwiz.Skyline.Model.RetentionTimes
         public KdeAligner(int resolution = 1000, double eccentricity = 0)
         {
             _resolution = resolution;
-            _stretchFactor = Math.Sqrt(1 - eccentricity);
         }
 
         public int Resolution
@@ -117,18 +114,12 @@ namespace pwiz.Skyline.Model.RetentionTimes
         public override void Train(double[] xArr, double[] yArr, CancellationToken token)
         {
             Array.Sort(xArr, yArr);
-            TrainWithWeights(xArr, yArr, Enumerable.Repeat(1.0, xArr.Length).ToArray(), token);
-        }
-
-        public float[,] TrainPoints(ICollection<PointPair> points, CancellationToken cancellationToken)
-        {
-            return TrainWithWeights(points.Select(pt => pt.X).ToArray(), points.Select(pt => pt.Y).ToArray(),
-                points.Select(pt => pt.Z).ToArray(), cancellationToken);
+            GetHistogramAndTrain(xArr, yArr, token);
         }
 
         private static readonly double BANDWIDTH_TO_STDEV = 2.0 * Math.Sqrt(2.0 * Math.Log(2.0));
 
-        public float[,] TrainWithWeights(double[] xArr, double[] yArr, double[] weights, CancellationToken cancellationToken)
+        public float[,] GetHistogramAndTrain(double[] xArr, double[] yArr, CancellationToken cancellationToken)
         {
             _xArr = xArr;
             double[] xNormal;
@@ -145,7 +136,7 @@ namespace pwiz.Skyline.Model.RetentionTimes
             // division by 2.3548 converts bandwidth (fwhm) to stdev for gaussians
             var stdev = (float)Math.Min(_resolution / 40f, bandWidth / BANDWIDTH_TO_STDEV);
 
-            float[,] stamp = GetCosineGaussianStamp(new CosineGaussian(stdev), _stretchFactor);
+            float[,] stamp = GetCosineGaussianStamp(new CosineGaussian(stdev));
 
             float[,] histogram = new float[_resolution, _resolution];
 
@@ -154,7 +145,7 @@ namespace pwiz.Skyline.Model.RetentionTimes
                 cancellationToken.ThrowIfCancellationRequested();
                 int x = (int)xNormal[p];
                 int y = (int)yNormal[p];
-                Stamp(histogram, stamp, x, y, (float)weights[p]);
+                Stamp(histogram, stamp, x, y);
             }
 
             int bestXi = -1;
@@ -316,7 +307,7 @@ namespace pwiz.Skyline.Model.RetentionTimes
             }
         }
 
-        private void Stamp(float[,] histogram, float[,] stamp, int x, int y, float weight)
+        private void Stamp(float[,] histogram, float[,] stamp, int x, int y)
         {
             for (int i = x - stamp.GetLength(0) / 2; i <= x + stamp.GetLength(0) / 2; i++)
             {
@@ -330,14 +321,14 @@ namespace pwiz.Skyline.Model.RetentionTimes
                         continue;
                     if (j >= histogram.GetLength(1))
                         break;
-                    histogram[i, j] += stamp[i - x + stamp.GetLength(0) / 2, j - y + stamp.GetLength(1) / 2] * weight;
+                    histogram[i, j] += stamp[i - x + stamp.GetLength(0) / 2, j - y + stamp.GetLength(1) / 2];
                 }
             }
         }
 
-        public static float[,] GetCosineGaussianStamp(CosineGaussian cG, double stretchFactor = 1)
+        public static float[,] GetCosineGaussianStamp(CosineGaussian cG)
         {
-            int stampRadius = (int)Math.Round(2.0f * cG.Stdev * stretchFactor);
+            int stampRadius = (int)Math.Round(2.0f * cG.Stdev);
 
             var stamp = new float[stampRadius * 2 + 1, stampRadius * 2 + 1];
             for (int i = 0; i < stampRadius * 2 + 1; i++)
@@ -347,19 +338,7 @@ namespace pwiz.Skyline.Model.RetentionTimes
                     double deltaX = i - stampRadius;
                     double deltaY = j - stampRadius;
                     double delta;
-                    if (stretchFactor == 1)
-                    {
-                        delta = Math.Sqrt(deltaX * deltaX + deltaY * deltaY);
-                    }
-                    else
-                    {
-                        // xPrime and yPrime are x and y rotated 45 degrees clockwise
-                        // and then shrunk based on the eccentricity of the ellipse
-                        double xPrime = (deltaX + deltaY) / stretchFactor;
-                        double yPrime = deltaY - deltaX;
-                        delta = Math.Sqrt(xPrime * xPrime + yPrime * yPrime) / 2;
-                    }
-
+                    delta = Math.Sqrt(deltaX * deltaX + deltaY * deltaY);
                     var value = (float)cG.GetDensity(delta);
                     if (float.IsNaN(value) || float.IsInfinity(value))
                     {

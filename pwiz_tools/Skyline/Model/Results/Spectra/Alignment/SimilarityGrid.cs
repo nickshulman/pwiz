@@ -35,17 +35,33 @@ namespace pwiz.Skyline.Model.Results.Spectra.Alignment
 
             public double CalculateAverageScore()
             {
-                int count = Math.Max(XCount, YCount);
+                int coordinateCount = Math.Max(XCount, YCount);
                 double total = 0;
-                for (int i = 0; i < count; i++)
+                for (int i = 0; i < coordinateCount; i++)
                 {
-                    int x = i * XCount / count;
-                    int y = i * YCount / count;
+                    int x = i * XCount / coordinateCount;
+                    int y = i * YCount / coordinateCount;
                     total += Grid.XEntries[XStart + x].SimilarityScore(Grid.YEntries[YStart + y]) ?? 0;
-//                    total += Grid.XEntries[XStart + XCount - x - 1].SimilarityScore(Grid.YEntries[YStart + y]) ?? 0;
+                    //                    total += Grid.XEntries[XStart + XCount - x - 1].SimilarityScore(Grid.YEntries[YStart + y]) ?? 0;
                 }
 
-                return total / count;
+                return total / coordinateCount;
+            }
+
+            public IEnumerable<double> EnumerateDiagonalScores(bool includeDownwardsDiagonal = true)
+            {
+                int coordinateCount = Math.Max(XCount, YCount);
+                for (int i = 0; i < coordinateCount; i++)
+                {
+                    int x = i * XCount / coordinateCount;
+                    int y = i * YCount / coordinateCount;
+                    yield return Grid.XEntries[XStart + x].SimilarityScore(Grid.YEntries[YStart + y]) ?? 0;
+                    if (includeDownwardsDiagonal)
+                    {
+                        yield return Grid.XEntries[XStart + XCount - x - 1]
+                            .SimilarityScore(Grid.YEntries[YStart + y]) ?? 0;
+                    }
+                }
             }
 
             public IEnumerable<Quadrant> EnumerateQuadrants()
@@ -66,24 +82,43 @@ namespace pwiz.Skyline.Model.Results.Spectra.Alignment
                 }
             }
 
-            public IEnumerable<Quadrant> FindBestQuadrants(bool includeQuestionable = true)
+            public IEnumerable<Quadrant> EnumerateBestQuadrants()
             {
                 if (XCount <= 1 && YCount <= 1)
                 {
                     return new[] { this };
                 }
 
-                var quadrants = EnumerateQuadrants().OrderByDescending(q => q.CalculateAverageScore()).ToList();
-                var result = Enumerable.Empty<Quadrant>();
-                int count = Math.Min(includeQuestionable ? 3 : 2, quadrants.Count - 1);
-
-                for (int i = 0; i < count; i++)
+                var quadrants = EnumerateQuadrants().ToList();
+                var quadrantScores = quadrants.SelectMany((q, index) =>
+                        q.EnumerateDiagonalScores().Select(score => Tuple.Create(score, index)))
+                    .OrderByDescending(tuple => tuple.Item1).ToList();
+                var indexesToReturn = new HashSet<int>();
+                for (int i = 0; i < quadrantScores.Count; i++)
                 {
-                    var q = quadrants[i];
-                    result = result.Concat(q.FindBestQuadrants(includeQuestionable && i != 2));
+                    if (indexesToReturn.Count == quadrants.Count - 1)
+                    {
+                        break;
+                    }
+
+                    if (indexesToReturn.Count >= quadrants.Count / 2 && i > quadrantScores.Count / 16)
+                    {
+                        break;
+                    }
+
+                    indexesToReturn.Add(quadrantScores[i].Item2);
+                }
+                return indexesToReturn.Select(i => quadrants[i]);
+            }
+
+            public IEnumerable<Quadrant> FindBestQuadrants()
+            {
+                if (XCount <= 1 && YCount <= 1)
+                {
+                    return new[] { this };
                 }
 
-                return result;
+                return EnumerateBestQuadrants().SelectMany(q => q.FindBestQuadrants());
             }
         }
 

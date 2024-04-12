@@ -53,7 +53,7 @@ namespace pwiz.SkylineTestData
             Directory.CreateDirectory(outputFolder);
             ParallelEx.ForEach(new[]
             {
-                Tuple.Create("S_1.raw", 32), Tuple.Create("S_12.raw", 32), Tuple.Create("2021_01_20_coraleggs_10B_23.raw", 8), Tuple.Create("2021_01_20_coraleggs_10NB_13.raw", 8)
+                Tuple.Create("S_1.raw", 128), Tuple.Create("S_12.raw", 128), Tuple.Create("2021_01_20_coraleggs_10B_23.raw", 128), Tuple.Create("2021_01_20_coraleggs_10NB_13.raw", 128)
             }, tuple =>
             {
                 var rawFileName = tuple.Item1;
@@ -144,7 +144,24 @@ namespace pwiz.SkylineTestData
             var kdeAligner = new KdeAligner();
             kdeAligner.Train(bestQuadrants.Select(q => q.Grid.XEntries[q.XStart].RetentionTime).ToArray(),
                 bestQuadrants.Select(q => q.Grid.YEntries[q.YStart].RetentionTime).ToArray(), CancellationToken.None);
-            DrawKdeAligner(kdeAligner).Save(TestFilesDir.GetTestPath("coral.kde.png"));
+            DrawKdeAligner(similarityGrid, kdeAligner).Save(TestFilesDir.GetTestPath("coral.kde.png"));
+        }
+
+        [TestMethod]
+        public void TestHalfRun()
+        {
+            TestFilesDir = new TestFilesDir(TestContext, @"TestData\SpectrumSummaryTest.zip");
+            var spectrumSummaryList1 = ReadSpectrumSummaryList(TestFilesDir.GetTestPath("2021_01_20_coraleggs_10B_23.spectrumsummaries.tsv"));
+            var spectrumSummaryList2 = ReadSpectrumSummaryList(TestFilesDir.GetTestPath("2021_01_20_coraleggs_10NB_13.spectrumsummaries.tsv"));
+            var firstHalf = new SpectrumSummaryList(spectrumSummaryList2.Take(spectrumSummaryList2.Count / 2));
+            var firstHalfGrid = spectrumSummaryList1.GetSimilarityGrid(firstHalf);
+            DrawSimilarityGrid(firstHalfGrid).Save(TestFilesDir.GetTestPath("coralFirstHalf.png"));
+            DrawKdeAligner(firstHalfGrid, GetKdeAligner(firstHalfGrid)).Save(TestFilesDir.GetTestPath("coralFirstHalfKde.png"));
+            var secondHalf = new SpectrumSummaryList(spectrumSummaryList2.Skip(spectrumSummaryList2.Count / 2));
+            var secondHalfGrid = spectrumSummaryList1.GetSimilarityGrid(secondHalf);
+            DrawSimilarityGrid(secondHalfGrid).Save(TestFilesDir.GetTestPath("coralSecondHalf.png"));
+            DrawKdeAligner(secondHalfGrid, GetKdeAligner(secondHalfGrid)).Save(TestFilesDir.GetTestPath("coralSecondHalfKde.png"));
+
         }
 
         public static string ToTsv(IEnumerable<SpectrumSummary> spectrumSummaryList)
@@ -232,18 +249,25 @@ namespace pwiz.SkylineTestData
             return bitmap;
         }
 
-        private Bitmap DrawKdeAligner(KdeAligner aligner)
+        private Bitmap DrawKdeAligner(SimilarityGrid grid, KdeAligner aligner)
         {
             var bitmap = new Bitmap(1000, 1000);
+            for (int i = 0; i < 1000; i++)
+            {
+                bitmap.SetPixel(i, 0, Color.Blue);
+                bitmap.SetPixel(0, i, Color.Blue);
+                bitmap.SetPixel(i, 999, Color.Blue);
+                bitmap.SetPixel(999, i, Color.Blue);
+            }
             aligner.GetSmoothedValues(out var xArr, out var yArr);
             if (xArr.Length == 0)
             {
                 return bitmap;
             }
-            var xMin = xArr.Min();
-            var dx = xArr.Max() - xMin;
-            var yMax = yArr.Max();
-            var dy = yMax - yArr.Min();
+            var xMin = grid.XEntries.First().RetentionTime;
+            var dx = grid.XEntries.Last().RetentionTime - xMin;
+            var yMax = grid.YEntries.Last().RetentionTime;
+            var dy = yMax - grid.YEntries.First().RetentionTime;
             for (int i = 0; i < xArr.Length; i++)
             {
                 bitmap.SetPixel((int)((bitmap.Width - 1) * (xArr[i] - xMin) / dx),
@@ -251,6 +275,14 @@ namespace pwiz.SkylineTestData
             }
 
             return bitmap;
+        }
+
+        private KdeAligner GetKdeAligner(SimilarityGrid grid)
+        {
+            var path = grid.FindBestPoints().ToList();
+            var kdeAligner = new KdeAligner();
+            kdeAligner.Train(path.Select(s=>s.Item1.RetentionTime).ToArray(), path.Select(s=>s.Item2.RetentionTime).ToArray(), CancellationToken.None);
+            return kdeAligner;
         }
     }
 }

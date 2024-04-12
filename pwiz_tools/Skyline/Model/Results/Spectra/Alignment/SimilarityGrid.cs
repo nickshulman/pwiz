@@ -21,18 +21,23 @@ namespace pwiz.Skyline.Model.Results.Spectra.Alignment
 
         public class Quadrant
         {
-            public Quadrant(SimilarityGrid grid, int xStart, int xCount, int yStart, int yCount, bool calcScores)
+            private Dictionary<KeyValuePair<int, int>, double> _similarityScores;
+            public Quadrant(SimilarityGrid grid, int xStart, int xCount, int yStart, int yCount, IEnumerable<KeyValuePair<KeyValuePair<int, int>, double>> scores)
             {
                 Grid = grid;
                 XStart = xStart;
                 XCount = xCount;
                 YStart = yStart;
                 YCount = yCount;
-                if (calcScores)
+                if (scores != null)
                 {
-                    var scores = EnumerateDiagonalScores().ToArray();
-                    MaxScore = scores.Max();
-                    MedianScore = new Statistics(scores).Median();
+                    _similarityScores = scores.Where(kvp => kvp.Key.Key >= xStart && kvp.Key.Key < xStart + xCount
+                                                                             && kvp.Key.Value >= yStart &&
+                                                                             kvp.Key.Value < yStart + yCount)
+                        .ToDictionary(kvp=>kvp.Key, kvp=>kvp.Value);
+                    var diagonalScores = EnumerateDiagonalScores().ToArray();
+                    MaxScore = diagonalScores.Max();
+                    MedianScore = new Statistics(diagonalScores).Median();
                 }
             }
 
@@ -45,20 +50,29 @@ namespace pwiz.Skyline.Model.Results.Spectra.Alignment
             public double MaxScore { get; }
             public double MedianScore { get; }
 
-            private IEnumerable<double> EnumerateDiagonalScores(bool includeDownwardsDiagonal = true)
+            private IEnumerable<double> EnumerateDiagonalScores()
             {
                 int coordinateCount = Math.Max(XCount, YCount);
                 for (int i = 0; i < coordinateCount; i++)
                 {
                     int x = i * XCount / coordinateCount;
                     int y = i * YCount / coordinateCount;
-                    yield return Grid.XEntries[XStart + x].SimilarityScore(Grid.YEntries[YStart + y]) ?? 0;
-                    if (includeDownwardsDiagonal)
-                    {
-                        yield return Grid.XEntries[XStart + XCount - x - 1]
-                            .SimilarityScore(Grid.YEntries[YStart + y]) ?? 0;
-                    }
+                    yield return CalcScore(XStart + x, YStart + y);
+                    yield return CalcScore(XStart + XCount - x - 1, YStart + y);
                 }
+            }
+
+            private double CalcScore(int x, int y)
+            {
+                var key = new KeyValuePair<int, int>(x, y);
+                if (true == _similarityScores?.TryGetValue(key, out var value))
+                {
+                    return value;
+                }
+
+                value = Grid.XEntries[x].SimilarityScore(Grid.YEntries[y]) ?? 0;
+                _similarityScores?.Add(key, value);
+                return value;
             }
 
             public IEnumerable<Quadrant> EnumerateQuadrants(bool calcScores)
@@ -73,9 +87,22 @@ namespace pwiz.Skyline.Model.Results.Spectra.Alignment
                     {
                         if (xCount > 0 && yCount > 0)
                         {
-                            yield return new Quadrant(Grid, xStart, xCount, yStart, yCount, calcScores);
+                            yield return new Quadrant(Grid, xStart, xCount, yStart, yCount, calcScores ? SimilarityScoreCache : null);
                         }
                     }
+                }
+            }
+
+            private IEnumerable<KeyValuePair<KeyValuePair<int, int>, double>> SimilarityScoreCache
+            {
+                get
+                {
+                    if (_similarityScores != null)
+                    {
+                        return _similarityScores;
+                    }
+
+                    return Array.Empty<KeyValuePair<KeyValuePair<int, int>, double>>();
                 }
             }
 
@@ -105,7 +132,7 @@ namespace pwiz.Skyline.Model.Results.Spectra.Alignment
                 {
                     for (int y = 0; y < YCount; y++)
                     {
-                        var score = Grid.XEntries[XStart + x].SimilarityScore(Grid.YEntries[YStart + y]) ?? 0;
+                        var score = CalcScore(XStart + x, YStart + y);
                         yield return new Point(Grid, x + XStart, y + YStart, score);
                     }
                 }
@@ -114,7 +141,7 @@ namespace pwiz.Skyline.Model.Results.Spectra.Alignment
 
         public Quadrant ToQuadrant()
         {
-            return new Quadrant(this, 0, XEntries.Count, 0, YEntries.Count, false);
+            return new Quadrant(this, 0, XEntries.Count, 0, YEntries.Count, null);
         }
 
         public IEnumerable<Quadrant> ToQuadrants(int levels)

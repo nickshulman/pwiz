@@ -540,7 +540,7 @@ namespace pwiz.SkylineTestData
         private LoessAligner GetLoessAligner(IEnumerable<SimilarityGrid.Point> quadrants)
         {
             var path = ToSummaryPairs(quadrants).ToList();
-            var loessAligner = new LoessAligner(0.01);
+            var loessAligner = new LoessAligner();
             loessAligner.Train(path.Select(s => s.Item1.RetentionTime).ToArray(), path.Select(s => s.Item2.RetentionTime).ToArray(), CancellationToken.None);
             return loessAligner;
         }

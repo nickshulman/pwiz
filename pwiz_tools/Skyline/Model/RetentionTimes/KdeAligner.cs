@@ -92,13 +92,6 @@ namespace pwiz.Skyline.Model.RetentionTimes
             get { return _resolution; }
         }
 
-        /// <summary>
-        /// When looking for the starting point with the highest intensity,
-        /// this value constrains the search to a window in the center whose
-        /// size is a fraction of the entire window
-        /// </summary>
-        public double StartingWindowSizeProportion { get; set; }
-
         public double GetScaledX(int coordinate)
         {
             return _minX + coordinate * (_maxX - _minX) / _resolution;
@@ -183,22 +176,14 @@ namespace pwiz.Skyline.Model.RetentionTimes
 
         void FindBestXY(float[,] histogram, out int xBest, out int yBest)
         {
-            int startX = (int)Math.Floor(histogram.GetLength(0) * StartingWindowSizeProportion / 2);
-            int xCount = (int)Math.Floor(histogram.GetLength(0) * (1 - StartingWindowSizeProportion) / 2);
-            int startY = (int)Math.Floor(histogram.GetLength(1) * StartingWindowSizeProportion / 2);
-            int yCount = (int)Math.Floor(histogram.GetLength(1) * (1 - StartingWindowSizeProportion) / 2);
-            xCount = Math.Max(xCount, 1);
-            yCount = Math.Max(yCount, 1);
-            xBest = startX;
-            yBest = startY;
+            xBest = 0;
+            yBest = 0;
             double best = double.MinValue;
 
-            for (int i = 0; i < xCount; i++)
+            for (int x = 0; x < histogram.GetLength(0); x++)
             {
-                int x = startX + i;
-                for (int j = 0; j < yCount; j++)
+                for (int y = 0; y < histogram.GetLength(1); y++)
                 {
-                    int y = startY + j;
                     float val = histogram[x, y];
                     if (val > best)
                     {

@@ -458,7 +458,7 @@ namespace pwiz.SkylineTestData
         private KdeAligner GetKdeAligner(IEnumerable<SimilarityGrid.Point> quadrants, out float[,] histogram)
         {
             var path = ToSummaryPairs(quadrants).OrderBy(p=>p.Item1.RetentionTime).ToList();
-            var kdeAligner = new KdeAligner(2000){StartingWindowSizeProportion = .5};
+            var kdeAligner = new KdeAligner(2000);
             histogram = kdeAligner.GetHistogramAndTrain(path.Select(s => s.Item1.RetentionTime).ToArray(),
                 path.Select(s => s.Item2.RetentionTime).ToArray(), CancellationToken.None);
             return kdeAligner;

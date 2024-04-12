@@ -389,17 +389,17 @@ namespace pwiz.SkylineTestData
             return DrawPath(similarityGrid, similarityGrid.GetBestPointCandidates(null, null).ToList());
         }
 
-        private Bitmap DrawPath(SimilarityGrid grid, IEnumerable<SimilarityGrid.Point> quadrants)
+        private Bitmap DrawPath(SimilarityGrid grid, IEnumerable<SimilarityGrid.Point> points)
         {
             int width = Math.Min(8000, grid.XEntries.Count);
             int height = Math.Min(8000, grid.YEntries.Count);
             var bitmap = new Bitmap(width, height);
-            var orderedQuadrants = quadrants.OrderBy(q => q.Score).ToList();
+            var orderedQuadrants = points.OrderBy(q => q.Score).ToList();
             for (int iQuadrant = 0; iQuadrant < orderedQuadrants.Count; iQuadrant++)
             {
                 var q = orderedQuadrants[iQuadrant];
                 var value = (int) (255L * iQuadrant / orderedQuadrants.Count);
-                var color = Color.White; //Color.FromArgb(value, value, value);
+                var color = Color.FromArgb(value, value, value);
                 bitmap.SetPixel(q.X * width / grid.XEntries.Count,
                     height - 1 - q.Y * height / grid.YEntries.Count, color);
             }

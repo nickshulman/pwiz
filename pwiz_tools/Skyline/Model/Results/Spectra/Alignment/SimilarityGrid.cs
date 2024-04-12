@@ -325,7 +325,8 @@ namespace pwiz.Skyline.Model.Results.Spectra.Alignment
         }
 
         /// <summary>
-        /// Returns all the points that have the highest score in either their entire column or their entire row.
+        /// Returns a subset such that each point has the highest score in either its row
+        /// or column.
         /// </summary>
         public static IEnumerable<Point> FilterBestPoints(IEnumerable<Point> allPoints)
         {
@@ -334,10 +335,13 @@ namespace pwiz.Skyline.Model.Results.Spectra.Alignment
 
             foreach (Point point in allPoints.OrderByDescending(pt=>pt.Score))
             {
-                if (xIndexes.Add(point.X) | yIndexes.Add(point.Y))
+                if (xIndexes.Contains(point.X) && yIndexes.Contains(point.Y))
                 {
-                    yield return point;
+                    continue;
                 }
+                xIndexes.Add(point.X);
+                yIndexes.Add(point.Y);
+                yield return point;
             }
         }
     }

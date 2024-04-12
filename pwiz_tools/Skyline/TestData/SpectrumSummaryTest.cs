@@ -69,30 +69,6 @@ namespace pwiz.SkylineTestData
 
 
         [TestMethod]
-        public void TestGetBestPath()
-        {
-            TestFilesDir = new TestFilesDir(TestContext, @"TestData\SpectrumSummaryTest.zip");
-            var spectrumSummaryList = ReadSpectrumSummaryList(TestFilesDir.GetTestPath("S_1.spectrumSummaries.tsv"));
-            var evenSpectra = new SpectrumSummaryList(Enumerable.Range(0, spectrumSummaryList.Count / 2)
-                .Select(i =>
-                {
-                    var spectrum = spectrumSummaryList[i * 2];
-                    return ChangeRetentionTime(spectrum, spectrum.RetentionTime * 3);
-                }));
-            var similarityMatrix = spectrumSummaryList.GetSimilarityMatrix(null, null, evenSpectra);
-            var bestPath = similarityMatrix.FindBestPath();
-            AssertEx.IsNotNull(bestPath);
-            foreach (var point in bestPath)
-            {
-                AssertEx.AreEqual(point.Value, point.Key * 3, .01);
-            }
-
-            var kdeAlignment = new KdeAligner();
-            kdeAlignment.Train(bestPath.Select(kvp=>kvp.Key).ToArray(), bestPath.Select(kvp=>kvp.Value).ToArray(), CancellationToken.None);
-            AssertEx.AreEqual(30, kdeAlignment.GetValue(10), .1);
-        }
-
-        [TestMethod]
         public void TestSimilarityGrid()
         {
             TestFilesDir = new TestFilesDir(TestContext, @"TestData\SpectrumSummaryTest.zip");
@@ -104,7 +80,7 @@ namespace pwiz.SkylineTestData
                     return ChangeRetentionTime(spectrum, spectrum.RetentionTime * 3);
                 }));
             var similarityGrid = spectrumSummaryList.GetSimilarityGrid(evenSpectra);
-            var bestPath = similarityGrid.FindBestPoints().Select(pt=>Tuple.Create(pt.XRetentionTime, pt.YRetentionTime)).ToList();
+            var bestPath = SimilarityGrid.FilterBestPoints(similarityGrid.GetBestPointCandidates(null, null)).Select(pt=>Tuple.Create(pt.XRetentionTime, pt.YRetentionTime)).ToList();
             Assert.AreNotEqual(0, bestPath.Count);
             double maxDifference = bestPath.Max(pt => Math.Abs(pt.Item2 - pt.Item1 * 3));
             Assert.AreNotEqual(0, maxDifference);
@@ -124,17 +100,6 @@ namespace pwiz.SkylineTestData
 
         [TestMethod]
         public void TestBigAlignment()
-        {
-            TestFilesDir = new TestFilesDir(TestContext, @"TestData\SpectrumSummaryTest.zip");
-            var spectrumSummaryList1 = ReadSpectrumSummaryList(TestFilesDir.GetTestPath("2021_01_20_coraleggs_10B_23.spectrumsummaries.tsv"));
-            var spectrumSummaryList2 = ReadSpectrumSummaryList(TestFilesDir.GetTestPath("2021_01_20_coraleggs_10NB_13.spectrumsummaries.tsv"));
-            var similarityMatrix = spectrumSummaryList1.GetSimilarityMatrix(null, null, spectrumSummaryList2);
-            var bestPath = similarityMatrix.FindBestPath();
-            AssertEx.IsNotNull(bestPath);
-        }
-
-        [TestMethod]
-        public void TestBigAlignment2()
         {
             TestFilesDir = new TestFilesDir(TestContext, @"TestData\SpectrumSummaryTest.zip");
             var spectrumSummaryList1 = ReadSpectrumSummaryList(TestFilesDir.GetTestPath("2021_01_20_coraleggs_10B_23.spectrumsummaries.tsv"));
@@ -326,7 +291,7 @@ namespace pwiz.SkylineTestData
 
         void DrawGrid(string name, SimilarityGrid grid)
         {
-            var path = grid.FindBestPoints().OrderByDescending(q => q.Score).ToList();
+            var path = grid.GetBestPointCandidates(null, null).OrderByDescending(q => q.Score).ToList();
             var shortPath = ShortenPath(path).ToList();
             DrawPath(grid, path).Save(TestFilesDir.GetTestPath(name + ".png"));
             DrawPath(grid, shortPath).Save(TestFilesDir.GetTestPath(name + "_short.png"));
@@ -351,17 +316,7 @@ namespace pwiz.SkylineTestData
 
         private IEnumerable<SimilarityGrid.Point> ShortenPath(IEnumerable<SimilarityGrid.Point> quadrants)
         {
-            var xValues = new HashSet<int>();
-            var yValues = new HashSet<int>();
-            foreach (var q in quadrants)
-            {
-                if (xValues.Add(q.X) | yValues.Add(q.Y))
-                {
-                    xValues.Add(q.X);
-                    yValues.Add(q.Y);
-                    yield return q;
-                }
-            }
+            return SimilarityGrid.FilterBestPoints(quadrants);
         }
         public static string ToTsv(IEnumerable<SpectrumSummary> spectrumSummaryList)
         {
@@ -431,7 +386,7 @@ namespace pwiz.SkylineTestData
 
         private Bitmap DrawSimilarityGrid(SimilarityGrid similarityGrid)
         {
-            return DrawPath(similarityGrid, similarityGrid.FindBestPoints().ToList());
+            return DrawPath(similarityGrid, similarityGrid.GetBestPointCandidates(null, null).ToList());
         }
 
         private Bitmap DrawPath(SimilarityGrid grid, IEnumerable<SimilarityGrid.Point> quadrants)

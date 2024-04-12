@@ -1,4 +1,22 @@
-﻿using System;
+﻿/*
+ * Original author: Nicholas Shulman <nicksh .at. u.washington.edu>,
+ *                  MacCoss Lab, Department of Genome Sciences, UW
+ *
+ * Copyright 2024 University of Washington - Seattle, WA
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -8,8 +26,16 @@ using pwiz.Skyline.Util;
 
 namespace pwiz.Skyline.Model.Results.Spectra.Alignment
 {
+    /// <summary>
+    /// Compares two separate lists of SpectrumSummary objects.
+    /// </summary>
     public class SimilarityGrid
     {
+        /// <summary>
+        /// Constructs a SimilarityGrid from two lists of SpectrumSummary.
+        /// The SpectrumSummary objects should all be compatible in that they
+        /// have the same MS level, scan window range and summary value length.
+        /// </summary>
         public SimilarityGrid(IEnumerable<SpectrumSummary> xEntries, IEnumerable<SpectrumSummary> yEntries)
         {
             XEntries = ImmutableList.ValueOf(xEntries);
@@ -19,7 +45,7 @@ namespace pwiz.Skyline.Model.Results.Spectra.Alignment
         public ImmutableList<SpectrumSummary> XEntries { get; }
         public ImmutableList<SpectrumSummary> YEntries { get; }
 
-        public class Quadrant
+        private class Quadrant
         {
             private Dictionary<KeyValuePair<int, int>, double> _similarityScores;
             public Quadrant(SimilarityGrid grid, int xStart, int xCount, int yStart, int yCount, IEnumerable<KeyValuePair<KeyValuePair<int, int>, double>> scores)
@@ -31,10 +57,10 @@ namespace pwiz.Skyline.Model.Results.Spectra.Alignment
                 YCount = yCount;
                 if (scores != null)
                 {
-                    _similarityScores = scores.Where(kvp => kvp.Key.Key >= xStart && kvp.Key.Key < xStart + xCount
-                                                                             && kvp.Key.Value >= yStart &&
-                                                                             kvp.Key.Value < yStart + yCount)
-                        .ToDictionary(kvp=>kvp.Key, kvp=>kvp.Value);
+                    _similarityScores = scores.Where(kvp
+                            => kvp.Key.Key >= xStart && kvp.Key.Key < xStart + xCount &&
+                               kvp.Key.Value >= yStart && kvp.Key.Value < yStart + yCount)
+                        .ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
                     var diagonalScores = EnumerateDiagonalScores().ToArray();
                     MaxScore = diagonalScores.Max();
                     MedianScore = new Statistics(diagonalScores).Median();
@@ -139,12 +165,15 @@ namespace pwiz.Skyline.Model.Results.Spectra.Alignment
             }
         }
 
-        public Quadrant ToQuadrant()
+        private Quadrant ToQuadrant()
         {
             return new Quadrant(this, 0, XEntries.Count, 0, YEntries.Count, null);
         }
 
-        public IEnumerable<Quadrant> ToQuadrants(int levels)
+        /// <summary>
+        /// Converts this object to one or more <see cref="Quadrant"/> objects.
+        /// </summary>
+        private IEnumerable<Quadrant> ToQuadrants(int levels)
         {
             var quadrants = new List<Quadrant> { ToQuadrant() };
             for (int i = 0; i < levels; i++)
@@ -155,20 +184,31 @@ namespace pwiz.Skyline.Model.Results.Spectra.Alignment
             return quadrants;
         }
 
-        public IEnumerable<Point> FindBestPoints()
+        /// <summary>
+        /// Returns a set of points which are likely to be the best scoring points in either their column or row.
+        /// These points should further be filtered by <see cref="FilterBestPoints"/> to get the real list
+        /// that should be given to KdeAligner.Train.
+        /// </summary>
+        public IEnumerable<Point> GetBestPointCandidates(IProgressMonitor progressMonitor, IProgressStatus status)
         {
-            var parallelProcessor = new ParallelProcessor();
+            var parallelProcessor = new ParallelProcessor(progressMonitor, status);
             var results = parallelProcessor.FindBestPoints(ToQuadrants(3));
             return results;
         }
 
         class ParallelProcessor
         {
+            private IProgressMonitor _progressMonitor;
             private List<Point> _results = new List<Point>();
             private int _totalItemCount;
             private int _completedItemCount;
             private QueueWorker<Quadrant> _queue;
             private List<Exception> _exceptions = new List<Exception>();
+
+            public ParallelProcessor(IProgressMonitor progressMonitor, IProgressStatus status)
+            {
+                _progressMonitor = progressMonitor;
+            }
 
             public List<Point> FindBestPoints(IEnumerable<Quadrant> startingQuadrants)
             {
@@ -194,6 +234,10 @@ namespace pwiz.Skyline.Model.Results.Spectra.Alignment
                                 return _results;
                             }
 
+                            if (true == _progressMonitor?.IsCanceled)
+                            {
+                                return null;
+                            }
                             Monitor.Wait(this);
                         }
                     }
@@ -278,6 +322,23 @@ namespace pwiz.Skyline.Model.Results.Spectra.Alignment
                 }
             }
             public double Score { get; }
+        }
+
+        /// <summary>
+        /// Returns all the points that have the highest score in either their entire column or their entire row.
+        /// </summary>
+        public static IEnumerable<Point> FilterBestPoints(IEnumerable<Point> allPoints)
+        {
+            HashSet<int> xIndexes = new HashSet<int>();
+            HashSet<int> yIndexes = new HashSet<int>();
+
+            foreach (Point point in allPoints.OrderByDescending(pt=>pt.Score))
+            {
+                if (xIndexes.Add(point.X) | yIndexes.Add(point.Y))
+                {
+                    yield return point;
+                }
+            }
         }
     }
 }

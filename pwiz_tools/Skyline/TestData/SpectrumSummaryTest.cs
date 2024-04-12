@@ -18,6 +18,7 @@
  */
 using System;
 using System.Collections.Generic;
+using System.Drawing;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -91,6 +92,36 @@ namespace pwiz.SkylineTestData
         }
 
         [TestMethod]
+        public void TestSimilarityGrid()
+        {
+            TestFilesDir = new TestFilesDir(TestContext, @"TestData\SpectrumSummaryTest.zip");
+            var spectrumSummaryList = ReadSpectrumSummaryList(TestFilesDir.GetTestPath("S_1.spectrumSummaries.tsv"));
+            var evenSpectra = new SpectrumSummaryList(Enumerable.Range(0, spectrumSummaryList.Count / 2)
+                .Select(i =>
+                {
+                    var spectrum = spectrumSummaryList[i * 2];
+                    return ChangeRetentionTime(spectrum, spectrum.RetentionTime * 3);
+                }));
+            var similarityGrid = spectrumSummaryList.GetSimilarityGrid(evenSpectra);
+            var bestPath = similarityGrid.FindBestPoints().Select(kvp=>Tuple.Create(kvp.Item1.RetentionTime, kvp.Item2.RetentionTime)).ToList();
+            Assert.AreNotEqual(0, bestPath.Count);
+            double maxDifference = bestPath.Max(pt => Math.Abs(pt.Item2 - pt.Item1 * 3));
+            Assert.AreNotEqual(0, maxDifference);
+            foreach (var point in bestPath)
+            {
+                Assert.AreEqual(point.Item2, point.Item1 * 3, 5);
+            }
+
+            var kdeAligner = new KdeAligner();
+            kdeAligner.Train(bestPath.Select(pt=>pt.Item1).ToArray(), bestPath.Select(pt=>pt.Item2).ToArray(), CancellationToken.None);
+            kdeAligner.GetSmoothedValues(out var xArr, out var yArr);
+            double maxDifference2 = xArr.Zip(yArr, (x, y) => Math.Abs(y - x * 3)).Max();
+            Assert.AreNotEqual(0, maxDifference2);
+            var bitmap = DrawSimilarityGrid(similarityGrid);
+            bitmap.Save(TestFilesDir.GetTestPath("SimilarityGrid.png"));
+        }
+
+        [TestMethod]
         public void TestBigAlignment()
         {
             TestFilesDir = new TestFilesDir(TestContext, @"TestData\SpectrumSummaryTest.zip");
@@ -99,6 +130,21 @@ namespace pwiz.SkylineTestData
             var similarityMatrix = spectrumSummaryList1.GetSimilarityMatrix(null, null, spectrumSummaryList2);
             var bestPath = similarityMatrix.FindBestPath();
             AssertEx.IsNotNull(bestPath);
+        }
+
+        [TestMethod]
+        public void TestBigAlignment2()
+        {
+            TestFilesDir = new TestFilesDir(TestContext, @"TestData\SpectrumSummaryTest.zip");
+            var spectrumSummaryList1 = ReadSpectrumSummaryList(TestFilesDir.GetTestPath("2021_01_20_coraleggs_10B_23.spectrumsummaries.tsv"));
+            var spectrumSummaryList2 = ReadSpectrumSummaryList(TestFilesDir.GetTestPath("2021_01_20_coraleggs_10NB_13.spectrumsummaries.tsv"));
+            var similarityGrid = spectrumSummaryList1.GetSimilarityGrid(spectrumSummaryList2);
+            var bestQuadrants = similarityGrid.ToQuadrant().FindBestQuadrants().ToList();
+            DrawPath(similarityGrid, bestQuadrants).Save(TestFilesDir.GetTestPath("coral.png"));
+            var kdeAligner = new KdeAligner();
+            kdeAligner.Train(bestQuadrants.Select(q => q.Grid.XEntries[q.XStart].RetentionTime).ToArray(),
+                bestQuadrants.Select(q => q.Grid.YEntries[q.YStart].RetentionTime).ToArray(), CancellationToken.None);
+            DrawKdeAligner(kdeAligner).Save(TestFilesDir.GetTestPath("coral.kde.png"));
         }
 
         public static string ToTsv(IEnumerable<SpectrumSummary> spectrumSummaryList)
@@ -165,6 +211,46 @@ namespace pwiz.SkylineTestData
                 .ChangeScanWindow(spectrumSummary.SpectrumMetadata.ScanWindowLowerLimit.Value,
                     spectrumSummary.SpectrumMetadata.ScanWindowUpperLimit.Value);
             return new SpectrumSummary(spectrumMetadata, spectrumSummary.SummaryValue);
+        }
+
+        private Bitmap DrawSimilarityGrid(SimilarityGrid similarityGrid)
+        {
+            return DrawPath(similarityGrid, similarityGrid.ToQuadrant().FindBestQuadrants().ToList());
+        }
+
+        private Bitmap DrawPath(SimilarityGrid grid, IEnumerable<SimilarityGrid.Quadrant> quadrants)
+        {
+            int width = Math.Min(4000, grid.XEntries.Count);
+            int height = Math.Min(4000, grid.YEntries.Count);
+            var bitmap = new Bitmap(width, height);
+            foreach (var q in quadrants)
+            {
+                bitmap.SetPixel(q.XStart * width / grid.XEntries.Count,
+                    height - 1 - q.YStart * height / grid.YEntries.Count, Color.White);
+            }
+
+            return bitmap;
+        }
+
+        private Bitmap DrawKdeAligner(KdeAligner aligner)
+        {
+            var bitmap = new Bitmap(1000, 1000);
+            aligner.GetSmoothedValues(out var xArr, out var yArr);
+            if (xArr.Length == 0)
+            {
+                return bitmap;
+            }
+            var xMin = xArr.Min();
+            var dx = xArr.Max() - xMin;
+            var yMax = yArr.Max();
+            var dy = yMax - yArr.Min();
+            for (int i = 0; i < xArr.Length; i++)
+            {
+                bitmap.SetPixel((int)((bitmap.Width - 1) * (xArr[i] - xMin) / dx),
+                    (int)((bitmap.Height - 1) * (yMax - yArr[i]) / dy), Color.White);
+            }
+
+            return bitmap;
         }
     }
 }

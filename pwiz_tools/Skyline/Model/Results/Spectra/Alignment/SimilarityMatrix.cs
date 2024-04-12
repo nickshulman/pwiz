@@ -104,10 +104,16 @@ namespace pwiz.Skyline.Model.Results.Spectra.Alignment
 
             public IEnumerable<KeyValuePair<double, double>> GetBestPath()
             {
+                return GetBestPathIndices().Select(kvp =>
+                    new KeyValuePair<double, double>(XValues[kvp.Key], YValues[kvp.Value]));
+            }
+
+            public IEnumerable<KeyValuePair<int, int>> GetBestPathIndices()
+            {
                 var excludedColumnIndices = new bool[XValues.Count];
                 var excludedRowIndices = new bool[YValues.Count];
                 var rowDatas = new RowData[ScoreRows.Count];
-                var returnedRows = new List<KeyValuePair<double, double>>();
+                var returnedRows = new List<KeyValuePair<int, int>>();
                 ParallelEx.For(0, ScoreRows.Count, i =>
                 {
                     var rowData = new RowData(ScoreRows[i]);
@@ -153,7 +159,7 @@ namespace pwiz.Skyline.Model.Results.Spectra.Alignment
 
                     excludedColumnIndices[bestCol] = true;
                     excludedRowIndices[bestRow] = true;
-                    returnedRows.Add(new KeyValuePair<double, double>(XValues[bestCol], YValues[bestRow]));
+                    returnedRows.Add(new KeyValuePair<int, int>(bestCol, bestRow));
                 }
             }
 

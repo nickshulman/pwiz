@@ -19,9 +19,11 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using NHibernate.Criterion;
 using pwiz.Common.Collections;
 using pwiz.Common.Spectra;
 using pwiz.Common.SystemUtil;
+using pwiz.Skyline.Model.RetentionTimes;
 
 namespace pwiz.Skyline.Model.Results.Spectra.Alignment
 {
@@ -51,7 +53,7 @@ namespace pwiz.Skyline.Model.Results.Spectra.Alignment
         private static DigestKey GetSpectrumDigestKey(
             SpectrumSummary spectrumSummary)
         {
-            if (spectrumSummary.SummaryValueLength == 0)
+            if (spectrumSummary.SummaryValueLength == 0 || spectrumSummary.SummaryValue.All(v=>0 == v))
             {
                 return null;
             }
@@ -103,7 +105,7 @@ namespace pwiz.Skyline.Model.Results.Spectra.Alignment
                             break;
                         }
 
-                        scores.Add(spectrum.SimilarityScore(otherSpectrum)!.Value);
+                        scores.Add(spectrum.SimilarityScore(otherSpectrum) ?? double.MinValue);
                     }
 
                     scoreLists[index] = scores;
@@ -215,6 +217,35 @@ namespace pwiz.Skyline.Model.Results.Spectra.Alignment
                 .Where(group => group.Count() >= MIN_SPECTRA_FOR_ALIGNMENT).Select(group => group.Key).ToHashSet();
             return new SpectrumSummaryList(this.Where(spectrum =>
                 digestKeysToKeep.Contains(GetSpectrumDigestKey(spectrum))));
+        }
+
+        public SimilarityGrid GetSimilarityGrid(SpectrumSummaryList that)
+        {
+            var thisByDigestKey = this.ToLookup(GetSpectrumDigestKey);
+            var thatByDigestKey = that.ToLookup(GetSpectrumDigestKey);
+            int bestCount = 0;
+            DigestKey bestDigestKey = null;
+            foreach (var group in thisByDigestKey)
+            {
+                if (group.Key == null)
+                {
+                    continue;
+                }
+
+                var count = group.Count() * thatByDigestKey[group.Key].Count();
+                if (count > bestCount)
+                {
+                    bestCount = count;
+                    bestDigestKey = group.Key;
+                }
+            }
+
+            if (bestCount == 0)
+            {
+                return null;
+            }
+
+            return new SimilarityGrid(thisByDigestKey[bestDigestKey], thatByDigestKey[bestDigestKey]);
         }
     }
 }

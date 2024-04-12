@@ -25,6 +25,7 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using pwiz.Common.Collections;
 using pwiz.Common.Spectra;
 using pwiz.Common.SystemUtil;
 using pwiz.ProteowizardWrapper;
@@ -144,7 +145,7 @@ namespace pwiz.SkylineTestData
             var kdeAligner = new KdeAligner();
             kdeAligner.Train(bestQuadrants.Select(q => q.Grid.XEntries[q.XStart].RetentionTime).ToArray(),
                 bestQuadrants.Select(q => q.Grid.YEntries[q.YStart].RetentionTime).ToArray(), CancellationToken.None);
-            DrawKdeAligner(similarityGrid, kdeAligner).Save(TestFilesDir.GetTestPath("coral.kde.png"));
+            DrawAligner(similarityGrid, kdeAligner).Save(TestFilesDir.GetTestPath("coral.kde.png"));
         }
 
         [TestMethod]
@@ -155,13 +156,198 @@ namespace pwiz.SkylineTestData
             var spectrumSummaryList2 = ReadSpectrumSummaryList(TestFilesDir.GetTestPath("2021_01_20_coraleggs_10NB_13.spectrumsummaries.tsv"));
             var firstHalf = new SpectrumSummaryList(spectrumSummaryList2.Take(spectrumSummaryList2.Count / 2));
             var firstHalfGrid = spectrumSummaryList1.GetSimilarityGrid(firstHalf);
-            DrawSimilarityGrid(firstHalfGrid).Save(TestFilesDir.GetTestPath("coralFirstHalf.png"));
-            DrawKdeAligner(firstHalfGrid, GetKdeAligner(firstHalfGrid)).Save(TestFilesDir.GetTestPath("coralFirstHalfKde.png"));
+            DrawGrid("coralFirstHalf", firstHalfGrid);
             var secondHalf = new SpectrumSummaryList(spectrumSummaryList2.Skip(spectrumSummaryList2.Count / 2));
             var secondHalfGrid = spectrumSummaryList1.GetSimilarityGrid(secondHalf);
-            DrawSimilarityGrid(secondHalfGrid).Save(TestFilesDir.GetTestPath("coralSecondHalf.png"));
-            DrawKdeAligner(secondHalfGrid, GetKdeAligner(secondHalfGrid)).Save(TestFilesDir.GetTestPath("coralSecondHalfKde.png"));
+            DrawGrid("coralSecondHalf", secondHalfGrid);
+        }
 
+        [TestMethod]
+        public void TestHalfRunBigSummary()
+        {
+            TestFilesDir = new TestFilesDir(TestContext, @"TestData\bin\SpectrumSummaryTestFullData.zip");
+            var spectrumSummaryList1 =
+                GetSpectrumSummaryList(TestFilesDir.GetTestPath("2021_01_20_coraleggs_10B_23.raw"), 8192);
+            var spectrumSummaryList2 = GetSpectrumSummaryList(TestFilesDir.GetTestPath("2021_01_20_coraleggs_10NB_13.raw"), 8192);
+            var firstHalf = new SpectrumSummaryList(spectrumSummaryList2.Take(spectrumSummaryList2.Count / 2));
+            var firstHalfGrid = spectrumSummaryList1.GetSimilarityGrid(firstHalf);
+            DrawGrid("coralFirstHalf", firstHalfGrid);
+            var secondHalf = new SpectrumSummaryList(spectrumSummaryList2.Skip(spectrumSummaryList2.Count / 2));
+            var secondHalfGrid = spectrumSummaryList1.GetSimilarityGrid(secondHalf);
+            DrawGrid("coralSecondHalf", secondHalfGrid);
+        }
+
+        [TestMethod]
+        public void TestCompareDigests()
+        {
+            TestFilesDir = new TestFilesDir(TestContext, @"TestData\bin\SpectrumSummaryTestFullData.zip");
+            using var msDataFile = new MsDataFileImpl(TestFilesDir.GetTestPath("S_12.raw"));
+            var spectra = new List<MsDataSpectrum>();
+            for (int iSpectrum = 0; iSpectrum < msDataFile.SpectrumCount; iSpectrum++)
+            {
+                var spectrum = msDataFile.GetSpectrum(iSpectrum);
+                if (spectrum.Metadata.MsLevel == 1)
+                {
+                    spectra.Add(spectrum);
+                }
+            }
+            Console.Out.WriteLine("BinCount\tDigestLength\tMissCount");
+            for (int binCount = 8192; binCount > 8; binCount /= 2)
+            {
+                var binnedSpectra = spectra.Select(spectrum => BinnedSpectrum.BinSpectrum(binCount,
+                    spectrum.Metadata.ScanWindowLowerLimit.Value, spectrum.Metadata.ScanWindowUpperLimit.Value,
+                    spectrum.Mzs.Zip(spectrum.Intensities,
+                        (mz, intensity) => new KeyValuePair<double, double>(mz, intensity)))).ToList();
+                var digests = binnedSpectra.Select(spectrum => spectrum.Intensities).ToList();
+                while (digests[0].Count > 4)
+                {
+                    var spectrumSummaryList = spectra.Zip(digests,
+                        (spectrum, digest) => new SpectrumSummary(spectrum.Metadata, digest.Select(v=>(float)v))).ToList();
+                    int missCount = CountMisses(spectrumSummaryList);
+                    Console.Out.WriteLine("{0}\t{1}\t{2}", binCount, digests[0].Count,
+                        missCount);
+                    digests = digests.Select(digest => ImmutableList.ValueOf(SpectrumSummary.HaarWaveletTransform(digest))).ToList();
+                }
+            }
+        }
+        [TestMethod]
+        public void TestStretched()
+        {
+            TestFilesDir = new TestFilesDir(TestContext, @"TestData\SpectrumSummaryTest.zip");
+            var list1 = ReadSpectrumSummaryList(TestFilesDir.GetTestPath("2021_01_20_coraleggs_10B_23.spectrumsummaries.tsv"));
+
+            int count1 = list1.Count;
+            var sublist1 = Enumerable.Range(0, count1 / 8).Select(i => i * 2)
+                .Concat(Enumerable.Range(count1 / 4, count1 / 2))
+                .Concat(Enumerable.Range(0, count1 / 8).Select(i => 3 * count1 / 4 + i * 2))
+                .Select(i => list1[i]).ToList();
+
+            var list2 = ReadSpectrumSummaryList(TestFilesDir.GetTestPath("2021_01_20_coraleggs_10NB_13.spectrumsummaries.tsv"));
+            int count2 = list2.Count;
+            var sublist2 = Enumerable.Range(0, count2 / 4)
+                .Concat(Enumerable.Range(0, count2 / 4).Select(i => i * 2 + count2 / 4))
+                .Concat(Enumerable.Range(count2 * 3 / 4, count2 / 4))
+                .Select(i => list2[i]).ToList();
+            var grid = new SpectrumSummaryList(sublist1).GetSimilarityGrid(new SpectrumSummaryList(sublist2));
+            DrawGrid("streched", grid);
+        }
+
+        [TestMethod]
+        public void TestS1vS12()
+        {
+            TestFilesDir = new TestFilesDir(TestContext, @"TestData\SpectrumSummaryTest.zip");
+            var list1 = ReadSpectrumSummaryList(TestFilesDir.GetTestPath("S_1.spectrumsummaries.tsv"));
+            var list2 = ReadSpectrumSummaryList(TestFilesDir.GetTestPath("S_12.spectrumsummaries.tsv"));
+            var grid = list1.GetSimilarityGrid(list2);
+            DrawGrid("s1_vs_s12", grid);
+        }
+
+
+        private void EvaluateDigestParams(string path)
+        {
+            using var msDataFile = new MsDataFileImpl(path);
+            var spectra = new List<MsDataSpectrum>();
+            for (int iSpectrum = 0; iSpectrum < msDataFile.SpectrumCount; iSpectrum++)
+            {
+                var spectrum = msDataFile.GetSpectrum(iSpectrum);
+                if (spectrum.Metadata.MsLevel == 1)
+                {
+                    spectra.Add(spectrum);
+                }
+            }
+            for (int binCount = 8192; binCount > 8; binCount /= 2)
+            {
+                var binnedSpectra = spectra.Select(spectrum => BinnedSpectrum.BinSpectrum(binCount,
+                    spectrum.Metadata.ScanWindowLowerLimit.Value, spectrum.Metadata.ScanWindowUpperLimit.Value,
+                    spectrum.Mzs.Zip(spectrum.Intensities,
+                        (mz, intensity) => new KeyValuePair<double, double>(mz, intensity)))).ToList();
+                var digests = binnedSpectra.Select(spectrum => spectrum.Intensities).ToList();
+                while (digests[0].Count > 4)
+                {
+                    var spectrumSummaryList = spectra.Zip(digests,
+                        (spectrum, digest) => new SpectrumSummary(spectrum.Metadata, digest.Select(v => (float)v))).ToList();
+                    int missCount = CountMisses(spectrumSummaryList);
+                    Console.Out.WriteLine("BinCount: {0} DigestLength: {1} MissCount: {2}", binCount, digests[0].Count,
+                        missCount);
+                    digests = digests.Select(digest => ImmutableList.ValueOf(SpectrumSummary.HaarWaveletTransform(digest))).ToList();
+                }
+            }
+
+        }
+
+        /// <summary>
+        /// Returns the number of cases where the spectrum 2 away has a better similarity score
+        /// than the neighbor
+        /// </summary>
+        private int CountMisses(IList<SpectrumSummary> summaries)
+        {
+            int missCount = 0;
+            for (int i = 2; i < summaries.Count; i++)
+            {
+                if (summaries[i - 1].SimilarityScore(summaries[i]) < summaries[i - 2].SimilarityScore(summaries[i]))
+                {
+                    missCount++;
+                }
+            }
+
+            return missCount;
+        }
+
+        void DrawGrid(string name, SimilarityGrid grid)
+        {
+            var path = grid.ToQuadrant().FindBestQuadrants().OrderByDescending(q => q.CalculateAverageScore()).ToList();
+            var halfPath = path.Take(path.Count / 2).ToList();
+            var shortPath = path.Take(Math.Max(grid.XEntries.Count, grid.YEntries.Count)).ToList();
+            var otherShortPath = ShortenPath(path).ToList();
+            var otherOtherShortPath = OtherShortenPath(path).ToList();
+            DrawPath(grid, path).Save(TestFilesDir.GetTestPath(name + ".png"));
+            DrawPath(grid, halfPath).Save(TestFilesDir.GetTestPath(name + "_halfPoints.png"));
+            DrawPath(grid, shortPath).Save(TestFilesDir.GetTestPath(name + "_short.png"));
+            DrawPath(grid, otherShortPath).Save(TestFilesDir.GetTestPath(name + "_othershort.png"));
+            DrawPath(grid, otherOtherShortPath).Save(TestFilesDir.GetTestPath(name + "_otherothershort.png"));
+            // DrawAligner(grid, GetKdeAligner(path)).Save(TestFilesDir.GetTestPath(name + "_kde.png"));
+            // DrawAligner(grid, GetKdeAligner(halfPath)).Save(TestFilesDir.GetTestPath(name + "_halfPoints_kde.png"));
+            DrawKdeAligner(grid, shortPath, name + "_short");
+            DrawKdeAligner(grid, otherShortPath, name + "_othershort");
+            DrawKdeAligner(grid, otherOtherShortPath, name +"_otherothershort");
+        }
+
+        private void DrawKdeAligner(SimilarityGrid grid, IEnumerable<SimilarityGrid.Quadrant> path, string name)
+        {
+            var kdeAligner = GetKdeAligner(path, out var histogram);
+            DrawAligner(grid, kdeAligner).Save(TestFilesDir.GetTestPath(name + "_kde.png"));
+            DrawHeatMap(histogram).Save(TestFilesDir.GetTestPath(name + "_histogram.png"));
+        }
+
+        private IEnumerable<SimilarityGrid.Quadrant> ShortenPath(IEnumerable<SimilarityGrid.Quadrant> quadrants)
+        {
+            var xValues = new HashSet<int>();
+            var yValues = new HashSet<int>();
+            foreach (var q in quadrants)
+            {
+                if (xValues.Contains(q.XStart) || yValues.Contains(q.YStart))
+                {
+                    continue;
+                }
+
+                xValues.Add(q.XStart);
+                yValues.Add(q.YStart);
+                yield return q;
+            }
+        }
+        private IEnumerable<SimilarityGrid.Quadrant> OtherShortenPath(IEnumerable<SimilarityGrid.Quadrant> quadrants)
+        {
+            var xValues = new HashSet<int>();
+            var yValues = new HashSet<int>();
+            foreach (var q in quadrants)
+            {
+                if (!xValues.Contains(q.XStart) || !yValues.Contains(q.YStart))
+                {
+                    xValues.Add(q.XStart);
+                    yValues.Add(q.YStart);
+                    yield return q;
+                }
+            }
         }
 
         public static string ToTsv(IEnumerable<SpectrumSummary> spectrumSummaryList)
@@ -240,16 +426,20 @@ namespace pwiz.SkylineTestData
             int width = Math.Min(4000, grid.XEntries.Count);
             int height = Math.Min(4000, grid.YEntries.Count);
             var bitmap = new Bitmap(width, height);
-            foreach (var q in quadrants)
+            var orderedQuadrants = quadrants.OrderBy(q => q.MaxScore).ToList();
+            for (int iQuadrant = 0; iQuadrant < orderedQuadrants.Count; iQuadrant++)
             {
+                var q = orderedQuadrants[iQuadrant];
+                var value = 255 * iQuadrant / orderedQuadrants.Count;
+                var color = Color.FromArgb(value, value, value);
                 bitmap.SetPixel(q.XStart * width / grid.XEntries.Count,
-                    height - 1 - q.YStart * height / grid.YEntries.Count, Color.White);
+                    height - 1 - q.YStart * height / grid.YEntries.Count, color);
             }
 
             return bitmap;
         }
 
-        private Bitmap DrawKdeAligner(SimilarityGrid grid, KdeAligner aligner)
+        private Bitmap DrawAligner(SimilarityGrid grid, Aligner aligner)
         {
             var bitmap = new Bitmap(1000, 1000);
             for (int i = 0; i < 1000; i++)
@@ -277,12 +467,57 @@ namespace pwiz.SkylineTestData
             return bitmap;
         }
 
-        private KdeAligner GetKdeAligner(SimilarityGrid grid)
+        private IEnumerable<Tuple<SpectrumSummary, SpectrumSummary>> ToSummaryPairs(IEnumerable<SimilarityGrid.Quadrant> quadrants)
         {
-            var path = grid.FindBestPoints().ToList();
+            return quadrants.Select(q =>
+                Tuple.Create(q.Grid.XEntries[q.XStart], q.Grid.YEntries[q.YStart]));
+        }
+
+        private KdeAligner GetKdeAligner(IEnumerable<SimilarityGrid.Quadrant> quadrants, out float[,] histogram)
+        {
+            var path = ToSummaryPairs(quadrants).ToList();
             var kdeAligner = new KdeAligner();
-            kdeAligner.Train(path.Select(s=>s.Item1.RetentionTime).ToArray(), path.Select(s=>s.Item2.RetentionTime).ToArray(), CancellationToken.None);
+            histogram = kdeAligner.TrainWithWeights(path.Select(s => s.Item1.RetentionTime).ToArray(),
+                path.Select(s => s.Item2.RetentionTime).ToArray(), Enumerable.Repeat(1.0, path.Count).ToArray(),
+                CancellationToken.None);
             return kdeAligner;
         }
+
+        public Bitmap DrawHeatMap(float[,] histogram)
+        {
+            var bitmap = new Bitmap(histogram.GetLength(0), histogram.GetLength(1));
+            if (0 == histogram.Length)
+            {
+                return bitmap;
+            }
+
+            double min = histogram.Cast<float>().Min();
+            double max = histogram.Cast<float>().Max();
+            if (min == max)
+            {
+                return bitmap;
+            }
+
+            for (int x = 0; x < histogram.GetLength(0); x++)
+            {
+                for (int y = 0; y < histogram.GetLength(1); y++)
+                {
+                    double value = histogram[x, y];
+                    int colorValue = (int)((value - min) / (max - min) * 255);
+                    bitmap.SetPixel(x, histogram.GetLength(1) - y - 1, Color.FromArgb(colorValue, colorValue, colorValue));
+                }
+            }
+
+            return bitmap;
+        }
+
+        private LoessAligner GetLoessAligner(IEnumerable<SimilarityGrid.Quadrant> quadrants)
+        {
+            var path = ToSummaryPairs(quadrants).ToList();
+            var loessAligner = new LoessAligner();
+            loessAligner.Train(path.Select(s => s.Item1.RetentionTime).ToArray(), path.Select(s => s.Item2.RetentionTime).ToArray(), CancellationToken.None);
+            return loessAligner;
+        }
+
     }
 }

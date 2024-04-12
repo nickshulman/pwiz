@@ -1,7 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using pwiz.Common.Collections;
+using pwiz.Common.SystemUtil;
+using pwiz.Skyline.Util;
 
 namespace pwiz.Skyline.Model.Results.Spectra.Alignment
 {
@@ -25,6 +28,9 @@ namespace pwiz.Skyline.Model.Results.Spectra.Alignment
                 XCount = xCount;
                 YStart = yStart;
                 YCount = yCount;
+                var scores = EnumerateDiagonalScores().ToArray();
+                MaxScore = scores.Max();
+                MedianScore = new Statistics(scores).Median();
             }
 
             public SimilarityGrid Grid { get; }
@@ -33,22 +39,15 @@ namespace pwiz.Skyline.Model.Results.Spectra.Alignment
             public int YStart { get; }
             public int YCount { get; }
 
+            public double MedianScore { get; }
+            public double MaxScore { get; }
+
             public double CalculateAverageScore()
             {
-                int coordinateCount = Math.Max(XCount, YCount);
-                double total = 0;
-                for (int i = 0; i < coordinateCount; i++)
-                {
-                    int x = i * XCount / coordinateCount;
-                    int y = i * YCount / coordinateCount;
-                    total += Grid.XEntries[XStart + x].SimilarityScore(Grid.YEntries[YStart + y]) ?? 0;
-                    //                    total += Grid.XEntries[XStart + XCount - x - 1].SimilarityScore(Grid.YEntries[YStart + y]) ?? 0;
-                }
-
-                return total / coordinateCount;
+                return EnumerateDiagonalScores().Average();
             }
 
-            public IEnumerable<double> EnumerateDiagonalScores(bool includeDownwardsDiagonal = true)
+            private IEnumerable<double> EnumerateDiagonalScores(bool includeDownwardsDiagonal = true)
             {
                 int coordinateCount = Math.Max(XCount, YCount);
                 for (int i = 0; i < coordinateCount; i++)
@@ -89,36 +88,20 @@ namespace pwiz.Skyline.Model.Results.Spectra.Alignment
                     return new[] { this };
                 }
 
-                var quadrants = EnumerateQuadrants().ToList();
-                var quadrantScores = quadrants.SelectMany((q, index) =>
-                        q.EnumerateDiagonalScores().Select(score => Tuple.Create(score, index)))
-                    .OrderByDescending(tuple => tuple.Item1).ToList();
-                var indexesToReturn = new HashSet<int>();
-                for (int i = 0; i < quadrantScores.Count; i++)
+                var quadrants = EnumerateQuadrants().OrderByDescending(q => q.MaxScore).ToList();
+                if (quadrants.Count <= 2)
                 {
-                    if (indexesToReturn.Count == quadrants.Count - 1)
-                    {
-                        break;
-                    }
-
-                    if (indexesToReturn.Count >= quadrants.Count / 2 && i > quadrantScores.Count / 16)
-                    {
-                        break;
-                    }
-
-                    indexesToReturn.Add(quadrantScores[i].Item2);
+                    return quadrants.Take(1);
                 }
-                return indexesToReturn.Select(i => quadrants[i]);
+
+                double minMedian = quadrants.Take(2).Min(q => q.MedianScore);
+                return quadrants.Where(q => q.MaxScore >= minMedian).Take(3);
             }
 
             public IEnumerable<Quadrant> FindBestQuadrants()
             {
-                if (XCount <= 1 && YCount <= 1)
-                {
-                    return new[] { this };
-                }
-
-                return EnumerateBestQuadrants().SelectMany(q => q.FindBestQuadrants());
+                var parallelProcessor = new ParallelProcessor();
+                return parallelProcessor.FindBestQuadrants(this);
             }
         }
 
@@ -129,7 +112,93 @@ namespace pwiz.Skyline.Model.Results.Spectra.Alignment
 
         public IEnumerable<Tuple<SpectrumSummary, SpectrumSummary>> FindBestPoints()
         {
-            return ToQuadrant().FindBestQuadrants().Select(q => Tuple.Create(XEntries[q.XStart], YEntries[q.YStart]));
+            var parallelProcessor = new ParallelProcessor();
+            var results = parallelProcessor.FindBestQuadrants(ToQuadrant());
+            return results.Select(q => Tuple.Create(XEntries[q.XStart], YEntries[q.YStart]));
+        }
+
+        class ParallelProcessor
+        {
+            private List<Quadrant> _results = new List<Quadrant>();
+            private int _totalItemCount;
+            private int _completedItemCount;
+            private QueueWorker<Quadrant> _queue;
+            private List<Exception> _exceptions = new List<Exception>();
+
+            public List<Quadrant> FindBestQuadrants(Quadrant start)
+            {
+                _queue = new QueueWorker<Quadrant>(null, Consume);
+                try
+                {
+                    _queue.RunAsync(ParallelEx.GetThreadCount(), @"SimilarityGrid");
+                    Enqueue(start);
+                    while (true)
+                    {
+                        lock (this)
+                        {
+                            if (_exceptions.Any())
+                            {
+                                throw new AggregateException(_exceptions);
+                            }
+
+                            if (_completedItemCount == _totalItemCount)
+                            {
+                                return _results;
+                            }
+
+                            Monitor.Wait(this);
+                        }
+                    }
+                }
+                finally
+                {
+                    _queue.Dispose();
+                }
+            }
+
+            private void Consume(Quadrant quadrant, int threadIndex)
+            {
+                try
+                {
+                    foreach (var q in quadrant.EnumerateBestQuadrants())
+                    {
+                        Enqueue(q);
+                    }
+                }
+                catch (Exception e)
+                {
+                    lock (this)
+                    {
+                        _exceptions.Add(e);
+                    }
+                }
+                finally
+                {
+                    lock (this)
+                    {
+                        _completedItemCount++;
+                        Monitor.PulseAll(this);
+                    }
+                }
+            }
+
+            
+
+            private void Enqueue(Quadrant quadrant)
+            {
+                lock (this)
+                {
+                    if (quadrant.XCount == 1 && quadrant.YCount == 1)
+                    {
+                        _results.Add(quadrant);
+                    }
+                    else
+                    {
+                        _queue.Add(quadrant);
+                        _totalItemCount++;
+                    }
+                }
+            }
         }
     }
 }

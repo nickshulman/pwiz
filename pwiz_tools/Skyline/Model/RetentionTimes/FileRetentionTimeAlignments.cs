@@ -31,7 +31,7 @@ namespace pwiz.Skyline.Model.RetentionTimes
     /// List of retention time alignments aligned to one particular data file.
     /// </summary>
     [XmlRoot("file_rt_alignments")]
-    public class FileRetentionTimeAlignments : XmlNamedElement
+    public class FileRetentionTimeAlignments : XmlNamedElement, IAlignmentTarget
     {
         public FileRetentionTimeAlignments(string dataFileName, IEnumerable<RetentionTimeAlignment> alignments) : base(dataFileName)
         {
@@ -191,5 +191,10 @@ namespace pwiz.Skyline.Model.RetentionTimes
 
         public RetentionTimeAlignment Alignment { get; private set; }
         public int? FileIndex { get; set; }
+    }
+
+    public interface IAlignmentTarget
+    {
+        string Name { get; }
     }
 }

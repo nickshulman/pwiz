@@ -191,8 +191,8 @@ namespace pwiz.Skyline.Controls.Graphs
                 {
                     return null;
                 }
-                var fileRetentionTimeAlignments = settings.DocumentRetentionTimes.FileAlignments.Find(chromSetInfo.Item2);
-                if (null == fileRetentionTimeAlignments)
+                var fileRetentionTimeAlignments = settings.DocumentRetentionTimes.FindAlignmentTarget(chromSetInfo.Item2);
+                if (fileRetentionTimeAlignments == null)
                 {
                     return null;
                 }
@@ -246,13 +246,7 @@ namespace pwiz.Skyline.Controls.Graphs
                     return false;
                 }
 
-                var alignFromName = DocumentRetentionTimes.FileAlignments.Find(chromSetInfo.Item2)?.Name;
-                if (alignFromName == null)
-                {
-                    return false;
-                }
-
-                regressionFunction = DocumentRetentionTimes.GetMappingFunction(AlignTo, alignFromName, MAX_STOPOVERS);
+                regressionFunction = DocumentRetentionTimes.GetMappingFunction(ChromFileInfo, chromSetInfo.Item2, MAX_STOPOVERS);
                 return regressionFunction != null;
             }
 

@@ -91,14 +91,10 @@ namespace pwiz.SkylineTestData
                     ToHeatMap(similarityMatrix).Save(TestFilesDir.GetTestPath(file1 + "_vs_" + file2 + "_heatmap.png"), ImageFormat.Png);
                     foreach (Weighting weighting in Enum.GetValues(typeof(Weighting)))
                     {
-                        foreach (var stretchFactor in new[] {1.0, 2.0})
-                        {
-                            var fileName = file1 + "_vs_" + file2 + "_" + weighting + "_" + stretchFactor;
-                            var alignment = Align(similarityMatrix, weighting, stretchFactor);
-                            DrawHeatMap(alignment.Item2).Save(TestFilesDir.GetTestPath(fileName + "_alignment_heatmap.png"), ImageFormat.Png);
-                            GetAlignmentBitmap(alignment.Item1).Save(TestFilesDir.GetTestPath(fileName + "_alignment.png"), ImageFormat.Png);
-                        }
-
+                        var fileName = file1 + "_vs_" + file2 + "_" + weighting;
+                        var alignment = Align(similarityMatrix, weighting);
+                        DrawHeatMap(alignment.Item2).Save(TestFilesDir.GetTestPath(fileName + "_alignment_heatmap.png"), ImageFormat.Png);
+                        GetAlignmentBitmap(alignment.Item1).Save(TestFilesDir.GetTestPath(fileName + "_alignment.png"), ImageFormat.Png);
                     }
                 }
             }
@@ -188,26 +184,6 @@ namespace pwiz.SkylineTestData
         }
 
         [TestMethod]
-        public void TestStretchFactor2()
-        {
-            TestFilesDir = new TestFilesDir(TestContext, @"TestData\SpectrumSummaryTest.zip");
-            int digestLength = 4096;
-            var fullMetadata1 = GetResultFileMetadata(TestFilesDir.GetTestPath("S_1.raw"), digestLength, false);
-            var otherFile = "S_10";
-            var fullMetadata2 = GetResultFileMetadata(TestFilesDir.GetTestPath(otherFile + ".raw"),
-                digestLength, false);
-            var similarityMatrix =
-                fullMetadata1.SpectrumSummaries.GetSimilarityMatrix(null, null, fullMetadata2.SpectrumSummaries);
-            foreach (double stretchFactor in new[] { 1.0, 2.0 })
-            {
-                var alignment = Align(similarityMatrix, Weighting.normalizedContrastAngle, 2);
-                var name = "S_1_vs_S_10_stretchfactor_" + stretchFactor;
-                GetAlignmentBitmap(alignment.Item1).Save(TestFilesDir.GetTestPath(name + "alignment.png"));
-                DrawHeatMap(alignment.Item2)
-                    .Save(TestFilesDir.GetTestPath(name + "heatmap.png"));
-            }
-        }
-
         private double ScoreAlignment(KdeAligner goldStandard, KdeAligner aligner)
         {
             double totalDifference = 0;
@@ -223,7 +199,7 @@ namespace pwiz.SkylineTestData
         [TestMethod]
         public void TestKdeAligner()
         {
-            var kdeAligner = new KdeAligner(100);
+            var kdeAligner = new KdeAligner(-1, -1, 100);
             var points = Enumerable.Range(0, 100).Select(i => new PointPair(i, i / 2.0, 1)).ToList();
             var result = kdeAligner.TrainPoints(points,
                 CancellationToken.None);
@@ -234,15 +210,25 @@ namespace pwiz.SkylineTestData
         }
 
         [TestMethod]
-        public void TestStretchFactor()
+        public void TestKdeAlignerToAlignmentFunction()
         {
-            var kdeAligner = new KdeAligner(100, 2.0);
-            var points = new[] { new PointPair(0, 0, 1), new PointPair(10, 10, 1), new PointPair(80, 60, 1) , new PointPair(100, 100, 1)};
-            var result = kdeAligner.TrainPoints(points,
-                CancellationToken.None);
-            DrawHeatMap(result).Save(TestContext.GetTestPath("StretchHeatMap.png"), ImageFormat.Png);
-            
+            var kdeAligner = new KdeAligner(-1, -1);
+            var points = Enumerable.Range(0, 10).Select(i => new PointPair(i, 0))
+                .Concat(Enumerable.Range(0, 10).Select(i=>new PointPair(10, i)))
+                .Concat(Enumerable.Range(0, 10).Select(i=>new PointPair(10 + i, 10)))
+                .ToList();
+            var heatMap = kdeAligner.TrainPoints(points, CancellationToken.None);
+            DrawHeatMap(heatMap).Save(TestContext.GetTestPath("HeatMap.png"));
+            GetAlignmentBitmap(kdeAligner).Save(TestContext.GetTestPath("Alignment.png"));
+            var alignmentFunction = kdeAligner.ToAlignmentFunction();
+            double maxDifference = 0;
+            for (int i = 0; i < 1000; i++)
+            {
+                maxDifference = Math.Max(maxDifference, Math.Abs(i * i - alignmentFunction.GetY(i)));
+            }
+            Assert.AreEqual(0, maxDifference, 1000);
         }
+
 
         public Bitmap DrawHeatMap(float[,] histogram)
         {
@@ -272,10 +258,10 @@ namespace pwiz.SkylineTestData
             return bitmap;
         }
 
-        private Tuple<KdeAligner, float[,]> Align(SimilarityMatrix similarityMatrix, Weighting weighting, double stretchFactor = 1)
+        private Tuple<KdeAligner, float[,]> Align(SimilarityMatrix similarityMatrix, Weighting weighting)
         {
             var resolution = 1000;
-            var kdeAligner = new KdeAligner(resolution, stretchFactor);
+            var kdeAligner = new KdeAligner(resolution);
             var bestPath = similarityMatrix.FindBestPath(false).Select(point =>
             {
                 switch (weighting)

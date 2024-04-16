@@ -59,12 +59,18 @@ namespace pwiz.Skyline.Model.Results.Spectra.Alignment
 
         public static SpectrumSummary FromSpectrum(MsDataSpectrum spectrum)
         {
+            return FromSpectrum(spectrum, DEFAULT_SUMMARY_LENGTH);
+        }
+
+        public static SpectrumSummary FromSpectrum(MsDataSpectrum spectrum, int summaryLength)
+        {
             if (spectrum == null)
             {
                 return null;
             }
 
-            return FromSpectrum(spectrum.Metadata, spectrum.Mzs.Zip(spectrum.Intensities, (mz, intensity)=>new KeyValuePair<double, double>(mz, intensity)),DEFAULT_SUMMARY_LENGTH);
+            return FromSpectrum(spectrum.Metadata, spectrum.Mzs.Zip(spectrum.Intensities, (mz, intensity) => new KeyValuePair<double, double>(mz, intensity)), summaryLength);
+
         }
 
         public static SpectrumSummary FromSpectrum(SpectrumMetadata metadata,

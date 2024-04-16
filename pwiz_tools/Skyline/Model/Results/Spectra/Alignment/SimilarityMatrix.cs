@@ -17,7 +17,6 @@
  * limitations under the License.
  */
 
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using pwiz.Common.Collections;
@@ -36,15 +35,20 @@ namespace pwiz.Skyline.Model.Results.Spectra.Alignment
     /// </summary>
     public class SimilarityMatrix
     {
-        public SimilarityMatrix(IEnumerable<PointPair> points)
+        public SimilarityMatrix(IEnumerable<SubMatrix> scoreMatrices)
         {
-            Points = ImmutableList.ValueOf(points.OrderByDescending(point => point.Z));
+            ScoreMatrices = ImmutableList.ValueOf(scoreMatrices);
         }
 
-        /// <summary>
-        /// List of points sorted descending by Z-value.
-        /// </summary>
-        public ImmutableList<PointPair> Points { get; }
+        public ImmutableList<SubMatrix> ScoreMatrices{ get; }
+
+        public IEnumerable<PointPair> Points
+        {
+            get
+            {
+                return ScoreMatrices.SelectMany(matrix => matrix.AsPoints);
+            }
+        }
 
         public IEnumerable<(double x, double y, double z)> AsTuples
         {
@@ -59,32 +63,9 @@ namespace pwiz.Skyline.Model.Results.Spectra.Alignment
         /// The points will have unique X-values and unique Y-values.
         /// <param name="onlyIncludeBestPoints">If true, the returned points will all have the highest Z-value among all points with the same X-coordinate and all points with the same Y-coordinate</param>
         /// </summary>
-        public IEnumerable<PointPair> FindBestPath(bool onlyIncludeBestPoints)
+        public IList<PointPair> FindBestPath(bool onlyIncludeBestPoints)
         {
-            var xValues = new HashSet<double>();
-            var yValues = new HashSet<double>();
-            foreach (var point in Points)
-            {
-                if (onlyIncludeBestPoints)
-                {
-                    if (!xValues.Add(point.X) | !yValues.Add(point.Y))
-                    {
-                        continue;
-                    }
-                }
-                else
-                {
-                    if (xValues.Contains(point.X) || yValues.Contains(point.Y))
-                    {
-                        continue;
-                    }
-
-                    xValues.Add(point.X);
-                    yValues.Add(point.Y);
-                }
-
-                yield return new PointPair(point.X, point.Y, point.Z);
-            }
+            return ScoreMatrices.SelectMany(matrix => matrix.GetBestPath()).ToList();
         }
 
         public string ToTsv()
@@ -105,6 +86,82 @@ namespace pwiz.Skyline.Model.Results.Spectra.Alignment
             }
 
             return TextUtil.LineSeparate(lines);
+        }
+
+        public class SubMatrix
+        {
+            public SubMatrix(IEnumerable<double> xValues, IEnumerable<double> yValues,
+                IEnumerable<IEnumerable<double>> scoreRows)
+            {
+                XValues = ImmutableList.ValueOf(xValues);
+                YValues = ImmutableList.ValueOf(yValues);
+                ScoreRows = ImmutableList.ValueOf(scoreRows.Select(ImmutableList.ValueOf));
+            }
+
+            public ImmutableList<double> XValues { get; }
+            public ImmutableList<double> YValues { get; }
+            public ImmutableList<ImmutableList<double>> ScoreRows { get; }
+
+            public IEnumerable<PointPair> GetBestPath()
+            {
+                var returnedRows = new HashSet<int>();
+                var returnedColumns = new HashSet<int>();
+                while (true)
+                {
+                    int bestRow = -1;
+                    int bestCol = -1;
+                    double? bestScore = null;
+                    for (int iRow = 0; iRow < YValues.Count; iRow++)
+                    {
+                        if (returnedRows.Contains(iRow))
+                        {
+                            continue;
+                        }
+
+                        var row = ScoreRows[iRow];
+                        for (int iCol = 0; iCol < XValues.Count; iCol++)
+                        {
+                            if (returnedColumns.Contains(iCol))
+                            {
+                                continue;
+                            }
+
+                            var score = row[iCol];
+                            if (bestScore == null || score > bestScore)
+                            {
+                                bestScore = score;
+                                bestRow = iRow;
+                                bestCol = iCol;
+                            }
+                        }
+                    }
+
+                    if (bestScore == null)
+                    {
+                        yield break;
+                    }
+
+                    returnedRows.Add(bestRow);
+                    returnedColumns.Add(bestCol);
+                    yield return new PointPair(XValues[bestCol], YValues[bestRow], bestScore.Value);
+                }
+            }
+
+            public IEnumerable<PointPair> AsPoints
+            {
+                get
+                {
+                    for (int iRow = 0; iRow < YValues.Count; iRow++)
+                    {
+                        var scoreRow = ScoreRows[iRow];
+                        var yValue = YValues[iRow];
+                        for (int iCol = 0; iCol < XValues.Count; iCol++)
+                        {
+                            yield return new PointPair(XValues[iCol], yValue, scoreRow[iRow]);
+                        }
+                    }
+                }
+            }
         }
     }
 }

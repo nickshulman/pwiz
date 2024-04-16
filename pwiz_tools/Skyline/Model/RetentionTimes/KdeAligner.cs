@@ -72,24 +72,19 @@ namespace pwiz.Skyline.Model.RetentionTimes
         private double _rmsd;
         private double[] _smoothedY;
         private double[] _xArr;
-        private double _stretchFactor;
 
         public KdeAligner(int origXFileIndex, int origYFileIndex, int resolution = 1000) : base(origXFileIndex, origYFileIndex)
         {
             _resolution = resolution;
-            _stretchFactor = 1;
         }
 
         /// <summary>
         /// Constructs a KdeAligner with a specific resolution and stretchFactor
         /// </summary>
         /// <param name="resolution">The number of points in the X and Y axes </param>
-        /// <param name="eccentricity">Experimental parameter controlling the amount that the CosineGaussian stamp is stretched.
-        /// This value is interpreted as the eccentricity of an ellipse whose major axis is along the Y=X axis.</param>
-        public KdeAligner(int resolution = 1000, double eccentricity = 0) 
+        public KdeAligner(int resolution = 1000) 
         {
             _resolution = resolution;
-            _stretchFactor = Math.Sqrt(1-eccentricity);
         }
         
         public int Resolution
@@ -147,7 +142,7 @@ namespace pwiz.Skyline.Model.RetentionTimes
             // division by 2.3548 converts bandwidth (fwhm) to stdev for gaussians
             var stdev = (float) Math.Min(_resolution/40f, bandWidth/BANDWIDTH_TO_STDEV);
 
-            float[,] stamp = GetCosineGaussianStamp(new CosineGaussian(stdev), _stretchFactor);
+            float[,] stamp = GetCosineGaussianStamp(new CosineGaussian(stdev));
 
             float[,] histogram = new float[_resolution, _resolution];
 
@@ -318,7 +313,7 @@ namespace pwiz.Skyline.Model.RetentionTimes
             }
         }
 
-        private void Stamp(float[,] histogram, float[,] stamp, int x, int y, float weight)
+        private void Stamp(float[,] histogram, float[,] stamp, int x, int y)
         {
             for (int i = x - stamp.GetLength(0)/2; i <= x + stamp.GetLength(0)/2; i++)
             {
@@ -332,14 +327,14 @@ namespace pwiz.Skyline.Model.RetentionTimes
                         continue;
                     if (j >= histogram.GetLength(1))
                         break;
-                    histogram[i, j] += stamp[i - x + stamp.GetLength(0)/2, j - y + stamp.GetLength(1)/2] * weight;
+                    histogram[i, j] += stamp[i - x + stamp.GetLength(0)/2, j - y + stamp.GetLength(1)/2];
                 }
             }
         }
 
-        public static float[,] GetCosineGaussianStamp(CosineGaussian cG, double stretchFactor = 1)
+        public static float[,] GetCosineGaussianStamp(CosineGaussian cG)
         {
-            int stampRadius = (int) Math.Round(2.0f * cG.Stdev * stretchFactor);
+            int stampRadius = (int) Math.Round(2.0f * cG.Stdev);
 
             var stamp = new float[stampRadius*2+1, stampRadius*2+1];
             for (int i = 0; i < stampRadius*2 + 1; i++)
@@ -349,18 +344,7 @@ namespace pwiz.Skyline.Model.RetentionTimes
                     double deltaX = i - stampRadius;
                     double deltaY = j - stampRadius;
                     double delta;
-                    if (stretchFactor == 1)
-                    {
-                        delta = Math.Sqrt(deltaX * deltaX + deltaY * deltaY);
-                    }
-                    else
-                    {
-                        // xPrime and yPrime are x and y rotated 45 degrees clockwise
-                        // and then shrunk based on the eccentricity of the ellipse
-                        double xPrime = (deltaX + deltaY) / stretchFactor;
-                        double yPrime = deltaY - deltaX;
-                        delta = Math.Sqrt(xPrime * xPrime + yPrime * yPrime) / 2;
-                    }
+                    delta = Math.Sqrt(deltaX * deltaX + deltaY * deltaY);
 
                     var value = (float) cG.GetDensity(delta);
                     if (float.IsNaN(value) || float.IsInfinity(value))
@@ -454,7 +438,13 @@ namespace pwiz.Skyline.Model.RetentionTimes
 
         public PiecewiseLinearRegression ToAlignmentFunction()
         {
-            return new PiecewiseLinearRegression(_xArr, _smoothedY);
+            var points = _xArr.Zip(_smoothedY, Tuple.Create).ToList();
+            if (_consolidatedYX != null)
+            {
+                points.AddRange(_consolidatedYX.Select(y => Tuple.Create(GetScaledY(y), GetValueReversed(y))));
+            }
+
+            return PiecewiseLinearRegression.FromPoints(points);
         }
     }
 }

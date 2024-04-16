@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using pwiz.Common.Collections;
 
 namespace pwiz.Skyline.Model.RetentionTimes
@@ -15,6 +16,31 @@ namespace pwiz.Skyline.Model.RetentionTimes
         {
             XValues = ImmutableList.ValueOf(xValues);
             YValues = ImmutableList.ValueOf(yValues);
+        }
+
+        public static PiecewiseLinearRegression FromPoints(IEnumerable<Tuple<double, double>> points)
+        {
+            var orderedPoints = points.OrderBy(pt => pt).ToList();
+            var nonRedundantPoints = new List<Tuple<double, double>> { orderedPoints[0] };
+            for (int iPoint = 1; iPoint < orderedPoints.Count - 1; iPoint++)
+            {
+                if ((orderedPoints[iPoint].Item1 - orderedPoints[iPoint - 1].Item1) *
+                    (orderedPoints[iPoint + 1].Item2 - orderedPoints[iPoint].Item2) ==
+                    (orderedPoints[iPoint].Item2 - orderedPoints[iPoint - 1].Item2) *
+                    (orderedPoints[iPoint + 1].Item1 - orderedPoints[iPoint].Item1))
+                {
+                    continue;
+                }
+                nonRedundantPoints.Add(orderedPoints[iPoint]);
+            }
+
+            if (orderedPoints.Count > 1)
+            {
+                nonRedundantPoints.Add(orderedPoints[orderedPoints.Count - 1]);
+            }
+
+            return new PiecewiseLinearRegression(nonRedundantPoints.Select(pt => pt.Item1),
+                nonRedundantPoints.Select(pt => pt.Item2));
         }
         
         public ImmutableList<double> XValues { get; }

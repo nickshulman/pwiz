@@ -13,7 +13,7 @@ using pwiz.Skyline.Util;
 namespace pwiz.Skyline.Model.RetentionTimes
 {
     [XmlRoot("spectral_alignments")]
-    public class SpectralAlignments : Immutable, IXmlSerializable
+    public class SpectralAlignments : Immutable, IXmlSerializable, IAlignmentTarget
     {
         private ImmutableList<KeyValuePair<MsDataFileUri, PiecewiseLinearRegression>> _alignments;
         public SpectralAlignments(MsDataFileUri target,
@@ -24,6 +24,11 @@ namespace pwiz.Skyline.Model.RetentionTimes
         }
 
         public MsDataFileUri Target { get; private set; }
+
+        public string Name
+        {
+            get { return Target.GetFileName(); }
+        }
 
         public IEnumerable<KeyValuePair<MsDataFileUri, PiecewiseLinearRegression>> Alignments
         {

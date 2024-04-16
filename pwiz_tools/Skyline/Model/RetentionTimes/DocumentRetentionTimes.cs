@@ -65,7 +65,21 @@ namespace pwiz.Skyline.Model.RetentionTimes
 
         public bool IsEmpty
         {
-            get { return RetentionTimeSources.IsEmpty && FileAlignments.IsEmpty; }
+            get { return RetentionTimeSources.IsEmpty && !AnyAlignments; }
+        }
+
+        public bool AnyAlignments
+        {
+            get
+            {
+                return !FileAlignments.IsEmpty || SpectralAlignmentsList.Count != 0;
+            }
+        }
+
+        public IAlignmentTarget FindAlignmentTarget(ChromFileInfo chromFileInfo)
+        {
+            return (IAlignmentTarget) FileAlignments.Find(chromFileInfo) ??
+                   SpectralAlignmentsList.FirstOrDefault(item => Equals(item.Target, chromFileInfo.FilePath));
         }
 
         public static string IsNotLoadedExplained(SrmSettings srmSettings)
@@ -80,10 +94,6 @@ namespace pwiz.Skyline.Model.RetentionTimes
             if (!Equals(resultSources.Keys, documentRetentionTimes.FileAlignments.Keys))
             {
                 return @"DocumentRetentionTimes: !Equals(resultSources.Keys, documentRetentionTimes.FileAlignments.Keys)";
-            }
-            if (documentRetentionTimes.FileAlignments.IsEmpty)
-            {
-                return null;
             }
             if (!Equals(availableSources, documentRetentionTimes.RetentionTimeSources))
             {
@@ -198,7 +208,12 @@ namespace pwiz.Skyline.Model.RetentionTimes
                 newFileAlignments.OrderBy(kvp => kvp.Key).Select(kvp => kvp.Value), spectralAlignmentsList);
 
             var newDocument = document.ChangeSettings(document.Settings.ChangeDocumentRetentionTimes(newDocRt));
-            Debug.Assert(IsLoaded(newDocument));
+#if DEBUG
+            if (!IsLoaded(newDocument))
+            {
+                Console.Out.WriteLine("Not loaded");
+            }
+#endif
             progressMonitor.UpdateProgress(progressStatus.Complete());
             return newDocument;
         }
@@ -249,8 +264,12 @@ namespace pwiz.Skyline.Model.RetentionTimes
 
         public PiecewiseLinearRegression GetSpectralAlignment(MsDataFileUri file1, MsDataFileUri file2)
         {
-            return SpectralAlignmentsList.FirstOrDefault(spectralAlignment => Equals(spectralAlignment.Target, file1))
-                ?.GetAlignment(file2);
+            return FindSpectralAlignments(file1)?.GetAlignment(file2);
+        }
+
+        public SpectralAlignments FindSpectralAlignments(MsDataFileUri target)
+        {
+            return SpectralAlignmentsList.FirstOrDefault(spectralAlignment => Equals(spectralAlignment.Target, target));
         }
 
         #region Object Overrides
@@ -534,7 +553,30 @@ namespace pwiz.Skyline.Model.RetentionTimes
             {SampleType.SOLVENT, 4}
         };
 
-        public AlignmentFunction GetMappingFunction(string alignTo, string alignFrom, int maxStopovers)
+        public AlignmentFunction GetMappingFunction(ChromFileInfo alignTo, ChromFileInfo alignFrom, int maxStopovers)
+        {
+            var mappingFunction = GetSpectralMappingFunction(alignTo.FilePath, alignFrom.FilePath, maxStopovers);
+            if (mappingFunction != null)
+            {
+                return mappingFunction;
+            }
+
+            var alignToName = FileAlignments.Find(alignTo)?.Name;
+            if (alignToName == null)
+            {
+                return null;
+            }
+
+            var alignFromName = FileAlignments.Find(alignFrom)?.Name;
+            if (alignFromName == null)
+            {
+                return null;
+            }
+            mappingFunction = GetLibraryMappingFunction(alignToName, alignFromName, maxStopovers);
+            return mappingFunction;
+        }
+
+        public AlignmentFunction GetLibraryMappingFunction(string alignTo, string alignFrom, int maxStopovers)
         {
             var queue = new Queue<ImmutableList<KeyValuePair<string, RetentionTimeAlignment>>>();
             queue.Enqueue(ImmutableList<KeyValuePair<string, RetentionTimeAlignment>>.EMPTY);
@@ -570,11 +612,54 @@ namespace pwiz.Skyline.Model.RetentionTimes
             return null;
         }
 
+        public AlignmentFunction GetSpectralMappingFunction(MsDataFileUri alignTo, MsDataFileUri alignFrom,
+            int maxStopovers)
+        {
+            var queue = new Queue<ImmutableList<KeyValuePair<MsDataFileUri, PiecewiseLinearRegression>>>();
+            queue.Enqueue(ImmutableList<KeyValuePair<MsDataFileUri, PiecewiseLinearRegression>>.EMPTY);
+            while (queue.Count > 0)
+            {
+                var list = queue.Dequeue();
+                var name = list.LastOrDefault().Key ?? alignTo;
+                var fileAlignment = FindSpectralAlignments(name);
+                if (fileAlignment == null)
+                {
+                    continue;
+                }
+
+                var endAlignment = fileAlignment.GetAlignment(alignFrom);
+                if (endAlignment != null)
+                {
+                    return MakeSpectralAlignmentFunc(list.Select(tuple => tuple.Value).Prepend(endAlignment));
+                }
+
+                if (list.Count < maxStopovers)
+                {
+                    var excludeNames = list.Select(tuple => tuple.Key).ToHashSet();
+                    foreach (var availableAlignment in fileAlignment.Alignments)
+                    {
+                        if (!excludeNames.Contains(availableAlignment.Key))
+                        {
+                            queue.Enqueue(ImmutableList.ValueOf(list.Prepend(availableAlignment)));
+                        }
+                    }
+                }
+            }
+
+            return null;
+
+        }
+
         public static AlignmentFunction MakeAlignmentFunc(IEnumerable<RegressionLine> regressionLines)
         {
 
             return AlignmentFunction.FromParts(regressionLines.Select(line =>
                 AlignmentFunction.Define(line.GetY, line.GetX)));
+        }
+
+        public static AlignmentFunction MakeSpectralAlignmentFunc(IEnumerable<PiecewiseLinearRegression> parts)
+        {
+            return AlignmentFunction.FromParts(parts.Select(part=>AlignmentFunction.Define(part.GetY, part.GetX)));
         }
 
         private static Dictionary<MsDataFileUri, IEnumerable<KeyValuePair<MsDataFileUri, PiecewiseLinearRegression>>>

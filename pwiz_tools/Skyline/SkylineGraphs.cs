@@ -3473,7 +3473,7 @@ namespace pwiz.Skyline
                 items.Insert(iInsert++, menuItem);
             }
             if (null != chromFileInfoId && DocumentUI.Settings.HasResults &&
-                !DocumentUI.Settings.DocumentRetentionTimes.FileAlignments.IsEmpty)
+                DocumentUI.Settings.DocumentRetentionTimes.AnyAlignments)
             {
                 foreach (var chromatogramSet in DocumentUI.Settings.MeasuredResults.Chromatograms)
                 {
@@ -3485,7 +3485,7 @@ namespace pwiz.Skyline
                     {
                         continue;
                     }
-                    string fileItemName = Path.GetFileNameWithoutExtension(SampleHelp.GetFileName(chromFileInfo.FilePath));
+                    string fileItemName = chromFileInfo.FilePath.GetFileNameWithoutExtension();
                     var menuItemText = string.Format(Resources.SkylineWindow_AlignTimesToFileFormat, fileItemName);
                     var alignToFileItem = new ToolStripMenuItem(menuItemText);
                     if (ReferenceEquals(chromFileInfoId, AlignToFile))

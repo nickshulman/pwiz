@@ -26,6 +26,7 @@ using pwiz.MSGraph;
 using pwiz.Skyline.Model;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.Results;
+using pwiz.Skyline.Model.RetentionTimes;
 using pwiz.Skyline.Model.Themes;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
@@ -82,7 +83,7 @@ namespace pwiz.Skyline.Controls.Graphs
             TransitionDocNode transition,
             ChromatogramInfo chromatogram,
             TransitionChromInfo tranPeakInfo,
-            RegressionLine timeRegressionFunction,
+            AlignmentFunction timeRegressionFunction,
             bool[] annotatePeaks,
             double[] dotProducts,
             double bestProduct,
@@ -114,7 +115,7 @@ namespace pwiz.Skyline.Controls.Graphs
 
         public ChromGraphItem(ChromatogramOwner owner, ChromatogramInfo chromatogram,
             TransitionChromInfo tranPeakInfo,
-            RegressionLine timeRegressionFunction,
+            AlignmentFunction timeRegressionFunction,
             bool[] annotatePeaks,
             double[] dotProducts,
             double bestProduct,
@@ -197,7 +198,7 @@ namespace pwiz.Skyline.Controls.Graphs
         }
         public ChromatogramInfo Chromatogram { get; private set; }
         public TransitionChromInfo TransitionChromInfo { get; private set; }
-        public RegressionLine TimeRegressionFunction { get; private set; }
+        public AlignmentFunction TimeRegressionFunction { get; private set; }
         public TransformChrom? TransformChrom { get; set; }
         public MultiplexMatrix.Replicate MultiplexMatrixReplicate { get; set; }
         public ScaledRetentionTime ScaleRetentionTime(double measuredTime)

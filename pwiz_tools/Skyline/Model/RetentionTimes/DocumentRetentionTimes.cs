@@ -178,10 +178,8 @@ namespace pwiz.Skyline.Model.RetentionTimes
                 {
                     var summaries1 = spectrumSummaries[tuple.Item1];
                     var summaries2 = spectrumSummaries[tuple.Item2];
-                    var matrix =
-                        summaries1.SpectrumSummaries.GetSimilarityMatrix(null, null, summaries2.SpectrumSummaries);
-                    var kdeAligner = new KdeAligner(-1, -1);
-                    kdeAligner.TrainPoints(matrix.FindBestPath(false).ToList(), CancellationToken.None);
+                    var kdeAligner =
+                        summaries1.SpectrumSummaries.PerformAlignment(null, null, summaries2.SpectrumSummaries);
                     alignmentFunction = kdeAligner.ToAlignmentFunction();
                 }
                 catch (Exception ex)

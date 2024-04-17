@@ -36,6 +36,12 @@ namespace pwiz.Common.Spectra
 
         public string Id { get; private set; }
         public double RetentionTime { get; private set; }
+
+        public SpectrumMetadata ChangeRetentionTime(double retentionTime)
+        {
+            return ChangeProp(ImClone(this), im => im.RetentionTime = retentionTime);
+        }
+
         public int MsLevel
         {
             get { return _precursorsByMsLevel.Count + 1; }

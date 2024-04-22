@@ -22,6 +22,7 @@ using System.Linq;
 using System.Threading;
 using pwiz.Common.Collections;
 using pwiz.Common.SystemUtil;
+using pwiz.Skyline.Model.RetentionTimes;
 using pwiz.Skyline.Util;
 
 namespace pwiz.Skyline.Model.Results.Spectra.Alignment
@@ -199,6 +200,23 @@ namespace pwiz.Skyline.Model.Results.Spectra.Alignment
         public IEnumerable<Point> FindBestPath()
         {
             return FilterBestPoints(GetBestPointCandidates(null, null));
+        }
+
+        public KdeAligner PerformAlignment()
+        {
+            return PerformAlignment(null, null);
+        }
+
+        public KdeAligner PerformAlignment(IProgressMonitor progressMonitor, IProgressStatus status)
+        {
+            var bestPath = FilterBestPoints(GetBestPointCandidates(progressMonitor, status)).ToList();
+            var kdeAligner = new KdeAligner(-1, -1)
+            {
+                ExcludeEdgeFraction = 0.25
+            };
+            
+            kdeAligner.Train(bestPath.Select(pt=>pt.XRetentionTime).ToArray(), bestPath.Select(pt=>pt.YRetentionTime).ToArray(), CancellationToken.None);
+            return kdeAligner;
         }
 
         class ParallelProcessor

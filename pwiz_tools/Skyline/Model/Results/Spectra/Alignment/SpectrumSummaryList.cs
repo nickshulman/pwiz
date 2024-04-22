@@ -19,7 +19,6 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using System.Threading;
 using pwiz.Common.Collections;
 using pwiz.Common.Spectra;
 using pwiz.Common.SystemUtil;
@@ -149,7 +148,7 @@ namespace pwiz.Skyline.Model.Results.Spectra.Alignment
         }
 
         /// <summary>
-        /// Remove all of the spectra whose scan window or precursors are not common enough to do
+        /// Remove all the spectra whose scan window or precursors are not common enough to do
         /// alignment on
         /// </summary>
         /// <returns></returns>
@@ -193,16 +192,7 @@ namespace pwiz.Skyline.Model.Results.Spectra.Alignment
         public KdeAligner PerformAlignment(IProgressMonitor progressMonitor, IProgressStatus status, SpectrumSummaryList spectra2)
         {
             var similarityGrid = GetSimilarityGrid(spectra2);
-            var candidatePoints = similarityGrid.GetBestPointCandidates(progressMonitor, status);
-            if (candidatePoints == null)
-            {
-                return null;
-            }
-
-            var bestPoints = SimilarityGrid.FilterBestPoints(candidatePoints).ToList();
-            var kdeAligner = new KdeAligner();
-            kdeAligner.Train(bestPoints.Select(pt => pt.XRetentionTime).ToArray(), bestPoints.Select(pt=>pt.YRetentionTime).ToArray(), CancellationToken.None);
-            return kdeAligner;
+            return similarityGrid.PerformAlignment(progressMonitor, status);
         }
     }
 }

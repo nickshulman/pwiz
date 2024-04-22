@@ -93,6 +93,12 @@ namespace pwiz.Skyline.Model.RetentionTimes
             get { return _resolution; }
         }
 
+        /// <summary>
+        /// When choosing a point to start from, how much of the border should not be considered.
+        /// <see cref="FindBestXY"/>.
+        /// </summary>
+        public double ExcludeEdgeFraction { get; set; }
+
         public double GetScaledX(int coordinate)
         {
             return _minX + coordinate * (_maxX - _minX) / _resolution;
@@ -181,9 +187,13 @@ namespace pwiz.Skyline.Model.RetentionTimes
             yBest = 0;
             double best = double.MinValue;
 
-            for (int x = 0; x < histogram.GetLength(0); x++)
+            int xStart = (int) (histogram.GetLength(0) * ExcludeEdgeFraction);
+            int xEnd = (int)(histogram.GetLength(0) * (1 - ExcludeEdgeFraction));
+            int yStart = (int)(histogram.GetLength(1) * ExcludeEdgeFraction);
+            int yEnd = (int)(histogram.GetLength(1) * (1 - ExcludeEdgeFraction));
+            for (int x = xStart; x < xEnd; x++)
             {
-                for (int y = 0; y < histogram.GetLength(1); y++)
+                for (int y = yStart; y < yEnd; y++)
                 {
                     float val = histogram[x, y];
                     if (val > best)

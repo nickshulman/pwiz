@@ -196,6 +196,7 @@
     <Compile Include="Results\WatersCalcurveTest.cs" />
     <Compile Include="Results\WatersImsMseTest.cs" />
     <Compile Include="SimpleSpectrumSummaryTest.cs" />
+    <Compile Include="SpectralAlignmentScreenshots.cs" />
     <Compile Include="SpectrumSummaryTest.cs" />
     <Compile Include="XmlValidationTest.cs" />
   </ItemGroup>

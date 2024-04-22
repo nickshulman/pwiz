@@ -408,12 +408,12 @@ namespace pwiz.SkylineTestData
             return bitmap;
         }
 
-        private Bitmap DrawAligner(SimilarityGrid grid, Aligner aligner)
+        public static Bitmap DrawAligner(SimilarityGrid grid, Aligner aligner)
         {
             return DrawAligner(GetRange(grid), aligner);
         }
         
-        private Bitmap DrawAligner(Range range, Aligner aligner)
+        public static Bitmap DrawAligner(Range range, Aligner aligner)
         {
             var bitmap = new Bitmap(1000, 1000);
             for (int i = 0; i < 1000; i++)
@@ -532,7 +532,7 @@ namespace pwiz.SkylineTestData
 
         }
 
-        private Range GetRange(SimilarityGrid grid)
+        public static Range GetRange(SimilarityGrid grid)
         {
             return new Range(grid.XEntries.Min(s => s.RetentionTime),
                 grid.XEntries.Max(s => s.RetentionTime),
@@ -540,7 +540,7 @@ namespace pwiz.SkylineTestData
                 grid.YEntries.Max(s => s.RetentionTime));
         }
 
-        class Range
+        public class Range
         {
             public Range(double minX, double maxX, double minY, double maxY)
             {

@@ -54,6 +54,7 @@
             this.toolStripSeparator35 = new System.Windows.Forms.ToolStripSeparator();
             this.permuteIsotopeModificationsMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.refineAdvancedMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.peakImputationMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.menuStrip1.SuspendLayout();
             this.SuspendLayout();
             // 
@@ -85,7 +86,8 @@
             this.removeRepeatedPeptidesMenuItem,
             this.toolStripSeparator35,
             this.permuteIsotopeModificationsMenuItem,
-            this.refineAdvancedMenuItem});
+            this.refineAdvancedMenuItem,
+            this.peakImputationMenuItem});
             this.refineToolStripMenuItem.Name = "refineToolStripMenuItem";
             resources.ApplyResources(this.refineToolStripMenuItem, "refineToolStripMenuItem");
             // 
@@ -236,6 +238,12 @@
             resources.ApplyResources(this.refineAdvancedMenuItem, "refineAdvancedMenuItem");
             this.refineAdvancedMenuItem.Click += new System.EventHandler(this.refineMenuItem_Click);
             // 
+            // peakImputationMenuItem
+            // 
+            this.peakImputationMenuItem.Name = "peakImputationMenuItem";
+            resources.ApplyResources(this.peakImputationMenuItem, "peakImputationMenuItem");
+            this.peakImputationMenuItem.Click += new System.EventHandler(this.peakImputationToolStripMenuItem_Click);
+            // 
             // RefineMenu
             // 
             resources.ApplyResources(this, "$this");
@@ -276,5 +284,6 @@
         private System.Windows.Forms.ToolStripSeparator toolStripSeparator35;
         private System.Windows.Forms.ToolStripMenuItem permuteIsotopeModificationsMenuItem;
         private System.Windows.Forms.ToolStripMenuItem refineAdvancedMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem peakImputationMenuItem;
     }
 }

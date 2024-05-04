@@ -447,6 +447,13 @@
     <Compile Include="EditUI\EditSpectrumFilterDlg.Designer.cs">
       <DependentUpon>EditSpectrumFilterDlg.cs</DependentUpon>
     </Compile>
+    <Compile Include="EditUI\PeakImputation\AlignmentProducer.cs" />
+    <Compile Include="EditUI\PeakImputation\PeakImputationForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="EditUI\PeakImputation\PeakImputationForm.Designer.cs">
+      <DependentUpon>PeakImputationForm.cs</DependentUpon>
+    </Compile>
     <Compile Include="EditUI\PermuteIsotopeModificationsDlg.designer.cs">
       <DependentUpon>PermuteIsotopeModificationsDlg.cs</DependentUpon>
     </Compile>
@@ -2987,6 +2994,9 @@
     </EmbeddedResource>
     <EmbeddedResource Include="EditUI\MassErrorChartPropertyDlg.zh-CHS.resx">
       <DependentUpon>MassErrorChartPropertyDlg.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="EditUI\PeakImputation\PeakImputationForm.resx">
+      <DependentUpon>PeakImputationForm.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="EditUI\PermuteIsotopeModificationsDlg.ja.resx">
       <DependentUpon>PermuteIsotopeModificationsDlg.cs</DependentUpon>

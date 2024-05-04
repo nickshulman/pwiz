@@ -389,5 +389,10 @@ namespace pwiz.Skyline.Menus
                 }
             }
         }
+
+        private void peakImputationToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            SkylineWindow.ShowPeakImputation();
+        }
     }
 }

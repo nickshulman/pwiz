@@ -448,12 +448,14 @@
       <DependentUpon>EditSpectrumFilterDlg.cs</DependentUpon>
     </Compile>
     <Compile Include="EditUI\PeakImputation\AlignmentProducer.cs" />
+    <Compile Include="EditUI\PeakImputation\ManualPeakTreatment.cs" />
     <Compile Include="EditUI\PeakImputation\PeakImputationForm.cs">
       <SubType>Form</SubType>
     </Compile>
     <Compile Include="EditUI\PeakImputation\PeakImputationForm.Designer.cs">
       <DependentUpon>PeakImputationForm.cs</DependentUpon>
     </Compile>
+    <Compile Include="EditUI\PeakImputation\ScoringProducer.cs" />
     <Compile Include="EditUI\PermuteIsotopeModificationsDlg.designer.cs">
       <DependentUpon>PermuteIsotopeModificationsDlg.cs</DependentUpon>
     </Compile>

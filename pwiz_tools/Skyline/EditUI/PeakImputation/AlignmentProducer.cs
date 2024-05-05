@@ -3,9 +3,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using MathNet.Numerics.Statistics;
-using pwiz.Common.Collections;
 using pwiz.Common.SystemUtil.Caching;
 using pwiz.Skyline.Model;
+using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.Results;
 using pwiz.Skyline.Model.RetentionTimes;
 
@@ -40,9 +40,21 @@ namespace pwiz.Skyline.EditUI.PeakImputation
                     yValues.Add(targetTime);
                 }
             }
-            var kdeAligner = new KdeAligner(-1, -1);
-            kdeAligner.Train(xValues.ToArray(), yValues.ToArray(), productionMonitor.CancellationToken);
-            return AlignmentFunction.Define(kdeAligner.GetValue, kdeAligner.GetValueReversed);
+
+            switch (parameter.RegressionMethod)
+            {
+                case RegressionMethodRT.kde:
+                    var kdeAligner = new KdeAligner(-1, -1);
+                    kdeAligner.Train(xValues.ToArray(), yValues.ToArray(), productionMonitor.CancellationToken);
+                    return AlignmentFunction.Define(kdeAligner.GetValue, kdeAligner.GetValueReversed);
+                case RegressionMethodRT.loess:
+                    var loessAligner = new LoessAligner(-1, -1);
+                    loessAligner.Train(xValues.ToArray(), yValues.ToArray(), productionMonitor.CancellationToken);
+                    return AlignmentFunction.Define(loessAligner.GetValue, loessAligner.GetValueReversed);
+            }
+
+            var regressionLine = new RegressionLine(xValues.ToArray(), yValues.ToArray());
+            return AlignmentFunction.Define(regressionLine.GetX, regressionLine.GetY);
         }
 
         private Tuple<int, ChromFileInfoId> FindReplicateIndex(MeasuredResults measuredResults, MsDataFileUri msDataFileUri)
@@ -95,12 +107,14 @@ namespace pwiz.Skyline.EditUI.PeakImputation
 
         public class Parameter
         {
-            public Parameter(SrmDocument document, MsDataFileUri source, MsDataFileUri target)
+            public Parameter(RegressionMethodRT regressionMethod, SrmDocument document, MsDataFileUri source, MsDataFileUri target)
             {
+                RegressionMethod = regressionMethod;
                 Document = document;
                 Source = source;
                 Target = target;
             }
+            public RegressionMethodRT RegressionMethod { get; }
 
             public SrmDocument Document { get; }
             public MsDataFileUri Source { get; }
@@ -108,7 +122,8 @@ namespace pwiz.Skyline.EditUI.PeakImputation
 
             protected bool Equals(Parameter other)
             {
-                return ReferenceEquals(Document, other.Document) && Equals(Source, other.Source) && Equals(Target, other.Target);
+                return RegressionMethod == other.RegressionMethod && ReferenceEquals(Document, other.Document) &&
+                       Equals(Source, other.Source) && Equals(Target, other.Target);
             }
 
             public override bool Equals(object obj)
@@ -124,6 +139,7 @@ namespace pwiz.Skyline.EditUI.PeakImputation
                 unchecked
                 {
                     var hashCode = RuntimeHelpers.GetHashCode(Document);
+                    hashCode = (hashCode * 397) ^ RegressionMethod.GetHashCode();
                     hashCode = (hashCode * 397) ^ Source.GetHashCode();
                     hashCode = (hashCode * 397) ^ (Target?.GetHashCode() ?? 0);
                     return hashCode;

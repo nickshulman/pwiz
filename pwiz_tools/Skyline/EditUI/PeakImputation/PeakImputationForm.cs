@@ -4,11 +4,8 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.Linq;
-using System.Runtime.InteropServices;
 using System.Windows.Forms;
-using EnvDTE;
 using MathNet.Numerics.Statistics;
-using NHibernate.Context;
 using pwiz.Common.Collections;
 using pwiz.Common.DataBinding;
 using pwiz.Common.DataBinding.Attributes;
@@ -16,7 +13,6 @@ using pwiz.Common.SystemUtil;
 using pwiz.Common.SystemUtil.Caching;
 using pwiz.Skyline.Controls;
 using pwiz.Skyline.Controls.Databinding;
-using pwiz.Skyline.Controls.Graphs;
 using pwiz.Skyline.Model;
 using pwiz.Skyline.Model.AuditLog;
 using pwiz.Skyline.Model.Databinding;
@@ -43,8 +39,6 @@ namespace pwiz.Skyline.EditUI.PeakImputation
             _rowSource = new PeakRowSource(dataSchema);
             var viewContext = new SkylineViewContext(rootColumn, _rowSource);
             BindingListSource.SetViewContext(viewContext);
-            _receiver = DataProducer.Instance.RegisterCustomer(this, OnDataAvailable);
-            _receiver.ProgressChange += ReceiverOnProgressChange;
             comboAlignmentType.Items.AddRange(new object[]
             {
                 RegressionMethodRT.linear,
@@ -61,23 +55,20 @@ namespace pwiz.Skyline.EditUI.PeakImputation
             });
             comboManualPeaks.SelectedIndex = 0;
             ComboHelper.AutoSizeDropDown(comboManualPeaks);
-        }
 
-        private void ReceiverOnProgressChange()
-        {
-            progressBar1.Visible = true;
-            progressBar1.Value = _receiver.GetProgressValue();
+            _receiver = DataProducer.Instance.RegisterCustomer(this, OnDataAvailable);
         }
 
         private void OnDataAvailable()
         {
             if (_receiver.TryGetCurrentProduct(out var data))
             {
-                if (Equals(data, _rowSource.Data) && databoundGridControl.IsComplete)
-                {
-                    progressBar1.Visible = false;
-                }
+                Console.Out.WriteLine("OnDataAvailable: Not Available");
                 _rowSource.Data = data;
+            }
+            else
+            {
+                Console.Out.WriteLine("OnDataAvailable: Not Available");
             }
 
             var error = _receiver.GetError();
@@ -131,10 +122,10 @@ namespace pwiz.Skyline.EditUI.PeakImputation
         {
             var document = SkylineWindow.DocumentUI;
             ReplaceItems(comboAlignToFile, GetResultFileOptions(document).Prepend(null));
-            ReplaceItems(comboScoringModel, GetScoringModels(document).Prepend(null));
+            ReplaceItems(comboScoringModel, GetScoringModels(document).Prepend(null), 1);
         }
 
-        private void ReplaceItems<T>(ComboBox comboBox, IEnumerable<T> items)
+        private void ReplaceItems<T>(ComboBox comboBox, IEnumerable<T> items, int defaultSelectedIndex = 0)
         {
             var itemArray = items.Select(item=>(object) item ?? string.Empty).ToArray();
             if (itemArray.SequenceEqual(comboBox.Items.Cast<object>()))
@@ -154,9 +145,9 @@ namespace pwiz.Skyline.EditUI.PeakImputation
             {
                 comboBox.SelectedIndex = newSelectedIndex;
             }
-            else if (comboBox.Items.Count > 0)
+            else
             {
-                comboBox.SelectedIndex = 0;
+                comboBox.SelectedIndex = Math.Min(defaultSelectedIndex, comboBox.Items.Count - 1);
             }
             ComboHelper.AutoSizeDropDown(comboBox);
         }
@@ -416,7 +407,8 @@ namespace pwiz.Skyline.EditUI.PeakImputation
                             peaks.Add(peak);
                         }
 
-                        yield return MakeRow(data.Parameters, peptide, peaks);
+                        var row = MakeRow(data.Parameters, peptide, peaks);
+                        yield return row;
                     }
                 }
             }
@@ -756,13 +748,9 @@ namespace pwiz.Skyline.EditUI.PeakImputation
                     GetDoubleValue(tbxStandardDeviationsCutoff));
             }
 
-            if (_receiver.TryGetProduct(parameters, out _))
+            if (true == _receiver?.TryGetProduct(parameters, out _))
             {
                 OnDataAvailable();
-            }
-            else
-            {
-                progressBar1.Visible = true;
             }
         }
 
@@ -789,11 +777,11 @@ namespace pwiz.Skyline.EditUI.PeakImputation
             lock (SkylineWindow.GetDocumentChangeLock())
             {
                 var originalDocument = SkylineWindow.DocumentUI;
-                var newDoc = originalDocument;
-                var data = _rowSource.Data;
+                var newDoc = originalDocument.BeginDeferSettingsChanges();
                 var rows = BindingListSource.OfType<RowItem>().Select(rowItem => rowItem.Value).OfType<Row>().ToList();
                 using (var longWaitDlg = new LongWaitDlg())
                 {
+                    int changeCount = 0;
                     longWaitDlg.PerformWork(this, 1000, () =>
                     {
                         for (int iRow = 0; iRow < rows.Count; iRow++)
@@ -804,13 +792,20 @@ namespace pwiz.Skyline.EditUI.PeakImputation
                             }
 
                             longWaitDlg.ProgressValue = 100 * iRow / rows.Count;
-                            newDoc = ImputeBoundaries(newDoc, data, rows[iRow]);
+                            newDoc = ImputeBoundaries(newDoc.BeginDeferSettingsChanges(), rows[iRow], ref changeCount);
                         }
                     });
                     if (longWaitDlg.IsCanceled)
                     {
                         return;
                     }
+
+                    if (changeCount == 0)
+                    {
+                        return;
+                    }
+
+                    newDoc = newDoc.EndDeferSettingsChanges(originalDocument, null);
                     SkylineWindow.ModifyDocument("Impute peak boundaries", doc =>
                     {
                         if (!ReferenceEquals(doc, originalDocument))
@@ -819,12 +814,12 @@ namespace pwiz.Skyline.EditUI.PeakImputation
                         }
 
                         return newDoc;
-                    }, docPair=>AuditLogEntry.CreateSimpleEntry(MessageType.applied_peak_all, docPair.NewDocumentType));
+                    }, docPair=>AuditLogEntry.CreateSimpleEntry(MessageType.applied_peak_all, docPair.NewDocumentType, MessageArgs.Create(changeCount)));
                 }
             }
         }
 
-        private SrmDocument ImputeBoundaries(SrmDocument document, Data data, Row row)
+        private SrmDocument ImputeBoundaries(SrmDocument document, Row row, ref int changeCount)
         {
             var corePeakBounds = new List<PeakBounds>();
             foreach (var corePeak in row.Peaks.Values.Where(peak => !peak.Outlier))
@@ -854,6 +849,7 @@ namespace pwiz.Skyline.EditUI.PeakImputation
                     document = document.ChangePeak(identityPath, chromatogramSet.Name,
                         resultFileInfo.ResultFileOption.Path, null, newStartTime, newEndTime, UserSet.MATCHED, null,
                         false);
+                    changeCount++;
                 }
             }
 

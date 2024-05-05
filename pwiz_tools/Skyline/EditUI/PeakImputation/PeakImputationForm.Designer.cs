@@ -31,7 +31,6 @@
             this.panel1 = new System.Windows.Forms.Panel();
             this.comboManualPeaks = new System.Windows.Forms.ComboBox();
             this.lblManualPeaks = new System.Windows.Forms.Label();
-            this.progressBar1 = new System.Windows.Forms.ProgressBar();
             this.btnImputeBoundaries = new System.Windows.Forms.Button();
             this.comboScoringModel = new System.Windows.Forms.ComboBox();
             this.lblScoringModel = new System.Windows.Forms.Label();
@@ -60,7 +59,6 @@
             // 
             this.panel1.Controls.Add(this.comboManualPeaks);
             this.panel1.Controls.Add(this.lblManualPeaks);
-            this.panel1.Controls.Add(this.progressBar1);
             this.panel1.Controls.Add(this.btnImputeBoundaries);
             this.panel1.Controls.Add(this.comboScoringModel);
             this.panel1.Controls.Add(this.lblScoringModel);
@@ -93,13 +91,6 @@
             this.lblManualPeaks.Size = new System.Drawing.Size(131, 13);
             this.lblManualPeaks.TabIndex = 16;
             this.lblManualPeaks.Text = "Manually integrated peaks";
-            // 
-            // progressBar1
-            // 
-            this.progressBar1.Location = new System.Drawing.Point(15, 183);
-            this.progressBar1.Name = "progressBar1";
-            this.progressBar1.Size = new System.Drawing.Size(494, 23);
-            this.progressBar1.TabIndex = 15;
             // 
             // btnImputeBoundaries
             // 
@@ -190,6 +181,7 @@
             this.tbxStandardDeviationsCutoff.Name = "tbxStandardDeviationsCutoff";
             this.tbxStandardDeviationsCutoff.Size = new System.Drawing.Size(168, 20);
             this.tbxStandardDeviationsCutoff.TabIndex = 11;
+            this.tbxStandardDeviationsCutoff.Text = "3";
             this.tbxStandardDeviationsCutoff.Leave += new System.EventHandler(this.SettingsControlChanged);
             // 
             // lblMinCoreCount
@@ -218,7 +210,7 @@
             this.numericUpDownCoreResults.Size = new System.Drawing.Size(168, 20);
             this.numericUpDownCoreResults.TabIndex = 7;
             this.numericUpDownCoreResults.Value = new decimal(new int[] {
-            1,
+            3,
             0,
             0,
             0});
@@ -286,7 +278,6 @@
         private System.Windows.Forms.Label lblSdCutoff;
         private System.Windows.Forms.Button btnImputeBoundaries;
         private System.Windows.Forms.GroupBox groupBoxCoreCriteria;
-        private System.Windows.Forms.ProgressBar progressBar1;
         private System.Windows.Forms.ComboBox comboManualPeaks;
         private System.Windows.Forms.Label lblManualPeaks;
     }

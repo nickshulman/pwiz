@@ -57,11 +57,14 @@ namespace pwiz.Common.SystemUtil.Caching
                 if (!_notificationPending)
                 {
                     _notificationPending = true;
-                    CommonActionUtil.SafeBeginInvoke(OwnerControl, () =>
+                    if (!CommonActionUtil.SafeBeginInvoke(OwnerControl, () =>
+                        {
+                            _notificationPending = false;
+                            productAvailable();
+                        }))
                     {
                         _notificationPending = false;
-                        productAvailable();
-                    });
+                    }
                 }
             }
         }

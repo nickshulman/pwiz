@@ -206,33 +206,33 @@ namespace pwiz.Skyline.EditUI.PeakImputation
 
         public class Row : SkylineObject
         {
-            public Row(Model.Databinding.Entities.Peptide peptide, IEnumerable<Peak> corePeaks, IEnumerable<Peak> outlierPeaks)
+            public Row(Model.Databinding.Entities.Peptide peptide, IEnumerable<Peak> acceptedPeaks, IEnumerable<Peak> rejectedPeaks)
             {
                 Peptide = peptide;
                 Peaks = new Dictionary<ResultFileOption, Peak>();
                 var allRetentionTimes = new List<double>();
                 var coreRetentionTimes = new List<double>();
-                foreach (var outlier in outlierPeaks)
+                foreach (var outlier in rejectedPeaks)
                 {
                     if (outlier.ApexTime.HasValue)
                     {
                         allRetentionTimes.Add(outlier.ApexTime.Value);
                     }
-                    Peaks.Add(outlier.ResultFileInfo.ResultFileOption, outlier.ChangeOutlier(true));
+                    Peaks.Add(outlier.ResultFileInfo.ResultFileOption, outlier.ChangeAccepted(false));
                 }
-                foreach (var corePeak in corePeaks)
+                foreach (var corePeak in acceptedPeaks)
                 {
                     allRetentionTimes.Add(corePeak.ApexTime.Value);
                     coreRetentionTimes.Add(corePeak.ApexTime.Value);
-                    Peaks[corePeak.ResultFileInfo.ResultFileOption] = corePeak;
+                    Peaks[corePeak.ResultFileInfo.ResultFileOption] = corePeak.ChangeAccepted(true);
                 }
 
                 MeanRetentionTime = allRetentionTimes.Mean();
                 StdDevRetentionTime = allRetentionTimes.StandardDeviation();
-                CoreMeanRetentionTime = coreRetentionTimes.Mean();
-                CoreStdDevRetentionTime = coreRetentionTimes.StandardDeviation();
-                CoreCount = coreRetentionTimes.Count;
-                OutlierCount = Peaks.Count - CoreCount;
+                AcceptedMeanRetentionTime = coreRetentionTimes.Mean();
+                AcceptedStdDevRetentionTime = coreRetentionTimes.StandardDeviation();
+                AcceptedCount = coreRetentionTimes.Count;
+                RejectedCount = Peaks.Count - AcceptedCount;
                 if (Peaks.Count > 0)
                 {
                     BestScore = Peaks.Values.Max(peak => peak.Score);
@@ -249,10 +249,10 @@ namespace pwiz.Skyline.EditUI.PeakImputation
             public double? MeanRetentionTime { get; }
             public double? StdDevRetentionTime { get; }
             public double? BestScore { get; }
-            public int CoreCount { get; }
-            public double? CoreMeanRetentionTime { get; }
-            public double? CoreStdDevRetentionTime { get; }
-            public int OutlierCount { get; }
+            public int AcceptedCount { get; }
+            public double? AcceptedMeanRetentionTime { get; }
+            public double? AcceptedStdDevRetentionTime { get; }
+            public int RejectedCount { get; }
 
             public Dictionary<ResultFileOption, Peak> Peaks { get; }
         }
@@ -270,11 +270,15 @@ namespace pwiz.Skyline.EditUI.PeakImputation
             public double? ApexTime { get; }
             public double? Score { get; }
             public bool ManuallyIntegrated { get; }
-            public bool Outlier { get; private set; }
+            public bool Accepted { get; private set; }
 
-            public Peak ChangeOutlier(bool outlier)
+            public Peak ChangeAccepted(bool accepted)
             {
-                return ChangeProp(ImClone(this), im => im.Outlier = outlier);
+                if (accepted == Accepted)
+                {
+                    return this;
+                }
+                return ChangeProp(ImClone(this), im => im.Accepted = accepted);
             }
         }
 
@@ -747,7 +751,8 @@ namespace pwiz.Skyline.EditUI.PeakImputation
             parameters = parameters.ChangeManualPeakTreatment(
                 comboManualPeaks.SelectedItem as ManualPeakTreatment ?? ManualPeakTreatment.SKIP);
             var scoringModel = comboScoringModel.SelectedItem as PeakScoringModelSpec;
-            groupBoxCoreCriteria.Enabled = scoringModel != null;
+            numericUpDownCoreResults.Enabled = tbxCoreScoreCutoff.Enabled = tbxStandardDeviationsCutoff.Enabled = scoringModel != null;
+
             if (scoringModel != null)
             {
                 parameters = parameters.ChangeScoringModel(scoringModel,
@@ -829,7 +834,7 @@ namespace pwiz.Skyline.EditUI.PeakImputation
         private SrmDocument ImputeBoundaries(SrmDocument document, Row row, ref int changeCount)
         {
             var corePeakBounds = new List<PeakBounds>();
-            foreach (var corePeak in row.Peaks.Values.Where(peak => !peak.Outlier))
+            foreach (var corePeak in row.Peaks.Values.Where(peak => peak.Accepted))
             {
                 corePeakBounds.Add(GetPeakBounds(row.Peptide, corePeak));
             }
@@ -842,7 +847,7 @@ namespace pwiz.Skyline.EditUI.PeakImputation
             var meanApexTime = corePeakBounds.Select(peak => peak.ApexTime).Mean();
             var meanLeftWidth = corePeakBounds.Select(peak => peak.LeftWidth).Mean();
             var meanRightWidth = corePeakBounds.Select(peak => peak.RightWidth).Mean();
-            foreach (var outlierPeak in row.Peaks.Values.Where(peak => peak.Outlier))
+            foreach (var outlierPeak in row.Peaks.Values.Where(peak => !peak.Accepted))
             {
                 var resultFileInfo = outlierPeak.ResultFileInfo;
                 var newStartTime = resultFileInfo.AlignmentFunction.GetX(meanApexTime - meanLeftWidth);

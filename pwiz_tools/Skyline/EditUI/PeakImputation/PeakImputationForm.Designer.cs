@@ -28,6 +28,8 @@
         /// </summary>
         private void InitializeComponent()
         {
+            this.components = new System.ComponentModel.Container();
+            System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(PeakImputationForm));
             this.panel1 = new System.Windows.Forms.Panel();
             this.groupBoxRetentionTimeAlignment = new System.Windows.Forms.GroupBox();
             this.comboValuesToAlign = new System.Windows.Forms.ComboBox();
@@ -41,16 +43,17 @@
             this.btnImputeBoundaries = new System.Windows.Forms.Button();
             this.comboScoringModel = new System.Windows.Forms.ComboBox();
             this.lblScoringModel = new System.Windows.Forms.Label();
-            this.groupBoxCoreCriteria = new System.Windows.Forms.GroupBox();
+            this.groupBoxPeakAcceptance = new System.Windows.Forms.GroupBox();
             this.tbxStandardDeviationsCutoff = new System.Windows.Forms.TextBox();
             this.lblMinCoreCount = new System.Windows.Forms.Label();
             this.numericUpDownCoreResults = new System.Windows.Forms.NumericUpDown();
             this.lblSdCutoff = new System.Windows.Forms.Label();
             this.lblCoreScoreCutoff = new System.Windows.Forms.Label();
             this.tbxCoreScoreCutoff = new System.Windows.Forms.TextBox();
+            this.toolTip1 = new System.Windows.Forms.ToolTip(this.components);
             this.panel1.SuspendLayout();
             this.groupBoxRetentionTimeAlignment.SuspendLayout();
-            this.groupBoxCoreCriteria.SuspendLayout();
+            this.groupBoxPeakAcceptance.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.numericUpDownCoreResults)).BeginInit();
             this.SuspendLayout();
             // 
@@ -65,9 +68,7 @@
             this.panel1.Controls.Add(this.comboManualPeaks);
             this.panel1.Controls.Add(this.lblManualPeaks);
             this.panel1.Controls.Add(this.btnImputeBoundaries);
-            this.panel1.Controls.Add(this.comboScoringModel);
-            this.panel1.Controls.Add(this.lblScoringModel);
-            this.panel1.Controls.Add(this.groupBoxCoreCriteria);
+            this.panel1.Controls.Add(this.groupBoxPeakAcceptance);
             this.panel1.Dock = System.Windows.Forms.DockStyle.Top;
             this.panel1.Location = new System.Drawing.Point(0, 0);
             this.panel1.Name = "panel1";
@@ -82,9 +83,9 @@
             this.groupBoxRetentionTimeAlignment.Controls.Add(this.lblAlignTo);
             this.groupBoxRetentionTimeAlignment.Controls.Add(this.comboAlignmentType);
             this.groupBoxRetentionTimeAlignment.Controls.Add(this.lblAlignType);
-            this.groupBoxRetentionTimeAlignment.Location = new System.Drawing.Point(15, 9);
+            this.groupBoxRetentionTimeAlignment.Location = new System.Drawing.Point(305, 10);
             this.groupBoxRetentionTimeAlignment.Name = "groupBoxRetentionTimeAlignment";
-            this.groupBoxRetentionTimeAlignment.Size = new System.Drawing.Size(200, 151);
+            this.groupBoxRetentionTimeAlignment.Size = new System.Drawing.Size(200, 148);
             this.groupBoxRetentionTimeAlignment.TabIndex = 18;
             this.groupBoxRetentionTimeAlignment.TabStop = false;
             this.groupBoxRetentionTimeAlignment.Text = "Retention time alignment";
@@ -150,16 +151,17 @@
             // 
             this.comboManualPeaks.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.comboManualPeaks.FormattingEnabled = true;
-            this.comboManualPeaks.Location = new System.Drawing.Point(19, 185);
+            this.comboManualPeaks.Location = new System.Drawing.Point(305, 179);
             this.comboManualPeaks.Name = "comboManualPeaks";
             this.comboManualPeaks.Size = new System.Drawing.Size(190, 21);
             this.comboManualPeaks.TabIndex = 17;
+            this.toolTip1.SetToolTip(this.comboManualPeaks, resources.GetString("comboManualPeaks.ToolTip"));
             this.comboManualPeaks.SelectedIndexChanged += new System.EventHandler(this.SettingsControlChanged);
             // 
             // lblManualPeaks
             // 
             this.lblManualPeaks.AutoSize = true;
-            this.lblManualPeaks.Location = new System.Drawing.Point(16, 169);
+            this.lblManualPeaks.Location = new System.Drawing.Point(302, 163);
             this.lblManualPeaks.Name = "lblManualPeaks";
             this.lblManualPeaks.Size = new System.Drawing.Size(131, 13);
             this.lblManualPeaks.TabIndex = 16;
@@ -173,6 +175,8 @@
             this.btnImputeBoundaries.Size = new System.Drawing.Size(140, 23);
             this.btnImputeBoundaries.TabIndex = 13;
             this.btnImputeBoundaries.Text = "Impute Boundaries";
+            this.toolTip1.SetToolTip(this.btnImputeBoundaries, "For all of the rows displayed in the grid, impute the peak boundaries for the rej" +
+        "ected peaks.");
             this.btnImputeBoundaries.UseVisualStyleBackColor = true;
             this.btnImputeBoundaries.Click += new System.EventHandler(this.btnImputeBoundaries_Click);
             // 
@@ -180,57 +184,62 @@
             // 
             this.comboScoringModel.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.comboScoringModel.FormattingEnabled = true;
-            this.comboScoringModel.Location = new System.Drawing.Point(221, 22);
+            this.comboScoringModel.Location = new System.Drawing.Point(6, 32);
             this.comboScoringModel.Name = "comboScoringModel";
             this.comboScoringModel.Size = new System.Drawing.Size(190, 21);
             this.comboScoringModel.TabIndex = 5;
+            this.toolTip1.SetToolTip(this.comboScoringModel, resources.GetString("comboScoringModel.ToolTip"));
             this.comboScoringModel.SelectedIndexChanged += new System.EventHandler(this.SettingsControlChanged);
             // 
             // lblScoringModel
             // 
             this.lblScoringModel.AutoSize = true;
-            this.lblScoringModel.Location = new System.Drawing.Point(218, 6);
+            this.lblScoringModel.Location = new System.Drawing.Point(6, 16);
             this.lblScoringModel.Name = "lblScoringModel";
             this.lblScoringModel.Size = new System.Drawing.Size(77, 13);
             this.lblScoringModel.TabIndex = 4;
             this.lblScoringModel.Text = "Scoring model:";
             // 
-            // groupBoxCoreCriteria
+            // groupBoxPeakAcceptance
             // 
-            this.groupBoxCoreCriteria.Controls.Add(this.tbxStandardDeviationsCutoff);
-            this.groupBoxCoreCriteria.Controls.Add(this.lblMinCoreCount);
-            this.groupBoxCoreCriteria.Controls.Add(this.numericUpDownCoreResults);
-            this.groupBoxCoreCriteria.Controls.Add(this.lblSdCutoff);
-            this.groupBoxCoreCriteria.Controls.Add(this.lblCoreScoreCutoff);
-            this.groupBoxCoreCriteria.Controls.Add(this.tbxCoreScoreCutoff);
-            this.groupBoxCoreCriteria.Location = new System.Drawing.Point(230, 62);
-            this.groupBoxCoreCriteria.Name = "groupBoxCoreCriteria";
-            this.groupBoxCoreCriteria.Size = new System.Drawing.Size(277, 143);
-            this.groupBoxCoreCriteria.TabIndex = 14;
-            this.groupBoxCoreCriteria.TabStop = false;
-            this.groupBoxCoreCriteria.Text = "Core && outlier criteria";
+            this.groupBoxPeakAcceptance.Controls.Add(this.tbxStandardDeviationsCutoff);
+            this.groupBoxPeakAcceptance.Controls.Add(this.lblMinCoreCount);
+            this.groupBoxPeakAcceptance.Controls.Add(this.numericUpDownCoreResults);
+            this.groupBoxPeakAcceptance.Controls.Add(this.lblSdCutoff);
+            this.groupBoxPeakAcceptance.Controls.Add(this.comboScoringModel);
+            this.groupBoxPeakAcceptance.Controls.Add(this.lblCoreScoreCutoff);
+            this.groupBoxPeakAcceptance.Controls.Add(this.lblScoringModel);
+            this.groupBoxPeakAcceptance.Controls.Add(this.tbxCoreScoreCutoff);
+            this.groupBoxPeakAcceptance.Location = new System.Drawing.Point(12, 10);
+            this.groupBoxPeakAcceptance.Name = "groupBoxPeakAcceptance";
+            this.groupBoxPeakAcceptance.Size = new System.Drawing.Size(277, 183);
+            this.groupBoxPeakAcceptance.TabIndex = 14;
+            this.groupBoxPeakAcceptance.TabStop = false;
+            this.groupBoxPeakAcceptance.Text = "Peak acceptance";
             // 
             // tbxStandardDeviationsCutoff
             // 
-            this.tbxStandardDeviationsCutoff.Location = new System.Drawing.Point(6, 114);
+            this.tbxStandardDeviationsCutoff.Location = new System.Drawing.Point(9, 150);
             this.tbxStandardDeviationsCutoff.Name = "tbxStandardDeviationsCutoff";
             this.tbxStandardDeviationsCutoff.Size = new System.Drawing.Size(168, 20);
             this.tbxStandardDeviationsCutoff.TabIndex = 11;
             this.tbxStandardDeviationsCutoff.Text = "1";
+            this.toolTip1.SetToolTip(this.tbxStandardDeviationsCutoff, "Peaks whose boundaries are within this number of standard deviations from the acc" +
+        "epted peaks will also be accepted");
             this.tbxStandardDeviationsCutoff.Leave += new System.EventHandler(this.SettingsControlChanged);
             // 
             // lblMinCoreCount
             // 
             this.lblMinCoreCount.AutoSize = true;
-            this.lblMinCoreCount.Location = new System.Drawing.Point(3, 17);
+            this.lblMinCoreCount.Location = new System.Drawing.Point(6, 56);
             this.lblMinCoreCount.Name = "lblMinCoreCount";
-            this.lblMinCoreCount.Size = new System.Drawing.Size(105, 13);
+            this.lblMinCoreCount.Size = new System.Drawing.Size(128, 13);
             this.lblMinCoreCount.TabIndex = 6;
-            this.lblMinCoreCount.Text = "Minimum core results";
+            this.lblMinCoreCount.Text = "Minimum peaks to accept";
             // 
             // numericUpDownCoreResults
             // 
-            this.numericUpDownCoreResults.Location = new System.Drawing.Point(6, 34);
+            this.numericUpDownCoreResults.Location = new System.Drawing.Point(6, 72);
             this.numericUpDownCoreResults.Maximum = new decimal(new int[] {
             99999,
             0,
@@ -244,6 +253,7 @@
             this.numericUpDownCoreResults.Name = "numericUpDownCoreResults";
             this.numericUpDownCoreResults.Size = new System.Drawing.Size(168, 20);
             this.numericUpDownCoreResults.TabIndex = 7;
+            this.toolTip1.SetToolTip(this.numericUpDownCoreResults, "Ranking of peaks which are always accepted");
             this.numericUpDownCoreResults.Value = new decimal(new int[] {
             3,
             0,
@@ -254,7 +264,7 @@
             // lblSdCutoff
             // 
             this.lblSdCutoff.AutoSize = true;
-            this.lblSdCutoff.Location = new System.Drawing.Point(3, 96);
+            this.lblSdCutoff.Location = new System.Drawing.Point(6, 135);
             this.lblSdCutoff.Name = "lblSdCutoff";
             this.lblSdCutoff.Size = new System.Drawing.Size(131, 13);
             this.lblSdCutoff.TabIndex = 10;
@@ -263,7 +273,7 @@
             // lblCoreScoreCutoff
             // 
             this.lblCoreScoreCutoff.AutoSize = true;
-            this.lblCoreScoreCutoff.Location = new System.Drawing.Point(3, 57);
+            this.lblCoreScoreCutoff.Location = new System.Drawing.Point(6, 95);
             this.lblCoreScoreCutoff.Name = "lblCoreScoreCutoff";
             this.lblCoreScoreCutoff.Size = new System.Drawing.Size(65, 13);
             this.lblCoreScoreCutoff.TabIndex = 8;
@@ -271,10 +281,11 @@
             // 
             // tbxCoreScoreCutoff
             // 
-            this.tbxCoreScoreCutoff.Location = new System.Drawing.Point(6, 73);
+            this.tbxCoreScoreCutoff.Location = new System.Drawing.Point(6, 111);
             this.tbxCoreScoreCutoff.Name = "tbxCoreScoreCutoff";
             this.tbxCoreScoreCutoff.Size = new System.Drawing.Size(168, 20);
             this.tbxCoreScoreCutoff.TabIndex = 9;
+            this.toolTip1.SetToolTip(this.tbxCoreScoreCutoff, "Score above which a peak will always be accepted");
             this.tbxCoreScoreCutoff.Leave += new System.EventHandler(this.SettingsControlChanged);
             // 
             // PeakImputationForm
@@ -292,8 +303,8 @@
             this.panel1.PerformLayout();
             this.groupBoxRetentionTimeAlignment.ResumeLayout(false);
             this.groupBoxRetentionTimeAlignment.PerformLayout();
-            this.groupBoxCoreCriteria.ResumeLayout(false);
-            this.groupBoxCoreCriteria.PerformLayout();
+            this.groupBoxPeakAcceptance.ResumeLayout(false);
+            this.groupBoxPeakAcceptance.PerformLayout();
             ((System.ComponentModel.ISupportInitialize)(this.numericUpDownCoreResults)).EndInit();
             this.ResumeLayout(false);
 
@@ -315,11 +326,12 @@
         private System.Windows.Forms.TextBox tbxStandardDeviationsCutoff;
         private System.Windows.Forms.Label lblSdCutoff;
         private System.Windows.Forms.Button btnImputeBoundaries;
-        private System.Windows.Forms.GroupBox groupBoxCoreCriteria;
+        private System.Windows.Forms.GroupBox groupBoxPeakAcceptance;
         private System.Windows.Forms.ComboBox comboManualPeaks;
         private System.Windows.Forms.Label lblManualPeaks;
         private System.Windows.Forms.GroupBox groupBoxRetentionTimeAlignment;
         private System.Windows.Forms.ComboBox comboValuesToAlign;
         private System.Windows.Forms.Label lblValuesToAlign;
+        private System.Windows.Forms.ToolTip toolTip1;
     }
 }

@@ -31,6 +31,8 @@
             this.components = new System.ComponentModel.Container();
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(PeakImputationForm));
             this.panel1 = new System.Windows.Forms.Panel();
+            this.comboImputeBoundariesFrom = new System.Windows.Forms.ComboBox();
+            this.lblImputeBoundariesFrom = new System.Windows.Forms.Label();
             this.groupBoxRetentionTimeAlignment = new System.Windows.Forms.GroupBox();
             this.comboValuesToAlign = new System.Windows.Forms.ComboBox();
             this.lblValuesToAlign = new System.Windows.Forms.Label();
@@ -41,14 +43,14 @@
             this.comboManualPeaks = new System.Windows.Forms.ComboBox();
             this.lblManualPeaks = new System.Windows.Forms.Label();
             this.btnImputeBoundaries = new System.Windows.Forms.Button();
-            this.comboScoringModel = new System.Windows.Forms.ComboBox();
-            this.lblScoringModel = new System.Windows.Forms.Label();
             this.groupBoxPeakAcceptance = new System.Windows.Forms.GroupBox();
             this.tbxStandardDeviationsCutoff = new System.Windows.Forms.TextBox();
             this.lblMinCoreCount = new System.Windows.Forms.Label();
             this.numericUpDownCoreResults = new System.Windows.Forms.NumericUpDown();
             this.lblSdCutoff = new System.Windows.Forms.Label();
+            this.comboScoringModel = new System.Windows.Forms.ComboBox();
             this.lblCoreScoreCutoff = new System.Windows.Forms.Label();
+            this.lblScoringModel = new System.Windows.Forms.Label();
             this.tbxCoreScoreCutoff = new System.Windows.Forms.TextBox();
             this.toolTip1 = new System.Windows.Forms.ToolTip(this.components);
             this.panel1.SuspendLayout();
@@ -64,6 +66,8 @@
             // 
             // panel1
             // 
+            this.panel1.Controls.Add(this.comboImputeBoundariesFrom);
+            this.panel1.Controls.Add(this.lblImputeBoundariesFrom);
             this.panel1.Controls.Add(this.groupBoxRetentionTimeAlignment);
             this.panel1.Controls.Add(this.comboManualPeaks);
             this.panel1.Controls.Add(this.lblManualPeaks);
@@ -74,6 +78,28 @@
             this.panel1.Name = "panel1";
             this.panel1.Size = new System.Drawing.Size(800, 212);
             this.panel1.TabIndex = 1;
+            // 
+            // comboImputeBoundariesFrom
+            // 
+            this.comboImputeBoundariesFrom.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.comboImputeBoundariesFrom.FormattingEnabled = true;
+            this.comboImputeBoundariesFrom.Items.AddRange(new object[] {
+            "Best scoring peak",
+            "All accepted peaks"});
+            this.comboImputeBoundariesFrom.Location = new System.Drawing.Point(520, 26);
+            this.comboImputeBoundariesFrom.Name = "comboImputeBoundariesFrom";
+            this.comboImputeBoundariesFrom.Size = new System.Drawing.Size(152, 21);
+            this.comboImputeBoundariesFrom.TabIndex = 20;
+            this.comboImputeBoundariesFrom.SelectedIndexChanged += new System.EventHandler(this.SettingsControlChanged);
+            // 
+            // lblImputeBoundariesFrom
+            // 
+            this.lblImputeBoundariesFrom.AutoSize = true;
+            this.lblImputeBoundariesFrom.Location = new System.Drawing.Point(521, 10);
+            this.lblImputeBoundariesFrom.Name = "lblImputeBoundariesFrom";
+            this.lblImputeBoundariesFrom.Size = new System.Drawing.Size(120, 13);
+            this.lblImputeBoundariesFrom.TabIndex = 19;
+            this.lblImputeBoundariesFrom.Text = "Impute boundaries from:";
             // 
             // groupBoxRetentionTimeAlignment
             // 
@@ -161,7 +187,7 @@
             // lblManualPeaks
             // 
             this.lblManualPeaks.AutoSize = true;
-            this.lblManualPeaks.Location = new System.Drawing.Point(302, 163);
+            this.lblManualPeaks.Location = new System.Drawing.Point(308, 163);
             this.lblManualPeaks.Name = "lblManualPeaks";
             this.lblManualPeaks.Size = new System.Drawing.Size(131, 13);
             this.lblManualPeaks.TabIndex = 16;
@@ -170,7 +196,7 @@
             // btnImputeBoundaries
             // 
             this.btnImputeBoundaries.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-            this.btnImputeBoundaries.Location = new System.Drawing.Point(648, 10);
+            this.btnImputeBoundaries.Location = new System.Drawing.Point(648, 177);
             this.btnImputeBoundaries.Name = "btnImputeBoundaries";
             this.btnImputeBoundaries.Size = new System.Drawing.Size(140, 23);
             this.btnImputeBoundaries.TabIndex = 13;
@@ -179,26 +205,6 @@
         "ected peaks.");
             this.btnImputeBoundaries.UseVisualStyleBackColor = true;
             this.btnImputeBoundaries.Click += new System.EventHandler(this.btnImputeBoundaries_Click);
-            // 
-            // comboScoringModel
-            // 
-            this.comboScoringModel.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
-            this.comboScoringModel.FormattingEnabled = true;
-            this.comboScoringModel.Location = new System.Drawing.Point(6, 32);
-            this.comboScoringModel.Name = "comboScoringModel";
-            this.comboScoringModel.Size = new System.Drawing.Size(190, 21);
-            this.comboScoringModel.TabIndex = 5;
-            this.toolTip1.SetToolTip(this.comboScoringModel, resources.GetString("comboScoringModel.ToolTip"));
-            this.comboScoringModel.SelectedIndexChanged += new System.EventHandler(this.SettingsControlChanged);
-            // 
-            // lblScoringModel
-            // 
-            this.lblScoringModel.AutoSize = true;
-            this.lblScoringModel.Location = new System.Drawing.Point(6, 16);
-            this.lblScoringModel.Name = "lblScoringModel";
-            this.lblScoringModel.Size = new System.Drawing.Size(77, 13);
-            this.lblScoringModel.TabIndex = 4;
-            this.lblScoringModel.Text = "Scoring model:";
             // 
             // groupBoxPeakAcceptance
             // 
@@ -270,6 +276,17 @@
             this.lblSdCutoff.TabIndex = 10;
             this.lblSdCutoff.Text = "Standard deviations cutoff";
             // 
+            // comboScoringModel
+            // 
+            this.comboScoringModel.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.comboScoringModel.FormattingEnabled = true;
+            this.comboScoringModel.Location = new System.Drawing.Point(6, 32);
+            this.comboScoringModel.Name = "comboScoringModel";
+            this.comboScoringModel.Size = new System.Drawing.Size(190, 21);
+            this.comboScoringModel.TabIndex = 5;
+            this.toolTip1.SetToolTip(this.comboScoringModel, resources.GetString("comboScoringModel.ToolTip"));
+            this.comboScoringModel.SelectedIndexChanged += new System.EventHandler(this.SettingsControlChanged);
+            // 
             // lblCoreScoreCutoff
             // 
             this.lblCoreScoreCutoff.AutoSize = true;
@@ -278,6 +295,15 @@
             this.lblCoreScoreCutoff.Size = new System.Drawing.Size(65, 13);
             this.lblCoreScoreCutoff.TabIndex = 8;
             this.lblCoreScoreCutoff.Text = "Score cutoff";
+            // 
+            // lblScoringModel
+            // 
+            this.lblScoringModel.AutoSize = true;
+            this.lblScoringModel.Location = new System.Drawing.Point(6, 16);
+            this.lblScoringModel.Name = "lblScoringModel";
+            this.lblScoringModel.Size = new System.Drawing.Size(77, 13);
+            this.lblScoringModel.TabIndex = 4;
+            this.lblScoringModel.Text = "Scoring model:";
             // 
             // tbxCoreScoreCutoff
             // 
@@ -333,5 +359,7 @@
         private System.Windows.Forms.ComboBox comboValuesToAlign;
         private System.Windows.Forms.Label lblValuesToAlign;
         private System.Windows.Forms.ToolTip toolTip1;
+        private System.Windows.Forms.ComboBox comboImputeBoundariesFrom;
+        private System.Windows.Forms.Label lblImputeBoundariesFrom;
     }
 }

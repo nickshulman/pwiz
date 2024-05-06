@@ -121,7 +121,7 @@
     <value>17, 17</value>
   </metadata>
   <metadata name="toolTip1.TrayLocation" type="System.Drawing.Point, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a">
-    <value>160, 17</value>
+    <value>159, 17</value>
   </metadata>
   <data name="comboManualPeaks.ToolTip" xml:space="preserve">
     <value>Skip: Replicates with manually integrated peaks are skipped
@@ -132,7 +132,4 @@ Overwrite: (not yet implemented) Manually integrated peaks will be rechosen by t
     <value>Scoring model to decide which peaks should be accepted and which peaks should be imputed from the accepted peaks.
 If no scoring model is selected, then all chosen peaks will be accepted and all missing peaks will be imputed.</value>
   </data>
-  <metadata name="toolTip1.TrayLocation" type="System.Drawing.Point, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a">
-    <value>160, 17</value>
-  </metadata>
 </root>

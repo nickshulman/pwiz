@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.Drawing;
 using System.Linq;
 using System.Windows.Forms;
+using JetBrains.Annotations;
 using MathNet.Numerics.Statistics;
 using pwiz.Common.Collections;
 using pwiz.Common.DataBinding;
@@ -18,11 +19,13 @@ using pwiz.Skyline.Model.AuditLog;
 using pwiz.Skyline.Model.Databinding;
 using pwiz.Skyline.Model.Databinding.Collections;
 using pwiz.Skyline.Model.Databinding.Entities;
+using pwiz.Skyline.Model.Hibernate;
 using pwiz.Skyline.Model.Results;
 using pwiz.Skyline.Model.Results.Scoring;
 using pwiz.Skyline.Model.RetentionTimes;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
+using Statistics = pwiz.Skyline.Util.Statistics;
 
 namespace pwiz.Skyline.EditUI.PeakImputation
 {
@@ -61,6 +64,8 @@ namespace pwiz.Skyline.EditUI.PeakImputation
             });
             comboManualPeaks.SelectedIndex = 0;
             ComboHelper.AutoSizeDropDown(comboManualPeaks);
+            comboImputeBoundariesFrom.SelectedIndex = 0;
+            ComboHelper.AutoSizeDropDown(comboImputeBoundariesFrom);
 
             _receiver = DataProducer.Instance.RegisterCustomer(this, OnDataAvailable);
         }
@@ -206,36 +211,45 @@ namespace pwiz.Skyline.EditUI.PeakImputation
 
         public class Row : SkylineObject
         {
-            public Row(Model.Databinding.Entities.Peptide peptide, IEnumerable<Peak> acceptedPeaks, IEnumerable<Peak> rejectedPeaks)
+            public Row(Model.Databinding.Entities.Peptide peptide, IEnumerable<Peak> peaks)
             {
                 Peptide = peptide;
                 Peaks = new Dictionary<ResultFileOption, Peak>();
-                var allRetentionTimes = new List<double>();
-                var coreRetentionTimes = new List<double>();
-                foreach (var outlier in rejectedPeaks)
+                var allPeakBounds = new List<PeakBounds>();
+                var acceptedPeakBounds = new List<PeakBounds>();
+                var exemplaryPeakBounds = new List<PeakBounds>();
+                foreach (var peak in peaks)
                 {
-                    if (outlier.ApexTime.HasValue)
+                    Peaks[peak.ResultFileInfo.ResultFileOption] = peak;
+                    var peakBounds = peak.AlignedPeakBounds;
+                    if (peakBounds != null)
                     {
-                        allRetentionTimes.Add(outlier.ApexTime.Value);
+                        allPeakBounds.Add(peakBounds);
+                        if (peak.Accepted)
+                        {
+                            acceptedPeakBounds.Add(peakBounds);
+                        }
+
+                        if (peak.Exemplary)
+                        {
+                            exemplaryPeakBounds.Add(peakBounds);
+                        }
                     }
-                    Peaks.Add(outlier.ResultFileInfo.ResultFileOption, outlier.ChangeAccepted(false));
-                }
-                foreach (var corePeak in acceptedPeaks)
-                {
-                    allRetentionTimes.Add(corePeak.ApexTime.Value);
-                    coreRetentionTimes.Add(corePeak.ApexTime.Value);
-                    Peaks[corePeak.ResultFileInfo.ResultFileOption] = corePeak.ChangeAccepted(true);
                 }
 
-                MeanRetentionTime = allRetentionTimes.Mean();
-                StdDevRetentionTime = allRetentionTimes.StandardDeviation();
-                AcceptedMeanRetentionTime = coreRetentionTimes.Mean();
-                AcceptedStdDevRetentionTime = coreRetentionTimes.StandardDeviation();
-                AcceptedCount = coreRetentionTimes.Count;
-                RejectedCount = Peaks.Count - AcceptedCount;
-                if (Peaks.Count > 0)
+                if (allPeakBounds.Any())
                 {
-                    BestScore = Peaks.Values.Max(peak => peak.Score);
+                    AllPeakBoundaries = new PeakSummary(allPeakBounds);
+                }
+
+                if (acceptedPeakBounds.Any())
+                {
+                    AcceptedPeakBoundaries = new PeakSummary(acceptedPeakBounds);
+                }
+
+                if (exemplaryPeakBounds.Any())
+                {
+                    ExemplaryPeakBoundaries = new PeakSummary(exemplaryPeakBounds);
                 }
             }
 
@@ -246,32 +260,34 @@ namespace pwiz.Skyline.EditUI.PeakImputation
 
             [InvariantDisplayName("Molecule", ExceptInUiMode = UiModes.PROTEOMIC)]
             public Model.Databinding.Entities.Peptide Peptide { get; }
-            public double? MeanRetentionTime { get; }
-            public double? StdDevRetentionTime { get; }
-            public double? BestScore { get; }
-            public int AcceptedCount { get; }
-            public double? AcceptedMeanRetentionTime { get; }
-            public double? AcceptedStdDevRetentionTime { get; }
-            public int RejectedCount { get; }
 
+            public PeakSummary AllPeakBoundaries { get; }
+            public PeakSummary AcceptedPeakBoundaries { get; }
+            public PeakSummary ExemplaryPeakBoundaries { get; }
             public Dictionary<ResultFileOption, Peak> Peaks { get; }
         }
 
         public class Peak : Immutable
         {
-            public Peak(ResultFileInfo resultFileInfo, double? apexTime, double? score, bool manuallyIntegrated)
+            public Peak(ResultFileInfo resultFileInfo, PeakBounds rawPeakBounds, double? score, bool manuallyIntegrated)
             {
                 ResultFileInfo = resultFileInfo;
-                ApexTime = apexTime;
-                Score = score;
+                RawPeakBounds = rawPeakBounds;
+                AlignedPeakBounds = rawPeakBounds?.Align(resultFileInfo.AlignmentFunction);
                 ManuallyIntegrated = manuallyIntegrated;
+                Score = score;
             }
             public ResultFileInfo ResultFileInfo { get; }
-            public double? ApexTime { get; }
+            public PeakBounds RawPeakBounds { get; }
+
+            public PeakBounds AlignedPeakBounds
+            {
+                get; private set;
+            }
+
             public double? Score { get; }
             public bool ManuallyIntegrated { get; }
             public bool Accepted { get; private set; }
-
             public Peak ChangeAccepted(bool accepted)
             {
                 if (accepted == Accepted)
@@ -279,6 +295,13 @@ namespace pwiz.Skyline.EditUI.PeakImputation
                     return this;
                 }
                 return ChangeProp(ImClone(this), im => im.Accepted = accepted);
+            }
+
+            public bool Exemplary { get; private set; }
+
+            public Peak ChangeExemplary(bool value)
+            {
+                return ChangeProp(ImClone(this), im => im.Exemplary = value);
             }
         }
 
@@ -393,22 +416,13 @@ namespace pwiz.Skyline.EditUI.PeakImputation
                                 continue;
                             }
 
-                            var retentionTime = peptideResult.PeptideRetentionTime;
-                            if (retentionTime.HasValue)
-                            {
-                                AlignmentFunction alignmentFunction = 
-                                data.GetAlignmentFunction(peptideResult.ResultFile.ChromFileInfo.FilePath);
-                                if (alignmentFunction == null)
-                                {
-                                    continue;
-                                }
-
-                                retentionTime = alignmentFunction.GetY(retentionTime.Value);
-                            }
+                            var rawPeakBounds = GetRawPeakBounds(molecule,
+                                peptideResult.ResultFile.Replicate.ReplicateIndex,
+                                peptideResult.ResultFile.ChromFileInfoId);
 
                             var peakFeatureStatistics = data.ResultsHandler?.GetPeakFeatureStatistics(molecule.Peptide,
                                 peptideResult.ResultFile.ChromFileInfoId);
-                            var peak = new Peak(peakResultFile, retentionTime, peakFeatureStatistics?.BestScore,
+                            var peak = new Peak(peakResultFile, rawPeakBounds, peakFeatureStatistics?.BestScore,
                                 manuallyIntegrated);
                             peaks.Add(peak);
                         }
@@ -427,7 +441,7 @@ namespace pwiz.Skyline.EditUI.PeakImputation
             var core = new List<Peak>();
             foreach (var peak in peaks)
             {
-                if (!peak.ApexTime.HasValue)
+                if (peak.AlignedPeakBounds == null)
                 {
                     outliers.Add(peak);
                     continue;
@@ -479,7 +493,7 @@ namespace pwiz.Skyline.EditUI.PeakImputation
             {
                 while (candidates.Count > 0)
                 {
-                    var retentionTimes = new Util.Statistics(core.Select(peak => peak.ApexTime.Value));
+                    var retentionTimes = new Statistics(core.Select(peak => peak.AlignedPeakBounds.ApexTime));
                     if (retentionTimes.Length < 2)
                     {
                         break;
@@ -495,7 +509,7 @@ namespace pwiz.Skyline.EditUI.PeakImputation
                     var newCandidates = new List<Peak>();
                     foreach (var peak in candidates)
                     {
-                        if (Math.Abs(peak.ApexTime.Value - meanRetentionTime) < stdDevRetentionTime * parameters.StandardDeviationsCutoff)
+                        if (Math.Abs(peak.AlignedPeakBounds.ApexTime - meanRetentionTime) < stdDevRetentionTime * parameters.StandardDeviationsCutoff)
                         {
                             core.Add(peak);
                         }
@@ -514,7 +528,21 @@ namespace pwiz.Skyline.EditUI.PeakImputation
                 }
             }
             outliers.AddRange(candidates);
-            return new Row(peptide, core, outliers);
+            var allPeaks = new List<Peak>();
+            for (int i = 0; i < core.Count; i++)
+            {
+                var peak = core[i];
+                peak = peak.ChangeAccepted(true);
+                if (i == 0 || !parameters.ImputeFromBestPeakOnly)
+                {
+                    peak = peak.ChangeExemplary(true);
+                }
+
+                allPeaks.Add(peak);
+            }
+            allPeaks.AddRange(outliers);
+            
+            return new Row(peptide, allPeaks);
         }
 
         private static bool IsManualIntegrated(PeptideDocNode peptideDocNode, ResultFile resultFile)
@@ -535,32 +563,6 @@ namespace pwiz.Skyline.EditUI.PeakImputation
             return false;
         }
 
-        class RetentionTimeValue
-        {
-            private Func<string> _getLabelFunc;
-            private Func<PeptideResult, double?> _getValueFunc;
-            public RetentionTimeValue(Func<string> getLabelFunc, Func<PeptideResult, double?> getValueFunc)
-            {
-                _getLabelFunc = getLabelFunc;
-                _getValueFunc = getValueFunc;
-            }
-
-            public override string ToString()
-            {
-                return _getLabelFunc();
-            }
-
-            public double? GetValue(PeptideResult peptideResult)
-            {
-                return _getValueFunc(peptideResult);
-            }
-        }
-
-        private ImmutableList<RetentionTimeValue> RetentionTimeValues = ImmutableList.ValueOf(new[]
-        {
-            new RetentionTimeValue(() => "Apex Time", peptideResult => peptideResult.PeptideRetentionTime),
-        });
-
         public class Parameters : Immutable
         {
             public Parameters(SrmDocument document)
@@ -573,6 +575,12 @@ namespace pwiz.Skyline.EditUI.PeakImputation
             public Parameters ChangeManualPeakTreatment(ManualPeakTreatment manualPeakTreatment)
             {
                 return ChangeProp(ImClone(this), im => im.ManualPeakTreatment = manualPeakTreatment);
+            }
+            public bool ImputeFromBestPeakOnly { get; private set; }
+
+            public Parameters ChangeImputFromBestPeakOnly(bool value)
+            {
+                return ChangeProp(ImClone(this), im => im.ImputeFromBestPeakOnly = value);
             }
             public MsDataFileUri AlignmentTarget { get; private set; }
             public AlignmentValueType AlignmentValueType { get; private set; }
@@ -609,6 +617,7 @@ namespace pwiz.Skyline.EditUI.PeakImputation
             {
                 return Document.Equals(other.Document) && 
                        Equals(ManualPeakTreatment, other.ManualPeakTreatment) &&
+                       ImputeFromBestPeakOnly == other.ImputeFromBestPeakOnly &&
                        Equals(AlignmentTarget, other.AlignmentTarget) &&
                        RegressionMethod == other.RegressionMethod && Equals(PeakScoringModel, other.PeakScoringModel) &&
                        MinCoreCount == other.MinCoreCount && Nullable.Equals(ScoreCutoff, other.ScoreCutoff) &&
@@ -628,6 +637,7 @@ namespace pwiz.Skyline.EditUI.PeakImputation
                 unchecked
                 {
                     var hashCode = Document.GetHashCode();
+                    hashCode = (hashCode * 397) ^ ImputeFromBestPeakOnly.GetHashCode();
                     hashCode = (hashCode * 397) ^ ManualPeakTreatment.GetHashCode();
                     hashCode = (hashCode * 397) ^ (AlignmentTarget != null ? AlignmentTarget.GetHashCode() : 0);
                     hashCode = (hashCode * 397) ^ (AlignmentValueType?.GetHashCode() ?? 0);
@@ -750,6 +760,7 @@ namespace pwiz.Skyline.EditUI.PeakImputation
 
             parameters = parameters.ChangeManualPeakTreatment(
                 comboManualPeaks.SelectedItem as ManualPeakTreatment ?? ManualPeakTreatment.SKIP);
+            parameters = parameters.ChangeImputFromBestPeakOnly(comboImputeBoundariesFrom.SelectedIndex == 0);
             var scoringModel = comboScoringModel.SelectedItem as PeakScoringModelSpec;
             numericUpDownCoreResults.Enabled = tbxCoreScoreCutoff.Enabled = tbxStandardDeviationsCutoff.Enabled = scoringModel != null;
 
@@ -834,9 +845,9 @@ namespace pwiz.Skyline.EditUI.PeakImputation
         private SrmDocument ImputeBoundaries(SrmDocument document, Row row, ref int changeCount)
         {
             var corePeakBounds = new List<PeakBounds>();
-            foreach (var corePeak in row.Peaks.Values.Where(peak => peak.Accepted))
+            foreach (var corePeak in row.Peaks.Values.Where(peak => peak.Exemplary))
             {
-                corePeakBounds.Add(GetPeakBounds(row.Peptide, corePeak));
+                corePeakBounds.Add(corePeak.AlignedPeakBounds);
             }
 
             if (!corePeakBounds.Any())
@@ -844,14 +855,13 @@ namespace pwiz.Skyline.EditUI.PeakImputation
                 return document;
             }
 
-            var meanApexTime = corePeakBounds.Select(peak => peak.ApexTime).Mean();
-            var meanLeftWidth = corePeakBounds.Select(peak => peak.LeftWidth).Mean();
-            var meanRightWidth = corePeakBounds.Select(peak => peak.RightWidth).Mean();
+            var meanStartTime = corePeakBounds.Select(peak => peak.StartTime).Mean();
+            var meanEndTime = corePeakBounds.Select(peak => peak.EndTime).Mean();
             foreach (var outlierPeak in row.Peaks.Values.Where(peak => !peak.Accepted))
             {
                 var resultFileInfo = outlierPeak.ResultFileInfo;
-                var newStartTime = resultFileInfo.AlignmentFunction.GetX(meanApexTime - meanLeftWidth);
-                var newEndTime = resultFileInfo.AlignmentFunction.GetX(meanApexTime + meanRightWidth);
+                var newStartTime = resultFileInfo.AlignmentFunction.GetX(meanStartTime);
+                var newEndTime = resultFileInfo.AlignmentFunction.GetX(meanEndTime);
                 foreach (var transitionGroupDocNode in row.Peptide.DocNode.TransitionGroups)
                 {
                     var identityPath =
@@ -868,10 +878,12 @@ namespace pwiz.Skyline.EditUI.PeakImputation
             return document;
         }
 
-        public PeakBounds GetPeakBounds(Model.Databinding.Entities.Peptide peptide, Peak peak)
+        public static PeakBounds GetPeakBounds(Model.Databinding.Entities.Peptide peptide, Peak peak)
         {
             var alignmentFunction = peak.ResultFileInfo.AlignmentFunction;
-            var apexTime = peak.ApexTime.Value;
+            var rawPeakBounds = GetRawPeakBounds(peptide.DocNode, peak.ResultFileInfo.ResultFileOption.ReplicateIndex,
+                peak.ResultFileInfo.ChromFileInfoId).Align(alignmentFunction);
+            var apexTime = peak.AlignedPeakBounds.ApexTime;
             double? minRawStartTime = null;
             double? maxRawEndTime = null;
             foreach (var transitionGroup in peptide.DocNode.TransitionGroups)
@@ -925,17 +937,128 @@ namespace pwiz.Skyline.EditUI.PeakImputation
             return new PeakBounds(apexTime, apexTime - minStartTime, maxEndTime - apexTime);
         }
 
+        public static PeakBounds GetRawPeakBounds(PeptideDocNode peptideDocNode, int replicateIndex,
+            ChromFileInfoId chromFileInfoId)
+        {
+            var peptideChromInfo = peptideDocNode.GetSafeChromInfo(replicateIndex)
+                .FirstOrDefault(chromInfo => ReferenceEquals(chromInfo.FileId, chromFileInfoId));
+            if (peptideChromInfo?.RetentionTime == null)
+            {
+                return null;
+            }
+
+            double apexTime = peptideChromInfo.RetentionTime.Value;
+            double startTime = apexTime;
+            double endTime = apexTime;
+            foreach (var transitionGroup in peptideDocNode.TransitionGroups)
+            {
+                foreach (var chromInfo in transitionGroup.GetSafeChromInfo(replicateIndex))
+                {
+                    if (!ReferenceEquals(chromFileInfoId, chromInfo.FileId))
+                    {
+                        continue;
+                    }
+
+                    if (chromInfo.StartRetentionTime.HasValue)
+                    {
+                        startTime = Math.Min(startTime, chromInfo.StartRetentionTime.Value);
+                    }
+
+                    if (chromInfo.EndRetentionTime.HasValue)
+                    {
+                        endTime = Math.Min(endTime, chromInfo.EndRetentionTime.Value);
+                    }
+                }
+            }
+
+            return new PeakBounds(apexTime, startTime, endTime);
+        }
+
         public class PeakBounds
         {
-            public PeakBounds(double apexTime, double leftWidth, double rightWidth)
+            public PeakBounds(double apexTime, double startTime, double endTime)
             {
                 ApexTime = apexTime;
-                LeftWidth = leftWidth;
-                RightWidth = rightWidth;
+                StartTime = startTime;
+                EndTime = endTime;
             }
             public double ApexTime { get; }
-            public double LeftWidth { get; }
-            public double RightWidth { get; }
+            public double StartTime { get; }
+            public double EndTime { get; }
+
+            public PeakBounds Align(AlignmentFunction alignmentFunction)
+            {
+                return new PeakBounds(alignmentFunction.GetY(ApexTime), alignmentFunction.GetY(StartTime),
+                    alignmentFunction.GetY(EndTime));
+            }
+
+            public PeakBounds ReverseAlign(AlignmentFunction alignmentFunction)
+            {
+                return new PeakBounds(alignmentFunction.GetX(ApexTime), alignmentFunction.GetX(StartTime),
+                    alignmentFunction.GetX(EndTime));
+            }
+
+            public static PeakBounds Average(IEnumerable<PeakBounds> peakBounds)
+            {
+                var startTimes = new List<double>();
+                var endTimes = new List<double>();
+                var apexes = new List<double>();
+                foreach (var bounds in peakBounds)
+                {
+                    startTimes.Add(bounds.StartTime);
+                    endTimes.Add(bounds.EndTime);
+                    apexes.Add(bounds.ApexTime);
+                }
+
+                if (startTimes.Count == 0)
+                {
+                    return null;
+                }
+
+                return new PeakBounds(apexes.Mean(), startTimes.Mean(), endTimes.Mean());
+            }
+
+            public override string ToString()
+            {
+                return string.Format("[{0},{1}]", StartTime.ToString(Formats.RETENTION_TIME),
+                    EndTime.ToString(Formats.RETENTION_TIME));
+            }
+        }
+
+        public class PeakSummary
+        {
+            public PeakSummary(IEnumerable<PeakBounds> peaks)
+            {
+                var startTimes = new List<double>();
+                var endTimes = new List<double>();
+                var apexes = new List<double>();
+                foreach (var bounds in peaks)
+                {
+                    startTimes.Add(bounds.StartTime);
+                    endTimes.Add(bounds.EndTime);
+                    apexes.Add(bounds.ApexTime);
+                }
+
+                Count = startTimes.Count;
+                StartTimes = new RetentionTimeSummary(new Statistics(startTimes));
+                ApexTimes = new RetentionTimeSummary(new Statistics(apexes));
+                EndTimes = new RetentionTimeSummary(new Statistics(endTimes));
+            }
+            public int Count { get; }
+            public RetentionTimeSummary StartTimes
+            {
+                get;
+            }
+            public RetentionTimeSummary EndTimes { get; }
+            public RetentionTimeSummary ApexTimes { get; }
+            public override string ToString()
+            {
+                if (Count == 1)
+                {
+                    return string.Format("[{0},{1}]", StartTimes, EndTimes);
+                }
+                return string.Format("{0} peaks [{1},{2}]", Count, StartTimes, EndTimes);
+            }
         }
     }
 }

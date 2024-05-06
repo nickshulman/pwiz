@@ -448,6 +448,7 @@
       <DependentUpon>EditSpectrumFilterDlg.cs</DependentUpon>
     </Compile>
     <Compile Include="EditUI\PeakImputation\AlignmentProducer.cs" />
+    <Compile Include="EditUI\PeakImputation\AlignmentValueType.cs" />
     <Compile Include="EditUI\PeakImputation\ManualPeakTreatment.cs" />
     <Compile Include="EditUI\PeakImputation\PeakImputationForm.cs">
       <SubType>Form</SubType>

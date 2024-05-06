@@ -46,6 +46,12 @@ namespace pwiz.Skyline.EditUI.PeakImputation
                 RegressionMethodRT.loess
             });
             comboAlignmentType.SelectedIndex = 0;
+            comboValuesToAlign.Items.AddRange(new object[]
+            {
+                AlignmentValueType.PEAK_APEXES,
+                AlignmentValueType.MS2_IDENTIFICATIONS
+            });
+            comboValuesToAlign.SelectedIndex = 0;
             ComboHelper.AutoSizeDropDown(comboAlignmentType);
             comboManualPeaks.Items.AddRange(new object[]
             {
@@ -338,26 +344,18 @@ namespace pwiz.Skyline.EditUI.PeakImputation
                 }
                 set
                 {
-                    lock (this)
+                    if (ReferenceEquals(_data, value))
                     {
-                        if (ReferenceEquals(_data, value))
-                        {
-                            return;
-                        }
-                        _data = value;
-                        FireListChanged();
+                        return;
                     }
+                    _data = value;
+                    FireListChanged();
                 }
             }
 
             public override IEnumerable GetItems()
             {
-                Data data;
-                lock (this)
-                {
-                    data = Data;
-                }
-
+                Data data = Data;
                 if (data == null)
                 {
                     yield break;
@@ -368,6 +366,10 @@ namespace pwiz.Skyline.EditUI.PeakImputation
                 {
                     foreach (var molecule in moleculeGroup.Molecules)
                     {
+                        if (molecule.GlobalStandardType != null)
+                        {
+                            continue;
+                        }
                         CancellationToken.ThrowIfCancellationRequested();
                         var peptide = new Model.Databinding.Entities.Peptide(DataSchema,
                             new IdentityPath(moleculeGroup.PeptideGroup, molecule.Peptide));
@@ -382,7 +384,7 @@ namespace pwiz.Skyline.EditUI.PeakImputation
                             }
 
                             bool manuallyIntegrated = IsManualIntegrated(molecule, peptideResult.ResultFile);
-                            if (data?.Parameters.ManualPeakTreatment == ManualPeakTreatment.SKIP && manuallyIntegrated)
+                            if (data.Parameters.ManualPeakTreatment == ManualPeakTreatment.SKIP && manuallyIntegrated)
                             {
                                 continue;
                             }
@@ -569,13 +571,15 @@ namespace pwiz.Skyline.EditUI.PeakImputation
                 return ChangeProp(ImClone(this), im => im.ManualPeakTreatment = manualPeakTreatment);
             }
             public MsDataFileUri AlignmentTarget { get; private set; }
+            public AlignmentValueType AlignmentValueType { get; private set; }
             public RegressionMethodRT RegressionMethod { get; private set; }
 
-            public Parameters ChangeAlignment(MsDataFileUri target, RegressionMethodRT regressionMethod)
+            public Parameters ChangeAlignment(MsDataFileUri target, AlignmentValueType alignmentValueType, RegressionMethodRT regressionMethod)
             {
                 return ChangeProp(ImClone(this), im =>
                 {
                     im.AlignmentTarget = target;
+                    im.AlignmentValueType = alignmentValueType;
                     im.RegressionMethod = regressionMethod;
                 });
             }
@@ -622,6 +626,7 @@ namespace pwiz.Skyline.EditUI.PeakImputation
                     var hashCode = Document.GetHashCode();
                     hashCode = (hashCode * 397) ^ ManualPeakTreatment.GetHashCode();
                     hashCode = (hashCode * 397) ^ (AlignmentTarget != null ? AlignmentTarget.GetHashCode() : 0);
+                    hashCode = (hashCode * 397) ^ (AlignmentValueType?.GetHashCode() ?? 0);
                     hashCode = (hashCode * 397) ^ (int)RegressionMethod;
                     hashCode = (hashCode * 397) ^ (PeakScoringModel != null ? PeakScoringModel.GetHashCode() : 0);
                     hashCode = (hashCode * 397) ^ MinCoreCount;
@@ -707,7 +712,7 @@ namespace pwiz.Skyline.EditUI.PeakImputation
                 foreach (var msDataFileUri in document.MeasuredResults.MSDataFilePaths)
                 {
                     yield return AlignmentProducer.Instance.MakeWorkOrder(
-                        new AlignmentProducer.Parameter(parameter.RegressionMethod, document, msDataFileUri, parameter.AlignmentTarget));
+                        new AlignmentProducer.Parameter(parameter.AlignmentValueType, parameter.RegressionMethod, document, msDataFileUri, parameter.AlignmentTarget));
                 }
 
                 if (parameter.PeakScoringModel != null)
@@ -734,7 +739,9 @@ namespace pwiz.Skyline.EditUI.PeakImputation
             if (alignmentTarget != null)
             {
                 var regressionMethod = comboAlignmentType.SelectedItem as RegressionMethodRT? ?? RegressionMethodRT.linear;
-                parameters = parameters.ChangeAlignment(alignmentTarget.Path, regressionMethod);
+                var alignmentValueType = comboValuesToAlign.SelectedItem as AlignmentValueType ??
+                                         AlignmentValueType.PEAK_APEXES;
+                parameters = parameters.ChangeAlignment(alignmentTarget.Path, alignmentValueType, regressionMethod);
             }
 
             parameters = parameters.ChangeManualPeakTreatment(
@@ -872,14 +879,20 @@ namespace pwiz.Skyline.EditUI.PeakImputation
                         continue;
                     }
 
-                    if (minRawStartTime == null || minRawStartTime > chromInfo.StartRetentionTime)
+                    if (chromInfo.StartRetentionTime.HasValue)
                     {
-                        minRawStartTime = chromInfo.StartRetentionTime.Value;
+                        if (minRawStartTime == null || minRawStartTime > chromInfo.StartRetentionTime)
+                        {
+                            minRawStartTime = chromInfo.StartRetentionTime.Value;
+                        }
                     }
 
-                    if (maxRawEndTime == null || maxRawEndTime < chromInfo.EndRetentionTime)
+                    if (chromInfo.EndRetentionTime.HasValue)
                     {
-                        maxRawEndTime = chromInfo.EndRetentionTime.Value;
+                        if (maxRawEndTime == null || maxRawEndTime < chromInfo.EndRetentionTime)
+                        {
+                            maxRawEndTime = chromInfo.EndRetentionTime.Value;
+                        }
                     }
                 }
             }

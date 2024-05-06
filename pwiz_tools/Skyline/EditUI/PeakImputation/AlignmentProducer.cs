@@ -1,5 +1,7 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using MathNet.Numerics.Statistics;
@@ -28,8 +30,8 @@ namespace pwiz.Skyline.EditUI.PeakImputation
                 return null;
             }
 
-            var sourceTimes = GetRetentionTimes(document, sourceReplicateFile.Item1, sourceReplicateFile.Item2);
-            var targetTimes = GetRetentionTimes(document, targetReplicateFile.Item1, targetReplicateFile.Item2);
+            var sourceTimes = GetRetentionTimes(document, parameter.AlignmentValueType, parameter.Source);
+            var targetTimes = GetRetentionTimes(document, parameter.AlignmentValueType, parameter.Target);
             var xValues = new List<double>();
             var yValues = new List<double>();
             foreach (var entry in sourceTimes)
@@ -39,6 +41,12 @@ namespace pwiz.Skyline.EditUI.PeakImputation
                     xValues.Add(entry.Value);
                     yValues.Add(targetTime);
                 }
+            }
+
+            if (xValues.Count < 2)
+            {
+                Trace.TraceWarning("Unable to perform alignment from {0} to {1}", parameter.Source, parameter.Target);
+                return AlignmentFunction.IDENTITY;
             }
 
             switch (parameter.RegressionMethod)
@@ -59,12 +67,7 @@ namespace pwiz.Skyline.EditUI.PeakImputation
 
         private Tuple<int, ChromFileInfoId> FindReplicateIndex(MeasuredResults measuredResults, MsDataFileUri msDataFileUri)
         {
-            if (measuredResults == null)
-            {
-                return null;
-            }
-
-            for (int i = 0; i < measuredResults.Chromatograms.Count; i++)
+            for (int i = 0; i < measuredResults?.Chromatograms.Count; i++)
             {
                 var chromFileInfoId = measuredResults.Chromatograms[i].FindFile(msDataFileUri);
                 if (chromFileInfoId != null)
@@ -73,12 +76,22 @@ namespace pwiz.Skyline.EditUI.PeakImputation
                 }
             }
 
-            return null;
+            return Tuple.Create(-1, (ChromFileInfoId) null);
         }
 
-        private Dictionary<PeptideModKey, double> GetRetentionTimes(SrmDocument document, int replicateIndex, ChromFileInfoId chromFileInfoId)
+        private Dictionary<object, double> GetRetentionTimes(SrmDocument document, AlignmentValueType alignmentValueType, MsDataFileUri filePath)
         {
-            var dictionary = new Dictionary<PeptideModKey, double>();
+            if (AlignmentValueType.PEAK_APEXES.Equals(alignmentValueType))
+            {
+                return ToObjectDictionary(GetPeakApexes(document, filePath));
+            }
+
+            return ToObjectDictionary(GetPsmTimes(document, filePath));
+        }
+
+        private IEnumerable<KeyValuePair<PeptideModKey, double>> GetPeakApexes(SrmDocument document, MsDataFileUri msDataFileUri)
+        {
+            var (replicateIndex, chromFileInfoId) = FindReplicateIndex(document.MeasuredResults, msDataFileUri);
             foreach (var peptideGroup in document.Molecules.GroupBy(peptideDocNode => peptideDocNode.Key))
             {
                 var times = new List<double>();
@@ -98,22 +111,35 @@ namespace pwiz.Skyline.EditUI.PeakImputation
 
                 if (times.Count > 0)
                 {
-                    dictionary.Add(peptideGroup.Key, times.Mean());
+                    yield return new KeyValuePair<PeptideModKey, double>(peptideGroup.Key, times.Mean());
                 }
             }
+        }
 
-            return dictionary;
+        private IEnumerable<KeyValuePair<Target, double>> GetPsmTimes(SrmDocument document, MsDataFileUri msDataFileUri)
+        {
+            return (IEnumerable<KeyValuePair<Target, double>>)
+                   document.Settings.GetRetentionTimes(msDataFileUri)?.GetFirstRetentionTimes()
+                   ?? Array.Empty<KeyValuePair<Target, double>>();
+        }
+
+        private static Dictionary<object, double> ToObjectDictionary<TKey>(
+            IEnumerable<KeyValuePair<TKey, double>> entries)
+        {
+            return entries.ToDictionary(kvp => (object)kvp.Key, kvp => kvp.Value);
         }
 
         public class Parameter
         {
-            public Parameter(RegressionMethodRT regressionMethod, SrmDocument document, MsDataFileUri source, MsDataFileUri target)
+            public Parameter(AlignmentValueType alignmentValueType, RegressionMethodRT regressionMethod, SrmDocument document, MsDataFileUri source, MsDataFileUri target)
             {
+                AlignmentValueType = alignmentValueType;
                 RegressionMethod = regressionMethod;
                 Document = document;
                 Source = source;
                 Target = target;
             }
+            public AlignmentValueType AlignmentValueType { get; }
             public RegressionMethodRT RegressionMethod { get; }
 
             public SrmDocument Document { get; }
@@ -122,7 +148,7 @@ namespace pwiz.Skyline.EditUI.PeakImputation
 
             protected bool Equals(Parameter other)
             {
-                return RegressionMethod == other.RegressionMethod && ReferenceEquals(Document, other.Document) &&
+                return Equals(AlignmentValueType, other.AlignmentValueType) && RegressionMethod == other.RegressionMethod && ReferenceEquals(Document, other.Document) &&
                        Equals(Source, other.Source) && Equals(Target, other.Target);
             }
 
@@ -139,6 +165,7 @@ namespace pwiz.Skyline.EditUI.PeakImputation
                 unchecked
                 {
                     var hashCode = RuntimeHelpers.GetHashCode(Document);
+                    hashCode = (hashCode * 397) ^ (AlignmentValueType?.GetHashCode() ?? 0);
                     hashCode = (hashCode * 397) ^ RegressionMethod.GetHashCode();
                     hashCode = (hashCode * 397) ^ Source.GetHashCode();
                     hashCode = (hashCode * 397) ^ (Target?.GetHashCode() ?? 0);

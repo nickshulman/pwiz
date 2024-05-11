@@ -630,25 +630,20 @@ namespace pwiz.Skyline.EditUI.PeakImputation
 
         public class Data
         {
-            private Dictionary<MsDataFileUri, AlignmentFunction> _alignmentFunctions;
+            private AllAlignments _allAlignments;
 
-            public Data(Parameters parameters, MProphetResultsHandler resultsHandler, IEnumerable<KeyValuePair<MsDataFileUri, AlignmentFunction>> alignmentFunctions)
+            public Data(Parameters parameters, MProphetResultsHandler resultsHandler, AllAlignments allAlignments)
             {
                 Parameters = parameters;
                 ResultsHandler = resultsHandler;
-                _alignmentFunctions = alignmentFunctions.ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
+                _allAlignments = allAlignments;
             }
 
             public Parameters Parameters { get; }
 
             public AlignmentFunction GetAlignmentFunction(MsDataFileUri msDataFileUri)
             {
-                if (Parameters.AlignmentTarget == null)
-                {
-                    return AlignmentFunction.IDENTITY;
-                }
-                _alignmentFunctions.TryGetValue(msDataFileUri, out var alignmentFunction);
-                return alignmentFunction;
+                return _allAlignments?.GetAlignmentFunction(msDataFileUri) ?? AlignmentFunction.IDENTITY;
             }
 
             public MProphetResultsHandler ResultsHandler { get; }
@@ -675,21 +670,10 @@ namespace pwiz.Skyline.EditUI.PeakImputation
             public static readonly DataProducer Instance = new DataProducer();
             public override Data ProduceResult(ProductionMonitor productionMonitor, Parameters parameter, IDictionary<WorkOrder, object> inputs)
             {
-                var alignments = new List<KeyValuePair<MsDataFileUri, AlignmentFunction>>();
                 MProphetResultsHandler resultsHandler = ScoringProducer.Instance.GetResult(inputs, new ScoringProducer.Parameters(parameter.Document, parameter.PeakScoringModel));
-                foreach (var input in inputs)
-                {
-                    if (input.Key.Producer == AlignmentProducer.Instance)
-                    {
-                        var workParameter = (AlignmentProducer.Parameter)input.Key.WorkParameter;
-                        var alignmentFunction = (AlignmentFunction)input.Value;
-                        if (alignmentFunction != null)
-                        {
-                            alignments.Add(new KeyValuePair<MsDataFileUri, AlignmentFunction>(workParameter.Source, alignmentFunction));
-                        }
-                    }
-                }
-                return new Data(parameter, resultsHandler, alignments);
+                AllAlignments allAlignments = AllAlignmentsProducer.INSTANCE.GetResult(inputs,
+                    new AllAlignmentsProducer.Parameter(parameter.Document, parameter.AlignmentTarget));
+                return new Data(parameter, resultsHandler, allAlignments);
             }
 
             public override IEnumerable<WorkOrder> GetInputs(Parameters parameter)
@@ -702,11 +686,8 @@ namespace pwiz.Skyline.EditUI.PeakImputation
 
                 if (parameter.AlignmentTarget != null)
                 {
-                    foreach (var msDataFileUri in document.MeasuredResults.MSDataFilePaths)
-                    {
-                        yield return AlignmentProducer.Instance.MakeWorkOrder(
-                            new AlignmentProducer.Parameter(parameter.AlignmentTarget, document, msDataFileUri));
-                    }
+                    yield return AllAlignmentsProducer.INSTANCE.MakeWorkOrder(
+                        new AllAlignmentsProducer.Parameter(document, parameter.AlignmentTarget));
                 }
 
                 if (parameter.PeakScoringModel != null)
@@ -730,6 +711,7 @@ namespace pwiz.Skyline.EditUI.PeakImputation
         {
             var parameters =
                 new Parameters(SkylineWindow.Document).ChangeAlignmentTarget(alignmentControl.AlignmentTarget);
+            SkylineWindow.AlignmentTarget = alignmentControl.AlignmentTarget;
 
             parameters = parameters.ChangeManualPeakTreatment(
                 comboManualPeaks.SelectedItem as ManualPeakTreatment ?? ManualPeakTreatment.SKIP);

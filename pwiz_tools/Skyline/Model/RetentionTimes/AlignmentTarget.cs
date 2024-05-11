@@ -122,30 +122,12 @@ namespace pwiz.Skyline.Model.RetentionTimes
                 return GetRetentionTimes(document, File);
             }
 
-            List<IEnumerable<KeyValuePair<object, double>>> fileTimes =
-                new List<IEnumerable<KeyValuePair<object, double>>>();
-            foreach (var source in RtValueType.ListTargets(document))
-            {
-                fileTimes.Add(GetRetentionTimes(document, source));
-            }
-
-            if (fileTimes.Count == 0)
-            {
-                return Array.Empty<KeyValuePair<object, double>>();
-            }
-
-            if (fileTimes.Count == 1)
-            {
-                return fileTimes[0];
-            }
-
-            return fileTimes.SelectMany(times => times).GroupBy(kvp => kvp.Key, kvp=>kvp.Value).Select(grouping =>
-                new KeyValuePair<object, double>(grouping.Key, AverageType.Calculate(grouping)));
+            return RtValueType.GetSummaryRetentionTimes(document);
         }
 
         public IEnumerable<KeyValuePair<object, double>> GetRetentionTimes(SrmDocument document, MsDataFileUri source)
         {
-            foreach (var kvp in RtValueType.GetRetentionTimes(document, source))
+            foreach (var kvp in RtValueType.GetRetentionTimesForFile(document, source))
             {
                 yield return new KeyValuePair<object, double>(kvp.Key, AverageType.Calculate(kvp.Value));
             }
@@ -210,20 +192,49 @@ namespace pwiz.Skyline.Model.RetentionTimes
 
         public abstract IEnumerable<MsDataFileUri> ListTargets(SrmDocument document);
 
-
-
         public abstract string Name { get; }
         public abstract string Caption { get; }
         public override string ToString()
         {
             return Caption;
         }
-        public abstract IEnumerable<KeyValuePair<object, IEnumerable<double>>> GetRetentionTimes(SrmDocument document, MsDataFileUri file);
+
+        public IEnumerable<KeyValuePair<object, double>> GetRetentionTimesForFile(AverageType averageType,
+            SrmDocument document, MsDataFileUri file)
+        {
+            return GetRetentionTimesForFile(document, file).Select(kvp =>
+                new KeyValuePair<object, double>(kvp.Key, averageType.Calculate(kvp.Value)));
+        }
+        public abstract IEnumerable<KeyValuePair<object, IEnumerable<double>>> GetRetentionTimesForFile(SrmDocument document, MsDataFileUri file);
+
+        public virtual IEnumerable<KeyValuePair<object, double>> GetSummaryRetentionTimes(SrmDocument document)
+        {
+            List<IEnumerable<KeyValuePair<object, double>>> fileTimes =
+                new List<IEnumerable<KeyValuePair<object, double>>>();
+            foreach (var source in ListTargets(document))
+            {
+                fileTimes.Add(GetRetentionTimesForFile(AverageType.MEAN, document, source));
+            }
+
+            if (fileTimes.Count == 0)
+            {
+                return Array.Empty<KeyValuePair<object, double>>();
+            }
+
+            if (fileTimes.Count == 1)
+            {
+                return fileTimes[0];
+            }
+
+            return fileTimes.SelectMany(times => times).GroupBy(kvp => kvp.Key, kvp => kvp.Value).Select(grouping =>
+                new KeyValuePair<object, double>(grouping.Key, AverageType.MEAN.Calculate(grouping)));
+
+        }
 
 
         private abstract class AbstractRtValueType<TMoleculeKey> : RtValueType
         {
-            public override IEnumerable<KeyValuePair<object, IEnumerable<double>>> GetRetentionTimes(
+            public override IEnumerable<KeyValuePair<object, IEnumerable<double>>> GetRetentionTimesForFile(
                 SrmDocument document, MsDataFileUri file)
             {
                 return GetMoleculeRetentionTimes(document, file).Select(grouping =>

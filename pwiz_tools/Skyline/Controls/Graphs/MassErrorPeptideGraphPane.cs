@@ -64,7 +64,7 @@ namespace pwiz.Skyline.Controls.Graphs
                                  int? result,
                                  DisplayTypeChrom displayType,
                                  PaneKey paneKey)
-                : base(document, selectedGroup, selectedProtein, result, displayType, null, paneKey)
+                : base(document, selectedGroup, selectedProtein, result, displayType, paneKey)
             {
             }
             

@@ -235,10 +235,9 @@ namespace pwiz.Skyline.Controls.Graphs
         {
             // ReSharper disable PossibleMultipleEnumeration
             protected GraphData(SrmDocument document, TransitionGroupDocNode selectedGroup, PeptideGroupDocNode selectedProtein, 
-                             int? iResult, DisplayTypeChrom displayType, GraphValues.IRetentionTimeTransformOp retentionTimeTransformOp, 
+                             int? iResult, DisplayTypeChrom displayType, 
                              PaneKey paneKey)
             {
-                RetentionTimeTransformOp = retentionTimeTransformOp;
                 // Determine the shortest possible unique ID for each peptide or molecule
                 var sequences = new List<Tuple<string, bool>>();
                 foreach (var nodePep in document.Molecules)
@@ -461,7 +460,6 @@ namespace pwiz.Skyline.Controls.Graphs
             }
             // ReSharper restore PossibleMultipleEnumeration
 
-            public GraphValues.IRetentionTimeTransformOp RetentionTimeTransformOp { get; private set; }
             public IList<PointPairList> PointPairLists { get; private set; }
             public string[] Labels { get; private set; }
             public IdentityPath[] XScalePaths { get; private set; }
@@ -587,26 +585,6 @@ namespace pwiz.Skyline.Controls.Graphs
                 maxY = Math.Max(maxY, MeanErrorBarItem.GetYTotal(pointPair));
                 minY = Math.Min(minY, MeanErrorBarItem.GetYMin(pointPair));
                 return pointPair;
-            }
-
-            protected RetentionTimeValues ScaleRetentionTimeValues(ChromFileInfoId chromFileInfoId, RetentionTimeValues retentionTimeValues)
-            {
-                if (retentionTimeValues == null)
-                {
-                    return null;
-                }
-                if (null == RetentionTimeTransformOp)
-                {
-                    return retentionTimeValues;
-                }
-
-                return retentionTimeValues;
-                // AlignmentFunction regressionFunction;
-                // // if (!RetentionTimeTransformOp.TryGetRegressionFunction(chromFileInfoId, out regressionFunction))
-                // // {
-                // //     return null;
-                // // }
-                // return retentionTimeValues.Scale(regressionFunction);
             }
 
             protected virtual bool AddBlankPointsForGraphPanes { get { return false; } }

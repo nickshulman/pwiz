@@ -21,7 +21,9 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Linq;
+using pwiz.Common.SystemUtil.Caching;
 using pwiz.Skyline.Controls.SeqNode;
+using pwiz.Skyline.EditUI.PeakImputation;
 using pwiz.Skyline.Model;
 using pwiz.Skyline.Model.Results;
 using pwiz.Skyline.Model.RetentionTimes;
@@ -37,10 +39,18 @@ namespace pwiz.Skyline.Controls.Graphs
     /// </summary>
     internal class RTReplicateGraphPane : SummaryReplicateGraphPane, IUpdateGraphPaneController
     {
+        private Receiver<AllAlignmentsProducer.Parameter, AllAlignments> _receiver;
+
         public RTReplicateGraphPane(GraphSummary graphSummary)
             : base(graphSummary)
         {
             YAxis.Title.Text = GraphsResources.RTReplicateGraphPane_RTReplicateGraphPane_Measured_Time;
+            _receiver = AllAlignmentsProducer.INSTANCE.RegisterCustomer(graphSummary, ProductAvailableAction);
+
+        }
+        private void ProductAvailableAction()
+        {
+            UpdateGraph(false);
         }
 
         public bool UpdateUIOnLibraryChanged()
@@ -118,6 +128,16 @@ namespace pwiz.Skyline.Controls.Graphs
                     displayType = DisplayTypeChrom.all;
             }
             var rtTransformOp = GraphSummary.StateProvider.GetRetentionTimeTransformOperation();
+            AllAlignments allAlignments = null;
+            if (null != rtTransformOp?.AlignmentTarget)
+            {
+                if (!_receiver.TryGetProduct(
+                        new AllAlignmentsProducer.Parameter(document, rtTransformOp.AlignmentTarget),
+                        out allAlignments))
+                {
+                    rtTransformOp = null;
+                }
+            }
             var rtValue = RTPeptideGraphPane.RTValue;
             ReplicateGroupOp replicateGroupOp;
             if (rtValue == RTPeptideValue.All)
@@ -140,7 +160,7 @@ namespace pwiz.Skyline.Controls.Graphs
             GraphData graphData = new RTGraphData(document, 
                 IsMultiSelect 
                 ? peptidePaths
-                : new[] { selectedPath }.AsEnumerable(), displayType, retentionTimeValue, replicateGroupOp);
+                : new[] { selectedPath }.AsEnumerable(), displayType, retentionTimeValue, replicateGroupOp, allAlignments);
             CanShowRTLegend = graphData.DocNodes.Count != 0;
             InitFromData(graphData);
 
@@ -341,13 +361,15 @@ namespace pwiz.Skyline.Controls.Graphs
                         PointPairBase.Missing, PointPairBase.Missing, PointPairBase.Missing, 0);
             }
 
-            public RTGraphData(SrmDocument document, IEnumerable<IdentityPath> selectedDocNodePaths, DisplayTypeChrom displayType, GraphValues.RetentionTimeTransform retentionTimeTransform, ReplicateGroupOp replicateGroupOp)
+            public RTGraphData(SrmDocument document, IEnumerable<IdentityPath> selectedDocNodePaths, DisplayTypeChrom displayType, GraphValues.RetentionTimeTransform retentionTimeTransform, ReplicateGroupOp replicateGroupOp, AllAlignments allAlignments)
                 : base(document, selectedDocNodePaths, displayType, replicateGroupOp, PaneKey.DEFAULT)
             {
                 RetentionTimeTransform = retentionTimeTransform;
+                AllAlignments = allAlignments;
             }
 
             private GraphValues.RetentionTimeTransform RetentionTimeTransform { get; set; }
+            public AllAlignments AllAlignments { get; }
 
             public override PointPair PointPairMissing(int xValue)
             {
@@ -357,15 +379,12 @@ namespace pwiz.Skyline.Controls.Graphs
             private bool IsMissingAlignment(ChromInfoData chromInfoData)
             {
                 Assume.IsNotNull(RetentionTimeTransform, @"RetentionTimeTransform");
-                if (null == RetentionTimeTransform.RtTransformOp)
+                if (null == AllAlignments)
                 {
                     return false;
                 }
 
-                return false;
-                // Assume.IsNotNull(chromInfoData, @"chromInfoData");
-                // Assume.IsNotNull(chromInfoData.ChromFileInfo, @"chromInfoData.ChromFileInfo");
-                // return !RetentionTimeTransform.RtTransformOp.TryGetRegressionFunction(chromInfoData.ChromFileInfo.FileId, out _);
+                return null == AllAlignments.GetAlignmentFunction(chromInfoData.ChromFileInfo.FilePath);
             }
 
             protected override bool IsMissingValue(TransitionChromInfoData chromInfoData)
@@ -384,9 +403,9 @@ namespace pwiz.Skyline.Controls.Graphs
                 {
                     var retentionTimeValues = getRetentionTimeValues(chromInfoData);
                     AlignmentFunction regressionFunction = null;
-                    if (false && null != RetentionTimeTransform.RtTransformOp)
+                    if (AllAlignments != null)
                     {
-                        //RetentionTimeTransform.RtTransformOp.TryGetRegressionFunction(chromInfoData.ChromFileInfo.FileId, out regressionFunction);
+                        regressionFunction = AllAlignments.GetAlignmentFunction(chromInfoData.ChromFileInfo.FileId);
                     }
                     if (regressionFunction == null)
                     {

@@ -18,6 +18,8 @@
  */
 using System;
 using System.Collections.Generic;
+using pwiz.Common.SystemUtil.Caching;
+using pwiz.Skyline.EditUI.PeakImputation;
 using pwiz.Skyline.Model;
 using pwiz.Skyline.Model.Results;
 using pwiz.Skyline.Model.RetentionTimes;
@@ -34,6 +36,7 @@ namespace pwiz.Skyline.Controls.Graphs
 
     internal class RTPeptideGraphPane : SummaryPeptideGraphPane, IUpdateGraphPaneController
     {
+        private Receiver<AllAlignmentsProducer.Parameter, AllAlignments> _receiver;
         public static RTPeptideValue RTValue
         {
             get
@@ -45,6 +48,12 @@ namespace pwiz.Skyline.Controls.Graphs
         public RTPeptideGraphPane(GraphSummary graphSummary)
             : base(graphSummary, PaneKey.DEFAULT)
         {
+            _receiver = AllAlignmentsProducer.INSTANCE.RegisterCustomer(graphSummary, ProductAvailableAction);
+        }
+
+        private void ProductAvailableAction()
+        {
+            UpdateGraph(false);
         }
 
         public virtual bool UpdateUIOnIndexChanged()
@@ -63,7 +72,19 @@ namespace pwiz.Skyline.Controls.Graphs
             if (RTLinearRegressionGraphPane.ShowReplicate == ReplicateDisplay.single)
                 result = GraphSummary.ResultsIndex;
 
-            return new RTGraphData(document, selectedGroup, selectedProtein, result, displayType, GraphSummary.StateProvider.GetRetentionTimeTransformOperation());
+
+            var retentionTimeTransformOp = GraphSummary.StateProvider.GetRetentionTimeTransformOperation();
+            AllAlignments allAlignments = null;
+            if (retentionTimeTransformOp.AlignmentTarget != null)
+            {
+                if (!_receiver.TryGetProduct(
+                        new AllAlignmentsProducer.Parameter(document, retentionTimeTransformOp.AlignmentTarget),
+                        out allAlignments))
+                {
+                    retentionTimeTransformOp = null;
+                }
+            }
+            return new RTGraphData(document, selectedGroup, selectedProtein, result, displayType, retentionTimeTransformOp, allAlignments);
         }
 
         protected override void UpdateAxes()
@@ -98,10 +119,12 @@ namespace pwiz.Skyline.Controls.Graphs
                                PeptideGroupDocNode selectedProtein,
                                int? result,
                                DisplayTypeChrom displayType,
-                               GraphValues.IRetentionTimeTransformOp retentionTimeTransformOp
-                )
-                : base(document, selectedGroup, selectedProtein, result, displayType, retentionTimeTransformOp, PaneKey.DEFAULT)
+                               GraphValues.IRetentionTimeTransformOp retentionTimeTransformOp,
+                               AllAlignments allAlignments)
+                : base(document, selectedGroup, selectedProtein, result, displayType, PaneKey.DEFAULT)
             {
+                RetentionTimeTransformOp = retentionTimeTransformOp;
+                AllAlignments = allAlignments;
             }
 
             public override double MaxValueSetting { get { return Settings.Default.PeakTimeMax; } }
@@ -245,6 +268,28 @@ namespace pwiz.Skyline.Controls.Graphs
 
                 return pointPair;
             }
+
+            protected RetentionTimeValues ScaleRetentionTimeValues(ChromFileInfoId chromFileInfoId, RetentionTimeValues retentionTimeValues)
+            {
+                if (retentionTimeValues == null)
+                {
+                    return null;
+                }
+                if (null == AllAlignments)
+                {
+                    return retentionTimeValues;
+                }
+
+                AlignmentFunction regressionFunction = AllAlignments.GetAlignmentFunction(chromFileInfoId);
+                if (regressionFunction == null)
+                {
+                    return null;
+                }
+                return retentionTimeValues.Scale(regressionFunction);
+            }
+            public GraphValues.IRetentionTimeTransformOp RetentionTimeTransformOp { get; private set; }
+
+            public AllAlignments AllAlignments { get; private set; }
         }
     }
 }

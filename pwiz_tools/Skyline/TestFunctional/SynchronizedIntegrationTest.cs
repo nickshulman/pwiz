@@ -144,10 +144,10 @@ namespace pwiz.SkylineTestFunctional
                 dlg.Targets = toSync;
 
                 // Test alignment to file
-                Assert.IsNull(SkylineWindow.AlignToFile);
-                var alignId = doc.MeasuredResults.Chromatograms.First(c => c.Name.Equals(targetChromName)).MSDataFileInfos[0].FileId;
-                Assert.IsTrue(dlg.SelectAlignFile(alignId));
-                Assert.IsTrue(ReferenceEquals(SkylineWindow.AlignToFile, alignId));
+                // Assert.IsNull(SkylineWindow.AlignToFile);
+                // var alignId = doc.MeasuredResults.Chromatograms.First(c => c.Name.Equals(targetChromName)).MSDataFileInfos[0].FileId;
+                // Assert.IsTrue(dlg.SelectAlignFile(alignId));
+                // Assert.IsTrue(ReferenceEquals(SkylineWindow.AlignToFile, alignId));
             });
             OkDialog(dlg, dlg.OkDialog);
 

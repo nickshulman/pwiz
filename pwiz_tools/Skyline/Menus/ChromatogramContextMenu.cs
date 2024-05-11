@@ -266,18 +266,19 @@ namespace pwiz.Skyline.Menus
                     }
                     string fileItemName = Path.GetFileNameWithoutExtension(SampleHelp.GetFileName(chromFileInfo.FilePath));
                     var menuItemText = string.Format(Resources.SkylineWindow_AlignTimesToFileFormat, fileItemName);
-                    var alignToFileItem = new ToolStripMenuItem(menuItemText);
-                    if (ReferenceEquals(chromFileInfoId, SkylineWindow.AlignToFile))
-                    {
-                        alignToFileItem.Click += (sender, eventArgs) => SkylineWindow.AlignToFile = null;
-                        alignToFileItem.Checked = true;
-                    }
-                    else
-                    {
-                        alignToFileItem.Click += (sender, eventArgs) => SkylineWindow.AlignToFile = chromFileInfoId;
-                        alignToFileItem.Checked = false;
-                    }
-                    items.Insert(iInsert++, alignToFileItem);
+                    // TODO
+                    // var alignToFileItem = new ToolStripMenuItem(menuItemText);
+                    // if (ReferenceEquals(chromFileInfoId, SkylineWindow.AlignToFile))
+                    // {
+                    //     alignToFileItem.Click += (sender, eventArgs) => SkylineWindow.AlignToFile = null;
+                    //     alignToFileItem.Checked = true;
+                    // }
+                    // else
+                    // {
+                    //     alignToFileItem.Click += (sender, eventArgs) => SkylineWindow.AlignToFile = chromFileInfoId;
+                    //     alignToFileItem.Checked = false;
+                    // }
+                    // items.Insert(iInsert++, alignToFileItem);
                 }
             }
             return iInsert;

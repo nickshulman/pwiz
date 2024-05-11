@@ -49,11 +49,7 @@ namespace pwiz.Skyline.EditUI.PeakImputation
                 RegressionMethodRT.loess
             });
             comboAlignmentType.SelectedIndex = 0;
-            comboValuesToAlign.Items.AddRange(new object[]
-            {
-                AlignmentValueType.PEAK_APEXES,
-                AlignmentValueType.MS2_IDENTIFICATIONS
-            });
+            comboValuesToAlign.Items.AddRange(RtValueType.ALL.ToArray());
             comboValuesToAlign.SelectedIndex = 0;
             ComboHelper.AutoSizeDropDown(comboAlignmentType);
             comboManualPeaks.Items.AddRange(new object[]
@@ -132,35 +128,8 @@ namespace pwiz.Skyline.EditUI.PeakImputation
         private void UpdateComboBoxes()
         {
             var document = SkylineWindow.DocumentUI;
-            ReplaceItems(comboAlignToFile, GetResultFileOptions(document).Prepend(null));
-            ReplaceItems(comboScoringModel, GetScoringModels(document).Prepend(null), 1);
-        }
-
-        private void ReplaceItems<T>(ComboBox comboBox, IEnumerable<T> items, int defaultSelectedIndex = 0)
-        {
-            var itemArray = items.Select(item=>(object) item ?? string.Empty).ToArray();
-            if (itemArray.SequenceEqual(comboBox.Items.Cast<object>()))
-            {
-                return;
-            }
-            var oldSelectedItem = comboBox.SelectedItem as KeyValuePair<string, T>?;
-            comboBox.Items.Clear();
-            comboBox.Items.AddRange(itemArray);
-            int newSelectedIndex = -1;
-            if (oldSelectedItem.HasValue)
-            {
-                newSelectedIndex = itemArray.Select(Tuple.Create<object, int>)
-                    .FirstOrDefault(tuple => Equals(tuple.Item1, oldSelectedItem.Value.Value))?.Item2 ?? -1;
-            }
-            if (newSelectedIndex >= 0)
-            {
-                comboBox.SelectedIndex = newSelectedIndex;
-            }
-            else
-            {
-                comboBox.SelectedIndex = Math.Min(defaultSelectedIndex, comboBox.Items.Count - 1);
-            }
-            ComboHelper.AutoSizeDropDown(comboBox);
+            ComboHelper.ReplaceItems(comboAlignToFile, GetResultFileOptions(document).Prepend(null));
+            ComboHelper.ReplaceItems(comboScoringModel, GetScoringModels(document).Prepend(null), 1);
         }
 
         private static IEnumerable<ResultFileOption> GetResultFileOptions(SrmDocument document)
@@ -582,17 +551,12 @@ namespace pwiz.Skyline.EditUI.PeakImputation
             {
                 return ChangeProp(ImClone(this), im => im.ImputeFromBestPeakOnly = value);
             }
-            public MsDataFileUri AlignmentTarget { get; private set; }
-            public AlignmentValueType AlignmentValueType { get; private set; }
-            public RegressionMethodRT RegressionMethod { get; private set; }
-
-            public Parameters ChangeAlignment(MsDataFileUri target, AlignmentValueType alignmentValueType, RegressionMethodRT regressionMethod)
+            public AlignmentTarget AlignmentTarget { get; private set; }
+            public Parameters ChangeAlignmentTarget(AlignmentTarget alignmentTarget)
             {
                 return ChangeProp(ImClone(this), im =>
                 {
-                    im.AlignmentTarget = target;
-                    im.AlignmentValueType = alignmentValueType;
-                    im.RegressionMethod = regressionMethod;
+                    im.AlignmentTarget = alignmentTarget;
                 });
             }
             
@@ -619,7 +583,7 @@ namespace pwiz.Skyline.EditUI.PeakImputation
                        Equals(ManualPeakTreatment, other.ManualPeakTreatment) &&
                        ImputeFromBestPeakOnly == other.ImputeFromBestPeakOnly &&
                        Equals(AlignmentTarget, other.AlignmentTarget) &&
-                       RegressionMethod == other.RegressionMethod && Equals(PeakScoringModel, other.PeakScoringModel) &&
+                       Equals(PeakScoringModel, other.PeakScoringModel) &&
                        MinCoreCount == other.MinCoreCount && Nullable.Equals(ScoreCutoff, other.ScoreCutoff) &&
                        Nullable.Equals(StandardDeviationsCutoff, other.StandardDeviationsCutoff);
             }
@@ -640,8 +604,6 @@ namespace pwiz.Skyline.EditUI.PeakImputation
                     hashCode = (hashCode * 397) ^ ImputeFromBestPeakOnly.GetHashCode();
                     hashCode = (hashCode * 397) ^ ManualPeakTreatment.GetHashCode();
                     hashCode = (hashCode * 397) ^ (AlignmentTarget != null ? AlignmentTarget.GetHashCode() : 0);
-                    hashCode = (hashCode * 397) ^ (AlignmentValueType?.GetHashCode() ?? 0);
-                    hashCode = (hashCode * 397) ^ (int)RegressionMethod;
                     hashCode = (hashCode * 397) ^ (PeakScoringModel != null ? PeakScoringModel.GetHashCode() : 0);
                     hashCode = (hashCode * 397) ^ MinCoreCount;
                     hashCode = (hashCode * 397) ^ ScoreCutoff.GetHashCode();
@@ -723,10 +685,13 @@ namespace pwiz.Skyline.EditUI.PeakImputation
                     yield break;
                 }
 
-                foreach (var msDataFileUri in document.MeasuredResults.MSDataFilePaths)
+                if (parameter.AlignmentTarget != null)
                 {
-                    yield return AlignmentProducer.Instance.MakeWorkOrder(
-                        new AlignmentProducer.Parameter(parameter.AlignmentValueType, parameter.RegressionMethod, document, msDataFileUri, parameter.AlignmentTarget));
+                    foreach (var msDataFileUri in document.MeasuredResults.MSDataFilePaths)
+                    {
+                        yield return AlignmentProducer.Instance.MakeWorkOrder(
+                            new AlignmentProducer.Parameter(parameter.AlignmentTarget, document, msDataFileUri));
+                    }
                 }
 
                 if (parameter.PeakScoringModel != null)
@@ -753,9 +718,8 @@ namespace pwiz.Skyline.EditUI.PeakImputation
             if (alignmentTarget != null)
             {
                 var regressionMethod = comboAlignmentType.SelectedItem as RegressionMethodRT? ?? RegressionMethodRT.linear;
-                var alignmentValueType = comboValuesToAlign.SelectedItem as AlignmentValueType ??
-                                         AlignmentValueType.PEAK_APEXES;
-                parameters = parameters.ChangeAlignment(alignmentTarget.Path, alignmentValueType, regressionMethod);
+                var alignmentValueType = comboValuesToAlign.SelectedItem as RtValueType ?? RtValueType.PEAK_APEXES;
+                parameters = parameters.ChangeAlignmentTarget(new AlignmentTarget(alignmentTarget.Path, AverageType.MEAN, alignmentValueType, regressionMethod));
             }
 
             parameters = parameters.ChangeManualPeakTreatment(

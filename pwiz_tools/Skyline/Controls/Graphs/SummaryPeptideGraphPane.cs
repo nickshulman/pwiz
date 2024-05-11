@@ -599,12 +599,14 @@ namespace pwiz.Skyline.Controls.Graphs
                 {
                     return retentionTimeValues;
                 }
-                AlignmentFunction regressionFunction;
-                if (!RetentionTimeTransformOp.TryGetRegressionFunction(chromFileInfoId, out regressionFunction))
-                {
-                    return null;
-                }
-                return retentionTimeValues.Scale(regressionFunction);
+
+                return retentionTimeValues;
+                // AlignmentFunction regressionFunction;
+                // // if (!RetentionTimeTransformOp.TryGetRegressionFunction(chromFileInfoId, out regressionFunction))
+                // // {
+                // //     return null;
+                // // }
+                // return retentionTimeValues.Scale(regressionFunction);
             }
 
             protected virtual bool AddBlankPointsForGraphPanes { get { return false; } }

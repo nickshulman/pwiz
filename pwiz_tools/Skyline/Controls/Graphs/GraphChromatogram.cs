@@ -27,9 +27,11 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using pwiz.Common.SystemUtil;
+using pwiz.Common.SystemUtil.Caching;
 using pwiz.MSGraph;
 using pwiz.ProteowizardWrapper;
 using pwiz.Skyline.Controls.SeqNode;
+using pwiz.Skyline.EditUI.PeakImputation;
 using pwiz.Skyline.Model;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.Lib;
@@ -52,7 +54,7 @@ namespace pwiz.Skyline.Controls.Graphs
     public partial class GraphChromatogram : DockableFormEx, IGraphContainer
     {
         public const double DEFAULT_PEAK_RELATIVE_WINDOW = 3.4;
-
+        private Receiver<AlignmentProducer.Parameter, AlignmentFunction> _alignmentReceiver;
         public static ShowRTChrom ShowRT
         {
             get
@@ -216,6 +218,12 @@ namespace pwiz.Skyline.Controls.Graphs
             // Note that this only affects applying ZoomState to a graph pane.  Explicit changes 
             // to Scale Min/Max properties need to be manually applied to each axis.
             graphControl.IsSynchronizeXAxes = true;
+            _alignmentReceiver = AlignmentProducer.Instance.RegisterCustomer(this, ProductAvailableAction);
+        }
+
+        private void ProductAvailableAction()
+        {
+            UpdateUI(false);
         }
 
         public string NameSet
@@ -791,7 +799,8 @@ namespace pwiz.Skyline.Controls.Graphs
         }
 
         public void UpdateUI(bool selectionChanged = true)
-        {            
+        {
+            
             IsCacheInvalidated = false;
 
             // Only worry about updates, if the graph is visible
@@ -818,7 +827,12 @@ namespace pwiz.Skyline.Controls.Graphs
                 Assume.IsNotNull(ChromGroupInfos, @"ChromGroupInfos");
                 if (ChromGroupInfos != null && ChromGroupInfos.Length > 0 && null != ChromGroupInfos[0])
                 {
-                    retentionTimeTransformOp.TryGetRegressionFunction(chromatograms.FindFile(ChromGroupInfos[0]), out timeRegressionFunction);
+                    var parameter = new AlignmentProducer.Parameter(retentionTimeTransformOp.AlignmentTarget,
+                        DocumentUI, ChromGroupInfos[0].FilePath);
+                    if (!_alignmentReceiver.TryGetProduct(parameter, out timeRegressionFunction))
+                    {
+                        return;
+                    }
                 }
                 if (null != timeRegressionFunction)
                 {

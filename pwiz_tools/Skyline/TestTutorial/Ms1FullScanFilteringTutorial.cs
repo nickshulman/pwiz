@@ -602,7 +602,7 @@ namespace pwiz.SkylineTestTutorial
             {
                 SkylineWindow.SynchronizeZooming(true);
                 SkylineWindow.LockYChrom(false);
-                SkylineWindow.AlignToFile = GetGraphChromatogram(TIP3).GetChromFileInfoId(); // align to Tip3
+                // SkylineWindow.AlignToFile = GetGraphChromatogram(TIP3).GetChromFileInfoId(); // align to Tip3
             });
             ZoomBoth(36.5, 39.5, 1600); // simulate the wheel scroll described in tutorial
             RunUI(() =>

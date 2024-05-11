@@ -27,6 +27,7 @@ using pwiz.Skyline.Controls.Graphs;
 using pwiz.Skyline.Model;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.Results;
+using pwiz.Skyline.Model.RetentionTimes;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
 
@@ -36,7 +37,7 @@ namespace pwiz.Skyline.EditUI
     {
         private readonly SkylineWindow _skylineWindow;
         private readonly bool _originalAlignRtPrediction;
-        private readonly ChromFileInfoId _originalAlignFile;
+        private readonly AlignmentTarget _originalAlignFile;
 
         private int _idxLastSelected = -1;
 
@@ -76,7 +77,7 @@ namespace pwiz.Skyline.EditUI
 
             _skylineWindow = skylineWindow;
             _originalAlignRtPrediction = skylineWindow.AlignToRtPrediction;
-            _originalAlignFile = skylineWindow.AlignToFile;
+            _originalAlignFile = skylineWindow.AlignmentTarget;
 
             var groupByReplicates = new GroupByItem(null);
             comboGroupBy.Items.Add(groupByReplicates);
@@ -254,7 +255,7 @@ namespace pwiz.Skyline.EditUI
         private void btnCancel_Click(object sender, EventArgs e)
         {
             _skylineWindow.AlignToRtPrediction = _originalAlignRtPrediction;
-            _skylineWindow.AlignToFile = _originalAlignFile;
+            _skylineWindow.AlignmentTarget = _originalAlignFile;
         }
 
         #region Functional test support
@@ -292,7 +293,7 @@ namespace pwiz.Skyline.EditUI
         {
             foreach (AlignItem item in comboAlign.Items)
             {
-                if (item.IsFile && ReferenceEquals(item.ChromFileInfoId, file))
+                if (item.IsFile && Equals(item.AlignmentTarget, file))
                 {
                     comboAlign.SelectedItem = item;
                     return true;
@@ -333,7 +334,7 @@ namespace pwiz.Skyline.EditUI
         public class AlignItem
         {
             private readonly PeptidePrediction _prediction;
-            private readonly ChromFileInfo _chromFileInfo;
+            private readonly AlignmentTarget _chromFileInfo;
 
             public bool IsNone => !IsRTRegression && !IsFile;
             public bool IsRTRegression => _prediction != null;
@@ -343,7 +344,7 @@ namespace pwiz.Skyline.EditUI
                 IsRTRegression && _prediction.RetentionTime != null && _prediction.RetentionTime.IsAutoCalculated
                     ? _prediction.RetentionTime.Calculator?.Name
                     : null;
-            public ChromFileInfoId ChromFileInfoId => _chromFileInfo.FileId;
+            public AlignmentTarget AlignmentTarget => _chromFileInfo;
 
             public AlignItem()
             {
@@ -356,13 +357,13 @@ namespace pwiz.Skyline.EditUI
 
             public AlignItem(ChromFileInfo chromFileInfo)
             {
-                _chromFileInfo = chromFileInfo;
+                //_chromFileInfo = chromFileInfo;
             }
 
             public bool Select(SkylineWindow skylineWindow)
             {
                 skylineWindow.AlignToRtPrediction = IsRTRegression;
-                skylineWindow.AlignToFile = IsFile ? _chromFileInfo.FileId : null;
+                skylineWindow.AlignmentTarget = IsFile ? _chromFileInfo : null;
                 return !(IsRTRegression && CalcName == null);
             }
 
@@ -370,8 +371,8 @@ namespace pwiz.Skyline.EditUI
             {
                 if (skylineWindow.AlignToRtPrediction)
                     return IsRTRegression;
-                else if (skylineWindow.AlignToFile != null)
-                    return IsFile && ReferenceEquals(skylineWindow.AlignToFile, _chromFileInfo.FileId);
+                else if (skylineWindow.AlignmentTarget != null)
+                    return IsFile && Equals(skylineWindow.AlignmentTarget, _chromFileInfo);
                 return IsNone;
             }
 
@@ -385,7 +386,7 @@ namespace pwiz.Skyline.EditUI
                 }
                 else if (IsFile)
                 {
-                    return FileDisplayName(_chromFileInfo);
+                    return _chromFileInfo.ToString();
                 }
                 return EditUIResources.AlignItem_ToString_None;
             }

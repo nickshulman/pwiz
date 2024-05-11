@@ -81,7 +81,7 @@ namespace pwiz.Skyline
         public static int MAX_GRAPH_CHROM = 100; // Never show more than this many chromatograms, lest we hit the Windows handle limit
         private readonly List<GraphChromatogram> _listGraphChrom = new List<GraphChromatogram>(); // List order is MRU, with oldest in position 0
         private bool _inGraphUpdate;
-        private ChromFileInfoId _alignToFile;
+        private AlignmentTarget _alignmentTarget;
         private bool _alignToPrediction;
 
         public RTGraphController RTGraphController
@@ -793,23 +793,23 @@ namespace pwiz.Skyline
             }
         }
 
-        public ChromFileInfoId AlignToFile
+        public AlignmentTarget AlignmentTarget
         {
-            get { return _alignToFile; }
+            get { return _alignmentTarget; }
             set 
             { 
-                if (ReferenceEquals(value, AlignToFile))
+                if (Equals(value, AlignmentTarget))
                 {
                     return;
                 }
-                _alignToFile = value;
+                _alignmentTarget = value;
                 UpdateGraphPanes();
             }
         }
 
         public bool AlignToRtPrediction
         {
-            get { return null == AlignToFile && _alignToPrediction; }
+            get { return null == _alignmentTarget && _alignToPrediction; }
             set
             {
                 if (value == AlignToRtPrediction)
@@ -819,7 +819,7 @@ namespace pwiz.Skyline
                 _alignToPrediction = value;
                 if (_alignToPrediction)
                 {
-                    _alignToFile = null;
+                    _alignmentTarget = null;
                 }
                 UpdateGraphPanes();
             }
@@ -827,9 +827,9 @@ namespace pwiz.Skyline
 
         public GraphValues.IRetentionTimeTransformOp GetRetentionTimeTransformOperation()
         {
-            if (null != AlignToFile)
+            if (null != AlignmentTarget)
             {
-                return GraphValues.AlignToFileOp.GetAlignmentToFile(AlignToFile, Document.Settings);
+                return new GraphValues.AlignToFileOp(Document, AlignmentTarget);
             }
             if (AlignToRtPrediction)
             {
@@ -2345,70 +2345,70 @@ namespace pwiz.Skyline
             if (includeSelf)
                 yield return change;
 
-            ChromatogramSet thisChromSet = null;
-            var syncTargets = new List<ChromatogramSet>();
-            foreach (var syncTarget in document.GetSynchronizeIntegrationChromatogramSets())
-            {
-                syncTargets.Add(syncTarget);
-                if (thisChromSet == null && Equals(change.NameSet, syncTarget.Name))
-                    thisChromSet = syncTarget;
-            }
-
-            if (thisChromSet == null)
-                yield break; // This chromatogram is not selected for synchronized integration
-
-            var thisFile = thisChromSet.FindFile(change.FilePath);
-
-            var transformOp = GetRetentionTimeTransformOperation();
-            var thisStart = change.StartTime.MeasuredTime;
-            var thisEnd = change.EndTime.MeasuredTime;
-            if (transformOp != null)
-            {
-                transformOp.TryGetRegressionFunction(thisFile, out var regressionThis);
-                if (regressionThis != null)
-                {
-                    thisStart = regressionThis.GetY(thisStart);
-                    thisEnd = regressionThis.GetY(thisEnd);
-                }
-            }
-
-            var groupId = change.GroupPath.Child;
-            var nodePep = (PeptideDocNode)document.FindNode(change.GroupPath.Parent);
-            if (nodePep == null)
-                throw new IdentityNotFoundException(groupId);
-            var nodeGroup = (TransitionGroupDocNode)nodePep.FindNode(groupId);
-            if (nodeGroup == null)
-                throw new IdentityNotFoundException(groupId);
-
-            foreach (var chromSet in syncTargets)
-            {
-                if (!document.Settings.MeasuredResults.TryLoadChromatogram(chromSet, nodePep, nodeGroup,
-                    (float)document.Settings.TransitionSettings.Instrument.MzMatchTolerance, out var chromInfos))
-                    continue;
-
-                foreach (var info in chromSet.MSDataFileInfos)
-                {
-                    if (ReferenceEquals(thisChromSet, chromSet) && ReferenceEquals(thisFile, info.FileId) ||
-                        chromInfos.IndexOf(info2 => Equals(info.FilePath, info2.FilePath)) == -1)
-                        continue;
-
-                    var start = thisStart;
-                    var end = thisEnd;
-
-                    if (transformOp != null && !ReferenceEquals(AlignToFile, info.FileId))
-                    {
-                        transformOp.TryGetRegressionFunction(info.FileId, out var regression);
-                        if (regression != null)
-                        {
-                            start = regression.GetX(thisStart);
-                            end = regression.GetX(thisEnd);
-                        }
-                    }
-
-                    yield return new ChangedPeakBoundsEventArgs(change.GroupPath, null, chromSet.Name, info.FilePath,
-                        new ScaledRetentionTime(start), new ScaledRetentionTime(end), null, change.ChangeType);
-                }
-            }
+            // ChromatogramSet thisChromSet = null;
+            // var syncTargets = new List<ChromatogramSet>();
+            // foreach (var syncTarget in document.GetSynchronizeIntegrationChromatogramSets())
+            // {
+            //     syncTargets.Add(syncTarget);
+            //     if (thisChromSet == null && Equals(change.NameSet, syncTarget.Name))
+            //         thisChromSet = syncTarget;
+            // }
+            //
+            // if (thisChromSet == null)
+            //     yield break; // This chromatogram is not selected for synchronized integration
+            //
+            // var thisFile = thisChromSet.FindFile(change.FilePath);
+            //
+            // var transformOp = GetRetentionTimeTransformOperation();
+            // var thisStart = change.StartTime.MeasuredTime;
+            // var thisEnd = change.EndTime.MeasuredTime;
+            // if (transformOp != null)
+            // {
+            //     transformOp.TryGetRegressionFunction(thisFile, out var regressionThis);
+            //     if (regressionThis != null)
+            //     {
+            //         thisStart = regressionThis.GetY(thisStart);
+            //         thisEnd = regressionThis.GetY(thisEnd);
+            //     }
+            // }
+            //
+            // var groupId = change.GroupPath.Child;
+            // var nodePep = (PeptideDocNode)document.FindNode(change.GroupPath.Parent);
+            // if (nodePep == null)
+            //     throw new IdentityNotFoundException(groupId);
+            // var nodeGroup = (TransitionGroupDocNode)nodePep.FindNode(groupId);
+            // if (nodeGroup == null)
+            //     throw new IdentityNotFoundException(groupId);
+            //
+            // foreach (var chromSet in syncTargets)
+            // {
+            //     if (!document.Settings.MeasuredResults.TryLoadChromatogram(chromSet, nodePep, nodeGroup,
+            //         (float)document.Settings.TransitionSettings.Instrument.MzMatchTolerance, out var chromInfos))
+            //         continue;
+            //
+            //     foreach (var info in chromSet.MSDataFileInfos)
+            //     {
+            //         if (ReferenceEquals(thisChromSet, chromSet) && ReferenceEquals(thisFile, info.FileId) ||
+            //             chromInfos.IndexOf(info2 => Equals(info.FilePath, info2.FilePath)) == -1)
+            //             continue;
+            //
+            //         var start = thisStart;
+            //         var end = thisEnd;
+            //
+            //         if (transformOp != null && !ReferenceEquals(AlignToFile, info.FileId))
+            //         {
+            //             transformOp.TryGetRegressionFunction(info.FileId, out var regression);
+            //             if (regression != null)
+            //             {
+            //                 start = regression.GetX(thisStart);
+            //                 end = regression.GetX(thisEnd);
+            //             }
+            //         }
+            //
+            //         yield return new ChangedPeakBoundsEventArgs(change.GroupPath, null, chromSet.Name, info.FilePath,
+            //             new ScaledRetentionTime(start), new ScaledRetentionTime(end), null, change.ChangeType);
+            //     }
+            // }
         }
 
         private void graphChromatogram_PickedSpectrum(object sender, PickedSpectrumEventArgs e)
@@ -3489,18 +3489,19 @@ namespace pwiz.Skyline
                     }
                     string fileItemName = Path.GetFileNameWithoutExtension(SampleHelp.GetFileName(chromFileInfo.FilePath));
                     var menuItemText = string.Format(Resources.SkylineWindow_AlignTimesToFileFormat, fileItemName);
-                    var alignToFileItem = new ToolStripMenuItem(menuItemText);
-                    if (ReferenceEquals(chromFileInfoId, AlignToFile))
-                    {
-                        alignToFileItem.Click += (sender, eventArgs) => AlignToFile = null;
-                        alignToFileItem.Checked = true;
-                    }
-                    else
-                    {
-                        alignToFileItem.Click += (sender, eventArgs) => AlignToFile = chromFileInfoId;
-                        alignToFileItem.Checked = false;
-                    }
-                    items.Insert(iInsert++, alignToFileItem);
+                    // TODO
+                    // var alignToFileItem = new ToolStripMenuItem(menuItemText);
+                    // if (ReferenceEquals(chromFileInfoId, AlignToFile))
+                    // {
+                    //     alignToFileItem.Click += (sender, eventArgs) => AlignToFile = null;
+                    //     alignToFileItem.Checked = true;
+                    // }
+                    // else
+                    // {
+                    //     alignToFileItem.Click += (sender, eventArgs) => AlignToFile = chromFileInfoId;
+                    //     alignToFileItem.Checked = false;
+                    // }
+                    // items.Insert(iInsert++, alignToFileItem);
                 }
             }
             return iInsert;

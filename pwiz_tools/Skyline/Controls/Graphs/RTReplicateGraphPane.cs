@@ -361,9 +361,11 @@ namespace pwiz.Skyline.Controls.Graphs
                 {
                     return false;
                 }
-                Assume.IsNotNull(chromInfoData, @"chromInfoData");
-                Assume.IsNotNull(chromInfoData.ChromFileInfo, @"chromInfoData.ChromFileInfo");
-                return !RetentionTimeTransform.RtTransformOp.TryGetRegressionFunction(chromInfoData.ChromFileInfo.FileId, out _);
+
+                return false;
+                // Assume.IsNotNull(chromInfoData, @"chromInfoData");
+                // Assume.IsNotNull(chromInfoData.ChromFileInfo, @"chromInfoData.ChromFileInfo");
+                // return !RetentionTimeTransform.RtTransformOp.TryGetRegressionFunction(chromInfoData.ChromFileInfo.FileId, out _);
             }
 
             protected override bool IsMissingValue(TransitionChromInfoData chromInfoData)
@@ -382,9 +384,9 @@ namespace pwiz.Skyline.Controls.Graphs
                 {
                     var retentionTimeValues = getRetentionTimeValues(chromInfoData);
                     AlignmentFunction regressionFunction = null;
-                    if (null != RetentionTimeTransform.RtTransformOp)
+                    if (false && null != RetentionTimeTransform.RtTransformOp)
                     {
-                        RetentionTimeTransform.RtTransformOp.TryGetRegressionFunction(chromInfoData.ChromFileInfo.FileId, out regressionFunction);
+                        //RetentionTimeTransform.RtTransformOp.TryGetRegressionFunction(chromInfoData.ChromFileInfo.FileId, out regressionFunction);
                     }
                     if (regressionFunction == null)
                     {

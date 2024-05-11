@@ -21,6 +21,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using pwiz.Common.Collections;
+using pwiz.Skyline.Model;
 using ZedGraph;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.Results;
@@ -139,7 +140,7 @@ namespace pwiz.Skyline.Controls.Graphs
             /// If successful, then this method returns true, and the regressionFunction is set 
             /// appropriately.
             /// </summary>
-            bool TryGetRegressionFunction(ChromFileInfoId chromFileInfoId, out AlignmentFunction regressionFunction);
+            AlignmentTarget AlignmentTarget { get; }
         }
 
         public class RegressionUnconversion : IRetentionTimeTransformOp
@@ -172,6 +173,11 @@ namespace pwiz.Skyline.Controls.Graphs
                 regressionFunction = null;
                 return false;
             }
+
+            public AlignmentTarget AlignmentTarget
+            {
+                get { return null; }
+            }
         }
 
         /// <summary>
@@ -179,24 +185,23 @@ namespace pwiz.Skyline.Controls.Graphs
         /// </summary>
         public class AlignToFileOp : IRetentionTimeTransformOp
         {
-            public static AlignToFileOp GetAlignmentToFile(ChromFileInfoId chromFileInfoId, SrmSettings settings)
+            public AlignToFileOp(SrmDocument document, AlignmentTarget alignmentTarget)
             {
-                if (!settings.HasResults)
+                Document = document;
+                AlignmentTarget = alignmentTarget;
+            }
+
+            public AlignmentTarget AlignmentTarget { get; }
+
+            public SrmDocument Document { get; }
+            public static AlignToFileOp GetAlignmentToFile(SrmDocument document, AlignmentTarget alignmentTarget)
+            {
+                if (alignmentTarget == null)
                 {
                     return null;
                 }
-                var chromSetInfos = GetChromSetInfos(settings.MeasuredResults);
-                Tuple<ChromatogramSet, ChromFileInfo> chromSetInfo;
-                if (!chromSetInfos.TryGetValue(chromFileInfoId, out chromSetInfo))
-                {
-                    return null;
-                }
-                var fileRetentionTimeAlignments = settings.DocumentRetentionTimes.FileAlignments.Find(chromSetInfo.Item2);
-                if (null == fileRetentionTimeAlignments)
-                {
-                    return null;
-                }
-                return new AlignToFileOp(chromSetInfo.Item1, chromSetInfo.Item2, settings.DocumentRetentionTimes, fileRetentionTimeAlignments.Name, chromSetInfos);
+
+                return new AlignToFileOp(document, alignmentTarget);
             }
 
             private static IDictionary<ReferenceValue<ChromFileInfoId>, Tuple<ChromatogramSet, ChromFileInfo>> GetChromSetInfos(
@@ -215,46 +220,6 @@ namespace pwiz.Skyline.Controls.Graphs
             }
 
             private readonly IDictionary<ReferenceValue<ChromFileInfoId>, Tuple<ChromatogramSet, ChromFileInfo>> _chromSetInfos;
-            private AlignToFileOp(ChromatogramSet chromatogramSet, ChromFileInfo chromFileInfo, 
-                DocumentRetentionTimes documentRetentionTimes,
-                string alignTo,
-                IDictionary<ReferenceValue<ChromFileInfoId>, Tuple<ChromatogramSet, ChromFileInfo>> chromSetInfos)
-            {
-                ChromatogramSet = chromatogramSet;
-                ChromFileInfo = chromFileInfo;
-                DocumentRetentionTimes = documentRetentionTimes;
-                AlignTo = alignTo;
-                _chromSetInfos = chromSetInfos;
-            }
-
-            public ChromatogramSet ChromatogramSet { get; private set; }
-            public ChromFileInfo ChromFileInfo { get; private set; }
-            public DocumentRetentionTimes DocumentRetentionTimes { get; private set; }
-            public string AlignTo { get; private set; }
-            private static readonly int MAX_STOPOVERS = 3;
-            public bool TryGetRegressionFunction(ChromFileInfoId chromFileInfoId, out AlignmentFunction regressionFunction)
-            {
-                if (ReferenceEquals(chromFileInfoId, ChromFileInfo.Id))
-                {
-                    regressionFunction = null;
-                    return true;
-                }
-
-                regressionFunction = null;
-                if (!_chromSetInfos.TryGetValue(chromFileInfoId, out var chromSetInfo))
-                {
-                    return false;
-                }
-
-                var alignFromName = DocumentRetentionTimes.FileAlignments.Find(chromSetInfo.Item2)?.Name;
-                if (alignFromName == null)
-                {
-                    return false;
-                }
-
-                regressionFunction = DocumentRetentionTimes.GetMappingFunction(AlignTo, alignFromName, MAX_STOPOVERS);
-                return regressionFunction != null;
-            }
 
             /// <summary>
             /// If retention time alignment is being performed, append "aligned to {ReplicateName}" to the title.
@@ -262,7 +227,16 @@ namespace pwiz.Skyline.Controls.Graphs
             [Localizable(true)]
             public string GetAxisTitle(RTPeptideValue rtPeptideValue)
             {
-                return string.Format(GraphsResources.RtAlignment_AxisTitleAlignedTo, ToLocalizedString(rtPeptideValue), ChromatogramSet.Name);
+                if (AlignmentTarget?.File == null)
+                {
+                    return ToLocalizedString(rtPeptideValue);
+                }
+                var replicateFileId = ReplicateFileId.Find(Document, AlignmentTarget.File);
+                if (replicateFileId == null)
+                {
+                    return ToLocalizedString(rtPeptideValue);
+                }
+                return string.Format(GraphsResources.RtAlignment_AxisTitleAlignedTo, ToLocalizedString(rtPeptideValue), Document.Settings.MeasuredResults.Chromatograms[replicateFileId.ReplicateIndex]);
             }
         }
 

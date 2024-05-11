@@ -88,7 +88,13 @@ namespace pwiz.Skyline.EditUI.PeakImputation
                 var rtValueType = RtValueType;
                 if (rtValueType != null)
                 {
-                    ComboHelper.ReplaceItems(comboAlignToFile, MakeTargetFileOptions(document, rtValueType.ListTargets(document)).Prepend(TargetFileOption.EMPTY));
+                    var options = MakeTargetFileOptions(document, rtValueType.ListTargets(document)).ToList();
+                    string consensusName = rtValueType.GetConsenusName();
+                    if (consensusName != null)
+                    {
+                        options.Insert(0, new TargetFileOption(consensusName, null));
+                    }
+                    ComboHelper.ReplaceItems(comboAlignToFile, options);
                 }
                 comboAlignToFile.Enabled = rtValueType != null;
                 comboAlignmentType.Enabled = rtValueType != null;

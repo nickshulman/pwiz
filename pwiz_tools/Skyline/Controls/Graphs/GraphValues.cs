@@ -227,9 +227,23 @@ namespace pwiz.Skyline.Controls.Graphs
             [Localizable(true)]
             public string GetAxisTitle(RTPeptideValue rtPeptideValue)
             {
-                if (AlignmentTarget?.File == null)
+                if (AlignmentTarget == null)
                 {
                     return ToLocalizedString(rtPeptideValue);
+                }
+
+                if (AlignmentTarget.File == null)
+                {
+                    var consensusName = AlignmentTarget.RtValueType?.GetConsenusName();
+                    if (consensusName != null)
+                    {
+                        return string.Format(GraphsResources.RtAlignment_AxisTitleAlignedTo,
+                            ToLocalizedString(rtPeptideValue), consensusName);
+                    }
+                    else
+                    {
+                        return ToLocalizedString(rtPeptideValue);
+                    }
                 }
                 var replicateFileId = ReplicateFileId.Find(Document, AlignmentTarget.File);
                 if (replicateFileId == null)

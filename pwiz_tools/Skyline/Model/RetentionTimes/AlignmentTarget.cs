@@ -132,6 +132,7 @@ namespace pwiz.Skyline.Model.RetentionTimes
                 yield return new KeyValuePair<object, double>(kvp.Key, AverageType.Calculate(kvp.Value));
             }
         }
+
     }
 
     public class AverageType
@@ -189,6 +190,8 @@ namespace pwiz.Skyline.Model.RetentionTimes
         {
             return true;
         }
+
+        public abstract string GetConsenusName();
 
         public abstract IEnumerable<MsDataFileUri> ListTargets(SrmDocument document);
 
@@ -297,6 +300,11 @@ namespace pwiz.Skyline.Model.RetentionTimes
                 return document.MeasuredResults?.Chromatograms.SelectMany(chrom =>
                     chrom.MSDataFilePaths) ?? Array.Empty<MsDataFileUri>().Prepend(MsDataFilePath.EMPTY);
             }
+
+            public override string GetConsenusName()
+            {
+                return "Consensus Peak";
+            }
         }
 
         private class PsmTimes : AbstractRtValueType<Target>
@@ -312,6 +320,11 @@ namespace pwiz.Skyline.Model.RetentionTimes
                 {
                     return "PSM Times";
                 }
+            }
+
+            public override string GetConsenusName()
+            {
+                return "Consensus PSM";
             }
 
             protected override IEnumerable<KeyValuePair<Target, IEnumerable<double>>> GetMoleculeRetentionTimes(SrmDocument document, MsDataFileUri source)
@@ -369,6 +382,11 @@ namespace pwiz.Skyline.Model.RetentionTimes
             public override IEnumerable<MsDataFileUri> ListTargets(SrmDocument document)
             {
                 return Array.Empty<MsDataFileUri>();
+            }
+
+            public override string GetConsenusName()
+            {
+                return "iRT";
             }
         }
     }

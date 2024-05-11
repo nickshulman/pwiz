@@ -18,7 +18,7 @@ namespace pwiz.Skyline.Model.RetentionTimes
     {
         public AlignmentTarget(MsDataFileUri file, AverageType averageType, RtValueType rtValueType, RegressionMethodRT regressionMethod)
         {
-            File = file;
+            File = Equals(file, MsDataFilePath.EMPTY) ? null : file;
             AverageType = averageType;
             RtValueType = rtValueType;
             RegressionMethod = regressionMethod;
@@ -28,7 +28,7 @@ namespace pwiz.Skyline.Model.RetentionTimes
 
         public AlignmentTarget ChangeFile(MsDataFileUri file)
         {
-            return ChangeProp(ImClone(this), im => im.File = file);
+            return ChangeProp(ImClone(this), im => im.File = Equals(file, MsDataFilePath.EMPTY) ? null : file);
         }
         public AverageType AverageType { get; private set; }
 
@@ -117,7 +117,7 @@ namespace pwiz.Skyline.Model.RetentionTimes
 
         public IEnumerable<KeyValuePair<object, double>> GetRetentionTimes(SrmDocument document)
         {
-            if (File != null || !RtValueType.HasFileTargets)
+            if (File != null)
             {
                 return GetRetentionTimes(document, File);
             }
@@ -203,21 +203,12 @@ namespace pwiz.Skyline.Model.RetentionTimes
             return ALL.FirstOrDefault(rtValueType => Equals(name, rtValueType.Name));
         }
 
-        public virtual bool HasFileTargets
-        {
-            get { return true; }
-        }
-
         public virtual bool IsAvailable(SrmDocument document)
         {
             return true;
         }
 
-        public virtual IEnumerable<MsDataFileUri> ListTargets(SrmDocument document)
-        {
-            return document.MeasuredResults?.Chromatograms.SelectMany(chrom =>
-                chrom.MSDataFilePaths) ?? Array.Empty<MsDataFileUri>();
-        }
+        public abstract IEnumerable<MsDataFileUri> ListTargets(SrmDocument document);
 
 
 
@@ -289,6 +280,12 @@ namespace pwiz.Skyline.Model.RetentionTimes
                     }
                 }
             }
+
+            public override IEnumerable<MsDataFileUri> ListTargets(SrmDocument document)
+            {
+                return document.MeasuredResults?.Chromatograms.SelectMany(chrom =>
+                    chrom.MSDataFilePaths) ?? Array.Empty<MsDataFileUri>().Prepend(MsDataFilePath.EMPTY);
+            }
         }
 
         private class PsmTimes : AbstractRtValueType<Target>
@@ -308,8 +305,20 @@ namespace pwiz.Skyline.Model.RetentionTimes
 
             protected override IEnumerable<KeyValuePair<Target, IEnumerable<double>>> GetMoleculeRetentionTimes(SrmDocument document, MsDataFileUri source)
             {
-                return document.Settings.GetRetentionTimes(source).GetFirstRetentionTimes().Select(kvp =>
+                var retentionTimes = document.Settings.GetRetentionTimes(source);
+                if (retentionTimes == null)
+                {
+                    return Array.Empty<KeyValuePair<Target, IEnumerable<double>>>();
+                }
+               
+                return retentionTimes.GetFirstRetentionTimes().Select(kvp =>
                     new KeyValuePair<Target, IEnumerable<double>>(kvp.Key, new[] { kvp.Value }));
+            }
+
+            public override IEnumerable<MsDataFileUri> ListTargets(SrmDocument document)
+            {
+                return document.Settings.PeptideSettings.Libraries.Libraries.SelectMany(library =>
+                    library.ListRetentionTimeSources().Select(source => new MsDataFilePath(source.Name)));
             }
         }
 
@@ -322,11 +331,6 @@ namespace pwiz.Skyline.Model.RetentionTimes
             public override string Caption
             {
                 get { return "iRT"; }
-            }
-
-            public override bool HasFileTargets
-            {
-                get { return false; }
             }
 
             private RCalcIrt GetCalcIrt(SrmDocument document)
@@ -349,6 +353,11 @@ namespace pwiz.Skyline.Model.RetentionTimes
 
                 return calculator.GetDbIrtPeptides().Where(pep => pep.Standard).Select(pep =>
                     new KeyValuePair<Target, IEnumerable<double>>(pep.ModifiedTarget, new [] { pep.Irt }));
+            }
+
+            public override IEnumerable<MsDataFileUri> ListTargets(SrmDocument document)
+            {
+                return Array.Empty<MsDataFileUri>();
             }
         }
     }

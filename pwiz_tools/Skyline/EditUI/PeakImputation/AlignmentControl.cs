@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Windows.Forms;
 using pwiz.Skyline.Model;
@@ -22,6 +23,8 @@ namespace pwiz.Skyline.EditUI.PeakImputation
                 RegressionMethodRT.kde,
                 RegressionMethodRT.loess
             });
+            comboAlignmentType.SelectedIndex = 0;
+            ComboHelper.AutoSizeDropDown(comboAlignmentType);
         }
 
         public IDocumentUIContainer DocumentUiContainer
@@ -55,6 +58,7 @@ namespace pwiz.Skyline.EditUI.PeakImputation
             base.OnHandleCreated(e);
             DocumentUiContainer?.ListenUI(OnDocumentChange);
             _handleCreated = true;
+            UpdateControls();
         }
 
         protected override void OnHandleDestroyed(EventArgs e)
@@ -66,7 +70,12 @@ namespace pwiz.Skyline.EditUI.PeakImputation
 
         private void OnDocumentChange(object sender, DocumentChangedEventArgs args)
         {
-            if (_inChange)
+            UpdateControls();
+        }
+
+        private void UpdateControls()
+        {
+            if (DocumentUiContainer == null || _inChange)
             {
                 return;
             }
@@ -77,15 +86,14 @@ namespace pwiz.Skyline.EditUI.PeakImputation
                 var document = _documentUiContainer.DocumentUI;
                 ComboHelper.ReplaceItems(comboValuesToAlign, RtValueType.ForDocument(document).Cast<object>().Prepend(string.Empty));
                 var rtValueType = RtValueType;
-                if (true == rtValueType?.HasFileTargets)
+                if (rtValueType != null)
                 {
-                    ComboHelper.ReplaceItems(comboAlignToFile, rtValueType.ListTargets(document).Cast<object>().Prepend(null));
+                    ComboHelper.ReplaceItems(comboAlignToFile, MakeTargetFileOptions(document, rtValueType.ListTargets(document)).Prepend(TargetFileOption.EMPTY));
                 }
+                comboAlignToFile.Enabled = rtValueType != null;
+                comboAlignmentType.Enabled = rtValueType != null;
             }
-            finally
-            {
-                _inChange = false;
-            }
+            finally { _inChange = false;}
         }
 
         public AlignmentTarget AlignmentTarget
@@ -144,11 +152,18 @@ namespace pwiz.Skyline.EditUI.PeakImputation
         {
             get
             {
-                return comboAlignToFile.SelectedItem as MsDataFileUri;
+                return (comboAlignToFile.SelectedItem as TargetFileOption)?.File;
             }
             set
             {
-                comboAlignToFile.SelectedItem = value;
+                for (int i = 0; i < comboAlignToFile.Items.Count; i++)
+                {
+                    var option = (TargetFileOption) comboAlignToFile.Items[i];
+                    if (Equals(option.File, value))
+                    {
+                        comboAlignToFile.SelectedIndex = i;
+                    }
+                }
             }
         }
 
@@ -158,18 +173,55 @@ namespace pwiz.Skyline.EditUI.PeakImputation
             {
                 return;
             }
-            var rtValueType = RtValueType;
-            if (rtValueType == null)
-            {
-                comboAlignToFile.Enabled = false;
-                comboAlignmentType.Enabled = false;
-            }
-            else
-            {
-                comboAlignToFile.Enabled = rtValueType.HasFileTargets;
-                comboAlignmentType.Enabled = true;
-            }
+            UpdateControls();
             AlignmentTargetChange?.Invoke(this, EventArgs.Empty);
+        }
+
+        public class TargetFileOption
+        {
+            public static readonly TargetFileOption EMPTY = new TargetFileOption("", null);
+            public TargetFileOption(string display, MsDataFileUri file)
+            {
+                Display = display;
+                File = file;
+            }
+
+            public TargetFileOption(MsDataFileUri file)
+            {
+                File = file;
+                Display = File?.GetFileNameWithoutExtension() ?? string.Empty;
+            }
+
+            public string Display { get; }
+            public MsDataFileUri File { get; }
+            public override string ToString()
+            {
+                return Display;
+            }
+
+            protected bool Equals(TargetFileOption other)
+            {
+                return Equals(File, other.File);
+            }
+
+            public override bool Equals(object obj)
+            {
+                if (ReferenceEquals(null, obj)) return false;
+                if (ReferenceEquals(this, obj)) return true;
+                if (obj.GetType() != this.GetType()) return false;
+                return Equals((TargetFileOption)obj);
+            }
+
+            public override int GetHashCode()
+            {
+                return (File != null ? File.GetHashCode() : 0);
+            }
+        }
+
+        private IEnumerable<TargetFileOption> MakeTargetFileOptions(SrmDocument document,
+            IEnumerable<MsDataFileUri> files)
+        {
+            return files.Select(file => new TargetFileOption(file));
         }
     }
 }

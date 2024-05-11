@@ -31,15 +31,9 @@
             this.components = new System.ComponentModel.Container();
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(PeakImputationForm));
             this.panel1 = new System.Windows.Forms.Panel();
+            this.alignmentControl = new pwiz.Skyline.EditUI.PeakImputation.AlignmentControl();
             this.comboImputeBoundariesFrom = new System.Windows.Forms.ComboBox();
             this.lblImputeBoundariesFrom = new System.Windows.Forms.Label();
-            this.groupBoxRetentionTimeAlignment = new System.Windows.Forms.GroupBox();
-            this.comboValuesToAlign = new System.Windows.Forms.ComboBox();
-            this.lblValuesToAlign = new System.Windows.Forms.Label();
-            this.comboAlignToFile = new System.Windows.Forms.ComboBox();
-            this.lblAlignTo = new System.Windows.Forms.Label();
-            this.comboAlignmentType = new System.Windows.Forms.ComboBox();
-            this.lblAlignType = new System.Windows.Forms.Label();
             this.comboManualPeaks = new System.Windows.Forms.ComboBox();
             this.lblManualPeaks = new System.Windows.Forms.Label();
             this.btnImputeBoundaries = new System.Windows.Forms.Button();
@@ -53,8 +47,9 @@
             this.lblScoringModel = new System.Windows.Forms.Label();
             this.tbxCoreScoreCutoff = new System.Windows.Forms.TextBox();
             this.toolTip1 = new System.Windows.Forms.ToolTip(this.components);
+            this.label1 = new System.Windows.Forms.Label();
+            this.tbxMeanStandardDeviation = new System.Windows.Forms.TextBox();
             this.panel1.SuspendLayout();
-            this.groupBoxRetentionTimeAlignment.SuspendLayout();
             this.groupBoxPeakAcceptance.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.numericUpDownCoreResults)).BeginInit();
             this.SuspendLayout();
@@ -66,9 +61,11 @@
             // 
             // panel1
             // 
+            this.panel1.Controls.Add(this.tbxMeanStandardDeviation);
+            this.panel1.Controls.Add(this.label1);
+            this.panel1.Controls.Add(this.alignmentControl);
             this.panel1.Controls.Add(this.comboImputeBoundariesFrom);
             this.panel1.Controls.Add(this.lblImputeBoundariesFrom);
-            this.panel1.Controls.Add(this.groupBoxRetentionTimeAlignment);
             this.panel1.Controls.Add(this.comboManualPeaks);
             this.panel1.Controls.Add(this.lblManualPeaks);
             this.panel1.Controls.Add(this.btnImputeBoundaries);
@@ -78,6 +75,19 @@
             this.panel1.Name = "panel1";
             this.panel1.Size = new System.Drawing.Size(800, 212);
             this.panel1.TabIndex = 1;
+            // 
+            // alignmentControl
+            // 
+            this.alignmentControl.AlignmentTarget = null;
+            this.alignmentControl.DocumentUiContainer = null;
+            this.alignmentControl.Location = new System.Drawing.Point(305, 10);
+            this.alignmentControl.Name = "alignmentControl";
+            this.alignmentControl.RegressionMethodRT = pwiz.Skyline.Model.RetentionTimes.RegressionMethodRT.linear;
+            this.alignmentControl.RtValueType = null;
+            this.alignmentControl.Size = new System.Drawing.Size(206, 157);
+            this.alignmentControl.TabIndex = 21;
+            this.alignmentControl.TargetFile = null;
+            this.alignmentControl.AlignmentTargetChange += new System.EventHandler(this.SettingsControlChanged);
             // 
             // comboImputeBoundariesFrom
             // 
@@ -100,78 +110,6 @@
             this.lblImputeBoundariesFrom.Size = new System.Drawing.Size(120, 13);
             this.lblImputeBoundariesFrom.TabIndex = 19;
             this.lblImputeBoundariesFrom.Text = "Impute boundaries from:";
-            // 
-            // groupBoxRetentionTimeAlignment
-            // 
-            this.groupBoxRetentionTimeAlignment.Controls.Add(this.comboValuesToAlign);
-            this.groupBoxRetentionTimeAlignment.Controls.Add(this.lblValuesToAlign);
-            this.groupBoxRetentionTimeAlignment.Controls.Add(this.comboAlignToFile);
-            this.groupBoxRetentionTimeAlignment.Controls.Add(this.lblAlignTo);
-            this.groupBoxRetentionTimeAlignment.Controls.Add(this.comboAlignmentType);
-            this.groupBoxRetentionTimeAlignment.Controls.Add(this.lblAlignType);
-            this.groupBoxRetentionTimeAlignment.Location = new System.Drawing.Point(305, 10);
-            this.groupBoxRetentionTimeAlignment.Name = "groupBoxRetentionTimeAlignment";
-            this.groupBoxRetentionTimeAlignment.Size = new System.Drawing.Size(200, 148);
-            this.groupBoxRetentionTimeAlignment.TabIndex = 18;
-            this.groupBoxRetentionTimeAlignment.TabStop = false;
-            this.groupBoxRetentionTimeAlignment.Text = "Retention time alignment";
-            // 
-            // comboValuesToAlign
-            // 
-            this.comboValuesToAlign.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
-            this.comboValuesToAlign.FormattingEnabled = true;
-            this.comboValuesToAlign.Location = new System.Drawing.Point(6, 71);
-            this.comboValuesToAlign.Name = "comboValuesToAlign";
-            this.comboValuesToAlign.Size = new System.Drawing.Size(188, 21);
-            this.comboValuesToAlign.TabIndex = 5;
-            this.comboValuesToAlign.SelectedIndexChanged += new System.EventHandler(this.SettingsControlChanged);
-            // 
-            // lblValuesToAlign
-            // 
-            this.lblValuesToAlign.AutoSize = true;
-            this.lblValuesToAlign.Location = new System.Drawing.Point(6, 53);
-            this.lblValuesToAlign.Name = "lblValuesToAlign";
-            this.lblValuesToAlign.Size = new System.Drawing.Size(79, 13);
-            this.lblValuesToAlign.TabIndex = 4;
-            this.lblValuesToAlign.Text = "Values to align:";
-            // 
-            // comboAlignToFile
-            // 
-            this.comboAlignToFile.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
-            this.comboAlignToFile.FormattingEnabled = true;
-            this.comboAlignToFile.Location = new System.Drawing.Point(6, 29);
-            this.comboAlignToFile.Name = "comboAlignToFile";
-            this.comboAlignToFile.Size = new System.Drawing.Size(190, 21);
-            this.comboAlignToFile.TabIndex = 1;
-            this.comboAlignToFile.SelectedIndexChanged += new System.EventHandler(this.SettingsControlChanged);
-            // 
-            // lblAlignTo
-            // 
-            this.lblAlignTo.AutoSize = true;
-            this.lblAlignTo.Location = new System.Drawing.Point(3, 13);
-            this.lblAlignTo.Name = "lblAlignTo";
-            this.lblAlignTo.Size = new System.Drawing.Size(61, 13);
-            this.lblAlignTo.TabIndex = 0;
-            this.lblAlignTo.Text = "Align to file:";
-            // 
-            // comboAlignmentType
-            // 
-            this.comboAlignmentType.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
-            this.comboAlignmentType.FormattingEnabled = true;
-            this.comboAlignmentType.Location = new System.Drawing.Point(4, 111);
-            this.comboAlignmentType.Name = "comboAlignmentType";
-            this.comboAlignmentType.Size = new System.Drawing.Size(190, 21);
-            this.comboAlignmentType.TabIndex = 3;
-            this.comboAlignmentType.SelectedIndexChanged += new System.EventHandler(this.SettingsControlChanged);
-            // 
-            // lblAlignType
-            // 
-            this.lblAlignType.AutoSize = true;
-            this.lblAlignType.Location = new System.Drawing.Point(1, 95);
-            this.lblAlignType.Name = "lblAlignType";
-            this.lblAlignType.Size = new System.Drawing.Size(79, 13);
-            this.lblAlignType.TabIndex = 2;
-            this.lblAlignType.Text = "Alignment type:";
             // 
             // comboManualPeaks
             // 
@@ -314,6 +252,23 @@
             this.toolTip1.SetToolTip(this.tbxCoreScoreCutoff, "Score above which a peak will always be accepted");
             this.tbxCoreScoreCutoff.Leave += new System.EventHandler(this.SettingsControlChanged);
             // 
+            // label1
+            // 
+            this.label1.AutoSize = true;
+            this.label1.Location = new System.Drawing.Point(528, 59);
+            this.label1.Name = "label1";
+            this.label1.Size = new System.Drawing.Size(131, 13);
+            this.label1.TabIndex = 22;
+            this.label1.Text = "Mean Standard Deviation:";
+            // 
+            // tbxMeanStandardDeviation
+            // 
+            this.tbxMeanStandardDeviation.Location = new System.Drawing.Point(542, 83);
+            this.tbxMeanStandardDeviation.Name = "tbxMeanStandardDeviation";
+            this.tbxMeanStandardDeviation.ReadOnly = true;
+            this.tbxMeanStandardDeviation.Size = new System.Drawing.Size(100, 20);
+            this.tbxMeanStandardDeviation.TabIndex = 23;
+            // 
             // PeakImputationForm
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
@@ -327,8 +282,6 @@
             this.Controls.SetChildIndex(this.databoundGridControl, 0);
             this.panel1.ResumeLayout(false);
             this.panel1.PerformLayout();
-            this.groupBoxRetentionTimeAlignment.ResumeLayout(false);
-            this.groupBoxRetentionTimeAlignment.PerformLayout();
             this.groupBoxPeakAcceptance.ResumeLayout(false);
             this.groupBoxPeakAcceptance.PerformLayout();
             ((System.ComponentModel.ISupportInitialize)(this.numericUpDownCoreResults)).EndInit();
@@ -339,10 +292,6 @@
         #endregion
 
         private System.Windows.Forms.Panel panel1;
-        private System.Windows.Forms.ComboBox comboAlignmentType;
-        private System.Windows.Forms.Label lblAlignType;
-        private System.Windows.Forms.ComboBox comboAlignToFile;
-        private System.Windows.Forms.Label lblAlignTo;
         private System.Windows.Forms.ComboBox comboScoringModel;
         private System.Windows.Forms.Label lblScoringModel;
         private System.Windows.Forms.TextBox tbxCoreScoreCutoff;
@@ -355,11 +304,11 @@
         private System.Windows.Forms.GroupBox groupBoxPeakAcceptance;
         private System.Windows.Forms.ComboBox comboManualPeaks;
         private System.Windows.Forms.Label lblManualPeaks;
-        private System.Windows.Forms.GroupBox groupBoxRetentionTimeAlignment;
-        private System.Windows.Forms.ComboBox comboValuesToAlign;
-        private System.Windows.Forms.Label lblValuesToAlign;
         private System.Windows.Forms.ToolTip toolTip1;
         private System.Windows.Forms.ComboBox comboImputeBoundariesFrom;
         private System.Windows.Forms.Label lblImputeBoundariesFrom;
+        private AlignmentControl alignmentControl;
+        private System.Windows.Forms.TextBox tbxMeanStandardDeviation;
+        private System.Windows.Forms.Label label1;
     }
 }

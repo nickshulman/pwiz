@@ -3,9 +3,9 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
+using System.Globalization;
 using System.Linq;
 using System.Windows.Forms;
-using JetBrains.Annotations;
 using MathNet.Numerics.Statistics;
 using pwiz.Common.Collections;
 using pwiz.Common.DataBinding;
@@ -40,18 +40,10 @@ namespace pwiz.Skyline.EditUI.PeakImputation
             var dataSchema = new SkylineWindowDataSchema(skylineWindow);
             var rootColumn = ColumnDescriptor.RootColumn(dataSchema, typeof(Row));
             _rowSource = new PeakRowSource(dataSchema);
+            _rowSource.RowStatisticsAvailable += RowStatisticsAvailable;
             var viewContext = new SkylineViewContext(rootColumn, _rowSource);
             BindingListSource.SetViewContext(viewContext);
-            comboAlignmentType.Items.AddRange(new object[]
-            {
-                RegressionMethodRT.linear,
-                RegressionMethodRT.kde,
-                RegressionMethodRT.loess
-            });
-            comboAlignmentType.SelectedIndex = 0;
-            comboValuesToAlign.Items.AddRange(RtValueType.ALL.ToArray());
-            comboValuesToAlign.SelectedIndex = 0;
-            ComboHelper.AutoSizeDropDown(comboAlignmentType);
+            alignmentControl.DocumentUiContainer = skylineWindow;
             comboManualPeaks.Items.AddRange(new object[]
             {
                 ManualPeakTreatment.SKIP,
@@ -64,6 +56,14 @@ namespace pwiz.Skyline.EditUI.PeakImputation
             ComboHelper.AutoSizeDropDown(comboImputeBoundariesFrom);
 
             _receiver = DataProducer.Instance.RegisterCustomer(this, OnDataAvailable);
+        }
+
+        private void RowStatisticsAvailable(RowStatistics obj)
+        {
+            CommonActionUtil.SafeBeginInvoke(this, () =>
+            {
+                tbxMeanStandardDeviation.Text = obj.MeanStandardDeviation.ToString(CultureInfo.CurrentCulture);
+            });
         }
 
         private void OnDataAvailable()
@@ -128,7 +128,6 @@ namespace pwiz.Skyline.EditUI.PeakImputation
         private void UpdateComboBoxes()
         {
             var document = SkylineWindow.DocumentUI;
-            ComboHelper.ReplaceItems(comboAlignToFile, GetResultFileOptions(document).Prepend(null));
             ComboHelper.ReplaceItems(comboScoringModel, GetScoringModels(document).Prepend(null), 1);
         }
 
@@ -356,6 +355,8 @@ namespace pwiz.Skyline.EditUI.PeakImputation
                 {
                     yield break;
                 }
+
+                var standardDeviations = new List<double>();
                 var document = DataSchema.Document;
                 var resultFileInfos = data.GetResultFileInfos().ToDictionary(info => info.ResultFileOption.Path);
                 foreach (var moleculeGroup in document.MoleculeGroups)
@@ -366,6 +367,7 @@ namespace pwiz.Skyline.EditUI.PeakImputation
                         {
                             continue;
                         }
+
                         CancellationToken.ThrowIfCancellationRequested();
                         var peptide = new Model.Databinding.Entities.Peptide(DataSchema,
                             new IdentityPath(moleculeGroup.PeptideGroup, molecule.Peptide));
@@ -373,7 +375,8 @@ namespace pwiz.Skyline.EditUI.PeakImputation
                         foreach (var peptideResult in peptide.Results.Values)
                         {
                             CancellationToken.ThrowIfCancellationRequested();
-                            if (!resultFileInfos.TryGetValue(peptideResult.ResultFile.ChromFileInfo.FilePath, out var peakResultFile))
+                            if (!resultFileInfos.TryGetValue(peptideResult.ResultFile.ChromFileInfo.FilePath,
+                                    out var peakResultFile))
                             {
                                 // Shouldn't happen
                                 continue;
@@ -397,12 +400,24 @@ namespace pwiz.Skyline.EditUI.PeakImputation
                         }
 
                         var row = MakeRow(data.Parameters, peptide, peaks);
+                        var standardDeviation = row.Peaks.Select(peak => peak.Value.AlignedPeakBounds.ApexTime).StandardDeviation();
+                        if (!double.IsNaN(standardDeviation))
+                        {
+                            standardDeviations.Add(standardDeviation);
+                        }
                         yield return row;
                     }
                 }
-            }
-        }
 
+                if (standardDeviations.Count > 0)
+                {
+                    RowStatisticsAvailable?.Invoke(new RowStatistics(standardDeviations.Mean()));
+                }
+            }
+
+            public Action<RowStatistics> RowStatisticsAvailable;
+        }
+ 
         private static Row MakeRow(Parameters parameters, Model.Databinding.Entities.Peptide peptide, List<Peak> peaks)
         {
             var outliers = new List<Peak>();
@@ -713,14 +728,8 @@ namespace pwiz.Skyline.EditUI.PeakImputation
 
         private void UpdateData()
         {
-            var parameters = new Parameters(SkylineWindow.Document);
-            var alignmentTarget = comboAlignToFile.SelectedItem as ResultFileOption;
-            if (alignmentTarget != null)
-            {
-                var regressionMethod = comboAlignmentType.SelectedItem as RegressionMethodRT? ?? RegressionMethodRT.linear;
-                var alignmentValueType = comboValuesToAlign.SelectedItem as RtValueType ?? RtValueType.PEAK_APEXES;
-                parameters = parameters.ChangeAlignmentTarget(new AlignmentTarget(alignmentTarget.Path, AverageType.MEAN, alignmentValueType, regressionMethod));
-            }
+            var parameters =
+                new Parameters(SkylineWindow.Document).ChangeAlignmentTarget(alignmentControl.AlignmentTarget);
 
             parameters = parameters.ChangeManualPeakTreatment(
                 comboManualPeaks.SelectedItem as ManualPeakTreatment ?? ManualPeakTreatment.SKIP);
@@ -1023,6 +1032,15 @@ namespace pwiz.Skyline.EditUI.PeakImputation
                 }
                 return string.Format("{0} peaks [{1},{2}]", Count, StartTimes, EndTimes);
             }
+        }
+
+        public class RowStatistics
+        {
+            public RowStatistics(double meanStandardDeviation)
+            {
+                MeanStandardDeviation = meanStandardDeviation;
+            }
+            public double MeanStandardDeviation { get; private set; }
         }
     }
 }

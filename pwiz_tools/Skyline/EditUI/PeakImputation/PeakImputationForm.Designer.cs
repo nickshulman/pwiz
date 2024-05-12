@@ -31,6 +31,8 @@
             this.components = new System.ComponentModel.Container();
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(PeakImputationForm));
             this.panel1 = new System.Windows.Forms.Panel();
+            this.tbxMeanStandardDeviation = new System.Windows.Forms.TextBox();
+            this.label1 = new System.Windows.Forms.Label();
             this.alignmentControl = new pwiz.Skyline.EditUI.PeakImputation.AlignmentControl();
             this.comboImputeBoundariesFrom = new System.Windows.Forms.ComboBox();
             this.lblImputeBoundariesFrom = new System.Windows.Forms.Label();
@@ -38,26 +40,29 @@
             this.lblManualPeaks = new System.Windows.Forms.Label();
             this.btnImputeBoundaries = new System.Windows.Forms.Button();
             this.groupBoxPeakAcceptance = new System.Windows.Forms.GroupBox();
-            this.tbxStandardDeviationsCutoff = new System.Windows.Forms.TextBox();
+            this.groupBoxCutoff = new System.Windows.Forms.GroupBox();
+            this.radioPercentile = new System.Windows.Forms.RadioButton();
+            this.radioQValue = new System.Windows.Forms.RadioButton();
+            this.radioScore = new System.Windows.Forms.RadioButton();
+            this.tbxCoreScoreCutoff = new System.Windows.Forms.TextBox();
+            this.tbxRtDeviationCutoff = new System.Windows.Forms.TextBox();
             this.lblMinCoreCount = new System.Windows.Forms.Label();
             this.numericUpDownCoreResults = new System.Windows.Forms.NumericUpDown();
             this.lblSdCutoff = new System.Windows.Forms.Label();
             this.comboScoringModel = new System.Windows.Forms.ComboBox();
-            this.lblCoreScoreCutoff = new System.Windows.Forms.Label();
             this.lblScoringModel = new System.Windows.Forms.Label();
-            this.tbxCoreScoreCutoff = new System.Windows.Forms.TextBox();
             this.toolTip1 = new System.Windows.Forms.ToolTip(this.components);
-            this.label1 = new System.Windows.Forms.Label();
-            this.tbxMeanStandardDeviation = new System.Windows.Forms.TextBox();
+            this.radioPValue = new System.Windows.Forms.RadioButton();
             this.panel1.SuspendLayout();
             this.groupBoxPeakAcceptance.SuspendLayout();
+            this.groupBoxCutoff.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.numericUpDownCoreResults)).BeginInit();
             this.SuspendLayout();
             // 
             // databoundGridControl
             // 
-            this.databoundGridControl.Location = new System.Drawing.Point(0, 212);
-            this.databoundGridControl.Size = new System.Drawing.Size(800, 238);
+            this.databoundGridControl.Location = new System.Drawing.Point(0, 181);
+            this.databoundGridControl.Size = new System.Drawing.Size(691, 378);
             // 
             // panel1
             // 
@@ -73,14 +78,31 @@
             this.panel1.Dock = System.Windows.Forms.DockStyle.Top;
             this.panel1.Location = new System.Drawing.Point(0, 0);
             this.panel1.Name = "panel1";
-            this.panel1.Size = new System.Drawing.Size(800, 212);
+            this.panel1.Size = new System.Drawing.Size(691, 181);
             this.panel1.TabIndex = 1;
+            // 
+            // tbxMeanStandardDeviation
+            // 
+            this.tbxMeanStandardDeviation.Location = new System.Drawing.Point(518, 150);
+            this.tbxMeanStandardDeviation.Name = "tbxMeanStandardDeviation";
+            this.tbxMeanStandardDeviation.ReadOnly = true;
+            this.tbxMeanStandardDeviation.Size = new System.Drawing.Size(100, 20);
+            this.tbxMeanStandardDeviation.TabIndex = 23;
+            // 
+            // label1
+            // 
+            this.label1.AutoSize = true;
+            this.label1.Location = new System.Drawing.Point(515, 132);
+            this.label1.Name = "label1";
+            this.label1.Size = new System.Drawing.Size(131, 13);
+            this.label1.TabIndex = 22;
+            this.label1.Text = "Mean Standard Deviation:";
             // 
             // alignmentControl
             // 
             this.alignmentControl.AlignmentTarget = null;
             this.alignmentControl.DocumentUiContainer = null;
-            this.alignmentControl.Location = new System.Drawing.Point(305, 10);
+            this.alignmentControl.Location = new System.Drawing.Point(303, 3);
             this.alignmentControl.Name = "alignmentControl";
             this.alignmentControl.RegressionMethodRT = pwiz.Skyline.Model.RetentionTimes.RegressionMethodRT.linear;
             this.alignmentControl.RtValueType = null;
@@ -96,7 +118,7 @@
             this.comboImputeBoundariesFrom.Items.AddRange(new object[] {
             "Best scoring peak",
             "All accepted peaks"});
-            this.comboImputeBoundariesFrom.Location = new System.Drawing.Point(520, 26);
+            this.comboImputeBoundariesFrom.Location = new System.Drawing.Point(518, 66);
             this.comboImputeBoundariesFrom.Name = "comboImputeBoundariesFrom";
             this.comboImputeBoundariesFrom.Size = new System.Drawing.Size(152, 21);
             this.comboImputeBoundariesFrom.TabIndex = 20;
@@ -105,7 +127,7 @@
             // lblImputeBoundariesFrom
             // 
             this.lblImputeBoundariesFrom.AutoSize = true;
-            this.lblImputeBoundariesFrom.Location = new System.Drawing.Point(521, 10);
+            this.lblImputeBoundariesFrom.Location = new System.Drawing.Point(515, 47);
             this.lblImputeBoundariesFrom.Name = "lblImputeBoundariesFrom";
             this.lblImputeBoundariesFrom.Size = new System.Drawing.Size(120, 13);
             this.lblImputeBoundariesFrom.TabIndex = 19;
@@ -115,9 +137,9 @@
             // 
             this.comboManualPeaks.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.comboManualPeaks.FormattingEnabled = true;
-            this.comboManualPeaks.Location = new System.Drawing.Point(305, 179);
+            this.comboManualPeaks.Location = new System.Drawing.Point(518, 111);
             this.comboManualPeaks.Name = "comboManualPeaks";
-            this.comboManualPeaks.Size = new System.Drawing.Size(190, 21);
+            this.comboManualPeaks.Size = new System.Drawing.Size(161, 21);
             this.comboManualPeaks.TabIndex = 17;
             this.toolTip1.SetToolTip(this.comboManualPeaks, resources.GetString("comboManualPeaks.ToolTip"));
             this.comboManualPeaks.SelectedIndexChanged += new System.EventHandler(this.SettingsControlChanged);
@@ -125,7 +147,7 @@
             // lblManualPeaks
             // 
             this.lblManualPeaks.AutoSize = true;
-            this.lblManualPeaks.Location = new System.Drawing.Point(308, 163);
+            this.lblManualPeaks.Location = new System.Drawing.Point(515, 94);
             this.lblManualPeaks.Name = "lblManualPeaks";
             this.lblManualPeaks.Size = new System.Drawing.Size(131, 13);
             this.lblManualPeaks.TabIndex = 16;
@@ -134,7 +156,7 @@
             // btnImputeBoundaries
             // 
             this.btnImputeBoundaries.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-            this.btnImputeBoundaries.Location = new System.Drawing.Point(648, 177);
+            this.btnImputeBoundaries.Location = new System.Drawing.Point(539, 16);
             this.btnImputeBoundaries.Name = "btnImputeBoundaries";
             this.btnImputeBoundaries.Size = new System.Drawing.Size(140, 23);
             this.btnImputeBoundaries.TabIndex = 13;
@@ -146,31 +168,89 @@
             // 
             // groupBoxPeakAcceptance
             // 
-            this.groupBoxPeakAcceptance.Controls.Add(this.tbxStandardDeviationsCutoff);
+            this.groupBoxPeakAcceptance.Controls.Add(this.groupBoxCutoff);
+            this.groupBoxPeakAcceptance.Controls.Add(this.tbxRtDeviationCutoff);
             this.groupBoxPeakAcceptance.Controls.Add(this.lblMinCoreCount);
             this.groupBoxPeakAcceptance.Controls.Add(this.numericUpDownCoreResults);
             this.groupBoxPeakAcceptance.Controls.Add(this.lblSdCutoff);
             this.groupBoxPeakAcceptance.Controls.Add(this.comboScoringModel);
-            this.groupBoxPeakAcceptance.Controls.Add(this.lblCoreScoreCutoff);
             this.groupBoxPeakAcceptance.Controls.Add(this.lblScoringModel);
-            this.groupBoxPeakAcceptance.Controls.Add(this.tbxCoreScoreCutoff);
             this.groupBoxPeakAcceptance.Location = new System.Drawing.Point(12, 10);
             this.groupBoxPeakAcceptance.Name = "groupBoxPeakAcceptance";
-            this.groupBoxPeakAcceptance.Size = new System.Drawing.Size(277, 183);
+            this.groupBoxPeakAcceptance.Size = new System.Drawing.Size(285, 160);
             this.groupBoxPeakAcceptance.TabIndex = 14;
             this.groupBoxPeakAcceptance.TabStop = false;
             this.groupBoxPeakAcceptance.Text = "Peak acceptance";
             // 
-            // tbxStandardDeviationsCutoff
+            // groupBoxCutoff
             // 
-            this.tbxStandardDeviationsCutoff.Location = new System.Drawing.Point(9, 150);
-            this.tbxStandardDeviationsCutoff.Name = "tbxStandardDeviationsCutoff";
-            this.tbxStandardDeviationsCutoff.Size = new System.Drawing.Size(168, 20);
-            this.tbxStandardDeviationsCutoff.TabIndex = 11;
-            this.tbxStandardDeviationsCutoff.Text = "1";
-            this.toolTip1.SetToolTip(this.tbxStandardDeviationsCutoff, "Peaks whose boundaries are within this number of standard deviations from the acc" +
-        "epted peaks will also be accepted");
-            this.tbxStandardDeviationsCutoff.Leave += new System.EventHandler(this.SettingsControlChanged);
+            this.groupBoxCutoff.Controls.Add(this.radioPValue);
+            this.groupBoxCutoff.Controls.Add(this.radioPercentile);
+            this.groupBoxCutoff.Controls.Add(this.radioQValue);
+            this.groupBoxCutoff.Controls.Add(this.radioScore);
+            this.groupBoxCutoff.Controls.Add(this.tbxCoreScoreCutoff);
+            this.groupBoxCutoff.Location = new System.Drawing.Point(146, 16);
+            this.groupBoxCutoff.Name = "groupBoxCutoff";
+            this.groupBoxCutoff.Size = new System.Drawing.Size(133, 138);
+            this.groupBoxCutoff.TabIndex = 12;
+            this.groupBoxCutoff.TabStop = false;
+            this.groupBoxCutoff.Text = "Cutoff";
+            // 
+            // radioPercentile
+            // 
+            this.radioPercentile.AutoSize = true;
+            this.radioPercentile.Location = new System.Drawing.Point(6, 89);
+            this.radioPercentile.Name = "radioPercentile";
+            this.radioPercentile.Size = new System.Drawing.Size(72, 17);
+            this.radioPercentile.TabIndex = 2;
+            this.radioPercentile.TabStop = true;
+            this.radioPercentile.Text = "Percentile";
+            this.radioPercentile.UseVisualStyleBackColor = true;
+            this.radioPercentile.CheckedChanged += new System.EventHandler(this.CutoffTypeChanged);
+            // 
+            // radioQValue
+            // 
+            this.radioQValue.AutoSize = true;
+            this.radioQValue.Location = new System.Drawing.Point(6, 66);
+            this.radioQValue.Name = "radioQValue";
+            this.radioQValue.Size = new System.Drawing.Size(62, 17);
+            this.radioQValue.TabIndex = 1;
+            this.radioQValue.TabStop = true;
+            this.radioQValue.Text = "Q-value";
+            this.radioQValue.UseVisualStyleBackColor = true;
+            this.radioQValue.CheckedChanged += new System.EventHandler(this.CutoffTypeChanged);
+            // 
+            // radioScore
+            // 
+            this.radioScore.AutoSize = true;
+            this.radioScore.Location = new System.Drawing.Point(6, 19);
+            this.radioScore.Name = "radioScore";
+            this.radioScore.Size = new System.Drawing.Size(53, 17);
+            this.radioScore.TabIndex = 0;
+            this.radioScore.TabStop = true;
+            this.radioScore.Text = "Score";
+            this.radioScore.UseVisualStyleBackColor = true;
+            this.radioScore.CheckedChanged += new System.EventHandler(this.CutoffTypeChanged);
+            // 
+            // tbxCoreScoreCutoff
+            // 
+            this.tbxCoreScoreCutoff.Location = new System.Drawing.Point(6, 112);
+            this.tbxCoreScoreCutoff.Name = "tbxCoreScoreCutoff";
+            this.tbxCoreScoreCutoff.Size = new System.Drawing.Size(128, 20);
+            this.tbxCoreScoreCutoff.TabIndex = 9;
+            this.toolTip1.SetToolTip(this.tbxCoreScoreCutoff, "Score above which a peak will always be accepted");
+            this.tbxCoreScoreCutoff.Leave += new System.EventHandler(this.SettingsControlChanged);
+            // 
+            // tbxRtDeviationCutoff
+            // 
+            this.tbxRtDeviationCutoff.Location = new System.Drawing.Point(9, 120);
+            this.tbxRtDeviationCutoff.Name = "tbxRtDeviationCutoff";
+            this.tbxRtDeviationCutoff.Size = new System.Drawing.Size(128, 20);
+            this.tbxRtDeviationCutoff.TabIndex = 11;
+            this.tbxRtDeviationCutoff.Text = "1";
+            this.toolTip1.SetToolTip(this.tbxRtDeviationCutoff, "Peaks whose boundaries are within this distance from the accepted peaks will also" +
+        " be accepted");
+            this.tbxRtDeviationCutoff.Leave += new System.EventHandler(this.SettingsControlChanged);
             // 
             // lblMinCoreCount
             // 
@@ -195,7 +275,7 @@
             0,
             0});
             this.numericUpDownCoreResults.Name = "numericUpDownCoreResults";
-            this.numericUpDownCoreResults.Size = new System.Drawing.Size(168, 20);
+            this.numericUpDownCoreResults.Size = new System.Drawing.Size(128, 20);
             this.numericUpDownCoreResults.TabIndex = 7;
             this.toolTip1.SetToolTip(this.numericUpDownCoreResults, "Ranking of peaks which are always accepted");
             this.numericUpDownCoreResults.Value = new decimal(new int[] {
@@ -208,11 +288,12 @@
             // lblSdCutoff
             // 
             this.lblSdCutoff.AutoSize = true;
-            this.lblSdCutoff.Location = new System.Drawing.Point(6, 135);
+            this.lblSdCutoff.Location = new System.Drawing.Point(6, 104);
             this.lblSdCutoff.Name = "lblSdCutoff";
-            this.lblSdCutoff.Size = new System.Drawing.Size(131, 13);
+            this.lblSdCutoff.Size = new System.Drawing.Size(125, 13);
             this.lblSdCutoff.TabIndex = 10;
-            this.lblSdCutoff.Text = "Standard deviations cutoff";
+            this.lblSdCutoff.Text = "Retention time difference";
+            this.toolTip1.SetToolTip(this.lblSdCutoff, "Peaks which are within this distance of the accepted peaks will also be accepted");
             // 
             // comboScoringModel
             // 
@@ -220,19 +301,10 @@
             this.comboScoringModel.FormattingEnabled = true;
             this.comboScoringModel.Location = new System.Drawing.Point(6, 32);
             this.comboScoringModel.Name = "comboScoringModel";
-            this.comboScoringModel.Size = new System.Drawing.Size(190, 21);
+            this.comboScoringModel.Size = new System.Drawing.Size(128, 21);
             this.comboScoringModel.TabIndex = 5;
             this.toolTip1.SetToolTip(this.comboScoringModel, resources.GetString("comboScoringModel.ToolTip"));
             this.comboScoringModel.SelectedIndexChanged += new System.EventHandler(this.SettingsControlChanged);
-            // 
-            // lblCoreScoreCutoff
-            // 
-            this.lblCoreScoreCutoff.AutoSize = true;
-            this.lblCoreScoreCutoff.Location = new System.Drawing.Point(6, 95);
-            this.lblCoreScoreCutoff.Name = "lblCoreScoreCutoff";
-            this.lblCoreScoreCutoff.Size = new System.Drawing.Size(65, 13);
-            this.lblCoreScoreCutoff.TabIndex = 8;
-            this.lblCoreScoreCutoff.Text = "Score cutoff";
             // 
             // lblScoringModel
             // 
@@ -243,37 +315,23 @@
             this.lblScoringModel.TabIndex = 4;
             this.lblScoringModel.Text = "Scoring model:";
             // 
-            // tbxCoreScoreCutoff
+            // radioPValue
             // 
-            this.tbxCoreScoreCutoff.Location = new System.Drawing.Point(6, 111);
-            this.tbxCoreScoreCutoff.Name = "tbxCoreScoreCutoff";
-            this.tbxCoreScoreCutoff.Size = new System.Drawing.Size(168, 20);
-            this.tbxCoreScoreCutoff.TabIndex = 9;
-            this.toolTip1.SetToolTip(this.tbxCoreScoreCutoff, "Score above which a peak will always be accepted");
-            this.tbxCoreScoreCutoff.Leave += new System.EventHandler(this.SettingsControlChanged);
-            // 
-            // label1
-            // 
-            this.label1.AutoSize = true;
-            this.label1.Location = new System.Drawing.Point(528, 59);
-            this.label1.Name = "label1";
-            this.label1.Size = new System.Drawing.Size(131, 13);
-            this.label1.TabIndex = 22;
-            this.label1.Text = "Mean Standard Deviation:";
-            // 
-            // tbxMeanStandardDeviation
-            // 
-            this.tbxMeanStandardDeviation.Location = new System.Drawing.Point(542, 83);
-            this.tbxMeanStandardDeviation.Name = "tbxMeanStandardDeviation";
-            this.tbxMeanStandardDeviation.ReadOnly = true;
-            this.tbxMeanStandardDeviation.Size = new System.Drawing.Size(100, 20);
-            this.tbxMeanStandardDeviation.TabIndex = 23;
+            this.radioPValue.AutoSize = true;
+            this.radioPValue.Location = new System.Drawing.Point(6, 42);
+            this.radioPValue.Name = "radioPValue";
+            this.radioPValue.Size = new System.Drawing.Size(61, 17);
+            this.radioPValue.TabIndex = 10;
+            this.radioPValue.TabStop = true;
+            this.radioPValue.Text = "P-value";
+            this.radioPValue.UseVisualStyleBackColor = true;
+            this.radioPValue.CheckedChanged += new System.EventHandler(this.CutoffTypeChanged);
             // 
             // PeakImputationForm
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(800, 450);
+            this.ClientSize = new System.Drawing.Size(691, 559);
             this.Controls.Add(this.panel1);
             this.Name = "PeakImputationForm";
             this.TabText = "Peak Imputation";
@@ -284,6 +342,8 @@
             this.panel1.PerformLayout();
             this.groupBoxPeakAcceptance.ResumeLayout(false);
             this.groupBoxPeakAcceptance.PerformLayout();
+            this.groupBoxCutoff.ResumeLayout(false);
+            this.groupBoxCutoff.PerformLayout();
             ((System.ComponentModel.ISupportInitialize)(this.numericUpDownCoreResults)).EndInit();
             this.ResumeLayout(false);
 
@@ -295,10 +355,9 @@
         private System.Windows.Forms.ComboBox comboScoringModel;
         private System.Windows.Forms.Label lblScoringModel;
         private System.Windows.Forms.TextBox tbxCoreScoreCutoff;
-        private System.Windows.Forms.Label lblCoreScoreCutoff;
         private System.Windows.Forms.NumericUpDown numericUpDownCoreResults;
         private System.Windows.Forms.Label lblMinCoreCount;
-        private System.Windows.Forms.TextBox tbxStandardDeviationsCutoff;
+        private System.Windows.Forms.TextBox tbxRtDeviationCutoff;
         private System.Windows.Forms.Label lblSdCutoff;
         private System.Windows.Forms.Button btnImputeBoundaries;
         private System.Windows.Forms.GroupBox groupBoxPeakAcceptance;
@@ -310,5 +369,10 @@
         private AlignmentControl alignmentControl;
         private System.Windows.Forms.TextBox tbxMeanStandardDeviation;
         private System.Windows.Forms.Label label1;
+        private System.Windows.Forms.GroupBox groupBoxCutoff;
+        private System.Windows.Forms.RadioButton radioQValue;
+        private System.Windows.Forms.RadioButton radioScore;
+        private System.Windows.Forms.RadioButton radioPercentile;
+        private System.Windows.Forms.RadioButton radioPValue;
     }
 }

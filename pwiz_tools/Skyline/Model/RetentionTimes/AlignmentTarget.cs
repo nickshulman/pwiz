@@ -359,7 +359,7 @@ namespace pwiz.Skyline.Model.RetentionTimes
 
             private RCalcIrt GetCalcIrt(SrmDocument document)
             {
-                return document.Settings.PeptideSettings?.Prediction?.RetentionTime.Calculator as RCalcIrt;
+                return document.Settings.PeptideSettings?.Prediction?.RetentionTime?.Calculator as RCalcIrt;
             }
 
             public override bool IsAvailable(SrmDocument document)

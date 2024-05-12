@@ -3,9 +3,10 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
-using System.Globalization;
 using System.Linq;
+using System.Threading;
 using System.Windows.Forms;
+using MathNet.Numerics.Distributions;
 using MathNet.Numerics.Statistics;
 using pwiz.Common.Collections;
 using pwiz.Common.DataBinding;
@@ -40,7 +41,6 @@ namespace pwiz.Skyline.EditUI.PeakImputation
             var dataSchema = new SkylineWindowDataSchema(skylineWindow);
             var rootColumn = ColumnDescriptor.RootColumn(dataSchema, typeof(Row));
             _rowSource = new PeakRowSource(dataSchema);
-            _rowSource.RowStatisticsAvailable += RowStatisticsAvailable;
             var viewContext = new SkylineViewContext(rootColumn, _rowSource);
             BindingListSource.SetViewContext(viewContext);
             alignmentControl.DocumentUiContainer = skylineWindow;
@@ -58,20 +58,13 @@ namespace pwiz.Skyline.EditUI.PeakImputation
             _receiver = DataProducer.Instance.RegisterCustomer(this, OnDataAvailable);
         }
 
-        private void RowStatisticsAvailable(RowStatistics obj)
-        {
-            CommonActionUtil.SafeBeginInvoke(this, () =>
-            {
-                tbxMeanStandardDeviation.Text = obj.MeanStandardDeviation.ToString(CultureInfo.CurrentCulture);
-            });
-        }
-
         private void OnDataAvailable()
         {
             if (_receiver.TryGetCurrentProduct(out var data))
             {
                 Console.Out.WriteLine("OnDataAvailable: Not Available");
                 _rowSource.Data = data;
+                tbxMeanStandardDeviation.Text = data.GetMeanStandardDeviation()?.ToString() ?? string.Empty;
             }
             else
             {
@@ -129,6 +122,37 @@ namespace pwiz.Skyline.EditUI.PeakImputation
         {
             var document = SkylineWindow.DocumentUI;
             ComboHelper.ReplaceItems(comboScoringModel, GetScoringModels(document).Prepend(null), 1);
+            var scoringModel = comboScoringModel.SelectedItem as PeakScoringModelSpec;
+            if (scoringModel == null)
+            {
+                groupBoxCutoff.Enabled = false;
+            }
+            else
+            {
+                var integration = document.Settings.PeptideSettings.Integration;
+                groupBoxCutoff.Enabled = true;
+                radioPValue.Enabled = !Equals(scoringModel, LegacyScoringModel.DEFAULT_MODEL);
+                radioQValue.Enabled = radioPValue.Enabled && Equals(scoringModel,
+                    integration.PeakScoringModel) && null != integration.ScoreQValueMap;
+            }
+        }
+
+        private static IEnumerable<ResultFileInfo> GetResultFileInfos(SrmDocument document,
+            AllAlignments allAlignments)
+        {
+            var measuredResults = document.MeasuredResults;
+            if (measuredResults == null)
+            {
+                yield break;
+            }
+            foreach (var resultFileOption in GetResultFileOptions(document))
+            {
+                var chromFileInfoId = measuredResults.Chromatograms[resultFileOption.ReplicateIndex]
+                    .FindFile(resultFileOption.Path);
+                var alignmentFunction = allAlignments?.GetAlignmentFunction(resultFileOption.Path) ?? AlignmentFunction.IDENTITY;
+                yield return new ResultFileInfo(resultFileOption, chromFileInfoId, alignmentFunction);
+            }
+
         }
 
         private static IEnumerable<ResultFileOption> GetResultFileOptions(SrmDocument document)
@@ -179,14 +203,14 @@ namespace pwiz.Skyline.EditUI.PeakImputation
 
         public class Row : SkylineObject
         {
-            public Row(Model.Databinding.Entities.Peptide peptide, IEnumerable<Peak> peaks)
+            public Row(SkylineDataSchema dataSchema, RowData rowData)
             {
-                Peptide = peptide;
+                Peptide = new Model.Databinding.Entities.Peptide(dataSchema, rowData.PeptideIdentityPath);
                 Peaks = new Dictionary<ResultFileOption, Peak>();
                 var allPeakBounds = new List<PeakBounds>();
                 var acceptedPeakBounds = new List<PeakBounds>();
                 var exemplaryPeakBounds = new List<PeakBounds>();
-                foreach (var peak in peaks)
+                foreach (var peak in rowData.Peaks)
                 {
                     Peaks[peak.ResultFileInfo.ResultFileOption] = peak;
                     var peakBounds = peak.AlignedPeakBounds;
@@ -233,6 +257,19 @@ namespace pwiz.Skyline.EditUI.PeakImputation
             public PeakSummary AcceptedPeakBoundaries { get; }
             public PeakSummary ExemplaryPeakBoundaries { get; }
             public Dictionary<ResultFileOption, Peak> Peaks { get; }
+        }
+
+        public class RowData
+        {
+            public RowData(IdentityPath identityPath, IEnumerable<Peak> peaks)
+            {
+                PeptideIdentityPath = identityPath;
+                Peaks = ImmutableList.ValueOf(peaks);
+            }
+
+            public IdentityPath PeptideIdentityPath { get; }
+
+            public ImmutableList<Peak> Peaks { get; }
         }
 
         public class Peak : Immutable
@@ -350,75 +387,13 @@ namespace pwiz.Skyline.EditUI.PeakImputation
 
             public override IEnumerable GetItems()
             {
-                Data data = Data;
-                if (data == null)
-                {
-                    yield break;
-                }
-
-                var standardDeviations = new List<double>();
-                var document = DataSchema.Document;
-                var resultFileInfos = data.GetResultFileInfos().ToDictionary(info => info.ResultFileOption.Path);
-                foreach (var moleculeGroup in document.MoleculeGroups)
-                {
-                    foreach (var molecule in moleculeGroup.Molecules)
-                    {
-                        if (molecule.GlobalStandardType != null)
-                        {
-                            continue;
-                        }
-
-                        CancellationToken.ThrowIfCancellationRequested();
-                        var peptide = new Model.Databinding.Entities.Peptide(DataSchema,
-                            new IdentityPath(moleculeGroup.PeptideGroup, molecule.Peptide));
-                        var peaks = new List<Peak>();
-                        foreach (var peptideResult in peptide.Results.Values)
-                        {
-                            CancellationToken.ThrowIfCancellationRequested();
-                            if (!resultFileInfos.TryGetValue(peptideResult.ResultFile.ChromFileInfo.FilePath,
-                                    out var peakResultFile))
-                            {
-                                // Shouldn't happen
-                                continue;
-                            }
-
-                            bool manuallyIntegrated = IsManualIntegrated(molecule, peptideResult.ResultFile);
-                            if (data.Parameters.ManualPeakTreatment == ManualPeakTreatment.SKIP && manuallyIntegrated)
-                            {
-                                continue;
-                            }
-
-                            var rawPeakBounds = GetRawPeakBounds(molecule,
-                                peptideResult.ResultFile.Replicate.ReplicateIndex,
-                                peptideResult.ResultFile.ChromFileInfoId);
-
-                            var peakFeatureStatistics = data.ResultsHandler?.GetPeakFeatureStatistics(molecule.Peptide,
-                                peptideResult.ResultFile.ChromFileInfoId);
-                            var peak = new Peak(peakResultFile, rawPeakBounds, peakFeatureStatistics?.BestScore,
-                                manuallyIntegrated);
-                            peaks.Add(peak);
-                        }
-
-                        var row = MakeRow(data.Parameters, peptide, peaks);
-                        var standardDeviation = row.Peaks.Select(peak => peak.Value.AlignedPeakBounds.ApexTime).StandardDeviation();
-                        if (!double.IsNaN(standardDeviation))
-                        {
-                            standardDeviations.Add(standardDeviation);
-                        }
-                        yield return row;
-                    }
-                }
-
-                if (standardDeviations.Count > 0)
-                {
-                    RowStatisticsAvailable?.Invoke(new RowStatistics(standardDeviations.Mean()));
-                }
+                return Data?.Rows.Select(row=>new Row(DataSchema, row)) ?? Array.Empty<Row>();
             }
 
             public Action<RowStatistics> RowStatisticsAvailable;
         }
  
-        private static Row MakeRow(Parameters parameters, Model.Databinding.Entities.Peptide peptide, List<Peak> peaks)
+        private static RowData MakeRow(Parameters parameters, IdentityPath peptideIdentityPath, List<Peak> peaks)
         {
             var outliers = new List<Peak>();
             var candidates = new List<Peak>();
@@ -473,7 +448,7 @@ namespace pwiz.Skyline.EditUI.PeakImputation
                 candidates = newCandidates;
             }
 
-            if (parameters.StandardDeviationsCutoff.HasValue)
+            if (parameters.RetentionTimeDeviationCutoff.HasValue)
             {
                 while (candidates.Count > 0)
                 {
@@ -493,7 +468,7 @@ namespace pwiz.Skyline.EditUI.PeakImputation
                     var newCandidates = new List<Peak>();
                     foreach (var peak in candidates)
                     {
-                        if (Math.Abs(peak.AlignedPeakBounds.ApexTime - meanRetentionTime) < stdDevRetentionTime * parameters.StandardDeviationsCutoff)
+                        if (Math.Abs(peak.AlignedPeakBounds.ApexTime - meanRetentionTime) < parameters.RetentionTimeDeviationCutoff)
                         {
                             core.Add(peak);
                         }
@@ -526,17 +501,16 @@ namespace pwiz.Skyline.EditUI.PeakImputation
             }
             allPeaks.AddRange(outliers);
             
-            return new Row(peptide, allPeaks);
+            return new RowData(peptideIdentityPath, allPeaks);
         }
 
-        private static bool IsManualIntegrated(PeptideDocNode peptideDocNode, ResultFile resultFile)
+        private static bool IsManualIntegrated(PeptideDocNode peptideDocNode, int replicateIndex, ChromFileInfoId fileId)
         {
             foreach (var transitionGroupDocNode in peptideDocNode.TransitionGroups)
             {
-                foreach (var transitionGroupChromInfo in transitionGroupDocNode.GetSafeChromInfo(resultFile.Replicate
-                             .ReplicateIndex))
+                foreach (var transitionGroupChromInfo in transitionGroupDocNode.GetSafeChromInfo(replicateIndex))
                 {
-                    if (ReferenceEquals(resultFile.ChromFileInfoId, transitionGroupChromInfo.FileId) &&
+                    if (ReferenceEquals(fileId, transitionGroupChromInfo.FileId) &&
                         transitionGroupChromInfo.UserSet == UserSet.TRUE)
                     {
                         return true;
@@ -578,17 +552,17 @@ namespace pwiz.Skyline.EditUI.PeakImputation
             public PeakScoringModelSpec PeakScoringModel { get; private set; }
             public int MinCoreCount { get; private set; }
             public double? ScoreCutoff { get; private set; }
-            public double? StandardDeviationsCutoff { get; private set; }
+            public double? RetentionTimeDeviationCutoff { get; private set; }
 
             public Parameters ChangeScoringModel(PeakScoringModelSpec model, int minCoreCount, double? scoreCutoff,
-                double? standardDeviationsCutoff)
+                double? retentionTimeDeviationCutoff)
             {
                 return ChangeProp(ImClone(this), im =>
                 {
                     im.PeakScoringModel = model;
                     im.MinCoreCount = minCoreCount;
                     im.ScoreCutoff = scoreCutoff;
-                    im.StandardDeviationsCutoff = standardDeviationsCutoff;
+                    im.RetentionTimeDeviationCutoff = retentionTimeDeviationCutoff;
                 });
             }
 
@@ -600,7 +574,7 @@ namespace pwiz.Skyline.EditUI.PeakImputation
                        Equals(AlignmentTarget, other.AlignmentTarget) &&
                        Equals(PeakScoringModel, other.PeakScoringModel) &&
                        MinCoreCount == other.MinCoreCount && Nullable.Equals(ScoreCutoff, other.ScoreCutoff) &&
-                       Nullable.Equals(StandardDeviationsCutoff, other.StandardDeviationsCutoff);
+                       Nullable.Equals(RetentionTimeDeviationCutoff, other.RetentionTimeDeviationCutoff);
             }
 
             public override bool Equals(object obj)
@@ -622,7 +596,7 @@ namespace pwiz.Skyline.EditUI.PeakImputation
                     hashCode = (hashCode * 397) ^ (PeakScoringModel != null ? PeakScoringModel.GetHashCode() : 0);
                     hashCode = (hashCode * 397) ^ MinCoreCount;
                     hashCode = (hashCode * 397) ^ ScoreCutoff.GetHashCode();
-                    hashCode = (hashCode * 397) ^ StandardDeviationsCutoff.GetHashCode();
+                    hashCode = (hashCode * 397) ^ RetentionTimeDeviationCutoff.GetHashCode();
                     return hashCode;
                 }
             }
@@ -632,11 +606,12 @@ namespace pwiz.Skyline.EditUI.PeakImputation
         {
             private AllAlignments _allAlignments;
 
-            public Data(Parameters parameters, MProphetResultsHandler resultsHandler, AllAlignments allAlignments)
+            public Data(Parameters parameters, MProphetResultsHandler resultsHandler, AllAlignments allAlignments, IEnumerable<RowData> rows)
             {
                 Parameters = parameters;
                 ResultsHandler = resultsHandler;
                 _allAlignments = allAlignments;
+                Rows = ImmutableList.ValueOf(rows);
             }
 
             public Parameters Parameters { get; }
@@ -648,20 +623,26 @@ namespace pwiz.Skyline.EditUI.PeakImputation
 
             public MProphetResultsHandler ResultsHandler { get; }
 
-            public IEnumerable<ResultFileInfo> GetResultFileInfos()
+            public ImmutableList<RowData> Rows { get; }
+
+            public double? GetMeanStandardDeviation()
             {
-                var measuredResults = Parameters.Document.Value.MeasuredResults;
-                if (measuredResults == null)
+                var standardDeviations = new List<double>();
+                foreach (var row in Rows)
                 {
-                    yield break;
+                    var peakApexes = row.Peaks.Select(peak => peak.AlignedPeakBounds?.ApexTime).OfType<double>()
+                        .ToList();
+                    if (peakApexes.Count > 1)
+                    {
+                        standardDeviations.Add(peakApexes.StandardDeviation());
+                    }
                 }
-                foreach (var resultFileOption in GetResultFileOptions(Parameters.Document))
+
+                if (standardDeviations.Count == 0)
                 {
-                    var chromFileInfoId = measuredResults.Chromatograms[resultFileOption.ReplicateIndex]
-                        .FindFile(resultFileOption.Path);
-                    var alignmentFunction = GetAlignmentFunction(resultFileOption.Path);
-                    yield return new ResultFileInfo(resultFileOption, chromFileInfoId, alignmentFunction);
+                    return null;
                 }
+                return standardDeviations.Mean();
             }
         }
 
@@ -673,7 +654,9 @@ namespace pwiz.Skyline.EditUI.PeakImputation
                 MProphetResultsHandler resultsHandler = ScoringProducer.Instance.GetResult(inputs, new ScoringProducer.Parameters(parameter.Document, parameter.PeakScoringModel));
                 AllAlignments allAlignments = AllAlignmentsProducer.INSTANCE.GetResult(inputs,
                     new AllAlignmentsProducer.Parameter(parameter.Document, parameter.AlignmentTarget));
-                return new Data(parameter, resultsHandler, allAlignments);
+                var rows = ImmutableList.ValueOf(GetRows(productionMonitor.CancellationToken, parameter, resultsHandler,
+                    GetResultFileInfos(parameter.Document.Value, allAlignments)));
+                return new Data(parameter, resultsHandler, allAlignments, rows);
             }
 
             public override IEnumerable<WorkOrder> GetInputs(Parameters parameter)
@@ -696,15 +679,70 @@ namespace pwiz.Skyline.EditUI.PeakImputation
                         new ScoringProducer.Parameters(parameter.Document, parameter.PeakScoringModel));
                 }
             }
+
+            private IEnumerable<RowData> GetRows(CancellationToken cancellationToken, Parameters parameters, MProphetResultsHandler resultsHandler, IEnumerable<ResultFileInfo> resultFileInfos)
+            {
+                var document = parameters.Document.Value;
+                var measuredResults = document.MeasuredResults;
+                if (measuredResults == null)
+                {
+                    yield break;
+                }
+
+                var resultFileInfoDict =
+                    resultFileInfos.ToDictionary(resultFileInfo => ReferenceValue.Of(resultFileInfo.ChromFileInfoId));
+                foreach (var moleculeGroup in document.MoleculeGroups)
+                {
+                    foreach (var molecule in moleculeGroup.Molecules)
+                    {
+                        if (molecule.GlobalStandardType != null)
+                        {
+                            continue;
+                        }
+
+                        cancellationToken.ThrowIfCancellationRequested();
+                        var peptideIdentityPath = new IdentityPath(moleculeGroup.PeptideGroup, molecule.Peptide);
+                        var peaks = new List<Peak>();
+                        for (int replicateIndex = 0; replicateIndex < measuredResults.Chromatograms.Count; replicateIndex++) 
+                        {
+                            foreach (var peptideChromInfo in molecule.GetSafeChromInfo(replicateIndex))
+                            {
+                                cancellationToken.ThrowIfCancellationRequested();
+                                if (!resultFileInfoDict.TryGetValue(peptideChromInfo.FileId
+                                        ,
+                                        out var peakResultFile))
+                                {
+                                    // Shouldn't happen
+                                    continue;
+                                }
+                                bool manuallyIntegrated = IsManualIntegrated(molecule, replicateIndex, peptideChromInfo.FileId);
+                                if (parameters.ManualPeakTreatment == ManualPeakTreatment.SKIP && manuallyIntegrated)
+                                {
+                                    continue;
+                                }
+
+                                var rawPeakBounds = GetRawPeakBounds(molecule,
+                                    replicateIndex,
+                                    peptideChromInfo.FileId);
+
+                                var peakFeatureStatistics = resultsHandler?.GetPeakFeatureStatistics(molecule.Peptide,
+                                    peptideChromInfo.FileId);
+                                var peak = new Peak(peakResultFile, rawPeakBounds, peakFeatureStatistics?.BestScore,
+                                    manuallyIntegrated);
+                                peaks.Add(peak);
+                            }
+
+                        }
+                        var row = MakeRow(parameters, peptideIdentityPath, peaks);
+                        yield return row;
+                    }
+                }
+            }
         }
 
         private void SettingsControlChanged(object sender, EventArgs e)
         {
-            if (_inChange)
-            {
-                return;
-            }
-            UpdateData();
+            OnDocumentChanged();
         }
 
         private void UpdateData()
@@ -717,13 +755,13 @@ namespace pwiz.Skyline.EditUI.PeakImputation
                 comboManualPeaks.SelectedItem as ManualPeakTreatment ?? ManualPeakTreatment.SKIP);
             parameters = parameters.ChangeImputFromBestPeakOnly(comboImputeBoundariesFrom.SelectedIndex == 0);
             var scoringModel = comboScoringModel.SelectedItem as PeakScoringModelSpec;
-            numericUpDownCoreResults.Enabled = tbxCoreScoreCutoff.Enabled = tbxStandardDeviationsCutoff.Enabled = scoringModel != null;
+            numericUpDownCoreResults.Enabled = tbxCoreScoreCutoff.Enabled = tbxRtDeviationCutoff.Enabled = scoringModel != null;
 
             if (scoringModel != null)
             {
                 parameters = parameters.ChangeScoringModel(scoringModel,
                     Convert.ToInt32(numericUpDownCoreResults.Value), GetDoubleValue(tbxCoreScoreCutoff),
-                    GetDoubleValue(tbxStandardDeviationsCutoff));
+                    GetDoubleValue(tbxRtDeviationCutoff));
             }
 
             if (true == _receiver?.TryGetProduct(parameters, out _))
@@ -1023,6 +1061,154 @@ namespace pwiz.Skyline.EditUI.PeakImputation
                 MeanStandardDeviation = meanStandardDeviation;
             }
             public double MeanStandardDeviation { get; private set; }
+        }
+
+        private CutoffTypeEnum _cutoffType;
+
+        public CutoffTypeEnum CutoffType 
+        {
+            get
+            {
+                if (radioPercentile.Checked)
+                {
+                    return CutoffTypeEnum.percentile;
+                }
+
+                if (radioQValue.Checked)
+                {
+                    return CutoffTypeEnum.qValue;
+                }
+
+                if (radioPValue.Checked)
+                {
+                    return CutoffTypeEnum.pValue;
+                }
+
+                return CutoffTypeEnum.score;
+            }
+            set
+            {
+                switch (value)
+                {
+                    case CutoffTypeEnum.percentile:
+                        radioPercentile.Checked = true;
+                        break;
+                    case CutoffTypeEnum.qValue:
+                        radioQValue.Checked = true;
+                        break;
+                    case CutoffTypeEnum.pValue:
+                        radioPValue.Checked = true;
+                        break;
+                    default:
+                        radioScore.Checked = true;
+                        break;
+                }
+            }
+        }
+
+        private void CutoffTypeChanged(object sender, EventArgs e)
+        {
+            var newCutoffType = CutoffType;
+            if (newCutoffType == _cutoffType)
+            {
+                return;
+            }
+            if (_inChange)
+            {
+                return;
+            }
+
+            try
+            {
+                _inChange = true;
+                var cutoffValue = GetDoubleValue(tbxCoreScoreCutoff);
+                if (cutoffValue.HasValue)
+                {
+                    var score = ConvertToScore(cutoffValue.Value, _cutoffType);
+                    if (score.HasValue && !double.IsNaN(score.Value))
+                    {
+                        var newCutoff = ConvertFromScore(score.Value, newCutoffType);
+                        if (newCutoff.HasValue && !double.IsNaN(newCutoff.Value))
+                        {
+                            tbxCoreScoreCutoff.Text = newCutoff.ToString();
+                        }
+                    }
+                }
+                _cutoffType = newCutoffType;
+                OnDocumentChanged();
+            }
+            finally
+            {
+                _inChange = false;
+            }
+
+        }
+
+        public enum CutoffTypeEnum
+        {
+            score,
+            pValue,
+            qValue,
+            percentile,
+        }
+
+        private double? ConvertToScore(double value, CutoffTypeEnum cutoffType)
+        {
+            switch (cutoffType)
+            {
+                case CutoffTypeEnum.pValue:
+                    return Normal.InvCDF(0, 1, 1 - value);
+                case CutoffTypeEnum.percentile:
+                    var scores = new Statistics(GetAllScores());
+                    return scores.Percentile(value);
+                case CutoffTypeEnum.qValue:
+                    var integration = SkylineWindow.DocumentUI.Settings.PeptideSettings.Integration;
+                    return integration.ScoreQValueMap.GetZScore(value);
+                case CutoffTypeEnum.score:
+                    return value;
+            }
+
+            return null;
+        }
+
+        private double? ConvertFromScore(double score, CutoffTypeEnum cutoffType)
+        {
+            switch (cutoffType)
+            {
+                case CutoffTypeEnum.pValue:
+                    return 1 - Normal.CDF(0, 1, score);
+                case CutoffTypeEnum.percentile:
+                    var scores = GetAllScores().OrderBy(s => s).ToList();
+                    if (scores.Count == 0)
+                    {
+                        return null;
+                    }
+                    int index = scores.BinarySearch(score);
+                    if (index < 0)
+                    {
+                        index = ~index;
+                    }
+
+                    return index * 1.0 / scores.Count;
+                case CutoffTypeEnum.qValue:
+                    var integration = SkylineWindow.DocumentUI.Settings.PeptideSettings.Integration;
+                    return integration.ScoreQValueMap.GetQValue(score);
+                case CutoffTypeEnum.score:
+                    return score;
+            }
+
+            return null;
+        }
+
+        private IEnumerable<double> GetAllScores()
+        {
+            var data = _rowSource.Data;
+            if (data == null)
+            {
+                return Array.Empty<double>();
+            }
+
+            return data.Rows.SelectMany(row => row.Peaks.Select(peak => peak.Score)).OfType<double>();
         }
     }
 }

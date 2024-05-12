@@ -129,11 +129,8 @@ namespace pwiz.Skyline.EditUI.PeakImputation
             }
             else
             {
-                var integration = document.Settings.PeptideSettings.Integration;
                 groupBoxCutoff.Enabled = true;
-                radioPValue.Enabled = !Equals(scoringModel, LegacyScoringModel.DEFAULT_MODEL);
-                radioQValue.Enabled = radioPValue.Enabled && Equals(scoringModel,
-                    integration.PeakScoringModel) && null != integration.ScoreQValueMap;
+                radioQValue.Enabled = radioPValue.Enabled = !Equals(scoringModel, LegacyScoringModel.DEFAULT_MODEL);
             }
         }
 
@@ -203,26 +200,26 @@ namespace pwiz.Skyline.EditUI.PeakImputation
 
         public class Row : SkylineObject
         {
-            public Row(SkylineDataSchema dataSchema, RowData rowData)
+            public Row(SkylineDataSchema dataSchema, RowData rowData, IEnumerable<RatedPeak> ratedPeaks)
             {
                 Peptide = new Model.Databinding.Entities.Peptide(dataSchema, rowData.PeptideIdentityPath);
-                Peaks = new Dictionary<ResultFileOption, Peak>();
+                Peaks = new Dictionary<ResultFileOption, RatedPeak>();
                 var allPeakBounds = new List<PeakBounds>();
                 var acceptedPeakBounds = new List<PeakBounds>();
                 var exemplaryPeakBounds = new List<PeakBounds>();
-                foreach (var peak in rowData.Peaks)
+                foreach (var peak in ratedPeaks)
                 {
                     Peaks[peak.ResultFileInfo.ResultFileOption] = peak;
                     var peakBounds = peak.AlignedPeakBounds;
                     if (peakBounds != null)
                     {
                         allPeakBounds.Add(peakBounds);
-                        if (peak.Accepted)
+                        if (peak.Verdict >= PeakVerdict.accepted)
                         {
                             acceptedPeakBounds.Add(peakBounds);
                         }
 
-                        if (peak.Exemplary)
+                        if (peak.Verdict >= PeakVerdict.exemplary)
                         {
                             exemplaryPeakBounds.Add(peakBounds);
                         }
@@ -256,7 +253,7 @@ namespace pwiz.Skyline.EditUI.PeakImputation
             public PeakSummary AllPeakBoundaries { get; }
             public PeakSummary AcceptedPeakBoundaries { get; }
             public PeakSummary ExemplaryPeakBoundaries { get; }
-            public Dictionary<ResultFileOption, Peak> Peaks { get; }
+            public Dictionary<ResultFileOption, RatedPeak> Peaks { get; }
         }
 
         public class RowData
@@ -292,21 +289,92 @@ namespace pwiz.Skyline.EditUI.PeakImputation
 
             public double? Score { get; }
             public bool ManuallyIntegrated { get; }
-            public bool Accepted { get; private set; }
-            public Peak ChangeAccepted(bool accepted)
+            public double? Percentile { get; private set; }
+
+            public Peak ChangePercentile(double? value)
             {
-                if (accepted == Accepted)
-                {
-                    return this;
-                }
-                return ChangeProp(ImClone(this), im => im.Accepted = accepted);
+                return ChangeProp(ImClone(this), im => im.Percentile = value);
             }
 
-            public bool Exemplary { get; private set; }
+            public double? PValue { get; private set; }
 
-            public Peak ChangeExemplary(bool value)
+            public Peak ChangePValue(double? value)
             {
-                return ChangeProp(ImClone(this), im => im.Exemplary = value);
+                return ChangeProp(ImClone(this), im => im.PValue = value);
+            }
+
+            public double? QValue { get; private set; }
+
+            public Peak ChangeQValue(double? value)
+            {
+                return ChangeProp(ImClone(this), im => im.QValue = value);
+            }
+        }
+
+        public class RatedPeak
+        {
+            private Peak _peak;
+            public RatedPeak(Peak peak, PeakVerdict verdict)
+            {
+                _peak = peak;
+                Verdict = verdict;
+            }
+
+            public PeakVerdict Verdict { get; }
+
+            public ResultFileInfo ResultFileInfo
+            {
+                get { return _peak.ResultFileInfo; }
+            }
+            public PeakBounds RawPeakBounds
+            {
+                get { return _peak.RawPeakBounds; }
+            }
+
+            public PeakBounds AlignedPeakBounds
+            {
+                get { return _peak.AlignedPeakBounds; }
+            }
+
+            public double? Score
+            {
+                get
+                {
+                    return _peak.Score;
+                }
+            }
+
+            public bool ManuallyIntegrated
+            {
+                get
+                {
+                    return _peak.ManuallyIntegrated;
+                }
+            }
+
+            public bool Exemplary
+            {
+                get { return Verdict >= PeakVerdict.exemplary; }
+            }
+
+            public bool Accepted
+            {
+                get { return Verdict >= PeakVerdict.accepted; }
+            }
+
+            [Format(Formats.Percent)]
+            public double? Percentile
+            {
+                get { return _peak.Percentile; }
+            }
+
+            public double? PValue
+            {
+                get { return _peak.PValue; }
+            }
+            public double? QValue
+            {
+                get { return _peak.QValue; }
             }
         }
 
@@ -387,18 +455,33 @@ namespace pwiz.Skyline.EditUI.PeakImputation
 
             public override IEnumerable GetItems()
             {
-                return Data?.Rows.Select(row=>new Row(DataSchema, row)) ?? Array.Empty<Row>();
+                if (Data == null)
+                {
+                    yield break;
+                }
+
+                foreach (var rowData in Data.Rows)
+                {
+                    CancellationToken.ThrowIfCancellationRequested();
+                    yield return RatePeak(Data, DataSchema, rowData);
+                }
             }
 
             public Action<RowStatistics> RowStatisticsAvailable;
         }
  
-        private static RowData MakeRow(Parameters parameters, IdentityPath peptideIdentityPath, List<Peak> peaks)
+        private static RowData MakeRow(IdentityPath peptideIdentityPath, List<Peak> peaks)
         {
+            return new RowData(peptideIdentityPath, peaks);
+        }
+
+        private static Row RatePeak(Data data, SkylineDataSchema dataSchema, RowData rowData)
+        {
+            var parameters = data.Parameters;
             var outliers = new List<Peak>();
             var candidates = new List<Peak>();
             var core = new List<Peak>();
-            foreach (var peak in peaks)
+            foreach (var peak in rowData.Peaks)
             {
                 if (peak.AlignedPeakBounds == null)
                 {
@@ -430,16 +513,36 @@ namespace pwiz.Skyline.EditUI.PeakImputation
                 var newCandidates = new List<Peak>();
                 foreach (var peak in candidates.OrderByDescending(peak => peak.Score).ToList())
                 {
-                    if (parameters.ScoreCutoff.HasValue && peak.Score >= parameters.ScoreCutoff)
+                    if (peak.Score.HasValue && core.Count < parameters.MinCoreCount)
                     {
                         core.Add(peak);
                         continue;
                     }
 
-                    if (peak.Score.HasValue && core.Count < parameters.MinCoreCount)
+                    if (parameters.ScoreCutoff.HasValue)
                     {
-                        core.Add(peak);
-                        continue;
+                        bool accepted = false;
+                        switch (parameters.CutoffType)
+                        {
+                            case CutoffTypeEnum.score:
+                                accepted = peak.Score >= parameters.ScoreCutoff;
+                                break;
+                            case CutoffTypeEnum.pValue:
+                                accepted = peak.PValue <= parameters.ScoreCutoff;
+                                break;
+                            case CutoffTypeEnum.percentile:
+                                accepted = peak.Percentile >= parameters.ScoreCutoff;
+                                break;
+                            case CutoffTypeEnum.qValue:
+                                accepted = peak.QValue <= parameters.ScoreCutoff;
+                                break;
+                        }
+
+                        if (accepted)
+                        {
+                            core.Add(peak);
+                            continue;
+                        }
                     }
 
                     newCandidates.Add(peak);
@@ -487,22 +590,23 @@ namespace pwiz.Skyline.EditUI.PeakImputation
                 }
             }
             outliers.AddRange(candidates);
-            var allPeaks = new List<Peak>();
+            var ratedPeaks = new List<RatedPeak>();
             for (int i = 0; i < core.Count; i++)
             {
                 var peak = core[i];
-                peak = peak.ChangeAccepted(true);
+                var rating = PeakVerdict.accepted;
                 if (i == 0 || !parameters.ImputeFromBestPeakOnly)
                 {
-                    peak = peak.ChangeExemplary(true);
+                    rating = PeakVerdict.exemplary;
                 }
-
-                allPeaks.Add(peak);
+                ratedPeaks.Add(new RatedPeak(peak, rating));
             }
-            allPeaks.AddRange(outliers);
-            
-            return new RowData(peptideIdentityPath, allPeaks);
+            ratedPeaks.AddRange(outliers.Select(outlier=>new RatedPeak(outlier, PeakVerdict.rejected)));
+
+            return new Row(dataSchema, rowData, ratedPeaks);
         }
+
+
 
         private static bool IsManualIntegrated(PeptideDocNode peptideDocNode, int replicateIndex, ChromFileInfoId fileId)
         {
@@ -551,16 +655,18 @@ namespace pwiz.Skyline.EditUI.PeakImputation
             
             public PeakScoringModelSpec PeakScoringModel { get; private set; }
             public int MinCoreCount { get; private set; }
+            public CutoffTypeEnum CutoffType { get; private set; }
             public double? ScoreCutoff { get; private set; }
             public double? RetentionTimeDeviationCutoff { get; private set; }
 
-            public Parameters ChangeScoringModel(PeakScoringModelSpec model, int minCoreCount, double? scoreCutoff,
+            public Parameters ChangeScoringModel(PeakScoringModelSpec model, int minCoreCount, CutoffTypeEnum cutoffType, double? scoreCutoff,
                 double? retentionTimeDeviationCutoff)
             {
                 return ChangeProp(ImClone(this), im =>
                 {
                     im.PeakScoringModel = model;
                     im.MinCoreCount = minCoreCount;
+                    im.CutoffType = cutoffType;
                     im.ScoreCutoff = scoreCutoff;
                     im.RetentionTimeDeviationCutoff = retentionTimeDeviationCutoff;
                 });
@@ -605,13 +711,26 @@ namespace pwiz.Skyline.EditUI.PeakImputation
         public class Data
         {
             private AllAlignments _allAlignments;
+            private ScoreQValueMap _scoreQValueMap;
 
-            public Data(Parameters parameters, MProphetResultsHandler resultsHandler, AllAlignments allAlignments, IEnumerable<RowData> rows)
+            public Data(Parameters parameters, ScoringResults scoringResults, AllAlignments allAlignments, IEnumerable<RowData> rows)
             {
                 Parameters = parameters;
-                ResultsHandler = resultsHandler;
+                ScoringResults = scoringResults;
                 _allAlignments = allAlignments;
-                Rows = ImmutableList.ValueOf(rows);
+                var rowList = rows.ToList();
+                if (Equals(parameters.Document.Value.Settings.PeptideSettings.Integration.PeakScoringModel,
+                        parameters.PeakScoringModel))
+                {
+                    if (!Equals(LegacyScoringModel.DEFAULT_MODEL, parameters.PeakScoringModel))
+                    {
+                        _scoreQValueMap = scoringResults?.ReintegratedDocument.Settings.PeptideSettings.Integration
+                            .ScoreQValueMap;
+                    }
+                }
+                SortedScores = ImmutableList.ValueOf(rowList.SelectMany(row =>
+                    row.Peaks.Select(peak => peak.Score).OfType<double>()).OrderBy(score => score));
+                Rows = ImmutableList.ValueOf(rowList.Select(FillInScores));
             }
 
             public Parameters Parameters { get; }
@@ -621,7 +740,7 @@ namespace pwiz.Skyline.EditUI.PeakImputation
                 return _allAlignments?.GetAlignmentFunction(msDataFileUri) ?? AlignmentFunction.IDENTITY;
             }
 
-            public MProphetResultsHandler ResultsHandler { get; }
+            public ScoringResults ScoringResults { get; }
 
             public ImmutableList<RowData> Rows { get; }
 
@@ -644,6 +763,93 @@ namespace pwiz.Skyline.EditUI.PeakImputation
                 }
                 return standardDeviations.Mean();
             }
+
+            public ImmutableList<double> SortedScores { get; }
+
+            public double? GetPercentileOfScore(double score)
+            {
+                if (SortedScores.Count == 0)
+                {
+                    return null;
+                }
+                var index = CollectionUtil.BinarySearch(SortedScores, score);
+                if (index >= 0)
+                {
+                    return (double)index / SortedScores.Count;
+                }
+                index = ~index;
+
+                if (index <= 0)
+                {
+                    return SortedScores[0];
+                }
+
+                if (index >= SortedScores.Count - 1)
+                {
+                    return SortedScores[SortedScores.Count - 1];
+                }
+
+                double prev = SortedScores[index];
+                double next = SortedScores[index + 1];
+                return (index + (score - prev) / (next - prev)) / SortedScores.Count;
+            }
+
+            public double? GetScoreAtPercentile(double percentile)
+            {
+                if (SortedScores.Count == 0)
+                {
+                    return null;
+                }
+
+                double doubleIndex = percentile * SortedScores.Count;
+                if (doubleIndex <= 0)
+                {
+                    return SortedScores[0];
+                }
+
+                if (doubleIndex >= SortedScores.Count - 1)
+                {
+                    return SortedScores[SortedScores.Count - 1];
+                }
+
+                int prevIndex = (int)Math.Floor(doubleIndex);
+                int nextIndex = (int)Math.Ceiling(doubleIndex);
+                var prevValue = SortedScores[prevIndex];
+                if (prevIndex == nextIndex)
+                {
+                    return prevValue;
+                }
+                var nextValue = SortedScores[nextIndex];
+                return prevValue * (nextIndex - doubleIndex) + nextValue * (doubleIndex - prevIndex);
+            }
+
+            public RowData FillInScores(RowData row)
+            {
+                var newPeaks = row.Peaks.ToList();
+                for (int iPeak = 0; iPeak < newPeaks.Count; iPeak++)
+                {
+                    var peak = newPeaks[iPeak];
+                    if (!peak.Score.HasValue)
+                    {
+                        continue;
+                    }
+
+                    peak = peak.ChangePercentile(GetPercentileOfScore(peak.Score.Value));
+                    peak = peak.ChangeQValue(_scoreQValueMap?.GetQValue(peak.Score));
+                    if (!Equals(Parameters.PeakScoringModel, LegacyScoringModel.DEFAULT_MODEL))
+                    {
+                        peak = peak.ChangePValue(ZScoreToPValue(peak.Score.Value));
+                    }
+                    newPeaks[iPeak] = peak;
+                }
+
+                if (ArrayUtil.ReferencesEqual(newPeaks, row.Peaks))
+                {
+                    return row;
+                }
+
+                return new RowData(row.PeptideIdentityPath, newPeaks);
+            }
         }
 
         private class DataProducer : Producer<Parameters, Data>
@@ -651,12 +857,12 @@ namespace pwiz.Skyline.EditUI.PeakImputation
             public static readonly DataProducer Instance = new DataProducer();
             public override Data ProduceResult(ProductionMonitor productionMonitor, Parameters parameter, IDictionary<WorkOrder, object> inputs)
             {
-                MProphetResultsHandler resultsHandler = ScoringProducer.Instance.GetResult(inputs, new ScoringProducer.Parameters(parameter.Document, parameter.PeakScoringModel));
+                ScoringResults scoringResults = ScoringProducer.Instance.GetResult(inputs, new ScoringProducer.Parameters(parameter.Document, parameter.PeakScoringModel, parameter.ManualPeakTreatment == ManualPeakTreatment.OVERWRITE));
                 AllAlignments allAlignments = AllAlignmentsProducer.INSTANCE.GetResult(inputs,
                     new AllAlignmentsProducer.Parameter(parameter.Document, parameter.AlignmentTarget));
-                var rows = ImmutableList.ValueOf(GetRows(productionMonitor.CancellationToken, parameter, resultsHandler,
+                var rows = ImmutableList.ValueOf(GetRows(productionMonitor.CancellationToken, parameter, scoringResults,
                     GetResultFileInfos(parameter.Document.Value, allAlignments)));
-                return new Data(parameter, resultsHandler, allAlignments, rows);
+                return new Data(parameter, scoringResults, allAlignments, rows);
             }
 
             public override IEnumerable<WorkOrder> GetInputs(Parameters parameter)
@@ -676,13 +882,13 @@ namespace pwiz.Skyline.EditUI.PeakImputation
                 if (parameter.PeakScoringModel != null)
                 {
                     yield return ScoringProducer.Instance.MakeWorkOrder(
-                        new ScoringProducer.Parameters(parameter.Document, parameter.PeakScoringModel));
+                        new ScoringProducer.Parameters(parameter.Document, parameter.PeakScoringModel, parameter.ManualPeakTreatment == ManualPeakTreatment.OVERWRITE));
                 }
             }
 
-            private IEnumerable<RowData> GetRows(CancellationToken cancellationToken, Parameters parameters, MProphetResultsHandler resultsHandler, IEnumerable<ResultFileInfo> resultFileInfos)
+            private IEnumerable<RowData> GetRows(CancellationToken cancellationToken, Parameters parameters, ScoringResults scoringResults, IEnumerable<ResultFileInfo> resultFileInfos)
             {
-                var document = parameters.Document.Value;
+                var document = scoringResults.ReintegratedDocument ?? parameters.Document.Value;
                 var measuredResults = document.MeasuredResults;
                 if (measuredResults == null)
                 {
@@ -699,7 +905,6 @@ namespace pwiz.Skyline.EditUI.PeakImputation
                         {
                             continue;
                         }
-
                         cancellationToken.ThrowIfCancellationRequested();
                         var peptideIdentityPath = new IdentityPath(moleculeGroup.PeptideGroup, molecule.Peptide);
                         var peaks = new List<Peak>();
@@ -716,16 +921,20 @@ namespace pwiz.Skyline.EditUI.PeakImputation
                                     continue;
                                 }
                                 bool manuallyIntegrated = IsManualIntegrated(molecule, replicateIndex, peptideChromInfo.FileId);
-                                if (parameters.ManualPeakTreatment == ManualPeakTreatment.SKIP && manuallyIntegrated)
+
+                                if (manuallyIntegrated)
                                 {
-                                    continue;
+                                    if (parameters.ManualPeakTreatment == ManualPeakTreatment.SKIP)
+                                    {
+                                        continue;
+                                    }
                                 }
 
                                 var rawPeakBounds = GetRawPeakBounds(molecule,
                                     replicateIndex,
                                     peptideChromInfo.FileId);
 
-                                var peakFeatureStatistics = resultsHandler?.GetPeakFeatureStatistics(molecule.Peptide,
+                                var peakFeatureStatistics = scoringResults.ResultsHandler?.GetPeakFeatureStatistics(molecule.Peptide,
                                     peptideChromInfo.FileId);
                                 var peak = new Peak(peakResultFile, rawPeakBounds, peakFeatureStatistics?.BestScore,
                                     manuallyIntegrated);
@@ -733,7 +942,7 @@ namespace pwiz.Skyline.EditUI.PeakImputation
                             }
 
                         }
-                        var row = MakeRow(parameters, peptideIdentityPath, peaks);
+                        var row = MakeRow(peptideIdentityPath, peaks);
                         yield return row;
                     }
                 }
@@ -760,7 +969,7 @@ namespace pwiz.Skyline.EditUI.PeakImputation
             if (scoringModel != null)
             {
                 parameters = parameters.ChangeScoringModel(scoringModel,
-                    Convert.ToInt32(numericUpDownCoreResults.Value), GetDoubleValue(tbxCoreScoreCutoff),
+                    Convert.ToInt32(numericUpDownCoreResults.Value), CutoffType, GetDoubleValue(tbxCoreScoreCutoff),
                     GetDoubleValue(tbxRtDeviationCutoff));
             }
 
@@ -1157,10 +1366,9 @@ namespace pwiz.Skyline.EditUI.PeakImputation
             switch (cutoffType)
             {
                 case CutoffTypeEnum.pValue:
-                    return Normal.InvCDF(0, 1, 1 - value);
+                    return PValueToZScore(value);
                 case CutoffTypeEnum.percentile:
-                    var scores = new Statistics(GetAllScores());
-                    return scores.Percentile(value);
+                    return _rowSource.Data?.GetScoreAtPercentile(value);
                 case CutoffTypeEnum.qValue:
                     var integration = SkylineWindow.DocumentUI.Settings.PeptideSettings.Integration;
                     return integration.ScoreQValueMap.GetZScore(value);
@@ -1176,20 +1384,9 @@ namespace pwiz.Skyline.EditUI.PeakImputation
             switch (cutoffType)
             {
                 case CutoffTypeEnum.pValue:
-                    return 1 - Normal.CDF(0, 1, score);
+                    return ZScoreToPValue(score);
                 case CutoffTypeEnum.percentile:
-                    var scores = GetAllScores().OrderBy(s => s).ToList();
-                    if (scores.Count == 0)
-                    {
-                        return null;
-                    }
-                    int index = scores.BinarySearch(score);
-                    if (index < 0)
-                    {
-                        index = ~index;
-                    }
-
-                    return index * 1.0 / scores.Count;
+                    return _rowSource.Data?.GetPercentileOfScore(score);
                 case CutoffTypeEnum.qValue:
                     var integration = SkylineWindow.DocumentUI.Settings.PeptideSettings.Integration;
                     return integration.ScoreQValueMap.GetQValue(score);
@@ -1200,8 +1397,19 @@ namespace pwiz.Skyline.EditUI.PeakImputation
             return null;
         }
 
+        private static double ZScoreToPValue(double zScore)
+        {
+            return 1 - Normal.CDF(0, 1, zScore);
+        }
+
+        private static double PValueToZScore(double pValue)
+        {
+            return Normal.InvCDF(0, 1, 1 - pValue);
+        }
+
         private IEnumerable<double> GetAllScores()
         {
+
             var data = _rowSource.Data;
             if (data == null)
             {
@@ -1209,6 +1417,13 @@ namespace pwiz.Skyline.EditUI.PeakImputation
             }
 
             return data.Rows.SelectMany(row => row.Peaks.Select(peak => peak.Score)).OfType<double>();
+        }
+
+        public enum PeakVerdict
+        {
+            rejected,
+            accepted,
+            exemplary
         }
     }
 }

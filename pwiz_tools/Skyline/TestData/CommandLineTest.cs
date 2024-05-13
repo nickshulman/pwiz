@@ -323,7 +323,8 @@ namespace pwiz.SkylineTestData
                 new TestFilesDir(TestContext, PROTDB_FILE)
             };
 
-            string docPath = TestFilesDirs[0].GetTestPath("BSA_Protea_label_free_20100323_meth3_multi.sky");
+            string existingDocPath = TestFilesDirs[0].GetTestPath("BSA_Protea_label_free_20100323_meth3_multi.sky");
+            string docPath = TestFilesDirs[0].GetTestPath("ConsoleNewDocumentTest.sky");
             string fastaPath = TestFilesDirs[0].GetTestPath("sample.fasta");
             string protdbPath = TestFilesDirs[1].GetTestPath("AssociateProteinMatches.protdb");
 
@@ -331,7 +332,6 @@ namespace pwiz.SkylineTestData
             var settings = new[]
             {
                 "--new=" + docPath,
-                "--overwrite",
                 "--full-scan-precursor-isotopes=Count",
                 "--full-scan-precursor-analyzer=centroided",
                 "--full-scan-precursor-res=5",
@@ -371,7 +371,6 @@ namespace pwiz.SkylineTestData
             };
 
             string output = RunCommand(settings);
-            StringAssert.Contains(output, string.Format(Resources.CommandLine_NewSkyFile_Deleting_existing_file___0__, docPath));
             AssertEx.DoesNotContain(output, Resources.CommandLineTest_ConsoleAddFastaTest_Error);
             AssertEx.DoesNotContain(output, Resources.CommandLineTest_ConsoleAddFastaTest_Warning);
 
@@ -423,6 +422,16 @@ namespace pwiz.SkylineTestData
             output = RunCommand(settings);
             StringAssert.Contains(output, Resources.CommandLine_AssociateProteins_Failed_to_associate_proteins);
             StringAssert.Contains(output, Resources.CommandLine_AssociateProteins_a_FASTA_file_must_be_imported_before_associating_proteins);
+
+            // test associating proteins with the dedicated argument for specifying the FASTA (rather than --import-fasta=)
+            Settings.Default.LastProteinAssociationFastaFilepath = null;
+            settings = new[]
+            {
+                "--in=" + existingDocPath,
+                "--associate-proteins-fasta=" + fastaPath,
+            };
+            output = RunCommand(settings);
+            StringAssert.Contains(output, Resources.CommandLine_AssociateProteins_Associating_peptides_with_proteins);
 
             // test importing FASTA and associating proteins and adding special ions
             settings = new[]
@@ -3936,11 +3945,11 @@ namespace pwiz.SkylineTestData
             {
                 if (ServerStateEnum.available != MyServerState)
                 {
-                    throw new PanoramaServerException(MyServerState, "Invalid server state", ServerUri);
+                    throw new PanoramaServerException(new ErrorMessageBuilder(MyServerState.Error(ServerUri)).ErrorDetail("Invalid server state").ToString());
                 }
                 if (UserStateEnum.valid != MyUserState)
                 {
-                    throw new PanoramaServerException(MyUserState, "Invalid user state", ServerUri);
+                    throw new PanoramaServerException(new ErrorMessageBuilder(MyUserState.Error(ServerUri)).ErrorDetail("Invalid user state").ToString());
                 }
 
                 return new PanoramaServer(ServerUri, Username, Password);
@@ -3950,7 +3959,7 @@ namespace pwiz.SkylineTestData
             {
                 if (MyFolderState != FolderState.valid)
                 {
-                    throw new PanoramaServerException(MyFolderState, folderPath, null, ServerUri, null, Username);
+                    throw new PanoramaServerException(MyFolderState.Error(ServerUri, folderPath, Username));
                 }
             }
         }

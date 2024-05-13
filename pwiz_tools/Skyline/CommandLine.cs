@@ -2219,8 +2219,8 @@ namespace pwiz.Skyline
         {
             return HandleExceptions(commandArgs, () => 
             {
-                var fastaPath = commandArgs.FastaPath ?? Settings.Default.LastProteinAssociationFastaFilepath;
-                if (fastaPath == null)
+                var fastaPath = commandArgs.AssociateProteinsFasta ?? commandArgs.FastaPath ?? Settings.Default.LastProteinAssociationFastaFilepath;
+                if (fastaPath.IsNullOrEmpty())
                     throw new ArgumentException(Resources.CommandLine_AssociateProteins_a_FASTA_file_must_be_imported_before_associating_proteins);
                 _out.WriteLine(Resources.CommandLine_AssociateProteins_Associating_peptides_with_proteins);
                 var progressMonitor = new CommandProgressMonitor(_out, new ProgressStatus(String.Empty));
@@ -4371,15 +4371,21 @@ namespace pwiz.Skyline
 
             public bool PublishToPanorama(CommandArgs commandArgs, SrmDocument document, string documentPath)
             {
+                if (!PanoramaUtil.LabKeyAllowedFileName(documentPath, out var error))
+                {
+                    _statusWriter.WriteLine(SkylineResources.SkylineWindow_ShowPublishDlg__0__is_not_a_valid_file_name_for_uploading_to_Panorama_, Path.GetFileName(documentPath));
+                    _statusWriter.WriteLine(Resources.Error___0_, error);
+                    return false;
+                }
+
                 var selectedShareType = commandArgs.SharedFileType;
                 var success = HandleExceptions(commandArgs, () =>
                 {
-                    WebPanoramaPublishClient publishClient = new WebPanoramaPublishClient();
+                    var server = commandArgs.PanoramaServer;
+                    var publishClient = new WebPanoramaPublishClient(server.URI, server.Username, server.Password);
                     // If the Panorama server does not support the skyd version of the document, change the Skyline version to the 
                     // max version supported by the server.
-                    selectedShareType = publishClient.DecideShareTypeVersion(
-                        new FolderInformation(commandArgs.PanoramaServer, true),
-                        document, selectedShareType);
+                    selectedShareType = publishClient.DecideShareTypeVersion(document, selectedShareType);
                     return true;
                 }, x =>
                 {
@@ -4405,10 +4411,10 @@ namespace pwiz.Skyline
             {
                 var waitBroker = new CommandProgressMonitor(_statusWriter,
                     new ProgressStatus(SkylineResources.PanoramaPublishHelper_PublishDocToPanorama_Uploading_document_to_Panorama));
-                IPanoramaPublishClient publishClient = new WebPanoramaPublishClient();
+                IPanoramaClient publishClient = new WebPanoramaClient(panoramaServer.URI, panoramaServer.Username, panoramaServer.Password);
                 try
                 {
-                    publishClient.SendZipFile(panoramaServer, panoramaFolder, zipFilePath, waitBroker);
+                    publishClient.SendZipFile(panoramaFolder, zipFilePath, waitBroker);
                     return true;
                 }
                 catch (Exception x)

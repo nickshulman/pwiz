@@ -36,7 +36,7 @@ namespace pwiz.Skyline.Controls.Graphs
 
     internal class RTPeptideGraphPane : SummaryPeptideGraphPane, IUpdateGraphPaneController
     {
-        private Receiver<AllAlignmentsProducer.Parameter, AllAlignments> _receiver;
+        private Receiver<AllAlignments.Parameter, AllAlignments> _receiver;
         public static RTPeptideValue RTValue
         {
             get
@@ -48,7 +48,7 @@ namespace pwiz.Skyline.Controls.Graphs
         public RTPeptideGraphPane(GraphSummary graphSummary)
             : base(graphSummary, PaneKey.DEFAULT)
         {
-            _receiver = AllAlignmentsProducer.INSTANCE.RegisterCustomer(graphSummary, ProductAvailableAction);
+            _receiver = AllAlignments.PRODUCER.RegisterCustomer(graphSummary, ProductAvailableAction);
         }
 
         private void ProductAvailableAction()
@@ -78,7 +78,7 @@ namespace pwiz.Skyline.Controls.Graphs
             if (retentionTimeTransformOp.AlignmentTarget != null)
             {
                 if (!_receiver.TryGetProduct(
-                        new AllAlignmentsProducer.Parameter(document, retentionTimeTransformOp.AlignmentTarget),
+                        new AllAlignments.Parameter(document, retentionTimeTransformOp.AlignmentTarget),
                         out allAlignments))
                 {
                     retentionTimeTransformOp = null;

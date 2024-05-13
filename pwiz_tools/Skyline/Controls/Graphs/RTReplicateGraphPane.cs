@@ -39,13 +39,13 @@ namespace pwiz.Skyline.Controls.Graphs
     /// </summary>
     internal class RTReplicateGraphPane : SummaryReplicateGraphPane, IUpdateGraphPaneController
     {
-        private Receiver<AllAlignmentsProducer.Parameter, AllAlignments> _receiver;
+        private Receiver<AllAlignments.Parameter, AllAlignments> _receiver;
 
         public RTReplicateGraphPane(GraphSummary graphSummary)
             : base(graphSummary)
         {
             YAxis.Title.Text = GraphsResources.RTReplicateGraphPane_RTReplicateGraphPane_Measured_Time;
-            _receiver = AllAlignmentsProducer.INSTANCE.RegisterCustomer(graphSummary, ProductAvailableAction);
+            _receiver = AllAlignments.PRODUCER.RegisterCustomer(graphSummary, ProductAvailableAction);
 
         }
         private void ProductAvailableAction()
@@ -132,7 +132,7 @@ namespace pwiz.Skyline.Controls.Graphs
             if (null != rtTransformOp?.AlignmentTarget)
             {
                 if (!_receiver.TryGetProduct(
-                        new AllAlignmentsProducer.Parameter(document, rtTransformOp.AlignmentTarget),
+                        new AllAlignments.Parameter(document, rtTransformOp.AlignmentTarget),
                         out allAlignments))
                 {
                     rtTransformOp = null;

@@ -453,7 +453,6 @@
     <Compile Include="EditUI\PeakImputation\AlignmentControl.Designer.cs">
       <DependentUpon>AlignmentControl.cs</DependentUpon>
     </Compile>
-    <Compile Include="EditUI\PeakImputation\AlignmentProducer.cs" />
     <Compile Include="EditUI\PeakImputation\AllAlignmentsProducer.cs" />
     <Compile Include="EditUI\PeakImputation\ManualPeakTreatment.cs" />
     <Compile Include="EditUI\PeakImputation\PeakImputationForm.cs">
@@ -462,7 +461,6 @@
     <Compile Include="EditUI\PeakImputation\PeakImputationForm.Designer.cs">
       <DependentUpon>PeakImputationForm.cs</DependentUpon>
     </Compile>
-    <Compile Include="EditUI\PeakImputation\ScoringProducer.cs" />
     <Compile Include="EditUI\PermuteIsotopeModificationsDlg.designer.cs">
       <DependentUpon>PermuteIsotopeModificationsDlg.cs</DependentUpon>
     </Compile>
@@ -554,6 +552,13 @@
     </Compile>
     <Compile Include="Model\FullScanProperties.cs" />
     <Compile Include="Model\IdPeptideDocNode.cs" />
+    <Compile Include="Model\PeakImputation\AlignedPeak.cs" />
+    <Compile Include="Model\PeakImputation\ApexPeakBounds.cs" />
+    <Compile Include="Model\PeakImputation\MoleculePeaks.cs" />
+    <Compile Include="Model\PeakImputation\PeakImputationData.cs" />
+    <Compile Include="Model\PeakImputation\ResultFileInfo.cs" />
+    <Compile Include="Model\PeakImputation\ScoringResults.cs" />
+    <Compile Include="Model\Results\ReplicateFileId.cs" />
     <Compile Include="Model\Results\Spectra\Alignment\BinnedSpectrum.cs" />
     <Compile Include="Model\Results\Spectra\Alignment\SimilarityGrid.cs" />
     <Compile Include="Model\Results\Spectra\Alignment\SpectrumSummary.cs" />
@@ -561,6 +566,7 @@
     <Compile Include="Model\Results\Spectra\SpectrumClassFilter.cs" />
     <Compile Include="Model\Results\Spectra\SpectrumFilterAutoComplete.cs" />
     <Compile Include="Model\RetentionTimes\AlignmentFunction.cs" />
+    <Compile Include="Model\RetentionTimes\AlignmentProducer.cs" />
     <Compile Include="Model\RetentionTimes\AlignmentTarget.cs" />
     <Compile Include="Model\SpectrumPropertiesResx.Designer.cs">
       <AutoGen>True</AutoGen>

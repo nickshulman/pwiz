@@ -182,6 +182,10 @@ namespace pwiz.Skyline.Model.Results
 
         public bool IsChromatogramSetLoaded(int index)
         {
+            if (index < 0)
+            {
+                return Chromatograms.All(chromatogramSet => chromatogramSet.IsLoaded);
+            }
             return Chromatograms[index].IsLoaded;
         }
 

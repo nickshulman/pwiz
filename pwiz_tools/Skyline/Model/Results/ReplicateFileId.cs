@@ -26,7 +26,7 @@ namespace pwiz.Skyline.Model.Results
         {
             if (ReferenceEquals(null, obj)) return false;
             if (ReferenceEquals(this, obj)) return true;
-            if (obj.GetType() != this.GetType()) return false;
+            if (obj.GetType() != GetType()) return false;
             return Equals((ReplicateFileId)obj);
         }
 
@@ -172,6 +172,47 @@ namespace pwiz.Skyline.Model.Results
 
             return results[ReplicateIndex]
                 .Where(chromInfo => ReferenceEquals(ReplicateFileId.FileId, chromInfo.FileId));
+        }
+
+        public static ReplicateFileInfo Consensus
+        {
+            get
+            {
+                return new ReplicateFileInfo("Consensus", -1, null, null, null);
+            }
+        }
+
+        public static ReplicateFileInfo All
+        {
+            get
+            {
+                return new ReplicateFileInfo("All", -1, null, null, null);
+            }
+        }
+
+        protected bool Equals(ReplicateFileInfo other)
+        {
+            return Display == other.Display && ReplicateIndex == other.ReplicateIndex && ReplicateName == other.ReplicateName && Equals(MsDataFileUri, other.MsDataFileUri);
+        }
+
+        public override bool Equals(object obj)
+        {
+            if (ReferenceEquals(null, obj)) return false;
+            if (ReferenceEquals(this, obj)) return true;
+            if (obj.GetType() != this.GetType()) return false;
+            return Equals((ReplicateFileInfo)obj);
+        }
+
+        public override int GetHashCode()
+        {
+            unchecked
+            {
+                var hashCode = (Display != null ? Display.GetHashCode() : 0);
+                hashCode = (hashCode * 397) ^ ReplicateIndex;
+                hashCode = (hashCode * 397) ^ (ReplicateName != null ? ReplicateName.GetHashCode() : 0);
+                hashCode = (hashCode * 397) ^ (MsDataFileUri != null ? MsDataFileUri.GetHashCode() : 0);
+                return hashCode;
+            }
         }
     }
 }

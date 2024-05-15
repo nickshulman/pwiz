@@ -34,12 +34,13 @@
             this.textThreshold = new System.Windows.Forms.TextBox();
             this.btnOk = new System.Windows.Forms.Button();
             this.btnCancel = new System.Windows.Forms.Button();
+            this.lblRetentionTimeVariance = new System.Windows.Forms.Label();
+            this.tbxRetentionTimeVariance = new System.Windows.Forms.TextBox();
             this.SuspendLayout();
             // 
             // label1
             // 
             resources.ApplyResources(this.label1, "label1");
-            this.label1.MaximumSize = new System.Drawing.Size(250, 0);
             this.label1.Name = "label1";
             // 
             // label3
@@ -66,12 +67,24 @@
             this.btnCancel.Name = "btnCancel";
             this.btnCancel.UseVisualStyleBackColor = true;
             // 
-            // SetRTThresholdDlg
+            // lblRetentionTimeVariance
+            // 
+            resources.ApplyResources(this.lblRetentionTimeVariance, "lblRetentionTimeVariance");
+            this.lblRetentionTimeVariance.Name = "lblRetentionTimeVariance";
+            // 
+            // tbxRetentionTimeVariance
+            // 
+            resources.ApplyResources(this.tbxRetentionTimeVariance, "tbxRetentionTimeVariance");
+            this.tbxRetentionTimeVariance.Name = "tbxRetentionTimeVariance";
+            // 
+            // RegressionRTThresholdDlg
             // 
             this.AcceptButton = this.btnOk;
             resources.ApplyResources(this, "$this");
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.CancelButton = this.btnCancel;
+            this.Controls.Add(this.tbxRetentionTimeVariance);
+            this.Controls.Add(this.lblRetentionTimeVariance);
             this.Controls.Add(this.btnCancel);
             this.Controls.Add(this.btnOk);
             this.Controls.Add(this.textThreshold);
@@ -80,7 +93,7 @@
             this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.FixedDialog;
             this.MaximizeBox = false;
             this.MinimizeBox = false;
-            this.Name = "SetRTThresholdDlg";
+            this.Name = "RegressionRTThresholdDlg";
             this.ShowInTaskbar = false;
             this.ResumeLayout(false);
             this.PerformLayout();
@@ -94,5 +107,7 @@
         private System.Windows.Forms.TextBox textThreshold;
         private System.Windows.Forms.Button btnOk;
         private System.Windows.Forms.Button btnCancel;
+        private System.Windows.Forms.Label lblRetentionTimeVariance;
+        private System.Windows.Forms.TextBox tbxRetentionTimeVariance;
     }
 }

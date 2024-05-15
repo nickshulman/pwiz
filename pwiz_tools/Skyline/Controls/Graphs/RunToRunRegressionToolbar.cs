@@ -72,10 +72,14 @@ namespace pwiz.Skyline.Controls.Graphs
                 _inUpdate = true;
                 // Check to see if the list of files has changed.
                 var listNames = ReplicateFileInfo.List(results).ToList();
-                var targetIndex = ResetResultsCombo(listNames, toolStripComboBoxTargetReplicates);
-                var origIndex = ResetResultsCombo(listNames, toolStripComboOriginalReplicates);
+                var targetIndex = ResetResultsCombo(listNames.Prepend(ReplicateFileInfo.All).ToList(), toolStripComboBoxTargetReplicates);
+                if (targetIndex == null)
+                {
+                    targetIndex = ReplicateFileInfo.All;
+                }
+                var origIndex = ResetResultsCombo(listNames.Prepend(ReplicateFileInfo.Consensus).ToList(), toolStripComboOriginalReplicates);
                 if (origIndex == null)
-                    origIndex = listNames[listNames.IndexOf(targetIndex) + 1 % listNames.Count];
+                    origIndex = ReplicateFileInfo.Consensus;
                 _graphSummary.SetResultIndexes(targetIndex, origIndex, false);
                 toolStripComboBoxTargetReplicates.SelectedItem = targetIndex;
                 toolStripComboOriginalReplicates.SelectedItem = origIndex;
@@ -110,8 +114,9 @@ namespace pwiz.Skyline.Controls.Graphs
         {
             if (_inUpdate)
                 return;
-            if (_graphSummary.StateProvider.SelectedResultsIndex != toolStripComboBoxTargetReplicates.SelectedIndex)
-                _graphSummary.StateProvider.SelectedResultsIndex = toolStripComboBoxTargetReplicates.SelectedIndex;
+            _graphSummary.SetResultIndexes(
+                toolStripComboBoxTargetReplicates.SelectedItem as ReplicateFileInfo ?? ReplicateFileInfo.All,
+                toolStripComboOriginalReplicates.SelectedItem as ReplicateFileInfo ?? ReplicateFileInfo.Consensus);
         }
 
         private void toolStripComboOriginalReplicates_SelectedIndexChanged(object sender, EventArgs e)

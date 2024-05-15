@@ -405,7 +405,7 @@ namespace pwiz.Skyline.Model
 
         public float? GetMeasuredRetentionTime(ReplicateFileInfo replicateFileInfo)
         {
-            if (replicateFileInfo == null)
+            if (replicateFileInfo?.ReplicateFileId == null)
             {
                 return AverageMeasuredRetentionTime;
             }

@@ -131,6 +131,40 @@ namespace pwiz.Skyline.Model.RetentionTimes
             }
         }
 
+        public string AnnotateAxisName(SrmDocument document, string name)
+        {
+            if (RtValueType == RtValueType.IRT)
+            {
+                return name + " iRT Score";
+            }
+
+            string targetName;
+            if (File == null)
+            {
+                targetName = RtValueType.GetConsensusName();
+            }
+            else
+            {
+                var replicateInfo = ReplicateFileId.Find(document, File)?.FindInfo(document.MeasuredResults);
+                if (replicateInfo == null)
+                {
+                    targetName = File.GetFileNameWithoutExtension();
+                }
+                else
+                {
+                    targetName = replicateInfo.ToString();
+                }
+            }
+
+
+            string axisName = string.Format("{0} aligned to {1}", name, targetName);
+            if (RegressionMethod != RegressionMethodRT.linear)
+            {
+                axisName += " (" + RegressionMethod + ")";
+            }
+
+            return axisName;
+        }
     }
 
     public class AverageType
@@ -189,7 +223,7 @@ namespace pwiz.Skyline.Model.RetentionTimes
             return true;
         }
 
-        public abstract string GetConsenusName();
+        public abstract string GetConsensusName();
 
         public abstract IEnumerable<MsDataFileUri> ListTargets(SrmDocument document);
 
@@ -302,7 +336,7 @@ namespace pwiz.Skyline.Model.RetentionTimes
                     chrom.MSDataFilePaths) ?? Array.Empty<MsDataFileUri>().Prepend(MsDataFilePath.EMPTY);
             }
 
-            public override string GetConsenusName()
+            public override string GetConsensusName()
             {
                 return "Consensus Peak";
             }
@@ -323,7 +357,7 @@ namespace pwiz.Skyline.Model.RetentionTimes
                 }
             }
 
-            public override string GetConsenusName()
+            public override string GetConsensusName()
             {
                 return "Consensus PSM";
             }
@@ -385,7 +419,7 @@ namespace pwiz.Skyline.Model.RetentionTimes
                 return Array.Empty<MsDataFileUri>();
             }
 
-            public override string GetConsenusName()
+            public override string GetConsensusName()
             {
                 return "iRT";
             }

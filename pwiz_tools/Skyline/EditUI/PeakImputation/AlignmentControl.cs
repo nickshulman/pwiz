@@ -89,7 +89,7 @@ namespace pwiz.Skyline.EditUI.PeakImputation
                 if (rtValueType != null)
                 {
                     var options = MakeTargetFileOptions(document, rtValueType.ListTargets(document)).ToList();
-                    string consensusName = rtValueType.GetConsenusName();
+                    string consensusName = rtValueType.GetConsensusName();
                     if (consensusName != null)
                     {
                         options.Insert(0, new TargetFileOption(consensusName, null));

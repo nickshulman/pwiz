@@ -804,8 +804,11 @@ namespace pwiz.Skyline
                 }
                 _alignmentTarget = value;
                 UpdateGraphPanes();
+                AlignmentTargetChange?.Invoke(this, EventArgs.Empty);
             }
         }
+
+        public event EventHandler AlignmentTargetChange;
 
         public bool AlignToRtPrediction
         {
@@ -2822,6 +2825,9 @@ namespace pwiz.Skyline
             {
                 var runToRun = graphType == GraphTypeSummary.run_to_run_regression;
                 menuStrip.Items.Insert(iInsert++, timePlotContextMenuItem);
+                menuStrip.Items.Insert(iInsert++, onlyOutliersToolStripMenuItem);
+                onlyOutliersToolStripMenuItem.Checked = ShowOnlyOutliers;
+                menuStrip.Items.Insert(iInsert++, alignmentToolStripMenuItem);
                 if (timePlotContextMenuItem.DropDownItems.Count == 0)
                 {
                     timePlotContextMenuItem.DropDownItems.AddRange(new ToolStripItem[]
@@ -3181,6 +3187,28 @@ namespace pwiz.Skyline
             RTGraphController.PlotType = plotTypeRT;
             UpdateRetentionTimeGraph();
         }
+
+        public void SetShowOnlyOutliers(bool showOnlyOutliers)
+        {
+            ShowOnlyOutliers = showOnlyOutliers;
+            UpdateRetentionTimeGraph();
+        }
+
+        public void ShowAlignmentDlg()
+        {
+            var alignmentDlg = FormUtil.OpenForms.OfType<AlignmentDlg>().FirstOrDefault();
+            if (alignmentDlg != null)
+            {
+                alignmentDlg.Activate();
+            }
+            else
+            {
+                var dlg = new AlignmentDlg(this);
+                dlg.Show(this);
+            }
+        }
+
+        public bool ShowOnlyOutliers { get; private set; }
 
         public void ShowPointsType(PointsTypeRT pointsTypeRT)
         {

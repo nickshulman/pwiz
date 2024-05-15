@@ -234,7 +234,7 @@ namespace pwiz.Skyline.Controls.Graphs
 
                 if (AlignmentTarget.File == null)
                 {
-                    var consensusName = AlignmentTarget.RtValueType?.GetConsenusName();
+                    var consensusName = AlignmentTarget.RtValueType?.GetConsensusName();
                     if (consensusName != null)
                     {
                         return string.Format(GraphsResources.RtAlignment_AxisTitleAlignedTo,

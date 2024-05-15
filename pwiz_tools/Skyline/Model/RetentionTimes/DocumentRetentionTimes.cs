@@ -318,7 +318,7 @@ namespace pwiz.Skyline.Model.RetentionTimes
             {
                 try
                 {
-                    var measuredRetentionTime = new MeasuredRetentionTime(entry.Key, entry.Value);
+                    var measuredRetentionTime = new MeasuredRetentionTime(entry.Key, entry.Value, true);
                     dictionary.Add(entry.Key, measuredRetentionTime);
                 }
                 catch (Exception)

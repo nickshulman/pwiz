@@ -214,8 +214,8 @@ namespace pwiz.Skyline.Controls.Graphs
 
         public static PeptideDocNode[] CalcOutliers(SrmDocument document, double threshold, int? precision, bool bestResult)
         {
-            var data = new GraphData(document, null, -1, threshold, precision, true, bestResult,
-                RTGraphController.PointsType, RTGraphController.RegressionMethod, -1, null, CancellationToken.None);
+            var data = new GraphData(document, null, null, threshold, precision, true, bestResult,
+                RTGraphController.PointsType, RTGraphController.RegressionMethod, null, null, CancellationToken.None);
             return data.Refine(CancellationToken.None).Outliers;
         }
 
@@ -242,7 +242,7 @@ namespace pwiz.Skyline.Controls.Graphs
             return data != null && data.IsValidFor(document);
         }
 
-        public bool IsValidFor(SrmDocument document, int targetIndex, int originalIndex, bool bestResult, double threshold, bool refine, PointsTypeRT pointsType, RegressionMethodRT regressionMethod)
+        public bool IsValidFor(SrmDocument document, ReplicateFileId targetIndex, ReplicateFileId originalIndex, bool bestResult, double threshold, bool refine, PointsTypeRT pointsType, RegressionMethodRT regressionMethod)
         {
             var data = Data;
             return data != null && data.IsValidFor(document, targetIndex, originalIndex,bestResult, threshold, refine, pointsType, regressionMethod);
@@ -263,7 +263,7 @@ namespace pwiz.Skyline.Controls.Graphs
                 data.Graph(this, nodeSelected);
         }
 
-        private GraphData Update(SrmDocument document, int targetIndex, double threshold, bool refine, PointsTypeRT pointsType, RegressionMethodRT regressionMethod, int origIndex, CancellationToken token)
+        private GraphData Update(SrmDocument document, ReplicateFileId targetIndex, double threshold, bool refine, PointsTypeRT pointsType, RegressionMethodRT regressionMethod, ReplicateFileId origIndex, CancellationToken token)
         {
             bool bestResults = (ShowReplicate == ReplicateDisplay.best);
             return new GraphData(document, Data, targetIndex, threshold, null, refine, bestResults, 
@@ -348,20 +348,20 @@ namespace pwiz.Skyline.Controls.Graphs
             GraphHelper.FormatGraphPane(this);
             SrmDocument document = GraphSummary.DocumentUIContainer.DocumentUI;
             PeptideDocNode nodeSelected = null;
-            int targetIndex = (ShowReplicate == ReplicateDisplay.single || RunToRun ? GraphSummary.TargetResultsIndex : -1);
-            int originalIndex = RunToRun ? GraphSummary.OriginalResultsIndex : -1;
+            var targetIndex = (ShowReplicate == ReplicateDisplay.single || RunToRun ? GraphSummary.TargetResultsIndex : null);
+            var originalIndex = RunToRun ? GraphSummary.OriginalResultsIndex : null;
             var results = document.Settings.MeasuredResults;
             bool resultsAvailable = results != null;
             if (resultsAvailable)
             {
-                if (targetIndex == -1)
+                if (targetIndex == null)
                     resultsAvailable = results.IsLoaded;
                 else
-                    resultsAvailable = results.Chromatograms.Count > targetIndex &&
-                                       results.IsChromatogramSetLoaded(targetIndex);
+                    resultsAvailable = results.Chromatograms.Count > targetIndex.ReplicateIndex &&
+                                       results.IsChromatogramSetLoaded(targetIndex.ReplicateIndex);
             }
 
-            if (RunToRun && originalIndex < 0)
+            if (RunToRun && originalIndex == null)
             {
                 resultsAvailable = false;
             }
@@ -393,7 +393,7 @@ namespace pwiz.Skyline.Controls.Graphs
                 if ((RTGraphController.PointsType == PointsTypeRT.standards && !document.GetRetentionTimeStandards().Any()) ||
                     (RTGraphController.PointsType == PointsTypeRT.decoys &&
                         !document.PeptideGroups.Any(nodePepGroup => nodePepGroup.Children.Cast<PeptideDocNode>().Any(nodePep => nodePep.IsDecoy))) ||
-                    RTGraphController.PointsType == PointsTypeRT.targets_fdr && targetIndex == -1) // Replicate display is not single and this is not a run to run regression
+                    RTGraphController.PointsType == PointsTypeRT.targets_fdr && targetIndex == null) // Replicate display is not single and this is not a run to run regression
                 {
                     RTGraphController.PointsType = PointsTypeRT.targets;
                 }
@@ -401,10 +401,10 @@ namespace pwiz.Skyline.Controls.Graphs
                 PointsTypeRT pointsType = RTGraphController.PointsType;
                 RegressionMethodRT regressionMethod = RTGraphController.RegressionMethod;
 
-                if (!IsValidFor(document, targetIndex, originalIndex, bestResult, threshold, refine, pointsType,
+                if (!IsValidFor(document, targetIndex?.ReplicateFileId, originalIndex?.ReplicateFileId, bestResult, threshold, refine, pointsType,
                     regressionMethod))
                 {
-                    var requested = new RequestContext(new RegressionSettings(document, targetIndex, originalIndex, bestResult,
+                    var requested = new RequestContext(new RegressionSettings(document, targetIndex?.ReplicateFileId, originalIndex?.ReplicateFileId, bestResult,
                         threshold, refine, pointsType, regressionMethod, Settings.Default.RTCalculatorName, RunToRun));
                     if (UpdateData(requested))
                     {
@@ -512,7 +512,7 @@ namespace pwiz.Skyline.Controls.Graphs
         private class RegressionSettings
         {
             public 
-                RegressionSettings(SrmDocument document, int targetIndex, int originalIndex, bool bestResult,
+                RegressionSettings(SrmDocument document, ReplicateFileId targetIndex, ReplicateFileId originalIndex, bool bestResult,
                 double threshold, bool refine, PointsTypeRT pointsType, RegressionMethodRT regressionMethod, string calculatorName, bool isRunToRun)
             {
                 Document = document;
@@ -537,7 +537,7 @@ namespace pwiz.Skyline.Controls.Graphs
                     other.Threshold, other.Refine, other.PointsType, other.RegressionMethod, other.CalculatorName, other.IsRunToRun);
             }
 
-            private bool IsValidFor(SrmDocument document, int targetIndex, int originalIndex, bool bestResult,
+            private bool IsValidFor(SrmDocument document, ReplicateFileId targetIndex, ReplicateFileId originalIndex, bool bestResult,
                 double threshold, bool refine, PointsTypeRT pointsType, RegressionMethodRT regressionMethod, string calculatorName, bool isRunToRun)
             {
                 if(!(ReferenceEquals(Document, document) && TargetIndex == targetIndex &&
@@ -559,8 +559,8 @@ namespace pwiz.Skyline.Controls.Graphs
             }
 
             public SrmDocument Document { get; private set; }
-            public int TargetIndex { get; private set; }
-            public int OriginalIndex { get; private set; }
+            public ReplicateFileId TargetIndex { get; private set; }
+            public ReplicateFileId OriginalIndex { get; private set; }
             public bool BestResult { get; private set; }
             public double Threshold { get; private set; }
             public bool Refine { get; private set; }
@@ -655,8 +655,8 @@ namespace pwiz.Skyline.Controls.Graphs
             private readonly SrmDocument _document;
             private readonly RTLinearRegressionGraphPane _graphPane;
             private readonly RegressionMethodRT _regressionMethod;
-            private readonly int _targetIndex;
-            private readonly int _originalIndex; // set to -1 if we are using IRTs
+            private readonly ReplicateFileId _targetIndex;
+            private readonly ReplicateFileId _originalIndex; // set to null if we are using IRTs
             private readonly bool _bestResult;
             private readonly double _threshold;
             private readonly int? _thresholdPrecision;
@@ -694,23 +694,25 @@ namespace pwiz.Skyline.Controls.Graphs
 
             public GraphData(SrmDocument document,
                 GraphData dataPrevious,
-                int targetIndex,
+                ReplicateFileId target,
                 double threshold,
                 int? thresholdPrecision,
                 bool refine,
                 bool bestResult,
                 PointsTypeRT pointsType,
                 RegressionMethodRT regressionMethod,
-                int originalIndex,
+                ReplicateFileId original,
                 RTLinearRegressionGraphPane graphPane,
                 CancellationToken token
                 )
             {
                 _document = document;
                 _graphPane = graphPane;
-                _targetIndex = targetIndex;
-                _originalIndex = originalIndex;
-                if(IsRunToRun && _originalIndex < 0)
+                _targetIndex = target;
+                _originalIndex = original;
+                var targetInfo = _targetIndex?.FindInfo(document.MeasuredResults);
+                var originalInfo = original?.FindInfo(document.MeasuredResults);
+                if(IsRunToRun && _originalIndex == null)
                     throw new ArgumentException(@"Original index cannot not be negative if we are doing run to run regression");
                 _bestResult = bestResult && !IsRunToRun;
                 _threshold = threshold;
@@ -730,7 +732,6 @@ namespace pwiz.Skyline.Controls.Graphs
                 var origTimesDict = IsRunToRun ? new Dictionary<Target, double>() : null;
                 var targetTimesDict = IsRunToRun ? new Dictionary<Target, double>() : null;
 
-                var reportingStep = document.PeptideCount / (90 / REPORTING_STEP);
                 foreach (var nodePeptide in document.Molecules)
                 {
                     ProgressMonitor.CheckCanceled(token);
@@ -746,8 +747,8 @@ namespace pwiz.Skyline.Controls.Graphs
                             if(nodePeptide.IsDecoy)
                                 continue;
 
-                            if (TargetIndex != -1 && GetMaxQValue(nodePeptide, TargetIndex) >= 0.01 ||
-                                OriginalIndex != -1 && GetMaxQValue(nodePeptide, OriginalIndex) >= 0.01)
+                            if (TargetIndex != null && GetMaxQValue(nodePeptide, targetInfo) >= 0.01 ||
+                                OriginalIndex != null && GetMaxQValue(nodePeptide, originalInfo) >= 0.01)
                                 continue;
                             break;
                         }
@@ -767,11 +768,11 @@ namespace pwiz.Skyline.Controls.Graphs
                     //Only used if we are doing run to run, otherwise we use scores
                     float? rtOrig = null;
 
-                    if (originalIndex != -1)
-                        rtOrig = nodePeptide.GetSchedulingTime(originalIndex);
+                    if (originalInfo != null)
+                        rtOrig = nodePeptide.GetMeasuredRetentionTime(originalInfo);
                     
                     if (!_bestResult)
-                        rtTarget = nodePeptide.GetSchedulingTime(targetIndex);
+                        rtTarget = nodePeptide.GetMeasuredRetentionTime(targetInfo);
                     else
                     {
                         int iBest = nodePeptide.BestResult;
@@ -902,13 +903,12 @@ namespace pwiz.Skyline.Controls.Graphs
                         // with a replicate that only has one file. More would need to be done for replicates
                         // composed of multiple files.
                         ChromFileInfoId fileId = null;
-                        if (!bestResult && targetIndex != -1)
+                        if (!bestResult && target != null)
                         {
-                            var chromatogramSet = document.Settings.MeasuredResults.Chromatograms[targetIndex];
+                            var chromatogramSet = document.Settings.MeasuredResults.Chromatograms[targetInfo.ReplicateIndex];
                             if (chromatogramSet.FileCount > 0)
                             {
-                                fileId = chromatogramSet.MSDataFileInfos[0].FileId;
-                                _conversionPredict = _regressionPredict.GetConversion(fileId);
+                                _conversionPredict = _regressionPredict.GetConversion(target.FileId);
                             }
                         }
                         _statisticsPredict = _regressionPredict.CalcStatistics(_targetTimes, scoreCache, fileId);
@@ -919,10 +919,10 @@ namespace pwiz.Skyline.Controls.Graphs
                 _refine = refine && !IsRefined();
             }
 
-            private float GetMaxQValue(PeptideDocNode node, int replicateIndex)
+            private float GetMaxQValue(PeptideDocNode node, ReplicateFileInfo replicateFileInfo)
             {
                 var chromInfos = node.TransitionGroups
-                    .Select(tr => tr.GetSafeChromInfo(TargetIndex).FirstOrDefault(ci => ci.OptimizationStep == 0))
+                    .Select(tr => replicateFileInfo.GetChromInfos(tr.Results).FirstOrDefault(ci => ci.OptimizationStep == 0))
                     .Where(ci => ci?.QValue != null).ToArray();
 
                 if (chromInfos.Length == 0)
@@ -936,14 +936,14 @@ namespace pwiz.Skyline.Controls.Graphs
                 return ReferenceEquals(document, _document);
             }
 
-            public bool IsValidFor(SrmDocument document, int targetIndex, int originalIndex, bool bestResult, double threshold, bool refine, PointsTypeRT pointsType, RegressionMethodRT regressionMethod)
+            public bool IsValidFor(SrmDocument document, ReplicateFileId targetIndex, ReplicateFileId originalIndex, bool bestResult, double threshold, bool refine, PointsTypeRT pointsType, RegressionMethodRT regressionMethod)
             {
                 string calculatorName = Settings.Default.RTCalculatorName;
                 if (string.IsNullOrEmpty(calculatorName) && !IsRunToRun)
                     calculatorName = _calculator.Name;
                 return IsValidFor(document) &&
-                        _targetIndex == targetIndex &&
-                        _originalIndex == originalIndex &&
+                        Equals(_targetIndex, targetIndex) &&
+                        Equals(_originalIndex, originalIndex) &&
                         _bestResult == bestResult &&
                         _threshold == threshold &&
                         _pointsType == pointsType &&
@@ -954,9 +954,9 @@ namespace pwiz.Skyline.Controls.Graphs
                         (_refine == refine || (refine && IsRefined()));
             }
 
-            public int TargetIndex { get { return _targetIndex; } }
+            public ReplicateFileId TargetIndex { get { return _targetIndex; } }
 
-            public int OriginalIndex { get { return _originalIndex; } }
+            public ReplicateFileId OriginalIndex { get { return _originalIndex; } }
 
             public RetentionTimeRegression RegressionRefined
             {
@@ -1276,8 +1276,9 @@ namespace pwiz.Skyline.Controls.Graphs
                 {
                     if (IsRunToRun)
                     {
+                        var targetInfo = _targetIndex.FindInfo(_document.MeasuredResults);
                         return string.Format(GraphsResources.GraphData_ResidualsLabel_Time_from_Regression___0__,
-                            _document.MeasuredResults.Chromatograms[_targetIndex].Name);
+                            targetInfo);
                     }
                     else
                     {
@@ -1295,7 +1296,7 @@ namespace pwiz.Skyline.Controls.Graphs
                     if (IsRunToRun)
                     {
                         return string.Format(GraphsResources.GraphData_CorrelationLabel_Measured_Time___0__,
-                            _document.MeasuredResults.Chromatograms[_targetIndex].Name);
+                            _targetIndex?.FindInfo(_document.MeasuredResults));
                     }
                     else
                     {
@@ -1432,10 +1433,10 @@ namespace pwiz.Skyline.Controls.Graphs
                 {
                     if (IsRunToRun)
                     {
-                        if (_document.MeasuredResults != null && 0 <= _originalIndex && _originalIndex < _document.MeasuredResults.Chromatograms.Count)
+                        if (_document.MeasuredResults != null && _originalIndex != null)
                         {
                             return string.Format(GraphsResources.GraphData_CorrelationLabel_Measured_Time___0__,
-                                _document.MeasuredResults.Chromatograms[_originalIndex].Name);
+                                _originalIndex.FindInfo(_document.MeasuredResults));
                         }
                         return string.Empty;
                     }

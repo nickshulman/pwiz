@@ -18,14 +18,17 @@
  */
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Windows.Forms;
 using pwiz.Skyline.Model;
+using pwiz.Skyline.Model.Results;
 using pwiz.Skyline.Util;
 
 namespace pwiz.Skyline.Controls.Graphs
 {
     public partial class RunToRunRegressionToolbar : GraphSummaryToolbar //UserControl// for editing in the designer
     {
+        private bool _inUpdate;
         public RunToRunRegressionToolbar(GraphSummary graphSummary) :
             base(graphSummary)
         {
@@ -49,60 +52,74 @@ namespace pwiz.Skyline.Controls.Graphs
             if (visibleNew != visibleOld && visibleNew)
             {
                 // Use first two replicates to avoid comparing the first replicate to itself
-                _graphSummary.SetResultIndexes(0, 1, false);
+                var newChoices = ReplicateFileInfo.List(newDocument.MeasuredResults).Take(2).ToList();
+                _graphSummary.SetResultIndexes(newChoices[0], newChoices[1], false);
             }
         }
 
         public override void UpdateUI()
         {
+            if (_inUpdate)
+            {
+                return;
+            }
             var results = _graphSummary.DocumentUIContainer.DocumentUI.MeasuredResults;
 
             if (results == null)
                 return;
-
-            // Check to see if the list of files has changed.
-            var listNames = new List<string>();
-            foreach (var chromSet in results.Chromatograms)
-                listNames.Add(chromSet.Name);
-
-            ResetResultsCombo(listNames, toolStripComboBoxTargetReplicates);
-            var origIndex = ResetResultsCombo(listNames, toolStripComboOriginalReplicates);
-            var targetIndex = _graphSummary.StateProvider.SelectedResultsIndex;
-            if (origIndex < 0)
-                origIndex = (targetIndex + 1) % results.Chromatograms.Count;
-            _graphSummary.SetResultIndexes(targetIndex, origIndex, false);
-            _dontUpdateForTargetSelectedIndex = true;
-            toolStripComboBoxTargetReplicates.SelectedIndex = targetIndex;
-            _dontUpdateOriginalSelectedIndex = true;
-            toolStripComboOriginalReplicates.SelectedIndex = origIndex;
+            try
+            {
+                _inUpdate = true;
+                // Check to see if the list of files has changed.
+                var listNames = ReplicateFileInfo.List(results).ToList();
+                var targetIndex = ResetResultsCombo(listNames, toolStripComboBoxTargetReplicates);
+                var origIndex = ResetResultsCombo(listNames, toolStripComboOriginalReplicates);
+                if (origIndex == null)
+                    origIndex = listNames[listNames.IndexOf(targetIndex) + 1 % listNames.Count];
+                _graphSummary.SetResultIndexes(targetIndex, origIndex, false);
+                toolStripComboBoxTargetReplicates.SelectedItem = targetIndex;
+                toolStripComboOriginalReplicates.SelectedItem = origIndex;
+            }
+            finally
+            {
+                _inUpdate = false;
+            }
         }
 
-        private int ResetResultsCombo(List<string> listNames, ToolStripComboBox combo)
+        private ReplicateFileInfo ResetResultsCombo(List<ReplicateFileInfo> listNames, ToolStripComboBox combo)
         {
-            object selected = combo.SelectedItem;
+            ReplicateFileId selected = (combo.SelectedItem as ReplicateFileInfo)?.ReplicateFileId;
             combo.Items.Clear();
-            foreach (string name in listNames)
+            ReplicateFileInfo selectedInfo = null;
+            int selectedIndex = -1;
+            foreach (var name in listNames)
+            {
                 combo.Items.Add(name);
+                if (true == selected?.Equals(name.ReplicateFileId))
+                {
+                    selectedIndex = combo.Items.Count;
+                    selectedInfo = name;
+                }
+            }
+            combo.SelectedIndex = selectedIndex;
             ComboHelper.AutoSizeDropDown(combo);
-            return selected != null ? combo.Items.IndexOf(selected) : -1;
+            return selectedInfo;
         }
 
-        private bool _dontUpdateForTargetSelectedIndex;
         private void toolStripComboBoxTargetReplicates_SelectedIndexChanged(object sender, EventArgs e)
         {
-            if (_dontUpdateForTargetSelectedIndex)
-                _dontUpdateForTargetSelectedIndex = false;
-            else if (_graphSummary.StateProvider.SelectedResultsIndex != toolStripComboBoxTargetReplicates.SelectedIndex)
+            if (_inUpdate)
+                return;
+            if (_graphSummary.StateProvider.SelectedResultsIndex != toolStripComboBoxTargetReplicates.SelectedIndex)
                 _graphSummary.StateProvider.SelectedResultsIndex = toolStripComboBoxTargetReplicates.SelectedIndex;
         }
 
-        private bool _dontUpdateOriginalSelectedIndex;
         private void toolStripComboOriginalReplicates_SelectedIndexChanged(object sender, EventArgs e)
         {
-            if (_dontUpdateOriginalSelectedIndex)
-                _dontUpdateOriginalSelectedIndex = false;
-            else
-                _graphSummary.SetResultIndexes(_graphSummary.TargetResultsIndex, toolStripComboOriginalReplicates.SelectedIndex);
+            if (_inUpdate)
+                return;
+            _graphSummary.SetResultIndexes(_graphSummary.TargetResultsIndex,
+                toolStripComboOriginalReplicates.SelectedItem as ReplicateFileInfo);
         }
 
         private void toolStrip1_Resize(object sender, EventArgs e)

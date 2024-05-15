@@ -48,7 +48,6 @@ namespace pwiz.Skyline.Model.RetentionTimes
         {
             return ChangeProp(ImClone(this), im => im.RegressionMethod = value);
         }
-
         
         protected bool Equals(AlignmentTarget other)
         {
@@ -266,16 +265,19 @@ namespace pwiz.Skyline.Model.RetentionTimes
             protected override IEnumerable<KeyValuePair<PeptideModKey, IEnumerable<double>>> GetMoleculeRetentionTimes(SrmDocument document, MsDataFileUri source)
             {
                 ReplicateFileId replicateFileId = ReplicateFileId.Find(document, source);
+
                 if (replicateFileId == null)
                 {
                     yield break;
                 }
+
+                int replicateIndex = document.Settings.MeasuredResults.IndexOfId(replicateFileId.ChromatogramSetId);
                 foreach (var peptideGroup in document.Molecules.GroupBy(peptideDocNode => peptideDocNode.Key))
                 {
                     var times = new List<double>();
                     foreach (var peptideDocNode in peptideGroup)
                     {
-                        foreach (var peptideChromInfo in peptideDocNode.GetSafeChromInfo(replicateFileId.ReplicateIndex))
+                        foreach (var peptideChromInfo in peptideDocNode.GetSafeChromInfo(replicateIndex))
                         {
                             if (ReferenceEquals(peptideChromInfo.FileId, replicateFileId.FileId))
                             {

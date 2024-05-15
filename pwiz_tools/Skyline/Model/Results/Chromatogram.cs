@@ -380,6 +380,11 @@ namespace pwiz.Skyline.Model.Results
             SampleDilutionFactor = DEFAULT_DILUTION_FACTOR;
         }
 
+        public new ChromatogramSetId Id
+        {
+            get { return (ChromatogramSetId) base.Id; }
+        }
+
         public IList<ChromFileInfo> MSDataFileInfos
         {
             get { return _msDataFileInfo; }

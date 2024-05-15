@@ -344,7 +344,7 @@ namespace pwiz.Skyline
                         if (settingsOld.HasResults &&
                             settingsOld.MeasuredResults.TryGetChromatogramSet(name, out chromSetOld, out _) &&
                             settingsNew.HasResults &&
-                            settingsNew.MeasuredResults.TryGetChromatogramSet(chromSetOld.Id.GlobalIndex, out chromSetNew, out _))
+                            settingsNew.MeasuredResults.TryGetChromatogramSet(chromSetOld.Id, out chromSetNew, out _))
                         {
                             // If matching chromatogram found, but name has changed, then
                             // update the graph pane
@@ -2628,7 +2628,9 @@ namespace pwiz.Skyline
             var origIndex = -1;
             if(ComboResults != null && ComboResults.Items.Count > 0)
                 origIndex = (SelectedResultsIndex + 1) % ComboResults.Items.Count;
-            var graph = new GraphSummary(type, this, new RTGraphController(), targetIndex, origIndex);
+            var graph = new GraphSummary(type, this, new RTGraphController(),
+                ReplicateFileInfo.ForReplicateIndex(DocumentUI.MeasuredResults, targetIndex),
+                ReplicateFileInfo.ForReplicateIndex(DocumentUI.MeasuredResults, origIndex));
             graph.FormClosed += graphRetentionTime_FormClosed;
             graph.VisibleChanged += graphRetentionTime_VisibleChanged;
             graph.GraphControl.ZoomEvent += GraphControl_ZoomEvent;

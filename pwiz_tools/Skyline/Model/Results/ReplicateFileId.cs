@@ -1,21 +1,25 @@
-﻿using System.Runtime.CompilerServices;
+﻿using System;
+using pwiz.Skyline.Util.Extensions;
+using System.Collections.Generic;
+using System.Linq;
+using System.Runtime.CompilerServices;
 
 namespace pwiz.Skyline.Model.Results
 {
     public class ReplicateFileId
     {
-        public ReplicateFileId(int replicateIndex, ChromFileInfoId fileId)
+        public ReplicateFileId(ChromatogramSetId chromatogramSetId, ChromFileInfoId fileId)
         {
-            ReplicateIndex = replicateIndex;
+            ChromatogramSetId = chromatogramSetId;
             FileId = fileId;
         }
 
-        public int ReplicateIndex { get; }
+        public ChromatogramSetId ChromatogramSetId { get; }
         public ChromFileInfoId FileId { get; }
 
         protected bool Equals(ReplicateFileId other)
         {
-            return ReplicateIndex == other.ReplicateIndex && ReferenceEquals(FileId, other.FileId);
+            return ReferenceEquals(ChromatogramSetId, other.ChromatogramSetId) && ReferenceEquals(FileId, other.FileId);
         }
 
         public override bool Equals(object obj)
@@ -30,10 +34,21 @@ namespace pwiz.Skyline.Model.Results
         {
             unchecked
             {
-                return (ReplicateIndex * 397) ^ RuntimeHelpers.GetHashCode(FileId);
+                int result = RuntimeHelpers.GetHashCode(ChromatogramSetId);
+                result = (result * 397) ^ (FileId == null ? 0 : RuntimeHelpers.GetHashCode(FileId));
+                return result;
             }
         }
 
+        public static bool operator==(ReplicateFileId a, ReplicateFileId b)
+        {
+            return Equals(a, b);
+        }
+
+        public static bool operator !=(ReplicateFileId a, ReplicateFileId b)
+        {
+            return !Equals(a, b);
+        }
         public static ReplicateFileId Find(SrmDocument document, MsDataFileUri msDataFileUri)
         {
             var measuredResults = document.MeasuredResults;
@@ -41,16 +56,122 @@ namespace pwiz.Skyline.Model.Results
             {
                 return null;
             }
-            for (int i = 0; i < measuredResults.Chromatograms.Count; i++)
+
+            foreach (var chromatogramSet in measuredResults.Chromatograms)
             {
-                var chromFileInfoId = measuredResults.Chromatograms[i].FindFile(msDataFileUri);
+                var chromFileInfoId = chromatogramSet.FindFile(msDataFileUri);
                 if (chromFileInfoId != null)
                 {
-                    return new ReplicateFileId(i, chromFileInfoId);
+                    return new ReplicateFileId(chromatogramSet.Id, chromFileInfoId);
                 }
             }
 
             return null;
+        }
+
+        public ReplicateFileInfo FindInfo(MeasuredResults measuredResults)
+        {
+            if (!measuredResults.TryGetChromatogramSet(ChromatogramSetId, out var chromatogramSet,
+                    out var replicateIndex))
+            {
+                return null;
+            }
+
+            int fileIndex = chromatogramSet.IndexOfId(FileId);
+            if (fileIndex < 0)
+            {
+                return null;
+            }
+
+            return new ReplicateFileInfo(replicateIndex, chromatogramSet, chromatogramSet.MSDataFileInfos[fileIndex]);
+        }
+    }
+
+    public class ReplicateFileInfo
+    {
+        public ReplicateFileInfo(string display, int replicateIndex, string replicateName,
+            MsDataFileUri msDataFileUri, ReplicateFileId replicateFileId)
+        {
+            Display = display;
+            ReplicateIndex = replicateIndex;
+            ReplicateName = replicateName;
+            MsDataFileUri = msDataFileUri;
+            ReplicateFileId = replicateFileId;
+        }
+
+        public ReplicateFileInfo(int replicateIndex, ChromatogramSet chromatogramSet, ChromFileInfo chromFileInfo)
+        {
+            if (chromatogramSet.MSDataFileInfos.Count == 1 || chromFileInfo == null)
+            {
+                Display = chromatogramSet.Name;
+            }
+            else
+            {
+                Display = TextUtil.ColonSeparate(chromatogramSet.Name,
+                    chromFileInfo.FilePath.GetFileNameWithoutExtension());
+            }
+
+            ReplicateIndex = replicateIndex;
+            ReplicateName = chromatogramSet.Name;
+            MsDataFileUri = chromFileInfo?.FilePath;
+            ReplicateFileId = new ReplicateFileId(chromatogramSet.Id, chromFileInfo?.FileId);
+        }
+
+        public string Display { get; }
+        public override string ToString()
+        {
+            return Display;
+        }
+
+        public int ReplicateIndex { get; }
+        public string ReplicateName { get; }
+
+        public MsDataFileUri MsDataFileUri { get; }
+        public ReplicateFileId ReplicateFileId { get; }
+
+        public static IEnumerable<ReplicateFileInfo> List(MeasuredResults measuredResults)
+        {
+            if (measuredResults == null)
+            {
+                yield break;
+            }
+
+            for (int replicateIndex = 0; replicateIndex < measuredResults.Chromatograms.Count; replicateIndex++)
+            {
+                var chromatogramSet = measuredResults.Chromatograms[replicateIndex];
+                foreach (var msDataFileInfo in chromatogramSet.MSDataFileInfos)
+                {
+                    yield return new ReplicateFileInfo(replicateIndex, chromatogramSet, msDataFileInfo);
+                }
+            }
+        }
+
+        public static ReplicateFileInfo ForReplicateIndex(MeasuredResults measuredResults, int replicateIndex)
+        {
+            if (replicateIndex < 0 || measuredResults == null)
+            {
+                return null;
+            }
+
+            var chromatogramSet = measuredResults.Chromatograms[replicateIndex];
+            return new ReplicateFileInfo(replicateIndex, chromatogramSet, null);
+        }
+
+        public IEnumerable<TChromInfo> GetChromInfos<TChromInfo>(Results<TChromInfo> results)
+            where TChromInfo : ChromInfo
+        {
+            if (results == null || results.Count <= ReplicateIndex)
+            {
+                return Array.Empty<TChromInfo>();
+            }
+
+            if (ReplicateFileId.FileId == null)
+            {
+                return results[ReplicateIndex];
+            }
+
+            return results[ReplicateIndex]
+                .Where(chromInfo => ReferenceEquals(ReplicateFileId.FileId, chromInfo.FileId));
         }
     }
 }

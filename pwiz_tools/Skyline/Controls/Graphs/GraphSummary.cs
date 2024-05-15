@@ -126,8 +126,8 @@ namespace pwiz.Skyline.Controls.Graphs
         private readonly IController _controller;
 
         private bool _activeLibrary;
-        private int _targetResultsIndex;
-        private int _originalResultsIndex;
+        private ReplicateFileInfo _targetResultsIndex;
+        private ReplicateFileInfo _originalResultsIndex;
         public SkylineWindow Window;
         public bool ShowFormattingDlg;
 
@@ -148,7 +148,13 @@ namespace pwiz.Skyline.Controls.Graphs
 
         public GraphTypeSummary Type { get; set; }
 
-        public GraphSummary(GraphTypeSummary type, IDocumentUIContainer documentUIContainer, IController controller, int targetResultsIndex, int originalIndex = -1)
+        public GraphSummary(GraphTypeSummary type, IDocumentUIContainer documentUIContainer, IController controller,
+            int replicateIndex) : this(type, documentUIContainer, controller, ReplicateFileInfo.ForReplicateIndex(documentUIContainer.DocumentUI.MeasuredResults, replicateIndex))
+        {
+
+        }
+
+        public GraphSummary(GraphTypeSummary type, IDocumentUIContainer documentUIContainer, IController controller, ReplicateFileInfo targetResultsIndex, ReplicateFileInfo originalIndex = null)
         {
             _targetResultsIndex = targetResultsIndex;
             _originalResultsIndex = originalIndex;
@@ -189,23 +195,23 @@ namespace pwiz.Skyline.Controls.Graphs
 
         public int ResultsIndex
         {
-            get { return _targetResultsIndex; } // Synonym to avoid making other code use Target
+            get { return _targetResultsIndex?.ReplicateIndex ?? -1; } // Synonym to avoid making other code use Target
         }
 
-        public int TargetResultsIndex
+        public ReplicateFileInfo TargetResultsIndex
         {
             get { return _targetResultsIndex; }
         }
 
-        public int OriginalResultsIndex
+        public ReplicateFileInfo OriginalResultsIndex
         {
             get { return _originalResultsIndex; }
 
         }
 
-        public void SetResultIndexes(int target, int original = -1, bool updateIfChanged = true)
+        public void SetResultIndexes(ReplicateFileInfo target, ReplicateFileInfo original, bool updateIfChanged = true)
         {
-            bool update = target != _targetResultsIndex || original != _originalResultsIndex;
+            bool update = !Equals(target, _targetResultsIndex) || !Equals(original, _originalResultsIndex);
             _targetResultsIndex = target;
             _originalResultsIndex = original;
             if (update && updateIfChanged)

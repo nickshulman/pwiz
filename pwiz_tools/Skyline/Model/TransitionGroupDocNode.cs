@@ -22,6 +22,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using pwiz.Common.Chemistry;
+using pwiz.Common.Collections;
 using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Controls.SeqNode;
 using pwiz.Skyline.Model.Crosslinking;
@@ -1228,7 +1229,7 @@ namespace pwiz.Skyline.Model
             return Children.ToDictionary(child => ((TransitionDocNode) child).Key(this));
         }
 
-        private static readonly IDictionary<int, int> EMPTY_RESULTS_LOOKUP = new Dictionary<int, int>();
+        private static readonly IDictionary<ReferenceValue<ChromatogramSetId>, int> EMPTY_RESULTS_LOOKUP = new Dictionary<ReferenceValue<ChromatogramSetId>, int>();
 
         public TransitionGroupDocNode UpdateResults(SrmSettings settingsNew,
                                                     SrmSettingsDiff diff,
@@ -1325,7 +1326,7 @@ namespace pwiz.Skyline.Model
                 iResultOld = chromIndex;
             }
             else if (dictChromIdIndex == null
-                     || !dictChromIdIndex.TryGetValue(chromatograms.Id.GlobalIndex, out iResultOld)
+                     || !dictChromIdIndex.TryGetValue(chromatograms.Id, out iResultOld)
                      || Results != null && iResultOld >= Results.Count)
             {
                 iResultOld = -1;
@@ -1942,12 +1943,12 @@ namespace pwiz.Skyline.Model
             private readonly List<TransitionGroupChromInfoListCalculator> _listResultCalcs;
             private readonly TransitionChromInfoSet[] _arrayTransitionChromInfoSets;
             // Allow look-up of former result position
-            private readonly IDictionary<int, int> _dictChromIdIndex;
+            private readonly IDictionary<ReferenceValue<ChromatogramSetId>, int> _dictChromIdIndex;
 
             public TransitionGroupResultsCalculator(SrmSettings settings,
                                                     PeptideDocNode nodePep,
                                                     TransitionGroupDocNode nodeGroup,                                                    
-                                                    IDictionary<int, int> dictChromIdIndex)
+                                                    IDictionary<ReferenceValue<ChromatogramSetId>, int> dictChromIdIndex)
             {
                 Settings = settings;
 
@@ -2006,7 +2007,7 @@ namespace pwiz.Skyline.Model
                 {
                     int iResultOld;
                     var chromatograms = Settings.MeasuredResults.Chromatograms[iResult];
-                    if (_dictChromIdIndex.TryGetValue(chromatograms.Id.GlobalIndex, out iResultOld))
+                    if (_dictChromIdIndex.TryGetValue(chromatograms.Id, out iResultOld))
                         return iResultOld;
                 }
                 return -1;

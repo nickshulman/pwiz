@@ -41,7 +41,7 @@ namespace pwiz.Skyline.Model.Results
         private ImmutableList<ChromatogramSet> _chromatograms;
         private ImmutableList<bool> _newChromatogramData;
         private ImmutableDictionary<string, int> _dictNameToIndex;
-        private ImmutableDictionary<int, int> _dictIdToIndex;
+        private ImmutableDictionary<ReferenceValue<ChromatogramSetId>, int> _dictIdToIndex;
         private HashSet<MsDataFileUri> _setFiles;
 
         private int _countUnloaded;
@@ -76,7 +76,7 @@ namespace pwiz.Skyline.Model.Results
             {
                 _chromatograms = MakeReadOnly(value.ToArray());
                 var dictNameToIndex = new Dictionary<string, int>();
-                var dictIdToIndex = new Dictionary<int, int>();
+                var dictIdToIndex = new Dictionary<ReferenceValue<ChromatogramSetId>, int>();
                 _setFiles = new HashSet<MsDataFileUri>();
                 int count = _chromatograms.Count;
                 for (int i = 0; i < count; i++)
@@ -93,12 +93,12 @@ namespace pwiz.Skyline.Model.Results
                             string.Join(@"','", value.Select(c => c.Name)) + @"')", argumentException);
                     }
 
-                    dictIdToIndex.Add(set.Id.GlobalIndex, i);
+                    dictIdToIndex.Add(set.Id, i);
                     foreach (var path in set.MSDataFilePaths)
                         _setFiles.Add(path.GetLocation());
                 }
                 _dictNameToIndex = new ImmutableDictionary<string, int>(dictNameToIndex);
-                _dictIdToIndex = new ImmutableDictionary<int, int>(dictIdToIndex);
+                _dictIdToIndex = new ImmutableDictionary<ReferenceValue<ChromatogramSetId>, int>(dictIdToIndex);
                 _countUnloaded = _chromatograms.Count(c => !c.IsLoaded);
                 HasGlobalStandardArea = MSDataFileInfos.Any(chromFileInfo =>
                     chromFileInfo.ExplicitGlobalStandardArea.HasValue);
@@ -112,7 +112,27 @@ namespace pwiz.Skyline.Model.Results
             }
         }
 
-        public IDictionary<int, int> IdToIndexDictionary { get { return _dictIdToIndex; } }
+        public IDictionary<ReferenceValue<ChromatogramSetId>, int> IdToIndexDictionary { get { return _dictIdToIndex; } }
+
+        public int IndexOfId(ChromatogramSetId chromatogramSetId)
+        {
+            if (IdToIndexDictionary.TryGetValue(chromatogramSetId, out var index))
+            {
+                return index;
+            }
+
+            return -1;
+        }
+
+        public ChromatogramSet FindChromatogramSet(ChromatogramSetId chromatogramSetId)
+        {
+            int index = IndexOfId(chromatogramSetId);
+            if (index < 0)
+            {
+                return null;
+            }
+            return Chromatograms[index];
+        }
 
         public bool IsTimeNormalArea { get; private set; }
 
@@ -644,9 +664,9 @@ namespace pwiz.Skyline.Model.Results
             return ChromatogramSetForIndex(index, out chromatogramSet);
         }
 
-        public bool TryGetChromatogramSet(int setId, out ChromatogramSet chromatogramSet, out int index)
+        public bool TryGetChromatogramSet(ChromatogramSetId chromatogramSetId, out ChromatogramSet chromatogramSet, out int index)
         {
-            if (!_dictIdToIndex.TryGetValue(setId, out index))
+            if (!_dictIdToIndex.TryGetValue(chromatogramSetId, out index))
                 index = -1;
             return ChromatogramSetForIndex(index, out chromatogramSet);
         }

@@ -403,6 +403,34 @@ namespace pwiz.Skyline.Model
                                              : (float?)null);
         }
 
+        public float? GetMeasuredRetentionTime(ReplicateFileInfo replicateFileInfo)
+        {
+            if (replicateFileInfo == null)
+            {
+                return AverageMeasuredRetentionTime;
+            }
+
+            var retentionTimes = GetChromInfos(replicateFileInfo).Select(chromInfo => (double?)chromInfo.RetentionTime)
+                .OfType<double>().ToList();
+            if (retentionTimes.Count == 0)
+            {
+                return null;
+            }
+
+            return (float)retentionTimes.Average();
+        }
+
+        public IEnumerable<PeptideChromInfo> GetChromInfos(ReplicateFileInfo replicateFileInfo)
+        {
+            var list = GetSafeChromInfo(replicateFileInfo.ReplicateIndex);
+            if (replicateFileInfo.ReplicateFileId == null)
+            {
+                return list;
+            }
+
+            return list.Where(chromInfo => ReferenceEquals(replicateFileInfo.ReplicateFileId.FileId, chromInfo.FileId));
+        }
+
         public float? AverageMeasuredRetentionTime
         {
             get

@@ -564,8 +564,7 @@ private void SettingsControlChanged(object sender, EventArgs e)
                 {
                     var identityPath =
                         new IdentityPath(row.Peptide.IdentityPath, transitionGroupDocNode.TransitionGroup);
-                    var chromatogramSet =
-                        document.MeasuredResults.Chromatograms[resultFileInfo.ReplicateIndex];
+                    var chromatogramSet = document.MeasuredResults.FindChromatogramSet(resultFileInfo.ReplicateFileId.ChromatogramSetId);
                     document = document.ChangePeak(identityPath, chromatogramSet.Name,
                         resultFileInfo.Path, null, newStartTime, newEndTime, UserSet.MATCHED, null,
                         false);
@@ -579,6 +578,7 @@ private void SettingsControlChanged(object sender, EventArgs e)
         public static ApexPeakBounds GetPeakBounds(Model.Databinding.Entities.Peptide peptide, AlignedPeak peak)
         {
             var alignmentFunction = peak.ResultFileInfo.AlignmentFunction;
+
             var rawPeakBounds = GetRawPeakBounds(peptide.DocNode, peak.ResultFileInfo.ReplicateIndex,
                 peak.ResultFileInfo.ChromFileInfoId).Align(alignmentFunction);
             var apexTime = peak.AlignedPeakBounds.ApexTime;

@@ -361,14 +361,15 @@ namespace pwiz.Skyline.Model.PeakImputation
                 yield break;
             }
 
-            for (int replicateIndex = 0; replicateIndex < measuredResults.Chromatograms.Count; replicateIndex++)
+            for (int i = 0; i < measuredResults.Chromatograms.Count; i++)
             {
-                foreach (var chromFileInfo in measuredResults.Chromatograms[replicateIndex].MSDataFileInfos)
+                var chromatogramSet = measuredResults.Chromatograms[i];
+                foreach (var chromFileInfo in chromatogramSet.MSDataFileInfos)
                 {
                     var alignmentFunction = allAlignments?.GetAlignmentFunction(chromFileInfo.FilePath) ??
                                             AlignmentFunction.IDENTITY;
 
-                    yield return new ResultFileInfo(new ReplicateFileId(replicateIndex, chromFileInfo.FileId), chromFileInfo.FilePath, alignmentFunction);
+                    yield return new ResultFileInfo(i, new ReplicateFileId(chromatogramSet.Id, chromFileInfo.FileId), chromFileInfo.FilePath, alignmentFunction);
                 }
             }
         }

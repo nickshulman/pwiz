@@ -3713,8 +3713,9 @@ namespace pwiz.Skyline
         {
             foreach (var g in graphs.Where(g => g.ResultsIndex != ComboResults.SelectedIndex))
             {
-                int origIndex = useOriginalIndex ? g.OriginalResultsIndex : -1;
-                g.SetResultIndexes(ComboResults.SelectedIndex, origIndex);
+                ReplicateFileInfo origIndex = useOriginalIndex ? g.OriginalResultsIndex : null;
+                var measuredResults = DocumentUI.MeasuredResults;
+                g.SetResultIndexes(ReplicateFileInfo.ForReplicateIndex(measuredResults, ComboResults.SelectedIndex), origIndex);
             }
         }
 

@@ -250,7 +250,9 @@ namespace pwiz.Skyline.Controls.Graphs
                 {
                     return ToLocalizedString(rtPeptideValue);
                 }
-                return string.Format(GraphsResources.RtAlignment_AxisTitleAlignedTo, ToLocalizedString(rtPeptideValue), Document.Settings.MeasuredResults.Chromatograms[replicateFileId.ReplicateIndex]);
+
+                return string.Format(GraphsResources.RtAlignment_AxisTitleAlignedTo, ToLocalizedString(rtPeptideValue),
+                    Document.Settings.MeasuredResults.FindChromatogramSet(replicateFileId.ChromatogramSetId).Name);
             }
         }
 

@@ -254,7 +254,7 @@ namespace pwiz.Skyline.Controls.Graphs
         public static PeptideDocNode[] CalcOutliers(SrmDocument document, double threshold, int? precision, bool bestResult)
         {
             var settings = new RegressionSettings(document, null, null, bestResult, threshold, false,
-                RTGraphController.PointsType, RTGraphController.RegressionMethod, null, false);
+                RTGraphController.PointsType, RTGraphController.RegressionMethod, null, false).ChangeOutlierRtDifferenceThreshold(RTGraphController.OutlierVarianceThreshold);
             var data = new GraphData(settings, precision, null, CancellationToken.None, null, null);
             return data.Refine(CancellationToken.None).Outliers;
         }
@@ -307,7 +307,7 @@ namespace pwiz.Skyline.Controls.Graphs
         {
             var settings = new RegressionSettings(document, targetIndex?.ReplicateFileId, origIndex?.ReplicateFileId,
                 (ShowReplicate == ReplicateDisplay.best), threshold, refine, pointsType, regressionMethod, null,
-                RunToRun);
+                RunToRun).ChangeOutlierRtDifferenceThreshold(RTGraphController.OutlierVarianceThreshold);
             return new GraphData(settings, null, Data, token, null, null);
             
         }
@@ -442,8 +442,10 @@ namespace pwiz.Skyline.Controls.Graphs
                 PointsTypeRT pointsType = RTGraphController.PointsType;
                 RegressionMethodRT regressionMethod = RTGraphController.RegressionMethod;
 
-            var regressionSettings = new RegressionSettings(document, targetIndex?.ReplicateFileId, originalIndex?.ReplicateFileId, bestResult,
-                threshold, refine, pointsType, regressionMethod, Settings.Default.RTCalculatorName, RunToRun);
+                var regressionSettings = new RegressionSettings(document, targetIndex?.ReplicateFileId,
+                        originalIndex?.ReplicateFileId, bestResult,
+                        threshold, refine, pointsType, regressionMethod, Settings.Default.RTCalculatorName, RunToRun)
+                    .ChangeOutlierRtDifferenceThreshold(RTGraphController.OutlierVarianceThreshold);
             regressionSettings = regressionSettings.ChangeAlignmentTarget(GraphSummary.StateProvider
                 .GetRetentionTimeTransformOperation()?.AlignmentTarget);
             if (!_receiver.TryGetProduct(regressionSettings, out var data))
@@ -484,7 +486,7 @@ namespace pwiz.Skyline.Controls.Graphs
                        Threshold.Equals(other.Threshold) && Refine == other.Refine && PointsType == other.PointsType &&
                        RegressionMethod == other.RegressionMethod && CalculatorName == other.CalculatorName &&
                        ArrayUtil.EqualsDeep(Calculators, other.Calculators) && IsRunToRun == other.IsRunToRun &&
-                       Equals(AlignmentTarget, other.AlignmentTarget);
+                       Equals(AlignmentTarget, other.AlignmentTarget) && Nullable.Equals(OutlierRtDifferenceThreshold, other.OutlierRtDifferenceThreshold);
             }
 
             public override bool Equals(object obj)
@@ -511,6 +513,7 @@ namespace pwiz.Skyline.Controls.Graphs
                     hashCode = (hashCode * 397) ^ ArrayUtil.GetHashCodeDeep(Calculators);
                     hashCode = (hashCode * 397) ^ IsRunToRun.GetHashCode();
                     hashCode = (hashCode * 397) ^ (AlignmentTarget != null ? AlignmentTarget.GetHashCode() : 0);
+                    hashCode = (hashCode * 397) ^ OutlierRtDifferenceThreshold.GetHashCode();
                     return hashCode;
                 }
             }
@@ -552,7 +555,12 @@ namespace pwiz.Skyline.Controls.Graphs
                 return ChangeProp(ImClone(this), im => im.AlignmentTarget = value);
             }
 
-            
+            public double? OutlierRtDifferenceThreshold { get; private set; }
+
+            public RegressionSettings ChangeOutlierRtDifferenceThreshold(double? value)
+            {
+                return ChangeProp(ImClone(this), im => im.OutlierRtDifferenceThreshold = value);
+            }
         }
 
         /// <summary>
@@ -831,10 +839,8 @@ namespace pwiz.Skyline.Controls.Graphs
                         _statisticsPredict = _regressionPredict.CalcStatistics(GetTargetTimes(), scoreCache, fileId);
                     }
                 }
-                MarkOutliers(_points);
                 // Only refine, if not already exceeding the threshold
                 _refine = RegressionSettings.Refine && !IsRefined();
-                
             }
 
             public RegressionSettings RegressionSettings { get; }
@@ -1142,7 +1148,7 @@ namespace pwiz.Skyline.Controls.Graphs
                 }
 
                 if (!Program.MainWindow.ShowOnlyOutliers) {
-                    var curve = graphPane.AddCurve(labelPoints, MakePointList(_points.Where(pt=>!pt.IsOutlier)),
+                    var curve = graphPane.AddCurve(labelPoints, MakePointList(_points.Where(pt=>!IsOutlier(pt))),
                                                Color.Black, SymbolType.Diamond);
 
                     curve.Line.IsVisible = false;
@@ -1150,8 +1156,8 @@ namespace pwiz.Skyline.Controls.Graphs
                     curve.Symbol.Fill = new Fill(COLOR_REFINED);
                 }
 
-                var outlierPointList = MakePointList(_points.Where(pt => pt.IsOutlier));
-                if (outlierPointList.Any())
+                var outlierPointList = MakePointList(_points.Where(IsOutlier));
+                if (outlierPointList.Any() || Program.MainWindow.ShowOnlyOutliers)
                 {
                     var curveOut = graphPane.AddCurve(GraphsResources.GraphData_Graph_Outliers, outlierPointList,
                                                       Color.Black, SymbolType.Diamond);
@@ -1213,6 +1219,12 @@ namespace pwiz.Skyline.Controls.Graphs
                 }
             }
 
+            public bool IsOutlier(RtPoint point)
+            {
+                return Math.Abs(point.TargetValue - point.OriginalValue) >
+                       RegressionSettings.OutlierRtDifferenceThreshold;
+            }
+
             public RetentionTimeRegression ResidualsRegression
             {
                 get { return _regressionPredict ?? _regressionRefined ?? _regressionAll; }
@@ -1242,6 +1254,10 @@ namespace pwiz.Skyline.Controls.Graphs
                 {
                     if (IsRunToRun)
                     {
+                        if (Equals(_targetIndex, ReplicateFileInfo.All))
+                        {
+                            return "Measured Time";
+                        }
                         return string.Format(GraphsResources.GraphData_CorrelationLabel_Measured_Time___0__,
                             _targetIndex);
                     }
@@ -1438,22 +1454,6 @@ namespace pwiz.Skyline.Controls.Graphs
             }
             public double OriginalValue { get; }
             public double TargetValue { get; }
-            public bool IsOutlier { get; set; }
-        }
-
-        private static void MarkOutliers(IEnumerable<RtPoint> points)
-        {
-            foreach (var group in points.GroupBy(pt => pt.Target))
-            {
-                var stdDev = group.Select(pt => pt.TargetValue).StandardDeviation();
-                if (!double.IsNaN(stdDev) && stdDev > 1)
-                {
-                    foreach (var pt in group)
-                    {
-                        pt.IsOutlier = true;
-                    }
-                }
-            }
         }
 
         private static Producer<RegressionSettings, GraphData> GRAPH_DATA_PRODUCER = new GraphDataProducer();

@@ -28,6 +28,7 @@ namespace pwiz.Skyline.EditUI
     public partial class RegressionRTThresholdDlg : FormEx
     {
         private double _threshold;
+        private double? _variance;
 
         public RegressionRTThresholdDlg()
         {
@@ -44,17 +45,44 @@ namespace pwiz.Skyline.EditUI
             }
         }
 
+        public double? Variance
+        {
+            get
+            {
+                return _variance;
+            }
+            set
+            {
+                _variance = value;
+                tbxRetentionTimeVariance.Text = Variance?.ToString() ?? string.Empty;
+            }
+        }
+
         public void OkDialog()
         {
             var helper = new MessageBoxHelper(this);
             if (!helper.ValidateDecimalTextBox(textThreshold, 0, 1.0, out _threshold))
                 return;
 
+            if (string.IsNullOrEmpty(tbxRetentionTimeVariance.Text.Trim()))
+            {
+                _variance = null;
+            }
+            else
+            {
+
+                if (!helper.ValidateDecimalTextBox(tbxRetentionTimeVariance, 0, null, out var variance))
+                {
+                    return;
+                }
+
+                _variance = variance;
+            }
+
             // Round to precision used in calculating optimal regressions
             _threshold = Math.Round(_threshold, RetentionTimeRegression.ThresholdPrecision);
 
             DialogResult = DialogResult.OK;
-            Close();
         }
 
         private void btnOk_Click(object sender, EventArgs e)

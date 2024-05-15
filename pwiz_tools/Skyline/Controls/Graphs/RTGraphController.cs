@@ -87,6 +87,7 @@ namespace pwiz.Skyline.Controls.Graphs
         }
 
         public static double OutThreshold { get { return Settings.Default.RTResidualRThreshold; } }
+        public static double? OutlierVarianceThreshold { get; set; }
 
         public GraphSummary GraphSummary { get; set; }
 

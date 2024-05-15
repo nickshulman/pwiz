@@ -3339,9 +3339,11 @@ namespace pwiz.Skyline
             using (var dlg = new RegressionRTThresholdDlg())
             {
                 dlg.Threshold = Settings.Default.RTResidualRThreshold;
+                dlg.Variance = RTGraphController.OutlierVarianceThreshold;
                 if (dlg.ShowDialog(this) == DialogResult.OK)
                 {
                     Settings.Default.RTResidualRThreshold = dlg.Threshold;
+                    RTGraphController.OutlierVarianceThreshold = dlg.Variance;
                     UpdateRetentionTimeGraph();
                 }
             }

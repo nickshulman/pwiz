@@ -9,6 +9,7 @@ namespace pwiz.Common.SystemUtil.Caching
     {
         public static readonly ProductionFacility DEFAULT = new ProductionFacility();
         private Dictionary<WorkOrder, Entry> _entries = new Dictionary<WorkOrder, Entry>();
+        private List<Action> _waitingToBeQueued = new List<Action>();
 
         public void Listen(WorkOrder key, IProductionListener listener)
         {
@@ -208,7 +209,7 @@ namespace pwiz.Common.SystemUtil.Caching
                     {
                         return;
                     }
-                    
+
                     foreach (var dependency in _dependencies.Except(_dependencyResultValues.Keys))
                     {
                         var result = Cache.GetResult(dependency);
@@ -219,9 +220,11 @@ namespace pwiz.Common.SystemUtil.Caching
                                 NotifyResultAvailable(result);
                                 return;
                             }
+
                             _dependencyResultValues.Add(dependency, result.Value);
                         }
                     }
+
                     if (_dependencies.Count > _dependencyResultValues.Count)
                     {
                         return;
@@ -229,7 +232,7 @@ namespace pwiz.Common.SystemUtil.Caching
 
                     _cancellationTokenSource = new CancellationTokenSource();
                     var progressCallback = new ProductionMonitor(_cancellationTokenSource.Token, OnMyProgressChanged);
-                    CommonActionUtil.RunAsync(() =>
+                    Cache.Enqueue(() =>
                     {
                         try
                         {
@@ -308,6 +311,33 @@ namespace pwiz.Common.SystemUtil.Caching
         public void DecrementWaitingCount()
         {
             Interlocked.Decrement(ref _waitingCount);
+        }
+
+        private void Enqueue(Action action)
+        {
+            lock (this)
+            {
+                if (_waitingToBeQueued.Count == 0)
+                {
+                    CommonActionUtil.RunAsync(StartThreadsForActionsInQueue);
+                }
+                _waitingToBeQueued.Add(action);
+            }
+        }
+
+        private void StartThreadsForActionsInQueue()
+        {
+            Action[] actions;
+            lock (this)
+            {
+                actions = _waitingToBeQueued.ToArray();
+                _waitingToBeQueued.Clear();
+            }
+
+            foreach (var action in actions)
+            {
+                CommonActionUtil.RunAsync(action);
+            }
         }
     }
 }

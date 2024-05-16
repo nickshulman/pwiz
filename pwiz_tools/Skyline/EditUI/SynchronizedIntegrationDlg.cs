@@ -96,10 +96,15 @@ namespace pwiz.Skyline.EditUI
                 SetCheckedItems((settingsIntegration.SynchronizedIntegrationAll ? TargetOptions : settingsIntegration.SynchronizedIntegrationTargets).ToHashSet());
             }
 
-            comboAlign.Items.Add(new AlignItem());
-            comboAlign.Items.Add(new AlignItem(Document.Settings.PeptideSettings.Prediction));
-            comboAlign.Items.AddRange(AlignItem.GetAlignChromFileInfos(Document.Settings).Select(info => new AlignItem(info)).ToArray());
-            SelectAlignOption();
+            var alignItems = AlignmentTarget.GetOptions(Document)
+                .Select(target => new AlignItem(target.ToString(), target)).Prepend(AlignItem.None).ToList();
+            var selectedItem = new AlignItem(_skylineWindow.AlignmentTarget);
+            if (!alignItems.Contains(selectedItem))
+            {
+                alignItems.Insert(1, selectedItem);
+            }
+            comboAlign.Items.AddRange(alignItems.ToArray());
+            comboAlign.SelectedItem = selectedItem;
         }
 
         private int? GetItemIndex(string s, bool persistedString)
@@ -123,18 +128,6 @@ namespace pwiz.Skyline.EditUI
         {
             for (var i = 0; i < listSync.Items.Count; i++)
                 listSync.SetItemChecked(i, items != null && items.Contains(listSync.Items[i].ToString()));
-        }
-
-        private void SelectAlignOption()
-        {
-            foreach (AlignItem item in comboAlign.Items)
-            {
-                if (item.IsMatch(_skylineWindow))
-                {
-                    comboAlign.SelectedItem = item;
-                    return;
-                }
-            }
         }
 
         private void comboGroupBy_SelectedIndexChanged(object sender, EventArgs e)
@@ -230,16 +223,7 @@ namespace pwiz.Skyline.EditUI
 
         private void comboAlign_SelectedIndexChanged(object sender, EventArgs e)
         {
-            if (((AlignItem)comboAlign.SelectedItem).Select(_skylineWindow))
-                return;
-
-            // RT prediction selected, but document does not have predictor
-            if (!_originalAlignRtPrediction)
-            {
-                SelectAlignOption();
-                MessageDlg.Show(this,
-                    EditUIResources.SynchronizedIntegrationDlg_comboAlign_SelectedIndexChanged_To_align_to_retention_time_prediction__you_must_first_set_up_a_retention_time_predictor_in_Peptide_Settings___Prediction_);
-            }
+            _skylineWindow.AlignmentTarget = comboAlign.SelectedItem as AlignmentTarget;
         }
 
         private void btnOk_Click(object sender, EventArgs e)
@@ -259,13 +243,14 @@ namespace pwiz.Skyline.EditUI
         }
 
         #region Functional test support
+
         public AlignItem SelectedAlignItem => (AlignItem)comboAlign.SelectedItem;
 
         public bool SelectNone()
         {
             foreach (AlignItem item in comboAlign.Items)
             {
-                if (item.IsNone)
+                if (Equals(item.IsNone))
                 {
                     comboAlign.SelectedItem = item;
                     return true;
@@ -276,24 +261,9 @@ namespace pwiz.Skyline.EditUI
 
         public bool SelectAlignRt()
         {
-            foreach (AlignItem item in comboAlign.Items)
+            foreach (AlignmentTarget item in comboAlign.Items)
             {
-                if (item.IsRTRegression)
-                {
-                    if (item.CalcName == null)
-                        return false;
-                    comboAlign.SelectedItem = item;
-                    return true;
-                }
-            }
-            return false;
-        }
-
-        public bool SelectAlignFile(ChromFileInfoId file)
-        {
-            foreach (AlignItem item in comboAlign.Items)
-            {
-                if (item.IsFile && Equals(item.AlignmentTarget, file))
+                if (item.RtValueType == RtValueType.IRT)
                 {
                     comboAlign.SelectedItem = item;
                     return true;
@@ -333,81 +303,61 @@ namespace pwiz.Skyline.EditUI
 
         public class AlignItem
         {
-            private readonly PeptidePrediction _prediction;
-            private readonly AlignmentTarget _chromFileInfo;
-
-            public bool IsNone => !IsRTRegression && !IsFile;
-            public bool IsRTRegression => _prediction != null;
-            public bool IsFile => _chromFileInfo != null;
-
-            public string CalcName =>
-                IsRTRegression && _prediction.RetentionTime != null && _prediction.RetentionTime.IsAutoCalculated
-                    ? _prediction.RetentionTime.Calculator?.Name
-                    : null;
-            public AlignmentTarget AlignmentTarget => _chromFileInfo;
-
-            public AlignItem()
+            public static AlignItem None
             {
+                get
+                {
+                    return new AlignItem(null);
+                }
             }
 
-            public AlignItem(PeptidePrediction prediction)
+            public AlignItem(string display, AlignmentTarget target)
             {
-                _prediction = prediction;
+                Display = display;
+                Target = target;
             }
 
-            public AlignItem(ChromFileInfo chromFileInfo)
+            public AlignItem(AlignmentTarget target) : this(target?.ToString() ?? "None", target)
             {
-                //_chromFileInfo = chromFileInfo;
+
             }
 
-            public bool Select(SkylineWindow skylineWindow)
-            {
-                skylineWindow.AlignToRtPrediction = IsRTRegression;
-                skylineWindow.AlignmentTarget = IsFile ? _chromFileInfo : null;
-                return !(IsRTRegression && CalcName == null);
-            }
-
-            public bool IsMatch(SkylineWindow skylineWindow)
-            {
-                if (skylineWindow.AlignToRtPrediction)
-                    return IsRTRegression;
-                else if (skylineWindow.AlignmentTarget != null)
-                    return IsFile && Equals(skylineWindow.AlignmentTarget, _chromFileInfo);
-                return IsNone;
-            }
+            public string Display { get; }
+            public AlignmentTarget Target { get; }
 
             public override string ToString()
             {
-                if (IsRTRegression)
-                {
-                    return CalcName != null
-                        ? string.Format(EditUIResources.AlignItem_ToString_Retention_time_calculator___0__, CalcName)
-                        : EditUIResources.AlignItem_ToString_Retention_time_calculator___;
-                }
-                else if (IsFile)
-                {
-                    return _chromFileInfo.ToString();
-                }
-                return EditUIResources.AlignItem_ToString_None;
+                return Display;
             }
 
-            public static IEnumerable<ChromFileInfo> GetAlignChromFileInfos(SrmSettings settings)
+            protected bool Equals(AlignItem other)
             {
-                if (!settings.HasResults || settings.DocumentRetentionTimes.FileAlignments.IsEmpty)
-                    yield break;
+                return Display == other.Display && Equals(Target, other.Target);
+            }
 
-                var chromFileInfos = settings.MeasuredResults.Chromatograms.SelectMany(chromSet => chromSet.MSDataFileInfos).ToArray();
-                foreach (var name in settings.DocumentRetentionTimes.FileAlignments.Select(alignment => alignment.Key))
+            public override bool Equals(object obj)
+            {
+                if (ReferenceEquals(null, obj)) return false;
+                if (ReferenceEquals(this, obj)) return true;
+                if (obj.GetType() != this.GetType()) return false;
+                return Equals((AlignItem)obj);
+            }
+
+            public override int GetHashCode()
+            {
+                unchecked
                 {
-                    var chromFileInfo = chromFileInfos.FirstOrDefault(info => name.Equals(FileDisplayName(info)));
-                    if (chromFileInfo != null)
-                        yield return chromFileInfo;
+                    return ((Display != null ? Display.GetHashCode() : 0) * 397) ^
+                           (Target != null ? Target.GetHashCode() : 0);
                 }
             }
 
-            private static string FileDisplayName(IPathContainer chromFileInfo)
+            public bool IsNone
             {
-                return chromFileInfo.FilePath.GetFileNameWithoutExtension();
+                get
+                {
+                    return Equals(None);
+                }
             }
         }
     }

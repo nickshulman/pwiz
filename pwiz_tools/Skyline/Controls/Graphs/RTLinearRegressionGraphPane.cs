@@ -23,7 +23,6 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Windows.Forms;
-using MathNet.Numerics.Statistics;
 using pwiz.Common.SystemUtil;
 using pwiz.Common.SystemUtil.Caching;
 using pwiz.Skyline.Alerts;
@@ -160,14 +159,14 @@ namespace pwiz.Skyline.Controls.Graphs
                 double x, y;
                 if (RTGraphController.PlotType == PlotTypeRT.residuals && Data != null &&
                     Data.ResidualsRegression != null && Data.ResidualsRegression.Conversion != null)
-                    y = Data.GetResidual(Data.ResidualsRegression, peptideIndex.OriginalValue, peptideIndex.TargetValue);
+                    y = Data.GetResidual(Data.ResidualsRegression, peptideIndex.XValue, peptideIndex.YValue);
 
                 if (_tip == null)
                     _tip = new NodeTip(this);
 
+                string yAxisText = peptideIndex.ReplicateFileInfo?.ToString() ?? YAxis.Title.Text;
                 _tip.SetTipProvider(
-                    new PeptideRegressionTipProvider(peptideIndex.DocNode, XAxis.Title.Text, YAxis.Title.Text,
-                        new PointD(peptideIndex.OriginalValue, peptideIndex.TargetValue)),
+                    new PeptideRegressionTipProvider(peptideIndex, XAxis.Title.Text, yAxisText),
                     new Rectangle(e.Location, new Size()),
                     e.Location);
 
@@ -450,6 +449,7 @@ namespace pwiz.Skyline.Controls.Graphs
                 .GetRetentionTimeTransformOperation()?.AlignmentTarget);
             if (!_receiver.TryGetProduct(regressionSettings, out var data))
             {
+                UpdateProgressHandler();
                 return;
             }
 
@@ -700,7 +700,7 @@ namespace pwiz.Skyline.Controls.Graphs
 
                         if (!rtTarget.HasValue)
                         {
-                            if (targetInfo.ReplicateFileId == null)
+                            if (_targetIndex.ReplicateFileId == null)
                             {
                                 continue;
                             }
@@ -710,7 +710,7 @@ namespace pwiz.Skyline.Controls.Graphs
 
                         if (!rtOrig.HasValue)
                         {
-                            if (targetInfo.ReplicateFileId == null)
+                            if (_targetIndex.ReplicateFileId == null)
                             {
                                 continue;
                             }
@@ -718,17 +718,14 @@ namespace pwiz.Skyline.Controls.Graphs
                             rtOrig = 0;
                         }
 
-                        
-                        if (rtTarget.HasValue)
+                        var alignmentFunction =
+                            allAlignments?.GetAlignmentFunction(targetInfo.ReplicateFileId.FileId);
+                        var alignedYValue = alignmentFunction?.GetY(rtTarget.Value) ?? rtTarget.Value;
+                        if (alignmentFunction != null)
                         {
-                            var alignmentFunction =
-                                allAlignments?.GetAlignmentFunction(targetInfo.ReplicateFileId.FileId);
-                            if (alignmentFunction != null)
-                            {
-                                rtTarget = (float) alignmentFunction?.GetY(rtTarget.Value);
-                            }
+                            rtTarget = (float) alignmentFunction?.GetY(rtTarget.Value);
                         }
-                        _points.Add(new RtPoint(nodePeptide, identityPath, targetInfo, rtOrig.Value, rtTarget.Value));
+                        _points.Add(new RtPoint(nodePeptide, identityPath, targetInfo, rtOrig.Value, alignedYValue, rtTarget.Value));
                     }
                 }
 
@@ -1007,8 +1004,8 @@ namespace pwiz.Skyline.Controls.Graphs
                 {
                     for (int i = 0; i < _points.Count; i++)
                     {
-                        if (PointIsOverEx(graphPane, point, regression, _points[i].OriginalValue,
-                                _points[i].TargetValue))
+                        if (PointIsOverEx(graphPane, point, regression, _points[i].XValue,
+                                _points[i].YValue))
                         {
                             return _points[i]; 
                         }
@@ -1029,13 +1026,13 @@ namespace pwiz.Skyline.Controls.Graphs
             public List<MeasuredRetentionTime> GetTargetTimes()
             {
                 return GetPointsByTarget().Select(kvp =>
-                    new MeasuredRetentionTime(kvp.Key, kvp.Value.Select(pt => pt.TargetValue).Average(), true)).ToList();
+                    new MeasuredRetentionTime(kvp.Key, kvp.Value.Select(pt => pt.YValue).Average(), true)).ToList();
             }
 
             public List<MeasuredRetentionTime> GetOriginalTimes()
             {
                 return GetPointsByTarget().Select(kvp =>
-                    new MeasuredRetentionTime(kvp.Key, kvp.Value.Select(pt => pt.OriginalValue).Average())).ToList();
+                    new MeasuredRetentionTime(kvp.Key, kvp.Value.Select(pt => pt.XValue).Average())).ToList();
             }
 
             private bool PointIsOverEx(RTLinearRegressionGraphPane graphPane, PointF point,
@@ -1146,6 +1143,15 @@ namespace pwiz.Skyline.Controls.Graphs
                 {
                     GraphRegression(graphPane, _statisticsPredict, _regressionAll, GraphsResources.GraphData_Graph_Predictor, COLOR_LINE_PREDICT);
                 }
+                var outlierPointList = MakePointList(_points.Where(IsOutlier));
+                if (outlierPointList.Any() || Program.MainWindow.ShowOnlyOutliers)
+                {
+                    var curveOut = graphPane.AddCurve(GraphsResources.GraphData_Graph_Outliers, outlierPointList,
+                        Color.Black, SymbolType.Diamond);
+                    curveOut.Line.IsVisible = false;
+                    curveOut.Symbol.Border.IsVisible = false;
+                    curveOut.Symbol.Fill = new Fill(COLOR_OUTLIERS);
+                }
 
                 if (!Program.MainWindow.ShowOnlyOutliers) {
                     var curve = graphPane.AddCurve(labelPoints, MakePointList(_points.Where(pt=>!IsOutlier(pt))),
@@ -1155,21 +1161,11 @@ namespace pwiz.Skyline.Controls.Graphs
                     curve.Symbol.Border.IsVisible = false;
                     curve.Symbol.Fill = new Fill(COLOR_REFINED);
                 }
-
-                var outlierPointList = MakePointList(_points.Where(IsOutlier));
-                if (outlierPointList.Any() || Program.MainWindow.ShowOnlyOutliers)
-                {
-                    var curveOut = graphPane.AddCurve(GraphsResources.GraphData_Graph_Outliers, outlierPointList,
-                                                      Color.Black, SymbolType.Diamond);
-                    curveOut.Line.IsVisible = false;
-                    curveOut.Symbol.Border.IsVisible = false;
-                    curveOut.Symbol.Fill = new Fill(COLOR_OUTLIERS);
-                }
             }
 
             private PointPairList MakePointList(IEnumerable<RtPoint> points)
             {
-                return new PointPairList(points.Select(pt => new PointPair(pt.OriginalValue, pt.TargetValue)
+                return new PointPairList(points.Select(pt => new PointPair(pt.XValue, pt.YValue)
                 {
                     Tag = pt
                 }).ToList());
@@ -1221,7 +1217,7 @@ namespace pwiz.Skyline.Controls.Graphs
 
             public bool IsOutlier(RtPoint point)
             {
-                return Math.Abs(point.TargetValue - point.OriginalValue) >
+                return Math.Abs(point.YValue - point.XValue) >
                        RegressionSettings.OutlierRtDifferenceThreshold;
             }
 
@@ -1436,14 +1432,14 @@ namespace pwiz.Skyline.Controls.Graphs
 
         public class RtPoint : Immutable
         {
-            public RtPoint(PeptideDocNode peptideDocNode, IdentityPath identityPath, ReplicateFileInfo replicateFileInfo, double originalValue, double targetValue)
+            public RtPoint(PeptideDocNode peptideDocNode, IdentityPath identityPath, ReplicateFileInfo replicateFileInfo, double xValue, double yValue, double rawYValue)
             {
                 DocNode = peptideDocNode;
                 IdentityPath = identityPath;
                 ReplicateFileInfo = replicateFileInfo;
-                OriginalValue = originalValue;
-                TargetValue = targetValue;
-
+                XValue = xValue;
+                YValue = yValue;
+                RawYValue = rawYValue;
             }
             public PeptideDocNode DocNode { get; }
             public IdentityPath IdentityPath { get; }
@@ -1452,8 +1448,9 @@ namespace pwiz.Skyline.Controls.Graphs
             {
                 get { return DocNode.SourceModifiedTarget; }
             }
-            public double OriginalValue { get; }
-            public double TargetValue { get; }
+            public double XValue { get; }
+            public double YValue { get; }
+            public double RawYValue { get; }
         }
 
         private static Producer<RegressionSettings, GraphData> GRAPH_DATA_PRODUCER = new GraphDataProducer();

@@ -112,7 +112,7 @@ namespace pwiz.Skyline.EditUI.PeakImputation
                     return null;
                 }
 
-                return new AlignmentTarget(TargetFile, AverageType.MEDIAN, valueType, RegressionMethodRT);
+                return new AlignmentTarget(TargetFile, valueType, RegressionMethodRT);
             }
             set
             {

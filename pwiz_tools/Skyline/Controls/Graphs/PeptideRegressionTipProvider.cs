@@ -20,24 +20,25 @@ using System.Drawing;
 using System.Globalization;
 using pwiz.Skyline.Controls.SeqNode;
 using pwiz.Skyline.Model;
-using ZedGraph;
 
 namespace pwiz.Skyline.Controls.Graphs
 {
     public class PeptideRegressionTipProvider : ITipProvider
     {
-        public PeptideRegressionTipProvider(PeptideDocNode docNode, string xLabel, string yLabel, PointD point)
+        public PeptideRegressionTipProvider(RTLinearRegressionGraphPane.RtPoint point, string xLabel, string yLabel)
         {
-            DocNode = docNode;
             XLabel = xLabel;
             YLabel = yLabel;
             Point = point;
         }
 
-        public PeptideDocNode DocNode { get; private set; }
+        public PeptideDocNode DocNode
+        {
+            get { return Point.DocNode; }
+        }
         public string XLabel { get; private set; }
         public string YLabel { get; private set; }
-        public PointD Point { get; private set; }
+        public RTLinearRegressionGraphPane.RtPoint Point { get; private set; }
 
         public bool HasTip
         {
@@ -51,8 +52,8 @@ namespace pwiz.Skyline.Controls.Graphs
             {
                 table.AddDetailRow(GraphsResources.PeptideRegressionTipProvider_RenderTip_Peptide, DocNode.ModifiedSequence, rt);
 
-                table.AddDetailRow(XLabel, Point.X.ToString(CultureInfo.CurrentCulture), rt);
-                table.AddDetailRow(YLabel, Point.Y.ToString(CultureInfo.CurrentCulture), rt);
+                table.AddDetailRow(XLabel, Point.XValue.ToString(CultureInfo.CurrentCulture), rt);
+                table.AddDetailRow(YLabel, Point.YValue.ToString(CultureInfo.CurrentCulture), rt);
 
                 var size = table.CalcDimensions(g);
 

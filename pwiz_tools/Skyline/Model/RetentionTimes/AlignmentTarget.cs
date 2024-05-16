@@ -10,15 +10,16 @@ using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Model.Irt;
 using pwiz.Skyline.Model.Results;
 using pwiz.Skyline.Util;
+using pwiz.Skyline.Util.Extensions;
 
 namespace pwiz.Skyline.Model.RetentionTimes
 {
     public class AlignmentTarget : Immutable, IXmlSerializable
     {
-        public AlignmentTarget(MsDataFileUri file, AverageType averageType, RtValueType rtValueType, RegressionMethodRT regressionMethod)
+        public AlignmentTarget(MsDataFileUri file, RtValueType rtValueType, RegressionMethodRT regressionMethod)
         {
             File = Equals(file, MsDataFilePath.EMPTY) ? null : file;
-            AverageType = averageType;
+            AverageType = AverageType.MEAN;
             RtValueType = rtValueType;
             RegressionMethod = regressionMethod;
         }
@@ -68,7 +69,7 @@ namespace pwiz.Skyline.Model.RetentionTimes
             {
                 var hashCode = (File != null ? File.GetHashCode() : 0);
                 hashCode = (hashCode * 397) ^ AverageType.GetHashCode();
-                hashCode = (hashCode * 397) ^ RtValueType.GetHashCode();
+                hashCode = (hashCode * 397) ^ (RtValueType?.GetHashCode() ?? 0);
                 hashCode = (hashCode * 397) ^ RegressionMethod.GetHashCode();
                 return hashCode;
             }
@@ -164,6 +165,33 @@ namespace pwiz.Skyline.Model.RetentionTimes
             }
 
             return axisName;
+        }
+
+        public override string ToString()
+        {
+            if (RtValueType == null)
+            {
+                return string.Empty;
+            }
+            var parts = new List<string>();
+            if (File != null)
+            {
+                parts.Add(File.ToString());
+                parts.Add(RtValueType.ToString());
+            }
+            else
+            {
+                parts.Add(RtValueType.GetConsensusName());
+            }
+            parts.Add(RegressionMethod.ToString());
+            return TextUtil.SpaceSeparate(parts);
+        }
+
+        public static IEnumerable<AlignmentTarget> GetOptions(SrmDocument document)
+        {
+            yield return new AlignmentTarget(null, RtValueType.IRT, RegressionMethodRT.linear);
+            yield return new AlignmentTarget(null, RtValueType.PEAK_APEXES, RegressionMethodRT.kde);
+            yield return new AlignmentTarget(null, RtValueType.PSM_TIMES, RegressionMethodRT.kde);
         }
     }
 

@@ -14,7 +14,7 @@ namespace pwiz.Skyline.Model.RetentionTimes
         public override AlignmentFunction ProduceResult(ProductionMonitor productionMonitor, Parameter parameter, IDictionary<WorkOrder, object> inputs)
         {
             var document = parameter.Document;
-            if (parameter.Target == null || Equals(parameter.Source, parameter.Target.File))
+            if (Equals(parameter.Source, parameter.Target.File))
             {
                 return AlignmentFunction.IDENTITY;
             }

@@ -1143,6 +1143,8 @@ namespace pwiz.Skyline.Menus
                             doc => doc.ChangeSettings(doc.Settings.ChangeTransitionIntegration(i =>
                                 i.ChangeSynchronizedIntegration(groupBy, all, targets))), AuditLogEntry.SettingsLogFunction);
                     }
+
+                    SkylineWindow.AlignmentTarget = dlg.SelectedAlignItem?.Target;
                 }
             }
         }

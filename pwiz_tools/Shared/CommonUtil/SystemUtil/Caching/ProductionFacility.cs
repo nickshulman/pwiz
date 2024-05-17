@@ -9,7 +9,7 @@ namespace pwiz.Common.SystemUtil.Caching
     {
         public static readonly ProductionFacility DEFAULT = new ProductionFacility();
         private Dictionary<WorkOrder, Entry> _entries = new Dictionary<WorkOrder, Entry>();
-        private List<Action> _waitingToBeQueued = new List<Action>();
+        private List<Tuple<string, Action>> _waitingToBeQueued = new List<Tuple<string, Action>>();
 
         public void Listen(WorkOrder key, IProductionListener listener)
         {
@@ -249,7 +249,7 @@ namespace pwiz.Common.SystemUtil.Caching
                         {
                             Cache.DecrementWaitingCount();
                         }
-                    });
+                    }, Key.ToString());
                 }
             }
 
@@ -313,7 +313,7 @@ namespace pwiz.Common.SystemUtil.Caching
             Interlocked.Decrement(ref _waitingCount);
         }
 
-        private void Enqueue(Action action)
+        private void Enqueue(Action action, string name)
         {
             lock (this)
             {
@@ -321,22 +321,22 @@ namespace pwiz.Common.SystemUtil.Caching
                 {
                     CommonActionUtil.RunAsync(StartThreadsForActionsInQueue);
                 }
-                _waitingToBeQueued.Add(action);
+                _waitingToBeQueued.Add(Tuple.Create(name, action));
             }
         }
 
         private void StartThreadsForActionsInQueue()
         {
-            Action[] actions;
+            Tuple<string, Action>[] actions;
             lock (this)
             {
                 actions = _waitingToBeQueued.ToArray();
                 _waitingToBeQueued.Clear();
             }
 
-            foreach (var action in actions)
+            foreach (var actionTuple in actions)
             {
-                CommonActionUtil.RunAsync(action);
+                CommonActionUtil.RunAsync(actionTuple.Item2, actionTuple.Item1);
             }
         }
     }

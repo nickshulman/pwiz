@@ -144,6 +144,7 @@ namespace pwiz.Skyline
             this.toolStripSeparator38 = new System.Windows.Forms.ToolStripSeparator();
             this.zoomOutRTContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.toolStripSeparator25 = new System.Windows.Forms.ToolStripSeparator();
+            this.alignmentToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.contextMenuPeakAreas = new System.Windows.Forms.ContextMenuStrip(this.components);
             this.areaGraphContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.areaReplicateComparisonContextMenuItem = new System.Windows.Forms.ToolStripMenuItem();
@@ -354,7 +355,6 @@ namespace pwiz.Skyline
             this.detectionsToolStripSeparator2 = new System.Windows.Forms.ToolStripSeparator();
             this.detectionsPropertiesToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.detectionsToolStripSeparator3 = new System.Windows.Forms.ToolStripSeparator();
-            this.alignmentToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.contextMenuTreeNode.SuspendLayout();
             this.contextMenuSpectrum.SuspendLayout();
             this.contextMenuRetentionTimes.SuspendLayout();
@@ -1137,6 +1137,12 @@ namespace pwiz.Skyline
             // 
             this.toolStripSeparator25.Name = "toolStripSeparator25";
             resources.ApplyResources(this.toolStripSeparator25, "toolStripSeparator25");
+            // 
+            // alignmentToolStripMenuItem
+            // 
+            this.alignmentToolStripMenuItem.Name = "alignmentToolStripMenuItem";
+            resources.ApplyResources(this.alignmentToolStripMenuItem, "alignmentToolStripMenuItem");
+            this.alignmentToolStripMenuItem.Click += new System.EventHandler(this.alignmentToolStripMenuItem_Click);
             // 
             // contextMenuPeakAreas
             // 
@@ -2617,12 +2623,6 @@ namespace pwiz.Skyline
             // 
             this.detectionsToolStripSeparator3.Name = "detectionsToolStripSeparator3";
             resources.ApplyResources(this.detectionsToolStripSeparator3, "detectionsToolStripSeparator3");
-            // 
-            // alignmentToolStripMenuItem
-            // 
-            this.alignmentToolStripMenuItem.Name = "alignmentToolStripMenuItem";
-            resources.ApplyResources(this.alignmentToolStripMenuItem, "alignmentToolStripMenuItem");
-            alignmentToolStripMenuItem.Click += new System.EventHandler(this.alignmentToolStripMenuItem_Click);
             // 
             // SkylineWindow
             // 

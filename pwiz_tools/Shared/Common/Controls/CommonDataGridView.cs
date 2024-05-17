@@ -110,5 +110,11 @@ namespace pwiz.Common.Controls
                 columnLimitExceededColumn.ColumnsNotShownCount += columnsNotShown;
             }
         }
+
+        protected override void Dispose(bool disposing)
+        {
+            Console.Out.WriteLine("{0} Disposed", GetType().Name);
+            base.Dispose(disposing);
+        }
     }
 }

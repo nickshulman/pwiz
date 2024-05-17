@@ -1,7 +1,10 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using pwiz.Common.Collections;
 using pwiz.Common.SystemUtil.Caching;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.Results;
@@ -19,7 +22,7 @@ namespace pwiz.Skyline.Model.RetentionTimes
                 return AlignmentFunction.IDENTITY;
             }
 
-            var targetTimes = parameter.Target.GetRetentionTimes(document).ToDictionary(kvp=>kvp.Key, kvp=>kvp.Value);
+            var targetTimes = inputs.FirstOrDefault().Value as AlignmentTargetTimes;
             var sourceTimes = parameter.Target.GetRetentionTimes(document, parameter.Source)
                 .ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
             var xValues = new List<double>();
@@ -53,6 +56,11 @@ namespace pwiz.Skyline.Model.RetentionTimes
 
             var regressionLine = new RegressionLine(xValues.ToArray(), yValues.ToArray());
             return AlignmentFunction.Define(regressionLine.GetX, regressionLine.GetY);
+        }
+
+        public override IEnumerable<WorkOrder> GetInputs(Parameter parameter)
+        {
+            yield return AlignmentTargetTimes.MakeWorkOrder(parameter.Target, parameter.Document);
         }
 
         public class Parameter
@@ -91,6 +99,51 @@ namespace pwiz.Skyline.Model.RetentionTimes
                     hashCode = (hashCode * 397) ^ Source.GetHashCode();
                     return hashCode;
                 }
+            }
+
+            public override string ToString()
+            {
+                return @$"{nameof(Target)}: {Target}, {nameof(Document)}: {Document}, {nameof(Source)}: {Source}";
+            }
+        }
+    }
+
+    public class AlignmentTargetTimes : IEnumerable<KeyValuePair<object, double>>
+    {
+        private static Producer<Tuple<AlignmentTarget, ReferenceValue<SrmDocument>>, AlignmentTargetTimes> PRODUCER = new Producer();
+
+        private Dictionary<object, double> _dictionary;
+
+        public AlignmentTargetTimes(IEnumerable<KeyValuePair<object, double>> entries)
+        {
+            _dictionary = entries.ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
+        }
+
+        public bool TryGetValue(object key, out double value)
+        {
+            return _dictionary.TryGetValue(key, out value);
+        }
+
+        public static WorkOrder MakeWorkOrder(AlignmentTarget alignmentTarget, SrmDocument document)
+        {
+            return PRODUCER.MakeWorkOrder(Tuple.Create(alignmentTarget, ReferenceValue.Of(document)));
+        }
+
+        IEnumerator IEnumerable.GetEnumerator()
+        {
+            return GetEnumerator();
+        }
+
+        public IEnumerator<KeyValuePair<object, double>> GetEnumerator()
+        {
+            return _dictionary.GetEnumerator();
+        }
+
+        private class Producer : Producer<Tuple<AlignmentTarget, ReferenceValue<SrmDocument>>, AlignmentTargetTimes>
+        {
+            public override AlignmentTargetTimes ProduceResult(ProductionMonitor productionMonitor, Tuple<AlignmentTarget, ReferenceValue<SrmDocument>> parameter, IDictionary<WorkOrder, object> inputs)
+            {
+                return new AlignmentTargetTimes(parameter.Item1.GetRetentionTimes(parameter.Item2));
             }
         }
     }

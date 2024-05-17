@@ -264,7 +264,10 @@ namespace TestRunner
 
             // Parse command line args and initialize default values.
             var commandLineArgs = new CommandLineArgs(args, commandLineOptions);
-
+            if (commandLineArgs.ArgAsBool("profile"))
+            {
+                JetBrains.Profiler.Api.MemoryProfiler.CollectAllocations(true);
+            }
             switch (commandLineArgs.SearchArgs("?;/?;-?;help;report"))
             {
                 case "?":

@@ -21,7 +21,8 @@ namespace pwiz.Skyline.EditUI.PeakImputation
             {
                 RegressionMethodRT.linear,
                 RegressionMethodRT.kde,
-                RegressionMethodRT.loess
+                RegressionMethodRT.loess,
+                RegressionMethodRT.lcs
             });
             comboAlignmentType.SelectedIndex = 0;
             ComboHelper.AutoSizeDropDown(comboAlignmentType);

@@ -445,7 +445,7 @@ namespace pwiz.Skyline.EditUI.PeakImputation
 
 
 
-private void SettingsControlChanged(object sender, EventArgs e)
+        private void SettingsControlChanged(object sender, EventArgs e)
         {
             OnDocumentChanged();
         }

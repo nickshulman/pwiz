@@ -4,6 +4,7 @@ using System.Linq;
 using System.Xml;
 using System.Xml.Schema;
 using System.Xml.Serialization;
+using EnvDTE;
 using MathNet.Numerics.Statistics;
 using pwiz.Common.Collections;
 using pwiz.Common.SystemUtil;
@@ -121,7 +122,44 @@ namespace pwiz.Skyline.Model.RetentionTimes
                 return GetRetentionTimes(document, File);
             }
 
-            return RtValueType.GetSummaryRetentionTimes(document);
+            return GetLongestCommonSubsequenceTimes(document);
+        }
+
+        private IEnumerable<KeyValuePair<object, double>> GetLongestCommonSubsequenceTimes(SrmDocument document)
+        {
+            var fileTimes = new List<Dictionary<object, double>>();
+            var fileSequences = new List<List<object>>();
+            foreach (var file in RtValueType.ListTargets(document))
+            {
+                var dictionary = GetRetentionTimes(document, file).GroupBy(kvp => kvp.Key).ToDictionary(
+                    group => group.Key,
+                    group => AverageType.Calculate(group.Select(kvp => kvp.Value)));
+                fileTimes.Add(dictionary);
+                fileSequences.Add(dictionary.OrderBy(kvp => kvp.Value).Select(kvp => kvp.Key).ToList());
+            }
+
+            if (fileTimes.Count == 0)
+            {
+                yield break;
+            }
+
+            var longestSequence = MultiSequenceLcs<object>.GreedyMultiSequenceLCS(fileSequences);
+            foreach (var molecule in longestSequence)
+            {
+                var times = new List<double>();
+                foreach (var dictionary in fileTimes)
+                {
+                    if (dictionary.TryGetValue(molecule, out var time))
+                    {
+                        times.Add(time);
+                    }
+                }
+
+                if (times.Count > 0)
+                {
+                    yield return new KeyValuePair<object, double>(molecule, times.Average());
+                }
+            }
         }
 
         public IEnumerable<KeyValuePair<object, double>> GetRetentionTimes(SrmDocument document, MsDataFileUri source)

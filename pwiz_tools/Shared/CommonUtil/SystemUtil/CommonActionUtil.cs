@@ -35,6 +35,11 @@ namespace pwiz.Common.SystemUtil
             // ReSharper restore ObjectCreationAsStatement
         }
 
+        public static void RunAsync(Action action, string name)
+        {
+            new Thread(()=>RunNow(action)){Name = name}.Start();
+        }
+
         public static void RunNow(Action action)
         {
             try

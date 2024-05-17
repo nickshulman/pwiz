@@ -18,6 +18,7 @@
  */
 using System;
 using System.Collections.Generic;
+using System.Runtime.Remoting.Messaging;
 using System.Threading;
 
 namespace pwiz.Common.SystemUtil.Caching
@@ -63,6 +64,11 @@ namespace pwiz.Common.SystemUtil.Caching
         public IEnumerable<WorkOrder> GetInputs()
         {
             return Producer.GetInputs(WorkParameter);
+        }
+
+        public override string ToString()
+        {
+            return Producer + ":" + WorkParameter;
         }
     }
     public interface IProductionListener

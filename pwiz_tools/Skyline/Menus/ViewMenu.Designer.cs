@@ -134,6 +134,7 @@
             this.toolStripSeparator36 = new System.Windows.Forms.ToolStripSeparator();
             this.toolBarToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.statusToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.consensusAlignmentToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.menuStrip1.SuspendLayout();
             this.SuspendLayout();
             // 
@@ -179,7 +180,8 @@
             this.otherGridsMenuItem,
             this.toolStripSeparator36,
             this.toolBarToolStripMenuItem,
-            this.statusToolStripMenuItem});
+            this.statusToolStripMenuItem,
+            this.consensusAlignmentToolStripMenuItem});
             this.viewToolStripMenuItem.Name = "viewToolStripMenuItem";
             resources.ApplyResources(this.viewToolStripMenuItem, "viewToolStripMenuItem");
             // 
@@ -897,6 +899,12 @@
             resources.ApplyResources(this.statusToolStripMenuItem, "statusToolStripMenuItem");
             this.statusToolStripMenuItem.Click += new System.EventHandler(this.statusToolStripMenuItem_Click);
             // 
+            // consensusAlignmentToolStripMenuItem
+            // 
+            this.consensusAlignmentToolStripMenuItem.Name = "consensusAlignmentToolStripMenuItem";
+            resources.ApplyResources(this.consensusAlignmentToolStripMenuItem, "consensusAlignmentToolStripMenuItem");
+            this.consensusAlignmentToolStripMenuItem.Click += new System.EventHandler(this.consensusAlignmentToolStripMenuItem_Click);
+            // 
             // ViewMenu
             // 
             resources.ApplyResources(this, "$this");
@@ -1017,5 +1025,6 @@
         private System.Windows.Forms.ToolStripMenuItem candidatePeaksToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem viewTargetsMenuItem;
         private System.Windows.Forms.ToolStripMenuItem spectrumGridMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem consensusAlignmentToolStripMenuItem;
     }
 }

@@ -36,7 +36,14 @@ namespace CustomProgressCell
     {
         public DataGridViewProgressColumn()
         {
+            Console.Out.WriteLine("ProgressColumn constructed");
             CellTemplate = new DataGridViewProgressCell();
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            Console.Out.WriteLine("ProgressColumn disposed");
+            base.Dispose(disposing);
         }
     }
 }

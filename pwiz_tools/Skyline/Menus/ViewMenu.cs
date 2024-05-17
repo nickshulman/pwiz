@@ -1073,5 +1073,12 @@ namespace pwiz.Skyline.Menus
             // The "Spectrum Grid" menu item is only visible if the user was holding down shift
             spectrumGridMenuItem.Visible = 0 != (ModifierKeys & Keys.Shift);
         }
+
+        private void consensusAlignmentToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            var consensusAlignmentForm = new ConsensusAlignmentForm(SkylineWindow);
+            consensusAlignmentForm.Show(SkylineWindow);
+
+        }
     }
 }

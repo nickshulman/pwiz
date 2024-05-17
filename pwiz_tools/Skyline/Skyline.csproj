@@ -371,6 +371,9 @@
     <Compile Include="Controls\Databinding\IDataboundGridForm.cs" />
     <Compile Include="Controls\Databinding\SkylineViewContext.cs" />
     <Compile Include="Controls\Databinding\SkylineWindowDataSchema.cs" />
+    <Compile Include="Controls\Databinding\StandardDataboundGridForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
     <Compile Include="Controls\Graphs\AreaRelativeAbundanceGraphPane.cs" />
     <Compile Include="Controls\Graphs\DotPlotUtil.cs" />
     <Compile Include="Controls\Graphs\ExportMethodScheduleGraph.cs">
@@ -440,6 +443,12 @@
     </Compile>
     <Compile Include="EditUI\AlignmentDlg.Designer.cs">
       <DependentUpon>AlignmentDlg.cs</DependentUpon>
+    </Compile>
+    <Compile Include="EditUI\ConsensusAlignmentForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="EditUI\ConsensusAlignmentForm.Designer.cs">
+      <DependentUpon>ConsensusAlignmentForm.cs</DependentUpon>
     </Compile>
     <Compile Include="EditUI\EditLinkedPeptidesDlg.cs">
       <SubType>Form</SubType>
@@ -574,6 +583,7 @@
     <Compile Include="Model\RetentionTimes\AlignmentFunction.cs" />
     <Compile Include="Model\RetentionTimes\AlignmentProducer.cs" />
     <Compile Include="Model\RetentionTimes\AlignmentTarget.cs" />
+    <Compile Include="Model\RetentionTimes\MultiSequenceLcs.cs" />
     <Compile Include="Model\SpectrumPropertiesResx.Designer.cs">
       <AutoGen>True</AutoGen>
       <DesignTime>True</DesignTime>
@@ -2987,6 +2997,9 @@
     <EmbeddedResource Include="EditUI\ComparePeakPickingDlg.zh-CHS.resx">
       <DependentUpon>ComparePeakPickingDlg.cs</DependentUpon>
       <SubType>Designer</SubType>
+    </EmbeddedResource>
+    <EmbeddedResource Include="EditUI\ConsensusAlignmentForm.resx">
+      <DependentUpon>ConsensusAlignmentForm.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="EditUI\EditLinkedPeptidesDlg.ja.resx">
       <DependentUpon>EditLinkedPeptidesDlg.cs</DependentUpon>

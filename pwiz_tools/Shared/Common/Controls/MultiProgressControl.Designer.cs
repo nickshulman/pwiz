@@ -31,7 +31,7 @@
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(MultiProgressControl));
             System.Windows.Forms.DataGridViewCellStyle dataGridViewCellStyle1 = new System.Windows.Forms.DataGridViewCellStyle();
             this.ProgressSplit = new System.Windows.Forms.SplitContainer();
-            this.progressGridView = new System.Windows.Forms.DataGridView();
+            this.progressGridView = new CommonDataGridView();
             this.NameColumn = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.ProgressColumn = new CustomProgressCell.DataGridViewProgressColumn();
             this.progressLogTextBox = new System.Windows.Forms.TextBox();
@@ -111,7 +111,7 @@
         }
 
         #endregion
-        private System.Windows.Forms.DataGridView progressGridView;
+        private CommonDataGridView progressGridView;
         private System.Windows.Forms.DataGridViewTextBoxColumn NameColumn;
         private CustomProgressCell.DataGridViewProgressColumn ProgressColumn;
         private System.Windows.Forms.TextBox progressLogTextBox;

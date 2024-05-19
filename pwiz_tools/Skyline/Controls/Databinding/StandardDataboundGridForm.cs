@@ -75,9 +75,5 @@ namespace pwiz.Skyline.Controls.Databinding
         {
         }
 
-        protected void ControlValueChanged(object sender, EventArgs e)
-        {
-            OnDocumentChanged();
-        }
     }
 }

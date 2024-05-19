@@ -583,7 +583,7 @@
     <Compile Include="Model\RetentionTimes\AlignmentFunction.cs" />
     <Compile Include="Model\RetentionTimes\AlignmentProducer.cs" />
     <Compile Include="Model\RetentionTimes\AlignmentTarget.cs" />
-    <Compile Include="Model\RetentionTimes\MultiSequenceLcs.cs" />
+    <Compile Include="Model\RetentionTimes\LongestCommonSequenceFinder.cs" />
     <Compile Include="Model\SpectrumPropertiesResx.Designer.cs">
       <AutoGen>True</AutoGen>
       <DesignTime>True</DesignTime>

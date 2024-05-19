@@ -29,9 +29,9 @@
         private void InitializeComponent()
         {
             this.panel1 = new System.Windows.Forms.Panel();
-            this.lblSource = new System.Windows.Forms.Label();
-            this.comboSource = new System.Windows.Forms.ComboBox();
             this.checkedListBoxReplicates = new System.Windows.Forms.CheckedListBox();
+            this.comboSource = new System.Windows.Forms.ComboBox();
+            this.lblSource = new System.Windows.Forms.Label();
             this.panel1.SuspendLayout();
             this.SuspendLayout();
             // 
@@ -51,14 +51,13 @@
             this.panel1.Size = new System.Drawing.Size(800, 100);
             this.panel1.TabIndex = 1;
             // 
-            // lblSource
+            // checkedListBoxReplicates
             // 
-            this.lblSource.AutoSize = true;
-            this.lblSource.Location = new System.Drawing.Point(12, 9);
-            this.lblSource.Name = "lblSource";
-            this.lblSource.Size = new System.Drawing.Size(76, 13);
-            this.lblSource.TabIndex = 0;
-            this.lblSource.Text = "Values to align";
+            this.checkedListBoxReplicates.FormattingEnabled = true;
+            this.checkedListBoxReplicates.Location = new System.Drawing.Point(154, 3);
+            this.checkedListBoxReplicates.Name = "checkedListBoxReplicates";
+            this.checkedListBoxReplicates.Size = new System.Drawing.Size(440, 94);
+            this.checkedListBoxReplicates.TabIndex = 2;
             // 
             // comboSource
             // 
@@ -68,14 +67,16 @@
             this.comboSource.Name = "comboSource";
             this.comboSource.Size = new System.Drawing.Size(121, 21);
             this.comboSource.TabIndex = 1;
+            this.comboSource.SelectedIndexChanged += new System.EventHandler(this.ControlValueChanged);
             // 
-            // checkedListBoxReplicates
+            // lblSource
             // 
-            this.checkedListBoxReplicates.FormattingEnabled = true;
-            this.checkedListBoxReplicates.Location = new System.Drawing.Point(154, 3);
-            this.checkedListBoxReplicates.Name = "checkedListBoxReplicates";
-            this.checkedListBoxReplicates.Size = new System.Drawing.Size(440, 94);
-            this.checkedListBoxReplicates.TabIndex = 2;
+            this.lblSource.AutoSize = true;
+            this.lblSource.Location = new System.Drawing.Point(12, 9);
+            this.lblSource.Name = "lblSource";
+            this.lblSource.Size = new System.Drawing.Size(76, 13);
+            this.lblSource.TabIndex = 0;
+            this.lblSource.Text = "Values to align";
             // 
             // ConsensusAlignmentForm
             // 

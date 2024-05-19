@@ -34,7 +34,7 @@ namespace pwiz.Skyline.EditUI
             comboSource.Items.Add(RtValueType.PSM_TIMES);
             _receiver = DataProducer.INSTANCE.RegisterCustomer(this, OnDataAvailable);
             _rows = new List<Row>();
-            _bindingList = new BindingList<Row>();
+            _bindingList = new BindingList<Row>(_rows);
             var rowSource = BindingListRowSource.Create(_bindingList);
             var viewContext = new SkylineViewContext(ColumnDescriptor.RootColumn(DataSchema, typeof(Row)), rowSource);
             BindingListSource.SetViewContext(viewContext);
@@ -67,7 +67,7 @@ namespace pwiz.Skyline.EditUI
             var document = data.Parameter.Document;
             foreach (var moleculeGroup in document.MoleculeGroups)
             {
-                foreach (var molecule in document.Molecules)
+                foreach (var molecule in moleculeGroup.Molecules)
                 {
                     RowData rowData = null;
                     foreach (var key in EnumerateKeys(molecule))
@@ -84,37 +84,39 @@ namespace pwiz.Skyline.EditUI
 
                     var peptide = new Peptide(DataSchema,
                         new IdentityPath(moleculeGroup.PeptideGroup, molecule.Peptide));
-                    yield return new Row(peptide, rowData.Results.ToDictionary(kvp=>kvp.Key.ToString(), kvp=>kvp.Value));
+                    yield return new Row(peptide, rowData.ConsensusOrdinal, rowData.Results.ToDictionary(kvp=>kvp.Key.ToString(), kvp=>kvp.Value));
                 }
             }
         }
 
         public class Row
         {
-            public Row(Peptide peptide, Dictionary<string, ResultFileData> results)
+            public Row(Peptide peptide, int? consensusOrdinal, Dictionary<string, ResultFileData> results)
             {
                 Peptide = peptide;
-                Results = results;
+                ConsensusOrdinal = consensusOrdinal;
+                FileResults = results;
             }
 
             public Peptide Peptide { get; }
-            public Dictionary<string, ResultFileData> Results { get; }
+            public int? ConsensusOrdinal { get; }
+            public Dictionary<string, ResultFileData> FileResults { get; }
         }
 
         public class RowData
         {
-            public RowData(object key, double averageTime, bool consensus,
+            public RowData(object key, double averageTime, int? consensusOrdinal,
                 Dictionary<ReplicateFileInfo, ResultFileData> results)
             {
                 Key = key;
                 AverageTime = averageTime;
-                Consensus = consensus;
+                ConsensusOrdinal = consensusOrdinal;
                 Results = results;
             }
 
             public object Key { get; }
             public double AverageTime { get; }
-            public bool Consensus { get; }
+            public int? ConsensusOrdinal { get; }
             public Dictionary<ReplicateFileInfo, ResultFileData> Results { get; }
         }
 
@@ -202,14 +204,15 @@ namespace pwiz.Skyline.EditUI
 
                 var rows = new List<RowData>();
                 List<object> longestSequence = new List<object>();
-                var longestSequenceHashSet = longestSequence.ToHashSet();
                 if (fileTimes.Count > 0)
                 {
-                    longestSequence.AddRange(MultiSequenceLcs<object>.GreedyMultiSequenceLCS(fileSequences));
+                    var longestCommonSubsequenceFinder = new LongestCommonSequenceFinder<object>(fileSequences);
+                    longestSequence.AddRange(longestCommonSubsequenceFinder.GetLongestCommonSubsequence());
                 }
+                var consensusOrdinals = longestSequence.Select(Tuple.Create<object, int>)
+                    .ToDictionary(tuple => tuple.Item1, tuple => tuple.Item2);
 
-                var allTargets = longestSequence.Concat(fileTimes.SelectMany(dictionary => dictionary.Keys))
-                    .ToHashSet();
+                var allTargets = longestSequence.Concat(fileTimes.SelectMany(dictionary => dictionary.Keys)).Distinct().ToList();
                 foreach (var target in allTargets)
                 {
                     var results = new Dictionary<ReplicateFileInfo, ResultFileData>();
@@ -225,7 +228,12 @@ namespace pwiz.Skyline.EditUI
                         }
                     }
 
-                    rows.Add(new RowData(target, times.Mean(), longestSequenceHashSet.Contains(target), results));
+                    int? consensusOrdinal = null;
+                    if (consensusOrdinals.TryGetValue(target, out var ordinal))
+                    {
+                        consensusOrdinal = ordinal;
+                    }
+                    rows.Add(new RowData(target, times.Mean(), consensusOrdinal, results));
                 }
 
                 return new Data(parameter, rows);
@@ -244,6 +252,22 @@ namespace pwiz.Skyline.EditUI
         {
             yield return peptideDocNode.ModifiedTarget;
             yield return peptideDocNode.Key;
+        }
+
+        private void ControlValueChanged(object sender, EventArgs e)
+        {
+            OnDocumentChanged();
+        }
+
+        protected override void UpdateUi()
+        {
+            base.UpdateUi();
+            var rtValueType = comboSource.SelectedItem as RtValueType;
+            if (rtValueType != null)
+            {
+                _receiver.TryGetProduct(
+                    DataProducer.INSTANCE.MakeWorkOrder(new Parameter(SkylineWindow.DocumentUI, rtValueType, Array.Empty<KeyValuePair<ReplicateFileId, bool>>())), out _);
+            }
         }
     }
 }

@@ -19,7 +19,7 @@ namespace pwiz.SkylineTest
                 new List<char> { 'G', 'A', 'T', 'T', 'T', 'C', 'A' }
             };
 
-            var lcs = MultiSequenceLcs<char>.GetLongestCommonSubsequence(sequences);
+            var lcs = LongestCommonSequenceFinder<char>.GetLongestCommonSubsequence(sequences);
             Console.WriteLine("Longest Common Subsequence: " + string.Join("", lcs));
 
         }

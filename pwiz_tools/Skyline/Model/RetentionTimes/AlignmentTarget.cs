@@ -143,7 +143,7 @@ namespace pwiz.Skyline.Model.RetentionTimes
                 yield break;
             }
 
-            var longestSequence = MultiSequenceLcs<object>.GreedyMultiSequenceLCS(fileSequences);
+            var longestSequence = new LongestCommonSequenceFinder<object>(fileSequences).GetLongestCommonSubsequence();
             foreach (var molecule in longestSequence)
             {
                 var times = new List<double>();

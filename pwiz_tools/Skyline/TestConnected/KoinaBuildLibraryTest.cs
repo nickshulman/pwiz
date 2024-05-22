@@ -32,7 +32,7 @@ namespace pwiz.SkylineTestConnected
     [TestClass]
     public class KoinaBuildLibraryTest : AbstractFunctionalTest
     {
-        [TestMethod]
+        [TestMethod, NoParallelTesting(TestExclusionReason.DOCKER_ROOT_CERTS)]
         public void TestKoinaBuildLibrary()
         {
             if (!HasKoinaServer())
@@ -57,7 +57,7 @@ namespace pwiz.SkylineTestConnected
             OkDialog(toolsOptionsUi, toolsOptionsUi.OkDialog);
             RunDlg<PasteDlg>(SkylineWindow.ShowPastePeptidesDlg, pasteDlg =>
             {
-                SetClipboardText("ELVIS\r\nLIVES");
+                SetClipboardText("ELVIS\r\nLIVES\r\nFISANLPC[+57.02146]NKFC[+57.02146]K");
                 pasteDlg.PastePeptides();
                 pasteDlg.OkDialog();
             });

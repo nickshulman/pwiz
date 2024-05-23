@@ -205,6 +205,7 @@
     <Compile Include="QcTraceNameTest.cs" />
     <Compile Include="RemoveHeavyModificationTest.cs" />
     <Compile Include="RemoveNeutralLossModificationTest.cs" />
+    <Compile Include="RescoreInPlaceTest.cs" />
     <Compile Include="ResultFileMetadataBackCompatTest.cs" />
     <Compile Include="SaveAfterProteinAssociationTest.cs" />
     <Compile Include="SequenceTreeRatioTest.cs" />

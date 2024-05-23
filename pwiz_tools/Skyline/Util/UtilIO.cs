@@ -30,6 +30,7 @@ using System.Threading;
 using System.Windows.Forms;
 using NHibernate;
 using pwiz.Common.Database.NHibernate;
+using pwiz.Common.DataBinding;
 using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Alerts;
 using pwiz.Skyline.Model;
@@ -304,6 +305,7 @@ namespace pwiz.Skyline.Util
         where TDisp : IDisposable
     {
         private readonly ConnectionPool _connectionPool;
+        private QueryLock _queryLock = new QueryLock(CancellationToken.None);
 
         /// <summary>
         /// Creates the immutable identifier for a long-lived connection.
@@ -339,7 +341,18 @@ namespace pwiz.Skyline.Util
         /// </summary>
         public void Disconnect()
         {
-            _connectionPool.Disconnect(this);
+            using (QueryLock.CancelAndGetWriteLock())
+            {
+                _connectionPool.Disconnect(this);
+            }
+        }
+
+        public QueryLock QueryLock 
+        {
+            get
+            {
+                return _queryLock;
+            }
         }
     }
 
@@ -384,6 +397,8 @@ namespace pwiz.Skyline.Util
         /// document.
         /// </summary>
         void CloseStream();
+
+        QueryLock QueryLock { get; }
     }
 
     /// <summary>

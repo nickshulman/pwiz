@@ -18,8 +18,10 @@
  */
 
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Drawing;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Windows.Forms;
@@ -36,6 +38,7 @@ using pwiz.Skyline.FileUI;
 using pwiz.Skyline.FileUI.PeptideSearch;
 using pwiz.Skyline.Model;
 using pwiz.Skyline.Model.DocSettings;
+using pwiz.Skyline.Model.Hibernate;
 using pwiz.Skyline.Model.Lib;
 using pwiz.Skyline.Model.Results;
 using pwiz.Skyline.Properties;
@@ -80,24 +83,24 @@ namespace pwiz.SkylineTestTutorial
         public void DoTestTargetedMSMSTutorial(RefinementSettings.ConvertToSmallMoleculesMode smallMoleculesTestMode)
         {
             // Set true to look at tutorial screenshots.
-//            IsPauseForScreenShots = true;
-//            IsCoverShotMode = true;
+            //            IsPauseForScreenShots = true;
+            //            IsCoverShotMode = true;
             CoverShotName = "TargetedMSMS";
 
-            if (smallMoleculesTestMode != RefinementSettings.ConvertToSmallMoleculesMode.none && !RunSmallMoleculeTestVersions)
+            if (smallMoleculesTestMode != RefinementSettings.ConvertToSmallMoleculesMode.none &&
+                SkipSmallMoleculeTestVersions())
             {
-                Console.Write(MSG_SKIPPING_SMALLMOLECULE_TEST_VERSION);
                 return;
             }
 
-            ForceMzml = true;   // 2-3x faster than raw files for this test.
+            ForceMzml = true;   // 2-3x faster than raw files for this test - and audit log expects it.
 
             AsSmallMoleculesTestMode = smallMoleculesTestMode;
 
             if (smallMoleculesTestMode !=  RefinementSettings.ConvertToSmallMoleculesMode.none)
                 TestDirectoryName = "AsSmMol_" + smallMoleculesTestMode;
 
-            LinkPdf = "https://skyline.ms/_webdav/home/software/Skyline/%40files/tutorials/PRM-20_1.pdf";
+            LinkPdf = "https://skyline.ms/_webdav/home/software/Skyline/%40files/tutorials/PRM-22_2.pdf";
 
             TestFilesZipPaths = new[]
                 {
@@ -340,6 +343,9 @@ namespace pwiz.SkylineTestTutorial
             {
                 RunUI(() => SkylineWindow.SetUIMode(SrmDocument.DOCUMENT_TYPE.mixed)); // So peptide import wizard still works
             }
+
+            Settings.Default.PeakAreaDotpDisplay = DotProductDisplayOption.label.ToString();
+
             //p. 15 Import Full-Scan Data
             // Launch import peptide search wizard
             var importPeptideSearchDlg = ShowDialog<ImportPeptideSearchDlg>(SkylineWindow.ShowImportPeptideSearchDlg);
@@ -364,12 +370,16 @@ namespace pwiz.SkylineTestTutorial
             var doc = SkylineWindow.Document;
             RunUI(() =>
             {
-                Assert.IsTrue(importPeptideSearchDlg.CurrentPage ==
-                            ImportPeptideSearchDlg.Pages.spectra_page);
+                Assert.IsTrue(importPeptideSearchDlg.CurrentPage == ImportPeptideSearchDlg.Pages.spectra_page);
                 importPeptideSearchDlg.BuildPepSearchLibControl.AddSearchFiles(searchFiles);
-                importPeptideSearchDlg.BuildPepSearchLibControl.CutOffScore = 0.99;
+            });
+            WaitForConditionUI(() => importPeptideSearchDlg.BuildPepSearchLibControl.Grid.ScoreTypesLoaded);
+            RunUI(() =>
+            {
+                importPeptideSearchDlg.BuildPepSearchLibControl.Grid.SetScoreThreshold(0.01);
                 importPeptideSearchDlg.BuildPepSearchLibControl.FilterForDocumentPeptides = true;
             });
+            WaitForConditionUI(() => importPeptideSearchDlg.IsNextButtonEnabled);
             PauseForScreenShot<ImportPeptideSearchDlg.SpectraPage>("Import Peptide Search Build Spectral Library with files page", 16);
             
             RunDlg<MessageDlg>(importPeptideSearchDlg.ClickNextButtonNoCheck, dlg => dlg.OkDialog());
@@ -420,6 +430,7 @@ namespace pwiz.SkylineTestTutorial
             RunUI(() => importPeptideSearchDlg.ClickNextButton());
 
             // PauseForScreenShot<ImportPeptideSearchDlg.TransitionSettingsPage>("Import Peptide Search Transition Settings page", 19);
+            TryWaitForOpenForm(typeof(ImportPeptideSearchDlg.TransitionSettingsPage));  // So SkylineTester - Forms page still stops
 
             // We're on the "Configure Transition Settings" page of the wizard.
             // We've already set up these settings, so just click next.
@@ -434,6 +445,7 @@ namespace pwiz.SkylineTestTutorial
             });
 
             // PauseForScreenShot<ImportPeptideSearchDlg.Ms2FullScanPage>("Import Peptide Search Full-Scan Settings page", 19);
+            TryWaitForOpenForm(typeof(ImportPeptideSearchDlg.Ms2FullScanPage));  // So SkylineTester - Forms page still stops
 
             // We're on the "Configure Full-Scan Settings" page of the wizard.
             // We've already set up these settings, so just click next.
@@ -456,9 +468,8 @@ namespace pwiz.SkylineTestTutorial
 
             const int expectedMoleculeCount = 9;
             const int expectedTransitionGroupCount = 10; // Expect this many with results
-            var expected20TransitionCount = AsSmallMolecules || UseRawFiles ? 87 : 88; // Expect this many with results
-            var expected80TransitionCount = AsSmallMolecules ? 88 : UseRawFiles ? 86 : 87;
-
+            var expected20TransitionCount = AsSmallMoleculeMasses  ? 87 : 88; // Expect this many with results (note no library match possible for "as masses" version)
+            var expected80TransitionCount = AsSmallMoleculeMasses ? 88 : 87;
             AssertResult.IsDocumentResultsState(SkylineWindow.Document, shortLowRes20FileName, expectedMoleculeCount, expectedTransitionGroupCount, 0, expected20TransitionCount, 0);
             AssertResult.IsDocumentResultsState(SkylineWindow.Document, shortLowRes80FileName, expectedMoleculeCount, expectedTransitionGroupCount, 0, expected80TransitionCount, 0);
 
@@ -480,8 +491,15 @@ namespace pwiz.SkylineTestTutorial
             RunUI(() => SkylineWindow.Width = 1050);
             RestoreViewOnScreen(20);
             PauseForScreenShot("Main window with data imported", 20);
+            if (AsSmallMoleculesTestMode != RefinementSettings.ConvertToSmallMoleculesMode.masses_only)
+            {
+                TestPropertySheet();
+            }
 
             ValidatePeakRanks(1, 176, true);
+
+            if(AsSmallMoleculesTestMode != RefinementSettings.ConvertToSmallMoleculesMode.masses_only)  
+                TestLibraryMatchPropertySheet();
 
             if (!AsSmallMoleculeMasses)
             {
@@ -1001,6 +1019,243 @@ namespace pwiz.SkylineTestTutorial
                 var dotpActuals = pane.DotProducts.ToArray();
                 return dotpActuals;
             }
+        }
+
+        /// <summary>
+        /// Tests the property sheet on the ViewLibraryDlg to confirm it shows up and displays accurate information
+        /// </summary>
+        private void TestPropertySheet()
+        {
+            var isSmallMolecules = AsSmallMoleculesTestMode != RefinementSettings.ConvertToSmallMoleculesMode.none;
+            var expectedPropertiesDict = isSmallMolecules
+                    ? new Dictionary<string, object>
+                    {
+                        { "FileName", "klc_20100329v_Protea_Peptide_Curve_80fmol_uL_tech1.ms2" },
+                        { "LibraryName", "BSA_Protea_label_free_meth3.converted_to_small_molecules" },
+                        { "PrecursorMz", 523.7745.ToString( CultureInfo.CurrentCulture) },
+                        { "Charge", 2 },
+                        { "Label", IsotopeLabelType.LIGHT_NAME },
+                        { "Adduct","[M+2H]"},
+                        { "Formula","C50H71N13O12"},
+                        { "RetentionTime", 44.29.ToString( Formats.RETENTION_TIME, CultureInfo.CurrentCulture) },
+                        { "Score", 0.0.ToString( @"N1", CultureInfo.CurrentCulture) },
+                        { "ScoreType", BiblioSpec.Properties.Resources.BiblioSpecScoreType_DisplayName_Percolator_q_value },
+                        { "SpectrumCount", 24.ToString( CultureInfo.CurrentCulture) }
+                    }
+                    : new Dictionary<string, object>
+                    {
+                        { "IdFileName", "klc_20100329v_Protea_Peptide_Curve_20fmol_uL_tech1.perc.xml" },
+                        { "FileName", "klc_20100329v_Protea_Peptide_Curve_20fmol_uL_tech1.ms2" },
+                        { "LibraryName", "BSA_Protea_label_free_meth3" },
+                        { "PrecursorMz", 417.7271.ToString( Formats.Mz, CultureInfo.CurrentCulture) },
+                        { "Charge", "2" },
+                        { "Label", IsotopeLabelType.LIGHT_NAME },
+                        { "RetentionTime", 17.ToString( Formats.RETENTION_TIME, CultureInfo.CurrentCulture) },
+                        { "SpecIdInFile", 488 },
+                        { "Score", 0.0.ToString( @"N1", CultureInfo.CurrentCulture) },
+                        { "ScoreType", BiblioSpec.Properties.Resources.BiblioSpecScoreType_DisplayName_Percolator_q_value },
+                        { "SpectrumCount", 4 }
+                    }
+                ;
+
+            var expectedProperties = new SpectrumProperties();
+            expectedProperties.Deserialize(expectedPropertiesDict);
+
+            var dlg = ShowDialog<ViewLibraryDlg>(SkylineWindow.ViewSpectralLibraries);
+            WaitForConditionUI(() => dlg.IsUpdateComplete);
+            var graphExtension = dlg.GraphExtensionControl;
+            RunUI(() => Assert.IsFalse(graphExtension.PropertiesVisible));
+            ToolStripButton propertiesButton = null;
+            // Check the pressing the properties button on the toolstrip displays the property sheet
+            RunUI(() =>
+            {
+                var toolStrip = (ToolStrip)dlg.Controls.Find("toolStrip1", true)[0];
+                propertiesButton = (ToolStripButton)toolStrip.Items.Find("propertiesButton", true)[0];
+                Assert.IsNotNull(propertiesButton);
+                Assert.IsFalse(propertiesButton.Checked);
+                propertiesButton.PerformClick();
+            });
+            WaitForConditionUI(() => graphExtension.PropertiesVisible);
+            RunUI(() => Assert.IsTrue(propertiesButton.Checked));
+
+            var propertyGrid = graphExtension.PropertiesSheet;
+            Assert.IsNotNull(propertyGrid);
+            SpectrumProperties currentProperties = null;
+            RunUI(() => currentProperties = propertyGrid.SelectedObject as SpectrumProperties);
+            Assert.IsNotNull(currentProperties);
+
+            // To write new json string for the expected property values into the output stream uncomment the next line
+            //Trace.Write(currentProperties.Serialize());
+            Assert.IsTrue(expectedProperties.IsSameAs(currentProperties));
+
+            // Checks the number of properties displayed is the expected number
+            // Checks that the property sheet updates upon switching peptides
+            RunUI(() =>
+            {
+                dlg.FilterString = isSmallMolecules ? @"pep_HLVD" : @"HLVD";
+                // If the ViewLibraryDlg property grid is updated with new properties, these values likely need to change
+                ValidatePropertyCount(expectedProperties.GetProperties().Count, propertyGrid);
+                ValidateSpectrumCount(401, propertyGrid);
+
+                Assert.IsTrue(graphExtension.PropertiesVisible);
+                Assert.IsTrue(propertiesButton.Checked);
+            });
+            // Checks that the property sheet displays nothing when no peptide is selected
+            RunUI(() =>
+            {
+                dlg.FilterString = "b";
+                Assert.AreEqual(0, GetProperties(propertyGrid).Count);
+                dlg.FilterString = "";
+            });
+            if (!isSmallMolecules)
+            {
+                // Checks the property sheet updates when switching in the redundant combobox to viewing a redundant peptide
+                RunUI(() =>
+                {
+                    ValidateSpecId("488", propertyGrid);
+                    RunUI(dlg.UpdateRedundantComboItems);
+                    WaitForConditionUI(() => dlg.IsComboBoxUpdated);
+                    dlg.RedundantComboBox.SelectedIndex = 1;
+                    ValidateSpecId("19208", propertyGrid);
+                });
+                RunUI(() =>
+                {
+                    // Tests that the score displayed on the graph matches the score displayed in the property sheet
+                    dlg.SelectedIndex = 4;
+                    ValidateScoresMatch(0.001, propertyGrid, dlg);
+                    RunUI(dlg.UpdateRedundantComboItems);
+                    WaitForConditionUI(() => dlg.IsComboBoxUpdated);
+                    dlg.RedundantComboBox.SelectedIndex = 1;
+                    ValidateScoresMatch(0.004, propertyGrid, dlg);
+                });
+            }
+            RunUI(() => propertiesButton.PerformClick());
+            RunUI(() =>
+            {
+                Assert.IsFalse(graphExtension.PropertiesVisible);
+                Assert.IsFalse(propertiesButton.Checked);
+            });
+            OkDialog(dlg, () => dlg.Close());
+        }
+
+        private void TestLibraryMatchPropertySheet()
+        {
+            var isSmallMolecules = AsSmallMoleculesTestMode != RefinementSettings.ConvertToSmallMoleculesMode.none;
+
+            var expectedPropertiesDict = new Dictionary<string, object>
+            {
+                { "FileName", "klc_20100329v_Protea_Peptide_Curve_20fmol_uL_tech1.ms2" },
+                { "PrecursorMz", 582.319 },
+                { "Charge", 2 },
+                { "Label", IsotopeLabelType.LIGHT_NAME },
+                { "RetentionTime", 46.81 },
+                { "Score", 0.0 },
+                { "ScoreType", BiblioSpec.Properties.Resources.BiblioSpecScoreType_DisplayName_Percolator_q_value },
+                { "SpectrumCount", 118 }
+            };
+            if (isSmallMolecules)
+            {
+                expectedPropertiesDict.Add("LibraryName", "BSA_Protea_label_free_meth3.converted_to_small_molecules");
+                expectedPropertiesDict.Add("Adduct","[M+2H]");
+                expectedPropertiesDict.Add("Formula","C53H86N12O17");
+            }
+            else
+            {
+                expectedPropertiesDict.Add("LibraryName", "BSA_Protea_label_free_meth3");
+                expectedPropertiesDict.Add("IdFileName", "klc_20100329v_Protea_Peptide_Curve_20fmol_uL_tech1.perc.xml");
+                expectedPropertiesDict.Add("SpecIdInFile", 7901);
+            }
+
+            var expectedProperties = new SpectrumProperties();
+            expectedProperties.Deserialize(expectedPropertiesDict);
+            var msGraph = SkylineWindow.GraphSpectrum.MsGraphExtension;
+
+            Assert.IsTrue(SkylineWindow.GraphSpectrum != null && SkylineWindow.GraphSpectrum.Visible);
+            var propertiesButton = SkylineWindow.GraphSpectrum.PropertyButton;
+            Assert.IsFalse(propertiesButton.Checked);
+            RunUI(() =>
+            {
+                propertiesButton.PerformClick();
+
+            }); 
+            WaitForConditionUI(() => msGraph.PropertiesVisible);
+            WaitForGraphs();
+            SpectrumProperties currentProperties = null;
+            RunUI(() =>
+            {
+                currentProperties = msGraph.PropertiesSheet.SelectedObject as SpectrumProperties;
+            });
+                
+            Assert.IsNotNull(currentProperties);
+            // To write new json string for the expected property values into the output stream uncomment the next line
+            //Trace.Write(currentProperties.Serialize());
+            Assert.IsTrue(expectedProperties.IsSameAs(currentProperties));
+            Assert.IsTrue(propertiesButton.Checked);
+            // make sure properties are updated when spectrum combo selection changes
+            RunUI(() =>
+            {
+                SkylineWindow.GraphSpectrum.SpectrumCombo.SelectedIndex = 1;
+            });
+            WaitForGraphs();
+            RunUI(() =>
+            {
+                currentProperties = msGraph.PropertiesSheet.SelectedObject as SpectrumProperties;
+                Assert.IsNotNull(currentProperties);
+                Assert.AreEqual(isSmallMolecules ? 118 : 4000, currentProperties.SpectrumCount);
+            });
+            var lastNodeIndex = SkylineWindow.SequenceTree.Nodes.Count;
+            IdentityPath oldPath = null;
+            RunUI(() => { oldPath = SkylineWindow.SequenceTree.SelectedPath; });
+            FindNode((547.3174).ToString(CultureInfo.CurrentCulture));
+            RunUI(() =>
+            {
+                SkylineWindow.SequenceTree.SelectPath(new IdentityPath(new[] { SequenceTree.NODE_INSERT_ID }));
+            });
+            WaitForGraphs();
+            RunUI(() =>
+            {
+                currentProperties = msGraph.PropertiesSheet.SelectedObject as SpectrumProperties;
+                Assert.IsNull(currentProperties);
+            });
+
+            // test the close button
+            RunUI(() =>
+            {
+                Assert.IsTrue(msGraph.CloseButton.Visible);
+                msGraph.CloseButton.PerformClick();
+            });
+            WaitForConditionUI(() => !msGraph.PropertiesVisible);
+            RunUI(() => { SkylineWindow.SequenceTree.SelectPath(oldPath); });
+            WaitForGraphs();
+        }
+        private static PropertyDescriptorCollection GetProperties(PropertyGrid propertyGrid)
+        {
+            return ((ICustomTypeDescriptor)propertyGrid.SelectedObject).GetProperties();
+        }
+
+        private static void ValidatePropertyCount(int expectedPropCount, PropertyGrid pg)
+        {
+            Assert.AreEqual(expectedPropCount, 
+                (pg.SelectedObject as GlobalizedObject)?.GetPropertiesForComparison()?.Count);
+        }
+
+        private static void ValidateSpectrumCount(int expectedSpectrumCount, PropertyGrid pg)
+        {
+            var spectrumCount = GetProperties(pg).Find("SpectrumCount", true).GetValue(pg.SelectedObject);
+            Assert.AreEqual(expectedSpectrumCount, spectrumCount);
+        }
+
+        private static void ValidateSpecId(string expectedId, PropertyGrid pg)
+        {
+            var specId = GetProperties(pg).Find("SpecIdInFile", true).GetValue(pg.SelectedObject);
+            Assert.AreEqual(expectedId, specId);
+        }
+
+        private static void ValidateScoresMatch(double expectedScore, PropertyGrid pg, ViewLibraryDlg dlg)
+        {
+            var score = GetProperties(pg).Find("Score", true).GetValue(pg.SelectedObject);
+            Assert.AreEqual(expectedScore.ToString(CultureInfo.CurrentCulture), score?.ToString());
+            Assert.AreEqual(expectedScore, dlg.GraphItem.SpectrumInfo.Score);
         }
     }
 }

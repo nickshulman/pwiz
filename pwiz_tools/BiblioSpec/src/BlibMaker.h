@@ -27,6 +27,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <map>
+#include <unordered_set>
 #include <utility>
 #include "smart_stmt.h"
 #include "BlibUtils.h"
@@ -88,9 +89,13 @@ public:
     virtual bool is_empty();
     virtual void abort_current_library();
 
+    static void verifyFileExists(string file);
+    void openDb(const char* file);
+
     // Property accessors
     sqlite3* getDb() const { return db; }
     const char* getLibName() const { return lib_name; }
+    bool isScoreLookupMode() const { return scoreLookupMode_; }
 
     // Utility functions
     void setMessage(const char* value) { message = value; }
@@ -173,12 +178,14 @@ protected:
     bool keepAmbiguous_;
     bool highPrecisionModifications_;
     boost::optional<bool> preferEmbeddedSpectra_;
+    std::unordered_set<int> precursorCharges_; // If non-empty, only emit entries whose precursor charge is listed here (-z option)
 
 private:
     const char* libIdFromName(const char* name);
 
 private:
     sqlite3* db;
+    bool scoreLookupMode_;
     const char* authority;
     const char* lib_name;
     const char* lib_id;

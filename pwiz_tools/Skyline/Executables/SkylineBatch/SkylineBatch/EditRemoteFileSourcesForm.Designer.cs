@@ -80,14 +80,18 @@
             // 
             // EditRemoteFileSourcesForm
             // 
+            this.AcceptButton = this.btnOk;
             resources.ApplyResources(this, "$this");
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
+            this.CancelButton = this.btnCancel;
             this.Controls.Add(this.btnCancel);
             this.Controls.Add(this.btnOk);
             this.Controls.Add(this.label1);
             this.Controls.Add(this.btnEdit);
             this.Controls.Add(this.btnAdd);
             this.Controls.Add(this.listSources);
+            this.MaximizeBox = false;
+            this.MinimizeBox = false;
             this.Name = "EditRemoteFileSourcesForm";
             this.ShowInTaskbar = false;
             this.ResumeLayout(false);
@@ -98,10 +102,10 @@
         #endregion
 
         private System.Windows.Forms.Button btnCancel;
-        private System.Windows.Forms.Button btnOk;
+        public System.Windows.Forms.Button btnOk;
         private System.Windows.Forms.Label label1;
-        private System.Windows.Forms.Button btnEdit;
-        private System.Windows.Forms.Button btnAdd;
-        private System.Windows.Forms.ListBox listSources;
+        public System.Windows.Forms.Button btnEdit;
+        public System.Windows.Forms.Button btnAdd;
+        public System.Windows.Forms.ListBox listSources;
     }
 }

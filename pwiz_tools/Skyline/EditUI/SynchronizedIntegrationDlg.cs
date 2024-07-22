@@ -28,10 +28,11 @@ using pwiz.Skyline.Model;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.Results;
 using pwiz.Skyline.Properties;
+using pwiz.Skyline.Util;
 
 namespace pwiz.Skyline.EditUI
 {
-    public partial class SynchronizedIntegrationDlg : Form
+    public partial class SynchronizedIntegrationDlg : ModeUIInvariantFormEx  // This dialog is the same in all UI modes
     {
         private readonly SkylineWindow _skylineWindow;
         private readonly bool _originalAlignRtPrediction;
@@ -236,7 +237,7 @@ namespace pwiz.Skyline.EditUI
             {
                 SelectAlignOption();
                 MessageDlg.Show(this,
-                    Resources.SynchronizedIntegrationDlg_comboAlign_SelectedIndexChanged_To_align_to_retention_time_prediction__you_must_first_set_up_a_retention_time_predictor_in_Peptide_Settings___Prediction_);
+                    EditUIResources.SynchronizedIntegrationDlg_comboAlign_SelectedIndexChanged_To_align_to_retention_time_prediction__you_must_first_set_up_a_retention_time_predictor_in_Peptide_Settings___Prediction_);
             }
         }
 
@@ -379,14 +380,14 @@ namespace pwiz.Skyline.EditUI
                 if (IsRTRegression)
                 {
                     return CalcName != null
-                        ? string.Format(Resources.AlignItem_ToString_Retention_time_calculator___0__, CalcName)
-                        : Resources.AlignItem_ToString_Retention_time_calculator___;
+                        ? string.Format(EditUIResources.AlignItem_ToString_Retention_time_calculator___0__, CalcName)
+                        : EditUIResources.AlignItem_ToString_Retention_time_calculator___;
                 }
                 else if (IsFile)
                 {
                     return FileDisplayName(_chromFileInfo);
                 }
-                return Resources.AlignItem_ToString_None;
+                return EditUIResources.AlignItem_ToString_None;
             }
 
             public static IEnumerable<ChromFileInfo> GetAlignChromFileInfos(SrmSettings settings)

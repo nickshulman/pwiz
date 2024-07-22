@@ -116,6 +116,14 @@ bool ProteinPilotReader::parseFile()
     return true;
 }
 
+vector<PSM_SCORE_TYPE> ProteinPilotReader::getScoreTypes() {
+    return getScoreTypesHelper();
+}
+
+vector<PSM_SCORE_TYPE> ProteinPilotReader::getScoreTypesHelper() {
+    return vector<PSM_SCORE_TYPE>(1, PROTEIN_PILOT_CONFIDENCE);
+}
+
 void ProteinPilotReader::startElement(const XML_Char* name, 
                                       const XML_Char** attr)
 {
@@ -241,17 +249,19 @@ void ProteinPilotReader::parseMatchElement(const XML_Char** attr)
                             "Cannot find spectrum associated with match %s, "
                             "sequence %s.", getAttrValue("xml:id", attr),
                             getAttrValue("seq", attr));
-    } 
+    }
+    // find out what spectrum file this came from
+    string searchID = getRequiredAttrValue("searches", attr);
 
     // get confidence and skip if doesn't pass cutoff 
     // or if it is ranked higher than first
     double score = getDoubleRequiredAttrValue("confidence", attr);
     if( score < probCutOff_ || score < curPSM_->score ) {
         skipMods_ = true;
+        ++filteredOutPsmCount_;
+        searchIdPsmMap_.insert(make_pair(searchID, vector<PSM*>()));
         return;
     } 
-    // find out what spectrum file this came from
-    string searchID = getRequiredAttrValue("searches", attr);
     // create a vector of PSMs for this search/file if not present
     map<string, vector<PSM*> >::iterator mapAccess 
         = searchIdPsmMap_.find(searchID);
@@ -506,7 +516,7 @@ void ProteinPilotReader::addMod(){
         found->second != curMod_.deltaMass ){
         throw BlibException(false, "Two entries for a modification named %s,"
                             "one with delta mass %f and one with %f.",
-                            curMod_.name, found->second, modTable_[curMod_.name]);
+                            curMod_.name.c_str(), found->second, modTable_[curMod_.name]);
     }
 
     // else add it

@@ -20,11 +20,11 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.Specialized;
-using System.Deployment.Application;
 using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
+using System.Linq;
 using System.Net;
 using System.Text;
 using System.Windows.Forms;
@@ -35,6 +35,13 @@ namespace pwiz.Skyline.Alerts
 {
     public partial class ReportErrorDlg : FormEx
     {
+        /// <summary>
+        /// The maximum size of an attachment to include in an error report.
+        /// This number needs to be less than the "Maximum file size, in bytes, to allow in database BLOBs"
+        /// setting on the Skyline website (which is currently set to 50,000,000)
+        /// </summary>
+        public const int MAX_ATTACHMENT_SIZE = 10_000_000;
+
         private string _exceptionType;
         private string _exceptionMessage;
         private string _stackTraceText;
@@ -77,8 +84,8 @@ namespace pwiz.Skyline.Alerts
                 AcceptButton = btnCancel;
 
                 SetIntroText(
-                    Resources.ReportErrorDlg_ReportErrorDlg_An_unexpected_error_has_occurred_as_shown_below,
-                    Resources.ReportErrorDlg_ReportErrorDlg_An_error_report_will_be_posted);
+                    AlertsResources.ReportErrorDlg_ReportErrorDlg_An_unexpected_error_has_occurred_as_shown_below,
+                    AlertsResources.ReportErrorDlg_ReportErrorDlg_An_error_report_will_be_posted);
             }
         }
 
@@ -129,10 +136,6 @@ namespace pwiz.Skyline.Alerts
 
         public void OkDialog()
         {
-            if (!Equals(Settings.Default.StackTraceListVersion, Install.Version))
-            {
-                Settings.Default.StackTraceListVersion = Install.Version;
-            }
             using (var detailedReportErrorDlg = new DetailedReportErrorDlg())
             {
                 if (detailedReportErrorDlg.ShowDialog(this) == DialogResult.OK)
@@ -148,7 +151,6 @@ namespace pwiz.Skyline.Alerts
                 {
                     DialogResult = DialogResult.Cancel;
                 }
-
             }
         }
 
@@ -184,7 +186,7 @@ namespace pwiz.Skyline.Alerts
                 files.Add(@"skylineFile.sky", skyFileBytes);
             }
        
-            HttpUploadFiles(reportUrl, @"image/jpeg", nvc, files);
+            HttpUploadFiles(reportUrl, @"image/jpeg", nvc, files.Where(entry=>entry.Value.Length <= MAX_ATTACHMENT_SIZE));
 
             DialogResult = DialogResult.OK;
         }
@@ -201,13 +203,10 @@ namespace pwiz.Skyline.Alerts
                 if (!String.IsNullOrEmpty(_message))
                     sb.Append(@"User comments:").AppendLine().AppendLine(_message).AppendLine();
                 
-                if (ApplicationDeployment.IsNetworkDeployed)
-                {
-                    sb.Append(@"Skyline version: ").Append(Install.Version);
-                    if (Install.Is64Bit)
-                        sb.Append(@" (64-bit)");
-                    sb.AppendLine();
-                }
+                sb.Append(@"Skyline version: ").Append(Install.Version);
+                if (Install.Is64Bit)
+                    sb.Append(@" (64-bit)");
+                sb.AppendLine();
 
                 sb.Append(@"Installation ID: ").AppendLine(UserGuid);
                 sb.Append(@"Exception type: ").AppendLine(_exceptionType);
@@ -236,7 +235,7 @@ namespace pwiz.Skyline.Alerts
 
         private void btnClipboard_Click(object sender, EventArgs e)
         {
-            ClipboardEx.SetText(MessageBody);
+            ClipboardHelper.SetClipboardText(this, MessageBody);
         }
 
         private void btnOK_Click(object sender, EventArgs e)

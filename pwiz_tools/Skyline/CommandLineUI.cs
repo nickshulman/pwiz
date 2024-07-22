@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Original author: Don Marsh <donmarsh .at. u.washington.edu>,
  *                  MacCoss Lab, Department of Genome Sciences, UW
  *
@@ -28,6 +28,9 @@ using pwiz.Skyline.Properties;
 
 namespace pwiz.Skyline
 {
+    ///
+    /// For testing and debugging Skyline command-line interface
+    ///
     public class CommandLineUI
     {
         private readonly CommandArgs _commandArgs;
@@ -38,7 +41,7 @@ namespace pwiz.Skyline
             _commandArgs = new CommandArgs(consoleOut, false);
             if (!_commandArgs.ParseArgs(args))
             {
-                consoleOut.WriteLine(Resources.CommandLine_Run_Exiting___);
+                consoleOut.WriteLine(SkylineResources.CommandLine_Run_Exiting___);
                 return;
             }
 

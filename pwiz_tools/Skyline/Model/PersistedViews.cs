@@ -29,16 +29,34 @@ using pwiz.Skyline.Util;
 namespace pwiz.Skyline.Model
 {
     /// <summary>
-    /// Holds all of the Skyline views that get saved in <see cref="Settings.PersistedViews"/>.
+    /// Holds all of the Skyline views (aka "reports") that get saved in <see cref="Settings.PersistedViews"/>, and
+    /// thus appear in the Document Grid "Reports" dropdown button.
+    /// 
     /// This class replaces <see cref="Settings.ViewSpecList"/> and <see cref="Settings.ReportSpecList"/>.
+    ///
+    /// TO ADD OR CHANGE A DEFAULT REPORT
+    ///
+    /// 1) increase the number that is returned by "PersistedViews.RevisionIndexCurrent" (necessary even mid-release-cycle if there has been an official Daily release).
+    /// 2) add a new string constant defining the new or revised report. If there's already a report by that name, the more recent one is what shows up in Skyline.
+    /// 3) change the PersistedViews.GetDefaults(int revisionIndex) method so that it adds the new string to "reportString".
+    /// 
+    /// A convenient way to create the string constant defining a report is to build the report in Skyline, then export the report
+    /// definition with "File > Export > Report > Edit List > Share" (or you can do it from "Manage Views" on the Document Grid).
+    /// Then open the.skyr file in Notepad and replace all of the double quotes with single quotes and paste the contents of the file into
+    /// a @"" string constant. Find the commit in which this comment was added for an example.
+    ///
+    /// Note that if you skip step 1, users who have installed the current Skyline-daily will not see the new report(s) when they upgrade.
+    /// On your own computer, if you want to see the new reports without increasing the version number, you can go to Tools > Options > Miscellaneous
+    /// and push the "Clear all saved settings" button.
+    /// 
     /// </summary>
     [XmlRoot("persisted_views")]
     public class PersistedViews : SerializableViewGroups
     {
         public static readonly ViewGroup MainGroup = new ViewGroup(@"main",
-            () => Resources.PersistedViews_MainGroup_Main);
+            () => ModelResources.PersistedViews_MainGroup_Main);
         public static readonly ViewGroup ExternalToolsGroup = new ViewGroup(@"external_tools",
-            () => Resources.PersistedViews_ExternalToolsGroup_External_Tools);
+            () => ModelResources.PersistedViews_ExternalToolsGroup_External_Tools);
 
         /// <summary>
         /// Construct a new PersistedViews, migrating over the values from the old ViewSpecList 
@@ -112,7 +130,9 @@ namespace pwiz.Skyline.Model
         }
 
         public int RevisionIndex { get; private set; }
-        public int RevisionIndexCurrent { get { return 10; } }
+        // v12 adds small mol peak boundaries report
+        // v13 adds small mol transitions report and small mol RT Results report
+        public int RevisionIndexCurrent { get { return 13; } } 
         public override void ReadXml(XmlReader reader)
         {
             RevisionIndex = reader.GetIntAttribute(Attr.revision);
@@ -166,6 +186,21 @@ namespace pwiz.Skyline.Model
                 reportStrings.Add(REPORTS_V10);
             }
 
+            if (revisionIndex >= 11)
+            {
+                reportStrings.Add(REPORTS_V11);
+            }
+
+            if (revisionIndex >= 12)
+            {
+                reportStrings.Add(REPORTS_V12); // Including molecule peak boundaries export
+            }
+
+            if (revisionIndex >= 13)
+            {
+                reportStrings.Add(REPORTS_V13); // Including molecule RT results and molecule transitions result report
+            }
+
             var list = new List<KeyValuePair<ViewGroupId, ViewSpec>>();
             var xmlSerializer = new XmlSerializer(typeof(ViewSpecList));
             foreach (var reportString in reportStrings)
@@ -179,9 +214,13 @@ namespace pwiz.Skyline.Model
                 {"Peptide RT Results", MainGroup.Id.ViewName(Resources.ReportSpecList_GetDefaults_Peptide_RT_Results)},
                 {"Transition Results", MainGroup.Id.ViewName(Resources.ReportSpecList_GetDefaults_Transition_Results)},
                 {"Peak Boundaries", MainGroup.Id.ViewName(Resources.ReportSpecList_GetDefaults_Peak_Boundaries)},
+                {"Molecule Peak Boundaries", MainGroup.Id.ViewName(Resources.ReportSpecList_GetDefaults_Molecule_Peak_Boundaries)},
                 {"Peptide Transition List", MainGroup.Id.ViewName(Resources.SkylineViewContext_GetTransitionListReportSpec_Peptide_Transition_List)},
-                {"Mixed Transition List", MainGroup.Id.ViewName(Resources.SkylineViewContext_GetTransitionListReportSpec_Mixed_Transition_List)},
                 {"Small Molecule Transition List", MainGroup.Id.ViewName(Resources.SkylineViewContext_GetTransitionListReportSpec_Small_Molecule_Transition_List)},
+                {"Molecule Quantification", MainGroup.Id.ViewName(Resources.PersistedViews_GetDefaults_Molecule_Quantification)},
+                {"Molecule Ratio Results", MainGroup.Id.ViewName(Resources.PersistedViews_GetDefaults_Molecule_Ratio_Results)},
+                {"Molecule RT Results", MainGroup.Id.ViewName(Resources.ReportSpecList_GetDefaults_Molecule_RT_Results)},
+                {"Molecule Transition Results", MainGroup.Id.ViewName(Resources.ReportSpecList_GetDefaults_Molecule_Transition_Results)},
                 {"SRM Collider Input", ExternalToolsGroup.Id.ViewName("SRM Collider Input")},
             };
             // ReSharper restore LocalizableElement
@@ -290,40 +329,6 @@ namespace pwiz.Skyline.Model
     <column name='ProductMz' />
     <column name='ProductCharge' />
     <column name='FragmentIon' />
-    <column name='FragmentIonType' />
-    <column name='FragmentIonOrdinal' />
-    <column name='CleavageAa' />
-    <column name='LossNeutralMass' />
-    <column name='Losses' />
-    <column name='LibraryRank' />
-    <column name='LibraryIntensity' />
-    <column name='IsotopeDistIndex' />
-    <column name='IsotopeDistRank' />
-    <column name='IsotopeDistProportion' />
-    <column name='FullScanFilterWidth' />
-    <column name='IsDecoy' />
-    <column name='ProductDecoyMzShift' />
-  </view>
-  <view name='Mixed Transition List' rowsource='pwiz.Skyline.Model.Databinding.Entities.Transition' sublist='Results!*'>
-    <column name='Precursor.Peptide.Protein.Name' />
-    <column name='Precursor.Peptide.ModifiedSequence' />
-    <column name='Precursor.Peptide.MoleculeName' />
-    <column name='Precursor.Peptide.MoleculeFormula' />
-    <column name='Precursor.IonFormula' />
-    <column name='Precursor.NeutralFormula' />
-    <column name='Precursor.Adduct' />
-    <column name='Precursor.Mz' />
-    <column name='Precursor.Charge' />
-    <column name='Precursor.CollisionEnergy' />
-    <column name='Precursor.ExplicitCollisionEnergy' />
-    <column name='Precursor.Peptide.ExplicitRetentionTime' />
-    <column name='Precursor.Peptide.ExplicitRetentionTimeWindow' />
-    <column name='ProductMz' />
-    <column name='ProductCharge' />
-    <column name='FragmentIon' />
-    <column name='ProductIonFormula' />
-    <column name='ProductNeutralFormula' />
-    <column name='ProductAdduct' />
     <column name='FragmentIonType' />
     <column name='FragmentIonOrdinal' />
     <column name='CleavageAa' />
@@ -451,40 +456,6 @@ namespace pwiz.Skyline.Model
         // There is no REPORTS_V9 in order to work around a problem where V4 was changed.
 
         private const string REPORTS_V10 = @"<views>
-  <view name='Mixed Transition List' rowsource='pwiz.Skyline.Model.Databinding.Entities.Transition' sublist='Results!*' uimode='mixed'>
-    <column name='Precursor.Peptide.Protein.Name' />
-    <column name='Precursor.Peptide.ModifiedSequence' />
-    <column name='Precursor.Peptide.MoleculeName' />
-    <column name='Precursor.Peptide.MoleculeFormula' />
-    <column name='Precursor.IonFormula' />
-    <column name='Precursor.NeutralFormula' />
-    <column name='Precursor.Adduct' />
-    <column name='Precursor.Mz' />
-    <column name='Precursor.Charge' />
-    <column name='Precursor.CollisionEnergy' />
-    <column name='ExplicitCollisionEnergy' />
-    <column name='Precursor.Peptide.ExplicitRetentionTime' />
-    <column name='Precursor.Peptide.ExplicitRetentionTimeWindow' />
-    <column name='ProductMz' />
-    <column name='ProductCharge' />
-    <column name='FragmentIon' />
-    <column name='ProductIonFormula' />
-    <column name='ProductNeutralFormula' />
-    <column name='ProductAdduct' />
-    <column name='FragmentIonType' />
-    <column name='FragmentIonOrdinal' />
-    <column name='CleavageAa' />
-    <column name='LossNeutralMass' />
-    <column name='Losses' />
-    <column name='LibraryRank' />
-    <column name='LibraryIntensity' />
-    <column name='IsotopeDistIndex' />
-    <column name='IsotopeDistRank' />
-    <column name='IsotopeDistProportion' />
-    <column name='FullScanFilterWidth' />
-    <column name='IsDecoy' />
-    <column name='ProductDecoyMzShift' />
-  </view>
   <view name='Small Molecule Transition List' rowsource='pwiz.Skyline.Model.Databinding.Entities.Transition' sublist='Results!*' uimode='small_molecules'>
     <column name='Precursor.Peptide.Protein.Name' />
     <column name='Precursor.Peptide.MoleculeName' />
@@ -506,6 +477,71 @@ namespace pwiz.Skyline.Model
   </view>
 </views>
 ";
+
+        private const string REPORTS_V11 = @"<views>
+  <view name='Molecule Quantification' rowsource='pwiz.Skyline.Model.Databinding.Entities.Peptide' sublist='Results!*' uimode='small_molecules'>
+    <column name='' />
+    <column name='Protein' />
+    <column name='StandardType' />
+    <column name='InternalStandardConcentration' />
+    <column name='ConcentrationMultiplier' />
+    <column name='NormalizationMethod' />
+    <column name='CalibrationCurve' />
+    <column name='Note' />
+  </view>
+  <view name='Molecule Ratio Results' rowsource='pwiz.Skyline.Model.Databinding.Entities.Peptide' sublist='Results!*' uimode='small_molecules'>
+    <column name='' />
+    <column name='Protein' />
+    <column name='Results!*.Value.ResultFile.Replicate' />
+    <column name='Results!*.Value.PeptidePeakFoundRatio' />
+    <column name='Results!*.Value.PeptideRetentionTime' />
+    <column name='Results!*.Value.RatioToStandard' />
+    <column name='Results!*.Value.Quantification' />
+    <filter column='Results!*.Value' opname='isnotnullorblank' />
+  </view>
+</views>";
+
+        private const string REPORTS_V12 = @"<views>
+  <view name='Molecule Peak Boundaries' rowsource='pwiz.Skyline.Model.Databinding.Entities.Precursor' sublist='Results!*' uimode='small_molecules'>
+    <column name='Results!*.Value.PeptideResult.ResultFile.FileName' />
+    <column name='Peptide' />
+    <column name='Results!*.Value.MinStartTime' />
+    <column name='Results!*.Value.MaxEndTime' />
+    <column name='Adduct' />
+    <filter column='Results!*.Value' opname='isnotnullorblank' />
+  </view>
+</views>";
+
+        private const string REPORTS_V13 = @"<views>
+  <view name='Molecule RT Results' rowsource='pwiz.Skyline.Model.Databinding.Entities.Peptide' sublist='Results!*' uimode='small_molecules'>
+    <column name='' />
+    <column name='Protein.Name' />
+    <column name='Results!*.Value.ResultFile.Replicate.Name' />
+    <column name='PredictedRetentionTime' />
+    <column name='Results!*.Value.PeptideRetentionTime' />
+    <column name='Results!*.Value.PeptidePeakFoundRatio' />
+    <filter column='Results!*.Value' opname='isnotnullorblank' />
+  </view>
+  <view name='Molecule Transition Results' rowsource='pwiz.Skyline.Model.Databinding.Entities.Transition' sublist='Results!*' uimode='small_molecules'>
+    <column name='Precursor.Peptide' />
+    <column name='Precursor.Peptide.Protein.Name' />
+    <column name='Results!*.Value.PrecursorResult.PeptideResult.ResultFile.Replicate.Name' />
+    <column name='Precursor.Mz' />
+    <column name='Precursor.Adduct' />
+    <column name='Precursor.Charge' />
+    <column name='FragmentIon' />
+    <column name='ProductMz' />
+    <column name='ProductAdduct' />
+    <column name='ProductCharge' />
+    <column name='Results!*.Value.RetentionTime' />
+    <column name='Results!*.Value.Area' />
+    <column name='Results!*.Value.Background' />
+    <column name='Results!*.Value.PeakRank' />
+    <filter column='Results!*.Value' opname='isnotnullorblank' />
+  </view>
+</views>";
+
+
 
         // ReSharper restore LocalizableElement
 

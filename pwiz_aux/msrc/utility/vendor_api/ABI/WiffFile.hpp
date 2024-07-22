@@ -86,7 +86,9 @@ PWIZ_API_DECL enum InstrumentModel
     API4600TripleTOF,
     API5600TripleTOF,
     API6600TripleTOF,
+    TripleQuad7500,
     X500QTOF,
+    ZenoTOF7600,
     GenericQTrap,
     InstrumentModel_Count
 };
@@ -172,6 +174,7 @@ struct PWIZ_API_DECL Target
     double dwellTime;
     double collisionEnergy;
     double declusteringPotential;
+    double startTime, endTime;
     std::string compoundID;
 };
 
@@ -187,9 +190,9 @@ struct PWIZ_API_DECL Experiment
 
     virtual size_t getSRMSize() const = 0;
     virtual void getSRM(size_t index, Target& target) const = 0;
-    virtual void getSIC(size_t index, pwiz::util::BinaryData<double>& times, pwiz::util::BinaryData<double>& intensities) const = 0;
+    virtual double getSIC(size_t index, pwiz::util::BinaryData<double>& times, pwiz::util::BinaryData<double>& intensities, bool ignoreScheduledLimits) const = 0;
     virtual void getSIC(size_t index, pwiz::util::BinaryData<double>& times, pwiz::util::BinaryData<double>& intensities,
-                        double& basePeakX, double& basePeakY) const = 0;
+                        double& basePeakX, double& basePeakY, bool ignoreScheduledLimits) const = 0;
 
     virtual void getAcquisitionMassRange(double& startMz, double& stopMz) const = 0;
     virtual ScanType getScanType() const = 0;

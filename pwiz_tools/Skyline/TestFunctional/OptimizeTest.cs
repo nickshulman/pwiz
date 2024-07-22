@@ -68,9 +68,8 @@ namespace pwiz.SkylineTestFunctional
 
         protected override void DoTest()
         {
-            if (AsSmallMolecules && !RunSmallMoleculeTestVersions)
+            if (AsSmallMolecules && SkipSmallMoleculeTestVersions())
             {
-                Console.Write(MSG_SKIPPING_SMALLMOLECULE_TEST_VERSION);
                 return;
             }
 
@@ -246,7 +245,7 @@ namespace pwiz.SkylineTestFunctional
             var addOptDlgAskConverted = ShowDialog<AddOptimizationsDlg>(addOptDbConvertible.OkDialog);
             Assert.AreEqual(AsSmallMolecules ? 111 : 109, addOptDlgAskConverted.OptimizationsCount);
             Assert.AreEqual(AsSmallMolecules ? 0 : 2, addOptDlgAskConverted.ExistingOptimizationsCount);
-            RunUI(addOptDlgAskConverted.CancelDialog);
+            OkDialog(addOptDlgAskConverted, addOptDlgAskConverted.CancelDialog);
 
             // Done editing optimization library
             OkDialog(editOptLib, editOptLib.OkDialog);
@@ -264,10 +263,12 @@ namespace pwiz.SkylineTestFunctional
             var importResults = ShowDialog<ImportResultsDlg>(SkylineWindow.ImportResults);
 
             RunUI(() =>
-                      {
-                          importResults.NamedPathSets = DataSourceUtil.GetDataSourcesInSubdirs(TestFilesDir.FullPath).ToArray();
-                          importResults.OptimizationName = ExportOptimize.CE;
-                      });
+            {
+                importResults.NamedPathSets =
+                    DataSourceUtil.GetDataSources(TestFilesDir.GetTestPath("REP01"))
+                        .Concat(DataSourceUtil.GetDataSources(TestFilesDir.GetTestPath("REP02"))).ToArray();
+                importResults.OptimizationName = ExportOptimize.CE;
+            });
 
             var removePrefix = ShowDialog<ImportResultsNameDlg>(importResults.OkDialog);
             RunUI(removePrefix.NoDialog);
@@ -777,7 +778,8 @@ namespace pwiz.SkylineTestFunctional
 
                 // Try exporting with an explicitly set compensation voltage value and declustering potential
                 var documentGrid = ShowDialog<DocumentGridForm>(() => SkylineWindow.ShowDocumentGrid(true));
-                EnableDocumentGridColumns(documentGrid, Resources.SkylineViewContext_GetTransitionListReportSpec_Mixed_Transition_List, 5,
+                EnsureMixedTransitionListReport();
+                EnableDocumentGridColumns(documentGrid, MIXED_TRANSITION_LIST_REPORT_NAME, 5,
                     new[]
                     {
                         "Proteins!*.Peptides!*.Precursors!*.ExplicitCompensationVoltage",
@@ -800,6 +802,7 @@ namespace pwiz.SkylineTestFunctional
                 expectedTransitionsFinalWithOptLib2 = expectedTransitionsFinalWithOptLib2.Replace(".csv", "_explicit.csv");
             }
         }
+
 
         private DbOptimization GetDbOptimization(OptimizationType type, string sequence, Adduct adduct, double optValue)
         {
@@ -854,7 +857,7 @@ namespace pwiz.SkylineTestFunctional
             {
                 var masscalc = new SequenceMassCalc(MassType.Monoisotopic);
                 var moleculeFormula = masscalc.GetMolecularFormula(seq);
-                var customMolecule = new CustomMolecule(moleculeFormula, 
+                var customMolecule = new CustomMolecule(ParsedMolecule.Create(moleculeFormula), 
                     RefinementSettings.TestingConvertedFromProteomicPeptideNameDecorator + seq.Replace(@"[", @"(").Replace(@"]", @")"));
                 return new Target(customMolecule);
             }

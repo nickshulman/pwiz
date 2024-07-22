@@ -19,7 +19,6 @@
 using System;
 using System.Collections.Generic;
 using System.Windows.Forms;
-using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
 using pwiz.Skyline.Util.Extensions;
 
@@ -45,13 +44,13 @@ namespace pwiz.Skyline.Alerts
                 var listSizing = new List<string>(_peptides);
                 if (listSizing.Count > MAX_LINES)
                     listSizing.RemoveRange(MAX_LINES, listSizing.Count - MAX_LINES);
- 				labelList.Text = TextUtil.LineSeparate(listSizing);                
-				Height += labelList.Height - panelList.Height;
+                labelList.Text = TextUtil.LineSeparate(listSizing);                
+                Height += labelList.Height - panelList.Height;
                 labelList.Text = TextUtil.LineSeparate(_peptides);
                 if (_peptides.Count > 1)
                 {
-                    labelIssue.Text = Resources.PasteFilteredPeptidesDlg_Peptides_The_following_peptides_did_not_meet_the_current_filter_criteria_;
-                    labelQuestion.Text = Resources.PasteFilteredPeptidesDlg_Peptides_Do_you_want_to_filter_them_from_the_pasted_list;
+                    labelIssue.Text = AlertsResources.PasteFilteredPeptidesDlg_Peptides_The_following_peptides_did_not_meet_the_current_filter_criteria_;
+                    labelQuestion.Text = AlertsResources.PasteFilteredPeptidesDlg_Peptides_Do_you_want_to_filter_them_from_the_pasted_list;
                 }
             }
         }

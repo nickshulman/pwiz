@@ -55,8 +55,8 @@ namespace pwiz.Skyline.Model.Irt
                 return Resources.MeasuredPeptide_ValidateSequence_A_modified_peptide_sequence_is_required_for_each_entry;
             if (sequence.IsProteomic)
             {
-                if (!FastaSequence.IsExSequence(sequence.Sequence))
-                    return string.Format(Resources.MeasuredPeptide_ValidateSequence_The_sequence__0__is_not_a_valid_modified_peptide_sequence, sequence);
+                if (!FastaSequence.IsValidPeptideSequence(sequence.Sequence))
+                    return string.Format(IrtResources.MeasuredPeptide_ValidateSequence_The_sequence__0__is_not_a_valid_modified_peptide_sequence, sequence);
             }
             return null;
         }
@@ -65,9 +65,9 @@ namespace pwiz.Skyline.Model.Irt
         {
             double rtValue;
             if (rtText == null || !double.TryParse(rtText, out rtValue))
-                return Resources.MeasuredPeptide_ValidateRetentionTime_Measured_retention_times_must_be_valid_decimal_numbers;
+                return IrtResources.MeasuredPeptide_ValidateRetentionTime_Measured_retention_times_must_be_valid_decimal_numbers;
             if (!allowNegative && rtValue <= 0)
-                return Resources.MeasuredPeptide_ValidateRetentionTime_Measured_retention_times_must_be_greater_than_zero;
+                return IrtResources.MeasuredPeptide_ValidateRetentionTime_Measured_retention_times_must_be_greater_than_zero;
             return null;
         }
     }
@@ -121,7 +121,7 @@ namespace pwiz.Skyline.Model.Irt
             foreach (var nodePep in doc.Molecules.Where(pep => pep.PercentileMeasuredRetentionTime.HasValue && !pep.IsDecoy))
             {
                 var allStats = doc.MeasuredResults.MSDataFileInfos
-                    .Select(info => mProphetResultsHandler.GetPeakFeatureStatistics(nodePep.Id.GlobalIndex, info.FileId.GlobalIndex))
+                    .Select(info => mProphetResultsHandler.GetPeakFeatureStatistics(nodePep.Peptide, info.FileId))
                     .Where(stats => stats != null).ToArray();
                 var value = float.MaxValue;
                 if (allStats.Length > 0)

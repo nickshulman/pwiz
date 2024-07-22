@@ -141,11 +141,6 @@ namespace pwiz.Common.DataBinding
 
         protected abstract void SaveViewSpecList(ViewGroupId viewGroupId, ViewSpecList viewSpecList);
 
-        protected RowSourceInfo FindRowSourceInfo(ViewInfo viewInfo)
-        {
-            return FindRowSourceInfo(viewInfo.ParentColumn.PropertyType);
-        }
-
         public ViewInfo GetViewInfo(ViewGroup viewGroup, ViewSpec viewSpec)
         {
             var rowSourceInfo = GetRowSourceInfo(viewSpec);
@@ -170,7 +165,7 @@ namespace pwiz.Common.DataBinding
             return GetViewInfo(FindGroup(viewName.Value.GroupId), viewSpec);
         }
 
-        protected RowSourceInfo GetRowSourceInfo(ViewSpec viewSpec)
+        public RowSourceInfo GetRowSourceInfo(ViewSpec viewSpec)
         {
             return RowSources.FirstOrDefault(rowSource => rowSource.Name == viewSpec.RowSource);
         }
@@ -193,55 +188,65 @@ namespace pwiz.Common.DataBinding
         public Icon ApplicationIcon { get; protected set; }
 
         protected virtual void WriteData(IProgressMonitor progressMonitor, TextWriter writer,
-            BindingListSource bindingListSource, DsvWriter dsvWriter)
+            BindingListSource bindingListSource, char separator)
         {
             IProgressStatus status = new ProgressStatus(string.Format(Resources.AbstractViewContext_WriteData_Writing__0__rows, bindingListSource.Count));
-            WriteDataWithStatus(progressMonitor, ref status, writer, bindingListSource, dsvWriter);
+            WriteDataWithStatus(progressMonitor, ref status, writer, RowItemEnumerator.FromBindingListSource(bindingListSource), separator);
         }
 
-        protected virtual void WriteDataWithStatus(IProgressMonitor progressMonitor, ref IProgressStatus status, TextWriter writer, BindingListSource bindingListSource, DsvWriter dsvWriter)
+        protected virtual void WriteDataWithStatus(IProgressMonitor progressMonitor, ref IProgressStatus status, TextWriter writer, RowItemEnumerator rowItemEnumerator, char separator)
         {
-            IList<RowItem> rows = Array.AsReadOnly(bindingListSource.Cast<RowItem>().ToArray());
-            IList<PropertyDescriptor> properties = bindingListSource.GetItemProperties(new PropertyDescriptor[0]).Cast<PropertyDescriptor>().ToArray();
-            dsvWriter.WriteHeaderRow(writer, properties);
-            var rowCount = rows.Count;
+            var dsvWriter = CreateDsvWriter(separator, rowItemEnumerator.ColumnFormats);
+            dsvWriter.WriteHeaderRow(writer, rowItemEnumerator.ItemProperties);
+            var rowCount = rowItemEnumerator.Count;
             int startPercent = status.PercentComplete;
-            for (int rowIndex = 0; rowIndex < rowCount; rowIndex++)
+            int rowIndex = 0;
+            while (rowItemEnumerator.MoveNext())
             {
                 if (progressMonitor.IsCanceled)
                 {
                     return;
                 }
-                int percentComplete = startPercent + (rowIndex*(100 - startPercent)/rowCount);
+                int percentComplete = startPercent + (rowIndex * (100 - startPercent) / rowCount);
                 if (percentComplete > status.PercentComplete)
                 {
                     status = status.ChangeMessage(string.Format(Resources.AbstractViewContext_WriteData_Writing_row__0___1_, (rowIndex + 1), rowCount))
                         .ChangePercentComplete(percentComplete);
                     progressMonitor.UpdateProgress(status);
                 }
-                dsvWriter.WriteDataRow(writer, rows[rowIndex], properties);
+                dsvWriter.WriteDataRow(writer, rowItemEnumerator.Current, rowItemEnumerator.ItemProperties);
+                rowIndex++;
             }
+        }
+
+        /// <summary>
+        /// Returns the list of options to show in the Save File dialog which comes up when the user exports a report.
+        /// </summary>
+        protected virtual IEnumerable<TabularFileFormat> ListAvailableExportFormats()
+        {
+            // These strings do not need to be localized, since they are only seen if this method has not been overridden.
+            // SkylineViewContext overrides this method and uses the appropriately localized strings.
+            yield return new TabularFileFormat(',', @"Comma Separated Values(*.csv)|*.csv");
+            yield return new TabularFileFormat('\t', @"Tab Separated Values(*.tsv)|*.tsv");
         }
 
         public void Export(Control owner, BindingListSource bindingListSource)
         {
             try
             {
-                var dataFormats = new[] {DataFormats.CSV, DataFormats.TSV};
+                var dataFormats = ListAvailableExportFormats().ToArray();
                 string fileFilter = string.Join(@"|", dataFormats.Select(format => format.FileFilter).ToArray());
-                using (var saveFileDialog = new SaveFileDialog
+                using (var saveFileDialog = new SaveFileDialog())
                 {
-                    Filter = fileFilter,
-                    InitialDirectory = GetExportDirectory(),
-                    FileName = GetDefaultExportFilename(bindingListSource.ViewInfo),
-                })
-                {
+                    saveFileDialog.Filter = fileFilter;
+                    saveFileDialog.InitialDirectory = GetExportDirectory();
+                    saveFileDialog.FileName = GetDefaultExportFilename(bindingListSource.ViewInfo);
                     if (saveFileDialog.ShowDialog(FormUtil.FindTopLevelOwner(owner)) == DialogResult.Cancel)
                     {
                         return;
                     }
                     var dataFormat = dataFormats[saveFileDialog.FilterIndex - 1];
-                    ExportToFile(owner, bindingListSource, saveFileDialog.FileName, dataFormat.GetDsvWriter());
+                    ExportToFile(owner, bindingListSource, saveFileDialog.FileName, dataFormat.Separator);
                     SetExportDirectory(Path.GetDirectoryName(saveFileDialog.FileName));
                 }
             }
@@ -252,8 +257,17 @@ namespace pwiz.Common.DataBinding
             }
         }
 
+        public virtual DsvWriter CreateDsvWriter(char separator, ColumnFormats columnFormats)
+        {
+            return new DsvWriter(DataSchema.DataSchemaLocalizer.FormatProvider, DataSchema.DataSchemaLocalizer.Language,
+                separator)
+            {
+                ColumnFormats = columnFormats
+            };
+        }
+
         public void ExportToFile(Control owner, BindingListSource bindingListSource, String filename,
-            DsvWriter dsvWriter)
+            char separator)
         {
             SafeWriteToFile(owner, filename, stream =>
             {
@@ -261,7 +275,7 @@ namespace pwiz.Common.DataBinding
                 bool finished = false;
                 RunOnThisThread(owner, (cancellationToken, progressMonitor) =>
                 {
-                    WriteData(progressMonitor, writer, bindingListSource, dsvWriter);
+                    WriteData(progressMonitor, writer, bindingListSource, separator);
                     finished = !progressMonitor.IsCanceled;
                 });
                 if (finished)
@@ -292,16 +306,15 @@ namespace pwiz.Common.DataBinding
             {
                 StringWriter tsvWriter = new StringWriter();
                 if (!RunOnThisThread(owner, (cancellationToken, progressMonitor) =>
-                {
-                    WriteData(progressMonitor, tsvWriter, bindingListSource, DataFormats.TSV.GetDsvWriter());
+                    {
+                        WriteData(progressMonitor, tsvWriter, bindingListSource, '\t');
                         progressMonitor.UpdateProgress(new ProgressStatus(string.Empty).Complete());
-                }))
+                    }))
                 {
                     return;
                 }
-                DataObject dataObject = new DataObject();
-                dataObject.SetText(tsvWriter.ToString());
-                Clipboard.SetDataObject(dataObject);
+
+                SetClipboardText(owner, tsvWriter.ToString());
             }
             catch (Exception exception)
             {
@@ -309,6 +322,13 @@ namespace pwiz.Common.DataBinding
                     Resources.AbstractViewContext_CopyAll_There_was_an_error_copying_the_data_to_the_clipboard__ + exception.Message, 
                     MessageBoxButtons.OK);
             }
+        }
+
+        protected virtual void SetClipboardText(Control owner, string text)
+        {
+            DataObject dataObject = new DataObject();
+            dataObject.SetText(text);
+            Clipboard.SetDataObject(dataObject);
         }
 
         protected virtual ViewEditor CreateViewEditor(ViewGroup viewGroup, ViewSpec viewSpec)
@@ -468,10 +488,12 @@ namespace pwiz.Common.DataBinding
             }
             try
             {
-                var constructor = columnTypeAttribute.ColumnType.GetConstructor(new Type[0]);
+                var constructor = columnTypeAttribute.ColumnType.GetConstructor(Array.Empty<Type>());
                 Debug.Assert(null != constructor);
                 // ReSharper disable ConditionIsAlwaysTrueOrFalse
-                return constructor != null ? (DataGridViewColumn) constructor.Invoke(new object[0]) : null;
+                // ReSharper disable ConstantConditionalAccessQualifier
+                return (DataGridViewColumn) constructor?.Invoke(Array.Empty<object>());
+                // ReSharper restore ConstantConditionalAccessQualifier
                 // ReSharper restore ConditionIsAlwaysTrueOrFalse
             }
             catch (Exception exception)
@@ -640,7 +662,7 @@ namespace pwiz.Common.DataBinding
 
         public virtual Image[] GetImageList()
         {
-            return new Image[0];
+            return Array.Empty<Image>();
         }
 
         public virtual int GetImageIndex(ViewSpec viewItem)
@@ -706,5 +728,10 @@ namespace pwiz.Common.DataBinding
         // SkylineViewContext overrides and uses this event 
 #pragma warning disable 67
         public virtual event Action ViewsChanged;
+
+        public virtual bool CanDisplayView(ViewSpec viewSpec)
+        {
+            return null != GetRowSourceInfo(viewSpec);
+        }
     }
 }

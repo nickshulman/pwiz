@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Original author: Brendan MacLean <brendanx .at. u.washington.edu>,
  *                  MacCoss Lab, Department of Genome Sciences, UW
  *
@@ -21,7 +21,8 @@ using System.Collections.Generic;
 using System.IO;
 using pwiz.Common.Collections;
 using pwiz.Common.SystemUtil;
-using pwiz.Skyline.Properties;
+using pwiz.Skyline.Model.Results.Scoring;
+using pwiz.Skyline.Model.Results.Spectra;
 using pwiz.Skyline.Util;
 using pwiz.Skyline.Util.Extensions;
 
@@ -32,12 +33,13 @@ namespace pwiz.Skyline.Model.Results
         private readonly Action<ChromatogramCache, IProgressStatus> _completed;
 
         protected List<ChromCachedFile> _listCachedFiles = new List<ChromCachedFile>();
+        protected List<ResultFileMetaData> _listResultFileDatas = new List<ResultFileMetaData>();
         protected BlockedArrayList<ChromTransition> _listTransitions =
             new BlockedArrayList<ChromTransition>(ChromTransition.SizeOf, ChromTransition.DEFAULT_BLOCK_SIZE);
-        protected BlockedArrayList<ChromGroupHeaderEntry> _listGroups =
+        private BlockedArrayList<ChromGroupHeaderEntry> _listGroups =
             new BlockedArrayList<ChromGroupHeaderEntry>(ChromGroupHeaderInfo.SizeOf, ChromGroupHeaderInfo.DEFAULT_BLOCK_SIZE);
-        protected List<byte> _listTextIdBytes = new List<byte>();
-        protected readonly List<Type> _listScoreTypes = new List<Type>();
+        protected ChromatogramGroupIds _chromatogramGroupIds = new ChromatogramGroupIds();
+        protected FeatureNames _listScoreTypes = FeatureNames.EMPTY;
         protected readonly FileSaver _fs;
         protected readonly FileSaver _fsScans;
         protected readonly FileSaver _fsPeaks;
@@ -66,6 +68,12 @@ namespace pwiz.Skyline.Model.Results
 
         public CacheFormat CacheFormat { get; protected set; }
 
+        protected void AddChromGroup(ChromGroupHeaderEntry chromGroupHeaderEntry)
+        {
+            Assume.AreNotEqual(-1, chromGroupHeaderEntry.ChromGroupHeaderInfo.CompressedSize);
+            _listGroups.Add(chromGroupHeaderEntry);
+        }
+
         protected void Complete(Exception x)
         {
             lock (this)
@@ -92,7 +100,7 @@ namespace pwiz.Skyline.Model.Results
                                                                _listCachedFiles,
                                                                listChromGroupHeaderInfos,
                                                                _listTransitions,
-                                                               _listTextIdBytes,
+                                                               _chromatogramGroupIds,
                                                                _listScoreTypes,
                                                                _scoreCount,
                                                                _peakCount,
@@ -110,7 +118,7 @@ namespace pwiz.Skyline.Model.Results
                             }
                             catch (Exception xWrite)
                             {
-                                throw new IOException(TextUtil.LineSeparate(string.Format(Resources.ChromCacheWriter_Complete_Failure_attempting_to_write_the_file__0_, _fs.RealName), xWrite.Message));
+                                throw new IOException(TextUtil.LineSeparate(string.Format(ResultsResources.ChromCacheWriter_Complete_Failure_attempting_to_write_the_file__0_, _fs.RealName), xWrite.Message), xWrite);
                             }
                         }
 
@@ -131,11 +139,8 @@ namespace pwiz.Skyline.Model.Results
                             _listGroups = null;
                             var arrayTransitions = _listTransitions.ToBlockedArray();
                             _listTransitions = null;
-                            var textIdBytes = _listTextIdBytes.ToArray();
-                            _listTextIdBytes = null;
-
-                            var rawData = new ChromatogramCache.RawData(newCacheHeader, arrayCachFiles,
-                                arrayChromEntries, arrayTransitions, _listScoreTypes, scoreValueLocation, textIdBytes);
+                            var rawData = new ChromatogramCache.RawData(newCacheHeader, arrayCachFiles, _listResultFileDatas,
+                                arrayChromEntries, arrayTransitions, _listScoreTypes, scoreValueLocation, _chromatogramGroupIds);
                             result = new ChromatogramCache(CachePath, rawData, readStream);
                             _status = _status.Complete();
                             _loader.UpdateProgress(_status);

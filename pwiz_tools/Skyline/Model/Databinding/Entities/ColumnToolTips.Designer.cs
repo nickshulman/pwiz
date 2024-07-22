@@ -19,7 +19,7 @@ namespace pwiz.Skyline.Model.Databinding.Entities {
     // class via a tool like ResGen or Visual Studio.
     // To add or remove a member, edit your .ResX file then rerun ResGen
     // with the /str option, or rebuild your VS project.
-    [global::System.CodeDom.Compiler.GeneratedCodeAttribute("System.Resources.Tools.StronglyTypedResourceBuilder", "15.0.0.0")]
+    [global::System.CodeDom.Compiler.GeneratedCodeAttribute("System.Resources.Tools.StronglyTypedResourceBuilder", "17.0.0.0")]
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
     [global::System.Runtime.CompilerServices.CompilerGeneratedAttribute()]
     public class ColumnToolTips {
@@ -88,7 +88,7 @@ namespace pwiz.Skyline.Model.Databinding.Entities {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Ratio of Calculated Concentration the Analyte Concentration (specified on the Replicate).
+        ///   Looks up a localized string similar to Ratio of Calculated Concentration to the specified Analyte Concentration.
         /// </summary>
         public static string Accuracy {
             get {
@@ -130,6 +130,16 @@ namespace pwiz.Skyline.Model.Databinding.Entities {
         public static string AnalyteConcentration {
             get {
                 return ResourceManager.GetString("AnalyteConcentration", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The type of analyzer that was used to collect the spectrum.
+        ///If more than one analyzer was used, the names of the analyzers will be separated by slashes..
+        /// </summary>
+        public static string Analyzer {
+            get {
+                return ResourceManager.GetString("Analyzer", resourceCulture);
             }
         }
         
@@ -358,13 +368,40 @@ namespace pwiz.Skyline.Model.Databinding.Entities {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to The concentration of the analyte is calculated by either:
-        ///    1. Using the calibration curve (if the Peptide Settings &gt; Quantification has a Regression Fit specified)
-        ///    2. Using the ratio to internal standard (or surrogate) and multiplying by the Internal Standard Concentration.
+        ///   Looks up a localized string similar to The concentration of the analyte calculated using either:
+        ///1. The calibration curve (if the Peptide Settings &gt; Quantification has a Regression Fit specified)
+        ///2. The ratio to internal standard (or surrogate) and multiplying by the Internal Standard Concentration.
         /// </summary>
         public static string CalculatedConcentration {
             get {
                 return ResourceManager.GetString("CalculatedConcentration", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Warning if missing data impacts comparisons of the &quot;Calculated Concentration&quot; between replicates.
+        /// </summary>
+        public static string CalculatedConcentrationMessage {
+            get {
+                return ResourceManager.GetString("CalculatedConcentrationMessage", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Calculated concentration value available even when missing data impacts comparisons between replicates.
+        /// </summary>
+        public static string CalculatedConcentrationRaw {
+            get {
+                return ResourceManager.GetString("CalculatedConcentrationRaw", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Calculated concentration value unavailable when missing data impacts comparisons between replicates.
+        /// </summary>
+        public static string CalculatedConcentrationStrict {
+            get {
+                return ResourceManager.GetString("CalculatedConcentrationStrict", resourceCulture);
             }
         }
         
@@ -378,6 +415,15 @@ namespace pwiz.Skyline.Model.Databinding.Entities {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to A set of peaks with the same start and end time from the transition chromatograms of a set of precursors belonging to the same peptide or molecule..
+        /// </summary>
+        public static string CandidatePeakGroup {
+            get {
+                return ResourceManager.GetString("CandidatePeakGroup", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Standardized molecular identifier.
         /// </summary>
         public static string CAS {
@@ -387,11 +433,29 @@ namespace pwiz.Skyline.Model.Databinding.Entities {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to True if the peak boundaries of the candidate peak are the same as the integration boundaries that are used for all of the transitions in the peak group..
+        /// </summary>
+        public static string Chosen {
+            get {
+                return ResourceManager.GetString("Chosen", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Chromatogram for the transition and replicate..
         /// </summary>
         public static string Chromatogram {
             get {
                 return ResourceManager.GetString("Chromatogram", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Last retention time in the chromatogram.
+        /// </summary>
+        public static string ChromatogramEndTime {
+            get {
+                return ResourceManager.GetString("ChromatogramEndTime", resourceCulture);
             }
         }
         
@@ -459,6 +523,15 @@ namespace pwiz.Skyline.Model.Databinding.Entities {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to First retention time in the chromatogram.
+        /// </summary>
+        public static string ChromatogramStartTime {
+            get {
+                return ResourceManager.GetString("ChromatogramStartTime", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Specific amino acid residue in the peptide after (C-terminal of) which the
         ///peptide was cleaved upon fragmentation. (e.g. P, M, S, T, etc.).
         /// </summary>
@@ -502,6 +575,15 @@ namespace pwiz.Skyline.Model.Databinding.Entities {
         public static string CollisionEnergy {
             get {
                 return ResourceManager.GetString("CollisionEnergy", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The voltage that was applied when the FAIMS spectrum was collected.
+        /// </summary>
+        public static string CompensationVoltage {
+            get {
+                return ResourceManager.GetString("CompensationVoltage", resourceCulture);
             }
         }
         
@@ -927,6 +1009,15 @@ namespace pwiz.Skyline.Model.Databinding.Entities {
         public static string ExplicitSLens {
             get {
                 return ResourceManager.GetString("ExplicitSLens", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Collection of properties of the peak group which can be assigned a numerical score to be used in assessing peak quality..
+        /// </summary>
+        public static string Features {
+            get {
+                return ResourceManager.GetString("Features", resourceCulture);
             }
         }
         
@@ -1367,6 +1458,15 @@ namespace pwiz.Skyline.Model.Databinding.Entities {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to A measure of the &quot;tailedness&quot; of the chromatogram peak..
+        /// </summary>
+        public static string Kurtosis {
+            get {
+                return ResourceManager.GetString("Kurtosis", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to The position of the last (C-terminal) amino acid of the peptide within its
         ///containing protein sequence, or #N/A if no protein sequence is available.
         /// </summary>
@@ -1386,13 +1486,12 @@ namespace pwiz.Skyline.Model.Databinding.Entities {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to The dot-product between the individual transition peak areas
+        ///   Looks up a localized string similar to Equivalent to &quot;dotp&quot; displayed in the user interface. The dot-product between the individual transition peak areas
         ///of the precursor and the intensities of the matching ion peaks in the matched MS/MS
         ///spectral library spectrum (Note: as of v1.4, this is now 1 – Arcos(dotp)/(Pi/2) where dotp
         ///is the value described above. a.k.a. Normalize Spectrum Contrast Angle), or #N/A if the
         ///precursor has not matching library spectrum or has fewer than 4 transitions. This is a 35
-        ///useful value for method refinement. It works best when 6 or more transitions are
-        ///present..
+        ///useful value for method refinement. It  [rest of string was truncated]&quot;;.
         /// </summary>
         public static string LibraryDotProduct {
             get {
@@ -1581,7 +1680,7 @@ namespace pwiz.Skyline.Model.Databinding.Entities {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Mass Error PPM.
+        ///   Looks up a localized string similar to The difference between the expected and measured m/z values expressed in parts per million (PPM).
         /// </summary>
         public static string MassErrorPPM {
             get {
@@ -1595,6 +1694,15 @@ namespace pwiz.Skyline.Model.Databinding.Entities {
         public static string MassErrors {
             get {
                 return ResourceManager.GetString("MassErrors", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The subset of the selected precursors whose precursor m/z matches any of the spectra represented by the row in the Spectrum Grid..
+        /// </summary>
+        public static string MatchingPrecursors {
+            get {
+                return ResourceManager.GetString("MatchingPrecursors", resourceCulture);
             }
         }
         
@@ -1800,6 +1908,27 @@ namespace pwiz.Skyline.Model.Databinding.Entities {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to The median transition peak area of transition results in the particular result file.
+        ///This median peak area is used when the normalization method is &quot;Equalize Medians&quot;.
+        ///If there is an internal standard label type, then the median peak area is calculated using only the peak areas from transitions whose precursor&apos;s label type is an internal standard.
+        ///If there are no internal standard peak areas, then the median transition peak area is calculated from all transition peak areas..
+        /// </summary>
+        public static string MedianPeakArea {
+            get {
+                return ResourceManager.GetString("MedianPeakArea", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Warning, if any, of missing values that might impact comparisons of the &quot;Raw&quot; value between replicates..
+        /// </summary>
+        public static string Message {
+            get {
+                return ResourceManager.GetString("Message", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Min.
         /// </summary>
         public static string Min {
@@ -1860,6 +1989,15 @@ namespace pwiz.Skyline.Model.Databinding.Entities {
         public static string MissedCleavages {
             get {
                 return ResourceManager.GetString("MissedCleavages", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The sum of the feature values weighted according to the currently selected peak scoring model..
+        /// </summary>
+        public static string ModelScore {
+            get {
+                return ResourceManager.GetString("ModelScore", resourceCulture);
             }
         }
         
@@ -1965,13 +2103,50 @@ namespace pwiz.Skyline.Model.Databinding.Entities {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to A number representing the abundance of the molecule list. This number is obtained by averaging the normalized areas of all of the transitions under this Molecule List.
-        ///The areas are normalized according to the Normalization Method specified in the Molecule Quantification settings.
-        ///The Molecule List Abundance will be blank if any transitions have missing values in this replicate, unless the normalization method is ratio to a label..
+        ///   Looks up a localized string similar to A number representing the abundance of the molecule list, calculated according to the &quot;Normalization Method&quot; specified in the Molecule Quantification settings.
         /// </summary>
         public static string MoleculeListAbundance {
             get {
                 return ResourceManager.GetString("MoleculeListAbundance", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Warning if missing data impacts comparisons of &quot;Molecule List Abundance&quot; between replicates.
+        /// </summary>
+        public static string MoleculeListAbundanceMessage {
+            get {
+                return ResourceManager.GetString("MoleculeListAbundanceMessage", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to A number representing the abundance of the molecule list, calculated according to the &quot;Normalization Method&quot; specified in the Molecule Quantification settings.
+        ///Unavailable when missing data impacts comparisons between replicates..
+        /// </summary>
+        public static string MoleculeListAbundanceStrict {
+            get {
+                return ResourceManager.GetString("MoleculeListAbundanceStrict", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Average of the normalized areas of the transitions under the Molecule List.
+        ///The areas are normalized according to the Normalization Method specified in the Molecule Quantification settings..
+        /// </summary>
+        public static string MoleculeListAbundanceTransitionAveraged {
+            get {
+                return ResourceManager.GetString("MoleculeListAbundanceTransitionAveraged", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Sum of the normalized areas of the transitions under the Molecule List.
+        ///The areas are normalized according to the Normalization Method specified in the Molecule Quantification settings.
+        /// </summary>
+        public static string MoleculeListAbundanceTransitionSummed {
+            get {
+                return ResourceManager.GetString("MoleculeListAbundanceTransitionSummed", resourceCulture);
             }
         }
         
@@ -2120,6 +2295,24 @@ namespace pwiz.Skyline.Model.Databinding.Entities {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to The m/z values of the precursors that were isolated.
+        /// </summary>
+        public static string Ms1Precursors {
+            get {
+                return ResourceManager.GetString("Ms1Precursors", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to For spectra that are MS Level 3 or higher, the m/z values of the precursors that were isolated after the first level of precursors were fragmented.
+        /// </summary>
+        public static string Ms2Precursors {
+            get {
+                return ResourceManager.GetString("Ms2Precursors", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Indicates whether the result was obtained using only precursor intensities (MS Level 1) or product intensities (MS Level 2)..
         /// </summary>
         public static string MsLevel {
@@ -2129,11 +2322,21 @@ namespace pwiz.Skyline.Model.Databinding.Entities {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Next Aa.
+        ///   Looks up a localized string similar to The amino acid residue found immediately after the peptide in the protein sequence..
         /// </summary>
         public static string NextAa {
             get {
                 return ResourceManager.GetString("NextAa", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Number which observed values are divided by when using the default normalization method.
+        ///The default normalization method is specified on the Quantification tab of the Peptide or Molecule settings dialog..
+        /// </summary>
+        public static string NormalizationDivisor {
+            get {
+                return ResourceManager.GetString("NormalizationDivisor", resourceCulture);
             }
         }
         
@@ -2147,12 +2350,46 @@ namespace pwiz.Skyline.Model.Databinding.Entities {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Value obtained by normalizing the peptide/molecule intensity according to either the explicit &quot;Normalization Method&quot; for the peptide/molecule or the normalization method specified on:
-        ///    Settings &gt; Peptide Settings &gt; Quantification.
+        ///   Looks up a localized string similar to Value obtained by normalizing the peptide/molecule intensity according to either
+        ///the explicit &quot;Normalization Method&quot; for the peptide/molecule 
+        ///or the normalization method specified on Settings &gt; Peptide Settings &gt; Quantification.
         /// </summary>
         public static string NormalizedArea {
             get {
                 return ResourceManager.GetString("NormalizedArea", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Warning if missing data impacts of the &quot;Normalized Area&quot; value between replicates.
+        /// </summary>
+        public static string NormalizedAreaMessage {
+            get {
+                return ResourceManager.GetString("NormalizedAreaMessage", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Value obtained by normalizing the peptide/molecule intensity according to either
+        ///the explicit &quot;Normalization Method&quot; for the peptide/molecule
+        ///or the normalization method specified on Settings &gt; Peptide Settings &gt; Quantification.
+        ///Available even when missing data impacts comparisons between replicates..
+        /// </summary>
+        public static string NormalizedAreaRaw {
+            get {
+                return ResourceManager.GetString("NormalizedAreaRaw", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Value obtained by normalizing the peptide/molecule intensity according to either
+        ///the explicit &quot;Normalization Method&quot; for the peptide/molecule
+        ///or the normalization method specified on Settings &gt; Peptide Settings &gt; Quantification.
+        ///Unavailable when missing data impacts comparisons between replicates..
+        /// </summary>
+        public static string NormalizedAreaStrict {
+            get {
+                return ResourceManager.GetString("NormalizedAreaStrict", resourceCulture);
             }
         }
         
@@ -2206,6 +2443,42 @@ namespace pwiz.Skyline.Model.Databinding.Entities {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to The maximum end time of the individual peaks in the peak group..
+        /// </summary>
+        public static string PeakGroupEndTime {
+            get {
+                return ResourceManager.GetString("PeakGroupEndTime", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The retention time of the peak with the maximum height of all transitions in a peak group.
+        /// </summary>
+        public static string PeakGroupRetentionTime {
+            get {
+                return ResourceManager.GetString("PeakGroupRetentionTime", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The minimum start time of the individual peaks in the peak group..
+        /// </summary>
+        public static string PeakGroupStartTime {
+            get {
+                return ResourceManager.GetString("PeakGroupStartTime", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The estimate q-value (false discovery rate) that a peak with this score would get if it were the peak chosen by Skyline..
+        /// </summary>
+        public static string PeakQValue {
+            get {
+                return ResourceManager.GetString("PeakQValue", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to The rank based on Area of this transition among all other transitions of the
         ///same precursor..
         /// </summary>
@@ -2221,6 +2494,24 @@ namespace pwiz.Skyline.Model.Databinding.Entities {
         public static string PeakRankByLevel {
             get {
                 return ResourceManager.GetString("PeakRankByLevel", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The features and their scores for the peak group..
+        /// </summary>
+        public static string PeakScores {
+            get {
+                return ResourceManager.GetString("PeakScores", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The standard deviation of the chromatographic peak..
+        /// </summary>
+        public static string PeakStandardDeviation {
+            get {
+                return ResourceManager.GetString("PeakStandardDeviation", resourceCulture);
             }
         }
         
@@ -2398,6 +2689,15 @@ namespace pwiz.Skyline.Model.Databinding.Entities {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Number of spectra in the spectral library which match the peptide and result file..
+        /// </summary>
+        public static string PeptideSpectrumMatchCount {
+            get {
+                return ResourceManager.GetString("PeptideSpectrumMatchCount", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Number of data points that were used in the curve fit..
         /// </summary>
         public static string PointCount {
@@ -2452,9 +2752,36 @@ namespace pwiz.Skyline.Model.Databinding.Entities {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to 
-        ///      The charge associated with the precursor ion.
-        ///    .
+        ///   Looks up a localized string similar to Warning if missing data impacts comparisons of &quot;Precursor Calculated Concentration&quot; between replicates.
+        /// </summary>
+        public static string PrecursorCalculatedConcentrationMessage {
+            get {
+                return ResourceManager.GetString("PrecursorCalculatedConcentrationMessage", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The concentration of the Precursor Result calculated using the isotopolog response curve.
+        ///Available even when missing data impacts comparisons between replicates..
+        /// </summary>
+        public static string PrecursorCalculatedConcentrationRaw {
+            get {
+                return ResourceManager.GetString("PrecursorCalculatedConcentrationRaw", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The concentration of the Precursor Result calculated using the isotopolog response curve.
+        ///Unavailable when missing data impacts comparisons between replicates..
+        /// </summary>
+        public static string PrecursorCalculatedConcentrationStrict {
+            get {
+                return ResourceManager.GetString("PrecursorCalculatedConcentrationStrict", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The charge associated with the precursor ion..
         /// </summary>
         public static string PrecursorCharge {
             get {
@@ -2535,13 +2862,46 @@ namespace pwiz.Skyline.Model.Databinding.Entities {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to The normalized area of the Precursor Result.
-        ///This is equal to the Total Area of the Precursor Result normalized according to the Normalization Method of the Peptide.
-        ///If the Peptide Normalization Method is &quot;None&quot; or ratio to a label, then the Precursor Normalized Area will be equal to the Precursor Total Area..
+        ///   Looks up a localized string similar to Normalized area of the Precursor Result.
+        ///Equal to Total Area of the Precursor Result normalized according to the Normalization Method of the Peptide.
+        ///If Peptide Normalization Method is &quot;None&quot; or ratio to a label, then Precursor Normalized Area will be equal to the Total Area of the Precursor..
         /// </summary>
         public static string PrecursorNormalizedArea {
             get {
                 return ResourceManager.GetString("PrecursorNormalizedArea", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Warning if missing values impacts comparisons of the &quot;Precursor Normalized Area&quot; value between replicates.
+        /// </summary>
+        public static string PrecursorNormalizedAreaMessage {
+            get {
+                return ResourceManager.GetString("PrecursorNormalizedAreaMessage", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Normalized area of the Precursor Result.
+        ///Equal to Total Area of the Precursor Result normalized according to the Normalization Method of the Peptide.
+        ///If the Peptide Normalization Method is &quot;None&quot; or ratio to a label, then the Precursor Normalized Area will be equal to the Total Area of the Precursor.
+        ///Available even when missing data impacts comparisons between replicates..
+        /// </summary>
+        public static string PrecursorNormalizedAreaRaw {
+            get {
+                return ResourceManager.GetString("PrecursorNormalizedAreaRaw", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Normalized area of the Precursor Result.
+        ///Equal to Total Area of the Precursor Result normalized according to the Normalization Method of the Peptide.
+        ///If the Peptide Normalization Method is &quot;None&quot; or ratio to a label, then the Precursor Normalized Area will be equal to the Total Area of the Precursor.
+        ///Unavailable when missing data impacts comparisons between replicates..
+        /// </summary>
+        public static string PrecursorNormalizedAreaStrict {
+            get {
+                return ResourceManager.GetString("PrecursorNormalizedAreaStrict", resourceCulture);
             }
         }
         
@@ -2651,6 +3011,15 @@ namespace pwiz.Skyline.Model.Databinding.Entities {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to A number representing the settings that were applied to the spectrum.
+        /// </summary>
+        public static string PresetScanConfiguration {
+            get {
+                return ResourceManager.GetString("PresetScanConfiguration", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Previous Aa.
         /// </summary>
         public static string PreviousAa {
@@ -2733,14 +3102,50 @@ namespace pwiz.Skyline.Model.Databinding.Entities {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to A number representing the abundance of the protein in the particular replicate.
-        ///The Protein Abundance is calculated by taking the average of the normalized areas of all of the Transitions under the Protein.
-        ///The Transition Areas are normalized according to the Normalization Method specified in the Peptide Quantification settings.
-        ///The Protein Abundance will be blank if any transitions have missing peak areas in the Replicate, unless the normalization method is ratio to a label..
+        ///   Looks up a localized string similar to A number representing the abundance of the protein, calculated according to the &quot;Normalization Method&quot; specified in the Peptide Quantification settings..
         /// </summary>
         public static string ProteinAbundance {
             get {
                 return ResourceManager.GetString("ProteinAbundance", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Warning if missing data impacts comparisons of &quot;Protein Abundance&quot; between replicates.
+        /// </summary>
+        public static string ProteinAbundanceMessage {
+            get {
+                return ResourceManager.GetString("ProteinAbundanceMessage", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to A number representing the abundance of the protein, calculated according to the &quot;Normalization Method&quot; specified in the Peptide Quantification settings.
+        ///Unavailable when missing data impacts comparisons between replicates..
+        /// </summary>
+        public static string ProteinAbundanceStrict {
+            get {
+                return ResourceManager.GetString("ProteinAbundanceStrict", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Average of the normalized areas of the transitions under the Protein.
+        ///The areas are normalized according to the Normalization Method specified in the Peptide Quantification settings..
+        /// </summary>
+        public static string ProteinAbundanceTransitionAveraged {
+            get {
+                return ResourceManager.GetString("ProteinAbundanceTransitionAveraged", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Sum of the normalized areas of the transitions under the Protein.
+        ///The areas are normalized according to the Normalization Method specified in the Peptide Quantification settings..
+        /// </summary>
+        public static string ProteinAbundanceTransitionSummed {
+            get {
+                return ResourceManager.GetString("ProteinAbundanceTransitionSummed", resourceCulture);
             }
         }
         
@@ -2955,7 +3360,7 @@ namespace pwiz.Skyline.Model.Databinding.Entities {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Ratio Dot Product.
+        ///   Looks up a localized string similar to Equivalent to &quot;rdotp&quot; displayed in the user interface. The dot-product calculation described for Library Dot Product, but between the peak areas of the precursor (e.g. light) and the peak areas of the standard type precursor (e.g. heavy), or #N/A if there is either no standard type or the precursor is the standard type..
         /// </summary>
         public static string RatioDotProduct {
             get {
@@ -2969,6 +3374,15 @@ namespace pwiz.Skyline.Model.Databinding.Entities {
         public static string RatioToStandard {
             get {
                 return ResourceManager.GetString("RatioToStandard", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Calculated value available even when missing data impacts comparisons between replicates..
+        /// </summary>
+        public static string Raw {
+            get {
+                return ResourceManager.GetString("Raw", resourceCulture);
             }
         }
         
@@ -3300,6 +3714,51 @@ namespace pwiz.Skyline.Model.Databinding.Entities {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Text description that was added to the spectrum by the instrument method.
+        /// </summary>
+        public static string ScanDescription {
+            get {
+                return ResourceManager.GetString("ScanDescription", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Difference between the upper and lower m/z values that the spectrum might have intensity values for.
+        /// </summary>
+        public static string ScanWindowWidth {
+            get {
+                return ResourceManager.GetString("ScanWindowWidth", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The numerical value for the particular feature..
+        /// </summary>
+        public static string Score {
+            get {
+                return ResourceManager.GetString("Score", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The Pearson correlation of this transition&apos;s chromatographic peak compared to the median peak shape of all of the transitions under the same precursor..
+        /// </summary>
+        public static string ShapeCorrelation {
+            get {
+                return ResourceManager.GetString("ShapeCorrelation", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to A measure of the asymmetry of the chromatogram peak..
+        /// </summary>
+        public static string Skewness {
+            get {
+                return ResourceManager.GetString("Skewness", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Version of Skyline in which the change was made.
         /// </summary>
         public static string SkylineVersion {
@@ -3323,6 +3782,15 @@ namespace pwiz.Skyline.Model.Databinding.Entities {
         public static string SMILES {
             get {
                 return ResourceManager.GetString("SMILES", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Extra criteria that spectra must pass to be included in the extracted ion chromatogram.
+        /// </summary>
+        public static string SpectrumFilter {
+            get {
+                return ResourceManager.GetString("SpectrumFilter", resourceCulture);
             }
         }
         
@@ -3473,11 +3941,29 @@ namespace pwiz.Skyline.Model.Databinding.Entities {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Calculated value unavailable when missing data could comparisons between replicates..
+        /// </summary>
+        public static string Strict {
+            get {
+                return ResourceManager.GetString("Strict", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Description of the change.
         /// </summary>
         public static string SummaryMessage {
             get {
                 return ResourceManager.GetString("SummaryMessage", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Name of another peptide or molecule whose fitted calibration curve will be used for quantification of this peptide or molecule.
+        /// </summary>
+        public static string SurrogateExternalStandard {
+            get {
+                return ResourceManager.GetString("SurrogateExternalStandard", resourceCulture);
             }
         }
         
@@ -3811,6 +4297,42 @@ namespace pwiz.Skyline.Model.Databinding.Entities {
         public static string UTCTime {
             get {
                 return ResourceManager.GetString("UTCTime", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The numerical weighting for the feature assigned by the peak scoring model..
+        /// </summary>
+        public static string Weight {
+            get {
+                return ResourceManager.GetString("Weight", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to A combination of the feature score and its weight..
+        /// </summary>
+        public static string WeightedFeature {
+            get {
+                return ResourceManager.GetString("WeightedFeature", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to A collection of the features that have been assigned weights by the peak scoring model..
+        /// </summary>
+        public static string WeightedFeatures {
+            get {
+                return ResourceManager.GetString("WeightedFeatures", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The product of the feature score and the feature weight.
+        /// </summary>
+        public static string WeightedScore {
+            get {
+                return ResourceManager.GetString("WeightedScore", resourceCulture);
             }
         }
     }

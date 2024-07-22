@@ -54,7 +54,8 @@ const scoreTypeInfo scoreTypes[NUM_PSM_SCORE_TYPES] = {
     {"PEAKS CONFIDENCE SCORE", PROBABILITY_INCORRECT}, // pepxml files with peaks confidence scores
     {"BYONIC SCORE", PROBABILITY_INCORRECT}, // byonic .mzid files
     {"PEPTIDE SHAKER CONFIDENCE", PROBABILITY_CORRECT}, // peptideshaker .mzid files
-    {"GENERIC Q-VALUE", PROBABILITY_INCORRECT}
+    {"GENERIC Q-VALUE", PROBABILITY_INCORRECT},
+    {"HARDKLOR IDOTP", PROBABILITY_CORRECT} // Hardklor "The dot-product score of this feature to the theoretical model" - we convert input Cosine Angle Correlation values to Normalized Contrast Angle for .blib
 };
 
 /**
@@ -133,6 +134,26 @@ const char* ionMobilityTypeToString(IONMOBILITY_TYPE ionMobilityType)
     }
 }
 
+IONMOBILITY_TYPE parseIonMobilityType(const char* ionMobilityType)
+{
+    if (bal::iequals(ionMobilityType, "none")) return IONMOBILITY_NONE;
+
+    if (bal::iequals(ionMobilityType, "driftTime(msec)")) return IONMOBILITY_DRIFTTIME_MSEC;
+    if (bal::iequals(ionMobilityType, "ms")) return IONMOBILITY_DRIFTTIME_MSEC;
+    if (bal::iequals(ionMobilityType, "msec")) return IONMOBILITY_DRIFTTIME_MSEC;
+
+    if (bal::iequals(ionMobilityType, "inverseK0(Vsec/cm^2)")) return IONMOBILITY_INVERSEREDUCED_VSECPERCM2;
+    if (bal::iequals(ionMobilityType, "inverseK0")) return IONMOBILITY_INVERSEREDUCED_VSECPERCM2;
+    if (bal::iequals(ionMobilityType, "1/K0")) return IONMOBILITY_INVERSEREDUCED_VSECPERCM2;
+    if (bal::iequals(ionMobilityType, "Vsec/cm^2")) return IONMOBILITY_INVERSEREDUCED_VSECPERCM2;
+    if (bal::iequals(ionMobilityType, "Vsec/cm2")) return IONMOBILITY_INVERSEREDUCED_VSECPERCM2;
+
+    if (bal::iequals(ionMobilityType, "compensation(V)")) return IONMOBILITY_COMPENSATION_V;
+    if (bal::iequals(ionMobilityType, "V")) return IONMOBILITY_COMPENSATION_V;
+
+    throw BlibException(true, (string("unknown ion mobility type: ") + ionMobilityType).c_str());
+}
+
 /**
  * \brief Return a string from the root to the given filename.
  * For filenames with no path, prepends current working directory.
@@ -141,9 +162,7 @@ const char* ionMobilityTypeToString(IONMOBILITY_TYPE ionMobilityType)
  */
 string getAbsoluteFilePath(string filename){
     bfs::path fullPath = bfs::system_complete(filename.c_str());
-    fullPath = fullPath.normalize();
-
-    return fullPath.string();
+    return fullPath.make_preferred().string();
 }
 
 /*
@@ -295,12 +314,7 @@ double getPeptideMass(string& modifiedSeq, double* masses){
  * Delete any spaces or tabs at the end of the given string
  */
 void deleteTrailingWhitespace(string& str){
-    size_t last = str.size() - 1;
-    while( str.at(last) == ' ' || str.at(last) == '\t' ){
-        last--;
-    }
-    // last is now index position of last non-whitespace char
-    str.erase(last + 1);
+    bal::trim_right(str);
 }
 
 /**

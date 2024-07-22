@@ -21,6 +21,8 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
+using System.Text;
 using Interop.Analyst;
 using BuildAnalystMethod;
 using Interop.AcqMethodSvr;
@@ -205,17 +207,32 @@ namespace BuildAnalystFullScanMethod
 
         internal static IAcqMethod GetAcqMethod(string methodFilePath, out MassSpecMethod templateMsMethod)
         {
-            ApplicationClass analyst = new ApplicationClass();
-
-            // Make sure that Analyst is fully started
-            IAcqMethodDirConfig acqMethodDir = (IAcqMethodDirConfig)analyst.Acquire();
-            if (acqMethodDir == null)
+            IAcqMethodDirConfig acqMethodDir;
+            try
             {
-                throw new IOException("Failed to initialize.  Analyst may need to be started.");
+                IScriptAnalyst analyst = new ApplicationClass();
+
+                // Make sure that Analyst is fully started
+                acqMethodDir = (IAcqMethodDirConfig)analyst.Acquire();
+                if (acqMethodDir == null)
+                {
+                    throw new IOException("Failed to initialize. Analyst may need to be started.");
+                }
+            }
+            catch (InvalidCastException x)
+            {
+                throw new IOException("Failed to initialize. Analyst may need to be started, or it may be conflicting with a SCIEX OS installation.", x);
             }
 
             object acqMethodObj;
-            acqMethodDir.LoadNonUIMethod(methodFilePath, out acqMethodObj);
+            try
+            {
+                acqMethodDir.LoadNonUIMethod(methodFilePath, out acqMethodObj);
+            }
+            catch (COMException x)
+            {
+                throw new IOException("Failed to initialize. Analyst may need to be started.", x);
+            }
             IAcqMethod templateAcqMethod = (IAcqMethod)acqMethodObj;
 
             templateMsMethod = ExtractMsMethod(templateAcqMethod);
@@ -312,9 +329,21 @@ namespace BuildAnalystFullScanMethod
 
                 if (experimentCount != 1 && experimentCount != 2)
                 {
-                    throw new IOException(string.Format("Invalid template method for a targeted MS/MS experiment {0}. " +
-                                                        "Template must have 1 or 2 experiments.",
-                                                        TemplateMethod));
+                    var errMessage = string.Format("Invalid template method for a targeted MS/MS experiment {0}. " +
+                                                   "Template must have 1 or 2 experiments, but instead it has {1} experiments.",
+                        TemplateMethod, experimentCount);
+                    if (experimentCount > 0)
+                    {
+                        var experimentList = new StringBuilder();
+                        for (var i = 0; i < experimentCount; i++)
+                        {
+                            var exp = (Experiment)period.GetExperiment(i);
+                            experimentList.Append(string.Format("experiment: {0}, scan: {1}, {2}", i,
+                                GetScanTypeName(exp.ScanType), exp.Description));
+                        }
+                        errMessage += "\r\n" + experimentList;
+                    }
+                    throw new IOException(errMessage);
                 }
 
                 // If the template has 1 experiment it should be a Product Ion experiment
@@ -703,9 +732,8 @@ namespace BuildAnalystFullScanMethod
 
         public void WriteToTemplate(String templateMethodFile, MethodTransitions transitions)
         {
-            MassSpecMethod templateMsMethod;
 
-            IAcqMethod templateAcqMethod = GetAcqMethod(TemplateMethod, out templateMsMethod);
+            IAcqMethod templateAcqMethod = GetAcqMethod(TemplateMethod, out _);
 
             var method = ExtractMsMethod(templateAcqMethod);
 
@@ -738,6 +766,19 @@ namespace BuildAnalystFullScanMethod
             return experiment.ScanType == TOF_MS_SCAN;
         }
 
+        private static string GetScanTypeName(short scanType)
+        {
+            switch (scanType)
+            {
+                case TOF_MS_SCAN:
+                    return "TOF MS";
+                case PROD_ION_SCAN:
+                    return "Product Ion";
+                default:
+                    return scanType.ToString();
+
+            }
+        }
         private static bool IsProductIonScan(Experiment experiment)
         {
             return experiment.ScanType == PROD_ION_SCAN;

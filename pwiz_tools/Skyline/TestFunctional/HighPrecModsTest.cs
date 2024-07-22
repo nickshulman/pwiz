@@ -44,10 +44,15 @@ namespace pwiz.SkylineTestFunctional
 
         protected override void DoTest()
         {
+            // Open a document with lots of modifications to match
             RunUI(()=>SkylineWindow.OpenFile(TestFilesDir.GetTestPath("HighPrecModsTest.sky")));
+
+            // Reset document modifications to just Carbarmidomethyl C
             var peptideSettingsUi = ShowDialog<PeptideSettingsUI>(SkylineWindow.ShowPeptideSettingsUI);
             RunUI(() => peptideSettingsUi.PickedStaticMods = new[] {"Carbamidomethyl Cysteine"});
             OkDialog(peptideSettingsUi, peptideSettingsUi.OkDialog);
+
+            // Build a library to match against
             peptideSettingsUi = ShowDialog<PeptideSettingsUI>(SkylineWindow.ShowPeptideSettingsUI);
             var buildLibraryDlg = ShowDialog<BuildLibraryDlg>(peptideSettingsUi.ShowBuildLibraryDlg);
             
@@ -57,19 +62,22 @@ namespace pwiz.SkylineTestFunctional
                 buildLibraryDlg.LibraryPath = TestFilesDir.GetTestPath("HighPrecModsTestLib.blib");
                 buildLibraryDlg.OkWizardPage();
                 buildLibraryDlg.AddInputFiles(new[] { TestFilesDir.GetTestPath("table_of_all_spectra_update_November2016.ssl") });
-                
             });
+            WaitForConditionUI(() => buildLibraryDlg.Grid.ScoreTypesLoaded);
             OkDialog(buildLibraryDlg, buildLibraryDlg.OkWizardPage);
             WaitForConditionUI(() => peptideSettingsUi.AvailableLibraries.Contains(LIBRARY_NAME));
             RunUI(() => peptideSettingsUi.PickedLibraries = new[] { LIBRARY_NAME });
             OkDialog(peptideSettingsUi, peptideSettingsUi.OkDialog);
             WaitForDocumentLoaded();
+
+            // Open library explorer and add all peptides
             var viewLibraryDlg = ShowDialog<ViewLibraryDlg>(SkylineWindow.ViewSpectralLibraries);
             WaitForConditionUI(() => viewLibraryDlg.HasMatches);
             var messageDlg = ShowDialog<MultiButtonMsgDlg>(viewLibraryDlg.AddAllPeptides);
             OkDialog(messageDlg, messageDlg.OkDialog);
             OkDialog(viewLibraryDlg, viewLibraryDlg.Close);
 
+            // Review what got added with the Document Grid
             var documentGrid = ShowDialog<DocumentGridForm>(() => SkylineWindow.ShowDocumentGrid(true));
             RunUI(() => documentGrid.ChooseView("PeptideModSeqFullNames"));
             

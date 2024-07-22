@@ -38,27 +38,25 @@ namespace pwiz.SkylineTestFunctional
         [TestMethod]
         public void NegativeIonChromatogramsTest()
         {
+            // CONSIDER: in this zip file is a tiny data set "134.sky" and "134.mzml" that demonstrate how we still don't
+            //           do a perfect job of handling chromatograms with same Q1Q3 and overlapping RT ranges.  There
+            //           are two chromatograms in the mzml with Q1=134Q3=134 and similar time ranges.  We don't pick the best
+            //           of the two so a would-be peak match gets missed.
+            TestFilesZip = ZIP_FILE;
             RunFunctionalTest();
         }
 
         // Verify proper peak selection when polarity information is present
         protected override void DoTest()
         {
-            // CONSIDER: in this zip file is a tiny data set "134.sky" and "134.mzml" that demonstrate how we still don't
-            //           do a perfect job of handling chromatograms with same Q1Q3 and overlapping RT ranges.  There
-            //           are two chromatograms in the mzml with Q1=134Q3=134 and similar time ranges.  We don't pick the best
-            //           of the two so a would-be peak match gets missed.
-
-            var testFilesDir = new TestFilesDir(TestContext, ZIP_FILE);
-
-            var replicatePath = testFilesDir.GetTestPath("090215_033.mzML"); // properly converted, with polarity sense
-            var allNegativePath = testFilesDir.GetTestPath("all_negative.mzML"); // Hacked to declare all chromatograms as negative
-            var noPolarityPath = testFilesDir.GetTestPath("no_polarity.mzML"); // Converted by older msconvert without any ion polarity sense, so all positive
+            var replicatePath = TestFilesDir.GetTestPath("090215_033.mzML"); // properly converted, with polarity sense
+            var allNegativePath = TestFilesDir.GetTestPath("all_negative.mzML"); // Hacked to declare all chromatograms as negative
+            var noPolarityPath = TestFilesDir.GetTestPath("no_polarity.mzML"); // Converted by older msconvert without any ion polarity sense, so all positive
             var replicateName = Path.GetFileNameWithoutExtension(replicatePath);
 
-            var docProperPolarity = LoadDocWithReplicate(testFilesDir, replicateName, replicatePath);
-            var docNoPolarity = LoadDocWithReplicate(testFilesDir, replicateName, noPolarityPath);
-            var docNegPolarity = LoadDocWithReplicate(testFilesDir, replicateName, allNegativePath);
+            var docProperPolarity = LoadDocWithReplicate(TestFilesDir, replicateName, replicatePath, false);
+            var docNoPolarity = LoadDocWithReplicate(TestFilesDir, replicateName, noPolarityPath, true);
+            var docNegPolarity = LoadDocWithReplicate(TestFilesDir, replicateName, allNegativePath, true);
 
             var transProperPolarity = docProperPolarity.MoleculeTransitions.ToArray();
             var transNoPolarity = docNoPolarity.MoleculeTransitions.ToArray();
@@ -100,12 +98,11 @@ namespace pwiz.SkylineTestFunctional
             Assert.AreEqual(74, countPeaksNoPolarity, "countPeaksNoPolarity");
             RunUI(()=>SkylineWindow.SwitchDocument(new SrmDocument(SrmSettingsList.GetDefault()), null));
             // Note that 26+74 != 98 : as it happens there is a negative transition 136,136 that matches when it's faked up as positive
-            testFilesDir.Dispose();
         }
 
         // Load a skyline doc, half of which is positve charges and half negative, so we can verify interaction with 
         // polarity in the replicate mass spec files
-        private SrmDocument LoadDocWithReplicate(TestFilesDir testFilesDir, string replicateName, string replicatePath)
+        private SrmDocument LoadDocWithReplicate(TestFilesDir testFilesDir, string replicateName, string replicatePath, bool expectAutomanage)
         {
             var docPathBase = testFilesDir.GetTestPath("NegativeIonChromatograms.sky");
             var docPath = docPathBase.Replace(".sky", replicatePath.Split('\\').Last() + ".sky"); // Make sure name in unique
@@ -120,23 +117,28 @@ namespace pwiz.SkylineTestFunctional
             var importDialog3 = ShowDialog<InsertTransitionListDlg>(SkylineWindow.ShowPasteTransitionListDlg);
             var clipText = File.ReadAllText(testFilesDir.GetTestPath("SRMs.csv")).Replace(',', TextUtil.CsvSeparator)
                 .Replace(".", LocalizationHelper.CurrentCulture.NumberFormat.NumberDecimalSeparator);
-            var col4Dlg = ShowDialog<ImportTransitionListColumnSelectDlg>(() => importDialog3.textBox1.Text = clipText);
-
+            var col4Dlg = ShowDialog<ImportTransitionListColumnSelectDlg>(() => importDialog3.TransitionListText = clipText);
+            docEmpty = SkylineWindow.Document;
             RunUI(() => {
                 col4Dlg.radioMolecule.PerformClick();
-                var comboBoxes = col4Dlg.ComboBoxes;
-                comboBoxes[0].SelectedIndex = comboBoxes[1].FindStringExact(Resources.ImportTransitionListColumnSelectDlg_ComboChanged_Molecule_List_Name);
-                comboBoxes[1].SelectedIndex = comboBoxes[1].FindStringExact(Resources.ImportTransitionListColumnSelectDlg_ComboChanged_Molecule_Name);
-                comboBoxes[2].SelectedIndex = comboBoxes[1].FindStringExact(Resources.ImportTransitionListColumnSelectDlg_PopulateComboBoxes_Precursor_Charge);
-                comboBoxes[3].SelectedIndex = comboBoxes[1].FindStringExact(Resources.ImportTransitionListColumnSelectDlg_PopulateComboBoxes_Precursor_m_z);
-                comboBoxes[4].SelectedIndex = comboBoxes[1].FindStringExact(Resources.ImportTransitionListColumnSelectDlg_PopulateComboBoxes_Product_m_z);
-                comboBoxes[5].SelectedIndex = comboBoxes[1].FindStringExact(Resources.PasteDlg_UpdateMoleculeType_Product_Charge);
-                comboBoxes[6].SelectedIndex = comboBoxes[1].FindStringExact(Resources.PasteDlg_UpdateMoleculeType_Explicit_Retention_Time);
-                comboBoxes[7].SelectedIndex = comboBoxes[1].FindStringExact(Resources.PasteDlg_UpdateMoleculeType_Explicit_Retention_Time_Window);
-                comboBoxes[8].SelectedIndex = comboBoxes[1].FindStringExact(Resources.PasteDlg_UpdateMoleculeType_Explicit_Collision_Energy);
+                col4Dlg.SetSelectedColumnTypes(
+                    Resources.ImportTransitionListColumnSelectDlg_ComboChanged_Molecule_List_Name,
+                    Resources.ImportTransitionListColumnSelectDlg_ComboChanged_Molecule_Name,
+                    Resources.ImportTransitionListColumnSelectDlg_PopulateComboBoxes_Precursor_Charge,
+                    Resources.ImportTransitionListColumnSelectDlg_PopulateComboBoxes_Precursor_m_z,
+                    Resources.ImportTransitionListColumnSelectDlg_PopulateComboBoxes_Product_m_z,
+                    Resources.PasteDlg_UpdateMoleculeType_Product_Charge,
+                    Resources.PasteDlg_UpdateMoleculeType_Explicit_Retention_Time,
+                    Resources.PasteDlg_UpdateMoleculeType_Explicit_Retention_Time_Window,
+                    Resources.PasteDlg_UpdateMoleculeType_Explicit_Collision_Energy);
             });
 
             OkDialog(col4Dlg, col4Dlg.OkDialog);
+
+            if (expectAutomanage)
+            {
+                DismissAutoManageDialog(); // Say no to the offer to set new nodes to automanage
+            }
 
             var document = WaitForDocumentChangeLoaded(docEmpty);
 

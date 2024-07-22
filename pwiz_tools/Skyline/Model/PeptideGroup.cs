@@ -27,7 +27,6 @@ using pwiz.Common.Collections;
 using pwiz.ProteomeDatabase.API;
 using pwiz.Skyline.Model.Crosslinking;
 using pwiz.Skyline.Model.DocSettings;
-using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
 using pwiz.Skyline.Model.Lib;
 using pwiz.Skyline.Util.Extensions;
@@ -137,10 +136,9 @@ namespace pwiz.Skyline.Model
         public static readonly char[] CLOSE_MOD = { ']', '}', ')' };
 
         public const string PEPTIDE_SEQUENCE_SEPARATOR = "::";
-        public static readonly Regex RGX_ALL = new Regex(@"(\[.*?\]|\{.*?\}|\(.*?\))");
-        public static readonly Regex RGX_LIGHT = new Regex(@"\[.*?\]");
-        public static readonly Regex RGX_HEAVY = new Regex(@"\{.*?\}");
-        public static readonly Regex RGX_DASH = new Regex(@"^-");
+        public static readonly Regex RGX_ALL = new Regex(@"(\[.*?\]|\{.*?\}|\(.*?\))", RegexOptions.Compiled | RegexOptions.CultureInvariant);
+        public static readonly Regex RGX_LIGHT = new Regex(@"\[.*?\]", RegexOptions.Compiled | RegexOptions.CultureInvariant);
+        public static readonly Regex RGX_HEAVY = new Regex(@"\{.*?\}", RegexOptions.Compiled | RegexOptions.CultureInvariant);
 
         public static bool IsExSequence(string seq)
         {
@@ -166,11 +164,10 @@ namespace pwiz.Skyline.Model
         private readonly string _sequence;
         private readonly bool _isDecoy;
 
-        public FastaSequence(string name, string description, IList<ProteinMetadata> alternatives, string sequence) 
+        public FastaSequence(string name, string description, IList<ProteinMetadata> alternatives, string sequence)
             : this(name, description, alternatives, sequence, false)
         {
         }
-
 
         public FastaSequence(string name, string description, IList<ProteinMetadata> alternatives, string sequence, bool isDecoy)
         {
@@ -191,6 +188,7 @@ namespace pwiz.Skyline.Model
         public override string Sequence { get { return _sequence; } }
         public new bool IsDecoy { get { return _isDecoy; } }
         public ImmutableList<ProteinMetadata> Alternatives { get; private set; }
+        public virtual ImmutableList<FastaSequence> FastaSequenceList => ImmutableList<FastaSequence>.Singleton(this);
         public IEnumerable<string> AlternativesText
         {
             get { return Alternatives.Select(alt => TextUtil.SpaceSeparate(alt.Name ?? String.Empty, alt.Description ?? String.Empty)); }  // CONSIDER (bspratt) - include accession, preferredName etc?
@@ -286,12 +284,12 @@ namespace pwiz.Skyline.Model
         public static void ValidateSequence(string seq)
         {
             if (string.IsNullOrEmpty(seq))
-                throw new InvalidDataException(Resources.FastaSequence_ValidateSequence_A_protein_sequence_may_not_be_empty);
+                throw new InvalidDataException(ModelResources.FastaSequence_ValidateSequence_A_protein_sequence_may_not_be_empty);
             for (int i = 0; i < seq.Length; i++)
             {
                 char c = seq[i];
                 if (!AminoAcid.IsExAA(c) && c != '*' && c != '-')
-                    throw new InvalidDataException(string.Format(Resources.FastaSequence_ValidateSequence_A_protein_sequence_may_not_contain_the_character__0__at__1__, seq[i], i));
+                    throw new InvalidDataException(string.Format(ModelResources.FastaSequence_ValidateSequence_A_protein_sequence_may_not_contain_the_character__0__at__1__, seq[i], i));
             }
         }
 
@@ -332,11 +330,12 @@ namespace pwiz.Skyline.Model
         {
             if (ReferenceEquals(null, obj)) return false;
             if (ReferenceEquals(this, obj)) return true;
-            return Equals(obj._name, _name) &&
-                Equals(obj._description, _description) &&
-                Equals(obj._sequence, _sequence) &&
-                ArrayUtil.EqualsDeep(obj.Alternatives, Alternatives) &&
-                obj.IsDecoy == IsDecoy;
+            var equal = Equals(obj._name, _name) &&
+                        Equals(obj._description, _description) &&
+                        Equals(obj._sequence, _sequence) &&
+                        ArrayUtil.EqualsDeep(obj.Alternatives, Alternatives) &&
+                        obj.IsDecoy == IsDecoy;
+            return equal;
         }
 
         public override bool Equals(object obj)
@@ -375,9 +374,9 @@ namespace pwiz.Skyline.Model
         public static int ComparePeptides(Peptide pep1, Peptide pep2)
         {
             if (pep1.FastaSequence == null || pep2.FastaSequence == null)
-                throw new InvalidOperationException(Resources.FastaSequence_ComparePeptides_Peptides_without_FASTA_sequence_information_may_not_be_compared);
+                throw new InvalidOperationException(ModelResources.FastaSequence_ComparePeptides_Peptides_without_FASTA_sequence_information_may_not_be_compared);
             if (!ReferenceEquals(pep1.FastaSequence, pep2.FastaSequence))
-                throw new InvalidOperationException(Resources.FastaSequence_ComparePeptides_Peptides_in_different_FASTA_sequences_may_not_be_compared);
+                throw new InvalidOperationException(ModelResources.FastaSequence_ComparePeptides_Peptides_in_different_FASTA_sequences_may_not_be_compared);
 
             return Comparer<int>.Default.Compare(pep1.Order, pep2.Order);
         }
@@ -459,6 +458,53 @@ namespace pwiz.Skyline.Model
         {
             var alternativesNew = new List<ProteinMetadata>(Alternatives) {proteinMetadata};
             return new FastaSequence(_name, _description, alternativesNew, _sequence, _isDecoy);
+        }
+    }
+
+    public class FastaSequenceGroup : FastaSequence
+    {
+        private readonly string _name;
+        private ImmutableList<FastaSequence> _fastaSequenceList;
+
+        public FastaSequenceGroup(string name, IList<FastaSequence> fastaSequenceList) : base(name,
+            string.Format(ModelResources.ProteinAssociation_CalculateProteinGroups_Group_of__0__proteins, fastaSequenceList.Count),
+            null, fastaSequenceList[0].Sequence)
+        {
+            _name = name;
+            _fastaSequenceList = ImmutableList<FastaSequence>.ValueOf(fastaSequenceList);
+        }
+
+        public override string Name => _name;
+        public override ImmutableList<FastaSequence> FastaSequenceList => _fastaSequenceList;
+
+        public bool Equals(FastaSequenceGroup obj)
+        {
+            if (ReferenceEquals(null, obj)) return false;
+            if (ReferenceEquals(this, obj)) return true;
+            var equals = base.Equals(obj) &&
+                   Equals(obj._name, _name) &&
+                   ArrayUtil.EqualsDeep(obj.FastaSequenceList, FastaSequenceList) &&
+                   obj.IsDecoy == IsDecoy;
+            return equals;
+        }
+
+        public override bool Equals(object obj)
+        {
+            if (ReferenceEquals(null, obj)) return false;
+            if (ReferenceEquals(this, obj)) return true;
+            if (obj.GetType() != typeof(FastaSequenceGroup)) return false;
+            return Equals((FastaSequenceGroup) obj);
+        }
+
+        public override int GetHashCode()
+        {
+            unchecked
+            {
+                int result = base.GetHashCode() ^ (_name != null ? _name.GetHashCode() : 0);
+                result = (result*397) ^ FastaSequenceList.GetHashCodeDeep();
+                result = (result*397) ^ IsDecoy.GetHashCode();
+                return result;
+            }
         }
     }
 

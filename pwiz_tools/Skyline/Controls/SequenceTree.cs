@@ -23,10 +23,12 @@ using System.Drawing;
 using System.Linq;
 using System.Windows.Forms;
 using pwiz.Common.SystemUtil;
+using pwiz.Common.SystemUtil.Caching;
 using pwiz.Skyline.Controls.Graphs;
 using pwiz.Skyline.Controls.SeqNode;
 using pwiz.Skyline.Model;
 using pwiz.Skyline.Model.Find;
+using pwiz.Skyline.Model.GroupComparison;
 using pwiz.Skyline.Model.Proteome;
 using pwiz.Skyline.Model.Results;
 using pwiz.Skyline.Properties;
@@ -58,6 +60,7 @@ namespace pwiz.Skyline.Controls
         private NormalizeOption _normalizeOption;
         private StatementCompletionTextBox _editTextBox;
         private bool _inhibitAfterSelect;
+        private Receiver<NormalizedValueCalculator.Params, NormalizedValueCalculator> _receiver;
 
         private readonly MoveThreshold _moveThreshold = new MoveThreshold(5, 5);
 
@@ -114,6 +117,12 @@ namespace pwiz.Skyline.Controls
             keep,
             no_peak,
             peak_blank            
+        }
+
+        public SequenceTree()
+        {
+            _receiver = NormalizedValueCalculator.PRODUCER.RegisterCustomer(this, UpdateNormalizedValueCalculator);
+            _updateNodeStatesRequired = true;
         }
 
         public void InitializeTree(IDocumentUIContainer documentUIContainer)
@@ -185,7 +194,7 @@ namespace pwiz.Skyline.Controls
             OnTextZoomChanged();
             OnDocumentChanged(this, new DocumentChangedEventArgs(null));
         }
-
+        
         protected override void  Dispose(bool disposing)
         {
             if (_pickTimer != null)
@@ -270,10 +279,23 @@ namespace pwiz.Skyline.Controls
         [Browsable(false)]
         [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
         public SrmDocument Document { get; private set; }
-        public NormalizedValueCalculator NormalizedValueCalculator { get; private set; }
+        public NormalizedValueCalculator NormalizedValueCalculator { get; private set; } = NormalizedValueCalculator.DEFAULT;
+
+        private void UpdateNormalizedValueCalculator()
+        {
+            if (_receiver.TryGetCurrentProduct(out var normalizedValueCalculator))
+            {
+                NormalizedValueCalculator = normalizedValueCalculator;
+                if (_updateNodeStatesRequired)
+                {
+                    UpdateNodeStates();
+                }
+            }
+        }
 
         private int _updateLockCountDoc;
         private SrmDocument _updateDocPrevious;
+        private bool _updateNodeStatesRequired;
 
         public bool IsInUpdateDoc { get { return _updateLockCountDoc > 0; } }
 
@@ -308,8 +330,6 @@ namespace pwiz.Skyline.Controls
                 return;
 
             Document = document;
-            NormalizedValueCalculator = new NormalizedValueCalculator(Document);
-
             bool updateNodeStates = false;
             if (e.DocumentPrevious != null)
             {
@@ -358,9 +378,25 @@ namespace pwiz.Skyline.Controls
                     _resultsIndex = settings.HasResults
                         ? Math.Min(_resultsIndex, settings.MeasuredResults.Chromatograms.Count - 1)
                         : 0;
-                    _normalizeOption = NormalizeOption.Constrain(settings, _normalizeOption);
+                    if (IsSupportedNormalizeOption(_normalizeOption))
+                    {
+                        _normalizeOption = NormalizeOption.Constrain(settings, _normalizeOption);
+                    }
+                    else
+                    {
+                        _normalizeOption = NormalizeOption.RatioToFirstStandard(settings);
+                    }
                 }
 
+                if (_receiver.TryGetProduct(new NormalizedValueCalculator.Params(Document, _normalizeOption),
+                        out var normalizedValueCalculator))
+                {
+                    NormalizedValueCalculator = normalizedValueCalculator;
+                }
+                else
+                {
+                    _updateNodeStatesRequired |= updateNodeStates;
+                }
                 BeginUpdateMS();
 
                 SrmTreeNodeParent.UpdateNodes(this, Nodes, document.Children,
@@ -438,7 +474,7 @@ namespace pwiz.Skyline.Controls
             return i;
         }
 
-        private ReplicateDisplay? _showReplicate;
+        private ReplicateDisplay _showReplicate = ReplicateDisplay.single;
 
         [Browsable(false)]
         [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
@@ -446,9 +482,7 @@ namespace pwiz.Skyline.Controls
         {
             get
             {
-                if (_showReplicate == null)
-                    _showReplicate = Helpers.ParseEnum(Settings.Default.ShowTreeReplicateEnum, ReplicateDisplay.single);
-                return _showReplicate.Value;
+                return _showReplicate;
             }
 
             set
@@ -456,10 +490,15 @@ namespace pwiz.Skyline.Controls
                 if (ShowReplicate != value)
                 {
                     _showReplicate = value;
-                    Settings.Default.ShowTreeReplicateEnum = value.ToString();
                     UpdateNodeStates();
                 }
             }
+        }
+
+        private static bool IsSupportedNormalizeOption(NormalizeOption normalizeOption)
+        {
+            return normalizeOption == NormalizeOption.GLOBAL_STANDARDS ||
+                   normalizeOption?.NormalizationMethod is NormalizationMethod.RatioToLabel;
         }
 
         [Browsable(false)]
@@ -469,7 +508,7 @@ namespace pwiz.Skyline.Controls
             get { return _normalizeOption; }
             set
             {
-                if (value == NormalizeOption.GLOBAL_STANDARDS || value.IsRatioToLabel)
+                if (IsSupportedNormalizeOption(value))
                 {
                     if (_normalizeOption != value)
                     {

@@ -21,7 +21,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using pwiz.Skyline.Model.DocSettings;
-using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
 
 // Feature calculators as specified in the mQuest/mProphet paper
@@ -59,7 +58,7 @@ namespace pwiz.Skyline.Model.Results.Scoring
 
         protected override float Calculate(PeakScoringContext context, IPeptidePeakData<ISummaryPeakData> summaryPeakData)
         {
-            if (context.Document == null)
+            if (context.Settings == null)
                 return float.NaN;
 
             float maxHeight = float.MinValue;
@@ -72,6 +71,8 @@ namespace pwiz.Skyline.Model.Results.Scoring
                     measuredRT = tranPeakData.PeakData.RetentionTime;
                 }
             }
+            bool isFullScan = context.Settings.TransitionSettings.FullScan.IsEnabled && !(summaryPeakData.FileInfo?.IsSrm ?? false);
+
             if (!measuredRT.HasValue)
                 return float.NaN;
 
@@ -83,7 +84,7 @@ namespace pwiz.Skyline.Model.Results.Scoring
                 if (summaryPeakData.NodePep.ExplicitRetentionTime != null)
                 {
                     explicitRT = summaryPeakData.NodePep.ExplicitRetentionTime.RetentionTime;
-                    windowRT = summaryPeakData.NodePep.ExplicitRetentionTime.RetentionTimeWindow ?? context.Document.Settings.PeptideSettings.Prediction.MeasuredRTWindow;
+                    windowRT = summaryPeakData.NodePep.ExplicitRetentionTime.RetentionTimeWindow ?? context.Settings.PeptideSettings.Prediction.MeasuredRTWindow;
                 }
                 if (explicitRT.HasValue && windowRT.HasValue)
                 {
@@ -92,21 +93,21 @@ namespace pwiz.Skyline.Model.Results.Scoring
                 else
                 {
                     var fileId = summaryPeakData.FileInfo != null ? summaryPeakData.FileInfo.FileId : null;
-                    var settings = context.Document.Settings;
+                    var settings = context.Settings;
                     var predictor = settings.PeptideSettings.Prediction.RetentionTime;
                     var fullScan = settings.TransitionSettings.FullScan;
-                    var seqModified = settings.GetSourceTarget(summaryPeakData.NodePep); 
+                    var seqModified = settings.GetSourceTarget(summaryPeakData.NodePep);
                     if (predictor != null)
                     {
                         double window = predictor.TimeWindow;
-                        if (fullScan.IsEnabled && fullScan.RetentionTimeFilterType == RetentionTimeFilterType.scheduling_windows)
+                        if (isFullScan && fullScan.RetentionTimeFilterType == RetentionTimeFilterType.scheduling_windows)
                             window = fullScan.RetentionTimeFilterLength*2;
 
                         prediction = new RetentionTimePrediction(predictor.GetRetentionTime(seqModified, fileId),
                             window);
                     }
 
-                    if (prediction == null && fullScan.IsEnabled && fullScan.RetentionTimeFilterType == RetentionTimeFilterType.ms2_ids)
+                    if (prediction == null && isFullScan && fullScan.RetentionTimeFilterType == RetentionTimeFilterType.ms2_ids)
                     {
                         var filePath = summaryPeakData.FileInfo != null ? summaryPeakData.FileInfo.FilePath : null;
                         var times = settings.GetBestRetentionTimes(summaryPeakData.NodePep, filePath);
@@ -135,8 +136,8 @@ namespace pwiz.Skyline.Model.Results.Scoring
                 // This can really mess up training and peak picking for the standards, since something
                 // like a negative coefficient for delta-RT^2 can result in far away peaks having huge scores.
                 // So, here we limit the delta scores. But, this was too invasive to do for everything.
-                var fullScan = context.Document.Settings.TransitionSettings.FullScan;
-                if (fullScan.IsEnabled && fullScan.RetentionTimeFilterType == RetentionTimeFilterType.scheduling_windows)
+                var fullScan = context.Settings.TransitionSettings.FullScan;
+                if (isFullScan && fullScan.RetentionTimeFilterType == RetentionTimeFilterType.scheduling_windows)
                     rtDelta = maxDelta;
             }
             return (float) RtScoreFunction(rtDelta) / (float) RtScoreNormalizer(prediction.Window);
@@ -159,7 +160,7 @@ namespace pwiz.Skyline.Model.Results.Scoring
 
         public override string Name
         {
-            get { return Resources.MQuestRetentionTimePredictionCalc_MQuestRetentionTimePredictionCalc_Retention_time_difference; }
+            get { return ScoringResources.MQuestRetentionTimePredictionCalc_MQuestRetentionTimePredictionCalc_Retention_time_difference; }
         }
 
         public override double RtScoreFunction(double rtValue)
@@ -174,7 +175,7 @@ namespace pwiz.Skyline.Model.Results.Scoring
 
         public override string Name
         {
-            get { return Resources.MQuestRetentionTimeSquaredPredictionCalc_MQuestRetentionTimeSquaredPredictionCalc_Retention_time_difference_squared; }
+            get { return ScoringResources.MQuestRetentionTimeSquaredPredictionCalc_MQuestRetentionTimeSquaredPredictionCalc_Retention_time_difference_squared; }
         }
 
         public override double RtScoreFunction(double rtValue)
@@ -244,6 +245,23 @@ namespace pwiz.Skyline.Model.Results.Scoring
         }
 
         /// <summary>
+        /// Get ms2 ions used in dotp calculation which may differ from ms2 peak area ions for DDA
+        /// </summary>
+        /// <typeparam name="TData">Peak scoring data type (summary or detail)</typeparam>
+        /// <param name="tranGroupPeakDatas">Transition group peak datas to be scored</param>
+        /// <returns></returns>
+        public static IList<ITransitionPeakData<TData>> GetMs2DotpIonTypes<TData>(IList<ITransitionGroupPeakData<TData>> tranGroupPeakDatas)
+        {
+            // Copied because using a lambda/delegate causes allocation in this case (profiled)
+            if (tranGroupPeakDatas.Count == 1)
+                return tranGroupPeakDatas[0].Ms2TranstionDotpData;
+            var listTrans = new List<ITransitionPeakData<TData>>();
+            foreach (var transitionGroupPeakData in tranGroupPeakDatas)
+                listTrans.AddRange(transitionGroupPeakData.Ms2TranstionDotpData);
+            return listTrans;
+        }
+
+        /// <summary>
         /// Get ms2 ions if there are any available, otherwise get the ms1 ions
         /// </summary>
         /// <typeparam name="TData">Peak scoring data type (summary or detail)</typeparam>
@@ -262,19 +280,19 @@ namespace pwiz.Skyline.Model.Results.Scoring
 
         public static double GetMaximumProductMassError(PeakScoringContext context)
         {
-            var productMz = context.Document.Settings.TransitionSettings.Instrument.MaxMz;
-            return context.Document.Settings.TransitionSettings.FullScan.GetProductFilterWindow(productMz) / 2.0;
+            var productMz = context.Settings.TransitionSettings.Instrument.MaxMz;
+            return context.Settings.TransitionSettings.FullScan.GetProductFilterWindow(productMz) / 2.0;
         }
 
         public static double GetMaximumPrecursorMassError(PeakScoringContext context)
         {
-            var precursorMz = context.Document.Settings.TransitionSettings.Instrument.MaxMz;
-            return context.Document.Settings.TransitionSettings.FullScan.GetPrecursorFilterWindow(precursorMz) / 2.0;
+            var precursorMz = context.Settings.TransitionSettings.Instrument.MaxMz;
+            return context.Settings.TransitionSettings.FullScan.GetPrecursorFilterWindow(precursorMz) / 2.0;
         }
 
         public static float CalculateIdotp(PeakScoringContext context, IPeptidePeakData<ISummaryPeakData> summaryPeakData)
         {
-            var tranGroupPeakDatas = GetAnalyteGroups(summaryPeakData);
+            var tranGroupPeakDatas = GetBestAvailableGroups(summaryPeakData);
 
             if (tranGroupPeakDatas.Count == 0)
                 return float.NaN;
@@ -341,7 +359,7 @@ namespace pwiz.Skyline.Model.Results.Scoring
 
         public override string Name
         {
-            get { return Resources.MQuestIntensityCalc_MQuestIntensityCalc_Intensity; }
+            get { return ScoringResources.MQuestIntensityCalc_MQuestIntensityCalc_Intensity; }
         }
 
         protected override IList<ITransitionGroupPeakData<TData>> GetTransitionGroups<TData>(IPeptidePeakData<TData> peptidePeakData)
@@ -356,7 +374,7 @@ namespace pwiz.Skyline.Model.Results.Scoring
 
         public override string Name
         {
-            get { return Resources.MQuestStandardIntensityCalc_Name_Standard_Intensity; }
+            get { return ScoringResources.MQuestStandardIntensityCalc_Name_Standard_Intensity; }
         }
 
         protected override IList<ITransitionGroupPeakData<TData>> GetTransitionGroups<TData>(
@@ -377,7 +395,7 @@ namespace pwiz.Skyline.Model.Results.Scoring
 
         public override string Name
         {
-            get { return Resources.MQuestDefaultIntensityCalc_Name_Default_Intensity; }
+            get { return ScoringResources.MQuestDefaultIntensityCalc_Name_Default_Intensity; }
         }
 
         protected override IList<ITransitionGroupPeakData<TData>> GetTransitionGroups<TData>(
@@ -399,8 +417,7 @@ namespace pwiz.Skyline.Model.Results.Scoring
         {
             var tranGroupPeakDatas = GetTransitionGroups(summaryPeakData);
 
-            // If there are no light transition groups with library intensities,
-            // then this score does not apply.
+            // If there are no transition groups with library intensities, then this score does not apply.
             if (tranGroupPeakDatas.Count == 0 || tranGroupPeakDatas.All(pd => pd.NodeGroup == null || pd.NodeGroup.LibInfo == null))
                 return float.NaN;
 
@@ -456,7 +473,7 @@ namespace pwiz.Skyline.Model.Results.Scoring
 
         public override string Name
         {
-            get { return Resources.MQuestIntensityCorrelationCalc_Name_Library_intensity_dot_product; }
+            get { return ScoringResources.MQuestIntensityCorrelationCalc_Name_Library_intensity_dot_product; }
         }
 
         protected override IList<ITransitionPeakData<TData>> GetIonTypes<TData>(IList<ITransitionGroupPeakData<TData>> tranGroupPeakDatas)
@@ -478,7 +495,7 @@ namespace pwiz.Skyline.Model.Results.Scoring
 
         public override string Name
         {
-            get { return Resources.MQuestIntensityStandardCorrelationCalc_Name_Standard_library_dot_product; }
+            get { return ScoringResources.MQuestIntensityStandardCorrelationCalc_Name_Standard_library_dot_product; }
         }
 
         protected override IList<ITransitionPeakData<TData>> GetIonTypes<TData>(IList<ITransitionGroupPeakData<TData>> tranGroupPeakDatas)
@@ -504,21 +521,34 @@ namespace pwiz.Skyline.Model.Results.Scoring
 
         public override string Name
         {
-            get { return Resources.MQuestDefaultIntensityCorrelationCalc_Name_Default_dotp_or_idotp; }
+            get { return ScoringResources.MQuestDefaultIntensityCorrelationCalc_Name_Default_dotp_or_idotp; }
         }
 
         protected override float Calculate(PeakScoringContext context,
             IPeptidePeakData<ISummaryPeakData> summaryPeakData)
         {
             var tranGroupPeakDatas = GetTransitionGroups(summaryPeakData);
-            return MQuestHelpers.GetMs2IonTypes(tranGroupPeakDatas).Any() ? 
-                base.Calculate(context, summaryPeakData) : 
-                MQuestHelpers.CalculateIdotp(context, summaryPeakData);
+            if (MQuestHelpers.GetMs2IonTypes(tranGroupPeakDatas).Any())
+                return base.Calculate(context, summaryPeakData);
+
+            float feature = MQuestHelpers.CalculateIdotp(context, summaryPeakData);
+            // If there are MS2 ions for only dotp values (as in DDA) then add the dotp values together
+            if (MQuestHelpers.GetMs2DotpIonTypes(tranGroupPeakDatas).Any())
+            {
+                // For DDA MS2 spectra may not be sampled at all for the peak of interest
+                // However, when they are sampled, they are usually highly specific because
+                // of the narrow isolation range. So, avoid adding to this score unless
+                // the match is pretty good.
+                float dotp = base.Calculate(context, summaryPeakData);
+                if (dotp >= 0.75)
+                    feature += dotp;
+            }
+            return feature;
         }
 
         protected override IList<ITransitionPeakData<TData>> GetIonTypes<TData>(IList<ITransitionGroupPeakData<TData>> tranGroupPeakDatas)
         {
-            return MQuestHelpers.GetMs2IonTypes(tranGroupPeakDatas);
+            return MQuestHelpers.GetMs2DotpIonTypes(tranGroupPeakDatas);
         }
 
         protected override IList<ITransitionGroupPeakData<TData>> GetTransitionGroups<TData>(
@@ -583,7 +613,7 @@ namespace pwiz.Skyline.Model.Results.Scoring
 
         public override string Name
         {
-            get { return Resources.MQuestReferenceCorrelationCalc_MQuestReferenceCorrelationCalc_mQuest_reference_correlation; }
+            get { return ScoringResources.MQuestReferenceCorrelationCalc_MQuestReferenceCorrelationCalc_mQuest_reference_correlation; }
         }
 
         protected override bool IsIonType(TransitionDocNode nodeTran)
@@ -797,7 +827,7 @@ namespace pwiz.Skyline.Model.Results.Scoring
 
         public override string Name
         {
-            get { return Resources.MQuestWeightedShapeCalc_MQuestWeightedShapeCalc_mQuest_weighted_shape; }
+            get { return ScoringResources.MQuestWeightedShapeCalc_MQuestWeightedShapeCalc_mQuest_weighted_shape; }
         }
 
         protected override IList<ITransitionGroupPeakData<TData>> GetTransitionGroups<TData>(
@@ -813,7 +843,7 @@ namespace pwiz.Skyline.Model.Results.Scoring
 
         public override string Name
         {
-            get { return Resources.MQuestStandardWeightedShapeCalc_Name_Standard_shape__weighted_; }
+            get { return ScoringResources.MQuestStandardWeightedShapeCalc_Name_Standard_shape__weighted_; }
         }
 
         protected override IList<ITransitionGroupPeakData<TData>> GetTransitionGroups<TData>(
@@ -834,7 +864,7 @@ namespace pwiz.Skyline.Model.Results.Scoring
 
         public override string Name
         {
-            get { return Resources.MQuestDefaultWeightedShapeCalc_Name_Default_shape__weighted_; }
+            get { return ScoringResources.MQuestDefaultWeightedShapeCalc_Name_Default_shape__weighted_; }
         }
 
         protected override IList<ITransitionGroupPeakData<TData>> GetTransitionGroups<TData>(
@@ -855,7 +885,7 @@ namespace pwiz.Skyline.Model.Results.Scoring
 
         public override string Name
         {
-            get { return Resources.MQuestShapeCalc_MQuestShapeCalc_Shape; }
+            get { return ScoringResources.MQuestShapeCalc_MQuestShapeCalc_Shape; }
         }
 
         protected override double GetWeight(MQuestCrossCorrelation xcorr)
@@ -940,7 +970,7 @@ namespace pwiz.Skyline.Model.Results.Scoring
 
         public override string Name
         {
-            get { return Resources.MQuestWeightedCoElutionCalc_MQuestWeightedCoElutionCalc_mQuest_weighted_coelution; }
+            get { return ScoringResources.MQuestWeightedCoElutionCalc_MQuestWeightedCoElutionCalc_mQuest_weighted_coelution; }
         }
 
         protected override IList<ITransitionGroupPeakData<TData>> GetTransitionGroups<TData>(
@@ -956,7 +986,7 @@ namespace pwiz.Skyline.Model.Results.Scoring
 
         public override string Name
         {
-            get { return Resources.MQuestStandardWeightedCoElutionCalc_Name_Standard_co_elution__weighted_; }
+            get { return ScoringResources.MQuestStandardWeightedCoElutionCalc_Name_Standard_co_elution__weighted_; }
         }
 
         protected override IList<ITransitionGroupPeakData<TData>> GetTransitionGroups<TData>(
@@ -977,7 +1007,7 @@ namespace pwiz.Skyline.Model.Results.Scoring
 
         public override string Name
         {
-            get { return Resources.MQuestDefaultWeightedCoElutionCalc_Name_Default_co_elution__weighted_; }
+            get { return ScoringResources.MQuestDefaultWeightedCoElutionCalc_Name_Default_co_elution__weighted_; }
         }
 
         protected override IList<ITransitionGroupPeakData<TData>> GetTransitionGroups<TData>(
@@ -998,7 +1028,7 @@ namespace pwiz.Skyline.Model.Results.Scoring
 
         public override string Name
         {
-            get { return Resources.MQuestCoElutionCalc_MQuestCoElutionCalc_Coelution; }
+            get { return ScoringResources.MQuestCoElutionCalc_MQuestCoElutionCalc_Coelution; }
         }
 
         protected override double GetWeight(MQuestCrossCorrelation xcorr)
@@ -1177,7 +1207,7 @@ namespace pwiz.Skyline.Model.Results.Scoring
 
         public override string Name
         {
-            get { return Resources.MQuestWeightedReferenceShapeCalc_MQuestWeightedReferenceShapeCalc_mProphet_weighted_reference_shape; }
+            get { return ScoringResources.MQuestWeightedReferenceShapeCalc_MQuestWeightedReferenceShapeCalc_mProphet_weighted_reference_shape; }
         }
 
         protected override float Calculate(PeakScoringContext context, Statistics statValues, Statistics statWeigths)
@@ -1205,7 +1235,7 @@ namespace pwiz.Skyline.Model.Results.Scoring
 
         public override string Name
         {
-            get { return Resources.MQuestReferenceShapeCalc_MQuestReferenceShapeCalc_Reference_shape; }
+            get { return ScoringResources.MQuestReferenceShapeCalc_MQuestReferenceShapeCalc_Reference_shape; }
         }
 
         protected override double GetWeight(MQuestCrossCorrelation xcorr)
@@ -1225,7 +1255,7 @@ namespace pwiz.Skyline.Model.Results.Scoring
 
         public override string Name
         {
-            get { return Resources.MQuestWeightedReferenceCoElutionCalc_MQuestWeightedReferenceCoElutionCalc_mQuest_weighted_reference_coelution; }
+            get { return ScoringResources.MQuestWeightedReferenceCoElutionCalc_MQuestWeightedReferenceCoElutionCalc_mQuest_weighted_reference_coelution; }
         }
 
         protected override float Calculate(PeakScoringContext context, Statistics statValues, Statistics statWeigths)
@@ -1264,7 +1294,7 @@ namespace pwiz.Skyline.Model.Results.Scoring
 
         public override string Name
         {
-            get { return Resources.MQuestReferenceCoElutionCalc_MQuestReferenceCoElutionCalc_Reference_coelution; }
+            get { return ScoringResources.MQuestReferenceCoElutionCalc_MQuestReferenceCoElutionCalc_Reference_coelution; }
         }
 
         protected override double GetWeight(MQuestCrossCorrelation xcorr)

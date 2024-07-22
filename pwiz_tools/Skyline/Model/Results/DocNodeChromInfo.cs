@@ -21,12 +21,12 @@ using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using JetBrains.Annotations;
 using pwiz.Common.Collections;
 using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.Results.Scoring;
 using pwiz.Skyline.Model.Serialization;
-using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
 
 namespace pwiz.Skyline.Model.Results
@@ -169,6 +169,29 @@ namespace pwiz.Skyline.Model.Results
     /// </summary>
     public sealed class TransitionGroupChromInfo : ChromInfo
     {
+        [Flags]
+        private enum Flags
+        {
+            HasRetentionTime = 1,
+            HasStartRetentionTime = 2,
+            HasEndRetentionTime = 4,
+            HasFwhm = 8,
+            HasArea = 16,
+            HasAreaMs1 = 32,
+            HasAreaFragment = 64,
+            HasBackgroundArea = 128,
+            HasBackgroundAreaMs1 = 256,
+            HasBackgroundAreaFragment = 512,
+            HasHeight = 1024,
+            HasMassError = 2048,
+            HasLibraryDotProduct = 4096,
+            HasIsotopeDotProduct = 8192,
+            HasQValue = 16384,
+            HasZScore = 32768,
+        }
+
+        private Flags _flags;
+
         public TransitionGroupChromInfo(ChromFileInfoId fileId,
                                         int optimizationStep,
                                         float peakCountRatio,
@@ -195,7 +218,7 @@ namespace pwiz.Skyline.Model.Results
                                         UserSet userSet)
             : base(fileId)
         {
-            OptimizationStep = optimizationStep;
+            OptimizationStep = Convert.ToInt16(optimizationStep);
             PeakCountRatio = peakCountRatio;
             RetentionTime = retentionTime;
             StartRetentionTime = startTime;
@@ -219,30 +242,135 @@ namespace pwiz.Skyline.Model.Results
             Annotations = annotations;
             UserSet = userSet;
         }
-
-        public int OptimizationStep { get; private set; }
+        public short OptimizationStep { get; private set; }
 
         public float PeakCountRatio { get; private set; }
-        public float? RetentionTime { get; private set; }
-        public float? StartRetentionTime { get; private set; }
-        public float? EndRetentionTime { get; private set; }
+
+        private float _retentionTime;
+        public float? RetentionTime
+        {
+            get { return GetOptional(_retentionTime, Flags.HasRetentionTime); }
+            set { _retentionTime = SetOptional(value, Flags.HasRetentionTime); }
+        }
+
+        private float _startRetentionTime;
+        public float? StartRetentionTime
+        {
+            get { return GetOptional(_startRetentionTime, Flags.HasStartRetentionTime); }
+            set { _startRetentionTime = SetOptional(value, Flags.HasStartRetentionTime); }
+        }
+
+        private float _endRetentionTime;
+        public float? EndRetentionTime
+        {
+            get { return GetOptional(_endRetentionTime, Flags.HasEndRetentionTime); }
+            set { _endRetentionTime = SetOptional(value, Flags.HasEndRetentionTime); }
+        }
+
         public TransitionGroupIonMobilityInfo IonMobilityInfo { get; private set; }
-        public float? Fwhm { get; private set; }
-        public float? Area { get; private set; }
-        public float? AreaMs1 { get; private set; }
-        public float? AreaFragment { get; private set; }
-        public float? BackgroundArea { get; private set; }
-        public float? BackgroundAreaMs1 { get; private set; }
-        public float? BackgroundAreaFragment { get; private set; }
-        public float? Height { get; private set; }
-        public float? MassError { get; private set; }
-        public int? Truncated { get; private set; }
+        private float _fwhm;
+
+        public float? Fwhm
+        {
+            get { return GetOptional(_fwhm, Flags.HasFwhm); }
+            set { _fwhm = SetOptional(value, Flags.HasFwhm); }
+        }
+
+        private float _area;
+        public float? Area
+        {
+            get { return GetOptional(_area, Flags.HasArea);}
+            private set { _area = SetOptional(value, Flags.HasArea); }
+        }
+
+        private float _areaMs1;
+        public float? AreaMs1
+        {
+            get { return GetOptional(_areaMs1, Flags.HasAreaMs1);}
+
+            private set { _areaMs1 = SetOptional(value, Flags.HasAreaMs1); }
+        }
+
+        private float _areaFragment;
+        public float? AreaFragment
+        {
+            get { return GetOptional(_areaFragment, Flags.HasAreaFragment); }
+            private set { _areaFragment = SetOptional(value, Flags.HasAreaFragment); }
+        }
+
+        private float _backgroundArea;
+        public float? BackgroundArea
+        {
+            get { return GetOptional(_backgroundArea, Flags.HasBackgroundArea); }
+            private set { _backgroundArea = SetOptional(value, Flags.HasBackgroundArea); }
+        }
+
+        private float _backgroundAreaMs1;
+        public float? BackgroundAreaMs1
+        {
+            get { return GetOptional(_backgroundAreaMs1, Flags.HasBackgroundAreaMs1); }
+            private set { _backgroundAreaMs1 = SetOptional(value, Flags.HasBackgroundAreaMs1); }
+        }
+
+        private float _backgroundAreaFragment;
+        public float? BackgroundAreaFragment 
+        {
+            get { return GetOptional(_backgroundAreaFragment, Flags.HasBackgroundAreaFragment); }
+            private set { _backgroundAreaFragment = SetOptional(value, Flags.HasBackgroundAreaFragment); }
+        }
+
+        private float _height;
+        public float? Height 
+        { 
+            get { return GetOptional(_height, Flags.HasHeight); }
+            private set { _height = SetOptional(value, Flags.HasHeight); }
+        }
+
+        private float _massError;
+        public float? MassError 
+        { 
+            get { return GetOptional(_massError, Flags.HasMassError); }
+            private set { _massError = SetOptional(value, Flags.HasMassError); }
+        }
+
+        private int _truncated;
+        public int? Truncated
+        {
+            get { return _truncated >= 0 ? _truncated : (int?) null; }
+            private set { _truncated = value ?? -1; }
+        }
+
         public PeakIdentification Identified { get; private set; }
         public bool IsIdentified { get { return Identified != PeakIdentification.FALSE; } }
-        public float? LibraryDotProduct { get; private set; }
-        public float? IsotopeDotProduct { get; private set; }
-        public float? QValue { get; private set; }
-        public float? ZScore { get; private set; }
+
+        private float _libraryDotProduct;
+        public float? LibraryDotProduct
+        {
+            get { return GetOptional(_libraryDotProduct, Flags.HasLibraryDotProduct);}
+            private set { _libraryDotProduct = SetOptional(value, Flags.HasLibraryDotProduct); }
+        }
+
+        private float _isotopeDotProduct;
+        public float? IsotopeDotProduct
+        {
+            get { return GetOptional(_isotopeDotProduct, Flags.HasIsotopeDotProduct); }
+            private set { _isotopeDotProduct = SetOptional(value, Flags.HasIsotopeDotProduct); }
+        }
+
+        private float _qValue;
+        public float? QValue
+        {
+            get { return GetOptional(_qValue, Flags.HasQValue); }
+            private set { _qValue = SetOptional(value, Flags.HasQValue); }
+        }
+
+        private float _zScore;
+        public float? ZScore
+        {
+            get { return GetOptional(_zScore, Flags.HasZScore); }
+            private set { _zScore = SetOptional(value, Flags.HasZScore); }
+        }
+
         public Annotations Annotations { get; private set; }
 
         /// <summary>
@@ -257,6 +385,34 @@ namespace pwiz.Skyline.Model.Results
         public bool IsUserSetMatched { get { return UserSet == UserSet.MATCHED; }}
 
         public bool IsUserModified { get { return IsUserSetManual || !Annotations.IsEmpty; } }
+
+        private bool GetFlag(Flags flag)
+        {
+            return 0 != (_flags & flag);
+        }
+
+        private void SetFlag(Flags flag, bool b)
+        {
+            if (b)
+            {
+                _flags |= flag;
+            }
+            else
+            {
+                _flags &= ~flag;
+            }
+        }
+
+        private T? GetOptional<T>(T field, Flags flag) where T:struct
+        {
+            return GetFlag(flag) ? field : (T?) null;
+        }
+
+        private T SetOptional<T>(T? value, Flags flag) where T : struct
+        {
+            SetFlag(flag, value.HasValue);
+            return value ?? default(T);
+        }
 
         #region Property change methods
 
@@ -275,15 +431,6 @@ namespace pwiz.Skyline.Model.Results
         public TransitionGroupChromInfo ChangeLibraryDotProduct(float? prop)
         {
             return ChangeProp(ImClone(this), im => im.LibraryDotProduct = prop);
-        }
-
-        public TransitionGroupChromInfo ChangeScore(float qvalue, float score)
-        {
-            return ChangeProp(ImClone(this), im =>
-            {
-                im.QValue = qvalue;
-                im.ZScore = score;
-            });
         }
         #endregion
 
@@ -349,8 +496,8 @@ namespace pwiz.Skyline.Model.Results
                 result = (result*397) ^ Identified.GetHashCode();
                 result = (result*397) ^ (LibraryDotProduct.HasValue ? LibraryDotProduct.Value.GetHashCode() : 0);
                 result = (result*397) ^ (IsotopeDotProduct.HasValue ? IsotopeDotProduct.Value.GetHashCode() : 0);
-                result = (result*397) ^ (QValue.HasValue ? QValue.Value.GetHashCode() : 0);
-                result = (result*397) ^ (ZScore.HasValue ? ZScore.Value.GetHashCode() : 0);
+                result = (result*397) ^ QValue.GetHashCode();
+                result = (result*397) ^ ZScore.GetHashCode();
                 result = (result*397) ^ OptimizationStep;
                 result = (result*397) ^ Annotations.GetHashCode();
                 result = (result*397) ^ UserSet.GetHashCode();
@@ -368,7 +515,7 @@ namespace pwiz.Skyline.Model.Results
     public sealed class TransitionChromInfo : ChromInfo
     {
         [Flags]
-        private enum Flags : byte
+        private enum Flags : short
         {
             HasMassError = 1,
             IsFwhmDegenerate = 2,
@@ -378,6 +525,7 @@ namespace pwiz.Skyline.Model.Results
             ForcedIntegration = 32,
             Identified = 64,
             IdentifiedByAlignment = 128,
+            HasPeakShape = 256,
         }
 
         private Flags _flags;
@@ -396,7 +544,8 @@ namespace pwiz.Skyline.Model.Results
                    peak.IsFwhmDegenerate, peak.IsTruncated, 
                    peak.PointsAcross, 
                    peak.Identified, 0, 0,
-                   annotations, userSet, peak.IsForcedIntegration)
+                   annotations, userSet, peak.IsForcedIntegration, 
+                   peak.PeakShapeValues)
         {
         }
 
@@ -406,7 +555,8 @@ namespace pwiz.Skyline.Model.Results
                                    float area, float backgroundArea, float height,
                                    float fwhm, bool fwhmDegenerate, bool? truncated, short? pointsAcrossPeak,
                                    PeakIdentification identified, short rank, short rankByLevel,
-                                   Annotations annotations, UserSet userSet, bool isForcedIntegration)
+                                   Annotations annotations, UserSet userSet, bool isForcedIntegration, 
+                                   PeakShapeValues? peakShapeValues)
             : base(fileId)
         {
             OptimizationStep = Convert.ToInt16(optimizationStep);
@@ -414,7 +564,7 @@ namespace pwiz.Skyline.Model.Results
             RetentionTime = retentionTime;
             StartRetentionTime = startRetentionTime;
             EndRetentionTime = endRetentionTime;
-            IonMobility = ionMobility;
+            IonMobility = ionMobility ?? IonMobilityFilter.EMPTY;
             Area = area;
             BackgroundArea = backgroundArea;
             Height = height;
@@ -431,6 +581,7 @@ namespace pwiz.Skyline.Model.Results
             UserSet = userSet;
             PointsAcrossPeak = pointsAcrossPeak;
             IsForcedIntegration = isForcedIntegration;
+            PeakShapeValues = peakShapeValues;
         }
 
         /// <summary>
@@ -520,6 +671,7 @@ namespace pwiz.Skyline.Model.Results
         public short RankByLevel { get; private set; }
 
         private short _pointsAcrossPeak;
+        private PeakShapeValues _peakShapeValue;
 
         public short? PointsAcrossPeak
         {
@@ -531,6 +683,16 @@ namespace pwiz.Skyline.Model.Results
             {
                 SetFlag(Flags.HasPointsAcrossPeak, value.HasValue);
                 _pointsAcrossPeak = value ?? 0;
+            }
+        }
+
+        public PeakShapeValues? PeakShapeValues
+        {
+            get { return GetFlag(Flags.HasPeakShape) ? _peakShapeValue : (PeakShapeValues?) null; }
+            private set
+            {
+                SetFlag(Flags.HasPeakShape, value.HasValue);
+                _peakShapeValue = value.GetValueOrDefault();
             }
         }
 
@@ -655,6 +817,7 @@ namespace pwiz.Skyline.Model.Results
             chromInfo.UserSet = userSet;
             chromInfo.PointsAcrossPeak = peak.PointsAcross;
             chromInfo.IsForcedIntegration = peak.IsForcedIntegration;
+            chromInfo.PeakShapeValues = peak.PeakShapeValues;
             return chromInfo;
         }
 
@@ -722,7 +885,8 @@ namespace pwiz.Skyline.Model.Results
                    other.UserSet.Equals(UserSet) &&
                    Equals(other.IonMobility, IonMobility) &&
                    other.PointsAcrossPeak.Equals(PointsAcrossPeak) &&
-                   Equals(IsForcedIntegration, other.IsForcedIntegration);
+                   Equals(IsForcedIntegration, other.IsForcedIntegration) &&
+                   Equals(PeakShapeValues, other.PeakShapeValues);
             return result; // For ease of breakpoint setting
         }
 
@@ -757,6 +921,7 @@ namespace pwiz.Skyline.Model.Results
                 result = (result*397) ^ IonMobility.GetHashCode();
                 result = (result*397) ^ PointsAcrossPeak.GetHashCode();
                 result = (result*397) ^ IsForcedIntegration.GetHashCode();
+                result = (result*397) ^ PeakShapeValues.GetHashCode();
                 return result;
             }
         }
@@ -790,13 +955,14 @@ namespace pwiz.Skyline.Model.Results
             var msDataFileInfo = measuredResults.Chromatograms[transitionPeak.ReplicateIndex]
                 .MSDataFileInfos[transitionPeak.FileIndexInReplicate];
             var fileId = msDataFileInfo.FileId;
-            var ionMobilityValue = DataValues.FromOptional(transitionPeak.IonMobility);
+            var ionMobilityValue = transitionPeak.IonMobility;
+            var ccs = transitionPeak.IonMobilityCollisionCrossSection;
             IonMobilityFilter ionMobility;
             if (ionMobilityValue.HasValue)
             {
-                var ionMobilityWidth = DataValues.FromOptional(transitionPeak.IonMobilityWindow);
+                var ionMobilityWidth = transitionPeak.IonMobilityWindow;
                 var ionMobilityUnits = msDataFileInfo.IonMobilityUnits;
-                ionMobility = IonMobilityFilter.GetIonMobilityFilter(ionMobilityValue.Value, ionMobilityUnits, ionMobilityWidth, null);
+                ionMobility = IonMobilityFilter.GetIonMobilityFilter(ionMobilityValue.Value, ionMobilityUnits, ionMobilityWidth, ccs);
             }
             else
             {
@@ -813,10 +979,17 @@ namespace pwiz.Skyline.Model.Results
                     peakIdentification = PeakIdentification.TRUE;
                     break;
             }
+
+            PeakShapeValues? peakShapeValues = null;
+            if (transitionPeak.PeakShapeValues != null)
+            {
+                peakShapeValues = new PeakShapeValues(transitionPeak.PeakShapeValues.StdDev,
+                    transitionPeak.PeakShapeValues.Skewness, transitionPeak.PeakShapeValues.Kurtosis, transitionPeak.PeakShapeValues.ShapeCorrelation);
+            }
             return new TransitionChromInfo(
                 fileId, 
                 transitionPeak.OptimizationStep,
-                DataValues.FromOptional(transitionPeak.MassError),
+                transitionPeak.MassError,
                 transitionPeak.RetentionTime,
                 transitionPeak.StartRetentionTime,
                 transitionPeak.EndRetentionTime,
@@ -833,8 +1006,9 @@ namespace pwiz.Skyline.Model.Results
                 (short) transitionPeak.RankByLevel,
                 annotationScrubber.ScrubAnnotations(Annotations.FromProtoAnnotations(transitionPeak.Annotations), AnnotationDef.AnnotationTarget.transition_result), 
                 DataValues.FromUserSet(transitionPeak.UserSet),
-                transitionPeak.ForcedIntegration
-                );
+                transitionPeak.ForcedIntegration,
+                peakShapeValues
+            );
         }
 
         private bool GetFlag(Flags flag)
@@ -940,7 +1114,7 @@ namespace pwiz.Skyline.Model.Results
                 elements.Add(new ChromInfoList<TItem>(chromInfoList));
             }
             if (!found)
-                throw new InvalidOperationException(Resources.ResultsGrid_ChangeChromInfo_Element_not_found);
+                throw new InvalidOperationException(ResultsResources.ResultsGrid_ChangeChromInfo_Element_not_found);
             return new Results<TItem>(elements);
         }
 
@@ -1035,7 +1209,7 @@ namespace pwiz.Skyline.Model.Results
             if (chromatogramSets.Count != Count)
             {
                 throw new InvalidDataException(
-                    string.Format(Resources.Results_Validate_DocNode_results_count__0__does_not_match_document_results_count__1__,
+                    string.Format(ResultsResources.Results_Validate_DocNode_results_count__0__does_not_match_document_results_count__1__,
                                   Count, chromatogramSets.Count));
             }
 
@@ -1049,7 +1223,7 @@ namespace pwiz.Skyline.Model.Results
                 if (chromList.Any(chromInfo => chromatogramSet.IndexOfId(chromInfo.FileId) == -1))
                 {
                     throw new InvalidDataException(
-                        string.Format(Resources.Results_Validate_DocNode_peak_info_found_for_file_with_no_match_in_document_results));
+                        string.Format(ResultsResources.Results_Validate_DocNode_peak_info_found_for_file_with_no_match_in_document_results));
                 }
             }
         }
@@ -1096,23 +1270,43 @@ namespace pwiz.Skyline.Model.Results
         private readonly object _oneOrManyItems;
         public ChromInfoList(IList<TItem> elements)
         {
-            switch (elements?.Count)
-            {
-                case null:
-                case 0:
-                    _oneOrManyItems = null;
-                    break;
-                case 1:
-                    _oneOrManyItems = elements[0];
-                    break;
-                default:
-                    _oneOrManyItems = ImmutableList.ValueOf(elements);
-                    break;
-            }
+            _oneOrManyItems = MakeOneOrManyItems(elements);
         }
 
         public ChromInfoList(IEnumerable<TItem> elements) : this(ImmutableList.ValueOf(elements))
         {
+        }
+        
+        /// <summary>
+        /// Make the value which is to be stored in the <see cref="_oneOrManyItems"/> field.
+        /// After removing all nulls from the passed in list, if the resulting collection is empty,
+        /// then _oneOrManyItems is set to null. If the collection contains only one element, then
+        /// _oneOrManyItems is set to that element. Otherwise, _oneOrManyItems is an ImmutableList containing
+        /// the items.
+        /// </summary>
+        private static object MakeOneOrManyItems(IList<TItem> chromInfos)
+        {
+            if (chromInfos is ChromInfoList<TItem> chromInfoList)
+            {
+                return chromInfoList._oneOrManyItems;
+            }
+
+            switch (chromInfos?.Count)
+            {
+                case null:
+                case 0:
+                    return null;
+                case 1:
+                    return chromInfos[0];
+            }
+
+            var list = ImmutableList.ValueOf(chromInfos);
+            if (list.Contains(default(TItem)))
+            {
+                return MakeOneOrManyItems(ImmutableList.ValueOf(list.Where(item => null != item)));
+            }
+
+            return list;
         }
 
         public float? GetAverageValue(Func<TItem, float?> getVal)
@@ -1122,8 +1316,6 @@ namespace pwiz.Skyline.Model.Results
 
             foreach (var chromInfo in this)
             {
-                if (Equals(chromInfo, default(TItem)))
-                    continue;
                 float? val = getVal(chromInfo);
                 if (!val.HasValue)
                     continue;
@@ -1168,6 +1360,7 @@ namespace pwiz.Skyline.Model.Results
             return AsList().GetEnumerator();
         }
 
+        [NotNull]
         public TItem this[int index]
         {
             get
@@ -1225,7 +1418,6 @@ namespace pwiz.Skyline.Model.Results
 
         bool ICollection<TItem>.IsReadOnly { get { return true; } }
 
-
         void ICollection<TItem>.Add(TItem item)
         {
             throw new InvalidOperationException();
@@ -1269,7 +1461,7 @@ namespace pwiz.Skyline.Model.Results
         TRUE,   // SET by manual integration
         FALSE,  // Best peak picked during results import
         IMPORTED,   // Import peak boundaries
-        REINTEGRATED,   // Edit > Refine > Reintagrate
+        REINTEGRATED,   // Edit > Refine > Reintegrate
         MATCHED // Forced by peak matching when adding missing label type precursors
     }
 

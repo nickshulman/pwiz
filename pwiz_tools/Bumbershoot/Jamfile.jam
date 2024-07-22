@@ -104,7 +104,6 @@ explicit bumbershoot-bin.tar.bz2 ;
     "exclude:pwiz_tools/sld"
     "exclude:pwiz_tools/BiblioSpec"
     "exclude:pwiz_tools/Skyline"
-    "exclude:pwiz_tools/Topograph"
     "exclude:pwiz_tools/Shared/BiblioSpec"
     "exclude:pwiz_tools/Shared/Crawdad"
     "exclude:pwiz_tools/Shared/ProteomeDb"
@@ -133,8 +132,6 @@ explicit bumbershoot-bin.tar.bz2 ;
     # include the bcp'd boost tarball as if it was really located at "libraries/boost_*.tar.bz2"
     "path-anchor:$(BOOST_SUBSET_PATH)"
     $(BOOST_SUBSET_PATH)/libraries
-
-    "path-anchor:$(PWIZ_ROOT_PATH)"
 ;
 
 .no-t = 

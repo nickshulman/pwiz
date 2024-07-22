@@ -117,7 +117,7 @@ namespace pwiz.Skyline.Controls.Graphs
 
                 if (!double.IsNaN(minLog10Area) && !double.IsNaN(maxLog10Area) && minLog10Area >= maxLog10Area)
                 {
-                    MessageDlg.Show(this, Resources.AreaCVToolbarProperties_btnOk_Click_The_maximum_log10_area_has_to_be_greater_than_the_minimum_log10_area);
+                    MessageDlg.Show(this, GraphsResources.AreaCVToolbarProperties_btnOk_Click_The_maximum_log10_area_has_to_be_greater_than_the_minimum_log10_area);
                     return;
                 }
             }
@@ -185,14 +185,14 @@ namespace pwiz.Skyline.Controls.Graphs
             set { checkShowMedian.Checked = value; }
         }
 
-        public double QValueCutoff
+        public double? QValueCutoff
         {
             get
             {
                 double result;
-                return double.TryParse(textQValueCutoff.Text, out result) ? result : double.NaN;
+                return double.TryParse(textQValueCutoff.Text, out result) ? result : (double?)null;
             }
-            set { textQValueCutoff.Text = value.ToString(CultureInfo.CurrentCulture); }
+            set { textQValueCutoff.Text = value?.ToString(CultureInfo.CurrentCulture) ?? string.Empty; }
         }
 
         #endregion

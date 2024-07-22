@@ -37,12 +37,11 @@ namespace pwiz.Skyline.Alerts
             UpdateAutomatic = automatic;
             UpdateFound = updateFound;
 
-            // Designer has problems with getting images from resources
-            pictureSkyline.Image = Resources.SkylineImg;
+            pictureSkyline.Image = Program.SkylineImage;
 
             if (!updateFound)
             {
-                labelRelease.Text = Resources.UpgradeDlg_UpgradeDlg_No_update_was_found_;
+                labelRelease.Text = AlertsResources.UpgradeDlg_UpgradeDlg_No_update_was_found_;
                 labelDetail.Visible = labelDirections.Visible = linkReleaseNotes.Visible = false;
                 btnLater.Visible = false;
                 btnInstall.Text = MultiButtonMsgDlg.BUTTON_OK;
@@ -69,7 +68,7 @@ namespace pwiz.Skyline.Alerts
 
         private void cbAtStartup_CheckedChanged(object sender, EventArgs e)
         {
-            btnLater.Text = cbAtStartup.Checked ? _defaultButtonText : Resources.UpgradeDlg_cbAtStartup_CheckedChanged_Maybe__Later;
+            btnLater.Text = cbAtStartup.Checked ? _defaultButtonText : AlertsResources.UpgradeDlg_cbAtStartup_CheckedChanged_Maybe__Later;
 
             // Make this change immediate and persistent.
             UpgradeManager.CheckAtStartup = cbAtStartup.Checked;

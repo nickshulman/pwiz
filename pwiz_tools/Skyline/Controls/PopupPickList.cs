@@ -201,11 +201,11 @@ namespace pwiz.Skyline.Controls
             tbbAutoManageChildren.Image = (_autoManageChildren ? Resources.Wand : Resources.WandProhibit);
             string[] words = cbItems.Text.Split(TextUtil.SEPARATOR_SPACE);
             tbbAutoManageChildren.ToolTipText =
-                string.Format(Resources.PopupPickList_UpdateAutoManageUI_Auto_select_filtered__0_,
+                string.Format(ControlsResources.PopupPickList_UpdateAutoManageUI_Auto_select_filtered__0_,
                               words[words.Length - 1].ToLower());
             if (!_autoManageChildren)
                 tbbAutoManageChildren.ToolTipText += String.Format(@" ({0})",
-                                                                   Resources.PopupPickList_UpdateAutoManageUI_off);
+                                                                   ControlsResources.PopupPickList_UpdateAutoManageUI_off);
         }
 
         public void SetChoices(IEnumerable<DocNode> choices, IList<DocNode> chosen)
@@ -265,12 +265,11 @@ namespace pwiz.Skyline.Controls
             if (searches != null)
             {
                 // Make sure all search strings are in the label
-                string label = choice.Label;
                 foreach (string search in searches)
                 {
                     if (string.IsNullOrEmpty(search))
                         continue;
-                    if (!label.Contains(search))
+                    if (!choice.SearchMatch(search))
                         return false;
                 }
             }
@@ -621,6 +620,23 @@ namespace pwiz.Skyline.Controls
             public DocNode Choice { get; private set; }
             public string Label { get; private set; }
             public bool Chosen { get; set; }
+
+            public bool SearchMatch(string searchString)
+            {
+                if (string.IsNullOrEmpty(searchString) || Label.Contains(searchString))
+                    return true;
+
+                if (Choice.Id is Transition transition)
+                {
+                    foreach (var inputString in transition.IonType.GetInputAliases())
+                    {
+                        if (Label.Contains(searchString.Replace(inputString, transition.IonType.GetLocalizedString())))
+                            return true;
+                    }
+                }
+
+                return false;
+            }
         }
 
         public Rectangle ScreenRect

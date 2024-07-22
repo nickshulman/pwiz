@@ -63,7 +63,7 @@ mzTabReader::~mzTabReader() {
     }
 }
 
-bool mzTabReader::parseFile() {
+bool mzTabReader::parse() {
     Verbosity::debug("Parsing Unimod");
     string unimodFile = getExeDirectory() + "unimod.xml";
     unimod_.setFile(unimodFile.c_str());
@@ -75,10 +75,12 @@ bool mzTabReader::parseFile() {
     if (!file_.is_open()) {
         return false;
     }
-
     Verbosity::debug("Collecting PSMs");
     collectPsms();
+}
 
+bool mzTabReader::parseFile() {
+    parse();
     Verbosity::debug("Building tables");
     initSpecFileProgress(fileMap_.size());
     for (map< string, vector<PSM*> >::iterator i = fileMap_.begin(); i != fileMap_.end(); i++) {
@@ -92,6 +94,17 @@ bool mzTabReader::parseFile() {
         buildTables(scoreTypes_[scoreIdxVector_].get<2>(), i->first, false);
     }
     return true;
+}
+
+vector<PSM_SCORE_TYPE> mzTabReader::getScoreTypes() {
+    if (!parse()) {
+        return vector<PSM_SCORE_TYPE>(1, UNKNOWN_SCORE_TYPE);
+    }
+    set<PSM_SCORE_TYPE> allScoreTypes;
+    for (map< string, vector<PSM*> >::iterator i = fileMap_.begin(); i != fileMap_.end(); i++) {
+        allScoreTypes.insert(scoreTypes_[scoreIdxVector_].get<2>());
+    }
+    return vector<PSM_SCORE_TYPE>(allScoreTypes.begin(), allScoreTypes.end());
 }
 
 void mzTabReader::collectPsms() {
@@ -189,12 +202,18 @@ void mzTabReader::parseLine(const string& line) {
         vector< pair<string, string> > spectra;
         parseSpectrum(fields, spectra);        
         double score;
-        if (!parseScore(fields, score)) {
-            return;
-        }
+        bool passedThreshold = parseScore(fields, score);
+        if (!passedThreshold)
+            ++filteredOutPsmCount_;
+
         const string scanPrefix = "scan=";
         const string indexPrefix = "index=";
         for (vector< pair<string, string> >::const_iterator i = spectra.begin(); i != spectra.end(); i++) {
+            if (!passedThreshold)
+            {
+                fileMap_.insert(make_pair(i->first, vector<PSM*>()));
+                continue;
+            }
             curPSM_ = new PSM();
             curPSM_->charge = charge;
             curPSM_->unmodSeq = seq;

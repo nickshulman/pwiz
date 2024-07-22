@@ -23,7 +23,6 @@ using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Windows.Forms;
-using pwiz.Common.Controls;
 using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Alerts;
 using pwiz.Skyline.Model;
@@ -186,48 +185,48 @@ namespace pwiz.Skyline.Controls.Startup
                 },
                 new ActionBoxControl
                 {
-                    Caption = Resources.SkylineStartup_SkylineStartup_Import_DDA_Peptide_Search,
+                    Caption = StartupResources.SkylineStartup_SkylineStartup_Import_DDA_Peptide_Search,
                     IsProteomicOnly = true, // Don't show in small molecule mode
                     Icon = Resources.WizardPeptideSearchDDA,
                     EventAction = () => Import(ActionImport.DataType.peptide_search_dda),
                     Description =
-                        Resources.SkylineStartup_SkylineStartup_Use_the_Skyline_Import_Peptide_Search_wizard_to_build_a_spectral_library_from_peptide_search_results_on_DDA_data__and_then_import_the_raw_data_to_quantify_peptides_using_Skyline_MS1_Filtering_
+                        StartupResources.SkylineStartup_SkylineStartup_Use_the_Skyline_Import_Peptide_Search_wizard_to_build_a_spectral_library_from_peptide_search_results_on_DDA_data__and_then_import_the_raw_data_to_quantify_peptides_using_Skyline_MS1_Filtering_
                 },
                 new ActionBoxControl
                 {
-                    Caption = Resources.StartPage_PopulateWizardPanel_Import_DIA_Peptide_Search,
+                    Caption = StartupResources.StartPage_PopulateWizardPanel_Import_DIA_Peptide_Search,
                     IsProteomicOnly = true, // Don't show in small molecule mode
                     Icon = Resources.WizardPeptideSearchDIA,
                     EventAction = () => Import(ActionImport.DataType.peptide_search_dia),
                     Description =
-                        Resources.StartPage_PopulateWizardPanel_Use_the_Skyline_Import_Peptide_Search_wizard_to_build_a_spectral_library_from_peptide_search_results_on_DIA_data__and_then_import_the_raw_data_to_quantify_peptides_using_Skyline_MS1_Filtering_
+                        StartupResources.StartPage_PopulateWizardPanel_Use_the_Skyline_Import_Peptide_Search_wizard_to_build_a_spectral_library_from_peptide_search_results_on_DIA_data__and_then_import_the_raw_data_to_quantify_peptides_using_Skyline_MS1_Filtering_
                 },
                 new ActionBoxControl
                 {
-                    Caption = Resources.StartPage_PopulateWizardPanel_Import_PRM_Peptide_Search,
+                    Caption = StartupResources.StartPage_PopulateWizardPanel_Import_PRM_Peptide_Search,
                     IsProteomicOnly = true, // Don't show in small molecule mode
                     Icon = Resources.WizardPeptideSearchPRM,
                     EventAction = () => Import(ActionImport.DataType.peptide_search_prm),
                     Description =
-                        Resources.StartPage_PopulateWizardPanel_Use_the_Skyline_Import_Peptide_Search_wizard_to_build_a_spectral_library_from_peptide_search_results_on_PRM_data__and_then_import_the_raw_data_to_quantify_peptides_using_Skyline_MS1_Filtering_
+                        StartupResources.StartPage_PopulateWizardPanel_Use_the_Skyline_Import_Peptide_Search_wizard_to_build_a_spectral_library_from_peptide_search_results_on_PRM_data__and_then_import_the_raw_data_to_quantify_peptides_using_Skyline_MS1_Filtering_
                 },
                 new ActionBoxControl
                 {
-                    Caption = Resources.SkylineStartup_SkylineStartup_Import_FASTA,
+                    Caption = StartupResources.SkylineStartup_SkylineStartup_Import_FASTA,
                     IsProteomicOnly = true, // Don't show in small molecule mode
                     Icon = Resources.WizardFasta,
                     EventAction = () => Import(ActionImport.DataType.fasta),
                     Description =
-                        Resources.SkylineStartup_SkylineStartup_Start_a_new_Skyline_document_with_target_proteins_specified_in_FASTA_format_
+                        StartupResources.SkylineStartup_SkylineStartup_Start_a_new_Skyline_document_with_target_proteins_specified_in_FASTA_format_
                 },
                 new ActionBoxControl
                 {
-                    Caption = Resources.SkylineStartup_SkylineStartup_Import_Protein_List,
+                    Caption = StartupResources.SkylineStartup_SkylineStartup_Import_Protein_List,
                     IsProteomicOnly = true, // Don't show in small molecule mode
                     Icon = Resources.WizardImportProteins,
                     EventAction = () => Import(ActionImport.DataType.proteins),
                     Description =
-                        Resources.SkylineStartup_SkylineStartup_Start_a_new_Skyline_document_with_target_proteins_specified_in_a_tabular_list_you_can_paste_into_a_grid_
+                        StartupResources.SkylineStartup_SkylineStartup_Start_a_new_Skyline_document_with_target_proteins_specified_in_a_tabular_list_you_can_paste_into_a_grid_
                 },
                 new ActionBoxControl
                 {
@@ -236,7 +235,7 @@ namespace pwiz.Skyline.Controls.Startup
                     Icon = Resources.WizardImportPeptide,
                     EventAction = () => Import(ActionImport.DataType.peptides),
                     Description =
-                        Resources.SkylineStartup_SkylineStartup_Start_a_new_Skyline_document_with_targets_specified_as_a_list_of_peptide_sequences_in_a_tabular_list_you_can_paste_into_a_grid_
+                        StartupResources.SkylineStartup_SkylineStartup_Start_a_new_Skyline_document_with_targets_specified_as_a_list_of_peptide_sequences_in_a_tabular_list_you_can_paste_into_a_grid_
                 },
                 new ActionBoxControl
                 {
@@ -244,7 +243,7 @@ namespace pwiz.Skyline.Controls.Startup
                     Icon = Resources.WizardImportTransition,
                     EventAction = () => Import(ActionImport.DataType.transition_list),
                     Description =
-                        Resources.SkylineStartup_SkylineStartup_Start_a_new_Skyline_document_from_a_complete_transition_list_with_peptide_sequences__precursor_m_z_values__and_product_m_z_values__which_you_can_paste_into_a_grid_
+                        StartupResources.SkylineStartup_SkylineStartup_Start_a_new_Skyline_document_from_a_complete_transition_list_with_peptide_sequences__precursor_m_z_values__and_product_m_z_values__which_you_can_paste_into_a_grid_
                 }
             };
             flowLayoutPanelWizard.Controls.Clear();
@@ -263,6 +262,8 @@ namespace pwiz.Skyline.Controls.Startup
 
         private void PopulateTutorialPanel()
         {
+            Tutorial = TutorialAction;
+
             var labelFont = new Font(@"Arial", 12F, FontStyle.Regular, GraphicsUnit.Point, 0);
             var labelAnchor = AnchorStyles.Left | AnchorStyles.Right;
             var labelWidth = flowLayoutPanelTutorials.ClientRectangle.Width - SystemInformation.VerticalScrollBarWidth;
@@ -632,12 +633,14 @@ namespace pwiz.Skyline.Controls.Startup
         {
             DoAction(new ActionImport(type).DoStartupAction);
         }
-        
-        private void Tutorial(string skyFileLocation, string pdfFileLocation, string zipSkyFileLocation)
+
+        public Action<string, string, string> Tutorial { get; set; }
+
+        private void TutorialAction(string skyFileLocation, string pdfFileLocation, string zipSkyFileLocation)
         {
             Assume.IsNotNull(skyFileLocation);
 
-            var pathChooserDlg = new PathChooserDlg(Resources.StartPage_Tutorial__Folder_for_tutorial_files_, skyFileLocation);
+            var pathChooserDlg = new PathChooserDlg(StartupResources.StartPage_Tutorial__Folder_for_tutorial_files_, skyFileLocation);
             if (pathChooserDlg.ShowDialog(this) != DialogResult.OK)
                 return;
 
@@ -650,12 +653,10 @@ namespace pwiz.Skyline.Controls.Startup
 
         private string OpenFileDlg()
         {
-            using (var openNewFileDlg = new OpenFileDialog
+            using (var openNewFileDlg = new OpenFileDialog())
             {
-                Filter = TextUtil.FileDialogFiltersAll(SrmDocument.FILTER_DOC_AND_SKY_ZIP, SrmDocumentSharing.FILTER_SHARING, SkypFile.FILTER_SKYP),
-                FilterIndex = 1
-            })
-            {
+                openNewFileDlg.Filter = TextUtil.FileDialogFiltersAll(SrmDocument.FILTER_DOC_AND_SKY_ZIP, SrmDocumentSharing.FILTER_SHARING, SkypFile.FILTER_SKYP);
+                openNewFileDlg.FilterIndex = 1;
                 if (openNewFileDlg.ShowDialog() != DialogResult.OK)
                     return null;
 
@@ -804,6 +805,12 @@ namespace pwiz.Skyline.Controls.Startup
                 TutorialLinkResources.LibraryExplorer_pdf,
                 string.Empty
                 );
+        }
+
+        public void ClickWizardAction(string actionName)
+        {
+            flowLayoutPanelWizard.Controls.Cast<ActionBoxControl>().First(c => Equals(c.Caption, actionName))
+                .EventAction();
         }
     }
 }

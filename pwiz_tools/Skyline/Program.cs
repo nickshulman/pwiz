@@ -24,12 +24,14 @@ using System.Globalization;
 using System.IO;
 using System.IO.Pipes;
 using System.Net;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
 using System.Windows.Forms;
 using Microsoft.Win32;
-using pwiz.Common.Controls;
+using pwiz.Common;
+using pwiz.Common.Collections;
 using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Alerts;
 using pwiz.Skyline.Controls;
@@ -37,11 +39,13 @@ using pwiz.Skyline.Controls.Startup;
 using pwiz.Skyline.Model;
 using pwiz.Skyline.Model.Tools;
 using pwiz.Skyline.Properties;
+using pwiz.Skyline.ToolsUI;
 using pwiz.Skyline.Util;
 using pwiz.Skyline.Util.Extensions;
 
 // Once-per-assembly initialization to perform logging with log4net.
 [assembly: log4net.Config.XmlConfigurator(ConfigFile = "SkylineLog4Net.config", Watch = true)]
+[assembly: InternalsVisibleTo("Test")]
 
 namespace pwiz.Skyline
 {
@@ -68,9 +72,29 @@ namespace pwiz.Skyline
         // Parameters for testing.
         public static bool StressTest { get; set; }                 // Set true when doing stress testing (i.e. TestRunner).
         public static bool UnitTest { get; set; }                   // Set to true by AbstractUnitTest and AbstractFunctionalTest
-        public static bool FunctionalTest { get; set; }             // Set to true by AbstractFunctionalTest
+        public static bool FunctionalTest
+        {
+            get { return CommonApplicationSettings.FunctionalTest;}
+            set
+            {
+                CommonApplicationSettings.FunctionalTest = value;
+            }
+        }
+        public static string TestName { get; set; }                 // Set during unit and functional tests
         public static string DefaultUiMode { get; set; }            // Set to avoid seeing NoModeUiDlg at the start of a test
-        public static bool SkylineOffscreen { get; set; }           // Set true to move Skyline windows offscreen.
+
+        public static bool SkylineOffscreen
+        {
+            get
+            {
+                return CommonApplicationSettings.Offscreen;
+            }
+            set
+            {
+                CommonApplicationSettings.Offscreen = value;
+            }
+        } // Set true to move Skyline windows offscreen.
+
         public static bool DemoMode { get; set; }                   // Set to true in demo mode (main window is full screen and pauses at screenshots)
         public static bool NoVendorReaders { get; set; }            // Set true to avoid calling vendor readers.
         public static bool UseOriginalURLs { get; set; }            // Set true to use original URLs for downloading tools instead of our S3 copies
@@ -109,19 +133,17 @@ namespace pwiz.Skyline
             if (Install.Is64Bit && !Environment.Is64BitProcess)
             {
                 string installUrl = Install.Url32;
-                string installLabel = (installUrl == string.Empty) ? string.Empty : string.Format(Resources.Program_Main_Install_32_bit__0__, Name);
+                string installLabel = (installUrl == string.Empty) ? string.Empty : string.Format(SkylineResources.Program_Main_Install_32_bit__0__, Name);
                 AlertLinkDlg.Show(null,
-                    string.Format(Resources.Program_Main_You_are_attempting_to_run_a_64_bit_version_of__0__on_a_32_bit_OS_Please_install_the_32_bit_version, Name),
+                    string.Format(SkylineResources.Program_Main_You_are_attempting_to_run_a_64_bit_version_of__0__on_a_32_bit_OS_Please_install_the_32_bit_version, Name),
                     installLabel,
                     installUrl);
                 return 1;
             }
 
+            CommonApplicationSettings.ProgramName = Name;
+            CommonApplicationSettings.ProgramNameAndVersion = Install.ProgramNameAndVersion;
             SecurityProtocolInitializer.Initialize(); // Enable highest available security level for HTTPS connections
-
-            CommonFormEx.TestMode = FunctionalTest;
-            CommonFormEx.Offscreen = SkylineOffscreen;
-            CommonFormEx.ShowFormNames = FormEx.ShowFormNames = ShowFormNames;
 
             // For testing and debugging Skyline command-line interface
             bool openDoc = args != null && args.Length > 0 && args[0] == OPEN_DOCUMENT_ARG;
@@ -228,13 +250,11 @@ namespace pwiz.Skyline
                     var toolsDirectory = ToolDescriptionHelpers.GetToolsDirectory();
                     if (!Directory.Exists(toolsDirectory))
                     {
-                        using (var longWaitDlg = new LongWaitDlg
+                        using (var longWaitDlg = new LongWaitDlg())
                         {
-                            Text = Name,
-                            Message = Resources.Program_Main_Copying_external_tools_from_a_previous_installation,
-                            ProgressValue = 0
-                        })
-                        {
+                            longWaitDlg.Text = Name;
+                            longWaitDlg.Message = SkylineResources.Program_Main_Copying_external_tools_from_a_previous_installation;
+                            longWaitDlg.ProgressValue = 0;
                             longWaitDlg.PerformWork(null, 1000*3, broker => CopyOldTools(toolsDirectory, broker));
                         }
                     }
@@ -244,9 +264,6 @@ namespace pwiz.Skyline
                 {
                     
                 }
-
-                // Force live reports (though tests may reset this)
-                //Settings.Default.EnableLiveReports = true;
 
                 if (ReportShutdownDlg.HadUnexpectedShutdown())
                 {
@@ -343,10 +360,11 @@ namespace pwiz.Skyline
                     try
                     {
                         SendAnalyticsHit();
+                        SendGa4AnalyticsHit();
                     }
                     catch (Exception ex)
                     {
-                        Trace.TraceWarning(@"Exception sending analytics hit {0}", ex);
+                        Trace.TraceInformation(@"Exception sending analytics hit {0}", ex);
                     }
                 });
             }
@@ -367,6 +385,7 @@ namespace pwiz.Skyline
 
             var data = Encoding.UTF8.GetBytes(postData);
             var request = (HttpWebRequest) WebRequest.Create("http://www.google-analytics.com/collect");
+            request.UserAgent = Install.GetUserAgentString();
             request.Method = "POST";
             request.ContentType = "application/x-www-form-urlencoded";
             request.ContentLength = data.Length;
@@ -382,6 +401,67 @@ namespace pwiz.Skyline
                 new StreamReader(responseStream).ReadToEnd();
             }
             // ReSharper restore LocalizableElement
+        }
+
+        /// <summary>
+        /// Sends a page_view to the Skyline Google Analytics 4 property.
+        /// </summary>
+        /// <param name="responseStr">The body of the HTTP response, usually expected to be empty.</param>
+        /// <param name="useDebugUrl">If true, sets _dbg=true, which sends the hit to the debug view instead of the real one.</param>
+        /// <returns>The HTTP status code of the response to the analytics hit.</returns>
+        /// <remarks>
+        /// The browser-style collect endpoint is used because GA4's Measurement Protocol does not support automatic resolution of the geographic location of the client.
+        /// The parameters are mostly gleaned from observing a browser's HTTP request to GA4 when browsing a Skyline website page.
+        /// </remarks>
+        internal static int SendGa4AnalyticsHit(out string responseStr, bool useDebugUrl = false)
+        {
+            // ReSharper disable LocalizableElement
+            var clientId = Settings.Default.InstallationId;
+            if (clientId.IsNullOrEmpty())
+                clientId = "developer";
+
+            var postData = "v=2"; // Version 
+            postData += "&tid=G-CQG6T54XQR"; // Tracking id
+            postData += "&gtm=2oe880"; // Google tag manager
+            postData += "&_p=312721869";// + clientId.GetHashCode(); // page hash?
+            postData += "&cid=" + clientId; // Anonymous Client Id
+            postData += "&ul=en-us"; // user language
+            postData += "&sr=2560x1370"; // screen resolution
+            postData += "&_z=ccd.v9B"; // unknown
+            postData += "&_s=1"; // unknown
+            postData += "&sid=" + clientId.GetHashCode(); // session id
+            //postData += "&sct=1"; // session count
+            //postData += "&seg=1"; // session engagement
+            postData += "&dl=" + Uri.EscapeDataString("https://skyline.ms/software/instance.html");
+            postData += "&dt=&en=page_view";
+            postData += "&ep.install_type=" + Install.Type;
+            postData += "&ep.version=" + Uri.EscapeDataString(Install.Version + (Install.Is64Bit ? "-64bit" : "-32bit"));
+            if (useDebugUrl)
+                postData += "&_dbg=true";
+
+            var request = (HttpWebRequest)WebRequest.Create("https://www.google-analytics.com/g/collect?" + postData);
+            request.UserAgent = Install.GetUserAgentString();
+            request.Method = "POST";
+            request.ContentType = "application/x-www-form-urlencoded";
+            request.ContentLength = 0;
+
+            var response = (HttpWebResponse)request.GetResponse();
+            var responseStream = response.GetResponseStream();
+            if (null != responseStream)
+            {
+                var responseReader = new StreamReader(responseStream);
+                responseStr = responseReader.ReadToEnd();
+            }
+            else
+                responseStr = string.Empty;
+
+            return (int) response.StatusCode;
+            // ReSharper restore LocalizableElement
+        }
+
+        internal static int SendGa4AnalyticsHit(bool useDebugUrl = false)
+        {
+            return SendGa4AnalyticsHit(out _, useDebugUrl);
         }
 
         public static void StartToolService()
@@ -418,7 +498,7 @@ namespace pwiz.Skyline
                 DirectoryEx.SafeDelete(tempOuterToolsFolderPath);
                 // Not sure this is necessay, but just to be safe
                 if (Directory.Exists(tempOuterToolsFolderPath))
-                    throw new Exception(Resources.Program_CopyOldTools_Error_copying_external_tools_from_previous_installation);
+                    throw new Exception(SkylineResources.Program_CopyOldTools_Error_copying_external_tools_from_previous_installation);
             }
 
             // Must create the tools directory to avoid ending up here again next time
@@ -525,7 +605,6 @@ namespace pwiz.Skyline
                 return;
             }
 
-            Trace.TraceError(@"Unhandled exception: {0}", exception);
             var stackTrace = new StackTrace(1, true);
             var mainWindow = MainWindow;
             try
@@ -623,6 +702,17 @@ namespace pwiz.Skyline
                 }
 
                 return _name;
+            }
+        }
+
+        public static Image SkylineImage
+        {
+            get
+            {
+                // Dynamically assign the image based on the release type
+                return Install.Type == Install.InstallType.daily
+                    ? Resources.SkylineImg
+                    : Resources.Skyline_Release;
             }
         }
 

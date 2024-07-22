@@ -22,7 +22,7 @@ using System.Drawing;
 using System.Globalization;
 using System.Linq;
 using System.Windows.Forms;
-using pwiz.Common.Controls;
+using pwiz.Common.Chemistry;
 using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Alerts;
 using pwiz.Skyline.Controls;
@@ -33,6 +33,7 @@ using pwiz.Skyline.Model.Optimization;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.SettingsUI.IonMobility;
 using pwiz.Skyline.Util;
+using pwiz.Skyline.Util.Extensions;
 
 namespace pwiz.Skyline.SettingsUI
 {
@@ -82,8 +83,8 @@ namespace pwiz.Skyline.SettingsUI
             _transitionSettings = _parent.DocumentUI.Settings.TransitionSettings;
 
             // Populate the small mol adduct filter helper menu
-            AppendAdductMenus(contextMenuStripPrecursorAdduct, true, precursorAdductStripMenuItem_Click);
-            AppendAdductMenus(contextMenuStripFragmentAdduct, false, fragmentAdductStripMenuItem_Click);
+            AppendAdductMenus(contextMenuStripPrecursorAdduct, precursorAdductStripMenuItem_Click);
+            AppendAdductMenus(contextMenuStripFragmentAdduct, fragmentAdductStripMenuItem_Click);
             Bitmap bm = Resources.PopupBtn;
             bm.MakeTransparent(Color.Fuchsia);
             btnPrecursorAdduct.Image = bm;
@@ -142,7 +143,8 @@ namespace pwiz.Skyline.SettingsUI
             // Initialize library settings
             cbLibraryPick.Checked = (Libraries.Pick != TransitionLibraryPick.none);
             panelPick.Visible = cbLibraryPick.Checked;
-            textTolerance.Text = Libraries.IonMatchTolerance.ToString(LocalizationHelper.CurrentCulture);
+            comboToleranceUnits.SelectedItem = comboToleranceUnits.Items[(int)Libraries.IonMatchMzTolerance.Unit];
+            textTolerance.Text = Libraries.IonMatchMzTolerance.Value.ToString(LocalizationHelper.CurrentCulture);
             textMinIonCount.Text = Libraries.MinIonCount != 0 ? Libraries.MinIonCount.ToString(LocalizationHelper.CurrentCulture) : string.Empty;
             textIonCount.Text = Libraries.IonCount.ToString(LocalizationHelper.CurrentCulture);
             if (Libraries.Pick == TransitionLibraryPick.filter)
@@ -330,6 +332,12 @@ namespace pwiz.Skyline.SettingsUI
             set { FullScanSettingsControl.PrecursorResMz = value; }
         }
 
+        public bool IgnoreSimScans
+        {
+            get { return FullScanSettingsControl.IgnoreSimScans; }
+            set { FullScanSettingsControl.IgnoreSimScans = value; }
+        }
+
         public bool UseSelectiveExtraction
         {
             get { return FullScanSettingsControl.UseSelectiveExtraction; }
@@ -351,9 +359,9 @@ namespace pwiz.Skyline.SettingsUI
 
             // Validate and store prediction settings
             string massType = comboPrecursorMass.SelectedItem.ToString();
-            MassType precursorMassType = MassTypeExtension.GetEnum(massType);
+            MassType precursorMassType = MassTypeLocalizationExtension.GetEnum(massType);
             massType = comboIonMass.SelectedItem.ToString();
-            MassType fragmentMassType = MassTypeExtension.GetEnum(massType);
+            MassType fragmentMassType = MassTypeLocalizationExtension.GetEnum(massType);
             string nameCE = comboCollisionEnergy.SelectedItem.ToString();
             CollisionEnergyRegression collisionEnergy =
                 Settings.Default.GetCollisionEnergyByName(nameCE);
@@ -422,7 +430,7 @@ namespace pwiz.Skyline.SettingsUI
             if (smallMoleculeIonTypes.Length == 0)
             {
                 helper.ShowTextBoxError(textSmallMoleculeIonTypes,
-                    Resources.TransitionSettingsUI_OkDialog_Small_molecule_ion_types_must_contain_a_comma_separated_list_of_ion_types__Valid_types_are__f___for_fragment__and_or__p___for_precursor_);
+                    SettingsUIResources.TransitionSettingsUI_OkDialog_Small_molecule_ion_types_must_contain_a_comma_separated_list_of_ion_types__Valid_types_are__f___for_fragment__and_or__p___for_precursor_);
                 return;
             }
             smallMoleculeIonTypes = smallMoleculeIonTypes.Distinct().ToArray();
@@ -463,10 +471,12 @@ namespace pwiz.Skyline.SettingsUI
                     pick = TransitionLibraryPick.filter;
             }
 
+            MzTolerance.Units ionMatchToleranceUnit = (MzTolerance.Units)comboToleranceUnits.SelectedIndex;
+
             double ionMatchTolerance;
 
             double minTol = TransitionLibraries.MIN_MATCH_TOLERANCE;
-            double maxTol = TransitionLibraries.MAX_MATCH_TOLERANCE;
+            double maxTol = TransitionLibraries.GetMaxMatchTolerance(ionMatchToleranceUnit);
             if (!helper.ValidateDecimalTextBox(textTolerance,
                     minTol, maxTol, out ionMatchTolerance))
                 return;
@@ -493,7 +503,7 @@ namespace pwiz.Skyline.SettingsUI
                 }
             }
 
-            TransitionLibraries libraries = new TransitionLibraries(ionMatchTolerance, minIonCount, ionCount, pick);
+            TransitionLibraries libraries = new TransitionLibraries(new MzTolerance(ionMatchTolerance, ionMatchToleranceUnit), minIonCount, ionCount, pick);
             Helpers.AssignIfEquals(ref libraries, Libraries);
 
             // This dialog does not yet change integration settings
@@ -558,7 +568,7 @@ namespace pwiz.Skyline.SettingsUI
             if (minTime.HasValue && maxTime.HasValue && maxTime.Value - minTime.Value < TransitionInstrument.MIN_TIME_RANGE)
             {
                 helper.ShowTextBoxError(textMaxTime,
-                                        string.Format(Resources.TransitionSettingsUI_OkDialog_The_allowable_retention_time_range__0__to__1__must_be_at_least__2__minutes_apart,
+                                        string.Format(SettingsUIResources.TransitionSettingsUI_OkDialog_The_allowable_retention_time_range__0__to__1__must_be_at_least__2__minutes_apart,
                                                       minTime, maxTime, TransitionInstrument.MIN_TIME_RANGE));
                 return;
             }
@@ -579,7 +589,7 @@ namespace pwiz.Skyline.SettingsUI
             {
                 if (!precursorMassType.IsMonoisotopic())
                 {
-                    MessageDlg.Show(this, Resources.TransitionSettingsUI_OkDialog_High_resolution_MS1_filtering_requires_use_of_monoisotopic_precursor_masses);
+                    MessageDlg.Show(this, SettingsUIResources.TransitionSettingsUI_OkDialog_High_resolution_MS1_filtering_requires_use_of_monoisotopic_precursor_masses);
                     tabControl1.SelectedIndex = (int)TABS.Prediction;
                     comboPrecursorMass.Focus();
                     return;
@@ -606,7 +616,7 @@ namespace pwiz.Skyline.SettingsUI
 
             if (isolationScheme != null && isolationScheme.WindowsPerScan.HasValue && !maxInclusions.HasValue)
             {
-                MessageDlg.Show(this, Resources.TransitionSettingsUI_OkDialog_Before_performing_a_multiplexed_DIA_scan_the_instrument_s_firmware_inclusion_limit_must_be_specified);
+                MessageDlg.Show(this, SettingsUIResources.TransitionSettingsUI_OkDialog_Before_performing_a_multiplexed_DIA_scan_the_instrument_s_firmware_inclusion_limit_must_be_specified);
                 tabControl1.SelectedIndex = (int)TABS.Instrument;
                 textMaxInclusions.Focus();
                 return;
@@ -647,7 +657,7 @@ namespace pwiz.Skyline.SettingsUI
             // Only update, if anything changed
             if (!Equals(settings, _transitionSettings))
             {
-                if (!_parent.ChangeSettingsMonitored(this, Resources.TransitionSettingsUI_OkDialog_Changing_transition_settings,
+                if (!_parent.ChangeSettingsMonitored(this, SettingsUIResources.TransitionSettingsUI_OkDialog_Changing_transition_settings,
                                                      s => s.ChangeTransitionSettings(settings)))
                 {
                     return;
@@ -763,7 +773,7 @@ namespace pwiz.Skyline.SettingsUI
         {
             get
             {
-                return MassTypeExtension.GetEnum(comboPrecursorMass.SelectedItem.ToString());
+                return MassTypeLocalizationExtension.GetEnum(comboPrecursorMass.SelectedItem.ToString());
             }
             set
             {
@@ -775,7 +785,7 @@ namespace pwiz.Skyline.SettingsUI
         {
             get
             {
-                return MassTypeExtension.GetEnum(comboIonMass.SelectedItem.ToString());
+                return MassTypeLocalizationExtension.GetEnum(comboIonMass.SelectedItem.ToString());
             }
             set
             {
@@ -1024,6 +1034,12 @@ namespace pwiz.Skyline.SettingsUI
             set { textTolerance.Text = value.ToString(CultureInfo.CurrentCulture); }
         }
 
+        public MzTolerance.Units IonMatchToleranceUnits
+        {
+            get { return (MzTolerance.Units)comboToleranceUnits.SelectedIndex; }
+            set { comboToleranceUnits.SelectedIndex = (int) value; }
+        }
+
         public int Peaks
         {
             get { return FullScanSettingsControl.Peaks; }
@@ -1152,7 +1168,7 @@ namespace pwiz.Skyline.SettingsUI
         }
 
         // Append adduct picker submenus, one per charge 1,2,3,-1,-2,-3
-        public static void AppendAdductMenus(ContextMenuStrip menuParent, bool showOnlyAdductsWithMass, EventHandler adductStripMenuItem_Click)
+        public static void AppendAdductMenus(ContextMenuStrip menuParent, EventHandler adductStripMenuItem_Click)
         {
             var insertOffset = menuParent.Items.Count == 0 ? 0 : 1; // Leave Help as last item
 
@@ -1162,22 +1178,19 @@ namespace pwiz.Skyline.SettingsUI
             {
                 // Create a cascading menu item on parent menu
                 var text = charge > 0
-                    ? Resources.TransitionSettingsUI_PopulateAdductMenu_Adducts_plusplusplus
-                    : Resources.TransitionSettingsUI_PopulateAdductMenu_Adducts_minusminusminus;
+                    ? SettingsUIResources.TransitionSettingsUI_PopulateAdductMenu_Adducts_plusplusplus
+                    : SettingsUIResources.TransitionSettingsUI_PopulateAdductMenu_Adducts_minusminusminus;
                 var menuItem = new ToolStripMenuItem()
                 {
                     Text = text.Substring(0, text.Length - (3 - Math.Abs(charge)))  // Trim "Adducts +++" or "Adducts ---" as needed
                 };
                 menuParent.Items.Insert(menuParent.Items.Count - insertOffset, menuItem);
                 var cascadeTop = menuItem;
-                if (!showOnlyAdductsWithMass)
+                // Charge-only adducts first
+                foreach (var adduct in AdductMenuOrder(Adduct.COMMON_CHARGEONLY_ADDUCTS, charge))
                 {
-                    // Charge-only adducts first
-                    foreach (var adduct in AdductMenuOrder(Adduct.COMMON_CHARGEONLY_ADDUCTS, charge))
-                    {
-                        AddAdductMenuItem(menuItem, adduct.ToString(), adductStripMenuItem_Click);
-                        adductsInMenu.Add(adduct);
-                    }
+                    AddAdductMenuItem(menuItem, adduct.ToString(), adductStripMenuItem_Click);
+                    adductsInMenu.Add(adduct);
                 }
                 // All the adducts from Fiehn lab list
                 foreach (var adduct in AdductMenuOrder(Adduct.DEFACTO_STANDARD_ADDUCTS, charge))
@@ -1189,7 +1202,7 @@ namespace pwiz.Skyline.SettingsUI
                             // Start another cascade level for the more exotic adducts
                             var menuItemMore = new ToolStripMenuItem()
                             {
-                                Text = Resources.TransitionSettingsUI_PopulateAdductMenu_More
+                                Text = SettingsUIResources.TransitionSettingsUI_PopulateAdductMenu_More
                             };
                             menuItem.DropDownItems.Add(menuItemMore);
                             menuItem = menuItemMore;
@@ -1298,7 +1311,7 @@ namespace pwiz.Skyline.SettingsUI
             if (AcquisitionMethod == FullScanAcquisitionMethod.SureQuant && !cbxTriggeredAcquisition.Checked)
             {
                 var message =
-                    Resources.TransitionSettingsUI_cbxTriggeredAcquisition_CheckedChanged_The_SureQuant_acquisition_method_requires__Triggered_Chromatogram_Extraction___Unchecking_this_option_will_switch_to_the_PRM_acquisition_method__Do_you_want_to_continue_;
+                    SettingsUIResources.TransitionSettingsUI_cbxTriggeredAcquisition_CheckedChanged_The_SureQuant_acquisition_method_requires__Triggered_Chromatogram_Extraction___Unchecking_this_option_will_switch_to_the_PRM_acquisition_method__Do_you_want_to_continue_;
                 switch (MultiButtonMsgDlg.Show(this, message, MultiButtonMsgDlg.BUTTON_OK))
                 {
                     case DialogResult.Cancel:
@@ -1308,6 +1321,17 @@ namespace pwiz.Skyline.SettingsUI
                         AcquisitionMethod = FullScanAcquisitionMethod.PRM;
                         break;
                 }
+            }
+        }
+
+        private void comboToleranceUnits_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            if (double.TryParse(textTolerance.Text, out var matchTolerance))
+            {
+                if (IonMatchToleranceUnits == MzTolerance.Units.mz)
+                    IonMatchTolerance = matchTolerance / 1000;
+                else
+                    IonMatchTolerance = matchTolerance * 1000;
             }
         }
     }

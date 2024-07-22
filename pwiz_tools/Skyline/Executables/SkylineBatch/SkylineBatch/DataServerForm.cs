@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Drawing;
 using System.Threading;
 using System.Windows.Forms;
+using pwiz.Common.GUI;
 using SharedBatch;
 using SkylineBatch.Properties;
 
@@ -16,7 +17,6 @@ namespace SkylineBatch
         private readonly bool _serverRequired;
         private readonly string _dataFolder;
         private bool _updated;
-        private RemoteFileControl _remoteFileControl;
 
         public DataServerForm(DataServerInfo editingServerInfo, string folder, SkylineBatchConfigManagerState state, IMainUiControl mainControl, bool serverRequired = false)
         {
@@ -27,13 +27,13 @@ namespace SkylineBatch
             _dataFolder = folder;
             _serverRequired = serverRequired;
 
-            _remoteFileControl = new RemoteFileControl(mainControl, state, editingServerInfo, folder, serverRequired);
-            _remoteFileControl.Dock = DockStyle.Fill;
-            _remoteFileControl.Show();
-            panelRemoteFile.Controls.Add(_remoteFileControl);
+            remoteFileControl = new RemoteFileControl(mainControl, state, editingServerInfo, folder, serverRequired, false);
+            remoteFileControl.Dock = DockStyle.Fill;
+            remoteFileControl.Show();
+            panelRemoteFile.Controls.Add(remoteFileControl);
 
-            _remoteFileControl.AddRemoteFileChangedEventHandler(RemoteFileChangedByUser);
-            _remoteFileControl.AddRelativePathChangedEventHandler(RemoteFileChangedByUser);
+            remoteFileControl.AddRemoteFileChangedEventHandler(RemoteFileChangedByUser);
+            remoteFileControl.AddRelativePathChangedEventHandler(RemoteFileChangedByUser);
 
 
             textNamingPattern.Text = editingServerInfo != null ? editingServerInfo.DataNamingPattern : string.Empty;
@@ -45,9 +45,12 @@ namespace SkylineBatch
                 btnRemoveServer.Hide();
         }
 
+
+        public RemoteFileControl remoteFileControl;
+
         public DataServerInfo Server;
         public ServerConnector serverConnector { get; private set; }
-        public SkylineBatchConfigManagerState State => _remoteFileControl.State;
+        public SkylineBatchConfigManagerState State => remoteFileControl.State;
 
         private void btnAdd_Click(object sender, EventArgs e)
         {
@@ -63,7 +66,7 @@ namespace SkylineBatch
                 }
                 serverConnector.GetFiles(Server, out Exception error);
                 if (error != null)
-                    AlertDlg.ShowError(this, Program.AppName(), error.Message);
+                    CommonAlertDlg.ShowException(this, error);
                 else
                     DialogResult = DialogResult.OK;
             }
@@ -143,7 +146,7 @@ namespace SkylineBatch
         {
             Invoke(new Action(() =>
             {
-                if (e != null) AlertDlg.ShowError(this, Program.AppName(), e.Message);
+                if (e != null) CommonAlertDlg.ShowException(this, e);
 
             }));
             _cancelValidate = null;
@@ -154,11 +157,11 @@ namespace SkylineBatch
             Server server;
             try
             {
-                server = _remoteFileControl.ServerFromUI();
+                server = remoteFileControl.ServerFromUi();
             }
             catch (ArgumentException e)
             {
-                AlertDlg.ShowError(this, Program.AppName(), e.Message);
+                CommonAlertDlg.ShowException(this, e);
                 return null;
             }
 
@@ -168,7 +171,7 @@ namespace SkylineBatch
         private void btnRemoveServer_Click(object sender, EventArgs e)
         {
             _cancelValidate?.Cancel();
-            _remoteFileControl.Clear();
+            remoteFileControl.Clear();
             textNamingPattern.Text = string.Empty;
             listBoxFileNames.Items.Clear();
             Server = null;
@@ -239,7 +242,7 @@ namespace SkylineBatch
         {
             try
             {
-                _updated = _remoteFileControl.RemoteFileSourceFromUI() == null;
+                _updated = remoteFileControl.RemoteFileSourceFromUi() == null;
             } catch (ArgumentException)
             {
                 _updated = false;

@@ -40,9 +40,11 @@
 #pragma managed
 #include "pwiz/utility/misc/cpp_cli_utilities.hpp"
 #include <msclr/auto_gcroot.h>
+#using <System.dll>
 #using <System.Xml.dll>
 using namespace pwiz::util;
 using namespace System;
+using namespace System::Text::RegularExpressions;
 using namespace Clearcore2::Data;
 using namespace Clearcore2::Data::AnalystDataProvider;
 using namespace Clearcore2::Data::Client;
@@ -62,7 +64,6 @@ const int PEAK_AREA_SCALE_FACTOR = 100;
 namespace pwiz {
 namespace vendor_api {
 namespace ABI {
-
 
 class WiffFileImpl : public WiffFile
 {
@@ -129,9 +130,9 @@ struct ExperimentImpl : public Experiment
     virtual size_t getSRMSize() const;
     virtual void getSRM(size_t index, Target& target) const;
 
-    virtual void getSIC(size_t index, pwiz::util::BinaryData<double>& times, pwiz::util::BinaryData<double>& intensities) const;
+    virtual double getSIC(size_t index, pwiz::util::BinaryData<double>& times, pwiz::util::BinaryData<double>& intensities, bool ignoreScheduledLimits) const;
     virtual void getSIC(size_t index, pwiz::util::BinaryData<double>& times, pwiz::util::BinaryData<double>& intensities,
-                        double& basePeakX, double& basePeakY) const;
+                        double& basePeakX, double& basePeakY, bool ignoreScheduledLimits) const;
 
     virtual void getAcquisitionMassRange(double& startMz, double& stopMz) const;
     virtual ScanType getScanType() const;
@@ -148,13 +149,11 @@ struct ExperimentImpl : public Experiment
     const WiffFileImpl* wifffile_;
     gcroot<MSExperiment^> msExperiment;
     int sample, period, experiment;
+    bool hasHalfSizeRTWindow;
 
     ExperimentType experimentType;
     size_t simCount;
     size_t transitionCount;
-
-    typedef map<pair<double, double>, pair<int, int> > TransitionParametersMap;
-    TransitionParametersMap transitionParametersMap;
 
     const vector<double>& cycleTimes() const {initializeTIC(); return cycleTimes_;}
     const vector<double>& cycleIntensities() const {initializeTIC(); return cycleIntensities_;}
@@ -361,6 +360,7 @@ InstrumentModel WiffFileImpl::getInstrumentModel() const
         if (modelName->Contains("5500"))            return API5500; // predicted
         if (modelName->Contains("QTRAP6500"))       return API6500QTrap; // predicted
         if (modelName->Contains("6500"))            return API6500; // predicted
+        if (modelName->Contains("QUAD7500"))        return TripleQuad7500;
         if (modelName->Contains("QTRAP"))           return GenericQTrap;
         if (modelName->Contains("QSTARPULSAR"))     return QStarPulsarI; // also covers variants like "API QStar Pulsar i, 0, Qstar"
         if (modelName->Contains("QSTARXL"))         return QStarXL;
@@ -379,6 +379,7 @@ InstrumentModel WiffFileImpl::getInstrumentModel() const
         if (modelName->Contains("350"))             return API350; // predicted
         if (modelName->Contains("365"))             return API365; // predicted
         if (modelName->Contains("X500QTOF"))        return X500QTOF;
+        if (modelName->Contains("ZENOTOF7600"))     return ZenoTOF7600;
         throw gcnew Exception("unknown instrument type: " + sample->Details->InstrumentName);
     }
     CATCH_AND_FORWARD
@@ -442,23 +443,26 @@ ExperimentImpl::ExperimentImpl(const WiffFileImpl* wifffile, int sample, int per
         else if (experimentType == SIM)
             simCount = msExperiment->Details->MassRangeInfo->Length;
 
-        /*for (int i=0; i < msExperiment->MRMTransitions->Count; ++i)
+        hasHalfSizeRTWindow = false;
+        try
         {
-            MRMTransition^ transition = msExperiment->MRMTransitions[i];
-            pair<int, int>& e = transitionParametersMap[make_pair(transition->Q1Mass->MassAsDouble, transition->Q3Mass->MassAsDouble)];
-            e.first = i;
-            e.second = -1;
-        }
+            auto softwareVersion = wifffile_->batch->GetSample(sample)->Details->SoftwareVersion;
+            auto sciexOsVersionRegex = gcnew Regex(R"(SCIEX OS (\d+)\.(\d+))");
 
-        MRMTransitionsForAcquisitionCollection^ transitions = wifffile_->reader->Provider->GetMRMTransitionsForAcquisition();
-        for (int i=0; i < transitions->Count; ++i)
+            auto match = sciexOsVersionRegex->Match(softwareVersion);
+            if (match->Success)
+            {
+                int major = Convert::ToInt32(match->Groups[1]->Value);
+                int minor = Convert::ToInt32(match->Groups[2]->Value);
+                hasHalfSizeRTWindow = !(major >= 3 && minor >= 1); // currently assumed present in SCIEX OS lower than v3.1
+                //if (hasHalfSizeRTWindow)
+                //    Console::Error->WriteLine("NOTE: data from " + softwareVersion + " has bugged half-width RTWindows");
+            }
+        }
+        catch (Exception^)
         {
-            MRMTransition^ transition = transitions[i]->Transition;
-            pair<int, int>& e = transitionParametersMap[make_pair(transition->Q1Mass->MassAsDouble, transition->Q3Mass->MassAsDouble)];
-            if (e.second != -1) // this Q1/Q3 wasn't added by the MRMTransitions loop
-                e.first = -1;
-            e.second = i;
-        }*/
+            // ignore read past end of stream: no version details? probably acquired with Analyst?
+        }
     }
     CATCH_AND_FORWARD
 }
@@ -543,14 +547,24 @@ void ExperimentImpl::getSIM(size_t index, Target& target) const
 
         SIMMassRange^ transition = (SIMMassRange^) msExperiment->Details->MassRangeInfo[index];
 
+        double rtWindowMultiplier = hasHalfSizeRTWindow ? 1 : 0.5;
         target.type = TargetType_SIM;
         target.Q1 = transition->Mass;
         target.dwellTime = transition->DwellTime;
-        // TODO: store RTWindow?
+        target.startTime = transition->ExpectedRT - transition->RTWindow * rtWindowMultiplier;
+        target.endTime = transition->ExpectedRT + transition->RTWindow * rtWindowMultiplier;
+        target.compoundID = ToStdString(transition->Name);
+        
+        auto parameters = transition->CompoundDepParameters;
+        if (parameters->ContainsKey("CE"))
+            target.collisionEnergy = fabs((float) parameters["CE"]->Start);
+        else
+            target.collisionEnergy = 0;
 
-        // TODO: use NaN to indicate these values should be considered missing?
-        target.collisionEnergy = 0;
-        target.declusteringPotential = 0;
+        if (parameters->ContainsKey("DP"))
+            target.declusteringPotential = (float) parameters["DP"]->Start;
+        else
+            target.declusteringPotential = 0;
     }
     CATCH_AND_FORWARD
 }
@@ -571,62 +585,70 @@ void ExperimentImpl::getSRM(size_t index, Target& target) const
             throw std::out_of_range("[Experiment::getSRM()] index out of range");
 
         MRMMassRange^ transition = (MRMMassRange^) msExperiment->Details->MassRangeInfo[index];
-        //const pair<int, int>& e = transitionParametersMap.find(make_pair(transition->Q1Mass->MassAsDouble, transition->Q3Mass->MassAsDouble))->second;
 
+        double rtWindowMultiplier = hasHalfSizeRTWindow ? 1 : 0.5;
         target.type = TargetType_SRM;
         target.Q1 = transition->Q1Mass;
         target.Q3 = transition->Q3Mass;
         target.dwellTime = transition->DwellTime;
-        // TODO: store RTWindow?
+        target.startTime = transition->ExpectedRT - transition->RTWindow * rtWindowMultiplier;
+        target.endTime = transition->ExpectedRT + transition->RTWindow * rtWindowMultiplier;
+        target.compoundID = ToStdString(transition->Name);
 
-        /*if (e.second > -1)
-        {
-            MRMTransitionsForAcquisitionCollection^ transitions = wifffile_->reader->Provider->GetMRMTransitionsForAcquisition();
-            CompoundDependentParametersDictionary^ parameters = transitions[e.second]->Parameters;
-            target.collisionEnergy = (double) parameters["CE"];
-            target.declusteringPotential = (double) parameters["DP"];
-        }
-        else*/
-        {
-            // TODO: use NaN to indicate these values should be considered missing?
+        auto parameters = transition->CompoundDepParameters;
+        if (parameters->ContainsKey("CE"))
+            target.collisionEnergy = fabs((float) parameters["CE"]->Start);
+        else
             target.collisionEnergy = 0;
+
+        if (parameters->ContainsKey("DP"))
+            target.declusteringPotential = (float) parameters["DP"]->Start;
+        else
             target.declusteringPotential = 0;
-        }
     }
     CATCH_AND_FORWARD
 }
 
-void ExperimentImpl::getSIC(size_t index, pwiz::util::BinaryData<double>& times, pwiz::util::BinaryData<double>& intensities) const
+double ExperimentImpl::getSIC(size_t index, pwiz::util::BinaryData<double>& times, pwiz::util::BinaryData<double>& intensities, bool ignoreScheduledLimits) const
 {
     try
     {
         if (index >= transitionCount+simCount)
-            throw std::out_of_range("[Experiment::getSIC()] index out of range");
+            throw std::out_of_range("[Experiment::getSIC()] index " + lexical_cast<string>(index) + " out of range");
+
+        Target target;
+        getSRM(index, target);
 
         ExtractedIonChromatogramSettings^ option = gcnew ExtractedIonChromatogramSettings(index);
+        if (ignoreScheduledLimits)
+        {
+            option->StartCycle = 0;
+            option->EndCycle = convertRetentionTimeToCycle(cycleTimes().back());
+            option->UseStartEndCycle = true;
+        }
+        else if (target.startTime != target.endTime)
+        {
+            option->StartCycle = convertRetentionTimeToCycle(target.startTime);
+            option->EndCycle = convertRetentionTimeToCycle(target.endTime);
+            option->UseStartEndCycle = true;
+        }
+
         ExtractedIonChromatogram^ xic = msExperiment->GetExtractedIonChromatogram(option);
 
         ToBinaryData(xic->GetActualXValues(), times);
         ToBinaryData(xic->GetActualYValues(), intensities);
+        return xic->MaxYValue;
     }
     CATCH_AND_FORWARD
 }
 
 void ExperimentImpl::getSIC(size_t index, pwiz::util::BinaryData<double>& times, pwiz::util::BinaryData<double>& intensities,
-                            double& basePeakX, double& basePeakY) const
+                            double& basePeakX, double& basePeakY, bool ignoreScheduledLimits) const
 {
+    basePeakY = getSIC(index, times, intensities, ignoreScheduledLimits);
+
     try
     {
-        if (index >= transitionCount)
-            throw std::out_of_range("[Experiment::getSIC()] index " + lexical_cast<string>(index) + " out of range");
-
-        ExtractedIonChromatogramSettings^ option = gcnew ExtractedIonChromatogramSettings(index);
-        ExtractedIonChromatogram^ xic = msExperiment->GetExtractedIonChromatogram(option);
-
-        ToBinaryData(xic->GetActualXValues(), times);
-        ToBinaryData(xic->GetActualYValues(), intensities);
-
-        basePeakY = xic->MaximumYValue;
         basePeakX = 0;
         for (size_t i=0; i < intensities.size(); ++i)
             if (intensities[i] == basePeakY)
@@ -671,7 +693,7 @@ Polarity ExperimentImpl::getPolarity() const
 
 int ExperimentImpl::getMsLevel(int cycle) const
 {
-    return 0;
+    return msExperiment->GetMassSpectrumInfo(cycle - 1)->MSLevel;
 }
 
 double ExperimentImpl::convertCycleToRetentionTime(int cycle) const
@@ -752,7 +774,21 @@ void SpectrumImpl::getIsolationInfo(double& centerMz, double& lowerLimit, double
         centerMz = getHasPrecursorInfo() ? selectedMz : (double)((FragmentBasedScanMassRange^)(experiment->msExperiment->Details->MassRangeInfo[0]))->FixedMasses[0];
         lowerLimit = centerMz - isolationWidth / 2;
         upperLimit = centerMz + isolationWidth / 2;
-        collisionEnergy = 0;
+
+        auto parameters = experiment->msExperiment->Details->Parameters;
+        if (parameters->ContainsKey("CE"))
+        {
+            auto ceRamp = parameters["CE"];
+            if (ceRamp->Start == 0)
+                collisionEnergy = fabs(ceRamp->Stop);
+            else if (ceRamp->Stop == 0)
+                collisionEnergy = ceRamp->Start;
+            else
+                collisionEnergy = (ceRamp->Stop + ceRamp->Start) / 2;
+            collisionEnergy = fabs(collisionEnergy);
+        }
+        else
+            collisionEnergy = 0;
     }
     CATCH_AND_FORWARD
 }

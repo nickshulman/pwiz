@@ -20,6 +20,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using pwiz.Common.Collections;
+using pwiz.Common.DataBinding;
 using pwiz.Common.DataBinding.Attributes;
 using pwiz.Skyline.Controls.GroupComparison;
 using pwiz.Skyline.Model.Databinding.Collections;
@@ -27,7 +29,6 @@ using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.ElementLocators;
 using pwiz.Skyline.Model.GroupComparison;
 using pwiz.Skyline.Model.Hibernate;
-using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
 using pwiz.Skyline.Util.Extensions;
 
@@ -38,15 +39,9 @@ namespace pwiz.Skyline.Model.Databinding.Entities
     [InvariantDisplayName("MoleculeList", ExceptInUiMode = UiModes.PROTEOMIC)]
     public class Protein : SkylineDocNode<PeptideGroupDocNode>
     {
-        private readonly CachedValue<Peptide[]> _peptides;
-        private readonly CachedValue<IDictionary<ResultKey, ProteinResult>> _results;
-        private readonly CachedValue<IDictionary<int, Tuple<double, bool>>> _proteinAbundances;
+        private readonly CachedValues _cachedValues = new CachedValues();
         public Protein(SkylineDataSchema dataSchema, IdentityPath identityPath) : base(dataSchema, identityPath)
         {
-            _peptides = CachedValue.Create(dataSchema, () => DocNode.Children
-                .Select(node => new Peptide(DataSchema, new IdentityPath(IdentityPath, node.Id))).ToArray());
-            _results = CachedValue.Create(dataSchema, MakeProteinResults);
-            _proteinAbundances = CachedValue.Create(dataSchema, CalculateProteinAbundances);
         }
 
         [OneToMany(ForeignKey = "Protein")]
@@ -56,7 +51,7 @@ namespace pwiz.Skyline.Model.Databinding.Entities
         {
             get
             {
-                return _peptides.Value;
+                return _cachedValues.GetValue(this);
             }
         }
 
@@ -64,13 +59,7 @@ namespace pwiz.Skyline.Model.Databinding.Entities
         [ProteomicDisplayName("ProteinResults")]
         public IDictionary<ResultKey, ProteinResult> Results
         {
-            get { return _results.Value; }
-        }
-
-        private IDictionary<ResultKey, ProteinResult> MakeProteinResults()
-        {
-            return DataSchema.ReplicateList.ToDictionary(entry => entry.Key,
-                entry => new ProteinResult(this, entry.Value));
+            get { return _cachedValues.GetValue1(this); }
         }
 
         public bool IsNonProteomic()
@@ -203,11 +192,11 @@ namespace pwiz.Skyline.Model.Databinding.Entities
             if (nodeCount == 1)
             {
                 return string.Format(DataSchema.ModeUI == SrmDocument.DOCUMENT_TYPE.proteomic
-                    ? Resources.Protein_GetDeleteConfirmation_Are_you_sure_you_want_to_delete_the_protein___0___
-                    : Resources.Protein_GetDeleteConfirmation_Are_you_sure_you_want_to_delete_the_molecule_list___0___, this);
+                    ? EntitiesResources.Protein_GetDeleteConfirmation_Are_you_sure_you_want_to_delete_the_protein___0___
+                    : EntitiesResources.Protein_GetDeleteConfirmation_Are_you_sure_you_want_to_delete_the_molecule_list___0___, this);
             }
-            return string.Format(DataSchema.ModeUI == SrmDocument.DOCUMENT_TYPE.proteomic ? Resources.Protein_GetDeleteConfirmation_Are_you_sure_you_want_to_delete_these__0__proteins_
-                : Resources.Protein_GetDeleteConfirmation_Are_you_sure_you_want_to_delete_these__0__molecule_lists_, nodeCount);
+            return string.Format(DataSchema.ModeUI == SrmDocument.DOCUMENT_TYPE.proteomic ? EntitiesResources.Protein_GetDeleteConfirmation_Are_you_sure_you_want_to_delete_these__0__proteins_
+                : EntitiesResources.Protein_GetDeleteConfirmation_Are_you_sure_you_want_to_delete_these__0__molecule_lists_, nodeCount);
         }
 
         protected override NodeRef NodeRefPrototype
@@ -228,61 +217,137 @@ namespace pwiz.Skyline.Model.Databinding.Entities
         /// not suitable for comparing between replicates
         /// </summary>
         /// <returns></returns>
-        public IDictionary<int, Tuple<double, bool>> GetProteinAbundances()
+        public IDictionary<int, AbundanceValue> GetProteinAbundances()
         {
-            return _proteinAbundances.Value;
+            return _cachedValues.GetValue2(this);
         }
 
-        private IDictionary<int, Tuple<double, bool>> CalculateProteinAbundances()
+        private IDictionary<int, AbundanceValue> CalculateProteinAbundances()
         {
-            var allTransitionIdentityPaths = new HashSet<IdentityPath>();
+            if (DocNode.IsDecoy)
+            {
+                // Don't bother calculating protein abundances for the "Decoy" peptide list,
+                // since it can be very slow.
+                return new Dictionary<int, AbundanceValue>();
+            }
+
             var quantifiers = Peptides.Select(peptide => peptide.GetPeptideQuantifier()).ToList();
             int replicateCount = SrmDocument.Settings.HasResults
                 ? SrmDocument.Settings.MeasuredResults.Chromatograms.Count : 0;
-            var abundances = new Dictionary<int, Tuple<double, int>>();
             var srmSettings = SrmDocument.Settings;
-            bool allowMissingTransitions =
-                srmSettings.PeptideSettings.Quantification.NormalizationMethod is NormalizationMethod.RatioToLabel;
+            var replicateQuantities = new List<Dictionary<IdentityPath, PeptideQuantifier.Quantity>>();
             for (int iReplicate = 0; iReplicate < replicateCount; iReplicate++)
             {
-                double totalNumerator = 0;
-                double totalDenomicator = 0;
-                int transitionCount = 0;
+                var quantities = new Dictionary<IdentityPath, PeptideQuantifier.Quantity>();
                 foreach (var peptideQuantifier in quantifiers)
                 {
                     foreach (var entry in peptideQuantifier.GetTransitionIntensities(SrmDocument.Settings, iReplicate,
-                        false))
+                                 false))
                     {
-                        totalNumerator += Math.Max(entry.Value.Intensity, 1.0);
-                        totalDenomicator += Math.Max(entry.Value.Denominator, 1.0);
-                        allTransitionIdentityPaths.Add(entry.Key);
-                        transitionCount++;
+                        quantities.Add(entry.Key, entry.Value);
                     }
                 }
-
-                if (transitionCount != 0)
-                {
-                    var abundance = totalNumerator / totalDenomicator;
-                    abundances.Add(iReplicate, Tuple.Create(abundance, transitionCount));
-                }
+                replicateQuantities.Add(quantities);
             }
 
-            var proteinAbundanceRecords = new Dictionary<int, Tuple<double, bool>>();
-            foreach (var entry in abundances)
+            var allTransitionIdentityPaths = replicateQuantities
+                .SelectMany(dict => dict.Where(kvp => !kvp.Value.Truncated).Select(kvp => kvp.Key)).ToHashSet();
+            if (allTransitionIdentityPaths.Count == 0)
             {
-                bool incomplete;
-                if (allowMissingTransitions)
-                {
-                    incomplete = false;
-                }
-                else
-                {
-                    incomplete = entry.Value.Item2 != allTransitionIdentityPaths.Count;
-                }
-                proteinAbundanceRecords.Add(entry.Key, Tuple.Create(entry.Value.Item1, incomplete));
+                allTransitionIdentityPaths = replicateQuantities.SelectMany(dict => dict.Keys).ToHashSet();
             }
 
+            var proteinAbundanceRecords = new Dictionary<int, AbundanceValue>();
+            int transitionCount = DocNode.TransitionCount;
+            for (int iReplicate = 0; iReplicate < replicateCount; iReplicate++)
+            {
+                var rawAbundance = PeptideQuantifier.SumTransitionQuantities(allTransitionIdentityPaths, replicateQuantities[iReplicate],
+                    srmSettings.PeptideSettings.Quantification);
+                if (rawAbundance != null)
+                {
+                    int quantityCount = replicateQuantities[iReplicate].Keys.Intersect(allTransitionIdentityPaths)
+                        .Count();
+                    proteinAbundanceRecords[iReplicate] = new AbundanceValue(rawAbundance.Raw, rawAbundance.Raw * quantityCount, rawAbundance.Message);
+                }
+            }
             return proteinAbundanceRecords;
+        }
+
+        public class AbundanceValue : IAnnotatedValue, IFormattable
+        {
+            public AbundanceValue(double transitionAveraged, double transitionSummed, string message)
+            {
+                Message = message;
+                TransitionAveraged = transitionAveraged;
+                TransitionSummed = transitionSummed;
+                if (Message == null)
+                {
+                    Strict = transitionAveraged;
+                }
+            }
+            [InvariantDisplayName("MoleculeListAbundanceTransitionAveraged")]
+            [ProteomicDisplayName("ProteinAbundanceTransitionAveraged")]
+            [Format(Formats.GLOBAL_STANDARD_RATIO, NullValue = TextUtil.EXCEL_NA)]
+            public double TransitionAveraged
+            {
+                get; private set;
+            }
+            [InvariantDisplayName("MoleculeListAbundanceTransitionSummed")]
+            [ProteomicDisplayName("ProteinAbundanceTransitionSummed")]
+            [Format(Formats.GLOBAL_STANDARD_RATIO, NullValue = TextUtil.EXCEL_NA)]
+            public double TransitionSummed { get; private set; }
+
+            [InvariantDisplayName("MoleculeListAbundanceStrict")]
+            [ProteomicDisplayName("ProteinAbundanceStrict")]
+            [Format(Formats.GLOBAL_STANDARD_RATIO, NullValue = TextUtil.EXCEL_NA)]
+            public double? Strict { get; private set; }
+
+            [InvariantDisplayName("MoleculeListAbundanceMessage")]
+            [ProteomicDisplayName("ProteinAbundanceMessage")]
+            public string Message
+            {
+                get;
+            }
+
+            public string GetErrorMessage()
+            {
+                return Message;
+            }
+
+            public override string ToString()
+            {
+                return AnnotatedDouble.GetPrefix(Message) + TransitionAveraged;
+            }
+
+            public string ToString(string format, IFormatProvider formatProvider)
+            {
+                return AnnotatedDouble.GetPrefix(Message) + TransitionAveraged.ToString(format, formatProvider);
+            }
+        }
+        private class CachedValues 
+            : CachedValues<Protein, ImmutableList<Peptide>, IDictionary<ResultKey, ProteinResult>, IDictionary<int, AbundanceValue>>
+        {
+            protected override SrmDocument GetDocument(Protein owner)
+            {
+                return owner.SrmDocument;
+            }
+
+            protected override ImmutableList<Peptide> CalculateValue(Protein owner)
+            {
+                return ImmutableList.ValueOf(owner.DocNode.Children
+                    .Select(node => new Peptide(owner.DataSchema, new IdentityPath(owner.IdentityPath, node.Id))));
+            }
+
+            protected override IDictionary<ResultKey, ProteinResult> CalculateValue1(Protein owner)
+            {
+                return owner.DataSchema.ReplicateList.ToDictionary(entry => entry.Key,
+                    entry => new ProteinResult(owner, entry.Value));
+            }
+
+            protected override IDictionary<int, AbundanceValue> CalculateValue2(Protein owner)
+            {
+                return owner.CalculateProteinAbundances();
+            }
         }
     }
 }

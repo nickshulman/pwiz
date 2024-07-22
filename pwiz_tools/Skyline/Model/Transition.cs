@@ -22,6 +22,7 @@ using System.Drawing;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using pwiz.Common.Chemistry;
 using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Model.Crosslinking;
 using pwiz.Skyline.Model.DocSettings;
@@ -33,12 +34,17 @@ namespace pwiz.Skyline.Model
 {
     public enum IonType
     {
-         precursor = -2, custom = -1, a, b, c, x, y, z
+        precursor = -2, custom = -1, a, b, c, x, y, z, zh, zhh
     }
 
     public static class IonTypeExtension
     {
-        private static readonly string[] VALUES = {string.Empty, string.Empty, @"a", @"b", @"c", @"x", @"y", @"z"};
+        private static readonly string[] VALUES = {string.Empty, string.Empty, @"a", @"b", @"c", @"x", @"y", @"z", @"z" + '\u2022', @"z" + '\u2032' };
+        private static readonly Dictionary<IonType, string[]> INPUT_ALIASES = new Dictionary<IonType, string[]>()
+        {
+            {IonType.zh, new[]{@"z.", @"z*"}},
+            { IonType.zhh, new[]{@"z'", @"z"""}}
+        };
 
         private static readonly Color COLOR_A = Color.YellowGreen;
         private static readonly Color COLOR_X = Color.Green;
@@ -46,6 +52,8 @@ namespace pwiz.Skyline.Model
         private static readonly Color COLOR_Y = Color.Blue;
         private static readonly Color COLOR_C = Color.Orange;
         private static readonly Color COLOR_Z = Color.OrangeRed;
+        private static readonly Color COLOR_ZH = Color.Brown;
+        private static readonly Color COLOR_ZHH = Color.Sienna;
         private static readonly Color COLOR_OTHER_IONS = Color.DodgerBlue; // Other ion types, as in small molecule
         private static readonly Color COLOR_PRECURSOR = Color.DarkCyan;
         private static readonly Color COLOR_NONE = COLOR_A;
@@ -54,8 +62,8 @@ namespace pwiz.Skyline.Model
         {
             get
             {
-                VALUES[0] = Resources.IonTypeExtension_LOCALIZED_VALUES_precursor;
-                VALUES[1] = Resources.IonTypeExtension_LOCALIZED_VALUES_custom;
+                VALUES[0] = ModelResources.IonTypeExtension_LOCALIZED_VALUES_precursor;
+                VALUES[1] = ModelResources.IonTypeExtension_LOCALIZED_VALUES_custom;
                 return VALUES;
             }
         }
@@ -64,14 +72,35 @@ namespace pwiz.Skyline.Model
             return LOCALIZED_VALUES[(int) val + 2]; // To include precursor and custom
         }
 
-        public static IonType GetEnum(string enumValue)
+        public static IEnumerable<string> GetInputAliases(this IonType val)
         {
-            return Helpers.EnumFromLocalizedString<IonType>(enumValue, LOCALIZED_VALUES);
+            if (!INPUT_ALIASES.ContainsKey(val))
+                return new[] {val.ToString()};
+            return INPUT_ALIASES[val].Concat(new [] {val.ToString()});
         }
 
-        public static IonType GetEnum(string enumValue, IonType defaultValue)
+        public static IonType GetEnum(string enumValue)
         {
-            return Helpers.EnumFromLocalizedString(enumValue, LOCALIZED_VALUES, defaultValue);
+            int i = LOCALIZED_VALUES.IndexOf(v => Equals(v, enumValue));
+            if (i >= 0)
+                return (IonType) (i-2);
+            var result = INPUT_ALIASES.Keys.First(ion => GetInputAliases(ion).Any(str => str.Equals(enumValue)));
+            return result;
+        }
+
+        public static bool IsNTerminal(this IonType type)
+        {
+            return type == IonType.a || type == IonType.b || type == IonType.c || type == IonType.precursor;
+        }
+
+        public static bool IsCTerminal(this IonType type)
+        {
+            return type == IonType.x || type == IonType.y || type == IonType.z || type == IonType.zh || type == IonType.zhh;
+        }
+
+        public static List<IonType> GetFragmentList()
+        {
+            return Enumerable.Range(0, 1 + (int) IonType.zhh).Select(i => (IonType) i).ToList();
         }
 
         public static Color GetTypeColor(IonType? type, int rank = 0)
@@ -89,6 +118,8 @@ namespace pwiz.Skyline.Model
                 case IonType.y: color = COLOR_Y; break;
                 case IonType.c: color = COLOR_C; break;
                 case IonType.z: color = COLOR_Z; break;
+                case IonType.zh: color = COLOR_ZH; break;
+                case IonType.zhh:color = COLOR_ZHH; break;
                 case IonType.custom: color = (rank > 0) ? COLOR_OTHER_IONS : COLOR_NONE; break; // Small molecule fragments - only color if ranked
                 case IonType.precursor: color = COLOR_PRECURSOR; break;
             }
@@ -142,7 +173,7 @@ namespace pwiz.Skyline.Model
         /// Prioritize, paired list of non-custom product ion types
         /// </summary>
         public static readonly IonType[] PEPTIDE_ION_TYPES =
-            {IonType.y, IonType.b, IonType.z, IonType.c, IonType.x, IonType.a};
+            {IonType.y, IonType.b, IonType.z, IonType.c, IonType.x, IonType.a, IonType.zh, IonType.zhh};
         // And its small molecule equivalent
         public static readonly IonType[] MOLECULE_ION_TYPES = { IonType.custom };
         public static readonly IonType[] DEFAULT_MOLECULE_FILTER_ION_TYPES = { IonType.custom }; 
@@ -156,16 +187,6 @@ namespace pwiz.Skyline.Model
             {
                 PEPTIDE_ION_TYPES_ORDERS[(int) PEPTIDE_ION_TYPES[i]] = i;
             }
-        }
-
-        public static bool IsNTerminal(IonType type)
-        {
-            return type == IonType.a || type == IonType.b || type == IonType.c || type == IonType.precursor;
-        }
-
-        public static bool IsCTerminal(IonType type)
-        {
-            return type == IonType.x || type == IonType.y || type == IonType.z;
         }
 
         public static bool IsPrecursor(IonType type)
@@ -211,7 +232,7 @@ namespace pwiz.Skyline.Model
 
         public static int OrdinalToOffset(IonType type, int ordinal, int len)
         {
-            if (IsNTerminal(type))
+            if (type.IsNTerminal())
                 return ordinal - 1;
             else
                 return len - ordinal - 1;
@@ -219,7 +240,7 @@ namespace pwiz.Skyline.Model
 
         public static int OffsetToOrdinal(IonType type, int offset, int len)
         {
-            if (IsNTerminal(type) || type==IonType.custom) // Custom for small molecule work
+            if (type.IsNTerminal() || type==IonType.custom) // Custom for small molecule work
                 return offset + 1;
             else
                 return len - offset - 1;
@@ -417,8 +438,7 @@ namespace pwiz.Skyline.Model
 
         public static Adduct GetChargeFromIndicator(string text, int min, int max)
         {
-            int foundAt;
-            return GetChargeFromIndicator(text, min, max, out foundAt);
+            return GetChargeFromIndicator(text, min, max, out _);
         }
 
         public static Adduct GetChargeFromIndicator(string text, int min, int max, Adduct defaultVal)
@@ -578,7 +598,7 @@ namespace pwiz.Skyline.Model
             get { return GetFragmentIonName(LocalizationHelper.CurrentCulture); }
         }
 
-        public string GetFragmentIonName(CultureInfo cultureInfo, double? tolerance=null)
+        public string GetFragmentIonName(CultureInfo cultureInfo, MzTolerance tolerance=null)
         {
             if (IsCustom() && !IsPrecursor())
                 return CustomIon.ToString(tolerance);
@@ -591,12 +611,12 @@ namespace pwiz.Skyline.Model
 
         public bool IsNTerminal()
         {
-            return IsNTerminal(IonType);
+            return IonType.IsNTerminal();
         }
 
         public bool IsCTerminal()
         {
-            return IsCTerminal(IonType);
+            return IonType.IsCTerminal();
         }
 
         public bool IsPrecursor()
@@ -614,6 +634,8 @@ namespace pwiz.Skyline.Model
             return IsCustom(IonType, Group);
         }
 
+        public bool ParticipatesInScoring => !IsReporterIon(); // Don't include things like TMT in retention time calcs
+
         public bool IsNonPrecursorNonReporterCustomIon()
         {
             return !IsPrecursor() && IsNonReporterCustomIon();
@@ -622,6 +644,11 @@ namespace pwiz.Skyline.Model
         public bool IsNonReporterCustomIon()
         {
             return IsCustom() && !(CustomIon is SettingsCustomIon);
+        }
+
+        public bool IsReporterIon()
+        {
+            return IsCustom() && (CustomIon is SettingsCustomIon);
         }
 
         public char FragmentNTermAA
@@ -666,14 +693,14 @@ namespace pwiz.Skyline.Model
                     if (TransitionGroup.MIN_PRECURSOR_CHARGE > Charge || Charge > TransitionGroup.MAX_PRECURSOR_CHARGE)
                     {
                         throw new InvalidDataException(
-                            string.Format(Resources.Transition_Validate_Precursor_charge__0__must_be_between__1__and__2__,
+                            string.Format(ModelResources.Transition_Validate_Precursor_charge__0__must_be_between__1__and__2__,
                             Charge, TransitionGroup.MIN_PRECURSOR_CHARGE, TransitionGroup.MAX_PRECURSOR_CHARGE));                    
                     }
                 }
                 else if (MIN_PRODUCT_CHARGE > Charge || Charge > MAX_PRODUCT_CHARGE)
                 {
                     throw new InvalidDataException(
-                        string.Format(Resources.Transition_Validate_Product_ion_charge__0__must_be_between__1__and__2__,
+                        string.Format(ModelResources.Transition_Validate_Product_ion_charge__0__must_be_between__1__and__2__,
                                                                  Charge, MIN_PRODUCT_CHARGE, MAX_PRODUCT_CHARGE));
                 }
             }
@@ -683,28 +710,28 @@ namespace pwiz.Skyline.Model
                 {
                     throw new InvalidDataException(
                         string.Format(
-                            Resources.Transition_Validate_A_transition_of_ion_type__0__can_t_have_a_custom_ion, IonType));
+                            ModelResources.Transition_Validate_A_transition_of_ion_type__0__can_t_have_a_custom_ion, IonType));
                 }    
             }
             else if (IsCustom())
             {
                     throw new InvalidDataException(
                         string.Format(
-                           Resources.Transition_Validate_A_transition_of_ion_type__0__must_have_a_custom_ion_, IonType));
+                           ModelResources.Transition_Validate_A_transition_of_ion_type__0__must_have_a_custom_ion_, IonType));
             }
             else
             {
                 if (Ordinal < 1)
-                    throw new InvalidDataException(string.Format(Resources.Transition_Validate_Fragment_ordinal__0__may_not_be_less_than__1__, Ordinal));
+                    throw new InvalidDataException(string.Format(ModelResources.Transition_Validate_Fragment_ordinal__0__may_not_be_less_than__1__, Ordinal));
                 if (IsPrecursor())
                 {
                     if (Ordinal != Group.Peptide.Length)
-                        throw new InvalidDataException(string.Format(Resources.Transition_Validate_Precursor_ordinal_must_be_the_lenght_of_the_peptide));
+                        throw new InvalidDataException(string.Format(ModelResources.Transition_Validate_Precursor_ordinal_must_be_the_lenght_of_the_peptide));
                 }
                 else if (Ordinal > Group.Peptide.Length - 1)
                 {
                     throw new InvalidDataException(
-                        string.Format(Resources.Transition_Validate_Fragment_ordinal__0__exceeds_the_maximum__1__for_the_peptide__2__,
+                        string.Format(ModelResources.Transition_Validate_Fragment_ordinal__0__exceeds_the_maximum__1__for_the_peptide__2__,
                             Ordinal, Group.Peptide.Length - 1, Group.Peptide.Target));
                 }
 
@@ -716,7 +743,7 @@ namespace pwiz.Skyline.Model
                         !MPROPHET_REVERSED_MASS_SHIFTS.Contains(i => i == DecoyMassShift.Value))
                     {
                         throw new InvalidDataException(
-                            string.Format(Resources.Transition_Validate_Fragment_decoy_mass_shift__0__must_be_between__1__and__2__,
+                            string.Format(ModelResources.Transition_Validate_Fragment_decoy_mass_shift__0__must_be_between__1__and__2__,
                                 DecoyMassShift, MIN_PRODUCT_DECOY_MASS_SHIFT, MAX_PRODUCT_DECOY_MASS_SHIFT));
                     }
                 }
@@ -830,7 +857,7 @@ namespace pwiz.Skyline.Model
         {
             if (IsPrecursor())
             {
-                return Resources.Transition_ToString_precursor + GetChargeIndicator(Adduct) +
+                return ModelResources.Transition_ToString_precursor + GetChargeIndicator(Adduct) +
                        GetMassIndexText(MassIndex);
             }
 
@@ -839,7 +866,7 @@ namespace pwiz.Skyline.Model
                 var text = CustomIon.ToString();
                 // Was there enough information to generate a string more distinctive that just "Ion"?
                 if (String.IsNullOrEmpty(CustomIon.Name) && 
-                    String.IsNullOrEmpty(CustomIon.NeutralFormula))
+                    CustomIon.ParsedMolecule.IsMassOnly)
                 {
                     // No, add mz and charge to whatever generic text was used to describe it
                     var mz = Adduct.MzFromNeutralMass(CustomIon.MonoisotopicMass);

@@ -21,12 +21,13 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using pwiz.Common.Chemistry;
 using pwiz.Common.DataBinding.Attributes;
+using pwiz.Skyline.Model.Crosslinking;
 using pwiz.Skyline.Model.Databinding.Collections;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.ElementLocators;
 using pwiz.Skyline.Model.Hibernate;
-using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
 using pwiz.Skyline.Util.Extensions;
 
@@ -118,19 +119,36 @@ namespace pwiz.Skyline.Model.Databinding.Entities
         {
             get
             {
-                return IsCustomTransition()
-                ? (DocNode.Transition.CustomIon.Formula ?? string.Empty)
-                : string.Empty;
+                if (IsCustomTransition())
+                {
+                    return DocNode.Transition.CustomIon.Formula;
+                }
+
+                var neutralFormula = GetNeutralProductFormula();
+                var adduct = DocNode.Transition.Adduct;
+                var formulaWithAdductApplied = adduct.ApplyToMolecule(neutralFormula);
+                return formulaWithAdductApplied.ToString();
             }
         }
         public string ProductNeutralFormula
         {
             get
             {
-                return IsCustomTransition()
-                ? DocNode.Transition.CustomIon.NeutralFormula ?? string.Empty
-                : string.Empty;
+                if (IsCustomTransition())
+                {
+                    return DocNode.Transition.CustomIon.NeutralFormula;
+                }
+
+                return GetNeutralProductFormula().Molecule.ToString();
             }
+        }
+
+        private MoleculeMassOffset GetNeutralProductFormula()
+        {
+            var peptide = Precursor.Peptide;
+            var crosslinkBuilder = new CrosslinkBuilder(SrmDocument.Settings, peptide.DocNode.Peptide,
+                peptide.DocNode.ExplicitMods, Precursor.IsotopeLabelType);
+            return crosslinkBuilder.GetNeutralFormula(DocNode.ComplexFragmentIon.NeutralFragmentIon);
         }
         [Hidden(InUiMode = UiModes.PROTEOMIC)]
         public string ProductAdduct
@@ -156,13 +174,13 @@ namespace pwiz.Skyline.Model.Databinding.Entities
             }
         }
         [Hidden(InUiMode = UiModes.SMALL_MOLECULES)]
-        public char? CleavageAa
+        public string CleavageAa
         {
             get
             {
                 return IsCustomTransition()
-                    ? default(char?) 
-                    : DocNode.Transition.AA;
+                    ? null 
+                    : DocNode.Transition.AA.ToString();
             }
         }
         [Format(NullValue = TextUtil.EXCEL_NA)]
@@ -334,9 +352,9 @@ namespace pwiz.Skyline.Model.Databinding.Entities
         {
             if (nodeCount == 1)
             {
-                return string.Format(Resources.Transition_GetDeleteConfirmation_Are_you_sure_you_want_to_delete_the_transition___0___, this);
+                return string.Format(EntitiesResources.Transition_GetDeleteConfirmation_Are_you_sure_you_want_to_delete_the_transition___0___, this);
             }
-            return string.Format(Resources.Transition_GetDeleteConfirmation_Are_you_sure_you_want_to_delete_these__0__transitions_, nodeCount);
+            return string.Format(EntitiesResources.Transition_GetDeleteConfirmation_Are_you_sure_you_want_to_delete_these__0__transitions_, nodeCount);
         }
 
         [InvariantDisplayName("TransitionLocator")]
@@ -355,12 +373,10 @@ namespace pwiz.Skyline.Model.Databinding.Entities
 
     public class TransitionResultSummary : SkylineObject
     {
+        private Transition _transition;
         public TransitionResultSummary(Transition transition, IEnumerable<TransitionResult> results)
-            : base(transition.DataSchema)
         {
-#pragma warning disable 612
-            Transition = transition;
-#pragma warning restore 612
+            _transition = transition;
             var retentionTimes = new List<double>();
             var fwhms = new List<double>();
             var areas = new List<double>();
@@ -412,10 +428,18 @@ namespace pwiz.Skyline.Model.Databinding.Entities
             }
         }
 
+        protected override SkylineDataSchema GetDataSchema()
+        {
+            return _transition.DataSchema;
+        }
+
         [Obsolete]
         public string ReplicatePath { get { return @"/"; } }
         [Obsolete]
-        public Transition Transition { get; private set; }
+        public Transition Transition
+        {
+            get { return _transition; }
+        }
         [ChildDisplayName("{0}RetentionTime")]
         public RetentionTimeSummary RetentionTime { get; private set; }
         [ChildDisplayName("{0}Fwhm")]

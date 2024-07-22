@@ -113,7 +113,7 @@ namespace TestPerf // Tests in this namespace are skipped unless the RunPerfTest
             WaitForConditionUI(() => pepList.SelectedIndex != -1);
             var modDlg = WaitForOpenForm<AddModificationsDlg>();
             viewLibUI.IsUpdateComplete = false;
-            RunUI(modDlg.OkDialogAll);
+            OkDialog(modDlg, modDlg.OkDialogAll);
             // Wait for the list update caused by adding all modifications to complete
             WaitForConditionUI(() => viewLibUI.IsUpdateComplete);
 
@@ -145,11 +145,12 @@ namespace TestPerf // Tests in this namespace are skipped unless the RunPerfTest
             // build the document library.
             RunUI(() =>
             {
-                Assert.IsTrue(importPeptideSearchDlg.CurrentPage ==
-                            ImportPeptideSearchDlg.Pages.spectra_page);
+                Assert.IsTrue(importPeptideSearchDlg.CurrentPage == ImportPeptideSearchDlg.Pages.spectra_page);
                 importPeptideSearchDlg.BuildPepSearchLibControl.AddSearchFiles(SearchFiles);
-                Assert.IsTrue(importPeptideSearchDlg.ClickEarlyFinishButton());
             });
+            WaitForConditionUI(() => importPeptideSearchDlg.IsEarlyFinishButtonEnabled);
+            RunUI(() => importPeptideSearchDlg.BuildPepSearchLibControl.Grid.SetScoreThreshold(0.05));
+            RunUI(() => Assert.IsTrue(importPeptideSearchDlg.ClickEarlyFinishButton()));
             WaitForClosedForm(importPeptideSearchDlg);
 
             VerifyDocumentLibraryBuilt(documentFile);

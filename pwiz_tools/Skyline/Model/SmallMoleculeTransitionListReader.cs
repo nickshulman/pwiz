@@ -28,6 +28,7 @@ using pwiz.Common.Chemistry;
 using pwiz.Common.SystemUtil;
 using pwiz.ProteomeDatabase.API;
 using pwiz.Skyline.Model.DocSettings;
+using pwiz.Skyline.Model.Results;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
 using pwiz.Skyline.Util.Extensions;
@@ -48,9 +49,13 @@ namespace pwiz.Skyline.Model
 
         private double MzMatchTolerance { get; set; }
 
+        public List<PasteError> ErrorList { get; set; }
+        public bool HasHeaders { get; set; }
+
         protected SmallMoleculeTransitionListReader()
         {
             Rows = new List<Row>();
+            ErrorList = new List<PasteError>();
         }
 
         public class Row
@@ -88,11 +93,6 @@ namespace pwiz.Skyline.Model
                 return Double.TryParse(GetCell(index), NumberStyles.Float, _parent._cultureInfo, out val);
             }
 
-            public void SetCell(int index, string value)
-            {
-                if (index >= 0)
-                    _cells[index] = value;
-            }
         }
 
         private bool RowHasDistinctProductValue(Row row, int productCol, int precursorCol)
@@ -104,8 +104,9 @@ namespace pwiz.Skyline.Model
         public SrmDocument CreateTargets(SrmDocument document, IdentityPath to, out IdentityPath firstAdded)
         {
             _firstAddedPathPepGroup = firstAdded = null;
-            var precursorNamesSeen = document.CustomMolecules.Select(mol => mol.CustomMolecule.Name)
-                .Where(n => !string.IsNullOrEmpty(n)).ToHashSet();
+            var moleculeIDsSeen = document.CustomMolecules.
+                Select(mol => new MoleculeNameAndAccessions(mol.CustomMolecule.Name, mol.CustomMolecule.AccessionNumbers))
+                .ToHashSet();
             var groupNamesSeen = document.MoleculeGroups.Select(group => group.Name)
                 .Where(n => !string.IsNullOrEmpty(n)).ToHashSet();
             MzMatchTolerance = document.Settings.TransitionSettings.Instrument.MzMatchTolerance;
@@ -115,28 +116,40 @@ namespace pwiz.Skyline.Model
             _hasAnyMoleculeCharge = Rows.Any(row => !string.IsNullOrEmpty(GetCellTrimmed(row, INDEX_PRECURSOR_CHARGE)));
             _hasAnyMoleculeAdduct = Rows.Any(row => !string.IsNullOrEmpty(GetCellTrimmed(row, INDEX_PRECURSOR_ADDUCT)));
 
-            // Rearrange mz-only lists if necessary such that lowest mz for any given group+molecule+charge appears before its heavy siblings, so we can work out from there on isotopes
+            // Run through all rows gathering and possibly unifying molecule details if some have missing but not conflicting details
+            GetMoleculeDetails();
+
+            // Rearrange mz-only lists if necessary such that lowest mass for any given group+molecule appears before its heavy siblings,
+            // so we can work out from there to identify implied isotope labels.
             if (_hasAnyMoleculeMz && !_hasAnyMoleculeFormula)
             {
-                SortSiblingsByMz();
+                SortSiblingsByMass();
             }
 
-            _requireProductInfo = GetRequireProductInfo(document);
+            _requireProductInfo = GetRequireProductInfo(document); // Examine the first several lines of the file to determine columns will be needed
+            ErrorList.Clear(); // We're going to reparse, so clear any errors found so far
 
             string defaultPepGroupName = null;
             var docStart = document;
             document = document.BeginDeferSettingsChanges(); // Prevents excessive calls to SetDocumentType etc
+            var rowCount = 0;
+            var rowSuccessCount = 0;
 
             // For each row in the grid, add to or begin MoleculeGroup|Molecule|TransitionList tree
             foreach (var row in Rows)
             {
+                rowCount++;
                 var precursor = ReadPrecursorOrProductColumns(document, row, null, out var hasError); // Get molecule values
                 if (hasError)
-                    return null;
+                {
+                    continue; // This won't succeed, but keep gathering errors
+                }
                 if (_requireProductInfo && ReadPrecursorOrProductColumns(document, row, precursor, out hasError) == null)
                 {
                     if (hasError)
-                        return null;
+                    {
+                        continue; // This won't succeed, but keep gathering errors
+                    }
                 }
 
                 var groupName = GetCellTrimmed(row, INDEX_MOLECULE_GROUP);
@@ -145,28 +158,37 @@ namespace pwiz.Skyline.Model
                 bool pepGroupFound = false;
                 if (string.IsNullOrEmpty(groupName) || !groupNamesSeen.Add(groupName)) // If group name is unique (so far), no need to search document for it
                 {
-                    if (ErrorAddingToExistingMoleculeGroup(ref document, precursor, groupName, defaultPepGroupName, precursorNamesSeen, row, ref pepGroupFound))
-                        return null;
+                    if (ErrorAddingToExistingMoleculeGroup(ref document, precursor, groupName, defaultPepGroupName, moleculeIDsSeen, row, ref pepGroupFound))
+                    {
+                        continue; // This won't succeed, but keep gathering errors
+                    }
                 }
 
                 if (!pepGroupFound)
                 {
                     var node = GetMoleculePeptideGroup(document, row);
                     if (node == null)
-                        return null;
+                    {
+                        continue; // This won't succeed, but keep gathering errors
+                    }
                     IdentityPath first;
-                    IdentityPath next;
-                    document = document.AddPeptideGroups(new[] {node}, false, to, out first, out next);
+                    document = document.AddPeptideGroups(new[] {node}, false, to, out first, out _);
                     if (string.IsNullOrEmpty(defaultPepGroupName))
                     {
                         defaultPepGroupName = node.Name;
                     }
 
                     _firstAddedPathPepGroup = _firstAddedPathPepGroup ?? first;
-                    if (!string.IsNullOrEmpty(precursor.Name))
-                        precursorNamesSeen.Add(precursor.Name);
+                    moleculeIDsSeen.Add(precursor.MoleculeID);
                     groupNamesSeen.Add(node.Name);
                 }
+
+                rowSuccessCount++;
+            }
+
+            if (rowSuccessCount != rowCount)
+            {
+                return null;
             }
 
             document = document.EndDeferSettingsChanges(docStart, null); // Process deferred calls to SetDocumentType etc
@@ -177,11 +199,15 @@ namespace pwiz.Skyline.Model
 
         // Returns true on error
         private bool ErrorAddingToExistingMoleculeGroup(ref SrmDocument document, ParsedIonInfo precursor, string groupName,
-            string defaultPepGroupName, HashSet<string> precursorNamesSeen, Row row, ref bool pepGroupFound)
+            string defaultPepGroupName, HashSet<MoleculeNameAndAccessions> moleculeIDsSeen, Row row, ref bool pepGroupFound)
         {
-            var adduct = precursor.Adduct;
-            var precursorMonoMz = adduct.MzFromNeutralMass(precursor.MonoMass);
-            var precursorAverageMz = adduct.MzFromNeutralMass(precursor.AverageMass);
+            var adduct = precursor?.Adduct;
+            if (Adduct.IsNullOrEmpty(adduct))
+            {
+                return true; // Can't process
+            }
+            var precursorMonoMz = adduct!.MzFromNeutralMass(precursor.MonoMass);
+            var precursorAverageMz = adduct!.MzFromNeutralMass(precursor.AverageMass);
             if (string.IsNullOrEmpty(groupName))
             {
                 groupName = defaultPepGroupName;
@@ -195,10 +221,26 @@ namespace pwiz.Skyline.Model
                     pepGroupFound = true;
                     var pathPepGroup = new IdentityPath(pepGroup.Id);
                     bool pepFound = false;
-                    if (string.IsNullOrEmpty(precursor.Name) || !precursorNamesSeen.Add(precursor.Name)) // If precursor name is unique (so far), no need to hunt for other occurences in the doc we're building
+
+                    if (moleculeIDsSeen.Any(p => p.IsMatchWith(precursor.MoleculeID))) // If precursor molecule is unique (so far), no need to hunt for other occurrences in the doc we're building
                     {
                         if (ErrorFindingTransitionGroupForPrecursor(ref document, precursor, row, pepGroup, adduct, precursorMonoMz, precursorAverageMz, pathPepGroup, ref pepFound))
                             return true;
+                    }
+                    else if (moleculeIDsSeen.Any(p => p.InconsistentWith(precursor.MoleculeID))) // e.g. same InChiKey but different CAS
+                    {
+                        var conflict = moleculeIDsSeen.First(p => p.InconsistentWith(precursor.MoleculeID));
+                        ShowTransitionError(new PasteError
+                        {
+                            Column = -1,
+                            Line = row.Index,
+                            Message = Resources.SmallMoleculeTransitionListReader_GetMoleculeTransitionGroup_Inconsistent_molecule_description +
+                                      $@" (""{conflict.AccessionNumbers.ToString(@" ")}"" / ""{precursor.MoleculeID.AccessionNumbers.ToString(@" ")}"")"
+                        });
+                    }
+                    else if (!precursor.MoleculeID.IsEmpty)
+                    {
+                        moleculeIDsSeen.Add(precursor.MoleculeID); // First time seeing this, so we'll create a node rather than adding a child to an existing one
                     }
 
                     if (!pepFound)
@@ -217,6 +259,15 @@ namespace pwiz.Skyline.Model
             return false;
         }
 
+        // Check for the various kinds of exceptions that may be thrown in the course of
+        // parsing sometimes-wonky user data
+        public static bool IsParserException(Exception exception)
+        {
+            return exception is InvalidOperationException
+                   || exception is InvalidDataException
+                   || exception is ArgumentException;
+        }
+
         // Returns true on error
         private bool ErrorFindingTransitionGroupForPrecursor(ref SrmDocument document, ParsedIonInfo precursor, Row row,
             PeptideGroupDocNode pepGroup, Adduct adduct, double precursorMonoMz, double precursorAverageMz,
@@ -233,7 +284,7 @@ namespace pwiz.Skyline.Model
                     foreach (var tranGroup in pep.TransitionGroups)
                     {
                         var pathGroup = new IdentityPath(pepPath, tranGroup.Id);
-                        if (Math.Abs(tranGroup.PrecursorMz - precursor.Mz) <= MzMatchTolerance)
+                        if (precursor.SignedMz.CompareTolerant(tranGroup.PrecursorMz, MzMatchTolerance) == 0)
                         {
                             tranGroupFound = true;
                             var tranFound = false;
@@ -259,13 +310,9 @@ namespace pwiz.Skyline.Model
                                     _firstAddedPathPepGroup = _firstAddedPathPepGroup ?? pathGroup;
                                 }
                             }
-                            catch (InvalidDataException x)
+                            catch (Exception exception) when (IsParserException(exception))
                             {
-                                errmsg = x.Message;
-                            }
-                            catch (InvalidOperationException x) // Adduct handling code can throw these
-                            {
-                                errmsg = x.Message;
+                                errmsg = exception.Message;
                             }
 
                             if (errmsg != null)
@@ -304,18 +351,12 @@ namespace pwiz.Skyline.Model
         private void FindExistingMolecule(ParsedIonInfo precursor, Adduct adduct, double precursorMonoMz,
             double precursorAverageMz, ref bool pepFound, PeptideDocNode pep)
         {
-            // Match existing molecule if same name
-            if (!string.IsNullOrEmpty(precursor.Name))
+            // Match existing molecule if same name and accessions
+            var pepMoleculeId = new MoleculeNameAndAccessions(pep.CustomMolecule.Name, pep.CustomMolecule.AccessionNumbers);
+            if (!pepMoleculeId.IsEmpty)
             {
-                pepFound =
-                    Equals(pep.CustomMolecule.Name,
-                        precursor.Name); // If user says they're the same, believe them unless accession numbers disagree
-                if (pepFound && !pep.CustomMolecule.AccessionNumbers.IsEmpty &&
-                    !precursor.MoleculeAccessionNumbers.IsEmpty)
-                {
-                    // We've seen HMDB entries with different formulas but identical names (e.g. HMDB0013124 and HMDB0013125)
-                    pepFound = Equals(pep.CustomMolecule.AccessionNumbers, precursor.MoleculeAccessionNumbers);
-                }
+                // If user says they're the same, believe them unless accession numbers disagree
+                pepFound = pepMoleculeId.IsMatchWith(precursor.MoleculeID);
             }
             else // If no names, look to other cues
             {
@@ -325,27 +366,25 @@ namespace pwiz.Skyline.Model
                     adduct.MzFromNeutralMass(pep.CustomMolecule.AverageMass, MassType.Average);
                 var labelType = precursor.IsotopeLabelType ?? IsotopeLabelType.light;
                 // Match existing molecule if same formula or identical formula when stripped of labels
-                pepFound |= !string.IsNullOrEmpty(pep.CustomMolecule.Formula) &&
-                            (Equals(pep.CustomMolecule.Formula, precursor.NeutralFormula) ||
-                             Equals(pep.CustomMolecule.Formula, precursor.Formula) ||
-                             Equals(pep.CustomMolecule.UnlabeledFormula,
-                                 BioMassCalc.MONOISOTOPIC.StripLabelsFromFormula(precursor
-                                     .NeutralFormula)) ||
+                pepFound |= !pep.CustomMolecule.ParsedMolecule.IsMassOnly &&
+                            (Equals(pep.CustomMolecule.ParsedMolecule, precursor.NeutralFormula) ||
+                             Equals(pep.CustomMolecule.ParsedMolecule, precursor.Formula) ||
+                             Equals(pep.CustomMolecule.UnlabeledFormula, BioMassCalc.StripLabelsFromFormula(precursor.NeutralFormula)) ||
                              Equals(pep.CustomMolecule.UnlabeledFormula, precursor.UnlabeledFormula));
                 // Match existing molecule if similar m/z at the precursor charge
                 pepFound |= Math.Abs(ionMonoMz - precursorMonoMz) <= MzMatchTolerance &&
                             Math.Abs(ionAverageMz - precursorAverageMz) <=
-                            MzMatchTolerance; // (we don't just check mass since we don't have a tolerance value for that)
+                            MzMatchTolerance && // (we don't just check mass since we don't have a tolerance value for that)
+                            (adduct.AdductCharge < 0 == precursor.Adduct.AdductCharge < 0);
                 // Or no formula, and different isotope labels or matching label and mz
-                pepFound |= string.IsNullOrEmpty(pep.CustomMolecule.Formula) &&
-                            string.IsNullOrEmpty(precursor.Formula) &&
+                pepFound |= pep.CustomMolecule.ParsedMolecule.IsMassOnly &&
+                            precursor.Formula.IsMassOnly &&
                             (!pep.TransitionGroups.Any(t => Equals(t.TransitionGroup.LabelType,
                                  labelType)) || // First label of this kind
                              pep.TransitionGroups.Any(
                                  t => Equals(t.TransitionGroup.LabelType,
                                           labelType) && // Already seen this label, and
-                                      Math.Abs(precursor.Mz - t.PrecursorMz) <=
-                                      MzMatchTolerance)); // Matches precursor mz of similar labels
+                                      precursor.SignedMz.CompareTolerant(t.PrecursorMz, MzMatchTolerance)==0)); // Matches precursor mz of similar labels
             }
         }
 
@@ -375,7 +414,7 @@ namespace pwiz.Skyline.Model
 
                     var product =
                         ReadPrecursorOrProductColumns(document, row, precursor, out hasError); // Get product values, if available
-                    if ((product != null && (Math.Abs(precursor.Mz.Value - product.Mz.Value) > MzMatchTolerance)) || hasError)
+                    if ((product != null && precursor.SignedMz.CompareTolerant(product.SignedMz, MzMatchTolerance)!=0) || hasError)
                     {
                         requireProductInfo = true; // Product list is not completely empty, or not just precursors
                         break;
@@ -386,7 +425,13 @@ namespace pwiz.Skyline.Model
             return requireProductInfo;
         }
 
-        private void SortSiblingsByMz()
+        // Rearrange mz-only lists if necessary such that lowest mass for any given group+molecule appears before its heavy siblings,
+        // so we can work out from there to identify implied isotope labels.
+        //
+        // We can detect implied labels only by combining declared m/z and charge (or adduct) to get the un-ionized mass,
+        // then sorting on masses low to high. If they're not all the same, then the smallest derived mass must be the actual
+        // mass and others must be labeled.
+        private void SortSiblingsByMass()
         {
             var visited = new HashSet<Row>();
             for (var r = 0; r < Rows.Count; r++)
@@ -396,40 +441,44 @@ namespace pwiz.Skyline.Model
                 {
                     visited.Add(row);
                     var group = GetCellTrimmed(row, INDEX_MOLECULE_GROUP) ?? string.Empty;
-                    var name = GetCellTrimmed(row, INDEX_MOLECULE_NAME) ?? string.Empty;
+                    var name = ReadMoleculeAccessionNumberColumns(row);
                     if (row.GetCellAsDouble(INDEX_PRECURSOR_MZ, out var mzParsed))
                     {
-                        var smallestMzRow = r;
-                        var smallestMz = mzParsed;
-                        var z = GetCellTrimmed(row, INDEX_PRECURSOR_CHARGE) ??
-                                GetCellTrimmed(row, INDEX_PRECURSOR_ADDUCT) ?? string.Empty;
+                        var smallestMassRow = r;
+                        var zString = GetCellTrimmed(row, INDEX_PRECURSOR_ADDUCT) ?? 
+                                      GetCellTrimmed(row, INDEX_PRECURSOR_CHARGE) ?? string.Empty;
+                        Adduct.TryParse(zString, out var adductInferred, Adduct.ADDUCT_TYPE.charge_only);
+                        var smallestMass = adductInferred.MassFromMz(mzParsed, MassType.Monoisotopic);
+
                         for (var r2 = r + 1; r2 < Rows.Count; r2++)
                         {
                             var row2 = Rows[r2];
                             if (!visited.Contains(row2))
                             {
                                 if (@group.Equals(GetCellTrimmed(row2, INDEX_MOLECULE_GROUP) ?? string.Empty) &&
-                                    name.Equals(GetCellTrimmed(row2, INDEX_MOLECULE_NAME) ?? string.Empty) &&
-                                    z.Equals(GetCellTrimmed(row2, INDEX_PRECURSOR_CHARGE) ??
-                                             GetCellTrimmed(row2, INDEX_PRECURSOR_ADDUCT) ?? string.Empty))
+                                    Equals(name, ReadMoleculeAccessionNumberColumns(row2)) &&
+                                    row2.GetCellAsDouble(INDEX_PRECURSOR_MZ, out var mzParsed2))
                                 {
+                                    var zString2 = GetCellTrimmed(row2, INDEX_PRECURSOR_ADDUCT) ?? 
+                                                   GetCellTrimmed(row2, INDEX_PRECURSOR_CHARGE) ?? string.Empty;
+                                    Adduct.TryParse(zString2, out var adduct2, Adduct.ADDUCT_TYPE.charge_only);
+                                    var mass2 = adduct2.MassFromMz(mzParsed2, MassType.Monoisotopic);
                                     visited.Add(row2);
-                                    if (row2.GetCellAsDouble(INDEX_PRECURSOR_MZ, out var mzParsed2) &&
-                                        mzParsed2 < smallestMz)
+                                    if (mass2 < smallestMass)
                                     {
-                                        smallestMzRow = r2;
-                                        smallestMz = mzParsed2;
+                                        smallestMassRow = r2;
+                                        smallestMass = mass2;
                                     }
                                 }
                             }
                         }
 
-                        if (smallestMzRow != r)
+                        if (smallestMassRow != r)
                         {
-                            // Reorder the list such that the smallest mz appears before its siblings
-                            var rowSmallestMz = Rows[smallestMzRow];
-                            Rows.RemoveAt(smallestMzRow);
-                            Rows.Insert(r, rowSmallestMz);
+                            // Reorder the list such that the row with smallest calculated mass appears before its siblings
+                            var rowSmallestMass = Rows[smallestMassRow];
+                            Rows.RemoveAt(smallestMassRow);
+                            Rows.Insert(r, rowSmallestMass);
                         }
                     }
                 }
@@ -524,6 +573,11 @@ namespace pwiz.Skyline.Model
         private int INDEX_PRECURSOR_DRIFT_TIME_MSEC
         {
             get { return ColumnIndex(SmallMoleculeTransitionListColumnHeaders.dtPrecursor); }
+        }
+
+        private int INDEX_PRECURSOR_IM_INVERSE_K0
+        {
+            get { return ColumnIndex(SmallMoleculeTransitionListColumnHeaders.imPrecursor_invK0); }
         }
 
         private int INDEX_HIGH_ENERGY_DRIFT_TIME_OFFSET_MSEC
@@ -655,9 +709,9 @@ namespace pwiz.Skyline.Model
             if (adductInferred.IsEmpty)
             {
                 // That formula and this mz don't yield a reasonable charge state - try adding an H
-                var ion2 = new CustomMolecule(BioMassCalc.AddH(ion.FormulaWithAdductApplied));
-                monoMass = ion2.GetMass(MassType.Monoisotopic);
-                averageMass = ion2.GetMass(MassType.Average);
+                var ion2 = ion.FormulaWithAdductApplied.AdjustElementCount(BioMassCalc.H,1);
+                monoMass = BioMassCalc.MONOISOTOPIC.CalculateMass(ion2);
+                averageMass = BioMassCalc.AVERAGE.CalculateMass(ion2);
                 mass = useMonoIsotopicMass
                     ? monoMass
                     : averageMass;
@@ -666,7 +720,7 @@ namespace pwiz.Skyline.Model
                     maxCharge, new int[0], TransitionCalc.MassShiftType.none, out _, out _);
                 if (!adductInferred.IsEmpty)
                 {
-                    moleculeFormula = ion2.Formula;
+                    moleculeFormula = ion2.ToString();
                 }
                 else
                 {
@@ -707,17 +761,17 @@ namespace pwiz.Skyline.Model
 
         private class ParsedIonInfo : IonInfo
         {
-            public string Name { get; private set; }
+            public MoleculeNameAndAccessions MoleculeID { get; private set; } // Name and InChiKey, CAS etc
             public string Note { get; private set; }
             public TypedMass Mz { get; private set; } // Not actually a mass, of course, but useful to know if its based on mono vs avg mass
             public Adduct Adduct { get; private set; }
+            public SignedMz SignedMz => new SignedMz(Mz, Adduct.AdductCharge < 0); 
             public TypedMass MonoMass { get; private set; }
             public TypedMass AverageMass { get; private set; }
             public IsotopeLabelType IsotopeLabelType { get; private set; }
             public ExplicitRetentionTimeInfo ExplicitRetentionTime { get; private set; }
             public ExplicitTransitionGroupValues ExplicitTransitionGroupValues { get; private set; }
             public ExplicitTransitionValues ExplicitTransitionValues { get; private set; }
-            public MoleculeAccessionNumbers MoleculeAccessionNumbers { get; private set; } // InChiKey, CAS etc
 
             public ParsedIonInfo(string name, string formula, Adduct adduct, 
                 TypedMass mz, // Not actually a mass, of course, but still useful to know if based on Mono or Average mass
@@ -730,7 +784,9 @@ namespace pwiz.Skyline.Model
                 string note,
                 MoleculeAccessionNumbers accessionNumbers) : base(formula)
             {
-                Name = name;
+                MoleculeID = string.IsNullOrEmpty(name) && MoleculeAccessionNumbers.IsNullOrEmpty(accessionNumbers)
+                    ? MoleculeNameAndAccessions.EMPTY
+                    : new MoleculeNameAndAccessions(name, accessionNumbers);
                 Adduct = adduct;
                 Mz = mz;
                 MonoMass = monoMass;
@@ -740,7 +796,11 @@ namespace pwiz.Skyline.Model
                 ExplicitTransitionGroupValues = explicitTransitionGroupValues;
                 ExplicitTransitionValues = explicitTransitionValues;
                 Note = note;
-                MoleculeAccessionNumbers = accessionNumbers;
+                if (Formula.IsMassOnly && !Formula.IsEmpty)
+                {
+                    // BioMassCalc parser will accept a mass-only formula, but we don't want to allow that here
+                    throw new ArgumentException(BioMassCalc.FormatArgumentExceptionMessage(formula));
+                }
             }
 
             public ParsedIonInfo ChangeNote(string note)
@@ -753,8 +813,9 @@ namespace pwiz.Skyline.Model
 
             public CustomMolecule ToCustomMolecule()
             {
-                return new CustomMolecule(Formula, MonoMass, AverageMass, Name ?? string.Empty,
-                    MoleculeAccessionNumbers);
+                return Formula.IsMassOnly ?
+                    new CustomMolecule(MonoMass, AverageMass, MoleculeID.Name ?? string.Empty, MoleculeID.AccessionNumbers) :
+                    new CustomMolecule(Formula, MoleculeID.Name ?? string.Empty, MoleculeID.AccessionNumbers);
             }
         }
 
@@ -783,8 +844,15 @@ namespace pwiz.Skyline.Model
             return true;
         }
 
-        private MoleculeAccessionNumbers ReadMoleculeAccessionNumberColumns(Row row)
+        private MoleculeNameAndAccessions ReadMoleculeAccessionNumberColumns(Row row)
         {
+            if (_consensusAccessionNumbers.TryGetValue(row.Index, out var id))
+            {
+                return id;
+            }
+
+            var name = GetCellTrimmed(row, INDEX_MOLECULE_NAME);
+
             var moleculeIdKeys = new Dictionary<string, string>();
 
             var inchikeyCol = ColumnIndex(SmallMoleculeTransitionListColumnHeaders.idInChiKey);
@@ -899,9 +967,12 @@ namespace pwiz.Skyline.Model
                 moleculeIdKeys.Add(MoleculeAccessionNumbers.TagKEGG, kegg);
             }
 
-            return !moleculeIdKeys.Any()
+            var accessionNumbers = !moleculeIdKeys.Any()
                 ? MoleculeAccessionNumbers.EMPTY
                 : new MoleculeAccessionNumbers(moleculeIdKeys);
+
+            // Now go see if these parsed values complement and combine with any previously parsed rows
+            return MoleculeNameAndAccessions.GetConsensusAccessionNumbers(name, accessionNumbers, row.Index, _consensusAccessionNumbers);
         }
 
         public static eIonMobilityUnits IonMobilityUnitsFromAttributeValue(string xmlAttributeValue)
@@ -930,12 +1001,25 @@ namespace pwiz.Skyline.Model
         private IdentityPath _firstAddedPathPepGroup;
         private bool _requireProductInfo;
 
+        // Used in the case where later entries add details to accession numbers
+        // We use a mapping from row index to name+accession as we may not see rows in original order (might be mass sorted)
+        private Dictionary<int, MoleculeNameAndAccessions> _consensusAccessionNumbers = new Dictionary<int, MoleculeNameAndAccessions>(); 
+
         public static string GetAcceptedIonMobilityUnitsString()
         {
             return string.Join(@", ", IonMobilityUnitsSynonyms.Keys);
         }
 
-
+        /// <summary>
+        /// Run through all rows gathering and possibly unifying molecule details if some have missing but not conflicting details
+        /// </summary>
+        private void GetMoleculeDetails()
+        {
+            foreach (var row in Rows)
+            {
+                ReadMoleculeAccessionNumberColumns(row);
+            }
+        }
 
         // We need some combination of:
         //  Formula and mz
@@ -948,17 +1032,16 @@ namespace pwiz.Skyline.Model
         {
             hasError = true;
             var getPrecursorColumns = precursorInfo == null;
-            int indexName = getPrecursorColumns ? INDEX_MOLECULE_NAME : INDEX_PRODUCT_NAME;
             int indexFormula = getPrecursorColumns ? INDEX_MOLECULE_FORMULA : INDEX_PRODUCT_FORMULA;
             int indexAdduct = getPrecursorColumns ? INDEX_PRECURSOR_ADDUCT : INDEX_PRODUCT_ADDUCT;
             int indexMz = getPrecursorColumns ? INDEX_PRECURSOR_MZ : INDEX_PRODUCT_MZ;
             int indexCharge = getPrecursorColumns ? INDEX_PRECURSOR_CHARGE : INDEX_PRODUCT_CHARGE;
             int indexNeutralLoss = getPrecursorColumns ? -1 : INDEX_PRODUCT_NEUTRAL_LOSS;
-            var name = GetCellTrimmed(row, indexName);
             var formula = GetCellTrimmed(row, indexFormula);
             var note = GetCellTrimmed(row, INDEX_NOTE);
             // TODO(bspratt) use CAS or HMDB etc lookup to fill in missing inchikey - and use any to fill in formula
-            var moleculeID = ReadMoleculeAccessionNumberColumns(row); 
+            var moleculeID = (getPrecursorColumns ? ReadMoleculeAccessionNumberColumns(row) : null) ?? MoleculeNameAndAccessions.EMPTY;
+            var name = getPrecursorColumns ? moleculeID.Name : GetCellTrimmed(row, INDEX_PRODUCT_NAME);
             IsotopeLabelType isotopeLabelType = null;
             bool badMz = false;
             var mzType = getPrecursorColumns 
@@ -1016,7 +1099,8 @@ namespace pwiz.Skyline.Model
             double? retentionTime = null;
             double? retentionTimeWindow = null;
             double? declusteringPotential = null;
-            double? compensationVoltage = null;
+            var ionMobility = new Dictionary<eIonMobilityUnits, double?>();
+
             if (getPrecursorColumns)
             {
                 // Do we have any molecule IDs?
@@ -1042,7 +1126,9 @@ namespace pwiz.Skyline.Model
                     isotopeLabelType = typedMods.LabelType;
                 }
                 if (row.GetCellAsDouble(INDEX_COMPENSATION_VOLTAGE, out dtmp))
-                    compensationVoltage = dtmp;
+                {
+                    ionMobility[eIonMobilityUnits.compensation_V] = dtmp;
+                }
                 else if (!String.IsNullOrEmpty(GetCellTrimmed(row, INDEX_COMPENSATION_VOLTAGE)))
                 {
                     ShowTransitionError(new PasteError
@@ -1144,14 +1230,24 @@ namespace pwiz.Skyline.Model
                 return null;
             }
 
-
-            double? ionMobility = null;
-            var ionMobilityUnits = eIonMobilityUnits.none;
+            if (row.GetCellAsDouble(INDEX_PRECURSOR_IM_INVERSE_K0, out dtmp))
+            {
+                ionMobility[eIonMobilityUnits.inverse_K0_Vsec_per_cm2] = dtmp;
+            }
+            else if (!String.IsNullOrEmpty(GetCellTrimmed(row, INDEX_PRECURSOR_IM_INVERSE_K0)))
+            {
+                ShowTransitionError(new PasteError
+                {
+                    Column = INDEX_PRECURSOR_IM_INVERSE_K0,
+                    Line = row.Index,
+                    Message = String.Format(Resources.SmallMoleculeTransitionListReader_ReadPrecursorOrProductColumns_Invalid_ion_mobility_value__0_, row.GetCell(INDEX_PRECURSOR_IM_INVERSE_K0))
+                });
+                return null;
+            }
 
             if (row.GetCellAsDouble(INDEX_PRECURSOR_DRIFT_TIME_MSEC, out dtmp))
             {
-                ionMobility = dtmp;
-                ionMobilityUnits = eIonMobilityUnits.drift_time_msec;
+                ionMobility[eIonMobilityUnits.drift_time_msec] = dtmp;
             }
             else if (!String.IsNullOrEmpty(GetCellTrimmed(row, INDEX_PRECURSOR_DRIFT_TIME_MSEC)))
             {
@@ -1159,7 +1255,7 @@ namespace pwiz.Skyline.Model
                 {
                     Column = INDEX_PRECURSOR_DRIFT_TIME_MSEC,
                     Line = row.Index,
-                    Message = String.Format(Resources.PasteDlg_ReadPrecursorOrProductColumns_Invalid_drift_time_value__0_, row.GetCell(INDEX_PRECURSOR_DRIFT_TIME_MSEC))
+                    Message = String.Format(ModelResources.PasteDlg_ReadPrecursorOrProductColumns_Invalid_drift_time_value__0_, row.GetCell(INDEX_PRECURSOR_DRIFT_TIME_MSEC))
                 });
                 return null;
             }
@@ -1167,7 +1263,6 @@ namespace pwiz.Skyline.Model
             if (row.GetCellAsDouble(INDEX_HIGH_ENERGY_DRIFT_TIME_OFFSET_MSEC, out dtmp))
             {
                 ionMobilityHighEnergyOffset = dtmp;
-                ionMobilityUnits = eIonMobilityUnits.drift_time_msec;
             }
             else if (GetCellTrimmed(row, INDEX_HIGH_ENERGY_DRIFT_TIME_OFFSET_MSEC) != null)
             {
@@ -1175,14 +1270,15 @@ namespace pwiz.Skyline.Model
                 {
                     Column = INDEX_HIGH_ENERGY_DRIFT_TIME_OFFSET_MSEC,
                     Line = row.Index,
-                    Message = String.Format(Resources.PasteDlg_ReadPrecursorOrProductColumns_Invalid_drift_time_high_energy_offset_value__0_, row.GetCell(INDEX_HIGH_ENERGY_DRIFT_TIME_OFFSET_MSEC))
+                    Message = String.Format(ModelResources.PasteDlg_ReadPrecursorOrProductColumns_Invalid_drift_time_high_energy_offset_value__0_, row.GetCell(INDEX_HIGH_ENERGY_DRIFT_TIME_OFFSET_MSEC))
                 });
                 return null;
             }
             var unitsIM = GetCellTrimmed(row, INDEX_PRECURSOR_ION_MOBILITY_UNITS);
+            eIonMobilityUnits declaredUnitsIM = eIonMobilityUnits.none;
             if (unitsIM != null)
             {
-                if (!IonMobilityUnitsSynonyms.TryGetValue(unitsIM, out ionMobilityUnits))
+                if (!IonMobilityUnitsSynonyms.TryGetValue(unitsIM, out declaredUnitsIM))
                 {
                     ShowTransitionError(new PasteError
                     {
@@ -1196,7 +1292,17 @@ namespace pwiz.Skyline.Model
 
             if (row.GetCellAsDouble(INDEX_PRECURSOR_ION_MOBILITY, out dtmp))
             {
-                ionMobility = dtmp;
+                if (declaredUnitsIM == eIonMobilityUnits.none)
+                {
+                    ShowTransitionError(new PasteError
+                    {
+                        Column = INDEX_PRECURSOR_ION_MOBILITY,
+                        Line = row.Index,
+                        Message = ModelResources.SmallMoleculeTransitionListReader_ReadPrecursorOrProductColumns_Missing_ion_mobility_units
+                    });
+                    return null;
+                }
+                ionMobility[declaredUnitsIM] = dtmp;
             }
             else if (GetCellTrimmed(row, INDEX_PRECURSOR_ION_MOBILITY) != null)
             {
@@ -1261,7 +1367,7 @@ namespace pwiz.Skyline.Model
                             adduct = DetermineAdductFromFormulaChargeAndMz(formula, charge.Value, mz);
                         }
                     }
-                    catch (Exception e)
+                    catch (Exception e) when (IsParserException(e))
                     {
                         ShowTransitionError(new PasteError
                         {
@@ -1271,7 +1377,7 @@ namespace pwiz.Skyline.Model
                         });
                         return null;
                     }
-                    row.SetCell(indexAdduct, adduct.AdductFormula);
+                    row.UpdateCell((indexAdduct < 0) ? indexCharge : indexAdduct, adduct.AdductFormula);
                 }
             }
             if (mz > 0)
@@ -1279,7 +1385,9 @@ namespace pwiz.Skyline.Model
             if (NullForEmpty(formula) != null)
                 countValues++;
             if (countValues == 0 && !getPrecursorColumns &&
-                (string.IsNullOrEmpty(name) || Equals(precursorInfo.Name, name)))
+                // A precursor transition usually has no fragment name, or name is "precursor", or name is repeated molecule name
+                (string.IsNullOrEmpty(name) || Equals(name, precursorInfo.MoleculeID.Name) ||
+                 Equals(name, @"precursor") || Equals(name, IonTypeExtension.GetLocalizedString(IonType.precursor)))) // Handle local language as well
             {
                 // No product info found in this row, assume that this is a precursor declaration
                 hasError = false;
@@ -1291,13 +1399,13 @@ namespace pwiz.Skyline.Model
             {
                 TypedMass monoMass;
                 TypedMass averageMmass;
-                if (ionMobility.HasValue && ionMobilityUnits == eIonMobilityUnits.none)
+                if (ionMobility.Count > 1)
                 {
                     ShowTransitionError(new PasteError
                     {
                         Column = INDEX_PRECURSOR_ION_MOBILITY,
                         Line = row.Index,
-                        Message = Resources.SmallMoleculeTransitionListReader_ReadPrecursorOrProductColumns_Missing_ion_mobility_units
+                        Message = GetMultipleIonMobilitiesErrorMessage(ionMobility)
                     });
                     return null;
 
@@ -1306,12 +1414,7 @@ namespace pwiz.Skyline.Model
                     ? new ExplicitRetentionTimeInfo(retentionTime.Value, retentionTimeWindow)
                     : null;
                 var explicitTransitionValues = ExplicitTransitionValues.Create(collisionEnergy,ionMobilityHighEnergyOffset, slens, coneVoltage, declusteringPotential);
-                if (compensationVoltage.HasValue)
-                {
-                    ionMobility = compensationVoltage;
-                    ionMobilityUnits = eIonMobilityUnits.compensation_V;
-                }
-                var explicitTransitionGroupValues = ExplicitTransitionGroupValues.Create(collisionEnergy, ionMobility, ionMobilityUnits, ccsPrecursor);
+                var explicitTransitionGroupValues = ExplicitTransitionGroupValues.Create(collisionEnergy, ionMobility.FirstOrDefault().Value, ionMobility.FirstOrDefault().Key, ccsPrecursor);
                 var massOk = true;
                 var massTooLow = false;
                 string massErrMsg = null;
@@ -1328,7 +1431,7 @@ namespace pwiz.Skyline.Model
                         if (getPrecursorColumns && isotopeLabelType == null) 
                         {
                             var ion = new IonInfo(formula, adduct);
-                            if (!IonInfo.EquivalentFormulas(ion.FormulaWithAdductApplied, ion.UnlabeledFormula)) // Formula+adduct contained some heavy isotopes
+                            if (!Equals(ion.FormulaWithAdductApplied, ion.UnlabeledFormula)) // Formula+adduct contained some heavy isotopes
                             {
                                 isotopeLabelType = IsotopeLabelType.heavy;
                                 if (INDEX_LABEL_TYPE >= 0)
@@ -1340,13 +1443,13 @@ namespace pwiz.Skyline.Model
                         // If formula contains isotope info, move it to the adduct
                         if (!adduct.IsEmpty)
                         {
-                            var labels = BioMassCalc.MONOISOTOPIC.FindIsotopeLabelsInFormula(formula);
+                            var labels = BioMassCalc.FindIsotopeLabelsInFormula(formula);
                             if (labels.Any())
                             {
                                 adduct = adduct.ChangeIsotopeLabels(labels);
                                 formula = BioMassCalc.MONOISOTOPIC.StripLabelsFromFormula(formula);
-                                row.SetCell(indexFormula, formula);
-                                row.SetCell(indexAdduct, adduct.AsFormulaOrSignedInt());
+                                row.UpdateCell(indexFormula, formula);
+                                row.UpdateCell((indexAdduct < 0) ? indexCharge : indexAdduct, adduct.AsFormulaOrSignedInt());
                             }
                         }
                         if (mz > 0)
@@ -1362,7 +1465,7 @@ namespace pwiz.Skyline.Model
                             var initialAdduct = adduct;
                             charge = ValidateFormulaWithMzAndAdduct(tolerance, useMonoisotopicMass,
                                 ref formula, ref adduct,  mz, charge, expectIsPositiveCharge, getPrecursorColumns, out monoMass, out averageMmass, out mzCalc);
-                            row.SetCell(indexFormula, formula);
+                            row.UpdateCell(indexFormula, formula);
                             massOk = monoMass < CustomMolecule.MAX_MASS && averageMmass < CustomMolecule.MAX_MASS &&
                                      !(massTooLow = charge.HasValue && (monoMass < CustomMolecule.MIN_MASS || averageMmass < CustomMolecule.MIN_MASS)); // Null charge => masses are 0 but meaningless
                             if (adduct.IsEmpty && charge.HasValue)
@@ -1376,26 +1479,26 @@ namespace pwiz.Skyline.Model
                                     row.UpdateCell(indexCharge, charge.Value);
                                     if (!Equals(adduct, initialAdduct))
                                     {
-                                        row.UpdateCell(indexAdduct, adduct); // Show the deduced adduct
+                                        row.UpdateCell((indexAdduct < 0) ? indexCharge : indexAdduct, adduct); // Show the deduced adduct
                                     }
                                     hasError = false;
-                                    return new ParsedIonInfo(name, formula, adduct, mz, monoMass, averageMmass, isotopeLabelType, retentionTimeInfo, explicitTransitionGroupValues, explicitTransitionValues, note, moleculeID);
+                                    return new ParsedIonInfo(name, formula, adduct, mz, monoMass, averageMmass, isotopeLabelType, retentionTimeInfo, explicitTransitionGroupValues, explicitTransitionValues, note, moleculeID.AccessionNumbers);
                                 }
                                 else if (mzCalc.HasValue)
                                 {
                                     // There was an initial charge value, but it didn't make sense with formula and proposed mz
                                     errMessage = String.Format(getPrecursorColumns
-                                        ? Resources.PasteDlg_ReadPrecursorOrProductColumns_Error_on_line__0___Precursor_m_z__1__does_not_agree_with_value__2__as_calculated_from_ion_formula_and_charge_state__delta____3___Transition_Settings___Instrument___Method_match_tolerance_m_z____4_____Correct_the_m_z_value_in_the_table__or_leave_it_blank_and_Skyline_will_calculate_it_for_you_
-                                        : Resources.PasteDlg_ReadPrecursorOrProductColumns_Error_on_line__0___Product_m_z__1__does_not_agree_with_value__2__as_calculated_from_ion_formula_and_charge_state__delta____3___Transition_Settings___Instrument___Method_match_tolerance_m_z____4_____Correct_the_m_z_value_in_the_table__or_leave_it_blank_and_Skyline_will_calculate_it_for_you_,
-                                        row.Index + 1, (float)mz, (float)mzCalc.Value, (float)(mzCalc.Value - mz), (float)document.Settings.TransitionSettings.Instrument.MzMatchTolerance);
+                                        ? Resources.SmallMoleculeTransitionListReader_Precursor_mz_does_not_agree_with_calculated_value_
+                                        : Resources.SmallMoleculeTransitionListReader_Product_mz_does_not_agree_with_calculated_value_,
+                                        (float)mz, (float)mzCalc.Value, (float)(mzCalc.Value - mz), (float)document.Settings.TransitionSettings.Instrument.MzMatchTolerance);
                                     errColumn = indexMz;
                                 }
                                 else
                                 {
                                     // No charge state given, and mz makes no sense with formula
-                                    errMessage = String.Format(getPrecursorColumns
-                                        ? Resources.PasteDlg_ValidateEntry_Error_on_line__0___Precursor_formula_and_m_z_value_do_not_agree_for_any_charge_state_
-                                        : Resources.PasteDlg_ValidateEntry_Error_on_line__0___Product_formula_and_m_z_value_do_not_agree_for_any_charge_state_, row.Index + 1);
+                                    errMessage = getPrecursorColumns
+                                        ? Resources.SmallMoleculeTransitionListReader_ReadPrecursorOrProductColumns_Precursor_formula_and_m_z_value_do_not_agree_for_any_charge_state_
+                                        : Resources.SmallMoleculeTransitionListReader_ReadPrecursorOrProductColumns_Product_formula_and_m_z_value_do_not_agree_for_any_charge_state_;
                                     errColumn = indexMz;
                                 }
                             }
@@ -1414,17 +1517,13 @@ namespace pwiz.Skyline.Model
                             if (massOk)
                             {
                                 hasError = false;
-                                return new ParsedIonInfo(name, formula, adduct, mz, monoMass, averageMmass, isotopeLabelType, retentionTimeInfo, explicitTransitionGroupValues, explicitTransitionValues, note, moleculeID);
+                                return new ParsedIonInfo(name, formula, adduct, mz, monoMass, averageMmass, isotopeLabelType, retentionTimeInfo, explicitTransitionGroupValues, explicitTransitionValues, note, moleculeID.AccessionNumbers);
                             }
                         }
                     }
-                    catch (InvalidDataException x)
+                    catch (Exception exception) when (IsParserException(exception))
                     {
-                        massErrMsg = x.Message;
-                    }
-                    catch (InvalidOperationException x)  // Adduct handling code can throw these
-                    {
-                        massErrMsg = x.Message;
+                        massErrMsg = exception.Message;
                     }
                     if (massErrMsg != null)
                     {
@@ -1442,7 +1541,7 @@ namespace pwiz.Skyline.Model
                     if (massOk)
                     {
                         hasError = false;
-                        return new ParsedIonInfo(name, formula, adduct, mz, monoMass, averageMmass, isotopeLabelType, retentionTimeInfo, explicitTransitionGroupValues, explicitTransitionValues, note, moleculeID);
+                        return new ParsedIonInfo(name, formula, adduct, mz, monoMass, averageMmass, isotopeLabelType, retentionTimeInfo, explicitTransitionGroupValues, explicitTransitionValues, note, moleculeID.AccessionNumbers);
                     }
                 }
                 if (massTooLow)
@@ -1470,14 +1569,14 @@ namespace pwiz.Skyline.Model
                 }
                 else if (countValues < 2)
                 {
-                    errMessage = string.Format(getPrecursorColumns
-                            ? Resources.PasteDlg_ValidateEntry_Error_on_line__0___Precursor_needs_values_for_any_two_of__Formula__m_z_or_Charge_
-                            : Resources.PasteDlg_ValidateEntry_Error_on_line__0___Product_needs_values_for_any_two_of__Formula__m_z_or_Charge_, row.Index + 1);
+                    errMessage = getPrecursorColumns
+                            ? Resources.SmallMoleculeTransitionListReader_ReadPrecursorOrProductColumns_Precursor_needs_values_for_any_two_of__Formula__m_z_or_Charge_
+                            : Resources.SmallMoleculeTransitionListReader_ReadPrecursorOrProductColumns_Product_needs_values_for_any_two_of__Formula__m_z_or_Charge_;
                 }
                 else
                 {
                     // Don't just leave it blank
-                    errMessage = Resources.SmallMoleculeTransitionListReader_ReadPrecursorOrProductColumns_unknown_error;
+                    errMessage = ModelResources.SmallMoleculeTransitionListReader_ReadPrecursorOrProductColumns_unknown_error;
                 }
             }
             ShowTransitionError(new PasteError
@@ -1487,6 +1586,12 @@ namespace pwiz.Skyline.Model
                 Message = errMessage
             });
             return null;
+        }
+
+        public static string GetMultipleIonMobilitiesErrorMessage(Dictionary<eIonMobilityUnits, double?> ionMobility)
+        {
+            return Resources.SmallMoleculeTransitionListReader_ReadPrecursorOrProductColumns_Multiple_ion_mobility_declarations +
+                   $@" ({string.Join(@", ", ionMobility.Select(kvp => $@"{IonMobilityFilter.IonMobilityUnitsL10NString(kvp.Key)} = {kvp.Value}"))}";
         }
 
         private bool ProcessNeutralLoss(Row row, int indexNeutralLoss, ref string formula)
@@ -1512,7 +1617,7 @@ namespace pwiz.Skyline.Model
                 // Parse molecule and neutral loss formulas to dictionaries, with syntax checking
                 // N.B. here we use pwiz.Skyline.Util.BioMassCalc rather than pwiz.Common.Chemistry.Molecule because it
                 // understands Skyline isotope symbols (e.g. H', C" etc) while pwiz.Common.Chemistry.Molecule does not
-                if (!BioMassCalc.TryParseFormula(precursorFormula, out var precursorMolecule, out var errMessage))
+                if (!ParsedMolecule.TryParseFormula(precursorFormula, out var precursorMolecule, out var errMessage))
                 {
                     ShowTransitionError(new PasteError
                     {
@@ -1522,7 +1627,20 @@ namespace pwiz.Skyline.Model
                     });
                     return false;
                 }
-                if (!BioMassCalc.TryParseFormula(neutralLoss, out var lossMolecule, out errMessage))
+
+                if (precursorMolecule.IsMassOnly)
+                {
+                    // There's no use for a loss formula if there's no precursor formula
+                    ShowTransitionError(new PasteError
+                    {
+                        Column = indexNeutralLoss,
+                        Line = row.Index,
+                        Message = Resources.SmallMoleculeTransitionListReader_ProcessNeutralLoss_Cannot_use_product_neutral_loss_chemical_formula_without_a_precursor_chemical_formula
+                    });
+                    return false;
+                }
+
+                if (!ParsedMolecule.TryParseFormula(neutralLoss, out var lossMolecule, out errMessage))
                 {
                     ShowTransitionError(new PasteError
                     {
@@ -1532,9 +1650,20 @@ namespace pwiz.Skyline.Model
                     });
                     return false;
                 }
+                else if (lossMolecule.IsMassOnly)
+                {
+                    // BioMassCalc parser will accept a mass-only formula, but we don't want to allow that here
+                    ShowTransitionError(new PasteError
+                    {
+                        Column = indexNeutralLoss,
+                        Line = row.Index,
+                        Message = BioMassCalc.FormatArgumentExceptionMessage(neutralLoss)
+                    });
+                    return false;
+                }
                 // Calculate the resulting fragment as precursor-loss, checking to see that we're not losing atoms that aren't there in the first place
                 var fragmentMolecule = precursorMolecule.Difference(lossMolecule);
-                if (fragmentMolecule.Values.Any(v => v < 0))
+                if (fragmentMolecule.Molecule.Values.Any(v => v < 0))
                 {
                     ShowTransitionError(new PasteError
                     {
@@ -1547,7 +1676,7 @@ namespace pwiz.Skyline.Model
                     return false;
                 }
 
-                formula = fragmentMolecule.ToDisplayString();
+                formula = fragmentMolecule.ToString();
             }
 
             return true; // Success
@@ -1581,7 +1710,7 @@ namespace pwiz.Skyline.Model
                 adduct = Adduct.FromStringAssumeChargeOnly(adductText);
                 IonInfo.ApplyAdductToFormula(formula ?? string.Empty, adduct); // Just to see if it throws
             }
-            catch (InvalidOperationException x)
+            catch (Exception x) when (IsParserException(x))
             {
                 ShowTransitionError(new PasteError
                 {
@@ -1660,12 +1789,12 @@ namespace pwiz.Skyline.Model
             {
                 // Get mass from formula, then look at declared mz to decide if protonation is implied by charge
                 var adductH = Adduct.NonProteomicProtonatedFromCharge(charge); // [M-H] etc
-                var adductM = Adduct.FromChargeNoMass(charge); // [M-] etc
-                var ionH = new CustomMolecule(adductH.ApplyToFormula(formula));
-                var ionM = new CustomMolecule(adductM.ApplyToFormula(formula));
+                var adductM = Adduct.FromChargeNoMass(charge); // [M-] tc
+                var ionH = adductH.ApplyToFormula(formula);
+                var ionM = adductM.ApplyToFormula(formula);
                 var mass = mz * Math.Abs(charge);
-                adduct = Math.Abs(ionH.GetMass(MassType.Monoisotopic) - mass) <
-                         Math.Abs(ionM.GetMass(MassType.Monoisotopic) - mass)
+                adduct = Math.Abs(BioMassCalc.MONOISOTOPIC.CalculateMass(ionH) - mass) <
+                         Math.Abs(BioMassCalc.MONOISOTOPIC.CalculateMass(ionM) - mass)
                     ? adductH
                     : adductM;
             }
@@ -1683,7 +1812,7 @@ namespace pwiz.Skyline.Model
             if (String.IsNullOrEmpty(name))
                 name = document.GetSmallMoleculeGroupId();
             var metadata = new ProteinMetadata(name, String.Empty).SetWebSearchCompleted();  // FUTURE: some kind of lookup for small molecules
-            return new PeptideGroupDocNode(pepGroup, metadata, new[] { pep });
+            return new PeptideGroupDocNode(pepGroup, metadata, new[] { pep }, false);
         }
 
         private PeptideDocNode GetMoleculePeptide(SrmDocument document, Row row, PeptideGroup group)
@@ -1698,17 +1827,17 @@ namespace pwiz.Skyline.Model
                     return null; // Some failure, but exception was already handled
                 // Identify items with same formula and different adducts
                 var neutralFormula = parsedIonInfo.NeutralFormula;
-                var shortName = GetCellTrimmed(row, INDEX_MOLECULE_NAME);
-                if (!string.IsNullOrEmpty(neutralFormula))
+                var shortName = parsedIonInfo.MoleculeID.Name;
+                if (!ParsedMolecule.IsNullOrEmpty(neutralFormula))
                 {
-                    molecule = new CustomMolecule(neutralFormula, shortName, parsedIonInfo.MoleculeAccessionNumbers);
+                    molecule = new CustomMolecule(neutralFormula, shortName, parsedIonInfo.MoleculeID.AccessionNumbers);
                 }
                 else
                 {
-                    molecule = new CustomMolecule(parsedIonInfo.Formula, parsedIonInfo.MonoMass, parsedIonInfo.AverageMass, shortName, parsedIonInfo.MoleculeAccessionNumbers);
+                    molecule = new CustomMolecule(parsedIonInfo.MonoMass, parsedIonInfo.AverageMass, shortName, parsedIonInfo.MoleculeID.AccessionNumbers);
                 }
             }
-            catch (ArgumentException e)
+            catch (Exception e) when (IsParserException(e))
             {
                 ShowTransitionError(new PasteError
                 {
@@ -1724,9 +1853,9 @@ namespace pwiz.Skyline.Model
                 var tranGroup = GetMoleculeTransitionGroup(document, parsedIonInfo, row, pep);
                 if (tranGroup == null)
                     return null;
-                return new PeptideDocNode(pep, document.Settings, null, null, parsedIonInfo.ExplicitRetentionTime, new[] { tranGroup }, true);
+                return new PeptideDocNode(pep, document.Settings, null, null, parsedIonInfo.ExplicitRetentionTime, new[] { tranGroup }, false);
             }
-            catch (InvalidOperationException e)
+            catch (Exception e) when (IsParserException(e))
             {
                 ShowTransitionError(new PasteError
                 {
@@ -1746,7 +1875,7 @@ namespace pwiz.Skyline.Model
                 {
                     Column = INDEX_PRECURSOR_MZ,
                     Line = row.Index,
-                    Message = String.Format(Resources.PasteDlg_GetMoleculeTransitionGroup_The_precursor_m_z__0__is_not_measureable_with_your_current_instrument_settings_, moleculeInfo.Mz)
+                    Message = String.Format(ModelResources.PasteDlg_GetMoleculeTransitionGroup_The_precursor_m_z__0__is_not_measureable_with_your_current_instrument_settings_, moleculeInfo.Mz)
                 });
                 return null;
             }
@@ -1767,16 +1896,12 @@ namespace pwiz.Skyline.Model
             if (!Equals(pep.CustomMolecule.MonoisotopicMass, customIon.MonoisotopicMass) && !adduct.HasIsotopeLabels)
             {
                 // Some kind of undescribed isotope labeling going on
-                if ((!string.IsNullOrEmpty(pep.CustomMolecule.Formula) && Equals(pep.CustomMolecule.Formula, customIon.Formula)) ||
-                    (string.IsNullOrEmpty(pep.CustomMolecule.Formula) && string.IsNullOrEmpty(customIon.Formula)))
+                // No formula for label, describe as mass
+                var labelMass = customIon.MonoisotopicMass - pep.CustomMolecule.MonoisotopicMass;
+                if (labelMass > 0)
                 {
-                    // No formula for label, describe as mass
-                    var labelMass = customIon.MonoisotopicMass - pep.CustomMolecule.MonoisotopicMass;
-                    if (labelMass > 0)
-                    {
-                        adduct = adduct.ChangeIsotopeLabels(labelMass); // Isostopes add weight
-                        isotopeLabelType = moleculeInfo.IsotopeLabelType ?? IsotopeLabelType.heavy;
-                    }
+                    adduct = adduct.ChangeIsotopeLabels(labelMass); // Isostopes add weight
+                    isotopeLabelType = moleculeInfo.IsotopeLabelType ?? IsotopeLabelType.heavy;
                 }
             }
             var group = new TransitionGroup(pep, adduct, isotopeLabelType);
@@ -1787,13 +1912,9 @@ namespace pwiz.Skyline.Model
                 if (tran == null)
                     return null;
                 return new TransitionGroupDocNode(group, document.Annotations, document.Settings, null,
-                    null, moleculeInfo.ExplicitTransitionGroupValues, null, new[] { tran }, true);
+                    null, moleculeInfo.ExplicitTransitionGroupValues, null, new[] { tran }, false);
             }
-            catch (InvalidDataException x)
-            {
-                errmsg = x.Message;
-            }
-            catch (InvalidOperationException x) // Adduct handling code can throw these
+            catch (Exception x) when (IsParserException(x))
             {
                 errmsg = x.Message;
             }
@@ -1814,7 +1935,7 @@ namespace pwiz.Skyline.Model
                 return false;
             }
             // Formulas and/or masses must be non-empty, and match
-            return !((string.IsNullOrEmpty(precursor.Formula) || !Equals(precursor.Formula, fragment.Formula)) &&
+            return !((ParsedMolecule.IsNullOrEmpty(precursor.Formula) || !Equals(precursor.Formula, fragment.Formula)) &&
                      !Equals(precursor.MonoMass, fragment.MonoMass));
         }
 
@@ -1863,9 +1984,26 @@ namespace pwiz.Skyline.Model
             if (explicitTransitionGroupValues?.CollisionEnergy == ion.ExplicitTransitionValues?.CollisionEnergy)
             {
                 // No need for per-transition CE override if it matches precursor CE override
-                ionExplicitTransitionValues = ionExplicitTransitionValues.ChangeCollisionEnergy(null); 
+                ionExplicitTransitionValues = ionExplicitTransitionValues.ChangeCollisionEnergy(null);
             }
-            return new TransitionDocNode(transition, annotations, null, mass, TransitionDocNode.TransitionQuantInfo.DEFAULT, ionExplicitTransitionValues, null);
+
+            var transitionQuantInfo = TransitionDocNode.TransitionQuantInfo.DEFAULT;
+            if (ionType == IonType.precursor && customMolecule.ParsedMolecule.HasChemicalFormula)
+            {
+                var fullScan = document.Settings.TransitionSettings.FullScan;
+                if (fullScan.IsHighResPrecursor)
+                {
+                    var calc = document.Settings.GetPrecursorCalc(IsotopeLabelType.light, null);
+                    var massDist = calc.GetMZDistribution(customMolecule.ParsedMolecule.GetMoleculeMassOffset(), adduct,
+                        fullScan.IsotopeAbundances);
+                    var isotopeDistInfo = IsotopeDistInfo.MakeIsotopeDistInfo(massDist, mass, adduct, fullScan);
+                    var transitionIsotopeDistInfo = new TransitionIsotopeDistInfo(isotopeDistInfo.GetRankI(0),
+                        isotopeDistInfo.GetProportionI(0));
+                    transitionQuantInfo = transitionQuantInfo.ChangeIsotopeDistInfo(transitionIsotopeDistInfo);
+                }
+            }
+
+            return new TransitionDocNode(transition, annotations, null, mass, transitionQuantInfo, ionExplicitTransitionValues, null);
         }
     }
 
@@ -1878,6 +2016,7 @@ namespace pwiz.Skyline.Model
             // Ask MassListInputs to figure out the column and decimal separators
             var inputs = new MassListInputs(csvText);
             _cultureInfo = inputs.FormatProvider;
+            HasHeaders = hasHeaders;
             _csvReader = new DsvFileReader(new StringListReader(csvText), inputs.Separator, SmallMoleculeTransitionListColumnHeaders.KnownHeaderSynonyms, columnPositions, hasHeaders);
             // Do we recognize all the headers?
             var badHeaders =
@@ -1984,22 +2123,7 @@ namespace pwiz.Skyline.Model
 
         public override void ShowTransitionError(PasteError error)
         {
-            if (error.Column >= 0)
-            {
-                throw new LineColNumberedIoException(
-                    string.Format(
-                        Resources.InsertSmallMoleculeTransitionList_InsertSmallMoleculeTransitionList_Error_on_line__0___column_1____2_,
-                        error.Line + 1, error.Column + 1, error.Message),
-                    error.Line + 1, error.Column);
-            }
-            else
-            {
-                throw new LineColNumberedIoException(
-                    string.Format(
-                        Resources.InsertSmallMoleculeTransitionList_InsertSmallMoleculeTransitionList_Error_on_line__0__1_,
-                        error.Line + 1, error.Message),
-                    error.Line + 1, error.Column);
-            }
+            ErrorList.Add(error);
         }
 
         public override int ColumnIndex(string columnName)
@@ -2027,6 +2151,7 @@ namespace pwiz.Skyline.Model
         public const string dtPrecursor = "PrecursorDT"; // Drift time - IMUnits is implied
         public const string dtHighEnergyOffset = "HighEnergyDTOffset";  // Drift time - IMUnits is implied
         public const string imPrecursor = "PrecursorIM";
+        public const string imPrecursor_invK0 = "PrecursorInvK0"; // Ion mobility with implied units
         public const string imHighEnergyOffset = "HighEnergyIMOffset";
         public const string imUnits = "IMUnits";
         public const string ccsPrecursor = "PrecursorCCS";
@@ -2053,7 +2178,7 @@ namespace pwiz.Skyline.Model
         static SmallMoleculeTransitionListColumnHeaders()
         {
             // The list of internal values, as used in serialization
-            KnownHeaders =  new List<string>(new[]
+            KnownHeaders = new List<string>(new[]
             {
                 moleculeGroup,
                 namePrecursor,
@@ -2089,6 +2214,7 @@ namespace pwiz.Skyline.Model
                 idKEGG,
                 neutralLossProduct,
                 ignoreColumn, // Does not contain useful data, can be more than one in a list
+                imPrecursor_invK0, // Ion mobility with implied units 1/K0
             });
 
             // A dictionary of terms that can be understood as column headers - this includes
@@ -2096,49 +2222,71 @@ namespace pwiz.Skyline.Model
             var currentCulture = Thread.CurrentThread.CurrentCulture;
             var currentUICulture = Thread.CurrentThread.CurrentUICulture;
             var knownColumnHeadersAllCultures = KnownHeaders.ToDictionary( hdr => hdr, hdr => hdr);
-            foreach (var culture in new[] { @"en", @"zh-CHS", @"ja" })
+            foreach (var culture in CultureUtil.AvailableDisplayLanguages())
             {
                 Thread.CurrentThread.CurrentUICulture =
-                    Thread.CurrentThread.CurrentCulture = new CultureInfo(culture);
+                    Thread.CurrentThread.CurrentCulture = culture;
                 foreach (var pair in new[] {
                     // ReSharper disable StringLiteralTypo
-                    Tuple.Create(moleculeGroup, Resources.PasteDlg_UpdateMoleculeType_Molecule_List_Name),
+                    Tuple.Create(moleculeGroup, ModelResources.PasteDlg_UpdateMoleculeType_Molecule_List_Name),
                     Tuple.Create(moleculeGroup, Resources.ImportTransitionListColumnSelectDlg_ComboChanged_Molecule_List_Name),
                     Tuple.Create(namePrecursor, Resources.PasteDlg_UpdateMoleculeType_Precursor_Name),
                     Tuple.Create(namePrecursor, Resources.ImportTransitionListColumnSelectDlg_ComboChanged_Molecule_Name),
-                    Tuple.Create(namePrecursor, Resources.SmallMoleculeTransitionListColumnHeaders_SmallMoleculeTransitionListColumnHeaders_Molecule),
-                    Tuple.Create(namePrecursor, Resources.SmallMoleculeTransitionListColumnHeaders_SmallMoleculeTransitionListColumnHeaders_Compound),
+                    Tuple.Create(namePrecursor, ModelResources.SmallMoleculeTransitionListColumnHeaders_SmallMoleculeTransitionListColumnHeaders_Molecule),
+                    Tuple.Create(namePrecursor, ModelResources.SmallMoleculeTransitionListColumnHeaders_SmallMoleculeTransitionListColumnHeaders_Compound),
                     Tuple.Create(nameProduct, Resources.PasteDlg_UpdateMoleculeType_Product_Name),
-                    Tuple.Create(formulaPrecursor, Resources.PasteDlg_UpdateMoleculeType_Precursor_Formula),
+                    Tuple.Create(formulaPrecursor, ModelResources.PasteDlg_UpdateMoleculeType_Precursor_Formula),
                     Tuple.Create(formulaPrecursor, Resources.ImportTransitionListColumnSelectDlg_headerList_Molecular_Formula),
                     Tuple.Create(formulaProduct, Resources.PasteDlg_UpdateMoleculeType_Product_Formula),
-                    Tuple.Create(mzPrecursor, Resources.PasteDlg_UpdateMoleculeType_Precursor_m_z),
+                    Tuple.Create(mzPrecursor, ModelResources.PasteDlg_UpdateMoleculeType_Precursor_m_z),
                     Tuple.Create(mzPrecursor, Resources.ImportTransitionListColumnSelectDlg_PopulateComboBoxes_Precursor_m_z),
-                    Tuple.Create(mzProduct, Resources.PasteDlg_UpdateMoleculeType_Product_m_z),
+                    Tuple.Create(mzProduct, ModelResources.PasteDlg_UpdateMoleculeType_Product_m_z),
                     Tuple.Create(mzProduct, Resources.ImportTransitionListColumnSelectDlg_PopulateComboBoxes_Product_m_z),
-                    Tuple.Create(chargePrecursor, Resources.PasteDlg_UpdateMoleculeType_Precursor_Charge),
+                    Tuple.Create(chargePrecursor, ModelResources.PasteDlg_UpdateMoleculeType_Precursor_Charge),
                     Tuple.Create(chargePrecursor, Resources.ImportTransitionListColumnSelectDlg_PopulateComboBoxes_Precursor_Charge),
                     Tuple.Create(chargeProduct, Resources.PasteDlg_UpdateMoleculeType_Product_Charge),
                     Tuple.Create(adductPrecursor, Resources.PasteDlg_UpdateMoleculeType_Precursor_Adduct),
                     Tuple.Create(adductProduct, Resources.PasteDlg_UpdateMoleculeType_Product_Adduct),
                     Tuple.Create(rtPrecursor, Resources.PasteDlg_UpdateMoleculeType_Explicit_Retention_Time),
-                    Tuple.Create(rtPrecursor, Resources.SmallMoleculeTransitionListColumnHeaders_SmallMoleculeTransitionListColumnHeaders_RT__min_), // ""RT (min)"
+                    Tuple.Create(rtPrecursor, Resources.PasteDlg_UpdateMoleculeType_Retention_Time),
+                    Tuple.Create(rtPrecursor, ModelResources.SmallMoleculeTransitionListColumnHeaders_SmallMoleculeTransitionListColumnHeaders_RT__min_), // ""RT (min)"
                     Tuple.Create(rtPrecursor, @"explicitretentiontime"),
                     Tuple.Create(rtPrecursor, @"precursorrt"),
                     Tuple.Create(rtWindowPrecursor, Resources.PasteDlg_UpdateMoleculeType_Explicit_Retention_Time_Window),
+                    Tuple.Create(rtWindowPrecursor, Resources.PasteDlg_UpdateMoleculeType_Retention_Time_Window),
                     Tuple.Create(rtWindowPrecursor, @"explicitretentiontimewindow"),
                     Tuple.Create(rtWindowPrecursor, @"precursorrtwindow"),
                     Tuple.Create(cePrecursor, Resources.PasteDlg_UpdateMoleculeType_Explicit_Collision_Energy),
-                    Tuple.Create(dtPrecursor, Resources.PasteDlg_UpdateMoleculeType_Explicit_Drift_Time__msec_),
-                    Tuple.Create(dtHighEnergyOffset, Resources.PasteDlg_UpdateMoleculeType_Explicit_Drift_Time_High_Energy_Offset__msec_),
+                    Tuple.Create(cePrecursor, ModelResources.PasteDlg_UpdateMoleculeType_Collision_Energy),
+                    Tuple.Create(dtPrecursor, ModelResources.PasteDlg_UpdateMoleculeType_Explicit_Drift_Time__msec_),
+                    Tuple.Create(dtHighEnergyOffset, ModelResources.PasteDlg_UpdateMoleculeType_Explicit_Drift_Time_High_Energy_Offset__msec_),
                     Tuple.Create(imPrecursor, Resources.PasteDlg_UpdateMoleculeType_Explicit_Ion_Mobility),
+                    Tuple.Create(imPrecursor, Resources.PasteDlg_UpdateMoleculeType_Ion_Mobility),
                     Tuple.Create(imPrecursor, @"explicitionmobility"),
+                    Tuple.Create(imPrecursor, @"ionmobility"),
                     Tuple.Create(imHighEnergyOffset, Resources.PasteDlg_UpdateMoleculeType_Explicit_Ion_Mobility_High_Energy_Offset),
+                    Tuple.Create(imHighEnergyOffset, Resources.PasteDlg_UpdateMoleculeType_Ion_Mobility_High_Energy_Offset),
                     Tuple.Create(imHighEnergyOffset, @"explicitionmobilityhighenergyoffset"),
+                    Tuple.Create(imHighEnergyOffset, @"ionmobilityhighenergyoffset"),
                     Tuple.Create(imUnits, Resources.PasteDlg_UpdateMoleculeType_Explicit_Ion_Mobility_Units),
+                    Tuple.Create(imUnits, Resources.PasteDlg_UpdateMoleculeType_Ion_Mobility_Units),
                     Tuple.Create(imUnits, @"explicitionmobilityunits"),
+                    Tuple.Create(imUnits, @"ionmobilityunits"),
+                    Tuple.Create(dtPrecursor, Resources.PasteDlg_UpdateMoleculeType_Explicit_Ion_Mobility__msec_),
+                    Tuple.Create(dtPrecursor, Resources.PasteDlg_UpdateMoleculeType_Ion_Mobility__msec_),
+                    Tuple.Create(imPrecursor_invK0, Resources.PasteDlg_UpdateMoleculeType_Explicit_Ion_Mobility__1_K0_),
+                    Tuple.Create(imPrecursor_invK0, Resources.PasteDlg_UpdateMoleculeType_Ion_Mobility__1_K0_),
+                    Tuple.Create(imPrecursor_invK0, @"1/K0"),
+                    Tuple.Create(imPrecursor_invK0, @"PrecursorIonMobility"), // As in Bruker PASER files
+                    Tuple.Create(compensationVoltage, Resources.PasteDlg_UpdateMoleculeType_Explicit_Ion_Mobility + @" (CoV)"),
+                    Tuple.Create(compensationVoltage, Resources.PasteDlg_UpdateMoleculeType_Ion_Mobility + @" (CoV)"),
+                    Tuple.Create(compensationVoltage, @"CoV"),
                     Tuple.Create(ccsPrecursor, Resources.PasteDlg_UpdateMoleculeType_Explicit_Collision_Cross_Section__sq_A_),
-                    Tuple.Create(ccsPrecursor, Resources.PasteDlg_UpdateMoleculeType_Collisional_Cross_Section__sq_A_),
+                    Tuple.Create(ccsPrecursor, Resources.PasteDlg_UpdateMoleculeType_Collision_Cross_Section__sq_A_),
+                    Tuple.Create(ccsPrecursor, ModelResources.PasteDlg_UpdateMoleculeType_Collisional_Cross_Section__sq_A_),
+                    Tuple.Create(ccsPrecursor, @"Collisional Cross Section"),
+                    Tuple.Create(ccsPrecursor, @"Collision Cross Section"),
+                    Tuple.Create(ccsPrecursor, @"CCS"),
                     Tuple.Create(ccsPrecursor, @"collisionalcrosssection"),
                     Tuple.Create(ccsPrecursor, @"collisionalcrosssection(sqa)"),
                     Tuple.Create(ccsPrecursor, @"collisionalcrosssectionsqa"),
@@ -2147,10 +2295,13 @@ namespace pwiz.Skyline.Model
                     Tuple.Create(slens, @"s-lens"),
                     Tuple.Create(coneVoltage, Resources.PasteDlg_UpdateMoleculeType_Cone_Voltage),
                     Tuple.Create(compensationVoltage, Resources.PasteDlg_UpdateMoleculeType_Explicit_Compensation_Voltage),
-                    Tuple.Create(declusteringPotential, Resources.PasteDlg_UpdateMoleculeType_Explicit_Declustering_Potential),
+                    Tuple.Create(compensationVoltage, Resources.PasteDlg_UpdateMoleculeType_Compensation_Voltage),
+                    Tuple.Create(declusteringPotential, ModelResources.PasteDlg_UpdateMoleculeType_Explicit_Declustering_Potential),
                     Tuple.Create(declusteringPotential, Resources.ImportTransitionListColumnSelectDlg_ComboChanged_Explicit_Declustering_Potential),
+                    Tuple.Create(declusteringPotential, ModelResources.ImportTransitionListColumnSelectDlg_ComboChanged_Declustering_Potential),
                     Tuple.Create(note, Resources.PasteDlg_UpdateMoleculeType_Note),
                     Tuple.Create(labelType, Resources.PasteDlg_UpdateMoleculeType_Label_Type),
+                    Tuple.Create(labelType, ModelResources.SmallMoleculeTransitionListColumnHeaders_SmallMoleculeTransitionListColumnHeaders_Label),
                     Tuple.Create(idInChiKey, idInChiKey),
                     Tuple.Create(idCAS, idCAS),
                     Tuple.Create(idHMDB, idHMDB),
@@ -2171,6 +2322,17 @@ namespace pwiz.Skyline.Model
                     if (!knownColumnHeadersAllCultures.ContainsKey(mz))
                     {
                         knownColumnHeadersAllCultures.Add(mz, pair.Item1);
+                    }
+
+                    // Be willing to match "Ion Mobility" as well as "Explicit Ion Mobility"
+                    var strExplicit = Resources.PasteDlg_UpdateMoleculeType_Explicit_Ion_Mobility.Replace(Resources.PeptideTipProvider_RenderTip_Ion_Mobility, string.Empty);
+                    if (pair.Item2.Contains(strExplicit))
+                    {
+                        var replaced = pair.Item2.Replace(strExplicit, String.Empty);
+                        if (!knownColumnHeadersAllCultures.ContainsKey(replaced))
+                        {
+                            knownColumnHeadersAllCultures.Add(replaced, pair.Item1);
+                        }
                     }
                 }
             }

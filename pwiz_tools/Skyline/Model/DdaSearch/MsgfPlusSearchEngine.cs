@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Original author: Matt Chambers <matt.chambers42 .at. gmail.com >
  *
  * Copyright 2020 University of Washington - Seattle, WA
@@ -27,11 +27,14 @@ using pwiz.Common.Chemistry;
 using pwiz.Skyline.Util;
 using System.IO;
 using System.Linq;
+using System.Text;
 using pwiz.Common.Collections;
 using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Model.Results;
 using pwiz.Skyline.Model.Tools;
 using pwiz.Skyline.Properties;
+using pwiz.BiblioSpec;
+using pwiz.Skyline.Model.AuditLog;
 
 namespace pwiz.Skyline.Model.DdaSearch
 {
@@ -122,7 +125,8 @@ namespace pwiz.Skyline.Model.DdaSearch
         //private int minPeptideLength, maxPeptideLength, minCharge, maxCharge;
         //private double chargeCarrierMass;
         private int maxVariableMods = 2;
-        private string modsFile = Path.GetTempFileName();
+        private StringBuilder modsText;
+        private const string _cutoffScoreName = ScoreType.PERCOLATOR_QVALUE;
         private CancellationTokenSource _cancelToken;
         private IProgressStatus _progressStatus;
         private bool _success;
@@ -130,7 +134,11 @@ namespace pwiz.Skyline.Model.DdaSearch
         public override string[] FragmentIons => FRAGMENTATION_METHODS;
         public override string[] Ms2Analyzers => INSTRUMENT_TYPES;
         public override string EngineName => @"MS-GF+";
+        public override string CutoffScoreName => _cutoffScoreName;
+        public override string CutoffScoreLabel => PropertyNames.CutoffScore_PERCOLATOR_QVALUE;
+        public override double DefaultCutoffScore { get; } = new ScoreType(_cutoffScoreName, ScoreType.PROBABILITY_INCORRECT).DefaultValue;
         public override Bitmap SearchEngineLogo => null;
+        public override string SearchEngineBlurb => string.Empty;
         public override event NotificationEventHandler SearchProgressChanged;
 
         public override bool Run(CancellationTokenSource cancelToken, IProgressStatus status)
@@ -141,15 +149,18 @@ namespace pwiz.Skyline.Model.DdaSearch
 
             foreach (var spectrumFilename in SpectrumFileNames)
             {
+                string modsFile = PathEx.GetTempFileNameWithExtension(@"mods");
+                File.WriteAllText(modsFile, modsText.ToString());
+
                 try
                 {
                     long javaMaxHeapMB = Math.Min(16 * 1024L * 1024 * 1024, MemoryInfo.TotalBytes / 2) / 1024 / 1024;
 
                     var pr = new ProcessRunner();
                     var psi = new ProcessStartInfo(JavaDownloadInfo.JavaBinary,
-                        $@"-Xmx{javaMaxHeapMB}M -jar """ + MsgfPlusBinary + @""" -tasks -2 " +
+                        $@"-Xmx{javaMaxHeapMB}M -XX:-UsePerfData -jar """ + MsgfPlusBinary + @""" -tasks -2 " +
                         $@"-s ""{spectrumFilename}"" -d ""{FastaFileNames[0]}"" -tda 1 " +
-                        $@"-t {precursorMzTolerance} -ti {isotopeErrorRange.Item1},{isotopeErrorRange.Item2} " +
+                        $@"-t {precursorMzTolerance.Value}{precursorMzTolerance.UnitName} -ti {isotopeErrorRange.Item1},{isotopeErrorRange.Item2} " +
                         $@"-m {fragmentationMethod} -inst {instrumentType} -e {enzyme} -ntt {ntt} -maxMissedCleavages {maxMissedCleavages} " +
                         $@"-mod ""{modsFile}""")
                     {
@@ -160,13 +171,17 @@ namespace pwiz.Skyline.Model.DdaSearch
                         RedirectStandardInput = false
                     };
 
-                    pr.Run(psi, string.Empty, this, ref _progressStatus, ProcessPriorityClass.BelowNormal);
+                    pr.Run(psi, string.Empty, this, ref _progressStatus, ProcessPriorityClass.BelowNormal, true);
                     _progressStatus = _progressStatus.NextSegment();
                 }
                 catch (Exception ex)
                 {
-                    _progressStatus = _progressStatus.ChangeErrorException(ex).ChangeMessage(string.Format(Resources.DdaSearch_Search_failed__0, ex.Message));
+                    _progressStatus = _progressStatus.ChangeErrorException(ex).ChangeMessage(string.Format(DdaSearchResources.DdaSearch_Search_failed__0, ex.Message));
                     _success = false;
+                }
+                finally
+                {
+                    FileEx.SafeDelete(modsFile);
                 }
 
                 if (IsCanceled && !_progressStatus.IsCanceled)
@@ -186,7 +201,6 @@ namespace pwiz.Skyline.Model.DdaSearch
                 _progressStatus = _progressStatus.Complete().ChangeMessage(Resources.DDASearchControl_SearchProgress_Search_done);
             UpdateProgress(_progressStatus);
 
-            FileEx.SafeDelete(modsFile);
             return _success;
         }
 
@@ -194,29 +208,30 @@ namespace pwiz.Skyline.Model.DdaSearch
         {
             /*  # Mass or CompositionStr, Residues, ModType, Position, Name (all the five fields are required).
                 # CompositionStr (C[Num]H[Num]N[Num]O[Num]S[Num]P[Num]Br[Num]Cl[Num]Fe[Num])
-                # 	- C (Carbon), H (Hydrogen), N (Nitrogen), O (Oxygen), S (Sulfur), P (Phosphorus), Br (Bromine), Cl (Chlorine), Fe (Iron), and Se (Selenium) are allowed.
-                # 	- Negative numbers are allowed.
-                # 	- E.g. C2H2O1 (valid), H2C1O1 (invalid) 
+                #   - C (Carbon), H (Hydrogen), N (Nitrogen), O (Oxygen), S (Sulfur), P (Phosphorus), Br (Bromine), Cl (Chlorine), Fe (Iron), and Se (Selenium) are allowed.
+                #   - Negative numbers are allowed.
+                #   - E.g. C2H2O1 (valid), H2C1O1 (invalid) 
                 # Mass can be used instead of CompositionStr. It is important to specify accurate masses (integer masses are insufficient).
-                # 	- E.g. 15.994915 
+                #   - E.g. 15.994915 
                 # Residues: affected amino acids (must be upper letters)
-                # 	- Must be upper letters or *
-                # 	- Use * if this modification is applicable to any residue. 
-                # 	- * should not be "anywhere" modification (e.g. "15.994915, *, opt, any, Oxidation" is not allowed.) 
-                # 	- E.g. NQ, *
+                #   - Must be upper letters or *
+                #   - Use * if this modification is applicable to any residue. 
+                #   - * should not be "anywhere" modification (e.g. "15.994915, *, opt, any, Oxidation" is not allowed.) 
+                #   - E.g. NQ, *
                 # ModType: "fix" for fixed modifications, "opt" for variable modifications, "custom" for custom amino acids (case insensitive)
                 # Position: position in the peptide where the modification can be attached. 
-                # 	- One of the following five values should be used:
-                # 	- any (anywhere), N-term (peptide N-term), C-term (peptide C-term), Prot-N-term (protein N-term), Prot-C-term (protein C-term) 
-                # 	- Case insensitive
-                # 	- "-" can be omitted
-                # 	- E.g. any, Any, Prot-n-Term, ProtNTerm => all valid
+                #   - One of the following five values should be used:
+                #   - any (anywhere), N-term (peptide N-term), C-term (peptide C-term), Prot-N-term (protein N-term), Prot-C-term (protein C-term) 
+                #   - Case insensitive
+                #   - "-" can be omitted
+                #   - E.g. any, Any, Prot-n-Term, ProtNTerm => all valid
                 # Name: name of the modification (Unimod PSI-MS name)
-                # 	- For proper mzIdentML output, this name should be the same as the Unimod PSI-MS name
-                # 	- E.g. Phospho, Acetyl
-                # 	- Visit http://www.unimod.org to get PSI-MS names.
+                #   - For proper mzIdentML output, this name should be the same as the Unimod PSI-MS name
+                #   - E.g. Phospho, Acetyl
+                #   - Visit http://www.unimod.org to get PSI-MS names.
              */
-            using (var modsFileStream = new StreamWriter(modsFile, false))
+            modsText = new StringBuilder();
+            using (var modsFileStream = new StringWriter(modsText))
             {
                 int modCounter = 0;
                 modsFileStream.WriteLine($@"NumMods={maxVariableMods}");
@@ -230,7 +245,7 @@ namespace pwiz.Skyline.Model.DdaSearch
                         continue;
 
                     // can't use mod with no formula or mass; CONSIDER throwing exception
-                    if (mod.LabelAtoms == LabelAtoms.None && mod.Formula == null && mod.MonoisotopicMass == null ||
+                    if (mod.LabelAtoms == LabelAtoms.None && ParsedMolecule.IsNullOrEmpty(mod.ParsedMolecule) && mod.MonoisotopicMass == null ||
                         mod.LabelAtoms != LabelAtoms.None && mod.AAs.IsNullOrEmpty())
                         continue;
 
@@ -265,7 +280,11 @@ namespace pwiz.Skyline.Model.DdaSearch
                         }
                     }
                     else
-                        addMod(mod.Formula ?? mod.MonoisotopicMass.ToString(), mod.AAs ?? @"*");
+                    {
+                        // ReSharper disable once PossibleNullReferenceException
+                        var modString = ParsedMolecule.IsNullOrEmpty(mod.ParsedMolecule) ? null : mod.ParsedMolecule.ToString();
+                        addMod(modString ?? mod.MonoisotopicMass.ToString(), mod.AAs ?? @"*");
+                    }
                 }
             }
         }
@@ -297,7 +316,13 @@ namespace pwiz.Skyline.Model.DdaSearch
             precursorMzTolerance = mzTolerance;
         }
 
+        public override void SetCutoffScore(double cutoffScore)
+        {
+            // Do nothing. MSGF+ does not run percolator or take a cutoff value
+        }
+
         private string[] SupportedExtensions = { @".mzml", @".mzxml", @".mgf", @".ms2" };
+
         public override bool GetSearchFileNeedsConversion(MsDataFileUri searchFilepath, out AbstractDdaConverter.MsdataFileFormat requiredFormat)
         {
             requiredFormat = AbstractDdaConverter.MsdataFileFormat.mzML;

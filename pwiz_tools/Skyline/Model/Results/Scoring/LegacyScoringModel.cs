@@ -17,15 +17,11 @@
  * limitations under the License.
  */
 
-using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Xml;
 using System.Xml.Serialization;
-using pwiz.Common.Collections;
 using pwiz.Common.SystemUtil;
-using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
 
 namespace pwiz.Skyline.Model.Results.Scoring
@@ -33,13 +29,13 @@ namespace pwiz.Skyline.Model.Results.Scoring
     [XmlRoot(@"legacy_peak_scoring_model")]
     public class LegacyScoringModel : PeakScoringModelSpec
     {
-        public static string DEFAULT_NAME { get { return Resources.LegacyScoringModel_DEFAULT_NAME_Default; } } 
+        public static string DEFAULT_NAME { get { return ScoringResources.LegacyScoringModel_DEFAULT_NAME_Default; } } 
 
         public static readonly double[] DEFAULT_WEIGHTS = {W0, W1, W2, W3, W4, W5, W6};
 
         public static LinearModelParams DEFAULT_PARAMS { get { return new LinearModelParams(DEFAULT_WEIGHTS); } }
 
-        public static readonly LegacyScoringModel DEFAULT_MODEL = new DefaultScoringModel();
+        public static readonly LegacyScoringModel DEFAULT_MODEL = new LegacyScoringModel(DEFAULT_NAME, DEFAULT_PARAMS);
 
         // Special placeholder model to use as the default.  It's "untrained", so it will never be persisted, but when
         // it needs to be used, "DEFAULT_MODEL" gets used instead.
@@ -68,7 +64,7 @@ namespace pwiz.Skyline.Model.Results.Scoring
                 W2*identifiedCount;
         }
 
-        private ImmutableList<IPeakFeatureCalculator> _calculators;
+        private FeatureCalculators _calculators;
 
         public LegacyScoringModel(string name, LinearModelParams parameters = null, bool usesDecoys = true, bool usesSecondBest = false) : base(name)
         {
@@ -79,26 +75,26 @@ namespace pwiz.Skyline.Model.Results.Scoring
             UsesSecondBest = usesSecondBest;
         }
 
-        public override IList<IPeakFeatureCalculator> PeakFeatureCalculators
+        public override FeatureCalculators PeakFeatureCalculators
         {
             get { return _calculators; }
         }
 
         private void SetPeakFeatureCalculators()
         {
-            _calculators = MakeReadOnly(new IPeakFeatureCalculator[]
-                {
-                    new MQuestDefaultIntensityCalc(), 
-                    new LegacyUnforcedCountScoreDefaultCalc(), 
-                    new LegacyIdentifiedCountCalc(),
-                    new MQuestDefaultIntensityCorrelationCalc(),
-                    new MQuestDefaultWeightedShapeCalc(),
-                    new MQuestDefaultWeightedCoElutionCalc(),
-                    new MQuestRetentionTimePredictionCalc(), 
-                });
+            _calculators = new FeatureCalculators(new IPeakFeatureCalculator[]
+            {
+                new MQuestDefaultIntensityCalc(),
+                new LegacyUnforcedCountScoreDefaultCalc(),
+                new LegacyIdentifiedCountCalc(),
+                new MQuestDefaultIntensityCorrelationCalc(),
+                new MQuestDefaultWeightedShapeCalc(),
+                new MQuestDefaultWeightedCoElutionCalc(),
+                new MQuestRetentionTimePredictionCalc(),
+            });
         }
 
-        public static IPeakFeatureCalculator[] AnalyteFeatureCalculators =
+        public static FeatureCalculators AnalyteFeatureCalculators = new FeatureCalculators(new IPeakFeatureCalculator[]
         {
             new MQuestIntensityCalc(),
             new LegacyUnforcedCountScoreCalc(),
@@ -107,9 +103,9 @@ namespace pwiz.Skyline.Model.Results.Scoring
             new MQuestWeightedShapeCalc(),
             new MQuestWeightedCoElutionCalc(),
             new MQuestRetentionTimePredictionCalc(),
-        };
+        });
 
-        public static IPeakFeatureCalculator[] StandardFeatureCalculators =
+        public static FeatureCalculators StandardFeatureCalculators = new FeatureCalculators(new IPeakFeatureCalculator[]
         {
             new MQuestStandardIntensityCalc(),
             new LegacyUnforcedCountScoreStandardCalc(),
@@ -118,9 +114,9 @@ namespace pwiz.Skyline.Model.Results.Scoring
             new MQuestStandardWeightedShapeCalc(),
             new MQuestStandardWeightedCoElutionCalc(),
             new MQuestRetentionTimePredictionCalc(),
-        };
+        });
 
-        public override IPeakScoringModel Train(IList<IList<float[]>> targets, IList<IList<float[]>> decoys, TargetDecoyGenerator targetDecoyGenerator, LinearModelParams initParameters,
+        public override IPeakScoringModel Train(IList<IList<FeatureScores>> targets, IList<IList<FeatureScores>> decoys, TargetDecoyGenerator targetDecoyGenerator, LinearModelParams initParameters,
             IList<double> cutoffs, int? iterations = null, bool includeSecondBest = false, bool preTrain = true, IProgressMonitor progressMonitor = null, string documentPath = null)
         {
             return ChangeProp(ImClone(this), im =>
@@ -134,7 +130,7 @@ namespace pwiz.Skyline.Model.Results.Scoring
                     var parameters = new LinearModelParams(weights);
                     ScoredGroupPeaksSet decoyTransitionGroups = new ScoredGroupPeaksSet(decoys, decoys.Count);
                     ScoredGroupPeaksSet targetTransitionGroups = new ScoredGroupPeaksSet(targets, targets.Count);
-                    targetTransitionGroups.ScorePeaks(parameters.Weights);
+                    targetTransitionGroups.ScorePeaks(parameters.Weights, ReplaceUnknownFeatureScores);
 
                     if (includeSecondBest)
                     {
@@ -145,13 +141,15 @@ namespace pwiz.Skyline.Model.Results.Scoring
                             decoyTransitionGroups.Add(secondBestGroup);
                         }
                     }
-                    decoyTransitionGroups.ScorePeaks(parameters.Weights);
+                    decoyTransitionGroups.ScorePeaks(parameters.Weights, ReplaceUnknownFeatureScores);
                     im.UsesDecoys = decoys.Count > 0;
                     im.UsesSecondBest = includeSecondBest;
                     im.Parameters = parameters.RescaleParameters(decoyTransitionGroups.Mean, decoyTransitionGroups.Stdev);
                     im.Parameters = im.Parameters.CalculatePercentContributions(im, targetDecoyGenerator);
             });
         }
+
+        public override bool ReplaceUnknownFeatureScores => true;
 
         #region object overrides
 
@@ -205,7 +203,7 @@ namespace pwiz.Skyline.Model.Results.Scoring
                 for (int i = 0; i < calculators.Count; i++)
                 {
                     if (calculators[i].Type != PeakFeatureCalculators[i].GetType())
-                        throw new InvalidDataException(Resources.LegacyScoringModel_ReadXml_Invalid_legacy_model_);
+                        throw new InvalidDataException(ScoringResources.LegacyScoringModel_ReadXml_Invalid_legacy_model_);
                     weights[i] = calculators[i].Weight;
                 }
                 Parameters = new LinearModelParams(weights, bias);
@@ -243,48 +241,11 @@ namespace pwiz.Skyline.Model.Results.Scoring
         private void DoValidate()
         {
             if (!string.Equals(Name, DEFAULT_NAME) && Parameters == null)
-                throw new InvalidDataException(Resources.LegacyScoringModel_DoValidate_Legacy_scoring_model_is_not_trained_);
+                throw new InvalidDataException(ScoringResources.LegacyScoringModel_DoValidate_Legacy_scoring_model_is_not_trained_);
             if (Parameters != null && Parameters.Weights != null && Parameters.Weights.Count < 1)
-                throw new InvalidDataException(Resources.MProphetPeakScoringModel_DoValidate_MProphetPeakScoringModel_requires_at_least_one_peak_feature_calculator_with_a_weight_value);
+                throw new InvalidDataException(ScoringResources.MProphetPeakScoringModel_DoValidate_MProphetPeakScoringModel_requires_at_least_one_peak_feature_calculator_with_a_weight_value);
         }
 
         #endregion
-
-        /// <summary>
-        /// Special type of scoring model which is tolerant of missing features.
-        /// This is the scoring model which gets used by PeptideChromDataPeakList.ScorePeptideSets.
-        /// If any features are missing (NaN), they get replaced with zero before scoring.
-        /// </summary>
-        private class DefaultScoringModel : LegacyScoringModel
-        {
-            public DefaultScoringModel() : base(DEFAULT_NAME, DEFAULT_PARAMS)
-            {
-            }
-
-            public override double Score(IList<float> features)
-            {
-                if (features.Any(float.IsNaN))
-                {
-                    // Replace any NaN's with 0 so that we behave the same as PeptideChromDataPeakList.ScorePeptideSets
-                    features = features.Select(feature => float.IsNaN(feature) ? 0 : feature).ToArray();
-                }
-                return base.Score(features);
-            }
-
-            public override string ScoreText(IList<float> features)
-            {
-                if (features.Any(float.IsNaN))
-                {
-                    // Replace any NaN's with 0 so that we behave the same as PeptideChromDataPeakList.ScorePeptideSets
-                    features = features.Select(feature => float.IsNaN(feature) ? 0 : feature).ToArray();
-                }
-                return base.ScoreText(features);
-            }
-
-            public override void WriteXml(XmlWriter writer)
-            {
-                throw new InvalidOperationException();
-            }
-        }
     }
 }

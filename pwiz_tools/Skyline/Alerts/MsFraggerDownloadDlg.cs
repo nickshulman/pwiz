@@ -26,7 +26,6 @@ using System.Windows.Forms;
 using Ionic.Zip;
 using pwiz.Skyline.Controls;
 using pwiz.Skyline.Model.DdaSearch;
-using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
 using pwiz.Skyline.Util.Extensions;
 
@@ -103,13 +102,14 @@ namespace pwiz.Skyline.Alerts
 
         public void Download()
         {
-            using (var downloadProgressDlg = new LongWaitDlg { Message = string.Format(Resources.MsFraggerDownloadDlg_Download_Downloading_MSFragger__0_, MsFraggerSearchEngine.MSFRAGGER_VERSION) })
+            using (var downloadProgressDlg = new LongWaitDlg())
             {
+                downloadProgressDlg.Message = string.Format(AlertsResources.MsFraggerDownloadDlg_Download_Downloading_MSFragger__0_, MsFraggerSearchEngine.MSFRAGGER_VERSION);
                 if (Program.FunctionalTest && !Program.UseOriginalURLs)
                 {
                     var msFraggerDownloadInfo = MsFraggerSearchEngine.MsFraggerDownloadInfo;
                     msFraggerDownloadInfo.DownloadUrl = DOWNLOAD_URL_FOR_FUNCTIONAL_TESTS;
-                    downloadProgressDlg.PerformWork(this, 50, () => SimpleFileDownloader.DownloadRequiredFiles(new[] { msFraggerDownloadInfo }, downloadProgressDlg));
+                    downloadProgressDlg.PerformWork(this, 50, pm => SimpleFileDownloader.DownloadRequiredFiles(new[] { msFraggerDownloadInfo }, pm));
                     return;
                 }
 
@@ -121,12 +121,15 @@ namespace pwiz.Skyline.Alerts
                     {
                         var postData = new NameValueCollection();
                         postData[@"transfer"] = @"academic";
-                        postData[@"agreement2"] = @"true";
-                        postData[@"agreement3"] = @"true";
+                        postData[@"agreement1"] = @"on";
+                        postData[@"agreement2"] = @"on";
+                        postData[@"agreement3"] = @"on";
                         postData[@"name"] = tbName.Text;
                         postData[@"email"] = tbEmail.Text;
                         postData[@"organization"] = tbInstitution.Text;
                         postData[@"download"] = $@"Release {MsFraggerSearchEngine.MSFRAGGER_VERSION}$zip";
+                        if (cbReceiveUpdateEmails.Checked)
+                            postData[@"receive_email"] = @"on";
 
                         // temporarily disable Expect100Continue to avoid (417) Expectation Failed
                         bool lastExpect100ContinueValue = ServicePointManager.Expect100Continue;

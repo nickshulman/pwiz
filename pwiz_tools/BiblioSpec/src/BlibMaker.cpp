@@ -29,6 +29,7 @@
 #include <boost/log/detail/snprintf.hpp>
 #include "SmallMolMetadata.h"
 #include <boost/algorithm/string/classification.hpp>
+#include <boost/algorithm/string.hpp>
 
 namespace BiblioSpec {
 
@@ -44,6 +45,7 @@ BlibMaker::BlibMaker(void)
 : message(ERROR_GENERIC)
 {
     db = NULL;
+    scoreLookupMode_ = false;
     lib_name = NULL;
     lib_id = NULL;
     authority = "proteome.gs.washington.edu";
@@ -75,15 +77,17 @@ int BlibMaker::parseCommandArgs(int argc, char* argv[])
         else
             i = parseNextSwitch(i, argc, argv);
     }
-    
-    // Must at least have the library name left
-    if (argc - i < 1)
-        usage();
-    
-    lib_name = argv[argc - 1];
-    if (lib_id == NULL)
-        lib_id = libIdFromName(lib_name);
-    
+
+    if (!isScoreLookupMode()) {
+        // Must at least have the library name left
+        if (argc - i < 1)
+            usage();
+
+        lib_name = argv[argc - 1];
+        if (lib_id == NULL)
+            lib_id = libIdFromName(lib_name);
+    }
+
     return i;
 }
 
@@ -125,6 +129,23 @@ int BlibMaker::parseNextSwitch(int i, int argc, char* argv[])
             fout.close();
         }
         exit(0);
+    } else if (switchName == 't') {
+        scoreLookupMode_ = true;
+    }
+    else if (switchName == 'z' && ++i < argc) {
+        string charges(argv[i]);
+        vector<string> result;
+        boost::split(result, charges, boost::is_any_of(","));
+        for (int c = 0; c < result.size(); c++) {
+            int z;
+            try {
+                z = boost::lexical_cast<int>(result[c]);
+                precursorCharges_.insert(z);
+            }
+            catch (bad_lexical_cast) {
+                throw BlibException(true, "the -z argument '%s' was not understood, expected a list of charges like \"2,3\" or \"1,2,4\" etc", charges.c_str());
+            }
+        }
     } else {
         usage();
     }
@@ -132,8 +153,28 @@ int BlibMaker::parseNextSwitch(int i, int argc, char* argv[])
     return min(argc, i + 1);
 }
 
+void BlibMaker::verifyFileExists(string file) {
+    if (!bfs::exists(file)) {
+        throw BlibException(true, "Library file '%s' cannot be opened: file does not exist", bfs::absolute(file).string().c_str());
+    }
+    ifstream test(file);
+    if (!test) {
+        throw BlibException(true, "Library file '%s' cannot be opened", file.c_str());
+    }
+}
+
+void BlibMaker::openDb(const char* file) {
+    if (sqlite3_open(file, &db) != SQLITE_OK){
+        Verbosity::error("Failed to create '%s'. Make sure the directory exists with write permissions.", file);
+    }
+}
+
 void BlibMaker::init()
 {
+    if (scoreLookupMode_) {
+        return;
+    }
+
     // Check whether library already exists
     ifstream libName(lib_name);
     if(!libName.good()) {
@@ -160,11 +201,7 @@ void BlibMaker::init()
     if(libName.is_open())
         libName.close();
     
-    if (sqlite3_open(lib_name, &db) != SQLITE_OK)
-    {
-        Verbosity::error("Failed to create '%s'. Make sure the directory "
-                         "exists with write permissions.", lib_name);
-    }
+    openDb(lib_name);
     
     message = "Failed to initialize ";
     message += lib_name;
@@ -1036,6 +1073,9 @@ int BlibMaker::addFile(const string& specFile, double cutoffScore, const string&
 void BlibMaker::insertPeaks(int spectraID, int levelCompress, int peaksCount, 
                             double* pM, float* pI)
 {
+    if (peaksCount == 0)
+        return;
+
     const uLong sizeM = (uLong) peaksCount*sizeof(double);
     const uLong sizeI = (uLong) peaksCount*sizeof(float);
 

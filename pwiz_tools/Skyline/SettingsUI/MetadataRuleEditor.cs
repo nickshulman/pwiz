@@ -42,10 +42,10 @@ namespace pwiz.Skyline.SettingsUI
         private SkylineDataSchema _dataSchema;
         private MetadataExtractor _metadataExtractor;
 
-        public MetadataRuleEditor(IDocumentContainer documentContainer)
+        public MetadataRuleEditor(SrmDocument document)
         {
             InitializeComponent();
-            _dataSchema = new SkylineDataSchema(documentContainer, SkylineDataSchema.GetLocalizedSchemaLocalizer());
+            _dataSchema = SkylineDataSchema.MemoryDataSchema(document, SkylineDataSchema.GetLocalizedSchemaLocalizer());
             var rootColumn = ColumnDescriptor.RootColumn(_dataSchema, typeof(ResultFile));
             var viewContext =
                 new SkylineViewContext(rootColumn, new StaticRowSource(new ExtractedMetadataResultRow[0]));
@@ -270,7 +270,7 @@ namespace pwiz.Skyline.SettingsUI
                 catch (Exception)
                 {
                     helper.ShowTextBoxError(tbxRegularExpression,
-                        string.Format(Resources.MetadataRuleStepEditor_OkDialog__0__must_either_be_a_valid_regular_expression_or_blank, tbxRegularExpression.Text));
+                        string.Format(SettingsUIResources.MetadataRuleStepEditor_OkDialog__0__must_either_be_a_valid_regular_expression_or_blank, tbxRegularExpression.Text));
                     return;
                 }
             }

@@ -21,13 +21,11 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
-using System.Linq;
 using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.DocSettings.Extensions;
 using pwiz.Skyline.Model.Results;
 using pwiz.Skyline.Model.Results.Scoring;
-using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
 using pwiz.Skyline.Util.Extensions;
 
@@ -42,7 +40,7 @@ namespace pwiz.Skyline.Model
     public class MProphetResultsHandler
     {
         private double[] _qValues;
-        private readonly IList<IPeakFeatureCalculator> _calcs;
+        private readonly FeatureCalculators _calcs;
         private PeakTransitionGroupFeatureSet _features;
 
         private readonly Dictionary<PeakTransitionGroupIdKey, PeakFeatureStatistics> _featureDictionary;
@@ -60,7 +58,7 @@ namespace pwiz.Skyline.Model
             ScoringModel = scoringModel;
             _calcs = ScoringModel != null
                 ? ScoringModel.PeakFeatureCalculators
-                : PeakFeatureCalculator.Calculators.ToArray();
+                : FeatureCalculators.ALL;
             _features = features;
             _featureDictionary = new Dictionary<PeakTransitionGroupIdKey, PeakFeatureStatistics>();
 
@@ -86,9 +84,9 @@ namespace pwiz.Skyline.Model
         /// </summary>
         public bool FreeImmutableMemory { get; set; }
 
-        public PeakFeatureStatistics GetPeakFeatureStatistics(int pepIndex, int fileIndex)
+        public PeakFeatureStatistics GetPeakFeatureStatistics(Peptide peptide, ChromFileInfoId fileId)
         {
-            var key = new PeakTransitionGroupIdKey(pepIndex, fileIndex);
+            var key = new PeakTransitionGroupIdKey(peptide, fileId);
             PeakFeatureStatistics peakStatistics;
             if (_featureDictionary.TryGetValue(key, out peakStatistics))
             {
@@ -170,12 +168,12 @@ namespace pwiz.Skyline.Model
         public SrmDocument ChangePeaks(IProgressMonitor progressMonitor = null)
         {
             var settingsChangeMonitor = progressMonitor != null
-                ? new SrmSettingsChangeMonitor(progressMonitor, Resources.MProphetResultsHandler_ChangePeaks_Adjusting_peak_boundaries)
+                ? new SrmSettingsChangeMonitor(progressMonitor, ModelResources.MProphetResultsHandler_ChangePeaks_Adjusting_peak_boundaries)
                 : null;
             using (settingsChangeMonitor)
             {
-                var settingsNew = Document.Settings.ChangePeptideIntegration(integraion =>
-                    integraion.ChangeResultsHandler(this));
+                var settingsNew = Document.Settings.ChangePeptideIntegration(integration =>
+                    integration.ChangeResultsHandler(this));
                 // Only update the document if anything has changed
                 var docNew = Document.ChangeSettings(settingsNew, settingsChangeMonitor);
                 if (!Equals(docNew.Settings.PeptideSettings.Integration, Document.Settings.PeptideSettings.Integration) ||
@@ -189,7 +187,7 @@ namespace pwiz.Skyline.Model
 
         public void WriteScores(TextWriter writer,
             CultureInfo cultureInfo,
-            IList<IPeakFeatureCalculator> calcs = null,
+            FeatureCalculators calcs = null,
             bool bestOnly = true,
             bool includeDecoys = true,
             IProgressMonitor progressMonitor = null)
@@ -336,6 +334,12 @@ namespace pwiz.Skyline.Model
         {
             return float.IsNaN(f) ? TextUtil.EXCEL_NA : Convert.ToString(f, cultureInfo);
         }
+
+        public ReintegrateDlgSettings GetReintegrateDlgSettings()
+        {
+            return new ReintegrateDlgSettings(ScoringModel, QValueCutoff == double.MaxValue,
+                QValueCutoff != double.MaxValue, QValueCutoff, OverrideManual);
+        }
     }
 
     public class PeakFeatureStatistics
@@ -345,11 +349,11 @@ namespace pwiz.Skyline.Model
         {
             MprophetScores = mprophetScores;    // May only be present for writing features
             PValues = pvalues;
-            // Don't hold onto the features, because they hold a lot of memory
             BestPeakIndex = features.PeakGroupFeatures[bestScoreIndex].OriginalPeakIndex;
             BestScoreIndex = bestScoreIndex;
             BestScore = bestScore;
             QValue = qValue;
+            BestFeatureScores = features.PeakGroupFeatures[bestScoreIndex].FeatureScores;
         }
 
         public IList<float> MprophetScores { get; private set; }
@@ -358,5 +362,6 @@ namespace pwiz.Skyline.Model
         public int BestScoreIndex { get; private set; }
         public float BestScore { get; private set; }
         public float? QValue { get; internal set; }
+        public FeatureScores BestFeatureScores { get; }
     }
 }

@@ -32,8 +32,8 @@ using pwiz.Skyline.Controls.SeqNode;
 using pwiz.Skyline.Model;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.Lib;
-using pwiz.Skyline.Model.Prosit;
-using pwiz.Skyline.Model.Prosit.Models;
+using pwiz.Skyline.Model.Koina;
+using pwiz.Skyline.Model.Koina.Models;
 using pwiz.Skyline.Model.Results;
 using pwiz.Skyline.Model.Results.Crawdad;
 using pwiz.Skyline.Model.Themes;
@@ -41,6 +41,7 @@ using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
 using pwiz.Skyline.Util.Extensions;
 using ZedGraph;
+using Timer = System.Windows.Forms.Timer;
 
 namespace pwiz.Skyline.Controls.Graphs
 {
@@ -67,6 +68,9 @@ namespace pwiz.Skyline.Controls.Graphs
         event EventHandler<ZoomEventArgs> ZoomEvent;
         SpectrumControlType ControlType { get; }
         bool IsAnnotated { get; }
+        LibraryRankedSpectrumInfo SpectrumInfo { get; }
+        bool ShowPropertiesSheet { get; set; }
+        bool HasChromatogramData { get; }
     }
 
     public interface ISpectrumScaleProvider
@@ -74,7 +78,7 @@ namespace pwiz.Skyline.Controls.Graphs
         MzRange GetMzRange(SpectrumControlType controlType);
     }
     
-    public partial class GraphSpectrum : DockableFormEx, IGraphContainer, IMzScalePlot
+    public partial class GraphSpectrum : DockableFormEx, IGraphContainer, IMzScalePlot, IMenuControlImplementer
     {
 
         private static readonly double YMAX_SCALE = 1.25;
@@ -83,6 +87,8 @@ namespace pwiz.Skyline.Controls.Graphs
         {
             TreeNodeMS SelectedNode { get; }
             IList<IonType> ShowIonTypes(bool isProteomic);
+
+            IList<string> ShowLosses();
 
             // N.B. we're interested in the absolute value of charge here, so output list 
             // may be shorter than input list
@@ -104,6 +110,12 @@ namespace pwiz.Skyline.Controls.Graphs
                 return isProteomic ? new[] { IonType.y } :  new[] { IonType.custom }; 
             }
 
+            public IList<string> ShowLosses()
+            {
+                return null;
+            }
+
+
             public IList<int> ShowIonCharges(IEnumerable<Adduct> adductPriority)
             {
                 return Adduct.OrderedAbsoluteChargeValues(adductPriority).ToList();
@@ -121,20 +133,27 @@ namespace pwiz.Skyline.Controls.Graphs
 
         private readonly IDocumentUIContainer _documentContainer;
         private readonly IStateProvider _stateProvider;
+        private readonly UpdateManager _updateManager;
         private TransitionGroupDocNode _nodeGroup;
-        private IList<SpectrumDisplayInfo> _spectra;
+
+        private ImmutableList<Precursor> Precursors => _updateManager.Precursors;
+        private int PrecursorCount => Precursors?.Count ?? 0;
 
         private SpectrumDisplayInfo _mirrorSpectrum;
         private SpectrumDisplayInfo _spectrum;
+                
 
         private bool _inToolbarUpdate;
         // TODO
         // private object _spectrumKeySave;
         private readonly GraphHelper _graphHelper;
+        private MSGraphControl graphControl => msGraphExtension.Graph;
 
         public GraphSpectrum(IDocumentUIContainer documentUIContainer)
         {
             InitializeComponent();
+            graphControl.ContextMenuBuilder += graphControl_ContextMenuBuilder;
+            msGraphExtension.PropertiesSheetVisibilityChanged += msGraphExtension_PropertiesSheetVisibilityChanged;
 
             Icon = Resources.SkylineData;
             _graphHelper = GraphHelper.Attach(graphControl);
@@ -142,6 +161,11 @@ namespace pwiz.Skyline.Controls.Graphs
             _documentContainer.ListenUI(OnDocumentUIChanged);
             _stateProvider = documentUIContainer as IStateProvider ??
                              new DefaultStateProvider();
+            _updateManager = new UpdateManager(this);
+
+            // ReSharper disable once PossibleNullReferenceException
+            comboPrecursor.ComboBox.DisplayMember = nameof(Precursor.DisplayString);
+            msGraphExtension.RestorePropertiesSheet();
 
             if (DocumentUI != null)
                 ZoomSpectrumToSettings();
@@ -177,15 +201,10 @@ namespace pwiz.Skyline.Controls.Graphs
 
         public bool HasSpectrum { get { return GraphItem != null; }}
 
-        public TransitionGroupDocNode Precursor
-        {
-            get { return GraphItem.TransitionGroupNode; }
-        }
-
         /// <summary>
-        /// Normalized collisition energy for Prosit
+        /// Normalized collisition energy for Koina
         /// </summary>
-        public int PrositNCE
+        public int KoinaNCE
         {
             get { return (int) comboCE.SelectedItem; }
             set { comboCE.SelectedItem = value; }
@@ -195,6 +214,8 @@ namespace pwiz.Skyline.Controls.Graphs
         {
             get { return toolBar.Visible; }
         }
+
+        public bool PrecursorComboVisible => comboPrecursor.Visible;
 
         public bool NCEVisible
         {
@@ -215,6 +236,8 @@ namespace pwiz.Skyline.Controls.Graphs
                 return GraphPane.CurveList[0].Label.Text;
             }
         }
+
+        public bool IsGraphUpdatePending => _updateManager.IsUpdating;
 
         public string LibraryName
         {
@@ -271,6 +294,17 @@ namespace pwiz.Skyline.Controls.Graphs
 
         public void OnDocumentUIChanged(object sender, DocumentChangedEventArgs e)
         {
+            if (e.DocumentPrevious != null && !ReferenceEquals(
+                    DocumentUI.Settings.PeptideSettings.Modifications.StaticModifications,
+                    e.DocumentPrevious.Settings.PeptideSettings.Modifications.StaticModifications))
+            {
+                var newMods = DocumentUI.Settings.PeptideSettings.Modifications.StaticModsLosses;
+                var oldMods = e.DocumentPrevious.Settings.PeptideSettings.Modifications.StaticModsLosses;
+                var addedMods = newMods.ToList().FindAll(newMod => !oldMods.Contains(newMod)).ToList();
+                if (addedMods.Any())
+                    Settings.Default.ShowLosses = Settings.Default.ShowLosses + @"," + addedMods.ToString(@",");
+            }
+
             // If document changed, update spectrum x scale to instrument
             // Or if library settings changed, show new ranks etc
             if (e.DocumentPrevious == null ||
@@ -281,7 +315,8 @@ namespace pwiz.Skyline.Controls.Graphs
                                  e.DocumentPrevious.Settings.PeptideSettings.Libraries.Libraries))
             {
                 ZoomSpectrumToSettings();
-                _spectra = null;
+                Settings.Default.ShowLosses = DocumentUI.Settings.PeptideSettings.Modifications.StaticModsLosses.ToString(@",");
+                _updateManager.ClearPrecursors();
                 UpdateUI();
             }
         }
@@ -333,16 +368,22 @@ namespace pwiz.Skyline.Controls.Graphs
             {
                 var maxIntensity = 0.0;
 
-                if (DisplayedSpectrum != null)
+                var hasDisplayedSpectrumValues = DisplayedSpectrum != null && DisplayedSpectrum.Intensities.Any();
+                if (hasDisplayedSpectrumValues)
                     maxIntensity = DisplayedSpectrum.Intensities.Max();
 
-                if (DisplayedMirrorSpectrum != null)
+                var hasDisplayedMirrorSpectrumValues = DisplayedMirrorSpectrum != null && DisplayedMirrorSpectrum.Intensities.Any();
+                if (hasDisplayedMirrorSpectrumValues)
                     maxIntensity = Math.Max(maxIntensity, DisplayedMirrorSpectrum.Intensities.Max());
-
+                if (maxIntensity == 0)
+                {
+                    // Prevent Scale.Max and Scale.Min being set to the same value because it makes the entire chart disappear
+                    maxIntensity = 1;
+                }
                 maxIntensity *= YMAX_SCALE;
 
-                GraphPane.YAxis.Scale.Max = DisplayedSpectrum == null ? 0.0 : maxIntensity;
-                GraphPane.YAxis.Scale.Min = DisplayedMirrorSpectrum == null ? 0.0 : -maxIntensity;
+                GraphPane.YAxis.Scale.Max = maxIntensity;
+                GraphPane.YAxis.Scale.Min = !hasDisplayedMirrorSpectrumValues ? 0.0 : -maxIntensity;
             }
 
             graphControl.Refresh();
@@ -353,10 +394,13 @@ namespace pwiz.Skyline.Controls.Graphs
             UpdateUI();
         }
 
-        private bool NodeGroupChanged(TransitionGroupDocNode nodeGroup)
+        private void propertiesMenuItem_Click(object sender, EventArgs e)
         {
-            return (_nodeGroup == null) ||
-                   (!ReferenceEquals(_nodeGroup.Id, nodeGroup.Id));
+            ShowPropertiesSheet = !ShowPropertiesSheet;
+        }
+        private void msGraphExtension_PropertiesSheetVisibilityChanged(object sender, EventArgs e)
+        {
+            propertiesButton.Checked = ShowPropertiesSheet;
         }
 
         private class ToolbarUpdate : IDisposable
@@ -377,130 +421,139 @@ namespace pwiz.Skyline.Controls.Graphs
 
         private bool IsNotSmallMolecule => _nodeGroup == null || !_nodeGroup.IsCustomIon;
 
-        private bool UsingProsit => Settings.Default.Prosit && IsNotSmallMolecule;
+        private bool UsingKoina => Settings.Default.Koina && IsNotSmallMolecule;
 
         private void UpdateToolbar()
         {
-            if ((_spectra == null || _spectra.Count < 2) && !UsingProsit)
+            var selectedPrecursor = comboPrecursor.SelectedItem;
+            var selectedPrecursorIndex = comboPrecursor.SelectedIndex;
+            var selectedSpectrum = comboSpectrum.SelectedItem;
+            var selectedSpectrumIndex = comboSpectrum.SelectedIndex;
+            var selectedMirror = comboMirrorSpectrum.SelectedItem;
+
+            var showPrecursorSelect = PrecursorCount > 1;
+            comboPrecursor.Visible = labelPrecursor.Visible = showPrecursorSelect;
+            if (!ArrayUtil.ReferencesEqual(_updateManager.Precursors, comboPrecursor.Items.Cast<Precursor>().ToArray()))
             {
-                toolBar.Visible = false;
-            }
-            else
-            {
-                var showMirror = !UsingProsit && Settings.Default.LibMatchMirror;
-                var showSpectraSelect = (_spectra != null && _spectra.Count >= 2) &&
-                                        (!UsingProsit || Settings.Default.LibMatchMirror);
-                if (showSpectraSelect)
+                using (new ToolbarUpdate(this))
                 {
-                    comboMirrorSpectrum.Visible = showMirror;
-                    mirrorLabel.Visible = showMirror;
-                    comboSpectrum.Visible = true;
-                    labelSpectrum.Visible = true;
-                }
-                else
-                {
-                    comboSpectrum.Visible = false;
-                    labelSpectrum.Visible = false;
-                    comboMirrorSpectrum.Visible = false;
-                    mirrorLabel.Visible = false;
-                }
+                    comboPrecursor.Items.Clear();
+                    if (_updateManager.Precursors != null)
+                        comboPrecursor.Items.AddRange(_updateManager.Precursors.ToArray());
 
-                // We still need to do this, even if we hide those items,
-                // since other code relies on the combo box selection being right
-
-                if (_spectra != null)
-                {
-                    // Check to see if the list of files has changed.
-                    var listNames = _spectra.Select(spectrum => spectrum.Identity).ToArray();
-                    var listExisting = new List<string>();
-                    foreach (var item in comboSpectrum.Items)
-                        listExisting.Add(item.ToString());
-
-                    if (!ArrayUtil.EqualsDeep(listNames, listExisting)) {
-                        // If it has, update the list, trying to maintain selection, if possible.
-                        object selected = comboSpectrum.SelectedItem;
-                        // Unless the current selected index is the one matching the one currently
-                        // in use by the precursor (zero), then try to stay viewing the in-use spectrum (zero)
-                        int selectedIndex = comboSpectrum.SelectedIndex;
-                        object selectedMirror = comboMirrorSpectrum.SelectedItem;
-
-                        using (new ToolbarUpdate(this))
-                        {
-                            comboSpectrum.Items.Clear();
-                            comboMirrorSpectrum.Items.Clear();
-                            comboMirrorSpectrum.Items.Add(string.Empty); // No mirror
-                            foreach (string name in listNames)
-                            {
-                                comboSpectrum.Items.Add(name);
-                                comboMirrorSpectrum.Items.Add(name);
-                            }
-
-                            if (selectedIndex == 0 || selected == null ||
-                                comboSpectrum.Items.IndexOf(selected) == -1)
-                            {
-                                comboSpectrum.SelectedIndex = 0;
-                            }
-                            else
-                            {
-                                comboSpectrum.SelectedItem = selected;
-                            }
-
-                            if (selectedMirror != null && comboMirrorSpectrum.Items.IndexOf(selectedMirror) != -1)
-                            {
-                                comboMirrorSpectrum.SelectedItem = selectedMirror;
-                            }
-                        }
-
-                        ComboHelper.AutoSizeDropDown(comboSpectrum);
-                        ComboHelper.AutoSizeDropDown(comboMirrorSpectrum);
-                    }
-                }
-
-                var enableCE = false;
-                // Update CE toolbar
-                if (UsingProsit)
-                {
-                    var ces = Enumerable.Range(PrositConstants.MIN_NCE, PrositConstants.MAX_NCE - PrositConstants.MIN_NCE + 1).ToArray();
-
-                    using (var _ = new ToolbarUpdate(this))
+                    if (selectedPrecursorIndex == 0 || selectedPrecursor == null || comboPrecursor.Items.IndexOf(selectedPrecursor) == -1)
                     {
-                        // TODO: figure out better way with _inToolBarUpdate
-                        // Not a great way of doing this, but we need to ensure that we don't get into
-                        // an infinite recursion
-                        if (!comboCE.Items.Cast<int>().SequenceEqual(ces) || (int)comboCE.SelectedItem !=
-                            Settings.Default.PrositNCE)
-                        {
-                            comboCE.Items.Clear();
-                            comboCE.Items.AddRange(ces.Select(c => (object)c).ToArray());
-
-                            comboCE.SelectedItem = Settings.Default.PrositNCE;
-                        }
+                        if (comboPrecursor.Items.Count > 0)
+                            comboPrecursor.SelectedIndex = 0;
+                    }
+                    else
+                    {
+                        comboPrecursor.SelectedItem = selectedPrecursor;
                     }
 
-                    enableCE = true;
-
-                    ComboHelper.AutoSizeDropDown(comboCE);
+                    if (!Equals(selectedPrecursor, comboPrecursor.SelectedItem))
+                    {
+                        comboSpectrum.Items.Clear();
+                        comboMirrorSpectrum.Items.Clear();
+                        selectedSpectrum = null;
+                        selectedSpectrumIndex = -1;
+                        selectedMirror = null;
+                    }
                 }
 
-                comboCE.Visible = enableCE;
-                ceLabel.Visible = enableCE;
-
-                // Show only if we made any of the things visible
-                toolBar.Visible = showSpectraSelect || enableCE;
+                ComboHelper.AutoSizeDropDown(comboPrecursor);
             }
-            FireSelectedSpectrumChanged(false);
+
+            var thisSpectra = SelectedPrecursor?.Spectra ?? ImmutableList<SpectrumDisplayInfo>.EMPTY;
+
+            var showMirror = !UsingKoina && Settings.Default.LibMatchMirror;
+            var showSpectraSelect = thisSpectra.Count > 1 && (!UsingKoina || Settings.Default.LibMatchMirror);
+            comboMirrorSpectrum.Visible = mirrorLabel.Visible = showSpectraSelect && showMirror;
+            comboSpectrum.Visible = labelSpectrum.Visible = showSpectraSelect;
+
+            // Check to see if the list of spectra has changed.
+            var spectraStrings = thisSpectra.Select(spectrum => spectrum.Identity).ToArray();
+            if (!spectraStrings.SequenceEqual(from object item in comboSpectrum.Items select item.ToString()))
+            {
+                using (new ToolbarUpdate(this))
+                {
+                    comboSpectrum.Items.Clear();
+                    comboSpectrum.Items.AddRange(spectraStrings);
+                    comboMirrorSpectrum.Items.Clear();
+                    comboMirrorSpectrum.Items.Add(string.Empty); // No mirror
+                    comboMirrorSpectrum.Items.AddRange(spectraStrings);
+
+                    if (selectedSpectrumIndex == 0 || selectedSpectrum == null || comboSpectrum.Items.IndexOf(selectedSpectrum) == -1)
+                    {
+                        if (comboSpectrum.Items.Count > 0)
+                            comboSpectrum.SelectedIndex = 0;
+                    }
+                    else
+                    {
+                        comboSpectrum.SelectedItem = selectedSpectrum;
+                    }
+
+                    if (selectedMirror != null && comboMirrorSpectrum.Items.IndexOf(selectedMirror) != -1)
+                        comboMirrorSpectrum.SelectedItem = selectedMirror;
+                }
+
+                ComboHelper.AutoSizeDropDown(comboSpectrum);
+                ComboHelper.AutoSizeDropDown(comboMirrorSpectrum);
+            }
+
+            var enableCE = false;
+            // Update CE toolbar
+            if (UsingKoina)
+            {
+                var ces = Enumerable.Range(KoinaConstants.MIN_NCE, KoinaConstants.MAX_NCE - KoinaConstants.MIN_NCE + 1).ToArray();
+
+                using (var _ = new ToolbarUpdate(this))
+                {
+                    // TODO: figure out better way with _inToolBarUpdate
+                    // Not a great way of doing this, but we need to ensure that we don't get into
+                    // an infinite recursion
+                    if (!comboCE.Items.Cast<int>().SequenceEqual(ces) || (int)comboCE.SelectedItem !=
+                        Settings.Default.KoinaNCE)
+                    {
+                        comboCE.Items.Clear();
+                        comboCE.Items.AddRange(ces.Select(c => (object)c).ToArray());
+
+                        comboCE.SelectedItem = Settings.Default.KoinaNCE;
+                    }
+                }
+
+                enableCE = true;
+
+                ComboHelper.AutoSizeDropDown(comboCE);
+            }
+
+            comboCE.Visible = enableCE;
+            ceLabel.Visible = enableCE;
+
+            // Show only if we made any of the things visible
+            toolBar.Visible = showPrecursorSelect || showSpectraSelect || enableCE;
+            propertiesButton.Checked = ShowPropertiesSheet;
         }
 
         public void SelectSpectrum(SpectrumIdentifier spectrumIdentifier)
         {
-            if (_spectra != null && _spectra.Count > 1)
+            if (PrecursorCount == 0)
+                return;
+
+            for (var i = 0; i < PrecursorCount; i++)
             {
                 // Selection by file name and retention time should not select best spectrum
-                int iSpectrum = _spectra.IndexOf(spectrumInfo => !spectrumInfo.IsBest &&
-                                                                 SpectrumMatches(spectrumInfo, spectrumIdentifier));
-
+                var iSpectrum = Precursors[i].Spectra.IndexOf(spectrumInfo => !spectrumInfo.IsBest && SpectrumMatches(spectrumInfo, spectrumIdentifier));
                 if (iSpectrum != -1)
+                {
+                    if (comboPrecursor.SelectedIndex != i)
+                    {
+                        comboPrecursor.SelectedIndex = i;
+                        DoUpdate();
+                    }
                     comboSpectrum.SelectedIndex = iSpectrum;
+                    return;
+                }
             }
         }
 
@@ -518,23 +571,22 @@ namespace pwiz.Skyline.Controls.Graphs
         }
 
         // For unit test
-        public SpectrumDisplayInfo PrositSpectrum { get; private set; }
+        public SpectrumDisplayInfo KoinaSpectrum { get; private set; }
+
+        public Precursor SelectedPrecursor =>
+            PrecursorCount == 1 || (PrecursorCount > 1 && comboPrecursor.SelectedIndex >= 0)
+                ? Precursors[PrecursorCount == 1 ? 0 : comboPrecursor.SelectedIndex]
+                : null;
 
         public SpectrumDisplayInfo SelectedSpectrum
         {
             get
             {
-                if (_spectra == null)
+                var spectra = SelectedPrecursor?.Spectra;
+                if (spectra == null || spectra.Count == 0)
                     return null;
 
-                if (toolBar.Visible)
-                {
-                    return comboSpectrum.SelectedIndex != -1
-                               ? _spectra[comboSpectrum.SelectedIndex]
-                               : null;
-                }
-
-                return _spectra[0];
+                return spectra.Count == 1 ? spectra[0] : spectra[comboSpectrum.SelectedIndex];
             }
         }
 
@@ -542,16 +594,17 @@ namespace pwiz.Skyline.Controls.Graphs
         {
             get
             {
-                if (_spectra == null)
+                // Return null if toolbar not visible or no mirror selected.
+                // The spectrum index is one minus the selected index in the combobox, since the first item is empty (i.e. no mirror).
+                var spectrumIndex = comboMirrorSpectrum.SelectedIndex - 1;
+                if (!toolBar.Visible || spectrumIndex < 0)
                     return null;
 
-                if (toolBar.Visible) {
-                    return comboMirrorSpectrum.SelectedIndex > 0
-                        ? _spectra[comboMirrorSpectrum.SelectedIndex - 1]
-                        : null;
-                }
+                var spectra = SelectedPrecursor?.Spectra;
+                if (spectra == null || spectra.Count == 0)
+                    return null;
 
-                return null;
+                return spectra[spectrumIndex];
             }
         }
 
@@ -559,9 +612,8 @@ namespace pwiz.Skyline.Controls.Graphs
         {
             get
             {
-                var selectedNodes = SpectrumNodeSelection.GetCurrent(_stateProvider);
-                return selectedNodes.Precursor != null &&
-                       selectedNodes.Precursor.HasLibInfo;
+                var precursor = SpectrumNodeSelection.GetCurrent(_stateProvider).NodeTranGroup ?? SelectedPrecursor.DocNode;
+                return precursor != null && precursor.HasLibInfo;
             }
         }
 
@@ -598,85 +650,240 @@ namespace pwiz.Skyline.Controls.Graphs
 
         public IEnumerable<SpectrumDisplayInfo> AvailableSpectra
         {
-            get { return _spectra; }
+            get { return Precursors?.SelectMany(s => s.Spectra); }
+        }
+
+        public class Precursor
+        {
+            public Precursor(SrmSettings settings, TreeNodeMS selectedTreeNode, PeptideDocNode nodePep, TransitionGroupDocNode precursor)
+            {
+                Settings = settings;
+                NodePep = nodePep;
+                DocNode = precursor;
+                _spectra = null;
+                _koinaSpectra = new Dictionary<Tuple<IsotopeLabelType, int>, SpectrumDisplayInfo>();
+
+                var s = TransitionGroupTreeNode.GetLabel(DocNode.TransitionGroup, DocNode.PrecursorMz.RawValue, null);
+                DisplayString = !(selectedTreeNode is PeptideGroupTreeNode) ? s : $@"{DocNode.Peptide.Target}, {s}";
+            }
+
+            private SrmSettings Settings { get; }
+            private PeptideDocNode NodePep { get; }
+            private Peptide Peptide => NodePep.Peptide;
+            private Target LookupTarget => NodePep.SourceUnmodifiedTarget;
+            private ExplicitMods LookupMods => NodePep.SourceExplicitMods;
+            public TransitionGroupDocNode DocNode { get; }
+            public string DisplayString { get; } // The string displayed in the precursor combobox
+
+            private ImmutableList<SpectrumDisplayInfo> _spectra;
+            private Dictionary<Tuple<IsotopeLabelType, int>, SpectrumDisplayInfo> _koinaSpectra;
+
+            public static void ReuseSpectra(ICollection<Precursor> newPrecursors, ICollection<Precursor> oldPrecursors)
+            {
+                if (newPrecursors == null || newPrecursors.Count == 0 ||
+                    oldPrecursors == null || oldPrecursors.Count == 0 ||
+                    !ReferenceEquals(newPrecursors.First().Settings, oldPrecursors.First().Settings))
+                    return;
+
+                var existingDict = oldPrecursors.ToDictionary(p => p.DocNode, p => p);
+                foreach (var precursor in newPrecursors)
+                {
+                    if (existingDict.TryGetValue(precursor.DocNode, out var existing))
+                    {
+                        precursor._spectra = existing._spectra;
+                        precursor._koinaSpectra = existing._koinaSpectra;
+                    }
+                }
+            }
+
+            public ImmutableList<SpectrumDisplayInfo> Spectra
+            {
+                get
+                {
+                    if (_spectra != null)
+                        return _spectra;
+                    else if (!Settings.PeptideSettings.Libraries.HasLibraries || !Settings.PeptideSettings.Libraries.IsLoaded)
+                        return null;
+
+                    var spectra = new List<SpectrumDisplayInfo>(Settings
+                        .GetBestSpectra(LookupTarget, DocNode.PrecursorAdduct, LookupMods)
+                        .Select(s => new SpectrumDisplayInfo(s, DocNode)));
+
+                    // Showing redundant spectra is only supported for full-scan filtering when
+                    // the document has results files imported.
+                    if ((Settings.TransitionSettings.FullScan.IsEnabled || Settings.PeptideSettings.Libraries.HasMidasLibrary) && Settings.HasResults)
+                    {
+                        try
+                        {
+                            var spectraRedundant = new List<SpectrumDisplayInfo>();
+                            var dictReplicateNameFiles = new Dictionary<string, HashSet<string>>();
+                            foreach (var spectrumInfo in Settings.GetRedundantSpectra(Peptide, LookupTarget, DocNode.PrecursorAdduct, DocNode.LabelType, LookupMods))
+                            {
+                                var matchingFile = Settings.MeasuredResults.FindMatchingMSDataFile(MsDataFileUri.Parse(spectrumInfo.FilePath));
+                                if (matchingFile == null)
+                                    continue;
+
+                                var replicateName = matchingFile.Chromatograms.Name;
+                                spectraRedundant.Add(new SpectrumDisplayInfo(spectrumInfo, DocNode, replicateName,
+                                    matchingFile.FilePath, matchingFile.FileOrder, spectrumInfo.RetentionTime, false));
+
+                                // Include the best spectrum twice, once displayed in the normal
+                                // way and once displayed with its replicate and retention time.
+                                if (spectrumInfo.IsBest)
+                                {
+                                    var iBest = spectra.IndexOf(s =>
+                                        Equals(s.Name, spectrumInfo.Name) &&
+                                        Equals(s.LabelType, spectrumInfo.LabelType));
+                                    if (iBest != -1)
+                                    {
+                                        spectra[iBest] = new SpectrumDisplayInfo(spectra[iBest].SpectrumInfo, DocNode,
+                                            replicateName, matchingFile.FilePath, 0, spectrumInfo.RetentionTime, true);
+                                    }
+                                }
+
+                                if (!dictReplicateNameFiles.TryGetValue(replicateName, out var setFiles))
+                                {
+                                    setFiles = new HashSet<string>();
+                                    dictReplicateNameFiles.Add(replicateName, setFiles);
+                                }
+
+                                setFiles.Add(spectrumInfo.FilePath);
+                            }
+
+                            // Determine if replicate name is sufficient to uniquely identify the file
+                            foreach (var spectrumInfo in spectraRedundant)
+                            {
+                                var replicateName = spectrumInfo.ReplicateName;
+                                if (replicateName != null && dictReplicateNameFiles[replicateName].Count < 2)
+                                    spectrumInfo.IsReplicateUnique = true;
+                            }
+                            spectraRedundant.Sort();
+                            spectra.AddRange(spectraRedundant);
+                        }
+                        catch (Exception)
+                        {
+                            // ignored
+                        }
+                    }
+
+                    _spectra = ImmutableList<SpectrumDisplayInfo>.ValueOf(spectra);
+                    return _spectra;
+                }
+            }
+
+            public bool TryGetKoinaSpectrum(IsotopeLabelType labelType, int nce, out SpectrumDisplayInfo spectrum)
+            {
+                return _koinaSpectra.TryGetValue(Tuple.Create(labelType, nce), out spectrum);
+            }
+
+            public void CacheKoinaSpectrum(IsotopeLabelType labelType, int nce, SpectrumDisplayInfo spectrum)
+            {
+                _koinaSpectra[Tuple.Create(labelType, nce)] = spectrum;
+            }
         }
 
         public class SpectrumNodeSelection
         {
-            public SpectrumNodeSelection(PeptideDocNode peptide,
-                TransitionGroupDocNode precursor, TransitionDocNode transition)
+            private SpectrumNodeSelection(TreeNodeMS selectedTreeNode, PeptideGroupDocNode nodePepGroup, PeptideDocNode nodePep,
+                TransitionGroupDocNode nodeTranGroup, TransitionDocNode nodeTran)
             {
-                Peptide = peptide;
-                Precursor = precursor;
-                Transition = transition;
+                SelectedTreeNode = selectedTreeNode;
+                NodePepGroup = nodePepGroup;
+                NodePep = nodePep;
+                NodeTranGroup = nodeTranGroup;
+                NodeTran = nodeTran;
             }
 
             public static SpectrumNodeSelection GetCurrent(IStateProvider stateProvider)
             {
                 switch (stateProvider.SelectedNode)
                 {
+                    case PeptideGroupTreeNode p:
+                    {
+                        return new SpectrumNodeSelection(stateProvider.SelectedNode, p.DocNode, null, null, null);
+                    }
                     case PeptideTreeNode p:
                     {
-                        var usingProsit = p.DocNode.IsProteomic && Settings.Default.Prosit;
-                        var listInfoGroups = GetChargeGroups(p, !usingProsit);
-                        return new SpectrumNodeSelection(p.DocNode,
+                        var usingKoina = p.DocNode.IsProteomic && Settings.Default.Koina;
+                        var listInfoGroups = GetChargeGroups(p.DocNode, !usingKoina).ToArray();
+                        return new SpectrumNodeSelection(stateProvider.SelectedNode, p.PepGroupNode, p.DocNode,
                             listInfoGroups.Length == 1 ? listInfoGroups[0] : null, null);
                     }
                     case TransitionGroupTreeNode pr:
                     {
-                        return new SpectrumNodeSelection(pr.PepNode, pr.DocNode, null);
+                        return new SpectrumNodeSelection(stateProvider.SelectedNode, pr.PepGroupNode, pr.PepNode, pr.DocNode, null);
                     }
                     case TransitionTreeNode t:
                     {
-                        return new SpectrumNodeSelection(t.PepNode, t.TransitionGroupNode, t.DocNode);
+                        return new SpectrumNodeSelection(stateProvider.SelectedNode, t.PepGroupNode, t.PepNode, t.TransitionGroupNode, t.DocNode);
                     }
                 }
-
-                return new SpectrumNodeSelection(null, null, null);
+                return new SpectrumNodeSelection(stateProvider.SelectedNode, null, null, null, null);
             }
 
             public static explicit operator PeptidePrecursorPair(SpectrumNodeSelection sel)
             {
-                return new PeptidePrecursorPair(sel.Peptide, sel.Precursor);
+                return new PeptidePrecursorPair(sel.NodePep, sel.NodeTranGroup);
             }
 
-            public static explicit operator PrositIntensityModel.PeptidePrecursorNCE(SpectrumNodeSelection sel)
+            public static explicit operator KoinaIntensityModel.PeptidePrecursorNCE(SpectrumNodeSelection sel)
             {
-                return new PrositIntensityModel.PeptidePrecursorNCE(sel.Peptide, sel.Precursor);
+                return new KoinaIntensityModel.PeptidePrecursorNCE(sel.NodePep, sel.NodeTranGroup);
             }
 
-            public PeptideDocNode Peptide { get; private set; }
-            public TransitionGroupDocNode Precursor { get; private set; }
-            public TransitionDocNode Transition { get; private set; }
+            public TreeNodeMS SelectedTreeNode { get; }
+            public PeptideGroupDocNode NodePepGroup { get; }
+            public PeptideDocNode NodePep { get; }
+            public TransitionGroupDocNode NodeTranGroup { get; }
+            public TransitionDocNode NodeTran { get; }
+
+            public PeptideDocNode GetPeptide(TransitionGroupDocNode nodeTranGroup)
+            {
+                return NodePep ?? NodePepGroup.Peptides.First(pep => ReferenceEquals(pep.Peptide, nodeTranGroup.Peptide));
+            }
         }
 
-        private PrositHelpers.PrositRequest _prositRequest;
+        private KoinaHelpers.KoinaRequest _koinaRequest;
 
-        private SpectrumDisplayInfo UpdatePrositPrediction(SpectrumNodeSelection selection, IsotopeLabelType labelType, out Exception ex)
+        private SpectrumDisplayInfo UpdateKoinaPrediction(SpectrumNodeSelection selection, IsotopeLabelType labelType, out Exception ex)
         {
+            var settings = DocumentUI.Settings;
+            var nce = Settings.Default.KoinaNCE;
+
+            // Try to get cached spectrum first
+            var match = Precursors.FirstOrDefault(s =>
+                ReferenceEquals(s.DocNode, selection.NodeTranGroup ?? SelectedPrecursor.DocNode));
+            if (match != null && match.TryGetKoinaSpectrum(labelType, nce, out var spectrum))
+            {
+                ex = null;
+                return spectrum;
+            }
+
             try
             {
-                var prositRequest = new PrositHelpers.PrositRequest(
-                    DocumentUI.Settings, selection.Peptide, selection.Precursor, labelType,
+                var precursor = selection.NodeTranGroup ?? SelectedPrecursor.DocNode;
+                var koinaRequest = new KoinaHelpers.KoinaRequest(
+                    settings, selection.GetPeptide(precursor), precursor, labelType, nce,
                     () => CommonActionUtil.SafeBeginInvoke(this, () => UpdateUI()));
 
-                if (_prositRequest == null || !_prositRequest.Equals(prositRequest))
+                if (_koinaRequest == null || !_koinaRequest.Equals(koinaRequest))
                 {
                     // Cancel old request
-                    _prositRequest?.Cancel();
-                    _prositRequest = prositRequest.Predict();
+                    _koinaRequest?.Cancel();
+                    _koinaRequest = koinaRequest.Predict();
 
-                    throw new PrositPredictingException();
+                    throw new KoinaPredictingException();
                 }
-                else if (_prositRequest.Spectrum == null)
+                else if (_koinaRequest.Spectrum == null)
                 {
-                    // Rethrow the exception caused by Prosit, otherwise
+                    // Rethrow the exception caused by Koina, otherwise
                     // we are still predicting
-                    throw _prositRequest.Exception ?? new PrositPredictingException();
+                    throw _koinaRequest.Exception ?? new KoinaPredictingException();
                 }
 
                 ex = null;
-                return _prositRequest.Spectrum;
+                match?.CacheKoinaSpectrum(labelType, nce, _koinaRequest.Spectrum);
+                return _koinaRequest.Spectrum;
 
             }
             catch (Exception x)
@@ -688,12 +895,16 @@ namespace pwiz.Skyline.Controls.Graphs
 
         private SpectrumGraphItem MakeGraphItem(SpectrumDisplayInfo spectrum, SpectrumNodeSelection selection, SrmSettings settings, SpectrumPeaksInfo spectrumPeaksOverride = null)
         {
-            var group = selection.Precursor.TransitionGroup;
+            var precursor = selection.NodeTranGroup ?? SelectedPrecursor.DocNode;
+            var peptide = selection.GetPeptide(precursor);
+
+            var group = precursor.TransitionGroup;
             var types = _stateProvider.ShowIonTypes(group.IsProteomic);
+            var losses = _stateProvider.ShowLosses();
             var adducts =
                 (group.IsProteomic
                     ? Transition.DEFAULT_PEPTIDE_LIBRARY_CHARGES
-                    : selection.Precursor.InUseAdducts).ToArray();
+                    : precursor.InUseAdducts).ToArray();
             var charges = _stateProvider.ShowIonCharges(adducts);
             var rankTypes = group.IsProteomic
                 ? settings.TransitionSettings.Filter.PeptideIonTypes
@@ -726,27 +937,27 @@ namespace pwiz.Skyline.Controls.Graphs
             showAdducts.AddRange(adducts.Where(a =>
                 charges.Contains(Math.Abs(a.AdductCharge)) && !showAdducts.Contains(a)));
 
-
-            var lookupData = new LookupData(selection);
+            double? score = null;
+            if(spectrum.SpectrumInfo is SpectrumInfoLibrary libInfo)
+                score = libInfo.SpectrumHeaderInfo?.Score;
             var spectrumInfoR = LibraryRankedSpectrumInfo.NewLibraryRankedSpectrumInfo(spectrumPeaksOverride ?? spectrum.SpectrumPeaksInfo,
                 spectrum.LabelType,
-                selection.Precursor,
+                precursor,
                 settings,
-                lookupData.LookupSequence,
-                lookupData.LookupMods,
+                peptide.SourceUnmodifiedTarget,
+                peptide.SourceExplicitMods,
                 showAdducts,
                 types,
                 rankAdducts,
                 rankTypes,
-                null);
+                score);
 
-            return new SpectrumGraphItem(selection.Peptide, selection.Precursor, selection.Transition, spectrumInfoR,
-                spectrum.Name)
+            return new SpectrumGraphItem(peptide, precursor, selection.NodeTran, spectrumInfoR, spectrum.Name)
             {
                 ShowTypes = types,
                 ShowCharges = charges,
+                ShowLosses = losses,
                 ShowRanks = Settings.Default.ShowRanks,
-                ShowScores = Settings.Default.ShowLibraryScores,
                 ShowMz = Settings.Default.ShowIonMz,
                 ShowObservedMz = Settings.Default.ShowObservedMz,
                 ShowMassError = Settings.Default.ShowFullScanMassError,
@@ -754,24 +965,6 @@ namespace pwiz.Skyline.Controls.Graphs
                 FontSize = Settings.Default.SpectrumFontSize,
                 LineWidth = Settings.Default.SpectrumLineWidth
             };
-        }
-
-        private class LookupData
-        {
-            public LookupData(SpectrumNodeSelection selection)
-            {
-                var group = selection.Precursor.TransitionGroup;
-                LookupSequence = group.Peptide.Target; // Sequence or custom ion id
-
-                if (selection.Peptide != null)
-                {
-                    LookupSequence = selection.Peptide.SourceUnmodifiedTarget;
-                    LookupMods = selection.Peptide.SourceExplicitMods;
-                }
-            }
-
-            public Target LookupSequence { get; }
-            public ExplicitMods LookupMods { get; }
         }
 
         private SpectrumPeaksInfo RescaleMirrorSpectrum(SpectrumDisplayInfo mirrorSpectrum, SpectrumDisplayInfo mainSpectrum)
@@ -791,11 +984,11 @@ namespace pwiz.Skyline.Controls.Graphs
 
         private void UpdateChromatogram(MSGraphPane graphPane, LibraryChromGroup chromatogramData, SpectrumNodeSelection selection)
         {
-            _graphHelper.ResetForChromatograms(new[] { selection.Precursor.TransitionGroup });
+            _graphHelper.ResetForChromatograms(new[] { selection.NodeTranGroup.TransitionGroup });
 
-            var displayType = GraphChromatogram.GetDisplayType(DocumentUI, selection.Precursor);
+            var displayType = GraphChromatogram.GetDisplayType(DocumentUI, selection.NodeTranGroup);
             IList<TransitionDocNode> displayTransitions =
-                GraphChromatogram.GetDisplayTransitions(selection.Precursor, displayType).ToArray();
+                GraphChromatogram.GetDisplayTransitions(selection.NodeTranGroup, displayType).ToArray();
             int numTrans = displayTransitions.Count;
             var allChromDatas =
                 chromatogramData.ChromDatas.Where(
@@ -825,8 +1018,7 @@ namespace pwiz.Skyline.Controls.Graphs
             int iChromDataPrimary = chromDatas.IndexOf(chromData =>
                 null != chromData && maxHeight == chromData.Height);
             int colorOffset = displayType == DisplayTypeChrom.products
-                ? GraphChromatogram.GetDisplayTransitions(selection.Precursor,
-                    DisplayTypeChrom.precursors).Count()
+                ? GraphChromatogram.GetDisplayTransitions(selection.NodeTranGroup, DisplayTypeChrom.precursors).Count()
                 : 0;
             for (int iChromData = 0; iChromData < chromDatas.Count; iChromData++)
             {
@@ -866,13 +1058,12 @@ namespace pwiz.Skyline.Controls.Graphs
 
                 TransitionChromInfo tranPeakInfo;
                 ChromatogramInfo chromatogramInfo;
-                MakeChromatogramInfo(selection.Precursor.PrecursorMz, chromatogramData, chromData,
+                MakeChromatogramInfo(selection.NodeTranGroup.PrecursorMz, chromatogramData, chromData,
                     out chromatogramInfo, out tranPeakInfo);
-                var graphItem = new ChromGraphItem(selection.Precursor, matchingTransition,
-                    chromatogramInfo,
+                var graphItem = new ChromGraphItem(selection.NodeTranGroup, matchingTransition, chromatogramInfo,
                     iChromData == iChromDataPrimary ? tranPeakInfo : null, null,
-                    new[] { iChromData == iChromDataPrimary }, null, 0, false, false, null, 0,
-                    color, Settings.Default.ChromatogramFontSize, 1);
+                    new[] { iChromData == iChromDataPrimary }, null, 0, false, false, null, null, color,
+                    Settings.Default.ChromatogramFontSize, 1);
                 LineItem curve =
                     (LineItem)_graphHelper.AddChromatogram(PaneKey.DEFAULT, graphItem);
                 if (matchingTransition == null)
@@ -881,9 +1072,9 @@ namespace pwiz.Skyline.Controls.Graphs
                 }
 
                 curve.Line.Width = Settings.Default.ChromatogramLineWidth;
-                if (selection.Transition != null)
+                if (selection.NodeTran != null)
                 {
-                    if (IonMatches(selection.Transition.Transition, chromData))
+                    if (IonMatches(selection.NodeTran.Transition, chromData))
                     {
                         color = ColorScheme.ChromGraphItemSelected;
                     }
@@ -912,6 +1103,98 @@ namespace pwiz.Skyline.Controls.Graphs
 
         public void UpdateUI(bool selectionChanged = true)
         {
+            _updateManager.QueueUpdate(false);
+        }
+
+        private class UpdateManager : IDisposable
+        {
+            private readonly GraphSpectrum _parent;
+            private readonly Timer _timer;
+
+            public ImmutableList<Precursor> Precursors { get; private set; }
+            private TreeNodeMS _treeNode;
+            private SrmSettings _settings;
+            private bool _koina;
+
+            public UpdateManager(GraphSpectrum parent)
+            {
+                _parent = parent;
+                _timer = new Timer { Interval = 100 };
+                _timer.Tick += DoUpdate;
+            }
+
+            public bool IsUpdating => _timer.Tag != null;
+
+            public void QueueUpdate(bool isUserAction)
+            {
+                // Restart the timer at 100ms, giving the UI time to interrupt.
+                _timer.Stop();
+                _timer.Interval = 100;
+                _timer.Tag = isUserAction;
+                _timer.Start();
+            }
+
+            private void DoUpdate(object sender, EventArgs e)
+            {
+                // Stop the timer immediately, to keep from getting called again
+                // for the same triggering event.
+                _timer.Stop();
+
+                _parent.DoUpdate();
+                _parent.FireSelectedSpectrumChanged((bool)_timer.Tag);
+
+                if (!_timer.Enabled)
+                    _timer.Tag = null;
+            }
+
+            public void ClearPrecursors()
+            {
+                UpdatePrecursors(null, null, null, false);
+            }
+
+            public void CalculatePrecursors(SpectrumNodeSelection selection, SrmSettings settings, bool koina)
+            {
+                if (ReferenceEquals(_treeNode, selection.SelectedTreeNode) && ReferenceEquals(_settings, settings) && _koina == koina)
+                    return;
+
+                var precursors = new List<Precursor>();
+                const int limit = 100; // for performance reasons
+                if (selection.NodePepGroup != null)
+                {
+                    if (selection.NodeTranGroup != null)
+                    {
+                        if (selection.NodeTranGroup.HasLibInfo || koina)
+                            precursors.Add(new Precursor(settings, selection.SelectedTreeNode, selection.NodePep, selection.NodeTranGroup));
+                    }
+                    else
+                    {
+                        precursors.AddRange((
+                            from nodePep in selection.NodePep != null ? new[] { selection.NodePep } : selection.NodePepGroup.Peptides
+                            from nodeTranGroup in GetChargeGroups(nodePep, !koina)
+                            select new Precursor(settings, selection.SelectedTreeNode, nodePep, nodeTranGroup)).Take(limit));
+                    }
+                }
+
+                UpdatePrecursors(precursors, selection.SelectedTreeNode, settings, koina);
+            }
+
+            private void UpdatePrecursors(ICollection<Precursor> precursors, TreeNodeMS treeNode, SrmSettings settings, bool koina)
+            {
+                Precursor.ReuseSpectra(precursors, Precursors);
+                Precursors = precursors != null && precursors.Count > 0 ? ImmutableList<Precursor>.ValueOf(precursors) : null;
+                _treeNode = treeNode;
+                _settings = settings;
+                _koina = koina;
+            }
+
+            public void Dispose()
+            {
+                _timer.Dispose();
+            }
+        }
+
+        private void DoUpdate()
+        {
             // Only worry about updates, if the graph is visible
             // And make sure it is not disposed, since rendering happens on a timer
             if (!Visible || IsDisposed)
@@ -928,203 +1211,198 @@ namespace pwiz.Skyline.Controls.Graphs
 
             try
             {
-                Exception prositEx = null;
-                var usingProsit = (selection.Peptide == null || selection.Peptide.IsProteomic) && Settings.Default.Prosit;
+                Exception koinaEx = null;
+                var usingKoina = (selection.NodePep == null || selection.NodePep.IsProteomic) && Settings.Default.Koina;
 
-                if (usingProsit && !PrositHelpers.PrositSettingsValid)
+                if (usingKoina && !KoinaHelpers.KoinaSettingsValid)
                 {
-                    prositEx = new PrositNotConfiguredException();
+                    koinaEx = new KoinaNotConfiguredException();
 
                     if (!Settings.Default.LibMatchMirror)
-                        throw prositEx;
+                        throw koinaEx;
                 }
-                    
-                if (selection.Precursor == null || (!selection.Precursor.HasLibInfo && !libraries.HasMidasLibrary &&
-                                                    !usingProsit))
+
+                _updateManager.CalculatePrecursors(selection, settings, usingKoina);
+                if (Precursors == null || (!Precursors.Any(p => p.DocNode.HasLibInfo) && !libraries.HasMidasLibrary && !usingKoina))
                 {
-                    _spectra = null;
-                    PrositSpectrum = null;
+                    _updateManager.ClearPrecursors();
+                    KoinaSpectrum = null;
                 }
-                else
+                else if (libraries.HasLibraries && libraries.IsLoaded || usingKoina)
                 {
                     // Try to load a list of spectra matching the criteria for
                     // the current node group.
-                    if (libraries.HasLibraries && libraries.IsLoaded || usingProsit)
+                    UpdateToolbar();
+
+                    // Need this to make sure we still update the toolbar if the koina prediction throws
+                    SpectrumDisplayInfo spectrum = null;
+                    KoinaSpectrum = null;
+
+                    if (usingKoina && !Settings.Default.LibMatchMirror && koinaEx == null)
                     {
-                        // Need this to make sure we still update the toolbar if the prosit prediction throws
-                        
-                        SpectrumDisplayInfo spectrum = null;
-                        PrositSpectrum = null;
+                        spectrum = KoinaSpectrum = UpdateKoinaPrediction(selection, null, out koinaEx);
+                    }
 
-                        if (usingProsit && !Settings.Default.LibMatchMirror && prositEx == null)
+                    try
+                    {
+                        var loadFromLib = libraries.HasLibraries && libraries.IsLoaded && (!usingKoina || Settings.Default.LibMatchMirror);
+                        if (loadFromLib)
                         {
-                            spectrum = PrositSpectrum = UpdatePrositPrediction(selection, null, out prositEx);
-                            if (prositEx == null)
-                                _spectra = new[] { spectrum };
+                            // For a mirrored spectrum, make sure the isotope label types between library and Koina match
+                            if (usingKoina && Settings.Default.LibMatchMirror && koinaEx == null)
+                                KoinaSpectrum = UpdateKoinaPrediction(selection, SelectedPrecursor?.DocNode.LabelType, out koinaEx);
                         }
+                        UpdateToolbar();
+                    }
+                    catch (Exception)
+                    {
+                        _updateManager.ClearPrecursors();
+                        UpdateToolbar();
+                        throw;
+                    }
 
-                        var loadFromLib = libraries.HasLibraries && libraries.IsLoaded &&
-                                          (!usingProsit || Settings.Default.LibMatchMirror);
+                    if (koinaEx != null && !Settings.Default.LibMatchMirror)
+                        throw koinaEx;
 
-                        try
-                        {
-                            if (loadFromLib)
-                            {
-                                UpdateSpectra(selection.Precursor, new LookupData(selection));
+                    if (!usingKoina || ShouldShowMirrorPlot)
+                        spectrum = SelectedSpectrum;
 
-                                // For a mirrored spectrum, make sure the isotope label types between library and Prosit match
-                                if (usingProsit && Settings.Default.LibMatchMirror && prositEx == null)
-                                {
-                                    var labelType = _spectra != null ? _spectra[0].LabelType : null;
-                                    PrositSpectrum = UpdatePrositPrediction(selection, labelType, out prositEx);
-                                }
-                            }
-                            UpdateToolbar();
-                        }
-                        catch (Exception)
-                        {
-                            _spectra = null;
-                            UpdateToolbar();
-                            throw;
-                        }
+                    if (koinaEx is KoinaPredictingException && DisplayedMirrorSpectrum != null)
+                    {
+                        var libraryStr = _spectrum == null
+                            ? _mirrorSpectrum.Name
+                            : string.Format(KoinaResources.GraphSpectrum_UpdateUI__0__vs___1_,
+                                _spectrum.Name, _mirrorSpectrum.Name);
+                        GraphPane.Title.Text = TextUtil.LineSeparate(libraryStr,
+                            SpectrumGraphItem.GetTitle(null, selection.GetPeptide(_mirrorSpectrum.Precursor),
+                                _mirrorSpectrum.Precursor, _mirrorSpectrum.LabelType), koinaEx.Message);
+                        graphControl.Refresh();
+                        return;
+                    }
 
-                        if (prositEx != null && !Settings.Default.LibMatchMirror)
-                            throw prositEx;
+                    var spectrumChanged = !Equals(_spectrum?.SpectrumInfo, spectrum?.SpectrumInfo);
+                    _spectrum = spectrum;
+                    if(spectrumChanged)
+                        HasChromatogramData = _spectrum?.LoadChromatogramData() != null;
 
-                        if (!usingProsit || ShouldShowMirrorPlot)
-                            spectrum = SelectedSpectrum;
-                        
-                        if (prositEx is PrositPredictingException && DisplayedMirrorSpectrum != null)
-                        {
-                            var libraryStr = _spectrum == null
-                                ? _mirrorSpectrum.Name
-                                : string.Format(PrositResources.GraphSpectrum_UpdateUI__0__vs___1_,
-                                    _spectrum.Name, _mirrorSpectrum.Name);
-                            GraphPane.Title.Text = TextUtil.LineSeparate(
-                                libraryStr,
-                                SpectrumGraphItem.GetTitle(null, selection.Peptide, _mirrorSpectrum.Precursor, _mirrorSpectrum.LabelType),
-                                prositEx.Message);
-                            graphControl.Refresh();
-                            return;
-                        }
+                    ClearGraphPane();
 
-                        var spectrumChanged = !Equals(_spectrum?.SpectrumInfo, spectrum?.SpectrumInfo);
-                        _spectrum = spectrum;
+                    LibraryChromGroup chromatogramData = null;
+                    if (Settings.Default.ShowLibraryChromatograms)
+                        chromatogramData = spectrum?.LoadChromatogramData();
 
-                        ClearGraphPane();
+                    if (spectrum != null)
+                        GraphItem = MakeGraphItem(spectrum, selection, settings);
 
-                        LibraryChromGroup chromatogramData = null;
-                        if (Settings.Default.ShowLibraryChromatograms)
-                            chromatogramData = spectrum?.LoadChromatogramData();
-
+                    if (null == chromatogramData)
+                    {
                         if (spectrum != null)
-                            GraphItem = MakeGraphItem(spectrum, selection, settings);
-
-                        if (null == chromatogramData)
                         {
-                            if (spectrum != null)
-                            {
-                                _graphHelper.ResetForSpectrum(new[] { selection.Precursor.TransitionGroup });
-                                // Don't refresh here, it will be refreshed on zoom
-                                _graphHelper.AddSpectrum(GraphItem, false);
-                            }
+                            _graphHelper.ResetForSpectrum(new[] { spectrum.Precursor.TransitionGroup });
+                            // Don't refresh here, it will be refreshed on zoom
+                            _graphHelper.AddSpectrum(GraphItem, false);
+                        }
 
-                            var mirrorSpectrum = SelectedMirrorSpectrum;
-                            if (Settings.Default.LibMatchMirror)
+                        var mirrorSpectrum = SelectedMirrorSpectrum;
+                        if (Settings.Default.LibMatchMirror)
+                        {
+                            if (usingKoina)
+                                mirrorSpectrum = KoinaSpectrum;
+                        }
+                        else
+                        {
+                            mirrorSpectrum = null;
+                        }
+
+                        spectrumChanged |= !Equals(_mirrorSpectrum?.SpectrumInfo, mirrorSpectrum?.SpectrumInfo);
+                        _mirrorSpectrum = mirrorSpectrum;
+
+                        double? dotp = null;
+                        SpectrumGraphItem mirrorGraphItem = null;
+                        if (mirrorSpectrum != null)
+                        {
+                            var peaksInfo = spectrum != null
+                                ? RescaleMirrorSpectrum(mirrorSpectrum, spectrum)
+                                : mirrorSpectrum.SpectrumPeaksInfo;
+                            mirrorGraphItem = MakeGraphItem(mirrorSpectrum, selection, settings, peaksInfo);
+                            mirrorGraphItem.Invert = true;
+
+                            _graphHelper.AddSpectrum(mirrorGraphItem, false);
+
+                            if (spectrum != null)
+                                dotp = KoinaHelpers.CalculateSpectrumDotpMzMatch(GraphItem.SpectrumInfo, mirrorGraphItem.SpectrumInfo,
+                                    settings.TransitionSettings.Libraries.IonMatchMzTolerance);
+                        }
+
+                        if (mirrorSpectrum != null && mirrorGraphItem != null) // one implies the other, but resharper..
+                        {
+                            GraphPane.Title.Text = dotp != null
+                                ? TextUtil.LineSeparate(
+                                    string.Format(KoinaResources.GraphSpectrum_UpdateUI__0__vs___1_,
+                                        GraphItem.LibraryName, mirrorSpectrum.Name),
+                                    SpectrumGraphItem.RemoveLibraryPrefix(GraphItem.Title, GraphItem.LibraryName),
+                                    string.Format(GraphsResources.GraphSpectrum_DoUpdate_dotp___0_0_0000_, dotp))
+                                : TextUtil.LineSeparate(
+                                    mirrorSpectrum.Name,
+                                    mirrorGraphItem.Title,
+                                    KoinaResources.GraphSpectrum_UpdateUI_No_spectral_library_match);
+                        }
+                        else if (koinaEx != null)
+                        {
+                            if (DisplayedSpectrum != null)
                             {
-                                if (usingProsit)
-                                    mirrorSpectrum = PrositSpectrum;
+                                GraphPane.Title.Text = TextUtil.LineSeparate(
+                                    string.Format(KoinaResources.GraphSpectrum_UpdateUI__0__vs___1_,
+                                        GraphItem.LibraryName, SpectrumInfoKoina.NAME),
+                                    SpectrumGraphItem.RemoveLibraryPrefix(GraphItem.Title, GraphItem.LibraryName),
+                                    koinaEx.Message);
                             }
                             else
                             {
-                                mirrorSpectrum = null;
+                                throw koinaEx;
                             }
-
-                            spectrumChanged |= !Equals(_mirrorSpectrum?.SpectrumInfo, mirrorSpectrum?.SpectrumInfo);
-                            _mirrorSpectrum = mirrorSpectrum;
-
-                            double? dotp = null;
-                            SpectrumGraphItem mirrorGraphItem = null;
-                            if (mirrorSpectrum != null)
-                            {
-                                var peaksInfo = spectrum != null
-                                    ? RescaleMirrorSpectrum(mirrorSpectrum, spectrum)
-                                    : mirrorSpectrum.SpectrumPeaksInfo;
-                                mirrorGraphItem = MakeGraphItem(mirrorSpectrum, selection, settings, peaksInfo);
-                                mirrorGraphItem.Invert = true;
-
-                                _graphHelper.AddSpectrum(mirrorGraphItem, false);
-                                
-                                if (spectrum != null)
-                                    dotp = PrositHelpers.CalculateSpectrumDotpMzMatch(GraphItem.SpectrumInfo, mirrorGraphItem.SpectrumInfo,
-                                        settings.TransitionSettings.Libraries.IonMatchTolerance);
-                            }
-
-                            if (mirrorSpectrum != null && mirrorGraphItem != null) // one implies the other, but resharper..
-                            {
-                                if (dotp != null)
-                                {
-                                    GraphPane.Title.Text = TextUtil.LineSeparate(
-                                        string.Format(PrositResources.GraphSpectrum_UpdateUI__0__vs___1_,
-                                            GraphItem.LibraryName, mirrorSpectrum.Name),
-                                        SpectrumGraphItem.RemoveLibraryPrefix(GraphItem.Title, GraphItem.LibraryName),
-                                        string.Format(@"dotp: {0:0.0000}", dotp));
-                                }
-                                else
-                                {
-                                    GraphPane.Title.Text = TextUtil.LineSeparate(
-                                        mirrorSpectrum.Name,
-                                        mirrorGraphItem.Title,
-                                        PrositResources.GraphSpectrum_UpdateUI_No_spectral_library_match);
-                                }
-
-                            }
-                            else if (prositEx != null)
-                            {
-                                if (DisplayedSpectrum != null)
-                                {
-                                    GraphPane.Title.Text = TextUtil.LineSeparate(
-                                        string.Format(PrositResources.GraphSpectrum_UpdateUI__0__vs___1_,
-                                            GraphItem.LibraryName, SpectrumInfoProsit.NAME),
-                                        SpectrumGraphItem.RemoveLibraryPrefix(GraphItem.Title, GraphItem.LibraryName),
-                                        prositEx.Message);
-                                }
-                                else
-                                {
-                                    throw prositEx;
-                                }
-                            }
-                            
-                            _graphHelper.ZoomSpectrumToSettings(DocumentUI, selection.Precursor);
                         }
-                        else
+
+                        _graphHelper.ZoomSpectrumToSettings(DocumentUI, selection.NodeTranGroup);
+
+                        if (GraphItem != null && GraphItem.PeptideDocNode != null && GraphItem.TransitionGroupNode != null && spectrum?.SpectrumInfo is SpectrumInfoLibrary libInfo)
                         {
-                            UpdateChromatogram(GraphPane, chromatogramData, selection);
+                            var pepInfo = new ViewLibraryPepInfo(
+                                GraphItem.PeptideDocNode.ModifiedTarget.GetLibKey(GraphItem.TransitionGroupNode.PrecursorAdduct), 
+                                    libInfo.SpectrumHeaderInfo)
+                                .ChangePeptideNode(selection.NodePep);
+                            var props = libInfo.CreateProperties(pepInfo, spectrum.Precursor, new LibKeyModificationMatcher());
+                            msGraphExtension.SetPropertiesObject(props);
                         }
+                    }
+                    else
+                    {
+                        UpdateChromatogram(GraphPane, chromatogramData, selection);
+                    }
 
-                        if (spectrum != null || _mirrorSpectrum != null)
-                        {
-                            graphControl.IsEnableVPan = graphControl.IsEnableVZoom =
-                                !Settings.Default.LockYAxis;
-                            available = true;
-                        }
-                        
-                        if (spectrumChanged && chromatogramData == null)
-                        {
-                            _nodeGroup = selection.Precursor;
-                            ZoomSpectrumToSettings();
-                        }
-                        else
-                        {
-                            graphControl.Refresh();
-                        }
+                    if (spectrum != null || _mirrorSpectrum != null)
+                    {
+                        graphControl.IsEnableVPan = graphControl.IsEnableVZoom =
+                            !Settings.Default.LockYAxis;
+                        available = true;
+                    }
+
+                    if (spectrumChanged && chromatogramData == null)
+                    {
+                        _nodeGroup = selection.NodeTranGroup;
+                        ZoomSpectrumToSettings();
+                    }
+                    else
+                    {
+                        graphControl.Refresh();
                     }
                 }
             }
-            catch (PrositException ex)
+            catch (KoinaException ex)
             {
                 ClearGraphPane();
                 _graphHelper.SetErrorGraphItem(new ExceptionMSGraphItem(ex));
+                msGraphExtension.SetPropertiesObject(null);
                 return;
             }
             catch (Exception)
@@ -1132,7 +1410,8 @@ namespace pwiz.Skyline.Controls.Graphs
                 ClearGraphPane();
                 //_graphHelper.SetErrorGraphItem(new NoDataMSGraphItem(ex.Message));
                 _graphHelper.SetErrorGraphItem(new NoDataMSGraphItem(
-                    Resources.GraphSpectrum_UpdateUI_Failure_loading_spectrum__Library_may_be_corrupted));
+                    GraphsResources.GraphSpectrum_UpdateUI_Failure_loading_spectrum__Library_may_be_corrupted));
+                msGraphExtension.SetPropertiesObject(null);
                 return;
             }
 
@@ -1143,8 +1422,23 @@ namespace pwiz.Skyline.Controls.Graphs
                 UpdateToolbar();
                 _nodeGroup = null;
                 _graphHelper.SetErrorGraphItem(new UnavailableMSGraphItem());
+                msGraphExtension.SetPropertiesObject(null);
             }
         }
+
+        public bool ShowPropertiesSheet 
+        {
+            set
+            {
+                msGraphExtension.ShowPropertiesSheet(value);
+                propertiesButton.Checked = value;
+            }
+            get
+            {
+                return msGraphExtension.PropertiesVisible;
+            }
+        }
+
 
         private static bool DisplayTypeMatches(LibraryChromGroup.ChromData chromData, DisplayTypeChrom displayType)
         {
@@ -1196,89 +1490,6 @@ namespace pwiz.Skyline.Controls.Graphs
             return index;
         }
 
-        private void UpdateSpectra(TransitionGroupDocNode nodeGroup, LookupData lookup)
-        {
-            _spectra = GetSpectra(nodeGroup, lookup);
-            if (!_spectra.Any())
-                _spectra = null;
-        }
-
-        private IList<SpectrumDisplayInfo> GetSpectra(TransitionGroupDocNode nodeGroup, LookupData lookup)
-        {
-            var settings = DocumentUI.Settings;
-            var charge = nodeGroup.PrecursorAdduct;
-            var spectra = settings.GetBestSpectra(lookup.LookupSequence, charge, lookup.LookupMods).Select(s => new SpectrumDisplayInfo(s, nodeGroup)).ToList();
-            // Showing redundant spectra is only supported for full-scan filtering when
-            // the document has results files imported.
-            if ((!settings.TransitionSettings.FullScan.IsEnabled && !settings.PeptideSettings.Libraries.HasMidasLibrary) || !settings.HasResults)
-                return spectra;
-
-            try
-            {
-                var spectraRedundant = new List<SpectrumDisplayInfo>();
-                var dictReplicateNameFiles = new Dictionary<string, HashSet<string>>();
-                foreach (var spectrumInfo in settings.GetRedundantSpectra(nodeGroup.Peptide, lookup.LookupSequence, charge, nodeGroup.TransitionGroup.LabelType, lookup.LookupMods))
-                {
-                    var matchingFile = settings.MeasuredResults.FindMatchingMSDataFile(MsDataFileUri.Parse(spectrumInfo.FilePath));
-                    if (matchingFile == null)
-                        continue;
-
-                    string replicateName = matchingFile.Chromatograms.Name;
-                    spectraRedundant.Add(new SpectrumDisplayInfo(spectrumInfo,
-                        nodeGroup,
-                        replicateName,
-                        matchingFile.FilePath,
-                        matchingFile.FileOrder,
-                        spectrumInfo.RetentionTime,
-                        false));
-
-                    // Include the best spectrum twice, once displayed in the normal
-                    // way and once displayed with its replicate and retetion time.
-                    if (spectrumInfo.IsBest)
-                    {
-                        string libName = spectrumInfo.Name;
-                        var labelType = spectrumInfo.LabelType;
-                        int iBest = spectra.IndexOf(s => Equals(s.Name, libName) &&
-                                                         Equals(s.LabelType, labelType));
-                        if (iBest != -1)
-                        {
-                            spectra[iBest] = new SpectrumDisplayInfo(spectra[iBest].SpectrumInfo,
-                                nodeGroup,
-                                replicateName,
-                                matchingFile.FilePath,
-                                0,
-                                spectrumInfo.RetentionTime,
-                                true);
-                        }
-                    }
-
-                    HashSet<string> setFiles;
-                    if (!dictReplicateNameFiles.TryGetValue(replicateName, out setFiles))
-                    {
-                        setFiles = new HashSet<string>();
-                        dictReplicateNameFiles.Add(replicateName, setFiles);
-                    }
-                    setFiles.Add(spectrumInfo.FilePath);
-                }
-
-                // Determine if replicate name is sufficient to uniquely identify the file
-                foreach (var spectrumInfo in spectraRedundant)
-                {
-                    string replicateName = spectrumInfo.ReplicateName;
-                    if (replicateName != null && dictReplicateNameFiles[replicateName].Count < 2)
-                        spectrumInfo.IsReplicateUnique = true;
-                }
-
-                spectraRedundant.Sort();
-                spectra.AddRange(spectraRedundant);
-                return spectra;
-            }
-            catch (Exception)
-            {
-                return spectra;
-            }
-        }
-
         public void LockYAxis(bool lockY)
         {
             graphControl.IsEnableVPan = graphControl.IsEnableVZoom = !lockY;
@@ -1293,6 +1504,14 @@ namespace pwiz.Skyline.Controls.Graphs
         public MzRange Range
         {
             get {return new MzRange(GraphPane.XAxis.Scale.Min, GraphPane.XAxis.Scale.Max);}
+        }
+
+        public LibraryRankedSpectrumInfo SpectrumInfo => GraphItem?.SpectrumInfo;
+
+        public bool HasChromatogramData
+        {
+            get;
+            private set;
         }
 
         public Scale IntensityScale
@@ -1330,22 +1549,22 @@ namespace pwiz.Skyline.Controls.Graphs
             get { return GraphPane.XAxis.Scale.Max; }
         }
 
-// ReSharper disable SuggestBaseTypeForParameter
-        private static TransitionGroupDocNode[] GetChargeGroups(PeptideTreeNode nodeTree, bool requireLibInfo)
-// ReSharper restore SuggestBaseTypeForParameter
+        private static IEnumerable<TransitionGroupDocNode> GetChargeGroups(PeptideDocNode nodePep, bool requireLibInfo)
         {
             // Return the first group of each charge stat that has library info.
-            var listGroups = new List<TransitionGroupDocNode>();
-            foreach (TransitionGroupDocNode nodeGroup in nodeTree.ChildDocNodes)
+            var adducts = new HashSet<Adduct>();
+            foreach (var nodeGroup in nodePep.TransitionGroups)
             {
                 if (requireLibInfo && !nodeGroup.HasLibInfo)
                     continue;
 
                 var precursorCharge = nodeGroup.TransitionGroup.PrecursorAdduct;
-                if (!listGroups.Contains(g => g.TransitionGroup.PrecursorAdduct == precursorCharge))
-                    listGroups.Add(nodeGroup);
+                if (!adducts.Contains(precursorCharge))
+                {
+                    adducts.Add(precursorCharge);
+                    yield return nodeGroup;
+                }
             }
-            return listGroups.ToArray();
         }
 
         private void graphControl_ContextMenuBuilder(ZedGraphControl sender,
@@ -1354,8 +1573,44 @@ namespace pwiz.Skyline.Controls.Graphs
             _stateProvider.BuildSpectrumMenu(IsNotSmallMolecule, sender, menuStrip);
         }
 
+        public MenuControl<T> GetHostedControl<T>() where T : Panel, IControlSize, new()
+        {
+            if (graphControl.ContextMenuStrip != null)
+            {
+                var chargesItem = graphControl.ContextMenuStrip.Items.OfType<ToolStripMenuItem>()
+                    .FirstOrDefault(item => item.DropDownItems.OfType<MenuControl<T>>().Any());
+                if (chargesItem != null)
+                    return chargesItem.DropDownItems[0] as MenuControl<T>;
+            }
+            return null;
+        }
+
+        public void DisconnectHandlers()
+        {
+            if (_documentContainer is SkylineWindow skylineWindow)
+            {
+                var chargeSelector = GetHostedControl<ChargeSelectionPanel>();
+
+                if (chargeSelector != null)
+                {
+                    chargeSelector.HostedControl.OnChargeChanged -= skylineWindow.IonChargeSelector_ionChargeChanged;
+                }
+
+                var ionTypeSelector = GetHostedControl<IonTypeSelectionPanel>();
+                if (ionTypeSelector != null)
+                {
+                    ionTypeSelector.HostedControl.IonTypeChanged -= skylineWindow.IonTypeSelector_IonTypeChanges;
+                    ionTypeSelector.HostedControl.LossChanged -= skylineWindow.IonTypeSelector_LossChanged;
+                }
+            }
+
+            if (msGraphExtension.PropertiesSheet.PropertySort == PropertySort.Alphabetical)
+                Settings.Default.ViewLibraryPropertiesSorted = true;
+        }
+
         protected override void OnClosed(EventArgs e)
         {
+            _updateManager.Dispose();
             _documentContainer.UnlistenUI(OnDocumentUIChanged);
         }
 
@@ -1369,25 +1624,37 @@ namespace pwiz.Skyline.Controls.Graphs
             }
         }
 
-        private void comboSpectrum_SelectedIndexChanged(object sender, EventArgs e)
+        private void comboPrecursor_SelectedIndexChanged(object sender, EventArgs e)
         {
-            UpdateUI();
-
             if (!_inToolbarUpdate)
             {
-                FireSelectedSpectrumChanged(true);
+                _updateManager.QueueUpdate(true);
+            }
+        }
+
+        private void comboSpectrum_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            if (!_inToolbarUpdate)
+            {
+                _updateManager.QueueUpdate(true);
             }
         }
 
         private void comboMirrorSpectrum_SelectedIndexChanged(object sender, EventArgs e)
         {
-            UpdateUI();
+            if (!_inToolbarUpdate)
+            {
+                UpdateUI();
+            }
         }
 
         private void comboCE_SelectedIndexChanged(object sender, EventArgs e)
         {
-            Settings.Default.PrositNCE = (int) comboCE.SelectedItem;
-            UpdateUI();
+            Settings.Default.KoinaNCE = (int) comboCE.SelectedItem;
+            if (!_inToolbarUpdate)
+            {
+                UpdateUI();
+            }
         }
 
         public static void MakeChromatogramInfo(SignedMz precursorMz, LibraryChromGroup chromGroup, LibraryChromGroup.ChromData chromData, out ChromatogramInfo chromatogramInfo, out TransitionChromInfo transitionChromInfo)
@@ -1399,7 +1666,7 @@ namespace pwiz.Skyline.Controls.Graphs
                 crawPeakFinder.GetPeak(
                     FindNearestIndex(chromGroup.Times, (float) chromGroup.StartTime),
                     FindNearestIndex(chromGroup.Times, (float) chromGroup.EndTime));
-            var chromPeak = new ChromPeak(crawPeakFinder, crawdadPeak, 0, timeIntensities, null);
+            var chromPeak = new ChromPeak(crawPeakFinder, crawdadPeak, 0, timeIntensities, null, null);
             var ionMobilityFilter = IonMobilityFilter.GetIonMobilityFilter(chromData.IonMobility,null, chromGroup.CCS);
             transitionChromInfo = new TransitionChromInfo(null, 0, chromPeak,
                 ionMobilityFilter,
@@ -1418,16 +1685,26 @@ namespace pwiz.Skyline.Controls.Graphs
                 0, // compressedSize
                 0, // uncompressedsize
                 0,  //location
-                0, -1, -1, null, null, chromGroup.CCS, ionMobilityFilter.IonMobilityUnits);
-            var groupInfo = new ChromatogramGroupInfo(header,
+                0, null, null, chromGroup.CCS, ionMobilityFilter.IonMobilityUnits);
+            var groupInfo = new ChromatogramGroupInfo(header,null,
                 new[]
                 {
                     new ChromTransition(chromData.Mz, 0,
                         (float) (ionMobilityFilter.IonMobilityAndCCS.IonMobility.Mobility ?? 0),
-                        (float) (ionMobilityFilter.IonMobilityExtractionWindowWidth ?? 0), ChromSource.unknown),
+                        (float) (ionMobilityFilter.IonMobilityExtractionWindowWidth ?? 0),
+                        ChromSource.unknown, transitionChromInfo.OptimizationStep),
                 }, peaks, TimeIntensitiesGroup.Singleton(timeIntensities));
             chromatogramInfo = new ChromatogramInfo(groupInfo, 0);
         }
+
+        #region Test support
+
+        public ToolStripButton PropertyButton => propertiesButton;
+        public MsGraphExtension MsGraphExtension => msGraphExtension;
+        public ToolStripComboBox SpectrumCombo => comboSpectrum;
+
+        #endregion
+
     }
 
     public class GraphSpectrumSettings
@@ -1486,6 +1763,24 @@ namespace pwiz.Skyline.Controls.Graphs
             set { ActAndUpdate(() => Set.ShowZIons = value); }
         }
 
+        public bool ShowZHIons
+        {
+            get { return Set.ShowZHIons; }
+            set { ActAndUpdate(() => Set.ShowZHIons = value); }
+        }
+
+        public bool ShowZHHIons
+        {
+            get { return Set.ShowZHHIons; }
+            set { ActAndUpdate(() => Set.ShowZHHIons = value); }
+        }
+
+        public Dictionary<IonType, bool> GetShowIonTypeSettings()
+        {
+            return new Dictionary<IonType, bool>(){{IonType.a, ShowAIons}, { IonType.b, ShowBIons }, { IonType.c, ShowCIons },
+                { IonType.x, ShowXIons }, { IonType.y, ShowYIons }, { IonType.z, ShowZIons },{IonType.zh, ShowZHIons}, {IonType.zhh, ShowZHHIons} };
+        }
+
         public bool ShowFragmentIons
         {
             get { return Set.ShowFragmentIons; }
@@ -1497,6 +1792,12 @@ namespace pwiz.Skyline.Controls.Graphs
             get { return Set.ShowPrecursorIon; }
             set { ActAndUpdate(() => Set.ShowPrecursorIon = value); }
         }
+        public bool ShowSpecialIons
+        {
+            get { return Set.ShowSpecialIons; }
+            set { ActAndUpdate(() => Set.ShowSpecialIons = value); }
+        }
+
 
         public bool ShowCharge1
         {
@@ -1522,10 +1823,22 @@ namespace pwiz.Skyline.Controls.Graphs
             set { ActAndUpdate(() => Set.ShowCharge4 = value); }
         }
 
-        public bool Prosit
+        public ICollection<string> ShowLosses
         {
-            get { return Set.Prosit; }
-            set { ActAndUpdate(() => Set.Prosit = value);}
+            get
+            {
+                return Set.ShowLosses.IsNullOrEmpty() ? new string[] {} : Set.ShowLosses.Split(',');
+            }
+            set
+            {
+                ActAndUpdate(() => Set.ShowLosses = value.ToList().ToString(@","));
+            }
+        }
+
+        public bool Koina
+        {
+            get { return Set.Koina; }
+            set { ActAndUpdate(() => Set.Koina = value);}
         }
 
         public bool Mirror
@@ -1543,11 +1856,14 @@ namespace pwiz.Skyline.Controls.Graphs
                 AddItem(types, IonType.y, Set.ShowYIons);
                 AddItem(types, IonType.b, Set.ShowBIons);
                 AddItem(types, IonType.z, Set.ShowZIons);
+                AddItem(types, IonType.zh, Set.ShowZHIons);
+                AddItem(types, IonType.zhh, Set.ShowZHHIons);
                 AddItem(types, IonType.c, Set.ShowCIons);
                 AddItem(types, IonType.x, Set.ShowXIons);
                 AddItem(types, IonType.a, Set.ShowAIons);
                 // FUTURE: Add custom ions when LibraryRankedSpectrumInfo can support them
                 AddItem(types, IonType.precursor, Set.ShowPrecursorIon);
+                AddItem(types, IonType.custom, Set.ShowSpecialIons);
             }
             else
             {

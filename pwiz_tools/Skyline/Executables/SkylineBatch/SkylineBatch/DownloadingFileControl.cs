@@ -17,8 +17,12 @@ namespace SkylineBatch
         private readonly string _filter;
         private EventHandler _addedPathChangedHandler;
         private IMainUiControl _mainControl;
+        private bool _templateFile;
+        private Action<SkylineBatchConfigManagerState> _setMainState;
+        private Func<SkylineBatchConfigManagerState> _getMainState;
 
-        public DownloadingFileControl(string label, string variableDescription, string initialPath, string filter, Server server, bool isDataServer, string toolTip, IMainUiControl mainControl, SkylineBatchConfigManagerState state)
+        public DownloadingFileControl(string label, string variableDescription, string initialPath, string filter, Server server, bool isDataServer, string toolTip, IMainUiControl mainControl, 
+            Action<SkylineBatchConfigManagerState> setMainState, Func<SkylineBatchConfigManagerState> getMainState, bool templateFile = false)
         {
             InitializeComponent();
 
@@ -29,8 +33,9 @@ namespace SkylineBatch
             _variableDescription = variableDescription;
             _filter = filter;
             _mainControl = mainControl;
-            State = state;
-
+            _setMainState = setMainState;
+            _getMainState = getMainState;
+            _templateFile = templateFile;
             labelPath.Text = string.Format(Resources.DownloadingFileControl_DownloadingFileControl__0__, label);
             ToggleDownload(Server != null);
             textPath.Text = Path;
@@ -42,8 +47,6 @@ namespace SkylineBatch
 
         public string Path { get; private set; }
         public Server Server { get; private set; }
-
-        public SkylineBatchConfigManagerState State { get; set; }
 
         public void SetPath(string newPath)
         {
@@ -140,7 +143,7 @@ namespace SkylineBatch
             {
                 var newText = textPath.Text;
                 textPath.Text = ServerPath();
-                if (DialogResult.OK == AlertDlg.ShowOkCancel(this, Program.AppName(),
+                if (DialogResult.OK == AlertDlg.ShowOkCancel(this,
                     string.Format(Resources.DownloadingFileControl_textPath_TextChanged_Changing_the__0__will_prevent_it_from_being_downloaded_through_Panorama__Are_you_sure_you_want_to_continue_, _variableDescription.ToLower(CultureInfo.CurrentCulture)))
                 )
                 {
@@ -174,20 +177,20 @@ namespace SkylineBatch
         {
             if (_isDataServer)
             {
-                var addServerForm = new DataServerForm((DataServerInfo)Server, textPath.Text, State, _mainControl);
+                var addServerForm = new DataServerForm((DataServerInfo)Server, textPath.Text, _getMainState(), _mainControl);
                 if (DialogResult.OK == addServerForm.ShowDialog(this))
                 {
-                    State = addServerForm.State;
+                    _setMainState(addServerForm.State);
                     Server = addServerForm.Server;
                     ToggleDownload(Server != null);
                 }
             }
             else
             {
-                var addPanoramaTemplate = new RemoteFileForm(Server, textPath.Text, string.Format("Download {0} From Panorama", _variableDescription), _mainControl, State);
+                var addPanoramaTemplate = new RemoteFileForm(Server, textPath.Text, string.Format("Download {0} From Panorama", _variableDescription), _mainControl, _getMainState(), _templateFile);
                 if (DialogResult.OK == addPanoramaTemplate.ShowDialog(this))
                 {
-                    State = addPanoramaTemplate.State;
+                    _setMainState(addPanoramaTemplate.State);
                     Server = addPanoramaTemplate.PanoramaServer;
                     ToggleDownload(Server != null);
                 }

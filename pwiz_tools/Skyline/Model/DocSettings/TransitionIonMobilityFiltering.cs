@@ -19,7 +19,6 @@
 
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -154,8 +153,9 @@ namespace pwiz.Skyline.Model.DocSettings
                     {
                         var ionMobilityValue = ionMobilityFunctionsProvider.IonMobilityFromCCS(
                             result.CollisionalCrossSectionSqA.Value,
-                            ion.PrecursorMz ?? mz, ion.Charge);
-                        if (!Equals(ionMobilityValue, result.IonMobility))
+                            ion.PrecursorMz ?? mz, ion.Charge, ion);
+                        if (ionMobilityValue.HasValue && // Successful CCS->IM conversion
+                            !Equals(ionMobilityValue, result.IonMobility))
                         {
                             result = IonMobilityAndCCS.GetIonMobilityAndCCS(ionMobilityValue,
                                 result.CollisionalCrossSectionSqA, result.HighEnergyIonMobilityValueOffset);
@@ -481,7 +481,7 @@ namespace pwiz.Skyline.Model.DocSettings
                     break;
                 case IonMobilityWindowWidthType.fixed_width:
                     if (FixedWindowWidth < 0)
-                        return Resources.DriftTimeWindowWidthCalculator_Validate_Fixed_window_width_must_be_non_negative_;
+                        return DocSettingsResources.DriftTimeWindowWidthCalculator_Validate_Fixed_window_width_must_be_non_negative_;
                     break;
             }
 
@@ -498,6 +498,7 @@ namespace pwiz.Skyline.Model.DocSettings
             return other != null &&
                    Equals(other.WindowWidthMode, WindowWidthMode) &&
                    Equals(other.ResolvingPower, ResolvingPower) &&
+                   Equals(other.FixedWindowWidth, FixedWindowWidth) &&
                    Equals(other.PeakWidthAtIonMobilityValueZero, PeakWidthAtIonMobilityValueZero) &&
                    Equals(other.PeakWidthAtIonMobilityValueMax, PeakWidthAtIonMobilityValueMax);
         }
@@ -513,6 +514,7 @@ namespace pwiz.Skyline.Model.DocSettings
         {
             int result = WindowWidthMode.GetHashCode();
             result = (result * 397) ^ ResolvingPower.GetHashCode();
+            result = (result * 397) ^ FixedWindowWidth.GetHashCode();
             result = (result * 397) ^ PeakWidthAtIonMobilityValueZero.GetHashCode();
             result = (result * 397) ^ PeakWidthAtIonMobilityValueMax.GetHashCode();
             return result;
@@ -928,6 +930,12 @@ namespace pwiz.Skyline.Model.DocSettings
 
         }
 
+        public IonMobilityFilter ChangeCollisionCrossSection(double ?ccs)
+        {
+            return Equals(CollisionalCrossSectionSqA, ccs) ? this : 
+                ChangeProp(ImClone(this), im => im.IonMobilityAndCCS = IonMobilityAndCCS.ChangeCollisionalCrossSection(ccs));
+        }
+
         private IonMobilityFilter(IonMobilityAndCCS ionMobilityAndCCS,
             double? ionMobilityExtractionWindowWidth)
         {
@@ -1012,14 +1020,14 @@ namespace pwiz.Skyline.Model.DocSettings
             switch (units)
             {
                 case eIonMobilityUnits.inverse_K0_Vsec_per_cm2:
-                    return Resources.IonMobilityFilter_IonMobilityUnitsString__1_K0__Vs_cm_2_;
+                    return DocSettingsResources.IonMobilityFilter_IonMobilityUnitsString__1_K0__Vs_cm_2_;
                 case eIonMobilityUnits.drift_time_msec:
                     return Resources.IonMobilityFilter_IonMobilityUnitsString_Drift_Time__ms_;
                 case eIonMobilityUnits.compensation_V:
-                    return Resources.IonMobilityFilter_IonMobilityUnitsString_Compensation_Voltage__V_;
+                    return DocSettingsResources.IonMobilityFilter_IonMobilityUnitsString_Compensation_Voltage__V_;
                 case eIonMobilityUnits.waters_sonar: // Not really ion mobility, but uses IMS hardware and our IMS filtering code
                 case eIonMobilityUnits.none:
-                    return Resources.IonMobilityFilter_IonMobilityUnitsL10NString_None;
+                    return DocSettingsResources.IonMobilityFilter_IonMobilityUnitsL10NString_None;
                 default:
                     return null;
             }
@@ -1059,9 +1067,8 @@ namespace pwiz.Skyline.Model.DocSettings
             var currentCulture = Thread.CurrentThread.CurrentUICulture;
             try
             {
-                foreach (var culture in new[] {@"en", @"zh-CHS", @"ja"})
+                foreach (var tryCulture in CultureUtil.AvailableDisplayLanguages())
                 {
-                    var tryCulture = new CultureInfo(culture);
                     Thread.CurrentThread.CurrentUICulture = tryCulture;
                     foreach (eIonMobilityUnits u in Enum.GetValues(typeof(eIonMobilityUnits)))
                     {
@@ -1094,9 +1101,8 @@ namespace pwiz.Skyline.Model.DocSettings
             {
                 var result = new List<string>();
                 var currentCulture = Thread.CurrentThread.CurrentUICulture;
-                foreach (var culture in new[] { @"en", @"zh-CHS", @"ja" })
+                foreach (var tryCulture in CultureUtil.AvailableDisplayLanguages())
                 {
-                    var tryCulture = new CultureInfo(culture);
                     Thread.CurrentThread.CurrentUICulture = tryCulture;
                     foreach (eIonMobilityUnits u in Enum.GetValues(typeof(eIonMobilityUnits)))
                     {

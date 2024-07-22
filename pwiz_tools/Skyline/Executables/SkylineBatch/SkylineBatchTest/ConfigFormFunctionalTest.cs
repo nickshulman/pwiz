@@ -1,6 +1,7 @@
 ﻿using System;
 using System.IO;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using pwiz.Common.GUI;
 using SharedBatch;
 using SkylineBatch;
 
@@ -13,7 +14,7 @@ namespace SkylineBatchTest
         public static string TEST_FOLDER;  // folder containing bcfg file(s)
 
         [TestMethod]
-        public void AddConfigErrorsTest()
+        public void ConfigFormTest()
         {
             TestFilesZipPaths = new[]
                 {@"SkylineBatchTest\ConfigFormFunctionalTest.zip", @"SkylineBatchTest\TestConfigurationFiles.zip"};
@@ -36,15 +37,12 @@ namespace SkylineBatchTest
             TestEditInvalidDownloadingFolderPath(mainForm);
 
             TestZipFiles(mainForm);
+
+            TestRenameAnalysisFolder(mainForm);
         }
         private bool ConfigRunning(MainForm mainForm, bool expectedAnswer)
         {
-            bool worked = false;
-            RunUI(() =>
-            {
-                worked = expectedAnswer == mainForm.ConfigRunning("Bruderer");
-            });
-            return worked;
+            return expectedAnswer == mainForm.ConfigRunning("Bruderer");
         }
 
         public void TestZipFiles(MainForm mainForm)
@@ -58,9 +56,6 @@ namespace SkylineBatchTest
             });
 
             RunUI(() => { mainForm.ClickRun(1); });
-            // only not shown after prev test run
-            //var longWaitDialog = ShowDialog<LongWaitDlg>(() => mainForm.ClickRun(1));
-            //WaitForClosedForm(longWaitDialog);
             var tenSeconds = new TimeSpan(0, 0, 10);
             FunctionalTestUtil.WaitForCondition(ConfigRunning, mainForm, true, tenSeconds, 20,
                 "Config did not start");
@@ -76,14 +71,17 @@ namespace SkylineBatchTest
                 "Config did not start");
             FunctionalTestUtil.WaitForCondition(ConfigRunning, mainForm, false, oneMinute, 1000,
                 "Config ran past timeout");
-            var alertDlg = FindOpenForm<AlertDlg>();
+            var alertDlg = FindOpenForm<CommonAlertDlg>();
             if (alertDlg != null)
             {
                 alertDlg.ClickOk();
                 WaitForClosedForm(alertDlg);
                 Assert.Fail("An unexpected alert appeared with message: " + alertDlg.Message);
             }
-
+            RunUI(() => {
+                FunctionalTestUtil.ClearConfigs(mainForm);
+                mainForm.tabMain.SelectedIndex = 0;
+            });
         }
 
         public void TestEditInvalidDownloadingFolderPath(MainForm mainForm)
@@ -105,6 +103,7 @@ namespace SkylineBatchTest
             var currFilePath = configDlg.comboTemplateFile.Text;
             RunUI(() => { configDlg.CancelButton.PerformClick(); });
             WaitForClosedForm(configDlg);
+            RunUI(() => FunctionalTestUtil.ClearConfigs(mainForm));
             Assert.AreEqual(initialFilePath, currFilePath);
         }
 
@@ -116,7 +115,7 @@ namespace SkylineBatchTest
                 FunctionalTestUtil.PopulateConfigForm(newConfigForm, string.Empty, CONFIG_FOLDER, this);
             });
 
-            RunDlg<AlertDlg>(() => newConfigForm.btnSaveConfig.PerformClick(),
+            RunDlg<CommonAlertDlg>(() => newConfigForm.btnSaveConfig.PerformClick(),
                 dlg =>
                 {
                     Assert.AreEqual(string.Format(SkylineBatch.Properties.Resources.SkylineBatchConfig_SkylineBatchConfig___0___is_not_a_valid_name_for_the_configuration_, string.Empty) + Environment.NewLine +
@@ -132,7 +131,7 @@ namespace SkylineBatchTest
                 newConfigForm.templateControl.SetPath(nonexistentTemplate);
             });
 
-            RunDlg<AlertDlg>(() => newConfigForm.btnSaveConfig.PerformClick(),
+            RunDlg<CommonAlertDlg>(() => newConfigForm.btnSaveConfig.PerformClick(),
                 dlg =>
                 {
                     Assert.AreEqual(string.Format(SkylineBatch.Properties.Resources.MainSettings_ValidateSkylineFile_The_Skyline_template_file__0__does_not_exist_, nonexistentTemplate) + Environment.NewLine +
@@ -148,7 +147,7 @@ namespace SkylineBatchTest
                 newConfigForm.dataControl.SetPath(Path.Combine(CONFIG_FOLDER, "nonexistentData"));
             });
 
-            RunDlg<AlertDlg>(() => newConfigForm.btnSaveConfig.PerformClick(),
+            RunDlg<CommonAlertDlg>(() => newConfigForm.btnSaveConfig.PerformClick(),
                 dlg =>
                 {
                     Assert.AreEqual(string.Format(SkylineBatch.Properties.Resources.MainSettings_ValidateDataFolder_The_data_folder__0__does_not_exist_, nonexistentData) + Environment.NewLine +
@@ -164,7 +163,7 @@ namespace SkylineBatchTest
                 newConfigForm.textAnalysisPath.Text = nonexistentAnalysis;
             });
 
-            RunDlg<AlertDlg>(() => newConfigForm.btnSaveConfig.PerformClick(),
+            RunDlg<CommonAlertDlg>(() => newConfigForm.btnSaveConfig.PerformClick(),
                 dlg =>
                 {
                     Assert.AreEqual(string.Format(SkylineBatch.Properties.Resources.MainSettings_ValidateAnalysisFolder_The__parent_directory_of_the_analysis_folder__0__does_not_exist_, Path.GetDirectoryName(nonexistentAnalysis)) + Environment.NewLine +
@@ -181,7 +180,7 @@ namespace SkylineBatchTest
                 newConfigForm.checkBoxRemoveDecoys.Checked = false;
             });
 
-            RunDlg<AlertDlg>(() => newConfigForm.btnSaveConfig.PerformClick(),
+            RunDlg<CommonAlertDlg>(() => newConfigForm.btnSaveConfig.PerformClick(),
                 dlg =>
                 {
                     Assert.AreEqual(string.Format(SkylineBatch.Properties.Resources.RefineSettings_Validate_No_refine_commands_have_been_selected_, Path.GetDirectoryName(nonexistentAnalysis)) + Environment.NewLine +
@@ -194,7 +193,59 @@ namespace SkylineBatchTest
             WaitForClosedForm(newConfigForm);
         }
 
-        
+        public void TestRenameAnalysisFolder(MainForm mainForm)
+        {
+            var configName = "Config_Name";
+            var skylineFileName = "emptyTemplate.sky";
+            var analysisFileName = "analysisFolder.sky";
+            var newConfigForm = ShowDialog<SkylineBatchConfigForm>(() => mainForm.ClickAdd());
+            RunUI(() =>
+            {
+                FunctionalTestUtil.PopulateConfigForm(newConfigForm, configName, CONFIG_FOLDER, this);
+                Assert.IsTrue(newConfigForm.checkBoxUseFolderName.Checked == false, "Expected the configuration to use Skyline file " +
+                    "name for Analysis file name as default." );
+                Assert.IsTrue(newConfigForm.textAnalysisFileName.Text.Equals(skylineFileName), $"Expected Analysis file name to be {skylineFileName} but was {newConfigForm.textAnalysisFileName}");
+                newConfigForm.checkBoxUseFolderName.Checked = true;
+                Assert.IsTrue(newConfigForm.textAnalysisFileName.Text.Equals(analysisFileName), $"Expected Analysis file name to be {analysisFileName} but was {newConfigForm.textAnalysisFileName}");
+                newConfigForm.btnSaveConfig.PerformClick();
+            });
+            WaitForClosedForm(newConfigForm);
+            RunUI(() => { mainForm.ClickConfig(0); });
+            var configForm = ShowDialog<SkylineBatchConfigForm>(() => mainForm.ClickEdit());
+            RunUI(() =>
+            {
+                Assert.IsTrue(newConfigForm.checkBoxUseFolderName.Checked, "Use folder name checkbox did not retain checked value.");
+                Assert.IsTrue(newConfigForm.textAnalysisFileName.Text.Equals(analysisFileName), $"Expected Analysis file name to be {analysisFileName} but was {newConfigForm.textAnalysisFileName}");
+                configForm.btnSaveConfig.PerformClick();
+            });
+            WaitForClosedForm(configForm);
 
+            var invalidConfigFile = Path.Combine(TEST_FOLDER, "AnalysisFileNameConfigurations.bcfg");
+            RunUI(() =>
+            {
+                FunctionalTestUtil.ClearConfigs(mainForm);
+                mainForm.DoImport(invalidConfigFile);
+                FunctionalTestUtil.CheckConfigs(2, 0, mainForm);
+                mainForm.ClickConfig(0);
+            });
+            configForm = ShowDialog<SkylineBatchConfigForm>(() => mainForm.ClickEdit());
+            RunUI(() =>
+            {
+                Assert.IsTrue(configForm.checkBoxUseFolderName.Checked, "Use folder name checkbox value imported incorrectly, expected checked.");
+                Assert.IsTrue(configForm.textAnalysisFileName.Text.Equals(analysisFileName), $"Expected Analysis file name to be {analysisFileName} but was {configForm.textAnalysisFileName}");
+                configForm.btnSaveConfig.PerformClick();
+            });
+            WaitForClosedForm(configForm);
+            RunUI(() => mainForm.ClickConfig(1));
+            configForm = ShowDialog<SkylineBatchConfigForm>(() => mainForm.ClickEdit());
+            RunUI(() =>
+            {
+                Assert.IsTrue(!configForm.checkBoxUseFolderName.Checked, "Use folder name checkbox value imported incorrectly, expected unchecked.");
+                Assert.IsTrue(configForm.textAnalysisFileName.Text.Equals(skylineFileName), $"Expected Analysis file name to be {skylineFileName} but was {configForm.textAnalysisFileName}");
+                configForm.btnSaveConfig.PerformClick();
+            });
+            WaitForClosedForm(configForm);
+            RunUI(() => FunctionalTestUtil.ClearConfigs(mainForm));
+        }
     }
 }

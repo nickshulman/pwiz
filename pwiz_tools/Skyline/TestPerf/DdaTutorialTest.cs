@@ -25,6 +25,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 using pwiz.Common.Chemistry;
 using pwiz.Skyline.Alerts;
 using pwiz.Skyline.Controls;
+using pwiz.Skyline.EditUI;
 using pwiz.Skyline.FileUI;
 using pwiz.Skyline.FileUI.PeptideSearch;
 using pwiz.Skyline.Model.DdaSearch;
@@ -40,7 +41,7 @@ namespace TestPerf
     [TestClass]
     public class DdaTutorialTest : AbstractFunctionalTest
     {
-        [TestMethod]
+        [TestMethod, NoParallelTesting(TestExclusionReason.RESOURCE_INTENSIVE), NoUnicodeTesting(TestExclusionReason.MSFRAGGER_UNICODE_ISSUES)]
         public void TestDdaTutorial()
         {
             // Set true to look at tutorial screenshots.
@@ -49,7 +50,7 @@ namespace TestPerf
             //RunPerfTests = true;
             CoverShotName = "DDASearch";
 
-            LinkPdf = "https://skyline.ms/_webdav/home/software/Skyline/%40files/tutorials/DDASearch-20_2.pdf";
+            LinkPdf = "https://skyline.ms/_webdav/home/software/Skyline/%40files/tutorials/DDASearch-22_2.pdf";
 
             TestFilesZipPaths = new[]
             {
@@ -132,21 +133,20 @@ namespace TestPerf
             WaitForDocumentChangeLoaded(docBeforePeptideSettings);
 
             // Launch the wizard
-            var importPeptideSearchDlg = ShowDialog<ImportPeptideSearchDlg>(SkylineWindow.ShowImportPeptideSearchDlg);
+            var importPeptideSearchDlg = ShowDialog<ImportPeptideSearchDlg>(SkylineWindow.ShowRunPeptideSearchDlg);
             PauseForScreenShot<ImportPeptideSearchDlg.SpectraPage>("Import Peptide Search - Select DDA Files to Search page", tutorialPage++);
 
             // We're on the "Build Spectral Library" page of the wizard.
             RunUI(() =>
             {
                 Assert.IsTrue(importPeptideSearchDlg.CurrentPage == ImportPeptideSearchDlg.Pages.spectra_page);
-                importPeptideSearchDlg.BuildPepSearchLibControl.PerformDDASearch = true;
                 importPeptideSearchDlg.BuildPepSearchLibControl.DdaSearchDataSources = SearchFiles.Select(o => new MsDataFilePath(o)).ToArray();
                 importPeptideSearchDlg.BuildPepSearchLibControl.IncludeAmbiguousMatches = false;
                 Assert.AreEqual(ImportPeptideSearchDlg.Workflow.dda, importPeptideSearchDlg.BuildPepSearchLibControl.WorkflowType);
             });
             PauseForScreenShot<ImportPeptideSearchDlg.SpectraPage>("Import Peptide Search - After Selecting DDA Files page", tutorialPage++);
 
-            if (IsFullData)
+            if (SearchFiles.Count() > 1)
             {
                 // Remove prefix/suffix dialog pops up; accept default behavior
                 var removeSuffix = ShowDialog<ImportResultsNameDlg>(() => importPeptideSearchDlg.ClickNextButton());
@@ -164,12 +164,12 @@ namespace TestPerf
             var editHeavyModListUI =
                 ShowDialog<EditListDlg<SettingsListBase<StaticMod>, StaticMod>>(importPeptideSearchDlg.MatchModificationsControl.ClickAddHeavyModification);
             var heavyKDlg = ShowDialog<EditStaticModDlg>(editHeavyModListUI.AddItem);
-            RunUI(() => heavyKDlg.SetModification(HEAVY_K, true));
+            RunUI(() => heavyKDlg.SetModification(HEAVY_K));
             PauseForScreenShot<EditStaticModDlg.IsotopeModView>("Edit Isotope Modification form - K", tutorialPage++);
             OkDialog(heavyKDlg, heavyKDlg.OkDialog);
 
             var heavyRDlg = ShowDialog<EditStaticModDlg>(editHeavyModListUI.AddItem);
-            RunUI(() => heavyRDlg.SetModification(HEAVY_R, true));
+            RunUI(() => heavyRDlg.SetModification(HEAVY_R));
             PauseForScreenShot<EditStaticModDlg.IsotopeModView>("Edit Isotope Modification form - R", tutorialPage++);
             OkDialog(heavyRDlg, heavyRDlg.OkDialog);
             OkDialog(editHeavyModListUI, editHeavyModListUI.OkDialog);
@@ -184,7 +184,7 @@ namespace TestPerf
                 ShowDialog<EditListDlg<SettingsListBase<StaticMod>, StaticMod>>(importPeptideSearchDlg.MatchModificationsControl.ClickAddStructuralModification);
             RunDlg<EditStaticModDlg>(editStructModListUI.AddItem, editModDlg =>
             {
-                editModDlg.SetModification(OXIDATION_M, true); // Not L10N
+                editModDlg.SetModification(OXIDATION_M); // Not L10N
                 editModDlg.OkDialog();
             });
             OkDialog(editStructModListUI, editStructModListUI.OkDialog);
@@ -216,24 +216,28 @@ namespace TestPerf
             RunUI(() => Assert.IsTrue(importPeptideSearchDlg.CurrentPage == ImportPeptideSearchDlg.Pages.dda_search_settings_page));
 
             // switch SearchEngine and handle download dialogs if necessary
-            SkylineWindow.BeginInvoke(new Action(() => importPeptideSearchDlg.SearchSettingsControl.SelectedSearchEngine = SearchSettingsControl.SearchEngine.MSFragger));
-            if (RedownloadTools || HasMissingDependencies)
+            bool useMsFragger = !IsPauseForScreenShots; // Tutorial still uses MSAmanda
+            if (useMsFragger)
             {
-                var msfraggerDownloaderDlg = TryWaitForOpenForm<MsFraggerDownloadDlg>(2000);
-                if (msfraggerDownloaderDlg != null)
+                SkylineWindow.BeginInvoke(new Action(() => importPeptideSearchDlg.SearchSettingsControl.SelectedSearchEngine = SearchSettingsControl.SearchEngine.MSFragger));
+                if (RedownloadTools || HasMissingDependencies)
                 {
-                    PauseForScreenShot<ImportPeptideSearchDlg.FastaPage>("Import Peptide Search - Download MSFragger", tutorialPage++);
-                    RunUI(() => msfraggerDownloaderDlg.SetValues("Matt Chambers (testing download from Skyline)", "matt.chambers42@gmail.com", "UW"));
-                    OkDialog(msfraggerDownloaderDlg, msfraggerDownloaderDlg.ClickAccept);
-                }
+                    var msfraggerDownloaderDlg = TryWaitForOpenForm<MsFraggerDownloadDlg>(2000);
+                    if (msfraggerDownloaderDlg != null)
+                    {
+                        PauseForScreenShot<MsFraggerDownloadDlg>("Import Peptide Search - Download MSFragger", tutorialPage++); // Maybe someday
+                        RunUI(() => msfraggerDownloaderDlg.SetValues("Matt Chambers (testing download from Skyline)", "matt.chambers42@gmail.com", "UW"));
+                        OkDialog(msfraggerDownloaderDlg, msfraggerDownloaderDlg.ClickAccept);
+                    }
 
-                var downloaderDlg = TryWaitForOpenForm<MultiButtonMsgDlg>(2000);
-                if (downloaderDlg != null)
-                {
-                    PauseForScreenShot<ImportPeptideSearchDlg.FastaPage>("Import Peptide Search - Download Java and Crux", tutorialPage++);
-                    OkDialog(downloaderDlg, downloaderDlg.ClickYes);
-                    var waitDlg = WaitForOpenForm<LongWaitDlg>();
-                    WaitForClosedForm(waitDlg);
+                    var downloaderDlg = TryWaitForOpenForm<MultiButtonMsgDlg>(2000);
+                    if (downloaderDlg != null)
+                    {
+                        PauseForScreenShot<MultiButtonMsgDlg>("Import Peptide Search - Download Java and Crux", tutorialPage++); // Maybe someday
+                        OkDialog(downloaderDlg, downloaderDlg.ClickYes);
+                        var waitDlg = WaitForOpenForm<LongWaitDlg>();
+                        WaitForClosedForm(waitDlg);
+                    }
                 }
             }
 
@@ -241,10 +245,15 @@ namespace TestPerf
             {
                 importPeptideSearchDlg.SearchSettingsControl.PrecursorTolerance = new MzTolerance(5, MzTolerance.Units.ppm);
                 importPeptideSearchDlg.SearchSettingsControl.FragmentTolerance = new MzTolerance(10, MzTolerance.Units.ppm);
-                importPeptideSearchDlg.SearchSettingsControl.SetAdditionalSetting("check_spectral_files", "0");
-                //importPeptideSearchDlg.SearchSettingsControl.FragmentIons = "b, y";
+                // Using the default q value of 0.01 (FDR 1%) is best for teaching and requires less explaining
+                // importPeptideSearchDlg.SearchSettingsControl.CutoffScore = 0.05;
+                if (useMsFragger)
+                {
+                    importPeptideSearchDlg.SearchSettingsControl.SetAdditionalSetting("check_spectral_files", "0");
+                    //importPeptideSearchDlg.SearchSettingsControl.SetAdditionalSetting("keep-intermediate-files", "True");
+                }
 
-                importPeptideSearchDlg.SearchControl.OnSearchFinished += (success) => searchSucceeded = success;
+                importPeptideSearchDlg.SearchControl.SearchFinished += (success) => searchSucceeded = success;
             });
             PauseForScreenShot<ImportPeptideSearchDlg.DDASearchSettingsPage>("Import Peptide Search - DDA Search Settings page", tutorialPage++);
 
@@ -273,11 +282,14 @@ namespace TestPerf
                 Assert.IsNotNull(_searchLogImage);
             }
 
+            bool isNotAmanda = false;
+            RunUI(() => isNotAmanda = importPeptideSearchDlg.SearchSettingsControl.SelectedSearchEngine != SearchSettingsControl.SearchEngine.MSAmanda);
+
             // clicking 'Finish' (Next) will run ImportFasta
-            PeptidesPerProteinDlg emptyProteinsDlg;
-            if (importPeptideSearchDlg.SearchSettingsControl.SelectedSearchEngine != SearchSettingsControl.SearchEngine.MSAmanda)
+            AssociateProteinsDlg emptyProteinsDlg;
+            if (isNotAmanda)
             {
-                emptyProteinsDlg = ShowDialog<PeptidesPerProteinDlg>(() => importPeptideSearchDlg.ClickNextButton());
+                emptyProteinsDlg = ShowDialog<AssociateProteinsDlg>(() => importPeptideSearchDlg.ClickNextButton());
             }
             else
             {
@@ -286,14 +298,17 @@ namespace TestPerf
                 RunUI(() => AssertEx.Contains(ambiguousDlg.Message,
                     Resources.BiblioSpecLiteBuilder_AmbiguousMatches_The_library_built_successfully__Spectra_matching_the_following_peptides_had_multiple_ambiguous_peptide_matches_and_were_excluded_));
                 OkDialog(ambiguousDlg, ambiguousDlg.OkDialog);
-                emptyProteinsDlg = WaitForOpenForm<PeptidesPerProteinDlg>(600000);
+                emptyProteinsDlg = WaitForOpenForm<AssociateProteinsDlg>(600 * 1000);
             }
+
+            RunUI(() => emptyProteinsDlg.RemoveRepeatedPeptides = true);
+
+            WaitForConditionUI(() => emptyProteinsDlg.DocumentFinalCalculated);
 
             RunUI(() =>
             {
-                emptyProteinsDlg.RemoveRepeatedPeptides = true;
                 int proteinCount, peptideCount, precursorCount, transitionCount;
-                emptyProteinsDlg.NewTargetsAll(out proteinCount, out peptideCount, out precursorCount, out transitionCount);
+                /*emptyProteinsDlg.NewTargetsAll(out proteinCount, out peptideCount, out precursorCount, out transitionCount);
                 if (!IsFullData)
                 {
                     if (IsRecordMode)
@@ -311,7 +326,7 @@ namespace TestPerf
                         Assert.AreEqual(51162, precursorCount);
                         Assert.AreEqual(153486, transitionCount);
                     }
-                }
+                }*/
 
                 emptyProteinsDlg.NewTargetsFinalSync(out proteinCount, out peptideCount, out precursorCount, out transitionCount);
                 if (!IsFullData)
@@ -326,16 +341,16 @@ namespace TestPerf
                     }
                     else
                     {
-                        Assert.AreEqual(3258, proteinCount);
-                        Assert.AreEqual(6438, peptideCount);
-                        Assert.AreEqual(12732, precursorCount);
-                        Assert.AreEqual(38196, transitionCount);
+                        Assert.AreEqual(2637, proteinCount);
+                        Assert.AreEqual(5299, peptideCount);
+                        Assert.AreEqual(10461, precursorCount);
+                        Assert.AreEqual(31383, transitionCount);
                     }
                 }
             });
             PauseForScreenShot("Import Peptide Search - Empty Proteins dialog", tutorialPage++);
 
-            using (new WaitDocumentChange(null, true))
+            using (new WaitDocumentChange(null, true, 600 * 1000))
             {
                 OkDialog(emptyProteinsDlg, emptyProteinsDlg.OkDialog);
             }

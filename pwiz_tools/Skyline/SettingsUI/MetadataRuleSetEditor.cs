@@ -29,11 +29,11 @@ using pwiz.Common.DataBinding.Controls;
 using pwiz.Common.DataBinding.Controls.Editor;
 using pwiz.Skyline.Alerts;
 using pwiz.Skyline.Controls;
+using pwiz.Skyline.Controls.Databinding;
 using pwiz.Skyline.Model;
 using pwiz.Skyline.Model.Databinding;
 using pwiz.Skyline.Model.Databinding.Entities;
 using pwiz.Skyline.Model.DocSettings.MetadataExtraction;
-using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
 
 namespace pwiz.Skyline.SettingsUI
@@ -46,13 +46,14 @@ namespace pwiz.Skyline.SettingsUI
         private MetadataExtractor _metadataExtractor;
         private ImmutableList<MetadataRuleSet> _existing;
         private string _originalName;
-        public MetadataRuleSetEditor(IDocumentContainer documentContainer, MetadataRuleSet metadataRuleSet, IEnumerable<MetadataRuleSet> existing)
+        public MetadataRuleSetEditor(SrmDocument document, MetadataRuleSet metadataRuleSet, IEnumerable<MetadataRuleSet> existing)
         {
             InitializeComponent();
-            DocumentContainer = documentContainer;
-            metadataRuleSet = metadataRuleSet ?? new MetadataRuleSet(typeof(ResultFile));
+            Document = document;
+            metadataRuleSet = 
+                metadataRuleSet ?? new MetadataRuleSet(typeof(ResultFile));
             _originalName = metadataRuleSet.Name;
-            _dataSchema = new SkylineDataSchema(documentContainer, SkylineDataSchema.GetLocalizedSchemaLocalizer());
+            _dataSchema = SkylineDataSchema.MemoryDataSchema(document, SkylineDataSchema.GetLocalizedSchemaLocalizer());
             var rootColumn = ColumnDescriptor.RootColumn(_dataSchema, typeof(ExtractedMetadataResultRow));
             var viewInfo = new ViewInfo(rootColumn, GetDefaultViewSpec());
             var skylineViewContext= new MetadataResultViewContext(rootColumn, new StaticRowSource(new MetadataStepResult[0]));
@@ -64,7 +65,7 @@ namespace pwiz.Skyline.SettingsUI
             _existing = ImmutableList.ValueOfOrEmpty(existing);
         }
 
-        public IDocumentContainer DocumentContainer { get; private set; }
+        public SrmDocument Document{ get; private set; } 
 
         public MetadataRuleSet MetadataRuleSet
         {
@@ -234,7 +235,7 @@ namespace pwiz.Skyline.SettingsUI
 
         public MetadataRule ShowRuleEditor(MetadataRule rule)
         {
-            using (var dlg = new MetadataRuleEditor(DocumentContainer))
+            using (var dlg = new MetadataRuleEditor(Document))
             {
                 if (rule != null)
                 {
@@ -282,7 +283,7 @@ namespace pwiz.Skyline.SettingsUI
 
             if (name != _originalName && _existing.Any(existingRuleSet=>existingRuleSet.Name == name))
             {
-                helper.ShowTextBoxError(tbxName, string.Format(Resources.MetadataRuleEditor_OkDialog_There_is_already_a_metadata_rule_named___0___, name));
+                helper.ShowTextBoxError(tbxName, string.Format(SettingsUIResources.MetadataRuleEditor_OkDialog_There_is_already_a_metadata_rule_named___0___, name));
                 return;
             }
 
@@ -292,7 +293,7 @@ namespace pwiz.Skyline.SettingsUI
                 var rule = ruleSet.Rules[rowIndex];
                 if (rule.Source == null)
                 {
-                    MessageDlg.Show(this, string.Format(Resources.MetadataRuleEditor_OkDialog__0__cannot_be_blank, colSource.HeaderText));
+                    MessageDlg.Show(this, string.Format(SettingsUIResources.MetadataRuleEditor_OkDialog__0__cannot_be_blank, colSource.HeaderText));
                     SelectCell(dataGridViewRules, colSource, rowIndex);
                     return;
                 }
@@ -305,7 +306,7 @@ namespace pwiz.Skyline.SettingsUI
                     }
                     catch (Exception exception)
                     {
-                        MessageDlg.ShowWithException(this, Resources.MetadataRuleEditor_OkDialog_This_is_not_a_valid_regular_expression_, exception);
+                        MessageDlg.ShowWithException(this, SettingsUIResources.MetadataRuleEditor_OkDialog_This_is_not_a_valid_regular_expression_, exception);
                         SelectCell(dataGridViewRules, colPattern, rowIndex);
                         return;
                     }
@@ -313,7 +314,7 @@ namespace pwiz.Skyline.SettingsUI
 
                 if (rule.Target == null)
                 {
-                    MessageDlg.Show(this, string.Format(Resources.MetadataRuleEditor_OkDialog__0__cannot_be_blank, colTarget.HeaderText));
+                    MessageDlg.Show(this, string.Format(SettingsUIResources.MetadataRuleEditor_OkDialog__0__cannot_be_blank, colTarget.HeaderText));
                     SelectCell(dataGridViewRules, colTarget, rowIndex);
                     return;
                 }

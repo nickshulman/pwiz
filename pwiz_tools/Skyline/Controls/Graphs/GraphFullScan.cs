@@ -31,6 +31,7 @@ using pwiz.ProteowizardWrapper;
 using pwiz.Skyline.Alerts;
 using pwiz.Skyline.Model;
 using pwiz.Skyline.Model.DocSettings;
+using pwiz.Skyline.Model.Hibernate;
 using pwiz.Skyline.Model.Lib;
 using pwiz.Skyline.Model.Results;
 using pwiz.Skyline.Properties;
@@ -43,7 +44,7 @@ using PeakType = pwiz.Skyline.Model.Results.MsDataFileScanHelper.PeakType;
 
 namespace pwiz.Skyline.Controls.Graphs
 {
-    public partial class GraphFullScan : DockableFormEx, IGraphContainer, IMzScalePlot
+    public partial class GraphFullScan : DockableFormEx, IGraphContainer, IMzScalePlot, IMenuControlImplementer
     {
         private const int MIN_DOT_RADIUS = 4;
         private const int MAX_DOT_RADIUS = 13;
@@ -59,10 +60,17 @@ namespace pwiz.Skyline.Controls.Graphs
         private bool _zoomYAxis;
         private readonly MsDataFileScanHelper _msDataFileScanHelper;
         private LibraryRankedSpectrumInfo _rmis;
+
+        // status info to calculate point dot products
+        private SpectrumPeaksInfo.MI[] _peaks;
+        private GraphSpectrum.Precursor _precursor;
+
         private int[] _transitionIndex;
         private MzRange _requestedRange;
 
         private bool _showIonSeriesAnnotations;
+
+        private MSGraphControl graphControl => graphControlExtension.Graph;
 
         public GraphFullScan(IDocumentUIContainer documentUIContainer)
         {
@@ -71,9 +79,14 @@ namespace pwiz.Skyline.Controls.Graphs
             graphControl.GraphPane = new HeatMapGraphPane
             {
                 MinDotRadius = MIN_DOT_RADIUS,
-                MaxDotRadius = MAX_DOT_RADIUS
+                MaxDotRadius = MAX_DOT_RADIUS,
+                ShowHeatMap = !Settings.Default.SumScansFullScan
             };
             graphControl.GraphPane.AllowLabelOverlap = true;
+            graphControl.ContextMenuBuilder += graphControl_ContextMenuBuilder;
+            graphControl.MouseMoveEvent += graphControl_MouseMove;
+            graphControl.MouseClick += graphControl_MouseClick;
+            graphControl.ZoomEvent += graphControl_ZoomEvent;
 
             Icon = Resources.SkylineData;
             _graphHelper = GraphHelper.Attach(graphControl);
@@ -87,13 +100,19 @@ namespace pwiz.Skyline.Controls.Graphs
             GraphPane.Title.IsVisible = true;
             GraphPane.Legend.IsVisible = false;
             // Make sure to use italics for "m/z"
-            AbstractMSGraphItem.SetAxisText(GraphPane.XAxis, Resources.AbstractMSGraphItem_CustomizeXAxis_MZ);
+            AbstractMSGraphItem.SetAxisText(GraphPane.XAxis, GraphsResources.AbstractMSGraphItem_CustomizeXAxis_MZ);
 
             magnifyBtn.Checked = Settings.Default.AutoZoomFullScanGraph;
             spectrumBtn.Checked = Settings.Default.SumScansFullScan;
             filterBtn.Checked = Settings.Default.FilterIonMobilityFullScan;
             toolStripButtonShowAnnotations.Checked = Settings.Default.ShowFullScanAnnotations;
             _showIonSeriesAnnotations = Settings.Default.ShowFullScanAnnotations;
+
+            magnifyBtn.CheckedChanged += magnifyBtn_CheckedChanged;
+            spectrumBtn.CheckedChanged += spectrumBtn_CheckedChanged;
+            filterBtn.CheckedChanged += filterBtn_CheckedChanged;
+            toolStripButtonShowAnnotations.CheckedChanged += toolStripButtonShowAnnotations_CheckedChanged;
+
 
             spectrumBtn.Visible = false;
             filterBtn.Visible = false;
@@ -105,6 +124,7 @@ namespace pwiz.Skyline.Controls.Graphs
             var peakType = _msDataFileScanHelper.ParsePeakTypeEnumName(Settings.Default.FullScanPeakType);
             comboBoxPeakType.SelectedItem = _msDataFileScanHelper.GetPeakTypeLocalizedName(peakType);
             this.comboBoxPeakType.SelectedIndexChanged += this.comboBoxPeakType_SelectedIndexChanged;
+            graphControlExtension.RestorePropertiesSheet();
         }
 
         public ZedGraphControl ZedGraphControl
@@ -132,7 +152,7 @@ namespace pwiz.Skyline.Controls.Graphs
                 if (spectra[0].Centroided != requestedCentroids)
                 {
                     MessageDlg.Show(this, string.Format(
-                        Resources.GraphFullScan_SetSpectraUI__peak_type_not_available,
+                        GraphsResources.GraphFullScan_SetSpectraUI__peak_type_not_available,
                         _msDataFileScanHelper.GetPeakTypeLocalizedName(requestedCentroids
                             ? PeakType.centroided
                             : PeakType.profile),
@@ -184,7 +204,7 @@ namespace pwiz.Skyline.Controls.Graphs
 
         private void HandleLoadScanExceptionUI(Exception ex)
         {
-            GraphPane.Title.Text = Resources.GraphFullScan_LoadScan_Spectrum_unavailable;
+            GraphPane.Title.Text = GraphsResources.GraphFullScan_LoadScan_Spectrum_unavailable;
             MessageDlg.ShowException(this, ex);
         }
 
@@ -205,9 +225,9 @@ namespace pwiz.Skyline.Controls.Graphs
             else
                 return t.Color;
         }
-        public void ShowSpectrum(IScanProvider scanProvider, int transitionIndex, int scanIndex)
+        public void ShowSpectrum(IScanProvider scanProvider, int transitionIndex, int scanIndex, int? optStep)
         {
-            _msDataFileScanHelper.UpdateScanProvider(scanProvider, transitionIndex, scanIndex);
+            _msDataFileScanHelper.UpdateScanProvider(scanProvider, transitionIndex, scanIndex, optStep);
             if (scanProvider != null)
             {
 
@@ -294,7 +314,7 @@ namespace pwiz.Skyline.Controls.Graphs
                     // Need to check again once on the UI thread
                     if (ReferenceEquals(fullScans, _msDataFileScanHelper.MsDataSpectra))
                     {
-                        GraphPane.Title.Text = Resources.GraphFullScan_LoadScan_Loading___;
+                        GraphPane.Title.Text = GraphsResources.GraphFullScan_LoadScan_Loading___;
                         graphControl.Refresh();
                     }
                 }));
@@ -334,15 +354,17 @@ namespace pwiz.Skyline.Controls.Graphs
             if (hasIonMobilityDimension)
             {
                 // Is there actually any drift time filtering available?
-                double minIonMobility, maxIonMobility;
-                _msDataFileScanHelper.GetIonMobilityFilterRange(out minIonMobility, out maxIonMobility, ChromSource.unknown); // Get range of IM values for all products and precursors
-                if ((minIonMobility == double.MinValue) && (maxIonMobility == double.MaxValue))
+                double minIonMobilityFilter, maxIonMobilityFilter;
+                _msDataFileScanHelper.GetIonMobilityFilterRange(out minIonMobilityFilter, out maxIonMobilityFilter, ChromSource.unknown); // Get range of IM values for all products and precursors
+
+                if ((minIonMobilityFilter == double.MinValue) && (maxIonMobilityFilter == double.MaxValue))
                 {
                     filterBtn.Visible = false;
                     filterBtn.Checked = false;
                 }
             }
 
+            GetRankedSpectrum();
             double[] massErrors = null;
             if (useHeatMap)
             {
@@ -354,14 +376,16 @@ namespace pwiz.Skyline.Controls.Graphs
                 CreateSingleScan(out massErrors);
             }
 
+            PopulateProperties();
+
             // Add extraction boxes.
             for (int i = 0; i < _msDataFileScanHelper.ScanProvider.Transitions.Length; i++)
             {
                 var transition = _msDataFileScanHelper.ScanProvider.Transitions[i];
                 if (transition.Source != _msDataFileScanHelper.Source)
                     continue;
-                var color1 = Blend(GetTransitionColor(transition), Color.White, 0.60);
-                var color2 = Blend(GetTransitionColor(transition), Color.White, 0.95);
+                var color1 = GraphHelper.Blend(GetTransitionColor(transition), Color.White, 0.60);
+                var color2 = GraphHelper.Blend(GetTransitionColor(transition), Color.White, 0.95);
                 var extractionBox = new BoxObj(
                     transition.ProductMz - transition.ExtractionWidth.Value / 2,
                     0.0,
@@ -405,7 +429,7 @@ namespace pwiz.Skyline.Controls.Graphs
                         Tag = i
                     };
                     label.FontSpec.Border.IsVisible = false;
-                    label.FontSpec.FontColor = Blend(GetTransitionColor(transition), Color.Black, 0.30);
+                    label.FontSpec.FontColor = GraphHelper.Blend(GetTransitionColor(transition), Color.Black, 0.30);
                     label.FontSpec.IsBold = true;
                     label.FontSpec.Fill = new Fill(Color.FromArgb(180, Color.White));
                     GraphPane.GraphObjList.Add(label);
@@ -413,30 +437,7 @@ namespace pwiz.Skyline.Controls.Graphs
             }
 
             double retentionTime = _msDataFileScanHelper.MsDataSpectra[0].RetentionTime ?? _msDataFileScanHelper.ScanProvider.Times[_msDataFileScanHelper.ScanIndex];
-            var result = _documentContainer.DocumentUI.Settings.MeasuredResults.Chromatograms.FirstOrDefault(
-                chr => chr.IndexOfPath(_msDataFileScanHelper.ScanProvider.DataFilePath) >= 0);
-
             GraphPane.Title.Text = string.Format(Resources.GraphFullScan_CreateGraph__0_____1_F2__min_, _msDataFileScanHelper.FileName, retentionTime);
-
-            if (Settings.Default.ShowFullScanNumber && _msDataFileScanHelper.MsDataSpectra.Any())
-            {
-                if (_msDataFileScanHelper.MsDataSpectra.Length > 1) // For 2-array ion mobility, show the overall range
-                {
-                    GraphPane.Title.Text = TextUtil.SpaceSeparate(GraphPane.Title.Text,
-                        Resources.GraphFullScan_CreateGraph_IM_Scan_Range_, _msDataFileScanHelper.MsDataSpectra[0].Id, @"-", _msDataFileScanHelper.MsDataSpectra.Last().Id); 
-                }
-                else
-                {
-                    var parts = _msDataFileScanHelper.MsDataSpectra[0].Id.Split('.'); // Check for merge.frame.start.stop from 3-array IMS data
-                    var id = parts.Length < 4
-                        ? _msDataFileScanHelper.MsDataSpectra[0].Id
-                        : string.Format(@"{0}.{1}-{0}.{2}", parts[1], parts[2], parts[3]);
-                    var ionMobility = _msDataFileScanHelper.MsDataSpectra[0].IonMobility;
-                    GraphPane.Title.Text = TextUtil.SpaceSeparate(GraphPane.Title.Text,
-                        Resources.GraphFullScan_CreateGraph_Scan_Number_, id,
-                        ionMobility.HasValue ? string.Format(Resources.GraphFullScan_CreateGraph_IM__0_, ionMobility) : string.Empty);
-                }
-            }
 
             FireSelectedScanChanged(retentionTime);
         }
@@ -523,6 +524,182 @@ namespace pwiz.Skyline.Controls.Graphs
             heatMapGraphPane.SetPoints(_heatMapData, minDrift, maxDrift);
         }
 
+        private void PopulateProperties()
+        {
+            bool hasIonMobilityDimension = _msDataFileScanHelper.MsDataSpectra.Length > 1 ||
+                                           _msDataFileScanHelper.MsDataSpectra.First().IonMobilities != null;
+
+            var spectra = _msDataFileScanHelper.MsDataSpectra;
+            FullScanProperties spectrumProperties = null;
+            if (spectra.Any())
+            {
+                spectrumProperties = FullScanProperties.CreateProperties(spectra[0]);
+
+                MsPrecursor spectrumPrecursor = _msDataFileScanHelper.MsDataSpectra.SelectMany(spectrum => spectrum.Precursors).LastOrDefault();
+                if (spectrumPrecursor.PrecursorCollisionEnergy != null)
+                    spectrumProperties.CE = spectrumPrecursor.PrecursorCollisionEnergy.Value.ToString(Formats.OPT_PARAMETER);
+
+                var transition = _msDataFileScanHelper.CurrentTransition;
+                if (transition != null)
+                {
+                    if (transition.IonMobilityInfo != null && transition.IonMobilityInfo.IonMobilityAndCCS != null)
+                    {
+                        var imAndCss = transition.IonMobilityInfo.IonMobilityAndCCS;
+                        if (imAndCss.HasIonMobilityValue)
+                            spectrumProperties.IonMobility = TextUtil.SpaceSeparate(imAndCss.IonMobility.Mobility.Value.ToString(Formats.IonMobility),
+                                imAndCss.IonMobility.UnitsString);
+                        if(imAndCss.HasCollisionalCrossSection)
+                            spectrumProperties.CCS = imAndCss.CollisionalCrossSectionSqA.Value.ToString(Formats.CCS);
+                    }
+                }
+                if (hasIonMobilityDimension)
+                {
+                    double minIonMobilityFilter, maxIonMobilityFilter;
+                    var fullScans = _msDataFileScanHelper.GetFilteredScans(out minIonMobilityFilter, out maxIonMobilityFilter); // Get range of IM values for all products and precursors
+
+                    var ionMobilityMin = double.MaxValue;
+                    var ionMobilityMax = double.MinValue;
+                    foreach (var scan in fullScans)
+                    {
+                        var mobility = scan.MinIonMobility ?? scan.IonMobility?.Mobility;
+                        if (mobility.HasValue)
+                            ionMobilityMin = Math.Min(ionMobilityMin, mobility.Value);
+                        mobility = scan.MaxIonMobility ?? scan.IonMobility?.Mobility;
+                        if (mobility.HasValue)
+                            ionMobilityMax = Math.Max(ionMobilityMax, mobility.Value);
+                    }
+                    spectrumProperties.IonMobilityRange = TextUtil.AppendColon(ionMobilityMin.ToString(Formats.IonMobility)) + ionMobilityMax.ToString(Formats.IonMobility);
+                    if(_msDataFileScanHelper.GetIonMobilityFilterDisplayRange(out minIonMobilityFilter, out maxIonMobilityFilter, ChromSource.unknown))
+                        spectrumProperties.IonMobilityFilterRange = TextUtil.AppendColon(minIonMobilityFilter.ToString(Formats.IonMobility)) + maxIonMobilityFilter.ToString(Formats.IonMobility);
+                    spectrumProperties.DataPoints = fullScans.Select(scan => scan.Intensities.Length).Sum().ToString(@"N0");
+                    spectrumProperties.MzCount = fullScans.SelectMany(scan => scan.Mzs).Distinct().Count().ToString(@"N0");
+                    
+                    if(fullScans.Any(scan => scan.IonMobilities != null))
+                        spectrumProperties.IonMobilityCount = fullScans.Where(scan => scan.IonMobilities != null)
+                            .Select(scan => scan.IonMobilities.Distinct().Count()).Sum().ToString(@"N0");
+                    
+                    if(_msDataFileScanHelper.MsDataSpectra.Length > 1)
+                        spectrumProperties.ScanId = TextUtil.SpaceSeparate(_msDataFileScanHelper.MsDataSpectra[0].Id, @"-", _msDataFileScanHelper.MsDataSpectra.Last().Id);
+                    else
+                        spectrumProperties.ScanId = _msDataFileScanHelper.MsDataSpectra[0].Id; 
+
+                    if (_msDataFileScanHelper.CurrentTransition?.IonMobilityInfo?.HighEnergyIonMobilityOffset != null)
+                        spectrumProperties.HighEnergyOffset = _msDataFileScanHelper.CurrentTransition?.IonMobilityInfo?.HighEnergyIonMobilityOffset.ToString();
+                }
+                else
+                {
+                    spectrumProperties.MzCount = spectra[0].Mzs.Length.ToString(@"N0");
+
+                    var parts = _msDataFileScanHelper.MsDataSpectra[0].Id.Split('.'); // Check for merge.frame.start.stop from 3-array IMS data
+                    var id = parts.Length < 4
+                        ? _msDataFileScanHelper.MsDataSpectra[0].Id
+                        : string.Format(@"{0}.{1}-{0}.{2}", parts[1], parts[2], parts[3]);
+                    var ionMobility = _msDataFileScanHelper.MsDataSpectra[0].IonMobility;
+                    spectrumProperties.ScanId = id;
+                    if (ionMobility.HasValue)
+                        spectrumProperties.IonMobility = ionMobility.ToString();
+                }
+                if (_documentContainer is SkylineWindow stateProvider)
+                {
+                    var chromSet = stateProvider.DocumentUI.Settings.MeasuredResults.Chromatograms.FirstOrDefault(
+                        chrom => chrom.ContainsFile(_msDataFileScanHelper.ScanProvider.DataFilePath));
+                    spectrumProperties.ReplicateName = chromSet?.Name;
+                    if (_peaks?.Length > 0)
+                    {
+                        var nodePath = DocNodePath.GetNodePath(_msDataFileScanHelper.CurrentTransition?.Id,
+                            _documentContainer.DocumentUI);
+                        //if current transition is deleted look up precursor from any of the transitions in the graph
+                        if(nodePath == null)
+                        {
+                            foreach (var t in _msDataFileScanHelper.ScanProvider.Transitions)
+                            {
+                                nodePath = DocNodePath.GetNodePath(t.Id, _documentContainer.DocumentUI);
+                                if (nodePath != null)
+                                    break;
+                            }
+                        }
+
+                        if (nodePath !=null)
+                        {
+                            if (!ReferenceEquals(nodePath.Precursor, _precursor?.DocNode))
+                            {
+                                _precursor = new GraphSpectrum.Precursor(_documentContainer.DocumentUI.Settings, null,
+                                    nodePath.Peptide, nodePath.Precursor);
+                            }
+
+                            // expectedSpectrum to docTransitions join
+                            var thisSpectrumHash = GetPeakIntensities(
+                                _msDataFileScanHelper.ScanProvider.Transitions.ToList(), stateProvider.DocumentUI);
+
+                            var isMs1 = _msDataFileScanHelper.Source == ChromSource.ms1;
+                            if (_precursor.Spectra?.Count > 0)
+                            {
+                                if (_precursor.DocNode.Transitions.Count(t => t.IsMs1 == isMs1) > 1)
+                                {
+                                    var dotpList = (
+                                        from peakDoc in _precursor.DocNode.Transitions
+                                        join peakSpec in thisSpectrumHash on ReferenceValue.Of(peakDoc.Id) equals peakSpec.Key
+                                        where peakDoc.IsMs1 == isMs1 && (peakDoc.HasLibInfo || peakDoc.IsMs1)
+                                        select new
+                                        {
+                                            expected = peakDoc.IsMs1
+                                                ? peakDoc.IsotopeDistInfo.Proportion
+                                                : peakDoc.LibInfo.Intensity,
+                                            actual = peakSpec.Value
+                                        }).ToList();
+
+                                    if (dotpList.Count > 1)
+                                    {
+                                        var dotp = new Statistics(dotpList.Select(d => (double)d.expected))
+                                            .NormalizedContrastAngleSqrt(new Statistics(
+                                                dotpList.Select(d => d.actual))).ToString(Formats.PEAK_FOUND_RATIO);
+                                        if (isMs1)
+                                            spectrumProperties.idotp = dotp;
+                                        else
+                                            spectrumProperties.dotp = dotp;
+                                    }
+                                }
+                            }
+                        }                    }
+                }
+            }
+
+            // avoid control refresh if there are no changes
+            if (graphControlExtension.PropertiesSheet.SelectedObject == null || graphControlExtension.PropertiesSheet.SelectedObject is FullScanProperties currentProps && !currentProps.IsSameAs(spectrumProperties))
+                graphControlExtension.PropertiesSheet.SelectedObject = spectrumProperties;
+        }
+
+        private Dictionary<ReferenceValue<Identity>, double> GetPeakIntensities(
+            List<TransitionFullScanInfo> transitions, SrmDocument document)
+        {
+            
+            var docTransitions = CollectionUtil.SafeToDictionary(
+                transitions.Select(t => new KeyValuePair<SignedMz, TransitionFullScanInfo>(t.ProductMz, t)));
+
+            var isNegative = (_precursor.DocNode.Id as TransitionGroup)?.PrecursorAdduct.AdductCharge < 0;
+            var signedQ1FilterValues = docTransitions.Select(q => q.Key).ToList();
+            var key = new PrecursorTextId(_precursor.DocNode.PrecursorMz, null, null, null, null, ChromExtractor.summed);
+            var filter = new SpectrumFilterPair(key, PeptideDocNode.UNKNOWN_COLOR, 0, null, null, false, false);
+            filter.AddQ1FilterValues(signedQ1FilterValues, mz =>
+            {
+                docTransitions.TryGetValue(new SignedMz(mz, isNegative), out var transitionFullScanInfo);
+                return transitionFullScanInfo?.ExtractionWidth ??
+                       document.Settings.TransitionSettings.FullScan.GetProductFilterWindow(mz);
+            });
+
+            // extract peak intensities for the document fragments from the current spectrum
+            var expectedSpectrum = filter.FilterQ1SpectrumList(new[] { new MsDataSpectrum
+                { Mzs = _peaks.Select(p => p.Mz).ToArray(), Intensities = _peaks.Select(p => (double)p.Intensity).ToArray(), NegativeCharge = isNegative } });
+
+            // expectedSpectrum to docTransitions join
+            var thisSpectrumHash = Enumerable.Range(0, expectedSpectrum.ProductFilters.Length)
+                .Select(i => new { mz = expectedSpectrum.ProductFilters[i].TargetMz, intensity = (double)expectedSpectrum.Intensities[i] })
+                .Where(d => docTransitions.ContainsKey(d.mz) && docTransitions[d.mz]?.Id is Transition)
+                .ToDictionary(d => ReferenceValue.Of(docTransitions[d.mz].Id), d => d.intensity);
+
+            return thisSpectrumHash;
+        }
+
         private class RankingContext
         {
             public int scanIndex;
@@ -567,6 +744,7 @@ namespace pwiz.Skyline.Controls.Graphs
             var stateProvider = (GraphSpectrum.IStateProvider) _documentContainer;
             var group = precursor.TransitionGroup;
             var types = stateProvider.ShowIonTypes(group.IsProteomic);
+            var losses = stateProvider.ShowLosses();
             var adducts =
                 (group.IsProteomic
                     ? Transition.DEFAULT_PEPTIDE_LIBRARY_CHARGES
@@ -611,7 +789,7 @@ namespace pwiz.Skyline.Controls.Graphs
                     types = ImmutableList.ValueOf(types), charges = ImmutableList.ValueOf(charges),
                     rankTypes = ImmutableList.ValueOf(rankTypes), rankAdducts = ImmutableList.ValueOf(rankAdducts)};
 
-                if (_rmis == null || rankContext == null || !rankContext.Equals(newRankingContext))
+                if (_rmis == null || rankContext == null || !rankContext.Equals(newRankingContext) || !_rmis.Tolerance.Equals(settings.TransitionSettings.Libraries.IonMatchMzTolerance))
                 {
                     rankContext = newRankingContext;
                     _rmis = LibraryRankedSpectrumInfo.NewLibraryRankedSpectrumInfo(spectrumInfo,
@@ -660,8 +838,8 @@ namespace pwiz.Skyline.Controls.Graphs
                 {
                     ShowTypes = types,
                     ShowCharges = charges,
+                    ShowLosses = losses,
                     ShowRanks = Settings.Default.ShowRanks,
-                    ShowScores = Settings.Default.ShowLibraryScores,
                     ShowMz = Settings.Default.ShowIonMz,
                     ShowObservedMz = Settings.Default.ShowObservedMz,
                     ShowMassError = Settings.Default.ShowFullScanMassError,
@@ -675,12 +853,59 @@ namespace pwiz.Skyline.Controls.Graphs
             return null;
         }
 
+        private void GetRankedSpectrum()
+        {
+            var spectra = _msDataFileScanHelper.MsDataSpectra;
+
+            IList<double> mzs;
+            IList<double> intensities;
+
+            if (spectra.Length == 1 && spectra[0].IonMobilities == null)
+            {
+                mzs = spectra[0].Mzs;
+                intensities = spectra[0].Intensities;
+            }
+            else
+            {
+                // Ion mobility being shown as 2-D spectrum
+                mzs = new List<double>();
+                intensities = new List<double>();
+
+                var fullScans = _msDataFileScanHelper.GetFilteredScans(out var ionMobilityFilterMin, out var ionMobilityFilterMax);
+
+                double minMz;
+                var indices = new int[fullScans.Length];
+                while ((minMz = FindMinMz(fullScans, indices)) < double.MaxValue)
+                {
+                    mzs.Add(minMz);
+                    intensities.Add(SumIntensities(fullScans, minMz, indices, ionMobilityFilterMin, ionMobilityFilterMax));
+                }
+            }
+
+            // Save the full spectrum for later use in dotp calculation
+            _peaks = new SpectrumPeaksInfo.MI[mzs.Count];
+            for (int i = 0; i < _peaks.Length; i++)
+                _peaks[i] = new SpectrumPeaksInfo.MI() { Mz = mzs[i], Intensity = (float)intensities[i] };
+
+            if (_msDataFileScanHelper.Source == ChromSource.fragment)
+            {
+                var nodePath = DocNodePath.GetNodePath(_msDataFileScanHelper.CurrentTransition?.Id,
+                    _documentContainer.DocumentUI);
+
+                if (nodePath != null) // Make sure user hasn't removed node since last update
+                {
+                    var graphItem = RankScan(mzs, intensities, _documentContainer.DocumentUI.Settings,
+                        nodePath.Precursor, nodePath.Transition);
+                }
+            }
+        }
+
         /// <summary>
         /// Create stick graph of a single scan.
         /// </summary>
         private void  CreateSingleScan(out double[] massErrors)
         {
-            GraphPane.YAxis.Title.Text = Resources.AbstractMSGraphItem_CustomizeYAxis_Intensity;
+            GraphPane.YAxis.Title.Text = GraphsResources.AbstractMSGraphItem_CustomizeYAxis_Intensity;
             graphControl.IsEnableVZoom = graphControl.IsEnableVPan = false;
             massErrors = null;
 
@@ -697,6 +922,7 @@ namespace pwiz.Skyline.Controls.Graphs
             IList<double> intensities;
             bool negativeScan;
             var spectra = _msDataFileScanHelper.MsDataSpectra;
+
             if (spectra.Length == 1 && spectra[0].IonMobilities == null)
             {
                 mzs = spectra[0].Mzs;
@@ -748,19 +974,17 @@ namespace pwiz.Skyline.Controls.Graphs
                 selection = GraphSpectrum.SpectrumNodeSelection.GetCurrent(stateProvider);
                 //find out if the current selection belongs to the same precursor as the loaded MS spectrum
                 var dataPrecursor = _msDataFileScanHelper.ScanProvider.Transitions.FirstOrDefault(t => (t.Id as Transition)?.IonType == IonType.precursor);
-                selectionMatch = ReferenceEquals(selection.Precursor?.Id, (dataPrecursor?.Id as Transition)?.Group);
+                selectionMatch = ReferenceEquals(selection.NodeTranGroup?.Id, (dataPrecursor?.Id as Transition)?.Group);
             }
-
-            var currentTransition =
-                _msDataFileScanHelper.ScanProvider.Transitions[_msDataFileScanHelper.TransitionIndex];
 
             if (_showIonSeriesAnnotations && _msDataFileScanHelper.Source == ChromSource.fragment)
             {
-                var nodePath = DocNodePath.GetNodePath(currentTransition.Id, _documentContainer.DocumentUI);
+                var nodePath = DocNodePath.GetNodePath(_msDataFileScanHelper.CurrentTransition?.Id, _documentContainer.DocumentUI);
+
                 if (nodePath != null) // Make sure user hasn't removed node since last update
                 {
                     var graphItem = RankScan(mzs, intensities, _documentContainer.DocumentUI.Settings, nodePath.Precursor,
-                        selectionMatch ? selection.Transition : null);
+                        selectionMatch ? selection.NodeTran : null);
                     _graphHelper.AddSpectrum(graphItem, false);
                 }
 
@@ -807,7 +1031,7 @@ namespace pwiz.Skyline.Controls.Graphs
 
                 //create and initialize a map of transition,accumulator pairs
                 var meanErrorsMap =
-                    new Dictionary<Identity, IntensityAccumulator>(_msDataFileScanHelper.ScanProvider.Transitions.Length, new IdentityEqualityComparer<Identity>());
+                    new Dictionary<ReferenceValue<Identity>, IntensityAccumulator>(_msDataFileScanHelper.ScanProvider.Transitions.Length);
                 _msDataFileScanHelper.ScanProvider.Transitions
                     .ForEach(t => meanErrorsMap.Add(t.Id,
                         new IntensityAccumulator(true, ChromExtractor.summed, t.ProductMz)));
@@ -902,14 +1126,6 @@ namespace pwiz.Skyline.Controls.Graphs
             }
         }
 
-        private Color Blend(Color baseColor, Color blendColor, double blendAmount)
-        {
-            return Color.FromArgb(
-                (int) (baseColor.R*(1 - blendAmount) + blendColor.R*blendAmount),
-                (int) (baseColor.G*(1 - blendAmount) + blendColor.G*blendAmount),
-                (int) (baseColor.B*(1 - blendAmount) + blendColor.B*blendAmount));
-        }
-
         private void ClearGraph()
         {
             comboBoxScanType.Items.Clear();
@@ -925,19 +1141,24 @@ namespace pwiz.Skyline.Controls.Graphs
         public void FireSelectedScanChanged(double retentionTime)
         {
             IsLoaded = true;
-            if (SelectedScanChanged != null)
-            {
-                if (_msDataFileScanHelper.MsDataSpectra != null)
-                    SelectedScanChanged(this, new SelectedScanEventArgs(_msDataFileScanHelper.ScanProvider.DataFilePath, retentionTime, _msDataFileScanHelper.ScanProvider.Transitions[_msDataFileScanHelper.TransitionIndex].Id));
-                else
-                    SelectedScanChanged(this, new SelectedScanEventArgs(null, 0, null));
-            }
+            SelectedScanChanged?.Invoke(this,
+                _msDataFileScanHelper.MsDataSpectra != null
+                    ? new SelectedScanEventArgs(_msDataFileScanHelper.ScanProvider.DataFilePath, retentionTime,
+                        _msDataFileScanHelper.ScanProvider.Transitions[_msDataFileScanHelper.TransitionIndex].Id,
+                        _msDataFileScanHelper.OptStep)
+                    : new SelectedScanEventArgs(null, 0, null, null));
         }
 
         public bool IsLoaded { get; private set; }
 
         public void OnDocumentUIChanged(object sender, DocumentChangedEventArgs e)
         {
+            if (ReferenceEquals(DocumentUI.Id, e.DocumentPrevious.Id) &&
+                !ReferenceEquals(e.DocumentPrevious?.Settings.TransitionSettings.Libraries, DocumentUI.Settings.TransitionSettings.Libraries))
+            {
+                LoadScan(true, true);
+                return;
+            }
             // If document changed, reload scan.
             // Also reload if ion mobility is in use (as implied by visibility of related controls), as changes to
             // the IM library don't cause a document ID change (similar to spectral libraries, its contents exist outside of Skyline)
@@ -995,6 +1216,14 @@ namespace pwiz.Skyline.Controls.Graphs
 
             graphControl.Refresh();
         }
+
+        public void SetIntensityScale(double maxIntensity)
+        {
+            GraphPane.YAxis.Scale.MaxAuto = false;
+            GraphPane.YAxis.Scale.Max = maxIntensity;
+            GraphPane.AxisChange();
+        }
+
         public MzRange Range
         {
             get { return new MzRange(GraphPane.XAxis.Scale.Min, GraphPane.XAxis.Scale.Max); }
@@ -1031,6 +1260,22 @@ namespace pwiz.Skyline.Controls.Graphs
         }
 
         public bool IsAnnotated => _showIonSeriesAnnotations;
+        public LibraryRankedSpectrumInfo SpectrumInfo => _rmis;
+
+        public bool ShowPropertiesSheet
+        {
+            set
+            {
+                graphControlExtension.ShowPropertiesSheet(value);
+                propertiesBtn.Checked = value;
+            }
+            get
+            {
+                return graphControlExtension.PropertiesVisible;
+            }
+        }
+
+        public bool HasChromatogramData => false;
 
         private void ZoomYAxis()
         {
@@ -1101,7 +1346,7 @@ namespace pwiz.Skyline.Controls.Graphs
                     GraphPane.SetScale(CreateGraphics());
                 if (_msDataFileScanHelper.IsWatersSonarData)
                 {
-                    filterBtn.ToolTipText = Resources.GraphFullScan_Filter_Button_Tooltip_Filter_Quadrupole_Scan_Range;
+                    filterBtn.ToolTipText = GraphsResources.GraphFullScan_Filter_Button_Tooltip_Filter_Quadrupole_Scan_Range;
                 }
             }
             else
@@ -1142,7 +1387,7 @@ namespace pwiz.Skyline.Controls.Graphs
             if (_msDataFileScanHelper.ScanIndex + delta < 0 || _msDataFileScanHelper.ScanIndex + delta >= _msDataFileScanHelper.ScanProvider.Times.Count)
                 return;
 
-            var sourceScanIds = _msDataFileScanHelper.GetScanIndexes(_msDataFileScanHelper.Source);
+            var sourceScanIds = _msDataFileScanHelper.TimeIntensities.ScanIds;
             int scanId = sourceScanIds[_msDataFileScanHelper.ScanIndex];
             while ((delta < 0 && _msDataFileScanHelper.ScanIndex > 0) || (delta > 0 && _msDataFileScanHelper.ScanIndex < sourceScanIds.Count-1))
             {
@@ -1161,7 +1406,7 @@ namespace pwiz.Skyline.Controls.Graphs
                 }
             }
 
-            LoadScan(false, false);
+            LoadScan(false, Settings.Default.LockYAxis);
         }
 
         private void comboBoxScanType_SelectedIndexChanged(object sender, EventArgs e)
@@ -1230,6 +1475,7 @@ namespace pwiz.Skyline.Controls.Graphs
             SetSpectraUI(_msDataFileScanHelper.MsDataSpectra);
         }
 
+        // CONSIDER: This button is never visible and appears to be completely idle. Remove?
         private void btnIsolationWindow_Click(object sender, EventArgs e)
         {
             var spectrum = _msDataFileScanHelper.MsDataSpectra[0];
@@ -1244,20 +1490,55 @@ namespace pwiz.Skyline.Controls.Graphs
             }
         }
 
+
+        private void propertiesBtn_Click(object sender, EventArgs e)
+        {
+            ShowPropertiesSheet = !ShowPropertiesSheet;
+        }
+
+        public MenuControl<T> GetHostedControl<T>() where T:Panel, IControlSize, new()
+        {
+                if (ZedGraphControl.ContextMenuStrip != null)
+                {
+                    var chargesItem = ZedGraphControl.ContextMenuStrip.Items.OfType<ToolStripMenuItem>()
+                        .FirstOrDefault(item => item.DropDownItems.OfType<MenuControl<T>>().Any());
+                    if (chargesItem != null)
+                        return chargesItem.DropDownItems[0] as MenuControl<T>;
+                }
+                return null;
+        }
+
+        public void DisconnectHandlers()
+        {
+            if (_documentContainer is SkylineWindow skylineWindow)
+            {
+                var chargeSelector = GetHostedControl<ChargeSelectionPanel>();
+
+                if (chargeSelector != null)
+                {
+                    chargeSelector.HostedControl.OnChargeChanged -= skylineWindow.IonChargeSelector_ionChargeChanged;
+                }
+
+                var ionTypeSelector = GetHostedControl<IonTypeSelectionPanel>();
+                if (ionTypeSelector != null)
+                {
+                    ionTypeSelector.HostedControl.IonTypeChanged -= skylineWindow.IonTypeSelector_IonTypeChanges;
+                    ionTypeSelector.HostedControl.LossChanged -= skylineWindow.IonTypeSelector_LossChanged;
+                }
+            }
+        }
+
         #region Mouse events
 
         private void graphControl_ContextMenuBuilder(ZedGraphControl sender, ContextMenuStrip menuStrip, Point mousePt, ZedGraphControl.ContextMenuObjectState objState)
         {
             if (_msDataFileScanHelper.MsDataSpectra != null)
             {
-                showScanNumberContextMenuItem.Checked = Settings.Default.ShowFullScanNumber;
-                menuStrip.Items.Insert(0, showScanNumberContextMenuItem);
-                menuStrip.Items.Insert(1, showPeakAnnotationsContextMenuItem);
-                menuStrip.Items.Insert(2, toolStripSeparator1);
+                showPeakAnnotationsContextMenuItem.Checked = Settings.Default.ShowFullScanAnnotations = _showIonSeriesAnnotations;
+                menuStrip.Items.Insert(0, showPeakAnnotationsContextMenuItem);
+                menuStrip.Items.Insert(1, toolStripSeparator1);
 
-                var currentTransition =
-                    _msDataFileScanHelper.ScanProvider.Transitions[_msDataFileScanHelper.TransitionIndex];
-                var isProteomic = (currentTransition.Id as Transition)?.Group.IsProteomic;
+                var isProteomic = (_msDataFileScanHelper.CurrentTransition?.Id as Transition)?.Group.IsProteomic;
                 (_documentContainer as GraphSpectrum.IStateProvider)
                     ?.BuildSpectrumMenu(isProteomic.GetValueOrDefault(), sender, menuStrip);
             }
@@ -1292,6 +1573,9 @@ namespace pwiz.Skyline.Controls.Graphs
             var nearestLabel = GetNearestLabel(pt);
             if (nearestLabel == null || nearestLabel.Tag == null)
                 return false;
+            var transition = (int) nearestLabel.Tag;
+            if (transition < 0 || _transitionIndex == null || transition >= _transitionIndex.Length)
+                return false;
             if (_showIonSeriesAnnotations && _transitionIndex[(int)nearestLabel.Tag] < 0)
                 return false;
 
@@ -1304,8 +1588,7 @@ namespace pwiz.Skyline.Controls.Graphs
             using (Graphics g = CreateGraphics())
             {
                 object nearestObject;
-                int index;
-                if (GraphPane.FindNearestObject(mousePoint, g, out nearestObject, out index))
+                if (GraphPane.FindNearestObject(mousePoint, g, out nearestObject, out _))
                 {
                     var textObj = nearestObject as TextObj;
                     if (textObj != null)
@@ -1336,6 +1619,12 @@ namespace pwiz.Skyline.Controls.Graphs
         public double XAxisMax { get { return GraphPane.XAxis.Scale.Max; }}
         public double YAxisMin { get { return GraphPane.YAxis.Scale.Min; }}
         public double YAxisMax { get { return GraphPane.YAxis.Scale.Max; }}
+
+        public bool IsScanTypeSelected(ChromSource source)
+        {
+            return string.Equals(comboBoxScanType.SelectedItem.ToString(),
+                _msDataFileScanHelper.NameFromSource(source));
+        }
 
         public void SelectScanType(ChromSource source)
         {
@@ -1372,11 +1661,45 @@ namespace pwiz.Skyline.Controls.Graphs
             get => _msDataFileScanHelper;
         }
 
+        public IEnumerable<string> IonLabels
+        {
+            get
+            {
+                if (toolStripButtonShowAnnotations.Checked && Program.SkylineOffscreen)
+                {
+                    var annotationCurves = GraphPane.CurveList.FindAll(c => c is StickItem && c.Tag is SpectrumGraphItem);
+                    if (annotationCurves.Any())
+                    {
+                        var graphItem = annotationCurves.First().Tag as SpectrumGraphItem;
+                        return graphItem?.IonLabels;
+                    }
+                    else
+                        return null;
+                }
+                else
+                {
+                    return GraphPane.GraphObjList.OfType<TextObj>()
+                        .ToList().FindAll(txt => txt.Location.X >= XAxisMin && txt.Location.X <= XAxisMax)      //select only annotations visible in the current window)
+                        .Select(label => label.Text).ToHashSet();
+                }
+            }
+        }
+
+        public ToolStripButton PropertyButton => propertiesBtn;
+        public ToolStripButton LeftButton => leftButton;
+        public MsGraphExtension MsGraphExtension => graphControlExtension;
+
         #endregion Test support
 
         private void showScanNumberToolStripMenuItem_Click(object sender, EventArgs e)
         {
             Settings.Default.ShowFullScanNumber = !Settings.Default.ShowFullScanNumber;
+            UpdateUI();
+        }
+
+        private void showCollisionEnergyToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            Settings.Default.ShowFullScanCE = !Settings.Default.ShowFullScanCE;
             UpdateUI();
         }
 
@@ -1456,15 +1779,17 @@ namespace pwiz.Skyline.Controls.Graphs
 
     public sealed class SelectedScanEventArgs : EventArgs
     {
-        public SelectedScanEventArgs(MsDataFileUri dataFile, double retentionTime, Identity transitionId)
+        public SelectedScanEventArgs(MsDataFileUri dataFile, double retentionTime, Identity transitionId, int? optStep)
         {
             DataFile = dataFile;
             RetentionTime = retentionTime;
             TransitionId = transitionId;
+            OptStep = optStep;
         }
 
         public MsDataFileUri DataFile { get; private set; }
         public double RetentionTime { get; private set; }
         public Identity TransitionId { get; private set; }
+        public int? OptStep { get; }
     }
 }

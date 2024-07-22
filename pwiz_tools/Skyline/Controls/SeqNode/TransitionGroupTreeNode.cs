@@ -23,14 +23,20 @@ using System.Drawing;
 using System.Globalization;
 using System.Linq;
 using System.Text;
+using pwiz.Common.DataBinding;
 using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Model;
+using pwiz.Skyline.Model.Databinding;
+using pwiz.Skyline.Model.Databinding.Entities;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.GroupComparison;
 using pwiz.Skyline.Model.Lib;
 using pwiz.Skyline.Model.Results;
+using pwiz.Skyline.Model.Results.Spectra;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
+using pwiz.Skyline.Util.Extensions;
+using Transition = pwiz.Skyline.Model.Transition;
 
 namespace pwiz.Skyline.Controls.SeqNode
 {
@@ -41,7 +47,7 @@ namespace pwiz.Skyline.Controls.SeqNode
         /// </summary>
         public static string TITLE
         {
-            get { return Resources.TransitionGroupTreeNode_Title; }
+            get { return SeqNodeResources.TransitionGroupTreeNode_Title; }
         }
 
         public static TransitionGroupTreeNode CreateInstance(SequenceTree tree, DocNode nodeDoc)
@@ -60,21 +66,18 @@ namespace pwiz.Skyline.Controls.SeqNode
         {
         }
 
-        public TransitionGroupDocNode DocNode { get { return (TransitionGroupDocNode) Model; } }
-
         public Target ModifiedSequence
         {
             get { return GetModifiedSequence(PepNode, DocNode, SequenceTree.Document.Settings); }
         }
 
-        public PeptideDocNode PepNode
-        {
-            get { return (Parent != null ? ((PeptideTreeNode)Parent).DocNode : null); }
-        }
+        public TransitionGroupDocNode DocNode => (TransitionGroupDocNode)Model;
+        public PeptideDocNode PepNode => ((PeptideTreeNode)Parent)?.DocNode;
+        public PeptideGroupDocNode PepGroupNode => ((PeptideGroupTreeNode)Parent?.Parent)?.DocNode;
 
         public override string Heading
         {
-            get { return Resources.TransitionGroupTreeNode_Title; }
+            get { return SeqNodeResources.TransitionGroupTreeNode_Title; }
         }
 
         public override string ChildHeading
@@ -103,6 +106,11 @@ namespace pwiz.Skyline.Controls.SeqNode
 
             // Make sure children are up to date
             OnUpdateChildren(SequenceTree.ExpandPrecursors);
+            // Refresh the text on the TransitionTreeNodes.
+            foreach (var child in Nodes.OfType<TransitionTreeNode>())
+            {
+                child.Model = child.Model;
+            }
         }
 
         public int TypeImageIndex
@@ -165,8 +173,14 @@ namespace pwiz.Skyline.Controls.SeqNode
         
         public static string DisplayText(TransitionGroupDocNode nodeGroup, DisplaySettings settings)
         {
-            return GetLabel(nodeGroup.TransitionGroup, nodeGroup.PrecursorMz,
+            string displayText = GetLabel(nodeGroup.TransitionGroup, nodeGroup.PrecursorMz,
                 GetResultsText(settings, nodeGroup));
+            if (!nodeGroup.SpectrumClassFilter.IsEmpty)
+            {
+                displayText = TextUtil.SpaceSeparate(displayText, nodeGroup.SpectrumClassFilter.GetAbbreviatedText());
+            }
+
+            return displayText;
         }
 
         private const string DOTP_FORMAT = "0.##";
@@ -181,6 +195,17 @@ namespace pwiz.Skyline.Controls.SeqNode
             {
                 ratio = displaySettings.NormalizedValueCalculator.GetTransitionGroupRatioValue(ratioToLabel,
                     displaySettings.NodePep, nodeGroup, nodeGroup.GetChromInfoEntry(displaySettings.ResultsIndex));
+            }
+            else if (NormalizationMethod.GLOBAL_STANDARDS.Equals(displaySettings.NormalizationMethod))
+            {
+                var ratioToGlobalStandards = displaySettings.NormalizedValueCalculator.GetTransitionGroupValue(
+                    displaySettings.NormalizationMethod, displaySettings.NodePep, nodeGroup,
+                    displaySettings.ResultsIndex,
+                    nodeGroup.GetChromInfoEntry(displaySettings.ResultsIndex));
+                if (ratioToGlobalStandards.HasValue)
+                {
+                    ratio = new RatioValue(ratioToGlobalStandards.Value);
+                }
             }
             if (null == ratio && !isotopeProduct.HasValue && !libraryProduct.HasValue)
                 return string.Empty;
@@ -198,16 +223,23 @@ namespace pwiz.Skyline.Controls.SeqNode
             {
                 if (sb.Length > len)
                     sb.Append(CS_SEPARATOR);
-                if (ratio.HasDotProduct)
-                {
-                    sb.Append(string.Format(@"rdotp {0}", ratio.DotProduct.ToString(DOTP_FORMAT)));
-                    sb.Append(CS_SEPARATOR);
-                }
-
-                sb.Append(string.Format(Resources.TransitionGroupTreeNode_GetResultsText_total_ratio__0__,
-                                        MathEx.RoundAboveZero(ratio.Ratio, 2, 4)));
+                sb.Append(FormatRatioValue(ratio));
             }
             sb.Append(@")");
+            return sb.ToString();
+        }
+
+        public static string FormatRatioValue(RatioValue ratio)
+        {
+            StringBuilder sb = new StringBuilder();
+            if (ratio.HasDotProduct)
+            {
+                sb.Append(string.Format(@"rdotp {0}", ratio.DotProduct.ToString(DOTP_FORMAT)));
+                sb.Append(CS_SEPARATOR);
+            }
+
+            sb.Append(string.Format(Resources.TransitionGroupTreeNode_GetResultsText_total_ratio__0__,
+                MathEx.RoundAboveZero(ratio.Ratio, 2, 4)));
             return sb.ToString();
         }
 
@@ -294,7 +326,7 @@ namespace pwiz.Skyline.Controls.SeqNode
             if (nodePep == null)
             {
                 throw new InvalidOperationException(
-                    Resources.TransitionGroupTreeNode_GetChoices_Invalid_attempt_to_get_choices_for_a_node_that_has_not_been_added_to_the_tree_yet);
+                    SeqNodeResources.TransitionGroupTreeNode_GetChoices_Invalid_attempt_to_get_choices_for_a_node_that_has_not_been_added_to_the_tree_yet);
             }
 
             var listChildrenNew = DocNode.GetPrecursorChoices(DocSettings, nodePep.ExplicitMods, useFilter);
@@ -336,7 +368,7 @@ namespace pwiz.Skyline.Controls.SeqNode
                     return null;
                 }
                 return HasSiblingsToSynch(false)
-                           ? Resources.TransitionGroupTreeNode_SynchSiblingsLabel_Synchronize_isotope_label_types
+                           ? SeqNodeResources.TransitionGroupTreeNode_SynchSiblingsLabel_Synchronize_isotope_label_types
                            : null;
             }
         }
@@ -381,8 +413,8 @@ namespace pwiz.Skyline.Controls.SeqNode
                             return true;
                         }
                         else if (tranGroup.IsCustomIon && nodeTree.IsSynchable() &&
-                                 string.IsNullOrEmpty(tranGroupThis.CustomMolecule.Formula) ==
-                                 string.IsNullOrEmpty(tranGroup.CustomMolecule.Formula))
+                                 tranGroupThis.CustomMolecule.ParsedMolecule.IsMassOnly ==
+                                 tranGroup.CustomMolecule.ParsedMolecule.IsMassOnly)
                         {
                             return true;
                         }
@@ -436,16 +468,17 @@ namespace pwiz.Skyline.Controls.SeqNode
                 var customTable = new TableDesc();
                 using (RenderTools rt = new RenderTools())
                 {
-                    customTable.AddDetailRow(Resources.TransitionGroupTreeNode_RenderTip_Molecule, nodeGroup.CustomMolecule.Name, rt);
-                    customTable.AddDetailRow(Resources.TransitionGroupTreeNode_RenderTip_Precursor_charge,
+                    customTable.AddDetailRow(SeqNodeResources.TransitionGroupTreeNode_RenderTip_Molecule, nodeGroup.CustomMolecule.Name, rt);
+                    customTable.AddDetailRow(SeqNodeResources.TransitionGroupTreeNode_RenderTip_Precursor_charge,
                         FormatAdductTip(nodeGroup.TransitionGroup.PrecursorAdduct), rt);
-                    customTable.AddDetailRow(Resources.TransitionGroupTreeNode_RenderTip_Precursor_mz,
+                    customTable.AddDetailRow(SeqNodeResources.TransitionGroupTreeNode_RenderTip_Precursor_mz,
                         string.Format(@"{0:F04}", nodeGroup.PrecursorMz), rt);
                     if (nodeGroup.CustomMolecule.Formula != null)
                     {
-                        customTable.AddDetailRow(Resources.TransitionTreeNode_RenderTip_Formula,
+                        customTable.AddDetailRow(SeqNodeResources.TransitionTreeNode_RenderTip_Formula,
                             nodeGroup.CustomMolecule.Formula + nodeGroup.TransitionGroup.PrecursorAdduct.AdductFormula.ToString(LocalizationHelper.CurrentCulture), rt);
                     }
+                    RenderSpectrumClassFilterTip(customTable, rt, nodeGroup.SpectrumClassFilter);
                     SizeF size = customTable.CalcDimensions(g);
                     customTable.Draw(g);
                     return new Size((int) size.Width + 2, (int) size.Height + 2);
@@ -493,21 +526,21 @@ namespace pwiz.Skyline.Controls.SeqNode
             {
                 var seqModified = GetModifiedSequence(nodePep, nodeGroup, settings);
                 if (!Equals(seqModified, nodeGroup.TransitionGroup.Peptide.Target))
-                    tableDetails.AddDetailRow(Resources.TransitionGroupTreeNode_RenderTip_Modified, seqModified.Sequence, rt);
+                    tableDetails.AddDetailRow(SeqNodeResources.TransitionGroupTreeNode_RenderTip_Modified, seqModified.Sequence, rt);
 
                 var precursorCharge = nodeGroup.TransitionGroup.PrecursorAdduct;
                 var precursorMz = nodeGroup.PrecursorMz;
-                tableDetails.AddDetailRow(Resources.TransitionGroupTreeNode_RenderTip_Precursor_charge,
+                tableDetails.AddDetailRow(SeqNodeResources.TransitionGroupTreeNode_RenderTip_Precursor_charge,
                                           precursorCharge.AdductCharge.ToString(LocalizationHelper.CurrentCulture), rt);
-                tableDetails.AddDetailRow(Resources.TransitionGroupTreeNode_RenderTip_Precursor_mz,
+                tableDetails.AddDetailRow(SeqNodeResources.TransitionGroupTreeNode_RenderTip_Precursor_mz,
                                           string.Format(@"{0:F04}", precursorMz), rt);
-                tableDetails.AddDetailRow(Resources.TransitionGroupTreeNode_RenderTip_Precursor_mh,
+                tableDetails.AddDetailRow(SeqNodeResources.TransitionGroupTreeNode_RenderTip_Precursor_mh,
                                           string.Format(@"{0:F04}", nodeGroup.GetPrecursorIonMass()),
                                           rt);
                 int? decoyMassShift = nodeGroup.TransitionGroup.DecoyMassShift;
                 if (decoyMassShift.HasValue)
                 {
-                    tableDetails.AddDetailRow(Resources.TransitionGroupTreeNode_RenderTip_Decoy_Mass_Shift,
+                    tableDetails.AddDetailRow(SeqNodeResources.TransitionGroupTreeNode_RenderTip_Decoy_Mass_Shift,
                                               decoyMassShift.Value.ToString(LocalizationHelper.CurrentCulture), rt);
                 }
                 if (nodeGroup.HasLibInfo)
@@ -515,6 +548,7 @@ namespace pwiz.Skyline.Controls.SeqNode
                     foreach (KeyValuePair<PeptideRankId, string> pair in nodeGroup.LibInfo.RankValues)
                         tableDetails.AddDetailRow(pair.Key.Label, pair.Value, rt);
                 }
+                RenderSpectrumClassFilterTip(tableDetails, rt, nodeGroup.SpectrumClassFilter);
 
                 if (charges.Length > 0 && types.Length > 0)
                 {
@@ -529,8 +563,8 @@ namespace pwiz.Skyline.Controls.SeqNode
                         string plusSub = Transition.GetChargeIndicator(charge);
                         foreach (IonType type in types)
                         {
-                            CellDesc cell = CreateHead(type.ToString().ToLower() + plusSub, rt);
-                            if (Transition.IsNTerminal(type))
+                            CellDesc cell = CreateHead(type.GetLocalizedString().ToLower() + plusSub, rt);
+                            if (type.IsNTerminal())
                                 headers.Insert(0, cell);
                             else
                                 headers.Add(cell);
@@ -556,7 +590,7 @@ namespace pwiz.Skyline.Controls.SeqNode
                             foreach (IonType type in types)
                             {
                                 CellDesc cell;
-                                if (Transition.IsNTerminal(type))
+                                if (type.IsNTerminal())
                                 {
                                     if (i == len - 1)
                                         cell = CreateData(string.Empty, rt);
@@ -598,6 +632,59 @@ namespace pwiz.Skyline.Controls.SeqNode
                 int width = (int) Math.Round(Math.Max(sizeDetails.Width, size.Width));
                 int height = (int) Math.Round(sizeDetails.Height + size.Height);
                 return new Size(width + 2, height + 2);
+            }
+        }
+
+        private static void RenderSpectrumClassFilterTip(TableDesc table, RenderTools rt, SpectrumClassFilter spectrumClassFilter)
+        {
+            if (spectrumClassFilter.IsEmpty)
+            {
+                return;
+            }
+            var dataSchema = new DataSchema(SkylineDataSchema.GetLocalizedSchemaLocalizer());
+            var filterPages = spectrumClassFilter.GetFilterPages();
+            for (int iPage = 0; iPage < filterPages.Pages.Count; iPage++)
+            {
+                var filterPage = filterPages.Pages[iPage];
+                var clause = filterPages.Clauses[iPage];
+                if (clause.IsEmpty)
+                {
+                    continue;
+                }
+                List<string> pageHeaderParts = new List<string>();
+                if (string.IsNullOrEmpty(filterPage.Caption))
+                {
+                    if (iPage != 0)
+                    {
+                        pageHeaderParts.Add(Resources.SpectrumClassFilter_GetAbbreviatedText_OR);
+                    }
+                }
+                pageHeaderParts.Add(SeqNodeResources.TransitionGroupTreeNode_RenderSpectrumClassFilterTip_Spectrum_Filter);
+                if (!string.IsNullOrEmpty(filterPage.Caption))
+                {
+                    pageHeaderParts.Add(filterPage.Caption);
+                }
+
+                if (pageHeaderParts.Any())
+                {
+                    table.Add(new RowDesc
+                        { CreateHead(TextUtil.AppendColon(TextUtil.SpaceSeparate(pageHeaderParts)), rt) });
+                }
+                foreach (var filterSpec in clause.FilterSpecs)
+                {
+                    string column = ColumnCaptions.ResourceManager.GetString(filterSpec.ColumnId.Name) ??
+                                    filterSpec.ColumnId.Name;
+                    var row = new RowDesc
+                    {
+                        CreateRowLabel(TextUtil.SpaceSeparate(column, filterSpec.Operation.DisplayName), rt),
+                    };
+                    var operand = SpectrumClassFilter.GetOperandDisplayText(dataSchema, filterSpec);
+                    if (operand != null)
+                    {
+                        row.Add(CreateData(operand, rt));
+                    }
+                    table.Add(row);
+                }
             }
         }
 

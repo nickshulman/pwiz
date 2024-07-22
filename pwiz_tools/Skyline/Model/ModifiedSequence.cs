@@ -22,7 +22,6 @@ using System.ComponentModel;
 using System.Globalization;
 using System.Linq;
 using System.Text;
-using System.Windows.Forms;
 using pwiz.Common.Collections;
 using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Model.DocSettings;
@@ -138,8 +137,17 @@ namespace pwiz.Skyline.Model
         public ModifiedSequence(string unmodifiedSequence, IEnumerable<Modification> explicitMods, MassType defaultMassType)
         {
             _unmodifiedSequence = unmodifiedSequence;
-            _explicitMods = ImmutableList.ValueOf(explicitMods.OrderBy(mod=>mod.IndexAA, SortOrder.Ascending));
+            _explicitMods = ImmutableList.ValueOf(explicitMods.OrderBy(mod=>mod.IndexAA));
             _defaultMassType = defaultMassType;
+        }
+
+        public ModifiedSequence(string modifiedSequence, MassType defaultMassType)
+        {
+            _unmodifiedSequence = FastaSequence.StripModifications(modifiedSequence);
+            var mods = ModificationMatcher.EnumerateMods(modifiedSequence)
+                .Select(i => MakeModification(_unmodifiedSequence, new ExplicitMod(i.IndexInUnmodifiedSequence, i.Mod)));
+            _defaultMassType = defaultMassType;
+            _explicitMods = ImmutableList<Modification>.ValueOf(mods);
         }
 
         [Browsable(false)]
@@ -180,7 +188,7 @@ namespace pwiz.Skyline.Model
 
         protected string FormatModsIndividually(Func<Modification, string> modFormatter)
         {
-            return Format(mods => string.Join(string.Empty, Enumerable.Select(mods, mod => Bracket(modFormatter(mod)))));
+            return Format(mods => string.Concat(Enumerable.Select(mods, mod => Bracket(modFormatter(mod)))));
         }
 
         protected string Format(Func<IEnumerable<Modification>, string> modFormatter)
@@ -267,7 +275,7 @@ namespace pwiz.Skyline.Model
 
         public static string FormatUnimodIds(IEnumerable<Modification> mods)
         {
-            return string.Join(String.Empty, mods.Select(mod =>
+            return string.Concat(mods.Select(mod =>
             {
                 if (mod.UnimodId.HasValue)
                 {
@@ -279,7 +287,7 @@ namespace pwiz.Skyline.Model
 
         public static string FormatFallback(IEnumerable<Modification> mods)
         {
-            return string.Join(string.Empty, mods.Select(mod => Bracket(FormatFallback(mod))));
+            return string.Concat(mods.Select(mod => Bracket(FormatFallback(mod))));
         }
 
         /// <summary>
@@ -301,9 +309,9 @@ namespace pwiz.Skyline.Model
             {
                 return mod.MonoisotopicMass.ToString(CultureInfo.CurrentCulture);
             }
-            if (!string.IsNullOrEmpty(mod.Formula))
+            if (!ParsedMolecule.IsNullOrEmpty(mod.Formula))
             {
-                return mod.Formula;
+                return mod.Formula.ToString();
             }
             return @"#UNKNOWNMODIFICATION#";
         }
@@ -335,11 +343,12 @@ namespace pwiz.Skyline.Model
 
         public class Modification : Immutable
         {
-            public Modification(ExplicitMod explicitMod, double monoMass, double avgMass)
+            public Modification(ExplicitMod explicitMod, ParsedMolecule formula, double monoMass, double avgMass)
             {
                 ExplicitMod = explicitMod;
                 MonoisotopicMass = monoMass;
                 AverageMass = avgMass;
+                Formula = formula;
             }
 
             public ExplicitMod ExplicitMod { get; private set; }
@@ -358,7 +367,7 @@ namespace pwiz.Skyline.Model
 
             public string Name { get { return StaticMod.Name; } }
             public string ShortName { get { return StaticMod.ShortName; } }
-            public string Formula { get { return StaticMod.Formula; } }
+            public ParsedMolecule Formula { get; private set; }
             public int? UnimodId { get { return StaticMod.UnimodId; } }
             public double MonoisotopicMass { get; private set; }
             public double AverageMass { get; private set; }
@@ -434,19 +443,20 @@ namespace pwiz.Skyline.Model
             var avgMass = staticMod.AverageMass ??
                           SrmSettings.AverageMassCalc.GetAAModMass(unmodifiedSequence[i], i,
                               unmodifiedSequence.Length);
+            var formula = explicitMod.Modification.ParsedMolecule;
             if (monoMass == 0 && avgMass == 0)
             {
                 char aa = unmodifiedSequence[i];
                 if ((staticMod.LabelAtoms & LabelAtoms.LabelsAA) != LabelAtoms.None && AminoAcid.IsAA(aa))
                 {
-                    string heavyFormula = SequenceMassCalc.GetHeavyFormula(aa, staticMod.LabelAtoms);
-                    monoMass = SequenceMassCalc.FormulaMass(BioMassCalc.MONOISOTOPIC, heavyFormula,
+                    formula = SequenceMassCalc.GetHeavyFormula(aa, staticMod.LabelAtoms);
+                    monoMass = SequenceMassCalc.FormulaMass(BioMassCalc.MONOISOTOPIC, formula,
                         SequenceMassCalc.MassPrecision);
-                    avgMass = SequenceMassCalc.FormulaMass(BioMassCalc.AVERAGE, heavyFormula,
+                    avgMass = SequenceMassCalc.FormulaMass(BioMassCalc.AVERAGE, formula,
                         SequenceMassCalc.MassPrecision);
                 }
             }
-            return new Modification(explicitMod, monoMass, avgMass);
+            return new Modification(explicitMod, formula, monoMass, avgMass);
         }
 
         public static Modification ResolveModification(SrmSettings settings, IsotopeLabelType labelType, string unmodifiedSequence,

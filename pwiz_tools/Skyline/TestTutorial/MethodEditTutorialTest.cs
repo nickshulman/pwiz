@@ -61,7 +61,7 @@ namespace pwiz.SkylineTestTutorial
 //            IsCoverShotMode = true;
             CoverShotName = "MethodEdit";
 
-            LinkPdf = "https://skyline.ms/_webdav/home/software/Skyline/%40files/tutorials/MethodEdit-20_1.pdf";
+            LinkPdf = "https://skyline.ms/_webdav/home/software/Skyline/%40files/tutorials/MethodEdit-22_2.pdf";
             
             TestFilesZipPaths = new[]
             {
@@ -76,21 +76,20 @@ namespace pwiz.SkylineTestTutorial
         {
             // Creating a MS/MS Spectral Library, p. 1
             PeptideSettingsUI peptideSettingsUI = ShowDialog<PeptideSettingsUI>(SkylineWindow.ShowPeptideSettingsUI);
-            RunDlg<BuildLibraryDlg>(peptideSettingsUI.ShowBuildLibraryDlg, buildLibraryDlg =>
+            var buildLibraryDlg = ShowDialog<BuildLibraryDlg>(peptideSettingsUI.ShowBuildLibraryDlg);
+            RunUI(() =>
             {
                 buildLibraryDlg.LibraryPath = TestFilesDirs[0].GetTestPath(@"MethodEdit\Library\"); // Not L10N
                 buildLibraryDlg.LibraryName = YEAST_ATLAS;
-                buildLibraryDlg.LibraryCutoff = 0.95;
                 buildLibraryDlg.OkWizardPage();
-                IList<string> inputPaths = new List<string>
-                 {
-                     TestFilesDirs[0].GetTestPath(@"MethodEdit\Yeast_atlas\interact-prob.pep.xml") // Not L10N
-                 };
-                buildLibraryDlg.AddInputFiles(inputPaths);
-                buildLibraryDlg.OkWizardPage();
+                buildLibraryDlg.AddInputFiles(new[] { TestFilesDirs[0].GetTestPath(@"MethodEdit\Yeast_atlas\interact-prob.pep.xml") }); // Not L10N
             });
+            WaitForConditionUI(() => buildLibraryDlg.Grid.ScoreTypesLoaded);
+            RunUI(() => buildLibraryDlg.Grid.SetScoreThreshold(0.95));
+            OkDialog(buildLibraryDlg, buildLibraryDlg.OkWizardPage);
 
             PeptideSettingsUI peptideSettingsUI1 = peptideSettingsUI;
+            WaitForConditionUI(() => peptideSettingsUI1.PickedLibraries.Contains(YEAST_ATLAS));
             RunUI(() =>
                 {
                     peptideSettingsUI1.SelectedTab = PeptideSettingsUI.TABS.Library;
@@ -250,10 +249,10 @@ namespace pwiz.SkylineTestTutorial
                     () =>
                         SkylineWindow.Document.Settings.PeptideSettings.Libraries.IsLoaded &&
                             SkylineWindow.Document.Settings.PeptideSettings.Libraries.Libraries.Count > 0));
-                // The tutorial tells the reader they can see the library name in the spectrum graph title
-                VerifyPrecursorLibrary(12, YEAST_GPM, 125);
-                VerifyPrecursorLibrary(13, YEAST_ATLAS, 5.23156E+07);
             }
+            // The tutorial tells the reader they can see the library name in the spectrum graph title
+            VerifyPrecursorLibrary(12, YEAST_GPM, 125);
+            VerifyPrecursorLibrary(13, YEAST_ATLAS, 5.23156E+07);
 
             using (new CheckDocumentState(35, 47, 47, 223, 2, true))    // Wait for change loaded, and expect 2 document revisions.
             {
@@ -439,9 +438,8 @@ namespace pwiz.SkylineTestTutorial
                 ITipProvider nodeTip = SkylineWindow.SequenceTree.SelectedNode as ITipProvider;
                 Assert.IsTrue(nodeTip != null && nodeTip.HasTip);
                 var nodeName = SkylineWindow.SequenceTree.Nodes[1].Name;
-                IdentityPath selectPath;
                 SkylineWindow.ModifyDocument("Drag and drop", // Not L10N
-                    doc => doc.MoveNode(SkylineWindow.Document.GetPathTo(0, 1), SkylineWindow.Document.GetPathTo(0, 0), out selectPath));
+                    doc => doc.MoveNode(SkylineWindow.Document.GetPathTo(0, 1), SkylineWindow.Document.GetPathTo(0, 0), out _));
                 Assert.IsTrue(SkylineWindow.SequenceTree.Nodes[0].Name == nodeName);
             });
 

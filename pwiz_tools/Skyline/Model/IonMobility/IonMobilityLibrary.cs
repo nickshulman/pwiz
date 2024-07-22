@@ -22,13 +22,11 @@ using System.IO;
 using System.Linq;
 using System.Xml;
 using System.Xml.Serialization;
-using pwiz.Common.Chemistry;
 using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Model.AuditLog;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.Lib;
 using pwiz.Skyline.Model.Results;
-using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
 using pwiz.Skyline.Util.Extensions;
 
@@ -43,7 +41,7 @@ namespace pwiz.Skyline.Model.IonMobility
 
         public static string FILTER_IONMOBILITYLIBRARY
         {
-            get { return TextUtil.FileDialogFilter(Resources.IonMobilityDb_FILTER_IONMOBILITYLIBRARY_Ion_Mobility_Library_Files, EXT); }
+            get { return TextUtil.FileDialogFilter(IonMobilityResources.IonMobilityDb_FILTER_IONMOBILITYLIBRARY_Ion_Mobility_Library_Files, EXT); }
         }
 
         public IonMobilityLibrarySpec(string name, string path) : base(name)
@@ -180,37 +178,42 @@ namespace pwiz.Skyline.Model.IonMobility
                 var ionMobilityDbMinimal = IonMobilityDb.CreateIonMobilityDb(fs.SafeName, libraryName, true);
 
                 // Calculate the minimal set of peptides needed for this document
-                var dbPrecursors = _database.DictLibrary.LibKeys;
                 var persistIonMobilities = new List<PrecursorIonMobilities>();
-
-                var dictPrecursors = dbPrecursors.ToDictionary(p => p.LibraryKey);
-                foreach (var pair in document.MoleculePrecursorPairs)
+                var minimizedLibraryKeys = new HashSet<LibraryKey>();
+                foreach (var moleculePrecursorPair in document.MoleculePrecursorPairs)
                 {
-                    var test = 
-                        new PrecursorIonMobilities(pair.NodePep.ModifiedTarget, pair.NodeGroup.PrecursorAdduct, 0, 0, 0, eIonMobilityUnits.none);
-                    var key = test.Precursor;
-                    if (dictPrecursors.TryGetValue(key, out var dbPrecursor))
+                    var precursorLibKey = moleculePrecursorPair.NodeGroup.GetLibKey(document.Settings, moleculePrecursorPair.NodePep);
+                    foreach (var keyValuePair in _database.DictLibrary.KeyPairsMatching(precursorLibKey, true))
                     {
+                        if (!minimizedLibraryKeys.Add(keyValuePair.Key))
+                        {
+                            continue;
+                        }
+
+                        LibKey libKey = new LibKey(keyValuePair.Key);
+                        var im = keyValuePair.Value;
+
                         if (smallMoleculeConversionMap != null)
                         {
                             // We are in the midst of converting a document to small molecules for test purposes
                             LibKey smallMolInfo;
-                            if (smallMoleculeConversionMap.TryGetValue(new LibKey(pair.NodePep.ModifiedSequence, pair.NodeGroup.PrecursorCharge), out smallMolInfo))
+                            if (smallMoleculeConversionMap.TryGetValue(
+                                    new LibKey(moleculePrecursorPair.NodePep.ModifiedSequence, moleculePrecursorPair.NodeGroup.PrecursorCharge),
+                                    out smallMolInfo))
                             {
                                 var precursorAdduct = smallMolInfo.Adduct;
                                 var smallMoleculeAttributes = smallMolInfo.SmallMoleculeLibraryAttributes;
-                                dbPrecursor = new LibKey(smallMoleculeAttributes, precursorAdduct);
+                                libKey = new LibKey(smallMoleculeAttributes, precursorAdduct);
                             }
                             else
                             {
                                 // Not being converted
-                                Assume.IsTrue(pair.NodeGroup.Peptide.IsDecoy);
+                                Assume.IsTrue(moleculePrecursorPair.NodeGroup.Peptide.IsDecoy);
                                 continue;
                             }
                         }
-                        persistIonMobilities.Add(new PrecursorIonMobilities(dbPrecursor, test.IonMobilities));
-                        // Only add once
-                        dictPrecursors.Remove(key);
+
+                        persistIonMobilities.Add(new PrecursorIonMobilities(libKey, im));
                     }
                 }
 
@@ -310,25 +313,28 @@ namespace pwiz.Skyline.Model.IonMobility
                 throw new InvalidOperationException(@"Unexpected use of ion mobility library before successful initialization."); // - for developer use
         }
 
-        public static Dictionary<LibKey, IonMobilityAndCCS> CreateFromResults(SrmDocument document, string documentFilePath, bool useHighEnergyOffset,
+        public static Dictionary<LibKey, IonMobilityAndCCS> CreateFromResults(SrmDocument document, string documentFilePath,
+            IonMobilityWindowWidthCalculator imFilterWindowCalculator, bool useHighEnergyOffset,
             IProgressMonitor progressMonitor = null)
         {
             // Overwrite any existing measurements with newly derived ones
             // N.B. assumes we are not attempting to find multiple conformers
             // (so, returns Dictionary<LibKey, IonMobilityAndCCS> instead of Dictionary<LibKey, IList<IonMobilityAndCCS>>)
             Dictionary<LibKey, IonMobilityAndCCS> measured;
-            using (var finder = new IonMobilityFinder(document, documentFilePath, progressMonitor) { UseHighEnergyOffset = useHighEnergyOffset })
+            using (var finder = new IonMobilityFinder(document, documentFilePath, imFilterWindowCalculator, progressMonitor))
             {
+                finder.UseHighEnergyOffset = useHighEnergyOffset;
                 measured = finder.FindIonMobilityPeaks(); // Returns null on cancel
             }
             return measured;
         }
 
-        public static IonMobilityLibrary CreateFromResults(SrmDocument document, string documentFilePath, bool useHighEnergyOffset,
+        public static IonMobilityLibrary CreateFromResults(SrmDocument document, string documentFilePath,
+            IonMobilityWindowWidthCalculator imFilterWindowCalculator, bool useHighEnergyOffset,
             string libraryName, string dbPath, IProgressMonitor progressMonitor = null)
         {
             // Overwrite any existing measurements with newly derived ones
-            var measured = CreateFromResults(document, documentFilePath, useHighEnergyOffset, progressMonitor);
+            var measured = CreateFromResults(document, documentFilePath, imFilterWindowCalculator, useHighEnergyOffset, progressMonitor);
             var ionMobilityDb = IonMobilityDb.CreateIonMobilityDb(dbPath, libraryName, false).
                 UpdateIonMobilities(measured.Select(m => new PrecursorIonMobilities(
                 m.Key, m.Value)).ToList());

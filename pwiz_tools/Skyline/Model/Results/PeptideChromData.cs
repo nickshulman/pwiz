@@ -19,13 +19,15 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.Drawing;
 using System.Linq;
+using pwiz.Common.Collections;
 using pwiz.Common.PeakFinding;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.Results.Scoring;
-using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
+using pwiz.Skyline.Util.Extensions;
 
 namespace pwiz.Skyline.Model.Results
 {
@@ -39,7 +41,7 @@ namespace pwiz.Skyline.Model.Results
 //        private const double TIME_DELTA_MAX_RATIO_THRESHOLD = 25;
 //        private const int MINIMUM_DELTAS_PER_CHROM = 4;
 
-        private readonly SrmDocument _document;
+        private readonly SrmSettings _settings;
         private readonly List<ChromDataSet> _dataSets = new List<ChromDataSet>();
         private readonly List<List<PeptideChromDataPeakList>> _listListPeakSets = new List<List<PeptideChromDataPeakList>>();
         private RetentionTimePrediction _predictedRetentionTime;
@@ -48,15 +50,15 @@ namespace pwiz.Skyline.Model.Results
         private readonly bool _isProcessedScans;
 
         public PeptideChromDataSets(PeptideDocNode nodePep,
-                                    SrmDocument document,
+                                    SrmSettings settings,
                                     ChromFileInfo fileInfo,
-                                    IList<DetailedPeakFeatureCalculator> detailedPeakFeatureCalculators,
+                                    DetailedFeatureCalculators detailedPeakFeatureCalculators,
                                     bool isProcessedScans)
         {
             NodePep = nodePep;
             FileInfo = fileInfo;
             DetailedPeakFeatureCalculators = detailedPeakFeatureCalculators;
-            _document = document;
+            _settings = settings;
             _retentionTimes = new double[0];
             _isProcessedScans = isProcessedScans;
         }
@@ -66,7 +68,7 @@ namespace pwiz.Skyline.Model.Results
             NodePep = other.NodePep;
             FileInfo = other.FileInfo;
             DetailedPeakFeatureCalculators = other.DetailedPeakFeatureCalculators;
-            _document = other._document;
+            _settings = other._settings;
             _retentionTimes = new double[0];
             _isProcessedScans = other._isProcessedScans;
         }
@@ -76,6 +78,8 @@ namespace pwiz.Skyline.Model.Results
         public ChromFileInfo FileInfo { get; private set; }
 
         public IList<ChromDataSet> DataSets { get { return _dataSets; } }
+
+        public bool IsDelayedWrite { get; set; }
 
         public RetentionTimePrediction PredictedRetentionTime { set { _predictedRetentionTime = value; }}
 
@@ -92,7 +96,7 @@ namespace pwiz.Skyline.Model.Results
 
         public int IndexInFile { get; set; }
 
-        private IEnumerable<IEnumerable<ChromDataSet>> ComparableDataSets
+        internal IEnumerable<IEnumerable<ChromDataSet>> ComparableDataSets
         {
             get
             {
@@ -132,7 +136,7 @@ namespace pwiz.Skyline.Model.Results
             }
         }
 
-        private IList<DetailedPeakFeatureCalculator> DetailedPeakFeatureCalculators { get; set; }
+        private DetailedFeatureCalculators DetailedPeakFeatureCalculators { get; set; }
 
         public IEnumerable<int> ProviderIds { get { return _dataSets.SelectMany(d => d.ProviderIds); } }
 
@@ -142,17 +146,33 @@ namespace pwiz.Skyline.Model.Results
             foreach (var set in _dataSets.ToArray())
             {
                 Color peptideColor = NodePep != null ? NodePep.Color : PeptideDocNode.UNKNOWN_COLOR;
-                if (!set.Load(provider, NodePep != null ? NodePep.ModifiedTarget : null, peptideColor))
+                if (!set.Load(provider, ChromatogramGroupId.ForPeptide(NodePep, null), peptideColor))
                     _dataSets.Remove(set);
             }
             //Console.Out.WriteLine("Ending {0} {1} {2}", NodePep, _dataSets.Count, RuntimeHelpers.GetHashCode(this));
             return _dataSets.Count > 0;
         }
 
+        public delegate PeakBounds ExplicitPeakBoundsFunc(TransitionGroup transitionGroup, Transition transition);
+
         public void PickChromatogramPeaks()
         {
+            ExplicitPeakBoundsFunc explicitPeakBoundsFunc = null;
+            var explicitPeakBounds = _settings.GetExplicitPeakBounds(NodePep, FileInfo.FilePath);
+            if (explicitPeakBounds != null)
+            {
+                var peakBounds = explicitPeakBounds.IsEmpty
+                    ? null
+                    : new PeakBounds(explicitPeakBounds.StartTime, explicitPeakBounds.EndTime);
+                explicitPeakBoundsFunc = (transitionGroup, transition)=>peakBounds;
+            }
+            PickChromatogramPeaks(explicitPeakBoundsFunc);
+        }
+
+        public void PickChromatogramPeaks(ExplicitPeakBoundsFunc explicitPeakBoundsFunc)
+        {
             TimeIntervals intersectedTimeIntervals = null;
-            if (_document.Settings.TransitionSettings.Instrument.TriggeredAcquisition && NodePep != null)
+            if (_settings.TransitionSettings.Instrument.TriggeredAcquisition && NodePep != null)
             {
                 var triggeredAcquisition = new TriggeredAcquisition();
                 foreach (var chromDataSet in _dataSets)
@@ -176,25 +196,24 @@ namespace pwiz.Skyline.Model.Results
             }
             // Make sure times are evenly spaced before doing any peak detection.
             EvenlySpaceTimes();
-            var explicitPeakBounds = _document.Settings.GetExplicitPeakBounds(NodePep, FileInfo.FilePath);
 
             // If an explicit retention time was provided, limit peak picking to that window
             var explicitRetentionTime = NodePep?.ExplicitRetentionTime;
             if (explicitRetentionTime != null && !explicitRetentionTime.RetentionTimeWindow.HasValue)
             {
                 // If no explicit window, use the one in Peptide Settings
-                explicitRetentionTime = new ExplicitRetentionTimeInfo(explicitRetentionTime.RetentionTime, _document.Settings.PeptideSettings.Prediction.MeasuredRTWindow);
+                explicitRetentionTime = new ExplicitRetentionTimeInfo(explicitRetentionTime.RetentionTime, _settings.PeptideSettings.Prediction.MeasuredRTWindow);
             }
             // Pick peak groups at the precursor level
             foreach (var chromDataSet in _dataSets)
             {
-                if (explicitPeakBounds == null)
+                if (explicitPeakBoundsFunc == null)
                 {
                     chromDataSet.PickChromatogramPeaks(_retentionTimes, _isAlignedTimes, explicitRetentionTime);
                 }
                 else
                 {
-                    chromDataSet.SetExplicitPeakBounds(explicitPeakBounds);
+                    chromDataSet.SetExplicitPeakBounds(transition=>explicitPeakBoundsFunc(chromDataSet.NodeGroup?.TransitionGroup, transition));
                 }
             }
 
@@ -207,7 +226,6 @@ namespace pwiz.Skyline.Model.Results
             foreach (var chromDataSet in _dataSets)
                 chromDataSet.GeneratePeakData(intersectedTimeIntervals);
 
-            var detailedCalcs = DetailedPeakFeatureCalculators.Select(calc => (IPeakFeatureCalculator)calc).ToList();
             for (int i = 0; i < _listListPeakSets.Count; i++)
             {
                 var listPeakSets = _listListPeakSets[i];
@@ -216,10 +234,10 @@ namespace pwiz.Skyline.Model.Results
                 // Score the peaks under the legacy model score
                 foreach (var peakSet in listPeakSets.Where(peakSet => peakSet != null))
                 {
-                    var context = new PeakScoringContext(_document);
+                    var context = new PeakScoringContext(_settings);
                     context.AddInfo(_predictedRetentionTime);
                     context.AddInfo(maxPossibleShift);
-                    peakSet.ScorePeptideSets(context, detailedCalcs);
+                    peakSet.ScorePeptideSets(context, DetailedPeakFeatureCalculators);
                 }
 
                 _listListPeakSets[i] = SortAndLimitPeaks(listPeakSets);
@@ -306,7 +324,7 @@ namespace pwiz.Skyline.Model.Results
             while (ThermoZerosFix())
             {
             }
-            if (!FullScanAcquisitionMethod.DDA.Equals(_document.Settings.TransitionSettings.FullScan.AcquisitionMethod))
+            if (!FullScanAcquisitionMethod.DDA.Equals(_settings.TransitionSettings.FullScan.AcquisitionMethod))
             {
                 ChromDataSet.TruncateMs1ForScheduledMs2(_dataSets);
             }
@@ -479,8 +497,8 @@ namespace pwiz.Skyline.Model.Results
         {
             get
             {
-                // We do not save raw times if there is an optimization function because it is too hard.
-                return OptimizableRegression == null;
+                // We do not save raw times if there is an optimization function and it is SRM because it is too hard.
+                return OptimizableRegression == null || !FileInfo.IsSrm;
             }
         }
 
@@ -489,7 +507,7 @@ namespace pwiz.Skyline.Model.Results
             get
             {
                 // We do not save raw times if there is an optimization function because it is too hard.
-                var chromatogramSet = _document.Settings.MeasuredResults.Chromatograms.FirstOrDefault(
+                var chromatogramSet = _settings.MeasuredResults.Chromatograms.FirstOrDefault(
                     c => null != c.GetFileInfo(FileInfo.FileId));
                 return chromatogramSet?.OptimizationFunction;
             }
@@ -593,7 +611,7 @@ namespace pwiz.Skyline.Model.Results
                     }
                 }
 
-                // If any peak trunctation occurred in peaks that should be matching
+                // If any peak truncation occurred in peaks that should be matching
                 if (peakNarrowest != null && !ReferenceEquals(peakBest, peakNarrowest))
                 {
                     foreach (var peak in peakSet)
@@ -745,8 +763,12 @@ namespace pwiz.Skyline.Model.Results
         {
             var allPeaks = new List<PeptideChromDataPeak>();
             var listUnmerged = new List<ChromDataSet>(dataSets);
-            var listEnumerators = listUnmerged.Select(dataSet => dataSet.PeakSets.GetEnumerator()).ToList();
-
+            using var allEnumerators = new DisposableCollection<IEnumerator<ChromDataPeakList>>();
+            foreach (var dataSet in listUnmerged)
+            {
+                allEnumerators.Add(dataSet.PeakSets.GetEnumerator());
+            }
+            var listEnumerators = allEnumerators.ToList();
             // Initialize an enumerator for each set of raw peaks, or remove
             // the set, if the list is found to be empty
             for (int i = listEnumerators.Count - 1; i >= 0; i--)
@@ -770,7 +792,7 @@ namespace pwiz.Skyline.Model.Results
                     var dataSet = listUnmerged[i];
                     var dataPeakList = listEnumerators[i].Current;
                     if (dataPeakList == null)
-                        throw new InvalidOperationException(Resources.PeptideChromDataSets_MergePeakGroups_Unexpected_null_peak_list);
+                        throw new InvalidOperationException(ResultsResources.PeptideChromDataSets_MergePeakGroups_Unexpected_null_peak_list);
                     if (Compare(dataPeakList, dataSet.IsStandard, maxPeak, maxStandard) > 0)
                     {
                         maxPeak = dataPeakList;
@@ -863,7 +885,7 @@ namespace pwiz.Skyline.Model.Results
                 {
                     string peptideName = NodePep == null ? string.Empty : NodePep.ModifiedSequenceDisplay;
                     string message = string.Format(
-                        Resources.PeptideChromDataSets_AddDataSet_Unable_to_process_chromatograms_for_the_molecule___0___because_one_chromatogram_ends_at_time___1___and_the_other_ends_at_time___2___,
+                        ResultsResources.PeptideChromDataSets_AddDataSet_Unable_to_process_chromatograms_for_the_molecule___0___because_one_chromatogram_ends_at_time___1___and_the_other_ends_at_time___2___,
                         peptideName, firstMaxTime, nextMaxTime);
                     throw new InvalidOperationException(message);
                 }
@@ -913,7 +935,9 @@ namespace pwiz.Skyline.Model.Results
             for (int i = 0; i < DataSets.Count; i++)
             {
                 var firstKey = DataSets[i].FirstKey;
-                if (Equals(chromDataSet.FirstKey.Precursor, firstKey.Precursor)) // Don't merge dissimilar precursors
+                if (Equals(chromDataSet.FirstKey.Precursor, firstKey.Precursor)
+                    && Equals(chromDataSet.FirstKey.ChromatogramGroupId?.SpectrumClassFilter, 
+                        firstKey.ChromatogramGroupId?.SpectrumClassFilter)) // Don't merge dissimilar precursors
                 {
                     DataSets[i].Merge(chromDataSet);
                 }
@@ -932,6 +956,9 @@ namespace pwiz.Skyline.Model.Results
                     var dataSet = DataSets[i];
                     if (explicitRT < dataSet.MinRawTime || dataSet.MaxRawTime < explicitRT)
                     {
+                        string precursorText = GetTextForNode(NodePep, dataSet.NodeGroup, null);
+                        Trace.TraceWarning(ResultsResources.PeptideChromDataSets_FilterByRetentionTime_Discarding_chromatograms_for___0___because_the_explicit_retention_time__1__is_not_between__2__and__3_,
+                            precursorText, explicitRT, dataSet.MinRawTime, dataSet.MaxRawTime);
                         DataSets.RemoveAt(i);
                     }
                     else
@@ -941,6 +968,9 @@ namespace pwiz.Skyline.Model.Results
                             var chrom = dataSet.Chromatograms[j];
                             if (explicitRT < chrom.Times.First() || chrom.Times.Last() < explicitRT)
                             {
+                                string transitionText = GetTextForNode(NodePep, dataSet.NodeGroup, chrom.DocNode);
+                                Trace.TraceWarning(ResultsResources.PeptideChromDataSets_FilterByRetentionTime_Discarding_chromatograms_for___0___because_the_explicit_retention_time__1__is_not_between__2__and__3_,
+                                    transitionText, explicitRT, chrom.Times.First(), chrom.Times.Last());
                                 dataSet.Chromatograms.RemoveAt(j);
                             }
                         }
@@ -948,6 +978,25 @@ namespace pwiz.Skyline.Model.Results
                 }
             }
             return DataSets.Any();
+        }
+
+        /// <summary>
+        /// Returns text which can be used to identify a precursor or transition in an error message
+        /// </summary>
+        private string GetTextForNode(PeptideDocNode peptideDocNode, TransitionGroupDocNode transitionGroupDocNode,
+            TransitionDocNode transitionDocNode)
+        {
+            string text = NodePep.CustomMolecule?.ToString() ?? NodePep.GetCrosslinkedSequence();
+            if (transitionGroupDocNode != null && peptideDocNode.Children.Count > 1)
+            {
+                text = TextUtil.SpaceSeparate(text,
+                    transitionGroupDocNode.TransitionGroup.ToString());
+            }
+            if (transitionDocNode != null)
+            {
+                text = TextUtil.SpaceSeparate(text, transitionDocNode.Transition.ToString());
+            }
+            return text;
         }
 
         private bool HasEquivalentGroupNode(TransitionGroupDocNode nodeGroup)
@@ -968,6 +1017,20 @@ namespace pwiz.Skyline.Model.Results
                 return false;
             return Equals(nodeGroup1.TransitionGroup.PrecursorAdduct, nodeGroup2.TransitionGroup.PrecursorAdduct) &&
                    ReferenceEquals(nodeGroup1.TransitionGroup.LabelType, nodeGroup2.TransitionGroup.LabelType);
+        }
+
+        public IEnumerable<ChromatogramGroupInfo> MakeChromatogramGroupInfos()
+        {
+            return MakeChromatogramGroupInfos(DataSets);
+        }
+        internal IEnumerable<ChromatogramGroupInfo> MakeChromatogramGroupInfos(IEnumerable<ChromDataSet> dataSets)
+        {
+            var chromCachedFile = new ChromCachedFile(FileInfo);
+
+            foreach (var chromDataSet in dataSets)
+            {
+                yield return chromDataSet.ToChromatogramGroupInfo(DetailedPeakFeatureCalculators.FeatureNames, chromCachedFile);
+            }
         }
     }
 
@@ -996,6 +1059,7 @@ namespace pwiz.Skyline.Model.Results
 
         public IList<ITransitionPeakData<IDetailedPeakData>> Ms1TranstionPeakData { get; private set; }
         public IList<ITransitionPeakData<IDetailedPeakData>> Ms2TranstionPeakData { get; private set; }
+        public IList<ITransitionPeakData<IDetailedPeakData>> Ms2TranstionDotpData { get; private set; }
         public IList<ITransitionPeakData<IDetailedPeakData>> DefaultTranstionPeakData
         {
             get { return Ms2TranstionPeakData.Count > 0 ? Ms2TranstionPeakData : Ms1TranstionPeakData; }
@@ -1023,13 +1087,14 @@ namespace pwiz.Skyline.Model.Results
                 else
                 {
                     Ms1TranstionPeakData = TransitionPeakData.Where(t => t.NodeTran != null && t.NodeTran.IsMs1).ToArray();
+                    Ms2TranstionDotpData = TransitionPeakData.Where(t => t.NodeTran != null && !t.NodeTran.IsMs1 && t.NodeTran.ParticipatesInScoring).ToArray(); // Don't use reporter ions in peak picking
                     if (Data.FullScanAcquisitionMethod == FullScanAcquisitionMethod.DDA)
                     {
                         Ms2TranstionPeakData = ChromDataPeakList.EMPTY;
                     }
                     else
                     {
-                        Ms2TranstionPeakData = TransitionPeakData.Where(t => t.NodeTran != null && !t.NodeTran.IsMs1).ToArray();
+                        Ms2TranstionPeakData = Ms2TranstionDotpData;
                     }
                 }
             }
@@ -1138,7 +1203,7 @@ namespace pwiz.Skyline.Model.Results
             }
         }
 
-        public void ScorePeptideSets(PeakScoringContext context, IList<IPeakFeatureCalculator> detailFeatureCalculators)
+        public void ScorePeptideSets(PeakScoringContext context, DetailedFeatureCalculators detailFeatureCalculators)
         {
             var modelCalcs = ScoringModel.PeakFeatureCalculators;
             var detailFeatures = new float [detailFeatureCalculators.Count];

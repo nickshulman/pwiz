@@ -1,3 +1,21 @@
+﻿/*
+ * Original author: Nicholas Shulman <nicksh .at. u.washington.edu>,
+ *                  MacCoss Lab, Department of Genome Sciences, UW
+ *
+ * Copyright 2015 University of Washington - Seattle, WA
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 using System.Collections.Generic;
 using System.Linq;
 using System.Windows.Forms;
@@ -5,6 +23,7 @@ using pwiz.Common.DataBinding;
 using pwiz.Common.DataBinding.Controls.Editor;
 using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Alerts;
+using pwiz.Skyline.Controls.Databinding;
 using pwiz.Skyline.Controls.GroupComparison;
 using pwiz.Skyline.Controls.Lists;
 using pwiz.Skyline.Model;
@@ -22,7 +41,7 @@ namespace pwiz.Skyline.SettingsUI
 {
     public partial class DocumentSettingsDlg : FormEx
     {
-        public enum TABS { annotations, lists, group_comparisons, reports, metadata_rules }
+        public enum TABS { annotations, metadata_rules, lists, group_comparisons, reports }
         private readonly SettingsListBoxDriver<AnnotationDef> _annotationsListBoxDriver;
         private readonly SettingsListBoxDriver<GroupComparisonDef> _groupComparisonsListBoxDriver;
         private readonly SettingsListBoxDriver<ListData> _listsListBoxDriver;
@@ -156,18 +175,18 @@ namespace pwiz.Skyline.SettingsUI
                 {
                     var list = removedListsWithData[0];
                     message = string.Format(
-                        Resources.DocumentSettingsDlg_OkDialog_The_list___0___has__1__items_in_it__If_you_remove_that_list_from_your_document__those_items_will_be_deleted__Are_you_sure_you_want_to_delete_those_items_from_that_list_,
+                        SettingsUIResources.DocumentSettingsDlg_OkDialog_The_list___0___has__1__items_in_it__If_you_remove_that_list_from_your_document__those_items_will_be_deleted__Are_you_sure_you_want_to_delete_those_items_from_that_list_,
                         list.ListName, list.RowCount);
                 }
                 else
                 {
                     message = TextUtil.LineSeparate(new[]
                         {
-                            Resources.DocumentSettingsDlg_OkDialog_The_following_lists_have_items_in_them_which_will_be_deleted_when_you_remove_the_lists_from_your_document_
+                            SettingsUIResources.DocumentSettingsDlg_OkDialog_The_following_lists_have_items_in_them_which_will_be_deleted_when_you_remove_the_lists_from_your_document_
                         }
                         .Concat(removedListsWithData.Select(list =>
-                            string.Format(Resources.DocumentSettingsDlg_OkDialog_List___0___with__1__items, list.ListName, list.RowCount)))
-                        .Concat(new[]{Resources.DocumentSettingsDlg_OkDialog_Are_you_sure_you_want_to_delete_those_items_from_those_lists_}));
+                            string.Format(SettingsUIResources.DocumentSettingsDlg_OkDialog_List___0___with__1__items, list.ListName, list.RowCount)))
+                        .Concat(new[]{SettingsUIResources.DocumentSettingsDlg_OkDialog_Are_you_sure_you_want_to_delete_those_items_from_those_lists_}));
                 }
                 if (MultiButtonMsgDlg.Show(this, message, MultiButtonMsgDlg.BUTTON_OK) == DialogResult.Cancel)
                 {
@@ -188,7 +207,7 @@ namespace pwiz.Skyline.SettingsUI
 
         public void EditMetadataRuleList()
         {
-            _metadataRuleSetsListBoxDriver.EditList(DocumentContainer);
+            _metadataRuleSetsListBoxDriver.EditList(GetDocumentForEditor());
         }
 
         public bool ValidateMetadataRules()
@@ -205,7 +224,7 @@ namespace pwiz.Skyline.SettingsUI
             {
                 string message =
                     string.Format(
-                        Resources.DocumentSettingsDlg_ValidateMetadataRules_An_error_occurred_while_applying_the_rule___0____Do_you_want_to_continue_with_the_change_to_the_Document_Settings_,
+                        SettingsUIResources.DocumentSettingsDlg_ValidateMetadataRules_An_error_occurred_while_applying_the_rule___0____Do_you_want_to_continue_with_the_change_to_the_Document_Settings_,
                         error.ExceptionDetail.RuleName);
                 var alertDlg = new AlertDlg(message, MessageBoxButtons.OKCancel) { Exception = error };
                 if (alertDlg.ShowAndDispose(this) == DialogResult.Cancel)
@@ -282,7 +301,7 @@ namespace pwiz.Skyline.SettingsUI
 
         public void NewReport()
         {
-            var dataSchema = new SkylineDataSchema(DocumentContainer, SkylineDataSchema.GetLocalizedSchemaLocalizer());
+            var dataSchema = SkylineWindowDataSchema.FromDocumentContainer(DocumentContainer);
             var viewContext = new DocumentGridViewContext(dataSchema) { EnablePreview = true };
             var newView = viewContext.NewView(this, PersistedViews.MainGroup);
             if (newView != null)
@@ -295,7 +314,7 @@ namespace pwiz.Skyline.SettingsUI
 
         public void AddMetadataRule()
         {
-            using (var editDlg = new MetadataRuleSetEditor(DocumentContainer, new MetadataRuleSet(typeof(ResultFile)),
+            using (var editDlg = new MetadataRuleSetEditor(GetDocumentForEditor(), new MetadataRuleSet(typeof(ResultFile)),
                 Settings.Default.MetadataRuleSets))
             {
                 if (editDlg.ShowDialog(this) == DialogResult.OK)
@@ -316,6 +335,29 @@ namespace pwiz.Skyline.SettingsUI
         private void btnEditMetadataRuleList_Click(object sender, System.EventArgs e)
         {
             EditMetadataRuleList();
+        }
+
+        /// <summary>
+        /// Returns a document whose data settings have all of the annotations from the Settings.Default,
+        /// so that users can define rules which use annotations that have not yet
+        /// been added to the document (this unfortunately cannot be used with the Group Comparison editor because
+        /// the Group Comparison Preview really wants to interact with the SkylineWindow and give the user the full
+        /// experience of a Document Grid).
+        /// </summary>
+        public SrmDocument GetDocumentForEditor()
+        {
+            var document = DocumentContainer.Document;
+            var annotationDefs = new XmlMappedList<string, AnnotationDef>();
+            annotationDefs.AddRange(document.Settings.DataSettings.AnnotationDefs);
+            annotationDefs.AddRange(Settings.Default.AnnotationDefList);
+            if (!annotationDefs.SequenceEqual(document.Settings.DataSettings.AnnotationDefs))
+            {
+                document = document.ChangeSettingsNoDiff(
+                    document.Settings.ChangeDataSettings(
+                        document.Settings.DataSettings.ChangeAnnotationDefs(annotationDefs)));
+            }
+
+            return document;
         }
     }
 }

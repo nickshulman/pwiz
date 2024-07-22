@@ -19,7 +19,6 @@
 
 using System;
 using pwiz.Common.SystemUtil;
-using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.Results;
 
 namespace pwiz.Skyline.Model.RetentionTimes
@@ -47,7 +46,7 @@ namespace pwiz.Skyline.Model.RetentionTimes
 
         public double? Fwhm { get; private set; }
 
-        public RetentionTimeValues Scale(IRegressionFunction regressionFunction)
+        public RetentionTimeValues Scale(AlignmentFunction regressionFunction)
         {
             if (null == regressionFunction)
             {
@@ -79,8 +78,7 @@ namespace pwiz.Skyline.Model.RetentionTimes
 
         public static RetentionTimeValues FromTransitionChromInfo(TransitionChromInfo transitionChromInfo)
         {
-            if (null == transitionChromInfo || transitionChromInfo.StartRetentionTime == 0 ||
-                transitionChromInfo.EndRetentionTime == 0)
+            if (null == transitionChromInfo || transitionChromInfo.IsEmpty)
             {
                 return null;
             }

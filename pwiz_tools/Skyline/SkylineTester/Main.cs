@@ -66,7 +66,7 @@ namespace SkylineTester
                 return;
 
             foreach (var runButton in _runButtons)
-                runButton.Text = "Stop";
+                runButton.Text = "&Stop";
             buttonStop.Enabled = true;
             EnableButtonSelectFailedTests(false); // Until we have failures to select
             AcceptButton = null;
@@ -170,7 +170,7 @@ namespace SkylineTester
             _runningTab = null;
 
             foreach (var runButton in _runButtons)
-                runButton.Text = "Run";
+                runButton.Text = "&Run";
             buttonStop.Enabled = false;
             AcceptButton = DefaultButton;
 
@@ -241,6 +241,7 @@ namespace SkylineTester
             TestsRun = 0;
             if (Directory.Exists(_resultsDir))
                 Try.Multi<Exception>(() => Directory.Delete(_resultsDir, true), 4, false);
+            DeleteTestRunnerConfigFiles();
 
             var testRunner = Path.Combine(GetSelectedBuildDir(), "TestRunner.exe");
             _testRunnerIndex = new List<int>();
@@ -283,6 +284,20 @@ namespace SkylineTester
             }
         }
 
+        /// <summary>
+        /// Deletes all TestRunner.exe config folders to avoid user.config corruption
+        /// that can cause tests to fail indefinitely until it is cleaned up.
+        /// </summary>
+        private void DeleteTestRunnerConfigFiles()
+        {
+            var configsRoot = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                "AppData/Local/University_of_Washington");
+            foreach (var configDir in Directory.EnumerateDirectories(configsRoot, "TestRunner.exe*"))
+            {
+                Try.Multi<Exception>(() => Directory.Delete(configDir, true), 4, false);
+            }
+        }
+
         public void ClearLog()
         {
             commandShell.ClearLog();
@@ -311,6 +326,7 @@ namespace SkylineTester
 
         public void Restart()
         {
+            commandShell.InsertPause();
             commandShell.NextCommand = 0;
             RunCommands();
         }
@@ -480,9 +496,7 @@ namespace SkylineTester
 
         private bool GraphOnMouseMoveEvent(ZedGraphControl sender, MouseEventArgs e)
         {
-            CurveItem nearestCurve;
-            int index;
-            if (sender.GraphPane.FindNearestPoint(new PointF(e.X, e.Y), out nearestCurve, out index))
+            if (sender.GraphPane.FindNearestPoint(new PointF(e.X, e.Y), out _, out _))
                 sender.Cursor = Cursors.Hand;
             return false;
         }
@@ -594,7 +608,7 @@ namespace SkylineTester
 
                 if (Devenv == null)
                 {
-                    MessageBox.Show("Visual Studio 2017 is required to build Skyline.");
+                    MessageBox.Show("Visual Studio " + MINIMUM_VISUAL_STUDIO + " (or newer) is required to build Skyline.");
                     return false;
                 }
 
@@ -614,20 +628,31 @@ namespace SkylineTester
             Devenv = GetExistingVsIdeFilePath("devenv.exe");
         }
 
+        public const int MINIMUM_VISUAL_STUDIO = 2017;
         public static string GetExistingVsIdeFilePath(string relativePath)
         {
-            string programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
+            var programFiles = new[]
+            {
+                Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
+                Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86)
+            };
             string[] pathTrials = 
             {
-                @"Microsoft Visual Studio\2017\Enterprise\Common7\IDE",  // Enterprise edition of VS 2017
-                @"Microsoft Visual Studio\2017\Community\Common7\IDE",  // Community edition of VS 2017
-                @"Microsoft Visual Studio 12.0\Common7\IDE" // Prior installation of VS 2013
+                @"Microsoft Visual Studio\{0}\Enterprise\Common7\IDE",  
+                @"Microsoft Visual Studio\{0}\Professional\Common7\IDE",
+                @"Microsoft Visual Studio\{0}\Community\Common7\IDE",   
             };
-            foreach (var pathTrial in pathTrials)
+            for (var version = 2040; version >= MINIMUM_VISUAL_STUDIO; version--) // 2040 is completely arbitrary
             {
-                string path = Path.Combine(Path.Combine(programFiles, pathTrial), relativePath);
-                if (File.Exists(path))
-                    return path;
+                foreach (var pathTrial in pathTrials)
+                {
+                    foreach (var programFilesDir in programFiles)
+                    {
+                        var path = Path.Combine(Path.Combine(programFilesDir, string.Format(pathTrial, version)), relativePath);
+                        if (File.Exists(path))
+                            return path;
+                    }
+                }
             }
 
             return null;

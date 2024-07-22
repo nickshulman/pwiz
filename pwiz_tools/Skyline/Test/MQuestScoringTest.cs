@@ -195,7 +195,7 @@ namespace pwiz.SkylineTest
             {
                 MQuestScoreEquals(calcProductMassError, 0.99112, peptideData);
                 MQuestScoreEquals(calcIntensity, 2.84732, peptideData);
-                MQuestScoreEquals(calcCrossCorr, double.NaN, peptideData);  // Not enough fragment ions
+                MQuestScoreEquals(calcCrossCorr, 0.92422, peptideData);
             }
             foreach (var peptideData in new[] {peptidePeakDataFull, peptidePeakDataMs1Full})
             {
@@ -205,7 +205,7 @@ namespace pwiz.SkylineTest
             MQuestScoreEquals(calcPrecursorMassError, double.NaN, peptidePeakData);
             MQuestScoreEquals(calcPrecursorMassError, 5.0, peptidePeakDataMs1);
             MQuestScoreEquals(calcIdotp, double.NaN, peptidePeakData);
-            MQuestScoreEquals(calcIdotp, double.NaN, peptidePeakDataMs1);   // Not enough MS1 transitions
+            MQuestScoreEquals(calcIdotp, 0.795167, peptidePeakDataMs1);
             MQuestScoreEquals(calcIdotp, 0.783653, peptidePeakDataMs1Full);
 
             var peakData1NoArea = new MockTranPeakData<ISummaryPeakData>(INTENS0, IonType.a, null, 2, 0.5);
@@ -364,7 +364,8 @@ namespace pwiz.SkylineTest
             {
                 TransitionPeakData = transitionPeakData;
                 Ms1TranstionPeakData = TransitionPeakData.Where(t => t.NodeTran != null && t.NodeTran.IsMs1).ToArray();
-                Ms2TranstionPeakData = TransitionPeakData.Where(t => t.NodeTran != null && !t.NodeTran.IsMs1).ToArray();
+                Ms2TranstionPeakData = Ms2TranstionDotpData =
+                    TransitionPeakData.Where(t => t.NodeTran != null && !t.NodeTran.IsMs1).ToArray();
 
                 IsStandard = isStandard;
                 var libInfo = new ChromLibSpectrumHeaderInfo("", 0, null);
@@ -378,6 +379,8 @@ namespace pwiz.SkylineTest
             public IList<ITransitionPeakData<TPeak>> TransitionPeakData { get; private set; }
             public IList<ITransitionPeakData<TPeak>> Ms1TranstionPeakData { get; private set; }
             public IList<ITransitionPeakData<TPeak>> Ms2TranstionPeakData { get; private set; }
+            public IList<ITransitionPeakData<TPeak>> Ms2TranstionDotpData { get; private set; }
+
             public IList<ITransitionPeakData<TPeak>> DefaultTranstionPeakData
             {
                 get { return Ms2TranstionPeakData.Count > 0 ? Ms2TranstionPeakData : Ms1TranstionPeakData; }

@@ -21,6 +21,8 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
+using System.Net;
+using System.Reflection;
 using System.Windows.Forms;
 using pwiz.Skyline.Alerts;
 using pwiz.Skyline.Controls;
@@ -109,7 +111,7 @@ namespace pwiz.Skyline.ToolsUI
         /// </summary>
         private ICollection<ToolUpdateInfo> GetToolsToUpdate()
         {
-            labelOperation.Text = Resources.ToolUpdatesDlg_GetTools_Downloading_Updates;
+            labelOperation.Text = ToolsUIResources.ToolUpdatesDlg_GetTools_Downloading_Updates;
             var toolsToDownload = new Collection<ToolUpdateInfo>();
             var toolList = _tools.Keys.ToList();
             // get tools to update based on which ones are checked
@@ -121,8 +123,9 @@ namespace pwiz.Skyline.ToolsUI
             ICollection<ToolUpdateInfo> successfulDownloads = null;
             ICollection<string> failedDownloads = null;
 
-            using (var dlg = new LongWaitDlg {Message = Resources.ToolUpdatesDlg_GetToolsToUpdate_Downloading_Updates})
+            using (var dlg = new LongWaitDlg())
             {
+                dlg.Message = ToolsUIResources.ToolUpdatesDlg_GetToolsToUpdate_Downloading_Updates;
                 dlg.PerformWork(this, 1000,
                                 longWaitBroker =>
                                 DownloadTools(longWaitBroker, toolsToDownload, out successfulDownloads,
@@ -156,6 +159,13 @@ namespace pwiz.Skyline.ToolsUI
                 {
                     failedDownloads.Add(tool._packageName);
                 }
+                catch (TargetInvocationException ex)
+                {
+                    if (ex.InnerException is WebException)
+                        failedDownloads.Add(tool._packageName);
+                    else
+                        throw;
+                }
             }
         }
 
@@ -181,7 +191,7 @@ namespace pwiz.Skyline.ToolsUI
                 foreach (var tool in tools)
                 {
                     labelOperation.Text =
-                        string.Format(Resources.ToolUpdatesDlg_InstallUpdates_Installing_updates_to__0_,
+                        string.Format(ToolsUIResources.ToolUpdatesDlg_InstallUpdates_Installing_updates_to__0_,
                                       tool._packageName);
 
                     var toolList = ToolList.CopyTools(Settings.Default.ToolList);

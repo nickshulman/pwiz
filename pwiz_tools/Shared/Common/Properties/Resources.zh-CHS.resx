@@ -274,14 +274,6 @@
   <data name="ManageViewsForm_BtnRemoveOnClick_Are_you_sure_you_want_to_delete_these__0__views_" xml:space="preserve">
     <value>您是否确定要删除这 {0} 个报告？</value>
   </data>
-  <data name="RecordNavBar_UpdateNow__Filtered_from__0__" xml:space="preserve">
-    <value>（从{0}过滤）</value>
-  </data>
-  <data name="RecordNavBar_UpdateNow__0__of__1_" xml:space="preserve">
-    <value>{0}/{1}</value>
-    <comment>Example : 1 of 10
-</comment>
-  </data>
   <data name="FilterOperations_Has_Any_Value" xml:space="preserve">
     <value>拥有任何值</value>
   </data>
@@ -448,16 +440,16 @@
     <value>设置默认</value>
   </data>
   <data name="NavBar_UpdateGroupTotalDropdown_New_Pivot___" xml:space="preserve">
-    <value>新枢轴...</value>
+    <value>新枢轴…</value>
   </data>
   <data name="NavBar_UpdateGroupTotalDropdown_Remember_current_layout___" xml:space="preserve">
-    <value>记住当前布局...</value>
+    <value>记住当前布局…</value>
   </data>
   <data name="NavBar_UpdateGroupTotalDropdown_Manage_layouts___" xml:space="preserve">
-    <value>管理布局...</value>
+    <value>管理布局…</value>
   </data>
   <data name="NavBar_UpdateGroupTotalDropdown_Modify_Current_Pivot___" xml:space="preserve">
-    <value>修改当前枢轴...</value>
+    <value>修改当前枢轴…</value>
   </data>
   <data name="ManageLayoutsForm_UpdateUi_Manage_layouts_for__0_" xml:space="preserve">
     <value>管理 {0} 的布局</value>
@@ -549,5 +541,11 @@
   </data>
   <data name="ZScore_ZScore_Z_Score" xml:space="preserve">
     <value>Z-Score</value>
+  </data>
+  <data name="DropImageNoBackground" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>..\Resources\DropImageNoBackground.png;System.Drawing.Bitmap, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a</value>
+  </data>
+  <data name="FilterClause_MakePredicate_Invalid_filter_column___0__" xml:space="preserve">
+    <value>过滤器列“{0}”无效</value>
   </data>
 </root>

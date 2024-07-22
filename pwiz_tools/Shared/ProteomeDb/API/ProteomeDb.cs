@@ -72,7 +72,7 @@ namespace pwiz.ProteomeDatabase.API
             CancellationToken = cancellationToken;
             using (var session = OpenSession())
             {
-                // Is this even a proper protDB file? (https://skyline.gs.washington.edu/labkey/announcements/home/issues/exceptions/thread.view?rowId=14893)
+                // Is this even a proper protDB file? (https://skyline.ms/announcements/home/issues/exceptions/thread.view?rowId=14893)
                 if (!SqliteOperations.TableExists(session.Connection, @"ProteomeDbProteinName"))
                 {
                     throw new FileLoadException(
@@ -263,8 +263,7 @@ namespace pwiz.ProteomeDatabase.API
 
         public void AddFastaFile(StreamReader reader, IProgressMonitor progressMonitor, ref IProgressStatus status, bool delayAnalyzeDb)
         {
-            int duplicateSequenceCount;
-            AddFastaFile(reader, progressMonitor, ref status, delayAnalyzeDb, out duplicateSequenceCount);
+            AddFastaFile(reader, progressMonitor, ref status, delayAnalyzeDb, out _);
         }
 
         public void AddFastaFile(StreamReader reader, IProgressMonitor progressMonitor, ref IProgressStatus status,
@@ -696,7 +695,7 @@ namespace pwiz.ProteomeDatabase.API
             // If we're here, it's because the background loader is done digesting and has moved on to protein metadata,
             // or because the PeptideSettingsUI thread needs to have protein metadata resolved for uniqueness purposes before
             // it can proceed.   Either way, we should be working on a temp copy and be the only one needing write access, so get a lock now
-            using (ISession session = OpenWriteSession())	// We may update the protdb file with web search results
+            using (ISession session = OpenWriteSession()) // We may update the protdb file with web search results
             {
                 if (!UpdateProgressAndCheckForCancellation(progressMonitor, ref status, Resources.ProteomeDb_LookupProteinMetadata_looking_for_unresolved_protein_details, 0))
                 {

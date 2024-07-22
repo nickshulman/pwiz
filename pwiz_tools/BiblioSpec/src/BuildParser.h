@@ -74,7 +74,6 @@ class BuildParser : protected SAXHandler{
   string filepath_;       ///< path stripped from full name
   string fileroot_;       ///< filename stripped of path and extension
   string curSpecFileName_;///< name of the next spectrum file to parse
-  const ProgressIndicator* parentProgress_;  ///< progress of our caller
   ProgressIndicator* fileProgress_;  ///< progress of multiple spec files
   ProgressIndicator* specProgress_;  ///< progress of each spectrum in a file
   int fileProgressIncrement_; ///< when file progress is by pepxml size instead 
@@ -88,14 +87,18 @@ class BuildParser : protected SAXHandler{
   double calculatePeptideMass(PSM* psm);
   int calculateCharge(double neutralMass, double precursorMz);
   void filterBySequence(const set<string>* targetSequences, const set<string>* targetSequencesModified);
-  void removeDuplicates();
+  virtual void removeDuplicates();
+  virtual bool keepAmbiguous();
+  void removeNulls();
   double aaMasses_[128];
 
  protected:
   BlibBuilder& blibMaker_;  ///< object for creating library
+  const ProgressIndicator* parentProgress_;  ///< progress of our caller
   ProgressIndicator* readAddProgress_;  ///< 2 steps: read file, add spec
   PSM* curPSM_;           ///< temp holding space for psm being parsed
   vector<PSM*> psms_;     ///< collected list of psms parsed from file
+  int filteredOutPsmCount_; ///< number of psms that did not pass threshold
   SpecFileReader* specReader_; ///< for getting peak lists
   SPEC_ID_TYPE lookUpBy_; ///< default is by scan number
   bool preferEmbeddedSpectra_; ///< default is true except for MaxQuant
@@ -119,6 +122,9 @@ class BuildParser : protected SAXHandler{
   sqlite3_int64 insertSpectrumFilename(string& filename, bool insertAsIs = false);
   sqlite3_int64 insertProtein(const Protein* protein);
   void buildTables(PSM_SCORE_TYPE score_type, string specfilename = "", bool showSpecProgress = true);
+
+  void OptionalSort(PSM_SCORE_TYPE scoreType); // Sort the psms if needed
+
   const char* getPsmFilePath(); // path containing file being parsed
   string getFilenameFromID(const string& idStr); // spectrum source file from spectrum ID
 
@@ -137,6 +143,7 @@ class BuildParser : protected SAXHandler{
               const ProgressIndicator* parent_progress);
   virtual ~BuildParser();
   virtual bool parseFile() = 0; // pure virtual, force subclass to define
+  virtual std::vector<PSM_SCORE_TYPE> getScoreTypes() = 0; // pure virtual, force subclass to define
 
   const string& getFileName();
   const string& getSpecFileName();

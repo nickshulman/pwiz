@@ -65,28 +65,32 @@ namespace pwiz.Skyline.Model.Find
 
         public string GetDescription()
         {
-            var strings = new List<string>();
+            var strings = CustomFinders.Select(finder => finder.DisplayName);
             if (!string.IsNullOrEmpty(Text))
             {
-                strings.Add(Text);
+                strings = strings.Prepend(Text);
             }
-            strings.AddRange(CustomFinders.Select(finder => finder.DisplayName));
-            return string.Join(string.Empty, strings.ToArray());
+            return string.Concat(strings);
         }
 
         public string GetNotFoundMessage()
         {
             if (CustomFinders.Count == 0)
             {
-                return string.Format(Resources.FindOptions_GetNotFoundMessage_The_text__0__could_not_be_found, Text);
+                return string.Format(FindResources.FindOptions_GetNotFoundMessage_The_text__0__could_not_be_found, Text);
             }
-            if (CustomFinders.Count == 1)
+            int criteriaCount = CustomFinders.Count;
+            if (!string.IsNullOrEmpty(Text))
             {
-                return string.Format(Resources.FindOptions_GetNotFoundMessage_Could_not_find__0__,
-                                     CustomFinders[0].DisplayName);
+                criteriaCount++;
             }
-            return string.Format(Resources.FindOptions_GetNotFoundMessage_Could_not_find_any_of__0__items,
-                                 CustomFinders.Count);
+            if (criteriaCount == 1)
+            {
+                return string.Format(FindResources.FindOptions_GetNotFoundMessage_Could_not_find__0__,
+                    CustomFinders[0].DisplayName);
+            }
+
+            return string.Format(FindResources.FindOptions_GetNotFoundMessage_Nothing_could_be_found_matching_any_of_the__0__criteria, criteriaCount);
         }
 
         public IList<IFinder> CustomFinders

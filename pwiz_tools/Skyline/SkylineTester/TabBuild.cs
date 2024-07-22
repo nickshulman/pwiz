@@ -177,37 +177,34 @@ namespace SkylineTester
 
             var architectureList = string.Join("- and ", architectures);
             commandShell.Add("# Build {0} {1}-bit...", branchName, architectureList);
+            commandShell.RunStartTime = DateTime.UtcNow;
 
-            if (Directory.Exists(buildRoot))
+            if (Directory.Exists(buildRoot) && updateBuild)
             {
-                if (nukeBuild)
-                {
-                    commandShell.Add("#@ Deleting Build directory...\n");
-                    commandShell.Add("# Deleting Build directory...");
-                    commandShell.Add("rmdir /s {0}", buildRoot.Quote());
-                }
-                else if (updateBuild)
-                {
-                    commandShell.Add("#@ Updating Build directory...\n");
-                    commandShell.Add("# Updating Build directory...");
-                    commandShell.Add("cd {0}", buildRoot.Quote());
-                    commandShell.Add("{0} pull", git.Quote());
-                }
+                commandShell.Add("#@ Updating Build directory...\n");
+                commandShell.Add("# Updating Build directory...");
+                commandShell.Add("cd {0}", buildRoot.Quote());
+                commandShell.Add("{0} pull", git.Quote());
             }
 
             if (nukeBuild)
             {
+                commandShell.IsUnattended = true; // Don't go interactive if there's trouble deleting directory
+                commandShell.Add("#@ Deleting Build directory...\n");
+                commandShell.Add("# Deleting Build directory...");
+                commandShell.Add("rmdir /s {0}", buildRoot.Quote());
+
                 commandShell.Add("#@ Checking out {0} source files...\n", branchName);
                 commandShell.Add("# Checking out {0} source files...", branchName);
                 // Add the --progress flag for richer logging - git leaves out most progress info when it isn't writing to an actual terminal
                 if (branchName.Contains("master"))
                 {
-                    commandShell.AddWithRetry("{0} clone {1} --progress {2}", git.Quote(), branchUrl.Quote(), buildRoot.Quote());
+                    commandShell.AddWithRetry("{0} clone {1} --recurse-submodules --progress {2}", git.Quote(), branchUrl.Quote(), buildRoot.Quote());
                 }
                 else
                 {
                     var branch = branchUrl.Split(new[] {"tree/"}, StringSplitOptions.None)[1];
-                    commandShell.AddWithRetry("{0} clone {1} --progress -b {2} {3}", git.Quote(), GetMasterUrl().Quote(), branch.Quote(), buildRoot.Quote());
+                    commandShell.AddWithRetry("{0} clone {1} --recurse-submodules --progress -b {2} {3}", git.Quote(), GetMasterUrl().Quote(), branch.Quote(), buildRoot.Quote());
                 }
             }
 
@@ -258,12 +255,10 @@ namespace SkylineTester
 
         public void BrowseBuild()
         {
-            using (var dlg = new FolderBrowserDialog
+            using (var dlg = new FolderBrowserDialog())
             {
-                Description = "Select or create a root folder for build source files.",
-                ShowNewFolderButton = true
-            })
-            {
+                dlg.Description = "Select or create a root folder for build source files.";
+                dlg.ShowNewFolderButton = true;
                 if (dlg.ShowDialog(MainWindow) == DialogResult.OK)
                     MainWindow.BuildRoot.Text = dlg.SelectedPath;
             }

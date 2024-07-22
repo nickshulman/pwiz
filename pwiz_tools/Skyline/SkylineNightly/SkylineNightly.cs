@@ -149,7 +149,7 @@ namespace SkylineNightly
         public string RunType(out int durationHours)
         {
             durationHours = 0;
-			string result = @"run ";
+            string result = @"run ";
 
             int[] hours =
             {
@@ -162,7 +162,7 @@ namespace SkylineNightly
 
             if (comboBoxOptions2.SelectedIndex != RunModes.Length && comboBoxOptions2.SelectedIndex != -1) //!= none && != not selected
             {
-				result += @" " + RunModes[comboBoxOptions2.SelectedIndex];
+                result += @" " + RunModes[comboBoxOptions2.SelectedIndex];
                 durationHours += hours[comboBoxOptions2.SelectedIndex];
             }
 
@@ -189,15 +189,12 @@ namespace SkylineNightly
 
         private void buttonFolder_Click(object sender, EventArgs e)
         {
-            using (var dlg = new FolderBrowserDialog
+            using (var dlg = new FolderBrowserDialog())
             {
                 // ReSharper disable LocalizableElement
-                Description = "Select or create a nightly build folder.", 
-                // ReSharper restore LocalizableElement
-                ShowNewFolderButton = true,
-                SelectedPath = textBoxFolder.Text
-            })
-            {
+                dlg.Description = "Select or create a nightly build folder."; // ReSharper restore LocalizableElement
+                dlg.ShowNewFolderButton = true;
+                dlg.SelectedPath = textBoxFolder.Text;
                 if (dlg.ShowDialog(this) == DialogResult.OK)
                 {
                     textBoxFolder.Text = dlg.SelectedPath;

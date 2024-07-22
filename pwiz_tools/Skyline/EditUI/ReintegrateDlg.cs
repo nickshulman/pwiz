@@ -18,7 +18,6 @@
  */
 
 using System;
-using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Windows.Forms;
@@ -36,7 +35,7 @@ using pwiz.Skyline.Util.Extensions;
 
 namespace pwiz.Skyline.EditUI
 {
-    public partial class ReintegrateDlg : FormEx, IAuditLogModifier<ReintegrateDlg.ReintegrateDlgSettings>, IFeatureScoreProvider
+    public partial class ReintegrateDlg : FormEx, IAuditLogModifier<ReintegrateDlgSettings>, IFeatureScoreProvider
     {
         /// <summary>
         /// For performance tests only: add an annotation for combined score?
@@ -44,7 +43,7 @@ namespace pwiz.Skyline.EditUI
         private bool _scoreAnnotation;
 
         // Cached scores
-        private IList<IPeakFeatureCalculator> _cacheCalculators;
+        private FeatureCalculators _cacheCalculators;
 
         private PeakTransitionGroupFeatureSet _cachedFeatureScores;
 
@@ -73,7 +72,7 @@ namespace pwiz.Skyline.EditUI
             IProgressMonitor progressMonitor)
         {
             if (!ReferenceEquals(document, Document) ||
-                !ArrayUtil.EqualsDeep(_cacheCalculators, scoringModel.PeakFeatureCalculators))
+                !Equals(_cacheCalculators, scoringModel.PeakFeatureCalculators))
             {
                 Document = document;
                 _cacheCalculators = scoringModel.PeakFeatureCalculators;
@@ -99,11 +98,9 @@ namespace pwiz.Skyline.EditUI
                     return;
             }
 
-            using (var longWaitDlg = new LongWaitDlg
-                {
-                    Text = Resources.ReintegrateDlg_OkDialog_Reintegrating,
-                })
+            using (var longWaitDlg = new LongWaitDlg())
             {
+                longWaitDlg.Text = Resources.ReintegrateDlg_OkDialog_Reintegrating;
                 try
                 {
                     var scoringModel = _driverPeakScoringModel.SelectedItem;
@@ -113,10 +110,10 @@ namespace pwiz.Skyline.EditUI
                     }
                     if (scoringModel == null || !scoringModel.IsTrained)
                     {
-                        throw new InvalidDataException(Resources.ReintegrateDlg_OkDialog_You_must_train_and_select_a_model_in_order_to_reintegrate_peaks_);
+                        throw new InvalidDataException(EditUIResources.ReintegrateDlg_OkDialog_You_must_train_and_select_a_model_in_order_to_reintegrate_peaks_);
                     }
                     PeakTransitionGroupFeatureSet featureScores = null;
-                    if (ArrayUtil.EqualsDeep(_cacheCalculators, scoringModel.PeakFeatureCalculators))
+                    if (Equals(_cacheCalculators, scoringModel.PeakFeatureCalculators))
                         featureScores = _cachedFeatureScores;
                     var resultsHandler = new MProphetResultsHandler(Document, scoringModel, featureScores)
                     {
@@ -156,49 +153,8 @@ namespace pwiz.Skyline.EditUI
 
         public ReintegrateDlgSettings FormSettings
         {
-            get { return new ReintegrateDlgSettings(this); }
+            get { return new ReintegrateDlgSettings(_driverPeakScoringModel.SelectedItem, ReintegrateAll, !ReintegrateAll, QValueCutoff, OverwriteManual); }
         }
-
-        public class ReintegrateDlgSettings : AuditLogOperationSettings<ReintegrateDlgSettings>, IAuditLogComparable
-        {
-            public override MessageInfo MessageInfo
-            {
-                get { return new MessageInfo(MessageType.reintegrated_peaks, SrmDocument.DOCUMENT_TYPE.none, PeakScoringModel.Name); }
-            }
-
-            public ReintegrateDlgSettings(ReintegrateDlg dlg)
-                : this(dlg._driverPeakScoringModel.SelectedItem, dlg.ReintegrateAll, !dlg.ReintegrateAll, dlg.QValueCutoff, dlg.OverwriteManual)
-            {
-            }
-
-            public ReintegrateDlgSettings(IPeakScoringModel peakScoringModel, bool reintegrateAll, bool reintegrateQCutoff,
-                double? cutoff, bool overwriteManualIntegration)
-            {
-                PeakScoringModel = peakScoringModel;
-                ReintegrateAll = reintegrateAll;
-                ReintegrateQCutoff = reintegrateQCutoff;
-                Cutoff = cutoff;
-                OverwriteManualIntegration = overwriteManualIntegration;
-            }
-
-            [TrackChildren]
-            public IPeakScoringModel PeakScoringModel { get; private set; }
-
-            [Track]
-            public bool ReintegrateAll { get; private set; }
-            [Track]
-            public bool ReintegrateQCutoff { get; private set; }
-            [Track]
-            public double? Cutoff { get; private set; }
-            [Track]
-            public bool OverwriteManualIntegration { get; private set; }
-
-            public object GetDefaultObject(ObjectInfo<object> info)
-            {
-                return new ReintegrateDlgSettings(null, false, false, null, false);
-            }
-        }
-
         public double? QValueCutoff
         {
             get
@@ -210,7 +166,6 @@ namespace pwiz.Skyline.EditUI
                     if (helper.ValidateDecimalTextBox(textBoxCutoff, 0.0, 1.0, out result))
                         return result;
                 }
-
                 return null;
             }
         }

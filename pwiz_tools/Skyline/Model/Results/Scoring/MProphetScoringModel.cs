@@ -23,9 +23,7 @@ using System.IO;
 using System.Linq;
 using System.Xml;
 using System.Xml.Serialization;
-using pwiz.Common.Collections;
 using pwiz.Common.SystemUtil;
-using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
 
 namespace pwiz.Skyline.Model.Results.Scoring
@@ -40,7 +38,7 @@ namespace pwiz.Skyline.Model.Results.Scoring
     {
         public const string NAME = "mProphet";  // Proper name not localized
 
-        private ImmutableList<IPeakFeatureCalculator> _peakFeatureCalculators;
+        private FeatureCalculators _peakFeatureCalculators;
 
         // Number of iterations to run.  Most weight values will converge within this number of iterations.
         private const int MAX_ITERATIONS = 10;
@@ -56,7 +54,7 @@ namespace pwiz.Skyline.Model.Results.Scoring
         public MProphetPeakScoringModel(
             string name,
             LinearModelParams parameters,
-            IList<IPeakFeatureCalculator> peakFeatureCalculators = null,
+            FeatureCalculators peakFeatureCalculators = null,
             bool usesDecoys = false,
             bool usesSecondBest = false,
             bool colinearWarning = false)
@@ -74,7 +72,7 @@ namespace pwiz.Skyline.Model.Results.Scoring
         public MProphetPeakScoringModel(
             string name,
             IList<double> weights,
-            IList<IPeakFeatureCalculator> peakFeatureCalculators = null,
+            FeatureCalculators peakFeatureCalculators = null,
             bool usesDecoys = false,
             bool usesSecondBest = false,
             bool colinearWarning = false,
@@ -96,28 +94,28 @@ namespace pwiz.Skyline.Model.Results.Scoring
             DoValidate();
         }
 
-        public static IPeakFeatureCalculator[] GetDefaultCalculators(SrmDocument document)
+        public static FeatureCalculators GetDefaultCalculators(SrmDocument document)
         {
-            var calcs = DEFAULT_CALCULATORS;
+            IEnumerable<IPeakFeatureCalculator> calcs = DEFAULT_CALCULATORS;
             if (document != null)
             {
-                bool includeReference = document.Settings.PeptideSettings.Modifications.HasHeavyImplicitModifications;
-                bool includeMs1 = document.Settings.TransitionSettings.FullScan.IsEnabledMs;
-                bool includeIds = !document.Settings.DocumentRetentionTimes.IsEmpty;
-
-                if (!includeReference || !includeMs1 || !includeIds)
+                if (!document.Settings.PeptideSettings.Modifications.HasHeavyImplicitModifications)
                 {
-                    calcs = calcs.Where(calc =>
-                            (!calc.IsReferenceScore || includeReference) &&
-                            (!calc.IsMs1Score || includeMs1) &&
-                            (!(calc is LegacyIdentifiedCountCalc) || includeIds))
-                        .ToArray();
+                    calcs = calcs.Where(calc => !calc.IsReferenceScore);
+                }
+                if (!document.Settings.TransitionSettings.FullScan.IsEnabledMs)
+                {
+                    calcs = calcs.Where(calc => !calc.IsMs1Score);
+                }
+                if (document.Settings.DocumentRetentionTimes.IsEmpty)
+                {
+                    calcs = calcs.Where(calc => !(calc is LegacyIdentifiedCountCalc));
                 }
             }
-            return calcs;
+            return FeatureCalculators.FromCalculators(calcs);
         }
 
-        private static readonly IPeakFeatureCalculator[] DEFAULT_CALCULATORS =
+        private static readonly FeatureCalculators DEFAULT_CALCULATORS = new FeatureCalculators(new IPeakFeatureCalculator[]
         {
             // Intensity, retention time, library dotp
             new MQuestIntensityCalc(),
@@ -151,7 +149,7 @@ namespace pwiz.Skyline.Model.Results.Scoring
             new NextGenPrecursorMassErrorCalc(),
             new NextGenIsotopeDotProductCalc(),
             new LegacyIdentifiedCountCalc(),
-        };
+        });
 
         protected MProphetPeakScoringModel()
         {
@@ -161,14 +159,14 @@ namespace pwiz.Skyline.Model.Results.Scoring
         public double? Lambda { get; private set; }
         public bool ColinearWarning { get; private set; }
 
-        public override IList<IPeakFeatureCalculator> PeakFeatureCalculators
+        public override FeatureCalculators PeakFeatureCalculators
         {
             get { return _peakFeatureCalculators; }
         }
 
-        private void SetPeakFeatureCalculators(IList<IPeakFeatureCalculator> peakFeatureCalculators)
+        private void SetPeakFeatureCalculators(FeatureCalculators peakFeatureCalculators)
         {
-            _peakFeatureCalculators = MakeReadOnly(peakFeatureCalculators);
+            _peakFeatureCalculators = peakFeatureCalculators;
         }
 
         public static readonly IList<double> DEFAULT_CUTOFFS = new[] {0.15, 0.02, 0.01};
@@ -187,8 +185,8 @@ namespace pwiz.Skyline.Model.Results.Scoring
         /// <param name="progressMonitor">Used to report progress to the calling context</param>
         /// <param name="documentPath">The path to the current document for writing score distributions</param>
         /// <returns>Immutable model with new weights.</returns>
-        public override IPeakScoringModel Train(IList<IList<float[]>> targetsIn,
-                                                IList<IList<float[]>> decoysIn,
+        public override IPeakScoringModel Train(IList<IList<FeatureScores>> targetsIn,
+                                                IList<IList<FeatureScores>> decoysIn,
                                                 TargetDecoyGenerator targetDecoyGenerator,
                                                 LinearModelParams initParameters,
                                                 IList<double> cutoffs,
@@ -205,7 +203,7 @@ namespace pwiz.Skyline.Model.Results.Scoring
             return ChangeProp(ImClone(this), im =>
             {
                 // This may take a long time between progress updates, but just measure progress by cycles through the training
-                IProgressStatus status = new ProgressStatus(Resources.MProphetPeakScoringModel_Train_Training_peak_scoring_model);
+                IProgressStatus status = new ProgressStatus(ScoringResources.MProphetPeakScoringModel_Train_Training_peak_scoring_model);
                 progressMonitor?.UpdateProgress(status);
 
                 try
@@ -220,7 +218,7 @@ namespace pwiz.Skyline.Model.Results.Scoring
             });
         }
 
-        private void TrainInternal(MProphetPeakScoringModel im, IList<IList<float[]>> targetsIn, IList<IList<float[]>> decoysIn,
+        private void TrainInternal(MProphetPeakScoringModel im, IList<IList<FeatureScores>> targetsIn, IList<IList<FeatureScores>> decoysIn,
             TargetDecoyGenerator targetDecoyGenerator, LinearModelParams initParameters, IList<double> cutoffs,
             int? iterations, bool includeSecondBest, bool preTrain, IProgressMonitor progressMonitor, IProgressStatus status, string documentPath)
         {
@@ -238,8 +236,8 @@ namespace pwiz.Skyline.Model.Results.Scoring
             if (!preTrain)
             {
                 qValueCutoff = 0.01; // First iteration cut-off - if not pretraining, just start at 0.01
-                targetTransitionGroups.ScorePeaks(calcWeights);
-                decoyTransitionGroups.ScorePeaks(calcWeights);
+                targetTransitionGroups.ScorePeaks(calcWeights, ReplaceUnknownFeatureScores);
+                decoyTransitionGroups.ScorePeaks(calcWeights, ReplaceUnknownFeatureScores);
             }
             // Bootstrap from the pre-trained legacy model
             else
@@ -257,14 +255,14 @@ namespace pwiz.Skyline.Model.Results.Scoring
                 int analyteEnabledCount = GetEnabledCount(LegacyScoringModel.AnalyteFeatureCalculators, initParameters.Weights);
                 bool hasStandards = standardEnabledCount >= analyteEnabledCount;
                 var calculators = hasStandards ? LegacyScoringModel.StandardFeatureCalculators : LegacyScoringModel.AnalyteFeatureCalculators;
-                for (int i = 0; i < calculators.Length; ++i)
+                for (int i = 0; i < calculators.Count; ++i)
                 {
                     if (calculators[i].GetType() == typeof(MQuestRetentionTimePredictionCalc))
                         continue;
                     SetCalculatorValue(calculators[i].GetType(), LegacyScoringModel.DEFAULT_WEIGHTS[i], preTrainedWeights);
                 }
-                targetTransitionGroups.ScorePeaks(preTrainedWeights);
-                decoyTransitionGroups.ScorePeaks(preTrainedWeights);
+                targetTransitionGroups.ScorePeaks(preTrainedWeights, ReplaceUnknownFeatureScores);
+                decoyTransitionGroups.ScorePeaks(preTrainedWeights, ReplaceUnknownFeatureScores);
             }
 
             double decoyMean = 0;
@@ -297,8 +295,8 @@ namespace pwiz.Skyline.Model.Results.Scoring
 
                     // Calculate progress, but wait to make sure convergence has not occurred before setting it
                     string formatText = qValueCutoff > 0.02
-                        ? Resources.MProphetPeakScoringModel_Train_Training_scoring_model__iteration__0__of__1__
-                        : Resources.MProphetPeakScoringModel_Train_Training_scoring_model__iteration__0__of__1_____2______peaks_at__3_0_____FDR_;
+                        ? ScoringResources.MProphetPeakScoringModel_Train_Training_scoring_model__iteration__0__of__1__
+                        : ScoringResources.MProphetPeakScoringModel_Train_Training_scoring_model__iteration__0__of__1_____2______peaks_at__3_0_____FDR_;
                     percentComplete = (i + 1) * 100 / (iterationCount + 1);
                     status = status.ChangeMessage(string.Format(formatText, i + 1, iterationCount, truePeaksCountNew, qValueCutoff))
                         .ChangePercentComplete(percentComplete);
@@ -330,7 +328,7 @@ namespace pwiz.Skyline.Model.Results.Scoring
                     else
                     {
                         progressMonitor?.UpdateProgress(status =
-                            status.ChangeMessage(string.Format(Resources.MProphetPeakScoringModel_Train_Scoring_model_converged__iteration__0_____1______peaks_at__2_0_____FDR_, i + 1, truePeaksCount, qValueCutoff))
+                            status.ChangeMessage(string.Format(ScoringResources.MProphetPeakScoringModel_Train_Scoring_model_converged__iteration__0_____1______peaks_at__2_0_____FDR_, i + 1, truePeaksCount, qValueCutoff))
                                 .ChangePercentComplete(Math.Max(95, percentComplete)));
                         calcWeights = lastWeights;
                         break;
@@ -354,13 +352,13 @@ namespace pwiz.Skyline.Model.Results.Scoring
             im.Parameters = parameters.CalculatePercentContributions(im, targetDecoyGenerator);
         }
 
-        private int GetEnabledCount(IPeakFeatureCalculator[] featureCalculators, IList<double> weights)
+        private int GetEnabledCount(FeatureCalculators featureCalculators, IList<double> weights)
         {
             int enabledCount = 0;
             foreach (var calculator in featureCalculators)
             {
                 var calculatorType = calculator.GetType();
-                int indexWeight = PeakFeatureCalculators.IndexOf(calc => calc.GetType() == calculatorType);
+                int indexWeight = PeakFeatureCalculators.IndexOf(calculatorType);
                 if (indexWeight != -1 && !double.IsNaN(weights[indexWeight]))
                     enabledCount++;
             }
@@ -376,7 +374,7 @@ namespace pwiz.Skyline.Model.Results.Scoring
         /// <param name="weightsToSet">Weight array whose values are to be set</param>
         private void SetCalculatorValue(Type calculatorType, double setValue, double[] weightsToSet)
         {
-            int indexStandardIntensity = PeakFeatureCalculators.IndexOf(calc => calc.GetType() == calculatorType);
+            int indexStandardIntensity = PeakFeatureCalculators.IndexOf(calculatorType);
             if (indexStandardIntensity != -1 && !double.IsNaN(weightsToSet[indexStandardIntensity]))
             {
                 weightsToSet[indexStandardIntensity] = setValue;
@@ -428,9 +426,9 @@ namespace pwiz.Skyline.Model.Results.Scoring
 
             // Better to let a really poor model through for the user to see than to give an error message here
             if (((double)truePeaks.Count)*10*1000 < decoyPeaks.Count) // Targets must be at least 0.01% of decoys (still rejects zero)
-                throw new InvalidDataException(string.Format(Resources.MProphetPeakScoringModel_CalculateWeights_Insufficient_target_peaks___0__with__1__decoys__detected_at__2___FDR_to_continue_training_, truePeaks.Count, decoyPeaks.Count, qValueCutoff*100));
+                throw new InvalidDataException(string.Format(ScoringResources.MProphetPeakScoringModel_CalculateWeights_Insufficient_target_peaks___0__with__1__decoys__detected_at__2___FDR_to_continue_training_, truePeaks.Count, decoyPeaks.Count, qValueCutoff*100));
             if (((double)decoyPeaks.Count)*1000 < truePeaks.Count) // Decoys must be at least 0.1% of targets
-                throw new InvalidDataException(string.Format(Resources.MProphetPeakScoringModel_CalculateWeights_Insufficient_decoy_peaks___0__with__1__targets__to_continue_training_, decoyPeaks.Count, truePeaks.Count));
+                throw new InvalidDataException(string.Format(ScoringResources.MProphetPeakScoringModel_CalculateWeights_Insufficient_decoy_peaks___0__with__1__targets__to_continue_training_, decoyPeaks.Count, truePeaks.Count));
 
             var featureCount = weights.Count(w => !double.IsNaN(w));
 
@@ -443,9 +441,9 @@ namespace pwiz.Skyline.Model.Results.Scoring
             if (totalTrainingPeaks < maxTrainingPeaks)
             {
                 for (int i = 0; i < truePeaks.Count; i++)
-                    CopyToTrainData(truePeaks[i].Features, trainData, weights, i, 1);
+                    CopyToTrainData(truePeaks[i].FeatureScores, trainData, weights, i, 1);
                 for (int i = 0; i < decoyPeaks.Count; i++)
-                    CopyToTrainData(decoyPeaks[i].Features, trainData, weights, i + truePeaks.Count, 0);
+                    CopyToTrainData(decoyPeaks[i].FeatureScores, trainData, weights, i + truePeaks.Count, 0);
             }
             else
             {
@@ -455,7 +453,7 @@ namespace pwiz.Skyline.Model.Results.Scoring
                 foreach (var peak in truePeaks.RandomOrder(ArrayUtil.RANDOM_SEED))
                 {
                     if (i < truePeakCount)
-                        CopyToTrainData(peak.Features, trainData, weights, i, 1);
+                        CopyToTrainData(peak.FeatureScores, trainData, weights, i, 1);
                     else
                         break;
                     i++;
@@ -465,7 +463,7 @@ namespace pwiz.Skyline.Model.Results.Scoring
                 foreach (var peak in decoyPeaks.RandomOrder(ArrayUtil.RANDOM_SEED))
                 {
                     if (i < decoyPeakCount)
-                        CopyToTrainData(peak.Features, trainData, weights, i + truePeakCount, 0);
+                        CopyToTrainData(peak.FeatureScores, trainData, weights, i + truePeakCount, 0);
                     else
                         break;
                     i++;
@@ -497,8 +495,8 @@ namespace pwiz.Skyline.Model.Results.Scoring
             }
 
             // Recalculate all peak scores.
-            targetTransitionGroups.ScorePeaks(weights);
-            decoyTransitionGroups.ScorePeaks(weights);
+            targetTransitionGroups.ScorePeaks(weights, ReplaceUnknownFeatureScores);
+            decoyTransitionGroups.ScorePeaks(weights, ReplaceUnknownFeatureScores);
 
             // If the mean target score is less than the mean decoy score, then the
             // weights came out negative, and all the weights and scores must be negated to
@@ -507,8 +505,8 @@ namespace pwiz.Skyline.Model.Results.Scoring
             {
                 for (int i = 0; i < weights.Length; i++)
                     weights[i] *= -1;
-                targetTransitionGroups.ScorePeaks(weights);
-                decoyTransitionGroups.ScorePeaks(weights);
+                targetTransitionGroups.ScorePeaks(weights, ReplaceUnknownFeatureScores);
+                decoyTransitionGroups.ScorePeaks(weights, ReplaceUnknownFeatureScores);
             }
 
             decoyMean = decoyTransitionGroups.Mean;
@@ -532,16 +530,17 @@ namespace pwiz.Skyline.Model.Results.Scoring
         /// Copy peak features and category to training data array in preparation
         /// for analysis using LDA.
         /// </summary>
-        public void CopyToTrainData(float[] features, double[,] trainData, double[] weights, int row, int category)
+        public void CopyToTrainData(FeatureScores features, double[,] trainData, double[] weights, int row, int category)
         {
             int j = 0;
-            for (int i = 0; i < features.Length; i++)
+            for (int i = 0; i < features.Count; i++)
             {
                 if (!double.IsNaN(weights[i]))
-                    trainData[row, j++] = features[i];
+                    trainData[row, j++] = features.Values[i];
             }
             trainData[row, j] = category;
         }
+        public override bool ReplaceUnknownFeatureScores => false;
 
         #region object overrides
         public bool Equals(MProphetPeakScoringModel other)
@@ -610,7 +609,7 @@ namespace pwiz.Skyline.Model.Results.Scoring
                 weights[i] = calculators[i].Weight;
                 peakFeatureCalculators.Add(PeakFeatureCalculator.GetCalculator(calculators[i].Type));
             }
-            SetPeakFeatureCalculators(peakFeatureCalculators);
+            SetPeakFeatureCalculators(new FeatureCalculators(peakFeatureCalculators));
             Parameters = new LinearModelParams(weights, bias);
 
             reader.ReadEndElement();
@@ -645,7 +644,7 @@ namespace pwiz.Skyline.Model.Results.Scoring
         private void DoValidate()
         {
             if (Parameters != null && Parameters.Weights != null && Parameters.Weights.Count < 1 || PeakFeatureCalculators.Count < 1)
-                throw new InvalidDataException(Resources.MProphetPeakScoringModel_DoValidate_MProphetPeakScoringModel_requires_at_least_one_peak_feature_calculator_with_a_weight_value);
+                throw new InvalidDataException(ScoringResources.MProphetPeakScoringModel_DoValidate_MProphetPeakScoringModel_requires_at_least_one_peak_feature_calculator_with_a_weight_value);
         }
         #endregion
     }

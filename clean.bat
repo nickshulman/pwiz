@@ -49,7 +49,7 @@ rmdir /s /q pwiz_aux\msrc\utility\vendor_api\ABI\vc9 > nul 2>&1
 del /f /q pwiz_aux\msrc\utility\vendor_api\Agilent\*.dll > nul 2>&1
 rmdir /s /q pwiz_aux\msrc\utility\vendor_api\Agilent\x86 > nul 2>&1
 rmdir /s /q pwiz_aux\msrc\utility\vendor_api\Agilent\x64 > nul 2>&1
-del /f /q pwiz_aux\msrc\utility\vendor_api\Agilent\EULA.* > nul 2>&1
+del /f /q pwiz_aux\msrc\utility\vendor_api\Agilent\EULA.MHDAC > nul 2>&1
 rmdir /s /q pwiz_aux\msrc\utility\vendor_api\Agilent\Documents > nul 2>&1
 del /f /q pwiz_aux\msrc\utility\vendor_api\Bruker\*.manifest > nul 2>&1
 del /f /q pwiz_aux\msrc\utility\vendor_api\Bruker\baf2sql_c.h > nul 2>&1
@@ -58,7 +58,7 @@ del /f /q pwiz_aux\msrc\utility\vendor_api\Bruker\schema.h > nul 2>&1
 rmdir /s /q pwiz_aux\msrc\utility\vendor_api\Bruker\install_pwiz_vendor_api_bruker_stub > nul 2>&1
 rmdir /s /q pwiz_aux\msrc\utility\vendor_api\Bruker\x86 > nul 2>&1
 rmdir /s /q pwiz_aux\msrc\utility\vendor_api\Bruker\x64 > nul 2>&1
-git clean -f -d -X pwiz\data\vendor_api\Mobilion > nul
+IF EXIST pwiz\data\vendor_api\Mobilion git clean -f -d -X pwiz\data\vendor_api\Mobilion > nul
 del /f /q pwiz_aux\msrc\utility\vendor_api\Shimadzu\EULA.SFCS > nul 2>&1
 rmdir /s /q pwiz_aux\msrc\utility\vendor_api\Shimadzu\x86 > nul 2>&1
 rmdir /s /q pwiz_aux\msrc\utility\vendor_api\Shimadzu\x64 > nul 2>&1

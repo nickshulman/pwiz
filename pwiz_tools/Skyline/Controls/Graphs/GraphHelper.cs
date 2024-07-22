@@ -19,11 +19,14 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Drawing;
 using System.Linq;
 using pwiz.Skyline.Util;
 using ZedGraph;
 using pwiz.MSGraph;
 using pwiz.Skyline.Model;
+using pwiz.Skyline.Model.Results;
+using pwiz.Skyline.Model.Results.Spectra;
 using pwiz.Skyline.Model.RetentionTimes;
 using pwiz.Skyline.Properties;
 
@@ -104,9 +107,15 @@ namespace pwiz.Skyline.Controls.Graphs
             _displayState = newDisplayState;
         }
 
-        public void ResetForChromatograms(IEnumerable<TransitionGroup> transitionGroups, bool proteinSelected = false, bool forceLegendDisplay = false)
+        public void ResetForChromatograms(IEnumerable<TransitionGroup> transitionGroups,
+            bool forceLegendDisplay = false)
         {
-            SetDisplayState(new ChromDisplayState(Settings.Default, transitionGroups, proteinSelected, forceLegendDisplay));
+            ResetForChromatograms(TransformChrom.raw, transitionGroups, false, forceLegendDisplay);
+        }
+
+        public void ResetForChromatograms(TransformChrom transformChrom, IEnumerable<TransitionGroup> transitionGroups, bool proteinSelected, bool forceLegendDisplay)
+        {
+            SetDisplayState(new ChromDisplayState(Settings.Default, transformChrom, transitionGroups, proteinSelected, forceLegendDisplay));
         }
 
         public void FinishedAddingChromatograms(double bestPeakStartTime, double bestPeakEndTime, bool forceZoom)
@@ -154,7 +163,35 @@ namespace pwiz.Skyline.Controls.Graphs
             {
                 return;
             }
-            switch (chromDisplayState.AutoZoomChrom)
+
+            var autoZoom = chromDisplayState.AutoZoomChrom;
+            if (!bestPeaks.Any())
+            {
+                if (autoZoom == AutoZoomChrom.both)
+                {
+                    autoZoom = AutoZoomChrom.window;
+                }
+                if (autoZoom == AutoZoomChrom.peak)
+                {
+                    autoZoom = AutoZoomChrom.none;
+                }
+            }
+            var chromGraphItem = GetRetentionTimeGraphItem(chromDisplayState);
+            double? predictedRT = chromGraphItem?.RetentionPrediction;
+            double? windowHalf = chromGraphItem?.RetentionWindow * 2 / 3;
+            if (!predictedRT.HasValue)
+            {
+                if (autoZoom == AutoZoomChrom.both)
+                {
+                    autoZoom = AutoZoomChrom.peak;
+                }
+
+                if (autoZoom == AutoZoomChrom.window)
+                {
+                    autoZoom = AutoZoomChrom.none;
+                }
+            }
+            switch (autoZoom)
             {
                 case AutoZoomChrom.none:
                     foreach (var graphPane in GraphPanes)
@@ -171,79 +208,30 @@ namespace pwiz.Skyline.Controls.Graphs
                     var lastPeak = bestPeaks.OrderByDescending(peak => peak.EndRetentionTime).FirstOrDefault();
                     if (firstPeak != null && lastPeak != null)
                     {
-                        var bestStartTime = firstPeak.StartRetentionTime;
-                        var bestEndTime = lastPeak.EndRetentionTime;
-                        // If relative zooming, scale to the best peak
-                        if (chromDisplayState.TimeRange == 0 || chromDisplayState.PeakRelativeTime)
-                        {
-                            double multiplier = (chromDisplayState.TimeRange != 0 ? chromDisplayState.TimeRange : GraphChromatogram.DEFAULT_PEAK_RELATIVE_WINDOW);
-                            bestStartTime -= firstPeak.Fwb * (multiplier - 1) / 2;
-                            bestEndTime += lastPeak.Fwb * (multiplier - 1) / 2;
-                        }
-                        // Otherwise, use an absolute peak width
-                        else
-                        {
-                            double mid = (bestStartTime + bestEndTime) / 2;
-                            bestStartTime = mid - chromDisplayState.TimeRange / 2;
-                            bestEndTime = bestStartTime + chromDisplayState.TimeRange;
-                        }
-                        ZoomXAxis(bestStartTime, bestEndTime);
+                        ZoomToPeaks(firstPeak, lastPeak);
                     }
                     break;
                 case AutoZoomChrom.window:
-                    {
-                        var chromGraph = GetRetentionTimeGraphItem(chromDisplayState);
-                        if (chromGraph != null)
-                        {
-                            // Put predicted RT in center with window occupying 2/3 of the graph
-                            double windowHalf = chromGraph.RetentionWindow * 2 / 3;
-                            double predictedRT = chromGraph.RetentionPrediction.HasValue
-                                                     ? // ReSharper
-                                                     chromGraph.RetentionPrediction.Value
-                                                     : 0;
-                            ZoomXAxis(predictedRT - windowHalf, predictedRT + windowHalf);
-                        }
-                    }
+                    ZoomXAxis((predictedRT - windowHalf).Value, (predictedRT + windowHalf).Value);
                     break;
                 case AutoZoomChrom.both:
-                    {
-                        double start = double.MaxValue;
-                        double end = 0;
-                        if (bestPeaks.Any())
-                        {
-                            start = bestPeaks.Min(peak => peak.StartRetentionTime);
-                            end = bestPeaks.Max(peak=>peak.EndRetentionTime);
-                        }
-                        var chromGraph = GetRetentionTimeGraphItem(chromDisplayState);
-                        if (chromGraph != null)
-                        {
-                            // Put predicted RT in center with window occupying 2/3 of the graph
-                            double windowHalf = chromGraph.RetentionWindow * 2 / 3;
-                            double predictedRT = chromGraph.RetentionPrediction.HasValue
-                                                     ? // ReSharper
-                                                     chromGraph.RetentionPrediction.Value
-                                                     : 0;
-                            // Make sure the peak has enough room to display, since it may be
-                            // much narrower than the retention time window.
-                            if (end != 0)
-                            {
-                                start -= windowHalf / 8;
-                                end += windowHalf / 8;
-                            }
-                            start = Math.Min(start, predictedRT - windowHalf);
-                            end = Math.Max(end, predictedRT + windowHalf);
-                        }
-                        if (end > 0)
-                            ZoomXAxis(start, end);
-                    }
+                    double start = bestPeaks.Min(peak => peak.StartRetentionTime);
+                    double end = bestPeaks.Max(peak => peak.EndRetentionTime);
+                    // Make sure the peak has enough room to display, since it may be
+                    // much narrower than the retention time window.
+                    start -= windowHalf.Value / 8;
+                    end += windowHalf.Value / 8;
+                    start = Math.Min(start, (predictedRT - windowHalf).Value);
+                    end = Math.Max(end, (predictedRT + windowHalf).Value);
+                    ZoomXAxis(start, end);
                     break;
             }
             foreach (var graphPane in GraphPanes)
             {
                 if (chromDisplayState.MinIntensity == 0)
                 {
-                    graphPane.LockYAxisMinAtZero = true;
                     graphPane.YAxis.Scale.MinAuto = true;
+                    graphPane.LockYAxisAtZero = !chromDisplayState.TransformChrom.IsDerivative();
                 }
                 else
                 {
@@ -362,6 +350,39 @@ namespace pwiz.Skyline.Controls.Graphs
             get { return _displayState.AllowSplitPanes; }
         }
 
+        public void ZoomToPeak(double startRetentionTime, double endRetentionTime)
+        {
+            var retentionTimeValues = new RetentionTimeValues((startRetentionTime + endRetentionTime) / 2,
+                startRetentionTime, endRetentionTime, 0, null);
+            ZoomToPeaks(retentionTimeValues, retentionTimeValues);
+        }
+
+        private void ZoomToPeaks(RetentionTimeValues firstPeak, RetentionTimeValues lastPeak)
+        {
+            var chromDisplayState = _displayState as ChromDisplayState;
+            if (chromDisplayState == null)
+            {
+                return;
+            }
+            var bestStartTime = firstPeak.StartRetentionTime;
+            var bestEndTime = lastPeak.EndRetentionTime;
+            // If relative zooming, scale to the best peak
+            if (chromDisplayState.TimeRange == 0 || chromDisplayState.PeakRelativeTime)
+            {
+                double multiplier = (chromDisplayState.TimeRange != 0 ? chromDisplayState.TimeRange : GraphChromatogram.DEFAULT_PEAK_RELATIVE_WINDOW);
+                bestStartTime -= firstPeak.Fwb * (multiplier - 1) / 2;
+                bestEndTime += lastPeak.Fwb * (multiplier - 1) / 2;
+            }
+            // Otherwise, use an absolute peak width
+            else
+            {
+                double mid = (bestStartTime + bestEndTime) / 2;
+                bestStartTime = mid - chromDisplayState.TimeRange / 2;
+                bestEndTime = bestStartTime + chromDisplayState.TimeRange;
+            }
+            ZoomXAxis(bestStartTime, bestEndTime);
+        }
+
         public abstract class DisplayState
         {
             protected DisplayState(IEnumerable<TransitionGroup> transitionGroups)
@@ -448,9 +469,10 @@ namespace pwiz.Skyline.Controls.Graphs
         {
             private readonly bool _proteinSelected;
 
-            public ChromDisplayState(Settings settings, IEnumerable<TransitionGroup> transitionGroups, bool proteinSelected, bool forceLegendDisplay = false) : base(transitionGroups)
+            public ChromDisplayState(Settings settings, TransformChrom transformChrom, IEnumerable<TransitionGroup> transitionGroups, bool proteinSelected, bool forceLegendDisplay = false) : base(transitionGroups)
             {
                 AutoZoomChrom = GraphChromatogram.AutoZoom;
+                TransformChrom = transformChrom;
                 MinIntensity = settings.ChromatogramMinIntensity;
                 MaxIntensity = settings.ChromatogramMaxIntensity;
                 TimeRange = settings.ChromatogramTimeRange;
@@ -462,6 +484,7 @@ namespace pwiz.Skyline.Controls.Graphs
             }
             
             public AutoZoomChrom AutoZoomChrom { get; private set; }
+            public TransformChrom TransformChrom { get; }
             public double MinIntensity { get; private set; }
             public double MaxIntensity { get; private set; }
             public double TimeRange { get; private set; }
@@ -471,17 +494,28 @@ namespace pwiz.Skyline.Controls.Graphs
             public override bool CanUseZoomStateFrom(DisplayState displayStatePrev)
             {
                 var prevChromDisplayState = displayStatePrev as ChromDisplayState;
-                if (null != prevChromDisplayState)
+                if (null == prevChromDisplayState)
                 {
-                    if (Equals(AutoZoomChrom, prevChromDisplayState.AutoZoomChrom) &&
-                        Equals(MinIntensity, prevChromDisplayState.MinIntensity) &&
-                        Equals(MaxIntensity, prevChromDisplayState.MaxIntensity) &&
-                        Equals(TimeRange, prevChromDisplayState.TimeRange) &&
-                        Equals(PeakRelativeTime, prevChromDisplayState.PeakRelativeTime) &&
-                        _proteinSelected == prevChromDisplayState._proteinSelected)
+                    return false;
+                }
+
+                if (TransformChrom.IsDerivative() || prevChromDisplayState.TransformChrom.IsDerivative())
+                {
+                    // The Y-axis range of different derivatives is very different, so we need to recalculate the zoom
+                    // state if the transformation has changed and it is or was a derivative
+                    if (TransformChrom != prevChromDisplayState.TransformChrom)
                     {
-                        return ArrayUtil.ReferencesEqual(TransitionGroups, prevChromDisplayState.TransitionGroups);
+                        return false;
                     }
+                }
+                if (Equals(AutoZoomChrom, prevChromDisplayState.AutoZoomChrom) &&
+                    Equals(MinIntensity, prevChromDisplayState.MinIntensity) &&
+                    Equals(MaxIntensity, prevChromDisplayState.MaxIntensity) &&
+                    Equals(TimeRange, prevChromDisplayState.TimeRange) &&
+                    Equals(PeakRelativeTime, prevChromDisplayState.PeakRelativeTime) &&
+                    _proteinSelected == prevChromDisplayState._proteinSelected)
+                {
+                    return ArrayUtil.ReferencesEqual(TransitionGroups, prevChromDisplayState.TransitionGroups);
                 }
                 return false;
             }
@@ -592,12 +626,19 @@ namespace pwiz.Skyline.Controls.Graphs
                     }
                 }
 
-                double tMinX, tMinY, tMaxX, tMaxY;
-                curveList.GetCurveRange(g, curve, out tMinX, out tMaxX, out tMinY, out tMaxY);
+                double tMaxY;
+                curveList.GetCurveRange(g, curve, out _, out _, out _, out tMaxY);
 
                 maxY = Math.Max(maxY, tMaxY);
             }
             return maxY;
+        }
+        public static Color Blend(Color baseColor, Color blendColor, double blendAmount)
+        {
+            return Color.FromArgb(
+                (int)(baseColor.R * (1 - blendAmount) + blendColor.R * blendAmount),
+                (int)(baseColor.G * (1 - blendAmount) + blendColor.G * blendAmount),
+                (int)(baseColor.B * (1 - blendAmount) + blendColor.B * blendAmount));
         }
     }
 
@@ -612,6 +653,7 @@ namespace pwiz.Skyline.Controls.Graphs
                    nodeGroup != null ? nodeGroup.TransitionGroup.LabelType : null,
                    false)
         {
+            SpectrumClassFilter = nodeGroup?.SpectrumClassFilter ?? default;
         }
 
         public PaneKey(IsotopeLabelType isotopeLabelType)
@@ -629,11 +671,12 @@ namespace pwiz.Skyline.Controls.Graphs
 
         public Adduct PrecursorAdduct { get; private set; }
         public IsotopeLabelType IsotopeLabelType { get; private set; }
+        public SpectrumClassFilter? SpectrumClassFilter { get; private set; }
         public bool? IsProducts { get; private set; }
 
-        private Tuple<Adduct, IsotopeLabelType, bool?> AsTuple()
+        private Tuple<Adduct, IsotopeLabelType, SpectrumClassFilter?, bool?> AsTuple()
         {
-            return new Tuple<Adduct, IsotopeLabelType, bool?>(PrecursorAdduct, IsotopeLabelType, IsProducts);
+            return Tuple.Create(PrecursorAdduct, IsotopeLabelType, SpectrumClassFilter, IsProducts);
         }
 
         public int CompareTo(object other)
@@ -650,6 +693,11 @@ namespace pwiz.Skyline.Controls.Graphs
             }
             if (null != IsotopeLabelType &&
                 !Equals(IsotopeLabelType, transitionGroupDocNode.TransitionGroup.LabelType))
+            {
+                return false;
+            }
+
+            if (SpectrumClassFilter.HasValue && !Equals(SpectrumClassFilter, transitionGroupDocNode.SpectrumClassFilter))
             {
                 return false;
             }

@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <root>
   <!-- 
     Microsoft ResX Schema 
@@ -328,7 +328,7 @@
     <value>2, 2, 2, 2</value>
   </data>
   <data name="textError.ScrollBars" type="System.Windows.Forms.RichTextBoxScrollBars, System.Windows.Forms">
-    <value>None</value>
+    <value>Vertical</value>
   </data>
   <data name="textError.Size" type="System.Drawing.Size, System.Drawing">
     <value>314, 52</value>

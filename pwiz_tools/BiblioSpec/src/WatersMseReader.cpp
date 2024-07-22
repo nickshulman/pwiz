@@ -257,6 +257,10 @@ bool WatersMseReader::parseFile(){
     return true;
 }
 
+std::vector<PSM_SCORE_TYPE> WatersMseReader::getScoreTypes() {
+    return std::vector<PSM_SCORE_TYPE>(1, WATERS_MSE_PEPTIDE_SCORE);
+}
+
 /**
  * Try to open .csv file and read the header line.  Return false if
  * the file cannot be opened or if the header is incorrect.
@@ -591,6 +595,7 @@ void WatersMseReader::insertCurPSM(){
         } else if( curMsePSM_->score <= scoreThreshold_ ){
             Verbosity::comment(V_DETAIL, "Not inserting psm %d with score %f",
                                curMsePSM_->specKey, curMsePSM_->score);
+            ++filteredOutPsmCount_;
         }
         curMsePSM_->clear();
     }

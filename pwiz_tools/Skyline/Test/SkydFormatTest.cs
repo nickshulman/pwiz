@@ -10,6 +10,7 @@ using pwiz.Skyline.Model;
 using pwiz.Skyline.Model.AuditLog;
 using pwiz.Skyline.Model.Results;
 using pwiz.Skyline.Model.Results.Scoring;
+using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util.Extensions;
 using pwiz.SkylineTestUtil;
 using SkydbApi.DataApi;
@@ -23,30 +24,29 @@ namespace pwiz.SkylineTest
         [TestMethod]
         public void TestConvertToNewFormat()
         {
-            using (var testFilesDir = new TestFilesDir(TestContext, @"Test\SkydFormatTest.zip"))
+            TestFilesDir = new TestFilesDir(TestContext, @"Test\SkydFormatTest.zip");
+            DateTime start = DateTime.UtcNow;
+            var outputFile = SkydbFile.CreateNewSkydbFile(TestFilesDir.GetTestPath("test.skydb"));
+            var doc = new SrmDocument(SrmSettingsList.GetDefault());
+            using (var chromatogramCache = ChromatogramCache.Load(
+                TestFilesDir.GetTestPath("Human_plasma.skyd"),
+                new ProgressStatus(),
+                new DefaultFileLoadMonitor(new SilentProgressMonitor()), doc))
+            using (var skydbConnection = outputFile.OpenConnection())
             {
-                DateTime start = DateTime.UtcNow;
-                var outputFile = SkydbFile.CreateNewSkydbFile(testFilesDir.GetTestPath("test.skydb"));
-                using (var chromatogramCache = ChromatogramCache.Load(
-                    testFilesDir.GetTestPath("Human_plasma.skyd"),
-                    new ProgressStatus(),
-                    new DefaultFileLoadMonitor(new SilentProgressMonitor()), false))
-                using (var skydbConnection = outputFile.OpenConnection())
+                skydbConnection.SetUnsafeJournalMode();
+                skydbConnection.BeginTransaction();
+                skydbConnection.EnsureScores(chromatogramCache.ScoreTypes);
+                foreach (var grouping in chromatogramCache.ChromGroupHeaderInfos.GroupBy(header => header.FileIndex))
                 {
-                    skydbConnection.SetUnsafeJournalMode();
-                    skydbConnection.BeginTransaction();
-                    skydbConnection.EnsureScores(chromatogramCache.ScoreTypes.Select(type => type.FullName));
-                    foreach (var grouping in chromatogramCache.ChromGroupHeaderInfos.GroupBy(header => header.FileIndex))
-                    {
-                        WriteFileData(skydbConnection, chromatogramCache, grouping.Key,
-                            grouping.ToList());
-                    }
-                    skydbConnection.CommitTransaction();
+                    WriteFileData(skydbConnection, chromatogramCache, grouping.Key,
+                        grouping.ToList());
                 }
-                PreparedStatement.DumpStatements();
-                Console.Out.WriteLine("Elapsed time {0}", DateTime.UtcNow.Subtract(start).TotalMilliseconds);
-                Console.Out.WriteLine("File Size: {0}", new FileInfo(outputFile.FilePath).Length);
+                skydbConnection.CommitTransaction();
             }
+            PreparedStatement.DumpStatements();
+            Console.Out.WriteLine("Elapsed time {0}", DateTime.UtcNow.Subtract(start).TotalMilliseconds);
+            Console.Out.WriteLine("File Size: {0}", new FileInfo(outputFile.FilePath).Length);
         }
 
         public void WriteFileData(SkydbConnection connection, ChromatogramCache cache, int fileIndex,

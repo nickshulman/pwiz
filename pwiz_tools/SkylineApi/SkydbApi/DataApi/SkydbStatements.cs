@@ -1,13 +1,15 @@
 ﻿using SkydbApi.Orm;
 using System;
 using System.Collections.Generic;
+using System.Threading;
+using pwiz.Common.SystemUtil;
 
 namespace SkydbApi.DataApi
 {
     public class SkydbStatements : IDisposable
     {
         private List<IDisposable> _statements = new List<IDisposable>();
-        private InsertCandidatePeakStatement _insertCandidatePeakStatement;
+        private readonly EntityBatcher<CandidatePeak> _candidatePeakBatcher;
         private InsertCandidatePeakGroupStatement _insertCandidatePeakGroupStatement;
         private InsertChromatogramDataStatement _insertChromatogramDataStatement;
         private InsertMsDataFileStatement _insertMsDataFileStatement;
@@ -17,6 +19,7 @@ namespace SkydbApi.DataApi
         public SkydbStatements(SkydbConnection connection)
         {
             Connection = connection;
+            _candidatePeakBatcher = RememberDisposable(new EntityBatcher<CandidatePeak>(connection));
         }
 
         public SkydbConnection Connection { get; }
@@ -28,11 +31,6 @@ namespace SkydbApi.DataApi
                 disposable.Dispose();
             }
         }
-        public InsertCandidatePeakStatement GetInsertCandidatePeakStatement()
-        {
-            return _insertCandidatePeakStatement ??= RememberDisposable(new InsertCandidatePeakStatement(Connection.Connection));
-        }
-
         public InsertCandidatePeakGroupStatement GetInsertCandidatePeakGroupStatement()
         {
             return _insertCandidatePeakGroupStatement ??= RememberDisposable(new InsertCandidatePeakGroupStatement(Connection.Connection));
@@ -63,6 +61,11 @@ namespace SkydbApi.DataApi
         {
             _spectrumListStatement ??= RememberDisposable(new SpectrumListStatement(Connection.Connection));
             _spectrumListStatement.Insert(spectrumList);
+        }
+
+        public void Insert(CandidatePeak candidatePeak)
+        {
+            _candidatePeakBatcher.Insert(candidatePeak);
         }
 
     }

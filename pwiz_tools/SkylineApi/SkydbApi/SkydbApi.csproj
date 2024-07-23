@@ -50,12 +50,14 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="DataApi\EntityBatcher.cs" />
     <Compile Include="DataApi\InsertCandidatePeakGroupStatement.cs" />
     <Compile Include="DataApi\InsertCandidatePeakStatement.cs" />
     <Compile Include="DataApi\InsertChromatogramDataStatement.cs" />
     <Compile Include="DataApi\InsertMsDataFileStatement.cs" />
     <Compile Include="DataApi\InsertScanInfoStatement.cs" />
     <Compile Include="DataApi\PreparedStatement.cs" />
+    <Compile Include="DataApi\RowInserter.cs" />
     <Compile Include="DataApi\SessionFactoryFactory.cs" />
     <Compile Include="DataApi\SkydbConnection.cs" />
     <Compile Include="DataApi\SkydbFile.cs" />

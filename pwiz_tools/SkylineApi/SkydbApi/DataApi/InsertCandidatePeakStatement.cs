@@ -39,6 +39,10 @@ namespace SkydbApi.DataApi
 
         private Dictionary<Parameter, SQLiteParameter>[] _paramMaps;
         private List<CandidatePeak> _batch = new List<CandidatePeak>();
+        public int BatchSize
+        {
+            get { return _paramMaps.Length; }
+        }
 
         private IDbCommand SingleCommand { get; }
         private IDbCommand MultiCommand { get; }

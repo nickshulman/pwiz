@@ -7,7 +7,7 @@ namespace SkydbApi.DataApi
 {
     public class InsertSpectrumInfoStatement : PreparedStatement
     {
-        private static string COMMAND_TEXT = "INSERT INTO SpectrumInfo(MsDataFile, SpectrumIndex, SpectrumIdentifier, RetentionTime) "
+        private static string COMMAND_TEXT = "INSERT INTO SpectrumInfo(MsDataFileId, SpectrumIndex, SpectrumIdentifier, RetentionTime) "
                                              + "VALUES(?,?,?,?); select last_insert_rowid();";
 
         private SQLiteParameter msDataFile;
@@ -29,7 +29,7 @@ namespace SkydbApi.DataApi
 
         public void Insert(SpectrumInfo spectrumInfo)
         {
-            msDataFile.Value = spectrumInfo.MsDataFile?.Id;
+            msDataFile.Value = spectrumInfo.MsDataFileId;
             spectrumIndex.Value = spectrumInfo.SpectrumIndex;
             spectrumIdentifier.Value = spectrumInfo.SpectrumIdentifier;
             retentionTime.Value = spectrumInfo.RetentionTime;

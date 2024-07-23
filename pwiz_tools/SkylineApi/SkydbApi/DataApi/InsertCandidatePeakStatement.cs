@@ -1,67 +1,110 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Data;
-using System.Data.Common;
 using System.Data.SQLite;
+using System.Linq;
 using SkydbApi.Orm;
 
 namespace SkydbApi.DataApi
 {
     public class InsertCandidatePeakStatement : PreparedStatement
     {
-        private SQLiteParameter candidatePeakGroup;
-        private SQLiteParameter startTime;
-        private SQLiteParameter endTime;
-        private SQLiteParameter area;
-        private SQLiteParameter backgroundArea;
-        private SQLiteParameter height;
-        private SQLiteParameter fullWidthAtHalfMax;
-        private SQLiteParameter pointsAcross;
-        private SQLiteParameter degenerateFwhm;
-        private SQLiteParameter forcedIntegration;
-        private SQLiteParameter timeNormalized;
-        private SQLiteParameter truncated;
-        private SQLiteParameter massError;
+        private enum Parameter
+        {
+            candidatePeakGroup,
+            startTime,
+            endTime,
+            area,
+            backgroundArea,
+            height,
+            fullWidthAtHalfMax,
+            pointsAcross,
+            degenerateFwhm,
+            forcedIntegration,
+            timeNormalized,
+            truncated,
+            massError,
+        }
 
-        private static string COMMAND_TEXT = "INSERT INTO CandidatePeak(CandidatePeakGroup, StartTime, EndTime, Area, BackgroundArea, "
+        private static string SINGLE_COMMAND = "INSERT INTO CandidatePeak(CandidatePeakGroupId, StartTime, EndTime, Area, BackgroundArea, "
                                              + "Height, FullWidthAtHalfMax, PointsAcross, DegenerateFwhm, ForcedIntegration, TimeNormalized, Truncated, MassError) "
-                                             + "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?);"; //"select last_insert_rowid();";
+                                             + "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?);";
 
-        private IDbCommand Command { get; }
+        private static string MULTI_COMMAND =
+            "INSERT INTO CandidatePeak(CandidatePeakGroupId, StartTime, EndTime, Area, BackgroundArea, Height, FullWidthAtHalfMax, PointsAcross, DegenerateFwhm, ForcedIntegration, TimeNormalized, Truncated, MassError)" +
+            "SELECT ? AS CandidatePeakGroupId, ? AS StartTime, ? AS EndTime, ? AS Area, ? AS BackgroundArea, ? AS Height, ? AS FullWidthAtHalfMax, ? AS PointsAcross, ? AS DegenerateFwhm, ? AS ForcedIntegration, ? AS TimeNormalized, ? AS Truncated, ? AS MassError " +
+            "UNION ALL SELECT ?,?,?,?,?,?,?,?,?,?,?,?,? " +
+            "UNION ALL SELECT ?,?,?,?,?,?,?,?,?,?,?,?,? " +
+            "UNION ALL SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?";
+
+        private Dictionary<Parameter, SQLiteParameter>[] _paramMaps;
+        private List<CandidatePeak> _batch = new List<CandidatePeak>();
+
+        private IDbCommand SingleCommand { get; }
+        private IDbCommand MultiCommand { get; }
         public InsertCandidatePeakStatement(IDbConnection connection) : base(connection)
         {
-            Command = CreateCommand();
-            Command.CommandText = COMMAND_TEXT;
-            Command.Parameters.Add(candidatePeakGroup = new SQLiteParameter());
-            Command.Parameters.Add(startTime = new SQLiteParameter());
-            Command.Parameters.Add(endTime = new SQLiteParameter());
-            Command.Parameters.Add(area = new SQLiteParameter());
-            Command.Parameters.Add(backgroundArea = new SQLiteParameter());
-            Command.Parameters.Add(height = new SQLiteParameter());
-            Command.Parameters.Add(fullWidthAtHalfMax = new SQLiteParameter());
-            Command.Parameters.Add(pointsAcross = new SQLiteParameter());
-            Command.Parameters.Add(degenerateFwhm = new SQLiteParameter());
-            Command.Parameters.Add(forcedIntegration = new SQLiteParameter());
-            Command.Parameters.Add(timeNormalized = new SQLiteParameter());
-            Command.Parameters.Add(truncated = new SQLiteParameter());
-            Command.Parameters.Add(massError = new SQLiteParameter());
+            SingleCommand = CreateCommand();
+            SingleCommand.CommandText = SINGLE_COMMAND;
+            MultiCommand = CreateCommand();
+            MultiCommand.CommandText = MULTI_COMMAND;
+            _paramMaps = new Dictionary<Parameter, SQLiteParameter>[4];
+            for (int i = 0; i < _paramMaps.Length; i++)
+            {
+                _paramMaps[i] = Enum.GetValues(typeof(Parameter)).Cast<Parameter>()
+                    .ToDictionary(param => param, param => new SQLiteParameter());
+                AddParams(MultiCommand, _paramMaps[i]);
+            }
+            AddParams(SingleCommand, _paramMaps[0]);
         }
 
         public void Insert(CandidatePeak row)
         {
-            candidatePeakGroup.Value = row.CandidatePeakGroup?.Id;
-            startTime.Value = row.StartTime;
-            endTime.Value = row.EndTime;
-            area.Value = row.Area;
-            backgroundArea.Value = row.BackgroundArea;
-            height.Value = row.Height;
-            fullWidthAtHalfMax.Value = row.FullWidthAtHalfMax;
-            pointsAcross.Value = row.PointsAcross;
-            degenerateFwhm.Value = row.DegenerateFwhm;
-            forcedIntegration.Value = row.ForcedIntegration;
-            timeNormalized.Value = row.TimeNormalized;
-            truncated.Value = row.Truncated;
-            massError.Value = row.MassError;
-            Command.ExecuteNonQuery();
+            _batch.Add(row);
+            if (_batch.Count == _paramMaps.Length)
+            {
+                for (int i = 0; i < _batch.Count; i++)
+                {
+                    SetParameters(_paramMaps[i], _batch[i]);
+                }
+                MultiCommand.ExecuteNonQuery();
+                _batch.Clear();
+            }
+        }
+
+        public void Flush()
+        {
+            foreach (var row in _batch)
+            {
+                SetParameters(_paramMaps[0], row);
+                SingleCommand.ExecuteNonQuery();
+            }
+            _batch.Clear();
+        }
+
+        private void SetParameters(Dictionary<Parameter, SQLiteParameter> parameters, CandidatePeak candidatePeak)
+        {
+            parameters[Parameter.candidatePeakGroup].Value = candidatePeak.CandidatePeakGroupId;
+            parameters[Parameter.startTime].Value = candidatePeak.StartTime;
+            parameters[Parameter.endTime].Value = candidatePeak.EndTime;
+            parameters[Parameter.area].Value = candidatePeak.Area;
+            parameters[Parameter.backgroundArea].Value = candidatePeak.BackgroundArea;
+            parameters[Parameter.height].Value = candidatePeak.Height;
+            parameters[Parameter.fullWidthAtHalfMax].Value = candidatePeak.FullWidthAtHalfMax;
+            parameters[Parameter.pointsAcross].Value = candidatePeak.PointsAcross;
+            parameters[Parameter.degenerateFwhm].Value = candidatePeak.DegenerateFwhm;
+            parameters[Parameter.forcedIntegration].Value = candidatePeak.ForcedIntegration;
+            parameters[Parameter.timeNormalized].Value = candidatePeak.TimeNormalized;
+            parameters[Parameter.truncated].Value = candidatePeak.Truncated;
+            parameters[Parameter.massError].Value = candidatePeak.MassError;
+        }
+
+        private void AddParams(IDbCommand command, Dictionary<Parameter, SQLiteParameter> paramMap)
+        {
+            foreach (Parameter parameter in Enum.GetValues(typeof(Parameter)))
+            {
+                command.Parameters.Add(paramMap[parameter]);
+            }
         }
     }
 }

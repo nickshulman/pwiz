@@ -3,20 +3,12 @@ using System.Collections.Generic;
 using System.Data;
 using System.Linq;
 using pwiz.Common.Database;
-using SkydbApi.Orm;
 
 namespace SkydbApi.DataApi
 {
     public class SkydbConnection : IDisposable
     {
         private IDbTransaction _transaction;
-        private List<IDisposable> _statements = new List<IDisposable>();
-        private InsertCandidatePeakStatement _insertCandidatePeakStatement;
-        private InsertCandidatePeakGroupStatement _insertCandidatePeakGroupStatement;
-        private InsertChromatogramDataStatement _insertChromatogramDataStatement;
-        private InsertMsDataFileStatement _insertMsDataFileStatement;
-        private InsertSpectrumInfoStatement _insertSpectrumInfoStatement;
-        private SpectrumListStatement _spectrumListStatement;
         public SkydbConnection(IDbConnection connection)
         {
             Connection = connection;
@@ -31,6 +23,14 @@ namespace SkydbApi.DataApi
                 cmd.ExecuteNonQuery();
                 cmd.CommandText = "PRAGMA journal_mode = MEMORY";
                 cmd.ExecuteNonQuery();
+                // cmd.CommandText = "PRAGMA automatic_indexing=OFF";
+                // cmd.ExecuteNonQuery();
+                // cmd.CommandText = "PRAGMA cache_size=30000";
+                // cmd.ExecuteNonQuery();
+                // cmd.CommandText = "PRAGMA temp_store=MEMORY";
+                // cmd.ExecuteNonQuery();
+                // cmd.CommandText = "PRAGMA mmap_size=70368744177664";
+                // cmd.ExecuteNonQuery();
             }
         }
 
@@ -46,49 +46,12 @@ namespace SkydbApi.DataApi
         public void CommitTransaction()
         {
             _transaction.Commit();
+            _transaction = null;
         }
 
         public void Dispose()
         {
             Connection.Dispose();
-            foreach (var disposable in _statements)
-            {
-                disposable.Dispose();
-            }
-        }
-
-        public InsertCandidatePeakStatement GetInsertCandidatePeakStatement()
-        {
-            return _insertCandidatePeakStatement =
-                _insertCandidatePeakStatement ?? RememberDisposable(new InsertCandidatePeakStatement(Connection));
-        }
-
-        public InsertCandidatePeakGroupStatement GetInsertCandidatePeakGroupStatement()
-        {
-            return _insertCandidatePeakGroupStatement =
-                _insertCandidatePeakGroupStatement ?? RememberDisposable(new InsertCandidatePeakGroupStatement(Connection));
-        }
-
-        public InsertChromatogramDataStatement GetInsertChromatogramDataStatement()
-        {
-            return _insertChromatogramDataStatement =
-                _insertChromatogramDataStatement ?? RememberDisposable(new InsertChromatogramDataStatement(Connection));
-        }
-
-        public InsertMsDataFileStatement GetInsertMsDataFileStatement()
-        {
-            return _insertMsDataFileStatement = _insertMsDataFileStatement ?? RememberDisposable(new InsertMsDataFileStatement(Connection));
-        }
-
-        public InsertSpectrumInfoStatement GetInsertScanInfoStatement()
-        {
-            return _insertSpectrumInfoStatement = _insertSpectrumInfoStatement ?? RememberDisposable(new InsertSpectrumInfoStatement(Connection));
-        }
-
-        private T RememberDisposable<T>(T disposable) where T : IDisposable
-        {
-            _statements.Add(disposable);
-            return disposable;
         }
 
         public void EnsureScores(IEnumerable<string> scoreNames)
@@ -105,13 +68,6 @@ namespace SkydbApi.DataApi
                 ));
                 cmd.ExecuteNonQuery();
             }
-        }
-
-        public void Insert(SpectrumList spectrumList)
-        {
-            _spectrumListStatement =
-                _spectrumListStatement ?? RememberDisposable(new SpectrumListStatement(Connection));
-            _spectrumListStatement.Insert(spectrumList);
         }
     }
 }

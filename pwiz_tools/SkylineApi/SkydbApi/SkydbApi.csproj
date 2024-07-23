@@ -34,6 +34,9 @@
     <Reference Include="NHibernate">
       <HintPath>..\..\Shared\Lib\NHibernate\NHibernate.dll</HintPath>
     </Reference>
+    <Reference Include="NHibernate.Mapping.Attributes">
+      <HintPath>..\..\Shared\Lib\NHibernate\NHibernate.Mapping.Attributes.dll</HintPath>
+    </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
     <Reference Include="System.Data.SQLite">
@@ -56,15 +59,17 @@
     <Compile Include="DataApi\SessionFactoryFactory.cs" />
     <Compile Include="DataApi\SkydbConnection.cs" />
     <Compile Include="DataApi\SkydbFile.cs" />
+    <Compile Include="DataApi\SkydbMerger.cs" />
+    <Compile Include="DataApi\SkydbStatements.cs" />
     <Compile Include="DataApi\SpectrumListStatement.cs" />
     <Compile Include="DataApi\SqliteOperations.cs" />
     <Compile Include="Orm\CandidatePeakGroup.cs" />
     <Compile Include="Orm\ChromatogramData.cs" />
     <Compile Include="Orm\ChromatogramGroup.cs" />
-    <Compile Include="Orm\ChromatogramTransition.cs" />
+    <Compile Include="Orm\TransitionChromatogram.cs" />
     <Compile Include="Orm\Entity.cs" />
     <Compile Include="Orm\MsDataFile.cs" />
-    <Compile Include="Orm\ScanInfo.cs" />
+    <Compile Include="Orm\SpectrumInfo.cs" />
     <Compile Include="Orm\Scores.cs" />
     <Compile Include="Orm\SpectrumList.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
@@ -74,9 +79,6 @@
       <Project>{13bf2ffb-50a1-4ab1-83a4-5733e36905ce}</Project>
       <Name>CommonUtil</Name>
     </ProjectReference>
-  </ItemGroup>
-  <ItemGroup>
-    <EmbeddedResource Include="Orm\mapping.xml" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

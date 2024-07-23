@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Data;
 
@@ -7,11 +8,11 @@ namespace SkydbApi.DataApi
     public class PreparedStatement : IDisposable
     {
         private List<IDbCommand> _commands = new List<IDbCommand>();
-        private static HashSet<PreparedStatement> _statements = new HashSet<PreparedStatement>();
+        private static ConcurrentDictionary<PreparedStatement, bool> _statements = new ConcurrentDictionary<PreparedStatement, bool>();
         public PreparedStatement(IDbConnection connection)
         {
             Connection = connection;
-            _statements.Add(this);
+            _statements[this] = true;
         }
 
         protected IDbConnection Connection { get; }
@@ -30,12 +31,12 @@ namespace SkydbApi.DataApi
                 command.Dispose();
             }
 
-            _statements.Remove(this);
+            _statements.TryRemove(this, out _);
         }
 
         public static void DumpStatements()
         {
-            foreach (var statement in _statements)
+            foreach (var statement in _statements.Keys)
             {
                 Console.Out.WriteLine(statement);
             }

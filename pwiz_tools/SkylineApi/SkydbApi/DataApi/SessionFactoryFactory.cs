@@ -22,6 +22,8 @@ using System.Data.SQLite;
 using System.Reflection;
 using NHibernate;
 using NHibernate.Cfg;
+using NHibernate.Mapping.Attributes;
+using SkydbApi.Orm;
 
 namespace SkydbApi.DataApi
 {
@@ -43,13 +45,17 @@ namespace SkydbApi.DataApi
                 .SetProperty(@"connection.connection_string", SQLiteConnectionStringBuilderFromFilePath(path).ToString())
                 .SetProperty(@"connection.driver_class",
                     typeof(NHibernate.Driver.SQLite20Driver).AssemblyQualifiedName);
+            var hbmSerializer = new HbmSerializer
+            {
+                Validate = true
+            };
+            configuration.AddInputStream(hbmSerializer.Serialize(typeof(Entity).Assembly));
             if (createSchema)
             {
                 configuration.SetProperty(@"hbm2ddl.auto", @"create");
             }
             configuration.SetProperty(@"connection.provider",
                 typeof(global::NHibernate.Connection.DriverConnectionProvider).AssemblyQualifiedName);
-            ConfigureMappings(configuration, typeDb, schemaFilename);
             ISessionFactory sessionFactory = configuration.BuildSessionFactory();
             return sessionFactory;
         }

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -26,48 +27,86 @@ namespace pwiz.SkylineTest
         {
             TestFilesDir = new TestFilesDir(TestContext, @"Test\SkydFormatTest.zip");
             DateTime start = DateTime.UtcNow;
-            var outputFile = SkydbFile.CreateNewSkydbFile(TestFilesDir.GetTestPath("test.skydb"));
+            var path = TestFilesDir.GetTestPath("test.skydb");
+            var outputFile = SkydbFile.CreateNewSkydbFile(path);
             var doc = new SrmDocument(SrmSettingsList.GetDefault());
-            using (var chromatogramCache = ChromatogramCache.Load(
+            using var chromatogramCache = ChromatogramCache.Load(
                 TestFilesDir.GetTestPath("Human_plasma.skyd"),
                 new ProgressStatus(),
-                new DefaultFileLoadMonitor(new SilentProgressMonitor()), doc))
-            using (var skydbConnection = outputFile.OpenConnection())
+                new DefaultFileLoadMonitor(new SilentProgressMonitor()), doc);
+            using var skydbConnection = outputFile.OpenConnection();
+            skydbConnection.SetUnsafeJournalMode();
+            skydbConnection.BeginTransaction();
+            skydbConnection.EnsureScores(chromatogramCache.ScoreTypes);
+            var fileGroups = chromatogramCache.ChromGroupHeaderInfos.GroupBy(header => header.FileIndex).ToList();
+            ParallelEx.ForEach(fileGroups, grouping =>
             {
-                skydbConnection.SetUnsafeJournalMode();
-                skydbConnection.BeginTransaction();
-                skydbConnection.EnsureScores(chromatogramCache.ScoreTypes);
-                foreach (var grouping in chromatogramCache.ChromGroupHeaderInfos.GroupBy(header => header.FileIndex))
-                {
-                    WriteFileData(skydbConnection, chromatogramCache, grouping.Key,
-                        grouping.ToList());
-                }
-                skydbConnection.CommitTransaction();
-            }
+                WriteFileData(skydbConnection, chromatogramCache, grouping.Key,
+                    grouping.ToList());
+            });
+            skydbConnection.CommitTransaction();
             PreparedStatement.DumpStatements();
             Console.Out.WriteLine("Elapsed time {0}", DateTime.UtcNow.Subtract(start).TotalMilliseconds);
             Console.Out.WriteLine("File Size: {0}", new FileInfo(outputFile.FilePath).Length);
         }
 
+        [TestMethod]
+        public void TestMerge()
+        {
+            TestFilesDir = new TestFilesDir(TestContext, @"Test\SkydFormatTest.zip");
+            DateTime start = DateTime.UtcNow;
+            var doc = new SrmDocument(SrmSettingsList.GetDefault());
+            using var chromatogramCache = ChromatogramCache.Load(
+                TestFilesDir.GetTestPath("Human_plasma.skyd"),
+                new ProgressStatus(),
+                new DefaultFileLoadMonitor(new SilentProgressMonitor()), doc);
+            var fileGroups = chromatogramCache.ChromGroupHeaderInfos.GroupBy(header => header.FileIndex).Select(grouping=>Tuple.Create(grouping, TestFilesDir.GetTestPath("test" + grouping.Key + ".skydb"))).ToList();
+
+            ParallelEx.ForEach(fileGroups, tuple =>
+            {
+                var grouping = tuple.Item1;
+                var outputFile = SkydbFile.CreateNewSkydbFile(tuple.Item2);
+                using var skydbConnection = outputFile.OpenConnection();
+                skydbConnection.SetUnsafeJournalMode();
+                skydbConnection.BeginTransaction();
+                skydbConnection.EnsureScores(chromatogramCache.ScoreTypes);
+                WriteFileData(skydbConnection, chromatogramCache, grouping.Key,
+                    grouping.ToList());
+                skydbConnection.CommitTransaction();
+            });
+            var firstSkydbFile = new SkydbFile(fileGroups[0].Item2);
+            using var connection = firstSkydbFile.OpenConnection();
+            var merger = new SkydbMerger(connection);
+            foreach (var tuple in fileGroups.Skip(1))
+            {
+                merger.Merge(tuple.Item2);
+            }
+            PreparedStatement.DumpStatements();
+            Console.Out.WriteLine("Elapsed time {0}", DateTime.UtcNow.Subtract(start).TotalMilliseconds);
+            //Console.Out.WriteLine("File Size: {0}", new FileInfo(outputFile.FilePath).Length);
+        }
+
         public void WriteFileData(SkydbConnection connection, ChromatogramCache cache, int fileIndex,
             IList<ChromGroupHeaderInfo> chromGroupHeaderInfos)
         {
+            using var statements = new SkydbStatements(connection);
             var chromCachedFile = cache.CachedFiles[fileIndex];
             var msDataFile = new MsDataFile
             {
                 FilePath = chromCachedFile.FilePath.ToString()
             };
-            connection.GetInsertMsDataFileStatement().Insert(msDataFile);
+            statements.GetInsertMsDataFileStatement().Insert(msDataFile);
             var msDataFileScanIds = cache.LoadMSDataFileScanIds(fileIndex);
-            var scanInfos = WriteScanInfos(connection, cache, fileIndex, chromGroupHeaderInfos, msDataFile);
+            var scanInfos = WriteScanInfos(statements, cache, fileIndex, chromGroupHeaderInfos, msDataFile);
             var retentionTimeHashes = new Dictionary<Hash, long>();
             foreach (var groupHeader in chromGroupHeaderInfos)
             {
-                WriteChromatogramGroup(connection, cache, msDataFileScanIds, groupHeader, scanInfos, retentionTimeHashes);
+                WriteChromatogramGroup(statements, cache, msDataFileScanIds, groupHeader, scanInfos, retentionTimeHashes);
             }
+            statements.GetInsertCandidatePeakStatement().Flush();
         }
 
-        public Dictionary<Tuple<float, string>, int> WriteScanInfos(SkydbConnection connection, ChromatogramCache cache, int fileIndex, IEnumerable<ChromGroupHeaderInfo> chromGroupHeaderInfos, MsDataFile msDataFile)
+        public Dictionary<Tuple<float, string>, int> WriteScanInfos(SkydbStatements connection, ChromatogramCache cache, int fileIndex, IEnumerable<ChromGroupHeaderInfo> chromGroupHeaderInfos, MsDataFile msDataFile)
         {
             var msDataFileScanIds = cache.LoadMSDataFileScanIds(fileIndex);
             var scans = new HashSet<KeyValuePair<float, string>>();
@@ -100,7 +139,7 @@ namespace pwiz.SkylineTest
             {
                 var scanInfo = new SpectrumInfo
                 {
-                    MsDataFile = msDataFile,
+                    MsDataFileId = msDataFile.Id.Value,
                     RetentionTime = scan.Key,
                     SpectrumIdentifier = scan.Value,
                     SpectrumIndex = scanNumber,
@@ -146,7 +185,7 @@ namespace pwiz.SkylineTest
             return indexes.Any();
         }
 
-        public void WriteChromatogramGroup(SkydbConnection connection,
+        public void WriteChromatogramGroup(SkydbStatements statements,
             ChromatogramCache cache, MsDataFileScanIds scanIds, ChromGroupHeaderInfo chromGroupHeaderInfo, Dictionary<Tuple<float, string>, int> scanInfos, IDictionary<Hash, long> retentionTimeHashes)
         {
             var peaks = cache.ReadPeaks(chromGroupHeaderInfo);
@@ -154,9 +193,7 @@ namespace pwiz.SkylineTest
             {
                 var peakGroupPeaks = Enumerable.Range(0, chromGroupHeaderInfo.NumTransitions)
                     .Select(iTransition => peaks[iTransition & chromGroupHeaderInfo.NumPeaks + iPeakGroup]).ToList();
-                var peakGroup = new CandidatePeakGroup
-                {
-                };
+                var peakGroup = new CandidatePeakGroup();
                 foreach (var peak in peakGroupPeaks)
                 {
                     if (peak.IsEmpty)
@@ -183,12 +220,12 @@ namespace pwiz.SkylineTest
                 {
                     peakGroup.Identified = (int) PeakIdentification.ALIGNED;
                 }
-                connection.GetInsertCandidatePeakGroupStatement().Insert(peakGroup);
+                statements.GetInsertCandidatePeakGroupStatement().Insert(peakGroup);
                 foreach (var peak in peakGroupPeaks)
                 {
                     var candidatePeak = new CandidatePeak
                     {
-                        CandidatePeakGroup = peakGroup,
+                        CandidatePeakGroupId = peakGroup.Id.Value,
                         Area = peak.Area,
                         BackgroundArea = peak.BackgroundArea,
                         DegenerateFwhm = peak.IsFwhmDegenerate,
@@ -209,7 +246,7 @@ namespace pwiz.SkylineTest
                     {
                         candidatePeak.EndTime = peak.EndTime;
                     }
-                    connection.GetInsertCandidatePeakStatement().Insert(candidatePeak);
+                    statements.GetInsertCandidatePeakStatement().Insert(candidatePeak);
                 }
             }
             var timeIntensitiesGroup = cache.ReadTimeIntensities(chromGroupHeaderInfo);
@@ -228,10 +265,7 @@ namespace pwiz.SkylineTest
                     };
                     if (retentionTimeHashes.TryGetValue(retentionTimeHash, out long spectrumListId))
                     {
-                        chromatogramData.SpectrumList = new SpectrumList
-                        {
-                            Id = spectrumListId
-                        };
+                        chromatogramData.SpectrumListId = spectrumListId;
                     }
                     else
                     {
@@ -240,14 +274,14 @@ namespace pwiz.SkylineTest
                             SpectrumCount = timeIntensities.NumPoints,
                             SpectrumIndexData = Compress(spectrumIndexBytes)
                         };
-                        connection.Insert(spectrumList);
+                        statements.Insert(spectrumList);
                     }
                     if (timeIntensities.MassErrors != null)
                     {
                         chromatogramData.MassErrorsData =
                             Compress(PrimitiveArrays.ToBytes(timeIntensities.MassErrors.ToArray()));
                     }
-                    connection.GetInsertChromatogramDataStatement().Insert(chromatogramData);
+                    statements.GetInsertChromatogramDataStatement().Insert(chromatogramData);
                     if (chromatogramData.RetentionTimesData != null)
                     {
                         retentionTimeHashes.Add(retentionTimeHash, chromatogramData.Id.Value);

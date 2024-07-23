@@ -7,7 +7,7 @@ namespace SkydbApi.DataApi
 {
     public class InsertChromatogramDataStatement : PreparedStatement
     {
-        private static string COMMAND_TEXT = "INSERT INTO ChromatogramData(SpectrumList, PointCount, RetentionTimesData, IntensitiesData, MassErrorsData) "
+        private static string COMMAND_TEXT = "INSERT INTO ChromatogramData(SpectrumListId, PointCount, RetentionTimesData, IntensitiesData, MassErrorsData) "
                                              + "VALUES(?,?,?,?,?); select last_insert_rowid();";
 
         private SQLiteParameter spectrumList;
@@ -31,7 +31,7 @@ namespace SkydbApi.DataApi
 
         public void Insert(ChromatogramData chromatogramData)
         {
-            spectrumList.Value = chromatogramData.SpectrumList?.Id;
+            spectrumList.Value = chromatogramData.SpectrumListId;
             pointCount.Value = chromatogramData.PointCount;
             retentionTimesData.Value = chromatogramData.RetentionTimesData;
             intensitiesData.Value = chromatogramData.IntensitiesData;

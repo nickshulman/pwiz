@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Data;
 using System.Linq;
 using System.Threading;
-using NHibernate.Exceptions;
 using pwiz.Common.Database;
 using pwiz.Common.SystemUtil;
 using SkydbApi.Orm;
@@ -16,7 +15,7 @@ namespace SkydbApi.DataApi
         private QueueWorker<WorkItem> _commandQueue;
         private int _pendingWorkItemCount;
         private List<Exception> _exceptions = new List<Exception>();
-        private Dictionary<Type, IDisposable> _entityBatchers = new Dictionary<Type, IDisposable>();
+        private Dictionary<Type, IBatcher> _entityBatchers = new Dictionary<Type, IBatcher>();
 
         public SkydbConnection(IDbConnection connection)
         {
@@ -100,6 +99,10 @@ namespace SkydbApi.DataApi
 
         public void Flush()
         {
+            foreach (var batcher in _entityBatchers.Values)
+            {
+                batcher.Flush();
+            }
             CheckForExceptions();
             lock (this)
             {
@@ -128,10 +131,17 @@ namespace SkydbApi.DataApi
             try
             {
                 workItem.Command.ExecuteNonQuery();
-                lock (workItem.CommandPool)
+                if (workItem.CommandPool != null)
                 {
-                    workItem.CommandPool.Enqueue(workItem.Command);
-                    Monitor.PulseAll(workItem.CommandPool);
+                    lock (workItem.CommandPool)
+                    {
+                        workItem.CommandPool.Enqueue(workItem.Command);
+                        Monitor.PulseAll(workItem.CommandPool);
+                    }
+                }
+                else
+                {
+                    workItem.Command.Dispose();
                 }
             }
             catch (Exception e)

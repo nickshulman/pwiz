@@ -33,18 +33,19 @@ namespace pwiz.SkylineTest
                 TestFilesDir.GetTestPath("Human_plasma.skyd"),
                 new ProgressStatus(),
                 new DefaultFileLoadMonitor(new SilentProgressMonitor()), doc);
-            using var skydbConnection = outputFile.OpenConnection();
-            skydbConnection.SetUnsafeJournalMode();
-            skydbConnection.BeginTransaction();
-            skydbConnection.EnsureScores(chromatogramCache.ScoreTypes);
-            var fileGroups = chromatogramCache.ChromGroupHeaderInfos.GroupBy(header => header.FileIndex).ToList();
-            ParallelEx.ForEach(fileGroups, grouping=>
+            using (var skydbConnection = outputFile.OpenConnection())
             {
-                WriteFileData(skydbConnection, chromatogramCache, grouping.Key,
-                    grouping.ToList());
-            });
-            skydbConnection.CommitTransaction();
-            PreparedStatement.DumpStatements();
+                skydbConnection.SetUnsafeJournalMode();
+                skydbConnection.BeginTransaction();
+                skydbConnection.EnsureScores(chromatogramCache.ScoreTypes);
+                var fileGroups = chromatogramCache.ChromGroupHeaderInfos.GroupBy(header => header.FileIndex).ToList();
+                ParallelEx.ForEach(fileGroups, grouping =>
+                {
+                    WriteFileData(skydbConnection, chromatogramCache, grouping.Key,
+                        grouping.ToList());
+                });
+                skydbConnection.CommitTransaction();
+            }
             Console.Out.WriteLine("Elapsed time {0}", DateTime.UtcNow.Subtract(start).TotalMilliseconds);
             Console.Out.WriteLine("File Size: {0}", new FileInfo(outputFile.FilePath).Length);
         }
@@ -80,7 +81,6 @@ namespace pwiz.SkylineTest
             {
                 merger.Merge(tuple.Item2);
             }
-            PreparedStatement.DumpStatements();
             Console.Out.WriteLine("Elapsed time {0}", DateTime.UtcNow.Subtract(start).TotalMilliseconds);
             //Console.Out.WriteLine("File Size: {0}", new FileInfo(outputFile.FilePath).Length);
         }

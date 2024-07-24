@@ -21,7 +21,7 @@ namespace SkydbApi.DataApi
         {
             Connection = connection;
             _commandQueue = new QueueWorker<WorkItem>(null, ExecuteWorkItem);
-            _commandQueue.RunAsync(2, nameof(ExecuteWorkItem));
+            _commandQueue.RunAsync(1, nameof(ExecuteWorkItem));
         }
         public IDbConnection Connection { get; }
 

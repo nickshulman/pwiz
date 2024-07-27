@@ -17,7 +17,6 @@
  * limitations under the License.
  */
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Data.SQLite;
 using System.IO;
@@ -249,42 +248,7 @@ namespace pwiz.Skyline.Model.Lib.BlibData
 
         private class SpectrumInserter : IDisposable
         {
-            private class InsertCommands
-            {
-                public SQLiteCommand _insertSpectraCmd;
-                public SQLiteCommand _insertAnnotationsCmd;
-                public SQLiteCommand _insertPeaksCmd;
-                public SQLiteCommand _insertRetentionTimesCmd;
-                public SQLiteCommand _insertModificationsCmd;
-            }
-            private ConcurrentDictionary<int, InsertCommands> _insertCommandsByThread;
-            private long _lastSpectraId, _lastAnnotationId, _lastRetentionTimesId, _lastModificationId;
-
-            private List<PropertyInfo> _dbRefSpectraProperties;
-            private List<PropertyInfo> _dbRefSpectraPeaksProperties;
-            private List<PropertyInfo> _dbRefSpectraPeakAnnotationsProperties;
-            private List<PropertyInfo> _dbModificationProperties;
-            private List<PropertyInfo> _dbRetentionTimeProperties;
-
-            private static SQLiteCommand GenerateInsertCommand(SQLiteConnection connection, string table, IList<PropertyInfo> properties)
-            {
-                string PropertySqlName(PropertyInfo p)
-                {
-                    return p.PropertyType.BaseType == typeof(DbEntity) ? p.Name + @"Id" : p.Name;
-                }
-
-                // ReSharper disable LocalizableElement
-                string sql = "INSERT INTO " + table + " (" +
-                             string.Join(",", properties.Select(PropertySqlName)) + ") VALUES (" +
-                             string.Join(",", Enumerable.Repeat("?", properties.Count)) + ")";
-                // ReSharper restore LocalizableElement
-
-                var cmd = new SQLiteCommand(sql, connection);
-                for (int i = 0; i < properties.Count; ++i)
-                    cmd.Parameters.Add(new SQLiteParameter());
-                return cmd;
-            }
-
+            private InsertSession<DbEntity> _insertSession;
             private static IEnumerable<PropertyInfo> GetProperties(Type dbType)
             {
                 foreach (var property in dbType.GetProperties())
@@ -302,130 +266,50 @@ namespace pwiz.Skyline.Model.Lib.BlibData
                 return property.GetValue(obj);
             }
 
-            public SpectrumInserter(ISession session)
+            public SpectrumInserter(SessionQueue sessionQueue, ISessionFactory factory)
             {
-                var connection = session.Connection as SQLiteConnection;
-
-                _lastSpectraId = (long)ExecuteScalar(@"SELECT IFNULL(MAX(id), 0) FROM RefSpectra", connection);
-                _lastAnnotationId = (long)ExecuteScalar(@"SELECT IFNULL(MAX(id), 0) FROM RefSpectraPeakAnnotations", connection);
-                _lastRetentionTimesId = (long)ExecuteScalar(@"SELECT IFNULL(MAX(id), 0) FROM RetentionTimes", connection);
-                _lastModificationId = (long)ExecuteScalar(@"SELECT IFNULL(MAX(id), 0) FROM Modifications", connection);
-
-                _dbRefSpectraProperties = new List<PropertyInfo>();
-                foreach (var property in typeof(DbRefSpectra).GetProperties())
-                {
-                    if (property.Name == "EntityClass")
-                        continue;
-                    if (property.PropertyType.IsValueType || property.PropertyType == typeof(string))
-                        _dbRefSpectraProperties.Add(property);
-                }
-
-                _dbRefSpectraPeaksProperties = new List<PropertyInfo>();
-                foreach (var property in typeof(DbRefSpectraPeaks).GetProperties())
-                {
-                    if (property.Name == "EntityClass" || property.Name == "Id")
-                        continue;
-                    _dbRefSpectraPeaksProperties.Add(property);
-                }
-
-                _dbRefSpectraPeakAnnotationsProperties = GetProperties(typeof(DbRefSpectraPeakAnnotations)).ToList();
-                _dbModificationProperties = GetProperties(typeof(DbModification)).ToList();
-                _dbRetentionTimeProperties = GetProperties(typeof(DbRetentionTimes)).ToList();
-
-                _insertCommandsByThread = new ConcurrentDictionary<int, InsertCommands>();
-                var masterCmds = _insertCommandsByThread[0] = new InsertCommands();
-
-                masterCmds._insertSpectraCmd = GenerateInsertCommand(connection, @"RefSpectra", _dbRefSpectraProperties);
-                masterCmds._insertPeaksCmd = GenerateInsertCommand(connection, @"RefSpectraPeaks", _dbRefSpectraPeaksProperties);
-                masterCmds._insertAnnotationsCmd = GenerateInsertCommand(connection, @"RefSpectraPeakAnnotations", _dbRefSpectraPeakAnnotationsProperties);
-                masterCmds._insertModificationsCmd = GenerateInsertCommand(connection, @"Modifications", _dbModificationProperties);
-                masterCmds._insertRetentionTimesCmd = GenerateInsertCommand(connection, @"RetentionTimes", _dbRetentionTimeProperties);
+                _insertSession = InsertSession<DbEntity>.Create(sessionQueue, factory.GetAllClassMetadata().Values);
+                _insertSession.SetBatchSize<DbEntity>(8);
             }
 
             public void InsertSpectrum(DbRefSpectra dbRefSpectrum)
             {
-                int threadId = Thread.CurrentThread.ManagedThreadId;
-
-                if (!_insertCommandsByThread.TryGetValue(threadId, out InsertCommands insertCommands))
-                {
-                    var masterCmds = _insertCommandsByThread[0];
-                    insertCommands = _insertCommandsByThread[threadId] = new InsertCommands();
-                    insertCommands._insertSpectraCmd = masterCmds._insertSpectraCmd.Clone() as SQLiteCommand;
-                    insertCommands._insertPeaksCmd = masterCmds._insertPeaksCmd.Clone() as SQLiteCommand;
-                    insertCommands._insertAnnotationsCmd = masterCmds._insertAnnotationsCmd.Clone() as SQLiteCommand;
-                    insertCommands._insertModificationsCmd = masterCmds._insertModificationsCmd.Clone() as SQLiteCommand;
-                    insertCommands._insertRetentionTimesCmd = masterCmds._insertRetentionTimesCmd.Clone() as SQLiteCommand;
-                }
-
-                {
-                    int i = 0;
-                    dbRefSpectrum.Id = Interlocked.Increment(ref _lastSpectraId);
-                    foreach (var property in _dbRefSpectraProperties)
-                        insertCommands._insertSpectraCmd!.Parameters[i++].Value = GetPropertyValue(dbRefSpectrum, property);
-                    insertCommands._insertSpectraCmd!.ExecuteNonQuery();
-
-                    i = 0;
-                    dbRefSpectrum.Peaks.RefSpectra ??= dbRefSpectrum;
-                    foreach (var property in _dbRefSpectraPeaksProperties)
-                        insertCommands._insertPeaksCmd!.Parameters[i++].Value = GetPropertyValue(dbRefSpectrum.Peaks, property);
-                    insertCommands._insertPeaksCmd!.ExecuteNonQuery();
-                }
-
+                _insertSession.Insert(dbRefSpectrum);
+                dbRefSpectrum.Peaks.RefSpectra ??= dbRefSpectrum;
+                _insertSession.Insert(dbRefSpectrum.Peaks);
                 if (dbRefSpectrum.PeakAnnotations != null)
                 {
                     foreach (var annotation in dbRefSpectrum.PeakAnnotations)
                     {
-                        int i = 0;
-                        annotation.Id = Interlocked.Increment(ref _lastAnnotationId);
                         annotation.RefSpectra = dbRefSpectrum;
-                        foreach (var property in _dbRefSpectraPeakAnnotationsProperties)
-                            insertCommands._insertAnnotationsCmd!.Parameters[i++].Value = GetPropertyValue(annotation, property);
-                        insertCommands._insertAnnotationsCmd!.ExecuteNonQuery();
+                        _insertSession.Insert(annotation);
                     }
                 }
 
+                foreach (var retentionTime in dbRefSpectrum.RetentionTimes)
                 {
-                    foreach (var retentionTime in dbRefSpectrum.RetentionTimes)
-                    {
-                        int i = 0;
-                        retentionTime.Id = Interlocked.Increment(ref _lastRetentionTimesId);
-                        retentionTime.RefSpectra = dbRefSpectrum;
-                        foreach (var property in _dbRetentionTimeProperties)
-                            insertCommands._insertRetentionTimesCmd!.Parameters[i++].Value = GetPropertyValue(retentionTime, property);
-                        insertCommands._insertRetentionTimesCmd!.ExecuteNonQuery();
-                    }
+                    retentionTime.RefSpectra = dbRefSpectrum;
+                    _insertSession.Insert(retentionTime);
                 }
 
                 if (dbRefSpectrum.Modifications != null)
                 {
                     foreach (var modification in dbRefSpectrum.Modifications)
                     {
-                        int i = 0;
-                        modification.Id = Interlocked.Increment(ref _lastModificationId);
                         modification.RefSpectra = dbRefSpectrum;
-                        foreach (var property in _dbModificationProperties)
-                            insertCommands._insertModificationsCmd!.Parameters[i++].Value = GetPropertyValue(modification, property);
-                        insertCommands._insertModificationsCmd!.ExecuteNonQuery();
+                        _insertSession.Insert(modification);
                     }
                 }
             }
 
             public void Dispose()
             {
-                foreach (var cmd in _insertCommandsByThread)
-                {
-                    cmd.Value._insertSpectraCmd.Dispose();
-                    cmd.Value._insertAnnotationsCmd.Dispose();
-                    cmd.Value._insertPeaksCmd.Dispose();
-                    cmd.Value._insertRetentionTimesCmd.Dispose();
-                    cmd.Value._insertModificationsCmd.Dispose();
-                }
+                _insertSession.Dispose();
             }
 
-            private static object ExecuteScalar(string commandText, SQLiteConnection connection)
+            public void Flush()
             {
-                using var cmd = new SQLiteCommand(commandText, connection);
-                return cmd.ExecuteScalar();
+                _insertSession.Flush();
             }
         }
 
@@ -447,13 +331,15 @@ namespace pwiz.Skyline.Model.Lib.BlibData
 
             var localStatus = status;
             using (ISession session = OpenWriteSession())
+            using (var sessionQueue = new SessionQueue(session))
             using (ITransaction transaction = session.BeginTransaction())
             {
+
                 int progressPercent = -1;
                 int i = 0;
                 var sourceFiles = new Dictionary<string, long>();
                 var proteinTablesBuilder = new ProteinTablesBuilder(session);
-                using var spectrumInserter = new SpectrumInserter(session);
+                using var spectrumInserter = new SpectrumInserter(sessionQueue, SessionFactory);
                 ParallelEx.ForEach(listSpectra, spectrum =>
                 {
                     var dbRefSpectrum = RefSpectrumFromPeaks(session, spectrum, sourceFiles);

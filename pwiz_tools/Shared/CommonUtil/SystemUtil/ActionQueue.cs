@@ -6,22 +6,48 @@ namespace pwiz.Common.SystemUtil
 {
     public class ActionQueue : IDisposable
     {
+        private CancellationTokenSource _cancellationTokenSource;
         private QueueWorker<Action> _actionQueue;
         private List<Exception> _exceptions;
         private int _pendingCount;
+        private long _currentIndex;
+        private long _lastIndex;
 
         public void RunAsync(int threadCount, string name)
         {
+            _cancellationTokenSource = new CancellationTokenSource();
             _actionQueue = new QueueWorker<Action>(null, RunAction);
             _actionQueue.RunAsync(threadCount, name);
         }
 
-        public void Enqueue(Action action)
+        public CancellationToken CancellationToken
+        {
+            get
+            {
+                return _cancellationTokenSource.Token;
+            }
+        }
+
+        public void Enqueue(Action action, string description)
         {
             lock (this)
             {
                 CheckForExceptions();
-                _actionQueue.Add(action);
+                long index = Interlocked.Increment(ref _currentIndex);
+                Console.Out.WriteLine("Thread: {0} Enqueue {1}: {2}", Thread.CurrentThread.ManagedThreadId, index, description);
+                _actionQueue.Add(() =>
+                {
+                    if (_lastIndex != index - 1)
+                    {
+                        throw new InvalidOperationException(string.Format("Expected {0} actual {1}", index - 1,
+                            _lastIndex));
+                    }
+
+                    _lastIndex = index;
+                    Console.Out.WriteLine("Execute {0}, {1}", index, description);
+                    action();
+                });
+                // _actionQueue.Add(action);
                 _pendingCount++;
             }
         }
@@ -81,6 +107,7 @@ namespace pwiz.Common.SystemUtil
                 _exceptions.Add(exception);
                 if (firstException)
                 {
+                    _cancellationTokenSource.Cancel();
                     Monitor.PulseAll(this);
                 }
             }

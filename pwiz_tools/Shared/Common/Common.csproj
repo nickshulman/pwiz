@@ -155,7 +155,7 @@
     <Compile Include="DataAnalysis\NelderMeadSimplex.cs" />
     <Compile Include="DataAnalysis\LoessInterpolator.cs" />
     <Compile Include="Database\NHibernate\AbstractSessionWithLock.cs" />
-    <Compile Include="Database\NHibernate\DefaultEntityHandler.cs" />
+    <Compile Include="Database\NHibernate\DatabaseMetadata.cs" />
     <Compile Include="Database\NHibernate\EntityHandler.cs" />
     <Compile Include="Database\NHibernate\InsertSession.cs" />
     <Compile Include="Database\NHibernate\SessionFactoryFactory.cs" />

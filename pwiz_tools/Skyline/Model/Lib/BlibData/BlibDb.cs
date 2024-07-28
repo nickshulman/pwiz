@@ -22,6 +22,7 @@ using System.Data.SQLite;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
 using System.Threading;
 using NHibernate;
@@ -268,15 +269,21 @@ namespace pwiz.Skyline.Model.Lib.BlibData
 
             public SpectrumInserter(SessionQueue sessionQueue, ISessionFactory factory)
             {
-                _insertSession = InsertSession<DbEntity>.Create(sessionQueue, factory.GetAllClassMetadata().Values);
-                _insertSession.SetBatchSize<DbEntity>(8);
+                var databaseMetadata = new DatabaseMetadata(BlibSessionFactoryFactory.GetConfiguration(), factory);
+                _insertSession = InsertSession<DbEntity>.Create(sessionQueue, databaseMetadata);
+                // _insertSession.SetBatchSize<DbEntity>(8);
             }
 
             public void InsertSpectrum(DbRefSpectra dbRefSpectrum)
             {
                 _insertSession.Insert(dbRefSpectrum);
-                dbRefSpectrum.Peaks.RefSpectra ??= dbRefSpectrum;
+                Console.Out.WriteLine("Thread: {0} dbRefSpectrum.Id: {1} hashCode: {2}", Thread.CurrentThread.ManagedThreadId, dbRefSpectrum.Id, RuntimeHelpers.GetHashCode(dbRefSpectrum));
+                dbRefSpectrum.Peaks.RefSpectra = dbRefSpectrum;
+                dbRefSpectrum.Peaks.Id = dbRefSpectrum.Id;
+                Console.Out.WriteLine("Thread: {0} dbRefSpectrum.Id: {1} dbRefSpectrum.Peaks.Id: {2}", Thread.CurrentThread.ManagedThreadId, dbRefSpectrum.Id, dbRefSpectrum.Peaks.Id);
                 _insertSession.Insert(dbRefSpectrum.Peaks);
+//                Console.Out.WriteLine("Thread: {0} dbRefSpectrum.Id: {1} dbRefSpectrum.Peaks.Id: {2}", Thread.CurrentThread.ManagedThreadId, dbRefSpectrum.Id, dbRefSpectrum.Peaks.Id);
+                return;
                 if (dbRefSpectrum.PeakAnnotations != null)
                 {
                     foreach (var annotation in dbRefSpectrum.PeakAnnotations)

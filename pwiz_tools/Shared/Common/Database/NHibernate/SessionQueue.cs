@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Data;
 using NHibernate;
 using pwiz.Common.SystemUtil;
@@ -8,17 +7,17 @@ namespace pwiz.Common.Database.NHibernate
 {
     public class SessionQueue : IDisposable
     {
-        protected ActionQueue _actionQueue;
-
         private SessionQueue()
         {
-            _actionQueue = new ActionQueue();
-            _actionQueue.RunAsync(1, nameof(SessionQueue));
+            ActionQueue = new ActionQueue();
+            ActionQueue.RunAsync(1, nameof(SessionQueue));
         }
         public SessionQueue(ISession session) : this()  
         {
             Session = session;
         }
+
+        public ActionQueue ActionQueue { get; }
 
         public SessionQueue(IStatelessSession statelessSession) : this()
         {
@@ -28,14 +27,14 @@ namespace pwiz.Common.Database.NHibernate
         public ISession Session { get; }
         public IStatelessSession StatelessSession { get; }
 
-        public void Enqueue(Action action)
+        public void Enqueue(Action action, string description)
         {
-            _actionQueue.Enqueue(action);
+            ActionQueue.Enqueue(action, description);
         }
 
         public void Dispose()
         {
-            _actionQueue.Dispose();
+            ActionQueue.Dispose();
         }
 
         public void InsertEntity(object entity)
@@ -52,7 +51,7 @@ namespace pwiz.Common.Database.NHibernate
 
         public void Flush()
         {
-            _actionQueue.WaitForComplete();
+            ActionQueue.WaitForComplete();
         }
 
         public IDbConnection Connection

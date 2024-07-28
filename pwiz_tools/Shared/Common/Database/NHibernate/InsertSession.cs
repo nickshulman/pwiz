@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using NHibernate.Metadata;
 
 namespace pwiz.Common.Database.NHibernate
 {
@@ -52,17 +51,16 @@ namespace pwiz.Common.Database.NHibernate
         }
 
         public static InsertSession<TEntity> Create(SessionQueue sessionQueue,
-            IEnumerable<IClassMetadata> classMetadatas)
+            DatabaseMetadata databaseMetadata)
         {
             var entityHandlers = new Dictionary<Type, EntityHandler>();
-            foreach (var classMetadata in classMetadatas)
+            foreach (var classMetadata in databaseMetadata.SessionFactory.GetAllClassMetadata().Values)
             {
                 if (!typeof(TEntity).IsAssignableFrom(classMetadata.MappedClass))
                 {
                     continue;
                 }
-
-                entityHandlers.Add(classMetadata.MappedClass, new DefaultEntityHandler(sessionQueue, classMetadata));
+                entityHandlers.Add(classMetadata.MappedClass, new EntityHandler(sessionQueue, classMetadata.MappedClass, databaseMetadata));
             }
 
             return new InsertSession<TEntity>(sessionQueue, entityHandlers);

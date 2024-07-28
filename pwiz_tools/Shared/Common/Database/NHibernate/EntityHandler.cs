@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.Data;
 using System.Data.SQLite;
 using System.Linq;
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
@@ -24,26 +25,30 @@ namespace pwiz.Common.Database.NHibernate
         private readonly List<ImmutableList<object>> _queue = new List<ImmutableList<object>>();
         protected long _maxId;
         protected bool _foreignId;
+        protected int _insertCount;
+        protected MethodInfo _executeAction;
 
-        public EntityHandler(SessionQueue sessionQueue, Type entityType, DatabaseMetadata databaseMetadata)
+        public EntityHandler(InsertSession insertSession, Type entityType, DatabaseMetadata databaseMetadata)
         {
-            SessionQueue = sessionQueue;
+            InsertSession = insertSession;
             EntityType = entityType;
             DatabaseMetadata = databaseMetadata;
             ClassMetadata = databaseMetadata.GetClassMetadata(entityType);
             PersistentClass = databaseMetadata.GetPersistentClass(entityType);
             BatchSize = 1;
+            IdColumnName = PersistentClass.IdentifierProperty.ColumnIterator.SingleOrDefault()?.Text;
             _unrealizedPoolCount = 20;
+            InsertSession.ActionQueue.CancellationToken.Register(OnCancelled);
+            ColumnNames = ImmutableList.ValueOf(PersistentClass.PropertyIterator
+                .Select(property => property.ColumnIterator.SingleOrDefault()?.Text)
+                .Except(new[] { null, IdColumnName }).Prepend(IdColumnName));
             _foreignId = (PersistentClass.Identifier as SimpleValue)?.IdentifierGeneratorStrategy == "foreign";
             if (!_foreignId)
             {
                 _maxId = QueryMaxId() + _random.Next(0, 1000);
             }
-            SessionQueue.ActionQueue.CancellationToken.Register(OnCancelled);
-            IdColumnName = PersistentClass.IdentifierProperty.ColumnIterator.SingleOrDefault()?.Text;
-            ColumnNames = ImmutableList.ValueOf(PersistentClass.PropertyIterator
-                .Select(property => property.ColumnIterator.SingleOrDefault()?.Text)
-                .Except(new[] { null, IdColumnName }).Prepend(IdColumnName));
+            _executeAction = entityType.GetMethod("ExecuteAction", BindingFlags.Public | BindingFlags.Static, null,
+                new[] { typeof(Action) }, null);
         }
 
         public string IdColumnName { get; }
@@ -77,9 +82,16 @@ namespace pwiz.Common.Database.NHibernate
             var lines = new List<string>
             {
                 "INSERT INTO " + QuoteIdentifier(TableName) + " (" + columnNamesString + ")",
-                "SELECT " + string.Join(", ", ColumnNames.Select(name=>"? AS " + QuoteIdentifier(name)))
             };
-            lines.AddRange(Enumerable.Repeat("UNION ALL SELECT " + paramsString, batchSize - 1));
+            if (batchSize == 1)
+            {
+                lines.Add("VALUES (" + paramsString + ")");
+            }
+            else
+            {
+                lines.Add("SELECT " + string.Join(", ", ColumnNames.Select(name => "? AS " + QuoteIdentifier(name))));
+                lines.AddRange(Enumerable.Repeat("UNION ALL SELECT " + paramsString, batchSize - 1));
+            }
             return CommonTextUtil.LineSeparate(lines);
         }
 
@@ -96,6 +108,16 @@ namespace pwiz.Common.Database.NHibernate
                 _queue.Add(parameterValues);
                 ProcessQueue(false);
             }
+
+            Interlocked.Increment(ref _insertCount);
+        }
+
+        public int InsertCount
+        {
+            get
+            {
+                return _insertCount;
+            }
         }
 
         protected void SetId(object entity, long id)
@@ -107,7 +129,7 @@ namespace pwiz.Common.Database.NHibernate
         {
             while (true)
             {
-                SessionQueue.ActionQueue.CheckForExceptions();
+                InsertSession.ActionQueue.CheckForExceptions();
                 List<ImmutableList<object>> batch = null;
                 lock (_queue)
                 {
@@ -140,7 +162,7 @@ namespace pwiz.Common.Database.NHibernate
                     queue = null;
                 }
                 FillInParameters(command, batch);
-                QueueCommand(SessionQueue, command, queue, this);
+                QueueCommand(command, queue);
             }
         }
         private IDbCommand GetPooledCommand()
@@ -149,7 +171,7 @@ namespace pwiz.Common.Database.NHibernate
             {
                 while (_commandPool.Count == 0)
                 {
-                    SessionQueue.ActionQueue.CheckForExceptions();
+                    ActionQueue.CheckForExceptions();
                     if (_unrealizedPoolCount > 0)
                     {
                         _unrealizedPoolCount--;
@@ -228,22 +250,35 @@ namespace pwiz.Common.Database.NHibernate
             return DatabaseMetadata.GetColumnValues(EntityType, entity);
         }
 
-        private static void QueueCommand(SessionQueue sessionQueue, IDbCommand command, Queue<IDbCommand> pool, object sync)
+        private void QueueCommand(IDbCommand command, Queue<IDbCommand> pool)
         {
-            sessionQueue.ActionQueue.CancellationToken.ThrowIfCancellationRequested();
-            sessionQueue.Enqueue(() =>
+            ActionQueue.CancellationToken.ThrowIfCancellationRequested();
+            ActionQueue.Enqueue(MakeAction(() =>
             {
                 command.ExecuteNonQuery();
                 if (pool != null)
                 {
-                    lock (sync)
+                    lock (this)
                     {
                         pool.Enqueue(command);
-                        Monitor.PulseAll(sync);
+                        Monitor.PulseAll(this);
                     }
                 }
-            }, GetDescription(command));
-            sessionQueue.ActionQueue.CancellationToken.ThrowIfCancellationRequested();
+            }));
+            ActionQueue.CancellationToken.ThrowIfCancellationRequested();
+        }
+
+        private Action MakeAction(Action action)
+        {
+            if (_executeAction == null)
+            {
+                return action;
+            }
+
+            return () =>
+            {
+                _executeAction.Invoke(null, new[] { action });
+            };
         }
 
         private static string GetDescription(IDbCommand command)
@@ -277,14 +312,10 @@ namespace pwiz.Common.Database.NHibernate
 
         private long QueryMaxId()
         {
-            object id = SessionQueue.CreateCriteria(ClassMetadata.MappedClass)
-                .SetProjection(Projections.Max(ClassMetadata.IdentifierPropertyName)).UniqueResult();
-            if (id == null)
-            {
-                return 0;
-            }
-
-            return Convert.ToInt64(id);
+            using var cmd = InsertSession.Connection.CreateCommand();
+            cmd.CommandText = "SELECT COALESCE(MAX(" + QuoteIdentifier(IdColumnName) + "), 0) FROM " +
+                              QuoteIdentifier(TableName);
+            return Convert.ToInt64(cmd.ExecuteScalar());
         }
 
         public Type EntityType
@@ -292,11 +323,16 @@ namespace pwiz.Common.Database.NHibernate
             get;
         }
 
-        public SessionQueue SessionQueue { get; }
+        public InsertSession InsertSession { get; }
 
         public IDbConnection Connection
         {
-            get { return SessionQueue.Connection; }
+            get { return InsertSession.Connection; }
+        }
+
+        public ActionQueue ActionQueue
+        {
+            get { return InsertSession.ActionQueue; }
         }
 
         public long MaxId
@@ -335,6 +371,10 @@ namespace pwiz.Common.Database.NHibernate
         public virtual void Flush()
         {
             ProcessQueue(true);
+            if (_insertCount != 0)
+            {
+                Console.Out.WriteLine("{0}: {1}", EntityType.Name, _insertCount);
+            }
         }
 
         [Localizable(false)]

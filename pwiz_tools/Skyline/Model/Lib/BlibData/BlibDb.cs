@@ -18,11 +18,11 @@
  */
 using System;
 using System.Collections.Generic;
+using System.Data;
+using System.Data.Common;
 using System.Data.SQLite;
 using System.IO;
 using System.Linq;
-using System.Reflection;
-using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
 using System.Threading;
 using NHibernate;
@@ -250,40 +250,24 @@ namespace pwiz.Skyline.Model.Lib.BlibData
         private class SpectrumInserter : IDisposable
         {
             private InsertSession<DbEntity> _insertSession;
-            private static IEnumerable<PropertyInfo> GetProperties(Type dbType)
-            {
-                foreach (var property in dbType.GetProperties())
-                {
-                    if (property.Name == "EntityClass")
-                        continue;
-                    yield return property;
-                }
-            }
-
-            private static object GetPropertyValue(object obj, PropertyInfo property)
-            {
-                if (property.PropertyType.BaseType == typeof(DbEntity))
-                    return ((DbEntity)property.GetValue(obj)).Id;
-                return property.GetValue(obj);
-            }
-
-            public SpectrumInserter(SessionQueue sessionQueue, ISessionFactory factory)
+            public SpectrumInserter(ISessionFactory factory, IDbConnection connection)
             {
                 var databaseMetadata = new DatabaseMetadata(BlibSessionFactoryFactory.GetConfiguration(), factory);
-                _insertSession = InsertSession<DbEntity>.Create(sessionQueue, databaseMetadata);
-                // _insertSession.SetBatchSize<DbEntity>(8);
+                _insertSession = new InsertSession<DbEntity>(connection);
+                _insertSession.AddEntityHandlers(databaseMetadata);
+                _insertSession.SetBatchSize<DbRefSpectraPeaks>(8);
+                _insertSession.SetBatchSize<DbRetentionTimes>(8);
             }
 
             public void InsertSpectrum(DbRefSpectra dbRefSpectrum)
             {
                 _insertSession.Insert(dbRefSpectrum);
-                Console.Out.WriteLine("Thread: {0} dbRefSpectrum.Id: {1} hashCode: {2}", Thread.CurrentThread.ManagedThreadId, dbRefSpectrum.Id, RuntimeHelpers.GetHashCode(dbRefSpectrum));
+//                Console.Out.WriteLine("Thread: {0} dbRefSpectrum.Id: {1} hashCode: {2}", Thread.CurrentThread.ManagedThreadId, dbRefSpectrum.Id, RuntimeHelpers.GetHashCode(dbRefSpectrum));
                 dbRefSpectrum.Peaks.RefSpectra = dbRefSpectrum;
                 dbRefSpectrum.Peaks.Id = dbRefSpectrum.Id;
-                Console.Out.WriteLine("Thread: {0} dbRefSpectrum.Id: {1} dbRefSpectrum.Peaks.Id: {2}", Thread.CurrentThread.ManagedThreadId, dbRefSpectrum.Id, dbRefSpectrum.Peaks.Id);
+                //Console.Out.WriteLine("Thread: {0} dbRefSpectrum.Id: {1} dbRefSpectrum.Peaks.Id: {2}", Thread.CurrentThread.ManagedThreadId, dbRefSpectrum.Id, dbRefSpectrum.Peaks.Id);
                 _insertSession.Insert(dbRefSpectrum.Peaks);
 //                Console.Out.WriteLine("Thread: {0} dbRefSpectrum.Id: {1} dbRefSpectrum.Peaks.Id: {2}", Thread.CurrentThread.ManagedThreadId, dbRefSpectrum.Id, dbRefSpectrum.Peaks.Id);
-                return;
                 if (dbRefSpectrum.PeakAnnotations != null)
                 {
                     foreach (var annotation in dbRefSpectrum.PeakAnnotations)
@@ -338,7 +322,6 @@ namespace pwiz.Skyline.Model.Lib.BlibData
 
             var localStatus = status;
             using (ISession session = OpenWriteSession())
-            using (var sessionQueue = new SessionQueue(session))
             using (ITransaction transaction = session.BeginTransaction())
             {
 
@@ -346,7 +329,7 @@ namespace pwiz.Skyline.Model.Lib.BlibData
                 int i = 0;
                 var sourceFiles = new Dictionary<string, long>();
                 var proteinTablesBuilder = new ProteinTablesBuilder(session);
-                using var spectrumInserter = new SpectrumInserter(sessionQueue, SessionFactory);
+                using var spectrumInserter = new SpectrumInserter(SessionFactory, session.Connection);
                 ParallelEx.ForEach(listSpectra, spectrum =>
                 {
                     var dbRefSpectrum = RefSpectrumFromPeaks(session, spectrum, sourceFiles);
@@ -384,7 +367,7 @@ namespace pwiz.Skyline.Model.Lib.BlibData
                         ++i;
                     }
                 });
-
+                spectrumInserter.Flush();
                 if (progressMonitor?.IsCanceled ?? false)
                     return null;
 

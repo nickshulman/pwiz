@@ -16,6 +16,7 @@
  * limitations under the License.
  */
 
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -60,7 +61,6 @@ namespace TestPerf
                     yield return string.Join("", peptide.Take(length).Select(p => AAs[p]).Concat("K"));
                 }
             }
-
             ParallelEx.ForEach(EnumeratePeptides(), peptide =>
             {
                 //if (spectra.Count % 10000 == 0)
@@ -83,12 +83,14 @@ namespace TestPerf
                     });
             });
 
+            DateTime start = DateTime.UtcNow;
             string blibPath = PathEx.GetTempFileNameWithExtension(".blib");
             using (var blib = BlibDb.CreateBlibDb(blibPath))
             {
                 blib.CreateLibraryFromSpectra(new BiblioSpecLiteSpec("test", blibPath), spectra, "test", null);
             }
-
+            DateTime end = DateTime.UtcNow;
+            Console.Out.WriteLine("Elapsed time: {0}", end.Subtract(start));
             File.Delete(blibPath);
         }
     }

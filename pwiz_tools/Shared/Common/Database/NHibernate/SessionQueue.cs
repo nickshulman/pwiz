@@ -27,9 +27,9 @@ namespace pwiz.Common.Database.NHibernate
         public ISession Session { get; }
         public IStatelessSession StatelessSession { get; }
 
-        public void Enqueue(Action action, string description)
+        public void Enqueue(Action action)
         {
-            ActionQueue.Enqueue(action, description);
+            ActionQueue.Enqueue(action);
         }
 
         public void Dispose()

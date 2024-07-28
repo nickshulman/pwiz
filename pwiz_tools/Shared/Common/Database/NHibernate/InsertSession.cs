@@ -1,18 +1,24 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Data;
+using pwiz.Common.SystemUtil;
 
 namespace pwiz.Common.Database.NHibernate
 {
-    public class InsertSession<TEntity> : IDisposable
+    public abstract class InsertSession : IDisposable
     {
-        private IDictionary<Type, EntityHandler> _entityHandlers;
-        public InsertSession(SessionQueue sessionQueue, IDictionary<Type, EntityHandler> entityHandlers)
+        private IDictionary<Type, EntityHandler> _entityHandlers = new Dictionary<Type, EntityHandler>();
+
+        protected InsertSession(IDbConnection connection)
         {
-            SessionQueue = sessionQueue;
-            _entityHandlers = entityHandlers;
+            ActionQueue = new ActionQueue();
+            Connection = connection;
+            ActionQueue.RunAsync(1, GetType().Name);
         }
 
-        public SessionQueue SessionQueue { get; private set; }
+        public IDbConnection Connection { get; }
+
+        public ActionQueue ActionQueue { get; private set; }
 
         public void Flush()
         {
@@ -20,8 +26,45 @@ namespace pwiz.Common.Database.NHibernate
             {
                 entityHandler.Flush();
             }
-            SessionQueue.Flush();
+            ActionQueue.WaitForComplete();
         }
+        protected void SetHandler(Type entityType, EntityHandler handler)
+        {
+            _entityHandlers[entityType] = handler;
+        }
+
+        protected EntityHandler GetEntityHandler(Type entityType)
+        {
+            _entityHandlers.TryGetValue(entityType, out var handler);
+            return handler;
+        }
+        public void Dispose()
+        {
+            foreach (var entityHandler in _entityHandlers.Values)
+            {
+                entityHandler.Dispose();
+            }
+            ActionQueue.Dispose();
+        }
+        protected void SetBatchSize(Type type, int batchSize)
+        {
+            foreach (var handler in _entityHandlers.Values)
+            {
+                if (type.IsAssignableFrom(handler.EntityType))
+                {
+                    handler.SetBatchSize(batchSize);
+                }
+            }
+        }
+    }
+
+
+    public class InsertSession<TEntity> : InsertSession
+    {
+        public InsertSession(IDbConnection connection) : base(connection)
+        {
+        }
+
 
         public void Insert<T>(T entity) where T : TEntity
         {
@@ -35,42 +78,19 @@ namespace pwiz.Common.Database.NHibernate
 
         public void SetBatchSize<T>(int batchSize) where T : TEntity
         {
-            foreach (var handler in _entityHandlers.Values)
-            {
-                if (typeof(T).IsAssignableFrom(handler.EntityType))
-                {
-                    handler.SetBatchSize(batchSize);
-                }
-            }
+            SetBatchSize(typeof(T), batchSize);
         }
 
-        private EntityHandler GetEntityHandler(Type entityType)
-        {
-            _entityHandlers.TryGetValue(entityType, out var handler);
-            return handler;
-        }
 
-        public static InsertSession<TEntity> Create(SessionQueue sessionQueue,
-            DatabaseMetadata databaseMetadata)
+        public void AddEntityHandlers(DatabaseMetadata databaseMetadata)
         {
-            var entityHandlers = new Dictionary<Type, EntityHandler>();
             foreach (var classMetadata in databaseMetadata.SessionFactory.GetAllClassMetadata().Values)
             {
                 if (!typeof(TEntity).IsAssignableFrom(classMetadata.MappedClass))
                 {
                     continue;
                 }
-                entityHandlers.Add(classMetadata.MappedClass, new EntityHandler(sessionQueue, classMetadata.MappedClass, databaseMetadata));
-            }
-
-            return new InsertSession<TEntity>(sessionQueue, entityHandlers);
-        }
-
-        public void Dispose()
-        {
-            foreach (var entityHandler in _entityHandlers.Values)
-            {
-                entityHandler.Dispose();
+                SetHandler(classMetadata.MappedClass, new EntityHandler(this, classMetadata.MappedClass, databaseMetadata));
             }
         }
     }

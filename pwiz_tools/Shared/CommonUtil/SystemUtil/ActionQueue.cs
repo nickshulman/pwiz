@@ -10,8 +10,6 @@ namespace pwiz.Common.SystemUtil
         private QueueWorker<Action> _actionQueue;
         private List<Exception> _exceptions;
         private int _pendingCount;
-        private long _currentIndex;
-        private long _lastIndex;
 
         public void RunAsync(int threadCount, string name)
         {
@@ -28,26 +26,12 @@ namespace pwiz.Common.SystemUtil
             }
         }
 
-        public void Enqueue(Action action, string description)
+        public void Enqueue(Action action)
         {
             lock (this)
             {
                 CheckForExceptions();
-                long index = Interlocked.Increment(ref _currentIndex);
-                Console.Out.WriteLine("Thread: {0} Enqueue {1}: {2}", Thread.CurrentThread.ManagedThreadId, index, description);
-                _actionQueue.Add(() =>
-                {
-                    if (_lastIndex != index - 1)
-                    {
-                        throw new InvalidOperationException(string.Format("Expected {0} actual {1}", index - 1,
-                            _lastIndex));
-                    }
-
-                    _lastIndex = index;
-                    Console.Out.WriteLine("Execute {0}, {1}", index, description);
-                    action();
-                });
-                // _actionQueue.Add(action);
+                _actionQueue.Add(action);
                 _pendingCount++;
             }
         }

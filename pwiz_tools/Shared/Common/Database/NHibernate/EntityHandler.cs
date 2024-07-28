@@ -5,10 +5,8 @@ using System.Data;
 using System.Data.SQLite;
 using System.Linq;
 using System.Reflection;
-using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
-using NHibernate.Criterion;
 using NHibernate.Mapping;
 using NHibernate.Metadata;
 using pwiz.Common.Collections;
@@ -25,7 +23,6 @@ namespace pwiz.Common.Database.NHibernate
         private readonly List<ImmutableList<object>> _queue = new List<ImmutableList<object>>();
         protected long _maxId;
         protected bool _foreignId;
-        protected int _insertCount;
         protected MethodInfo _executeAction;
 
         public EntityHandler(InsertSession insertSession, Type entityType, DatabaseMetadata databaseMetadata)
@@ -37,12 +34,12 @@ namespace pwiz.Common.Database.NHibernate
             PersistentClass = databaseMetadata.GetPersistentClass(entityType);
             BatchSize = 1;
             IdColumnName = PersistentClass.IdentifierProperty.ColumnIterator.SingleOrDefault()?.Text;
-            _unrealizedPoolCount = 20;
+            _unrealizedPoolCount = 8;
             InsertSession.ActionQueue.CancellationToken.Register(OnCancelled);
             ColumnNames = ImmutableList.ValueOf(PersistentClass.PropertyIterator
                 .Select(property => property.ColumnIterator.SingleOrDefault()?.Text)
                 .Except(new[] { null, IdColumnName }).Prepend(IdColumnName));
-            _foreignId = (PersistentClass.Identifier as SimpleValue)?.IdentifierGeneratorStrategy == "foreign";
+            _foreignId = (PersistentClass.Identifier as SimpleValue)?.IdentifierGeneratorStrategy == @"foreign";
             if (!_foreignId)
             {
                 _maxId = QueryMaxId() + _random.Next(0, 1000);
@@ -107,16 +104,6 @@ namespace pwiz.Common.Database.NHibernate
             {
                 _queue.Add(parameterValues);
                 ProcessQueue(false);
-            }
-
-            Interlocked.Increment(ref _insertCount);
-        }
-
-        public int InsertCount
-        {
-            get
-            {
-                return _insertCount;
             }
         }
 
@@ -371,10 +358,6 @@ namespace pwiz.Common.Database.NHibernate
         public virtual void Flush()
         {
             ProcessQueue(true);
-            if (_insertCount != 0)
-            {
-                Console.Out.WriteLine("{0}: {1}", EntityType.Name, _insertCount);
-            }
         }
 
         [Localizable(false)]

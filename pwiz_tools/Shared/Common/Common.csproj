@@ -159,7 +159,6 @@
     <Compile Include="Database\NHibernate\EntityHandler.cs" />
     <Compile Include="Database\NHibernate\InsertSession.cs" />
     <Compile Include="Database\NHibernate\SessionFactoryFactory.cs" />
-    <Compile Include="Database\NHibernate\SessionQueue.cs" />
     <Compile Include="Database\NHibernate\SessionWithLock.cs" />
     <Compile Include="Database\NHibernate\StatelessSessionWithLock.cs" />
     <Compile Include="Database\SqliteOperations.cs" />
@@ -601,9 +600,7 @@
       <Name>CommonUtil</Name>
     </ProjectReference>
   </ItemGroup>
-  <ItemGroup>
-    <Folder Include="Database\NHibernate\Inserting\" />
-  </ItemGroup>
+  <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.

@@ -19,8 +19,8 @@
 using System;
 using System.Collections.Generic;
 using System.Data;
-using System.Data.Common;
 using System.Data.SQLite;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
@@ -255,8 +255,17 @@ namespace pwiz.Skyline.Model.Lib.BlibData
                 var databaseMetadata = new DatabaseMetadata(BlibSessionFactoryFactory.GetConfiguration(), factory);
                 _insertSession = new InsertSession<DbEntity>(connection);
                 _insertSession.AddEntityHandlers(databaseMetadata);
-                _insertSession.SetBatchSize<DbRefSpectraPeaks>(8);
-                _insertSession.SetBatchSize<DbRetentionTimes>(8);
+                //_insertSession.SetBatchSize<DbRefSpectra>(3);
+                _insertSession.SetBatchSize<DbRefSpectraPeaks>(7);
+                _insertSession.SetBatchSize<DbRetentionTimes>(13);
+                //ExecuteQuery("PRAGMA defer_foreign_keys=1");
+                // Console.Out.WriteLine("pragma: {0}", ExecuteQuery("PRAGMA foreign_keys=OFF"));
+                // Console.Out.WriteLine("SELECT 1: {0}", ExecuteQuery("SELECT 1"));
+                // Console.Out.WriteLine("SQLite version: {0}", ExecuteQuery("SELECT sqlite_version()"));
+                // Console.Out.WriteLine("PRAGMA foreign_keys: {0}", ExecuteQuery("PRAGMA foreign_keys"));
+                // Console.Out.WriteLine("PRAGMA defer_foreign_keys: {0}", ExecuteQuery("PRAGMA defer_foreign_keys"));
+                // Console.Out.WriteLine("defer foreign keys: {0}", ExecuteQuery("PRAGMA defer_foreign_keys=1"));
+                // Console.Out.WriteLine("PRAGMA defer_foreign_keys: {0}", ExecuteQuery("PRAGMA defer_foreign_keys"));
             }
 
             public void InsertSpectrum(DbRefSpectra dbRefSpectrum)
@@ -302,6 +311,41 @@ namespace pwiz.Skyline.Model.Lib.BlibData
             {
                 _insertSession.Flush();
             }
+
+            public string ExecuteQuery(string sql)
+            {
+                using var cmd = _insertSession.Connection.CreateCommand();
+                cmd.CommandText = sql;
+                using var reader = cmd.ExecuteReader();
+                var rows = new List<string>();
+                rows.Add(string.Join("\t", Enumerable.Range(0, reader.FieldCount).Select(i=>EncodeValue(reader.GetName(i)))));
+                while (reader.Read())
+                {
+                    rows.Add(string.Join("\t", Enumerable.Range(0, reader.FieldCount).Select(i=>EncodeValue(reader.GetValue(i)))));
+                }
+
+                return TextUtil.LineSeparate(rows);
+            }
+
+            private static string EncodeValue(object value)
+            {
+                if (value == null)
+                {
+                    return string.Empty;
+                }
+
+                if (value is byte[] bytes)
+                {
+                    return Convert.ToBase64String(bytes);
+                }
+
+                if (value is IFormattable formattable)
+                {
+                    return formattable.ToString(null, CultureInfo.InvariantCulture);
+                }
+
+                return "\"" + value.ToString().Replace("\"", "\"\"") + "\"";
+            }
         }
 
         public BiblioSpecLiteLibrary CreateLibraryFromSpectra(BiblioSpecLiteSpec librarySpec,
@@ -322,6 +366,8 @@ namespace pwiz.Skyline.Model.Lib.BlibData
 
             var localStatus = status;
             using (ISession session = OpenWriteSession())
+            {
+                SetUnsafeJournalMode(session.Connection);
             using (ITransaction transaction = session.BeginTransaction())
             {
 
@@ -397,6 +443,8 @@ namespace pwiz.Skyline.Model.Lib.BlibData
                 {
                     progressMonitor.UpdateProgress(status = status.Complete());
                 }
+            }
+
             }
 
             var libraryEntries = listLibrary.ToArray();
@@ -1329,6 +1377,17 @@ namespace pwiz.Skyline.Model.Lib.BlibData
             }
             usedNames.Add(name);
             return name;
+        }
+
+        private void SetUnsafeJournalMode(IDbConnection connection)
+        {
+            using var cmd = connection.CreateCommand();
+            cmd.CommandText = "PRAGMA synchronous = OFF";
+            cmd.ExecuteNonQuery();
+            cmd.CommandText = "PRAGMA journal_mode = MEMORY";
+            cmd.ExecuteNonQuery();
+            cmd.CommandText = "PRAGMA defer_foreign_keys=1";
+            cmd.ExecuteNonQuery();
         }
     }
 }

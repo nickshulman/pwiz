@@ -7,6 +7,7 @@ using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Threading;
+using CommonDatabase.NHibernate;
 using NHibernate.Mapping;
 using NHibernate.Metadata;
 using pwiz.Common.Collections;
@@ -25,13 +26,13 @@ namespace pwiz.Common.Database.NHibernate
         protected bool _foreignId;
         protected MethodInfo _executeAction;
 
-        public EntityHandler(InsertSession insertSession, Type entityType, DatabaseMetadata databaseMetadata)
+        public EntityHandler(InsertSession insertSession, Type entityType, NHibernateSessionFactory databaseMetadata)
         {
             InsertSession = insertSession;
             EntityType = entityType;
-            DatabaseMetadata = databaseMetadata;
+            SessionFactory = databaseMetadata;
             ClassMetadata = databaseMetadata.GetClassMetadata(entityType);
-            PersistentClass = databaseMetadata.GetPersistentClass(entityType);
+            PersistentClass = databaseMetadata.Configuration.GetPersistentClass(entityType);
             BatchSize = 1;
             IdColumnName = PersistentClass.IdentifierProperty.ColumnIterator.SingleOrDefault()?.Text;
             _unrealizedPoolCount = 8;
@@ -59,7 +60,7 @@ namespace pwiz.Common.Database.NHibernate
             }
         }
 
-        public DatabaseMetadata DatabaseMetadata { get; }
+        public NHibernateSessionFactory SessionFactory { get; }
         public IClassMetadata ClassMetadata { get; }
         public PersistentClass PersistentClass { get; }
 
@@ -158,7 +159,7 @@ namespace pwiz.Common.Database.NHibernate
             {
                 while (_commandPool.Count == 0)
                 {
-                    ActionQueue.CheckForExceptions();
+                    InsertSession.ActionQueue.CheckForExceptions();
                     if (_unrealizedPoolCount > 0)
                     {
                         _unrealizedPoolCount--;
@@ -234,13 +235,13 @@ namespace pwiz.Common.Database.NHibernate
 
         private Dictionary<string, object> GetColumnValues(object entity)
         {
-            return DatabaseMetadata.GetColumnValues(EntityType, entity);
+            return SessionFactory.GetColumnValues(EntityType, entity);
         }
 
         private void QueueCommand(IDbCommand command, Queue<IDbCommand> pool)
         {
-            ActionQueue.CancellationToken.ThrowIfCancellationRequested();
-            ActionQueue.Enqueue(MakeAction(() =>
+            InsertSession.ActionQueue.CancellationToken.ThrowIfCancellationRequested();
+            InsertSession.ActionQueue.Enqueue(MakeAction(() =>
             {
                 command.ExecuteNonQuery();
                 if (pool != null)
@@ -252,7 +253,7 @@ namespace pwiz.Common.Database.NHibernate
                     }
                 }
             }));
-            ActionQueue.CancellationToken.ThrowIfCancellationRequested();
+            InsertSession.ActionQueue.CancellationToken.ThrowIfCancellationRequested();
         }
 
         private Action MakeAction(Action action)
@@ -315,11 +316,6 @@ namespace pwiz.Common.Database.NHibernate
         public IDbConnection Connection
         {
             get { return InsertSession.Connection; }
-        }
-
-        public ActionQueue ActionQueue
-        {
-            get { return InsertSession.ActionQueue; }
         }
 
         public long MaxId

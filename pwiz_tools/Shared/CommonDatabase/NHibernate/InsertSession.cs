@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Data;
+using CommonDatabase.NHibernate;
 using pwiz.Common.SystemUtil;
 
 namespace pwiz.Common.Database.NHibernate
@@ -82,7 +83,7 @@ namespace pwiz.Common.Database.NHibernate
         }
 
 
-        public void AddEntityHandlers(DatabaseMetadata databaseMetadata)
+        public void AddEntityHandlers(NHibernateSessionFactory databaseMetadata)
         {
             foreach (var classMetadata in databaseMetadata.SessionFactory.GetAllClassMetadata().Values)
             {

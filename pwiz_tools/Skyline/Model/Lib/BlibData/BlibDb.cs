@@ -25,6 +25,7 @@ using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading;
+using CommonDatabase.NHibernate;
 using NHibernate;
 using pwiz.Common.Chemistry;
 using pwiz.Common.Database;
@@ -252,7 +253,7 @@ namespace pwiz.Skyline.Model.Lib.BlibData
             private InsertSession<DbEntity> _insertSession;
             public SpectrumInserter(ISessionFactory factory, IDbConnection connection)
             {
-                var databaseMetadata = new DatabaseMetadata(BlibSessionFactoryFactory.GetConfiguration(), factory);
+                var databaseMetadata = new NHibernateSessionFactory(BlibSessionFactoryFactory.GetConfiguration(), factory);
                 _insertSession = new InsertSession<DbEntity>(connection);
                 _insertSession.AddEntityHandlers(databaseMetadata);
                 //_insertSession.SetBatchSize<DbRefSpectra>(3);

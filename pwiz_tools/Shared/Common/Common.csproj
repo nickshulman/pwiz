@@ -155,9 +155,6 @@
     <Compile Include="DataAnalysis\NelderMeadSimplex.cs" />
     <Compile Include="DataAnalysis\LoessInterpolator.cs" />
     <Compile Include="Database\NHibernate\AbstractSessionWithLock.cs" />
-    <Compile Include="Database\NHibernate\DatabaseMetadata.cs" />
-    <Compile Include="Database\NHibernate\EntityHandler.cs" />
-    <Compile Include="Database\NHibernate\InsertSession.cs" />
     <Compile Include="Database\NHibernate\SessionFactoryFactory.cs" />
     <Compile Include="Database\NHibernate\SessionWithLock.cs" />
     <Compile Include="Database\NHibernate\StatelessSessionWithLock.cs" />
@@ -587,6 +584,10 @@
     <Content Include="Resources\MatchCase.bmp" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\CommonDatabase\CommonDatabase.csproj">
+      <Project>{27a827e1-a132-42b7-81e3-4bfc3e9c6774}</Project>
+      <Name>CommonDatabase</Name>
+    </ProjectReference>
     <ProjectReference Include="..\MSGraph\MSGraph.csproj">
       <Project>{26CFD1FF-F4F7-4F66-B5B4-E686BDB9B34E}</Project>
       <Name>MSGraph</Name>

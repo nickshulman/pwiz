@@ -3,21 +3,37 @@ using System.Collections.Generic;
 using System.Linq;
 using NHibernate;
 using NHibernate.Cfg;
-using NHibernate.Mapping;
 using NHibernate.Metadata;
 
-namespace pwiz.Common.Database.NHibernate
+namespace CommonDatabase.NHibernate
 {
-    public class DatabaseMetadata
+    public class NHibernateSessionFactory : IDisposable
     {
-        private Configuration _configuration;
-        public DatabaseMetadata(Configuration configuration, ISessionFactory sessionFactory)
+        public NHibernateSessionFactory(NHibernateConfiguration configuration, ISessionFactory sessionFactory)
         {
+            Configuration = configuration;
             SessionFactory = sessionFactory;
-            _configuration = configuration;
         }
 
+        public NHibernateSessionFactory(Configuration configuration, ISessionFactory sessionFactory)
+        {
+            Configuration = new NHibernateConfiguration(configuration);
+            SessionFactory = sessionFactory;
+            LeaveOpen = true;
+        }
+
+        public NHibernateConfiguration Configuration { get; }
         public ISessionFactory SessionFactory { get; }
+
+        public bool LeaveOpen { get; }
+
+        public void Dispose()
+        {
+            if (!LeaveOpen)
+            {
+                SessionFactory.Dispose();
+            }
+        }
 
         public IClassMetadata GetClassMetadata(string entityName)
         {
@@ -29,20 +45,10 @@ namespace pwiz.Common.Database.NHibernate
             return SessionFactory.GetClassMetadata(persistentClass);
         }
 
-        public PersistentClass GetPersistentClass(Type persistentClass)
-        {
-            return _configuration.GetClassMapping(persistentClass);
-        }
-
-        public IEnumerable<string> GetColumnNames(Type persistentClass)
-        {
-            return GetPersistentClass(persistentClass).Table.ColumnIterator.Select(column => column.Text);
-        }
-
         public Dictionary<string, object> GetColumnValues(Type entityType, object entity)
         {
             var classMetadata = GetClassMetadata(entityType);
-            var persistentClass = GetPersistentClass(entityType);
+            var persistentClass = Configuration.GetPersistentClass(entityType);
             var columnValues = new Dictionary<string, object>();
 
             foreach (var propertyName in classMetadata.PropertyNames)

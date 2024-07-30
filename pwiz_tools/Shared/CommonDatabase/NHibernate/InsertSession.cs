@@ -1,23 +1,21 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Data;
-using CommonDatabase.NHibernate;
 using pwiz.Common.SystemUtil;
 
-namespace pwiz.Common.Database.NHibernate
+namespace CommonDatabase.NHibernate
 {
     public abstract class InsertSession : IDisposable
     {
-        private IDictionary<Type, EntityHandler> _entityHandlers = new Dictionary<Type, EntityHandler>();
+        private IDictionary<Type, EntityInsertHandler> _entityHandlers = new Dictionary<Type, EntityInsertHandler>();
 
-        protected InsertSession(IDbConnection connection)
+        protected InsertSession(NHibernateSession session)
         {
+            Session = session;
             ActionQueue = new ActionQueue();
-            Connection = connection;
             ActionQueue.RunAsync(1, GetType().Name);
         }
 
-        public IDbConnection Connection { get; }
+        public NHibernateSession Session { get; }
 
         public ActionQueue ActionQueue { get; private set; }
 
@@ -29,12 +27,12 @@ namespace pwiz.Common.Database.NHibernate
             }
             ActionQueue.WaitForComplete();
         }
-        protected void SetHandler(Type entityType, EntityHandler handler)
+        protected void SetHandler(Type entityType, EntityInsertHandler insertHandler)
         {
-            _entityHandlers[entityType] = handler;
+            _entityHandlers[entityType] = insertHandler;
         }
 
-        protected EntityHandler GetEntityHandler(Type entityType)
+        protected EntityInsertHandler GetEntityHandler(Type entityType)
         {
             _entityHandlers.TryGetValue(entityType, out var handler);
             return handler;
@@ -62,7 +60,7 @@ namespace pwiz.Common.Database.NHibernate
 
     public class InsertSession<TEntity> : InsertSession
     {
-        public InsertSession(IDbConnection connection) : base(connection)
+        public InsertSession(NHibernateSession session) : base(session)
         {
         }
 
@@ -91,7 +89,7 @@ namespace pwiz.Common.Database.NHibernate
                 {
                     continue;
                 }
-                SetHandler(classMetadata.MappedClass, new EntityHandler(this, classMetadata.MappedClass, databaseMetadata));
+                SetHandler(classMetadata.MappedClass, new EntityInsertHandler(this, classMetadata.MappedClass, databaseMetadata));
             }
         }
     }

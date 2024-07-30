@@ -2,12 +2,14 @@
 using System.Collections.Generic;
 using System.Data;
 using System.Data.SQLite;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using CommonDatabase.SQLite;
 using pwiz.Common.SystemUtil;
 
 namespace CommonDatabase
 {
+    [SuppressMessage("ReSharper", "LocalizableElement")]
     public class DbConnection
     {
         public static DbConnection Of(IDbConnection connection)

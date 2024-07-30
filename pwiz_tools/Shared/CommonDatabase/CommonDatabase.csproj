@@ -48,7 +48,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="DbConnection.cs" />
-    <Compile Include="NHibernate\EntityHandler.cs" />
+    <Compile Include="NHibernate\EntityInsertHandler.cs" />
     <Compile Include="NHibernate\InsertSession.cs" />
     <Compile Include="NHibernate\NHibernateConfiguration.cs" />
     <Compile Include="NHibernate\NHibernateSession.cs" />

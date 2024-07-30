@@ -251,10 +251,10 @@ namespace pwiz.Skyline.Model.Lib.BlibData
         private class SpectrumInserter : IDisposable
         {
             private InsertSession<DbEntity> _insertSession;
-            public SpectrumInserter(ISessionFactory factory, IDbConnection connection)
+            public SpectrumInserter(ISessionFactory factory, ISession session)
             {
                 var databaseMetadata = new NHibernateSessionFactory(BlibSessionFactoryFactory.GetConfiguration(), factory);
-                _insertSession = new InsertSession<DbEntity>(connection);
+                _insertSession = new InsertSession<DbEntity>(NHibernateSession.OfSession(databaseMetadata, session));
                 _insertSession.AddEntityHandlers(databaseMetadata);
                 //_insertSession.SetBatchSize<DbRefSpectra>(3);
                 _insertSession.SetBatchSize<DbRefSpectraPeaks>(7);
@@ -315,7 +315,7 @@ namespace pwiz.Skyline.Model.Lib.BlibData
 
             public string ExecuteQuery(string sql)
             {
-                using var cmd = _insertSession.Connection.CreateCommand();
+                using var cmd = _insertSession.Session.Connection.CreateCommand();
                 cmd.CommandText = sql;
                 using var reader = cmd.ExecuteReader();
                 var rows = new List<string>();
@@ -376,7 +376,7 @@ namespace pwiz.Skyline.Model.Lib.BlibData
                 int i = 0;
                 var sourceFiles = new Dictionary<string, long>();
                 var proteinTablesBuilder = new ProteinTablesBuilder(session);
-                using var spectrumInserter = new SpectrumInserter(SessionFactory, session.Connection);
+                using var spectrumInserter = new SpectrumInserter(SessionFactory, session);
                 ParallelEx.ForEach(listSpectra, spectrum =>
                 {
                     var dbRefSpectrum = RefSpectrumFromPeaks(session, spectrum, sourceFiles);

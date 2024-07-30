@@ -70,6 +70,5 @@ namespace CommonDatabase.NHibernate
             }
             return columnValues;
         }
-
     }
 }

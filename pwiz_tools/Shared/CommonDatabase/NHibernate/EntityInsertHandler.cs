@@ -3,19 +3,20 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
 using System.Data.SQLite;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Threading;
-using CommonDatabase.NHibernate;
+using NHibernate.Criterion;
 using NHibernate.Mapping;
 using NHibernate.Metadata;
 using pwiz.Common.Collections;
 using pwiz.Common.SystemUtil;
 
-namespace pwiz.Common.Database.NHibernate
+namespace CommonDatabase.NHibernate
 {
-    public class EntityHandler
+    public class EntityInsertHandler
     {
         private static readonly Random _random = new Random((int) DateTime.UtcNow.Ticks);
         private readonly DisposableCollection<IDbCommand> _disposables = new DisposableCollection<IDbCommand>();
@@ -26,13 +27,14 @@ namespace pwiz.Common.Database.NHibernate
         protected bool _foreignId;
         protected MethodInfo _executeAction;
 
-        public EntityHandler(InsertSession insertSession, Type entityType, NHibernateSessionFactory databaseMetadata)
+        public EntityInsertHandler(InsertSession insertSession, Type entityType, NHibernateSessionFactory databaseMetadata)
         {
             InsertSession = insertSession;
             EntityType = entityType;
             SessionFactory = databaseMetadata;
             ClassMetadata = databaseMetadata.GetClassMetadata(entityType);
             PersistentClass = databaseMetadata.Configuration.GetPersistentClass(entityType);
+            DbConnection = DbConnection.Of(Connection);
             BatchSize = 1;
             IdColumnName = PersistentClass.IdentifierProperty.ColumnIterator.SingleOrDefault()?.Text;
             _unrealizedPoolCount = 8;
@@ -51,6 +53,7 @@ namespace pwiz.Common.Database.NHibernate
 
         public string IdColumnName { get; }
         public ImmutableList<string> ColumnNames { get; }
+        public DbConnection DbConnection { get; }
 
         private void OnCancelled()
         {
@@ -174,15 +177,7 @@ namespace pwiz.Common.Database.NHibernate
 
         private IDbCommand CreateCommand(int batchSize)
         {
-            var insertCommand = Connection.CreateCommand();
-            insertCommand.CommandText = GetInsertSql(batchSize);
-            for (int batchIndex = 0; batchIndex < batchSize; batchIndex++)
-            {
-                foreach (var _ in PersistentClass.Table.ColumnIterator)
-                {
-                    insertCommand.Parameters.Add(new SQLiteParameter());
-                }
-            }
+            var insertCommand = DbConnection.CreateBatchInsertCommand(TableName, ColumnNames, batchSize);
             lock (_disposables)
             {
                 _disposables.Add(insertCommand);
@@ -204,7 +199,7 @@ namespace pwiz.Common.Database.NHibernate
                 var columnValues = entities[i];
                 if (columnValues.Count != ColumnNames.Count)
                 {
-                    throw new InvalidOperationException(string.Format("Expected {0} parameters, actual {1}",
+                    throw new InvalidOperationException(string.Format(@"Expected {0} parameters, actual {1}",
                         ColumnNames.Count, columnValues.Count));
 
                 }
@@ -269,6 +264,7 @@ namespace pwiz.Common.Database.NHibernate
             };
         }
 
+        [SuppressMessage("ReSharper", "LocalizableElement")]
         private static string GetDescription(IDbCommand command)
         {
             var stringBuilder = new StringBuilder();
@@ -300,10 +296,12 @@ namespace pwiz.Common.Database.NHibernate
 
         private long QueryMaxId()
         {
-            using var cmd = InsertSession.Connection.CreateCommand();
-            cmd.CommandText = "SELECT COALESCE(MAX(" + QuoteIdentifier(IdColumnName) + "), 0) FROM " +
-                              QuoteIdentifier(TableName);
-            return Convert.ToInt64(cmd.ExecuteScalar());
+            var maxId = InsertSession.Session.CreateCriteria(EntityType).SetProjection(Projections.Max(IdColumnName)).UniqueResult();
+            if (maxId == null)
+            {
+                return 0;
+            }
+            return Convert.ToInt64(maxId);
         }
 
         public Type EntityType
@@ -315,7 +313,7 @@ namespace pwiz.Common.Database.NHibernate
 
         public IDbConnection Connection
         {
-            get { return InsertSession.Connection; }
+            get { return InsertSession.Session.Connection; }
         }
 
         public long MaxId
@@ -328,6 +326,7 @@ namespace pwiz.Common.Database.NHibernate
         {
             lock (_commandPool)
             {
+                batchSize = Math.Min(batchSize, DbConnection.GetMaxBatchInsertSize(ColumnNames.Count));
                 if (BatchSize == batchSize)
                 {
                     return;

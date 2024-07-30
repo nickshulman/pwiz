@@ -6,12 +6,22 @@ namespace CommonDatabase.NHibernate
 {
     public abstract class NHibernateSession : IDisposable
     {
+        public static Stateful OfSession(NHibernateSessionFactory sessionFactory, ISession session)
+        {
+            return new Stateful(sessionFactory, session)
+            {
+                LeaveOpen = true,
+            };
+        }
+
         protected NHibernateSession(NHibernateSessionFactory sessionFactory)
         {
             SessionFactory = sessionFactory;
         }
 
         public NHibernateSessionFactory SessionFactory { get; }
+
+        public bool LeaveOpen { get; protected set; }
         public abstract IDbConnection Connection { get; }
         public abstract ICriteria CreateCriteria(Type persistentClass);
 
@@ -40,7 +50,10 @@ namespace CommonDatabase.NHibernate
 
             public override void Dispose()
             {
-                Session.Dispose();
+                if (!LeaveOpen)
+                {
+                    Session.Dispose();
+                }
                 base.Dispose();
             }
         }

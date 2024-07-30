@@ -1,12 +1,12 @@
 ﻿using pwiz.Common.SystemUtil;
-using System;
 using System.Collections.Generic;
 using System.Data.SQLite;
-using static NHibernate.Cfg.Mappings;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 
 namespace CommonDatabase.SQLite
 {
+    [SuppressMessage("ReSharper", "LocalizableElement")]
     public class SQLiteDbConnection : DbConnection
     {
         public SQLiteDbConnection(SQLiteConnection connection) : base(connection)

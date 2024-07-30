@@ -24,14 +24,14 @@ namespace SkydbApi.DataApi
         public EntityBatcher(SkydbConnection connection)
         {
             Connection = connection;
-            Inserter = new ReflectedEntityInserter<TEntity>();
-            _batchSize = Math.Max(1, 256 / (Inserter.GetColumnNames().Count + 1));
+            InsertSql = new ReflectedEntityInsertSql<TEntity>();
+            _batchSize = Math.Max(1, 256 / (InsertSql.GetColumnNames().Count + 1));
             using var cmd = connection.Connection.CreateCommand();
-            cmd.CommandText = "SELECT COALESCE(MAX(Id), 0) FROM " + Inserter.TableName;
+            cmd.CommandText = "SELECT COALESCE(MAX(Id), 0) FROM " + InsertSql.TableName;
             _maxId = Convert.ToInt64(cmd.ExecuteScalar());
         }
 
-        public EntityInserter<TEntity> Inserter { get; }
+        public EntityInsertSql<TEntity> InsertSql { get; }
 
         public SkydbConnection Connection { get; }
         public void Insert(TEntity entity)
@@ -70,11 +70,11 @@ namespace SkydbApi.DataApi
         private IDbCommand CreateCommand(int batchSize)
         {
             var insertCommand = Connection.Connection.CreateCommand();
-            insertCommand.CommandText = Inserter.GetInsertSql(batchSize, true);
+            insertCommand.CommandText = InsertSql.GetInsertSql(batchSize, true);
             for (int batchIndex = 0; batchIndex < batchSize; batchIndex++)
             {
                 insertCommand.Parameters.Add(new SQLiteParameter());
-                foreach (var _ in Inserter.GetColumnNames())
+                foreach (var _ in InsertSql.GetColumnNames())
                 {
                     insertCommand.Parameters.Add(new SQLiteParameter());
                 }
@@ -90,7 +90,7 @@ namespace SkydbApi.DataApi
             {
                 var entity = entities[i];
                 ((SQLiteParameter)command.Parameters[paramIndex++]).Value = entity.Id;
-                foreach (var value in Inserter.GetColumnValues(entity))
+                foreach (var value in InsertSql.GetColumnValues(entity))
                 {
                     ((SQLiteParameter)command.Parameters[paramIndex++]).Value = value;
                 }
@@ -145,7 +145,6 @@ namespace SkydbApi.DataApi
                 var command = _commandPool.Dequeue();
                 command.Dispose();
             }
-
         }
     }
 }

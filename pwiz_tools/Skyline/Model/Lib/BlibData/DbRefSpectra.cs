@@ -18,6 +18,7 @@
  */
 using System;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 
 namespace pwiz.Skyline.Model.Lib.BlibData
 {
@@ -55,5 +56,10 @@ namespace pwiz.Skyline.Model.Lib.BlibData
         public virtual string ChemicalFormula { get; set; }
         public virtual string InChiKey { get; set; }
         public virtual string OtherKeys { get; set; }
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public static void ExecuteAction(Action action)
+        {
+            action();
+        }
     }
 }

@@ -17,6 +17,7 @@
  * limitations under the License.
  */
 using System;
+using System.Runtime.CompilerServices;
 
 namespace pwiz.Skyline.Model.Lib.BlibData
 {
@@ -29,5 +30,11 @@ namespace pwiz.Skyline.Model.Lib.BlibData
         public virtual DbRefSpectra RefSpectra { get; set; }
         public virtual byte[] PeakMZ { get; set; }
         public virtual byte[] PeakIntensity { get; set; }
+
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public static void ExecuteAction(Action action)
+        {
+            action();
+        }
     }
 }

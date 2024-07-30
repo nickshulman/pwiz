@@ -18,6 +18,7 @@
  */
 using System;
 using NHibernate;
+using NHibernate.Cfg;
 using pwiz.Common.Database.NHibernate;
 
 namespace pwiz.Skyline.Model.Lib.BlibData
@@ -32,6 +33,11 @@ namespace pwiz.Skyline.Model.Lib.BlibData
         public static ISessionFactory CreateSessionFactory_Redundant(String path, bool createSchema)
         {
             return SessionFactoryFactory.CreateSessionFactory(path, typeof(BlibDb), @"mapping_redundant.xml", createSchema);
+        }
+
+        public static Configuration GetConfiguration()
+        {
+            return SessionFactoryFactory.GetConfiguration(string.Empty, typeof(BlibDb), false);
         }
     }
 }

@@ -10,7 +10,7 @@ using SkydbApi.Orm;
 
 namespace SkydbApi.DataApi
 {
-    public abstract class EntityInserter<TEntity> where TEntity : Entity
+    public abstract class EntityInsertSql<TEntity> where TEntity : Entity
     {
         private ImmutableList<string> _columnNames;
 
@@ -51,10 +51,13 @@ namespace SkydbApi.DataApi
     }
 
     [SuppressMessage("ReSharper", "StaticMemberInGenericType")]
-    public class ReflectedEntityInserter<TEntity> : EntityInserter<TEntity> where TEntity : Entity
+    public class ReflectedEntityInsertSql<TEntity> : EntityInsertSql<TEntity> where TEntity : Entity
     {
-        private static readonly ImmutableList<PropertyInfo> _columnProperties = ImmutableList.ValueOf(ListColumnProperties());
-        private static readonly ImmutableList<string> _columnNames = ImmutableList.ValueOf(_columnProperties.Select(GetColumnName));
+        private static readonly ImmutableList<PropertyInfo> _columnProperties =
+            ImmutableList.ValueOf(ListColumnProperties());
+
+        private static readonly ImmutableList<string> _columnNames =
+            ImmutableList.ValueOf(_columnProperties.Select(GetColumnName));
 
         public override IEnumerable<object> GetColumnValues(TEntity entity)
         {

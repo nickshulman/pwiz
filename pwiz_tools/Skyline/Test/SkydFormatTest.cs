@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
+using Google.Protobuf;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using pwiz.Common.Collections;
 using pwiz.Common.SystemUtil;
@@ -253,7 +254,7 @@ namespace pwiz.SkylineTest
                 {
                     var timeIntensities = timeIntensitiesGroup.TransitionTimeIntensities[iTransition];
                     var spectrumIndexList = GetSpectrumIndexes(scanIds, scanInfos, timeIntensities).ToArray();
-                    var spectrumIndexBytes = PrimitiveArrays.ToBytes(spectrumIndexList);
+                    var spectrumIndexBytes = Encode(spectrumIndexList.Select(v=>(long)v));
                     var retentionTimeHash = GetHashCode(spectrumIndexBytes);
                     var chromatogramData = new ChromatogramData
                     {
@@ -326,6 +327,18 @@ namespace pwiz.SkylineTest
         {
             //return bytes;
             return UtilDB.Compress(bytes);
+        }
+
+        private byte[] Encode(IEnumerable<long> longs)
+        {
+            var memoryStream = new MemoryStream();
+            var codedStream = new CodedOutputStream(memoryStream);
+            foreach (var value in longs)
+            {
+                codedStream.WriteInt64(value);
+            }
+            codedStream.Flush();
+            return memoryStream.ToArray();
         }
     }
 }

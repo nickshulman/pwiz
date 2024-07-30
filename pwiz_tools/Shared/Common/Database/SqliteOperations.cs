@@ -24,6 +24,7 @@ using System.Data.SQLite;
 using System.Globalization;
 using System.Linq;
 using System.Security.Cryptography;
+using CommonDatabase;
 using pwiz.Common.SystemUtil;
 
 namespace pwiz.Common.Database
@@ -32,15 +33,7 @@ namespace pwiz.Common.Database
     {
         public static bool TableExists(IDbConnection connection, string tableName)
         {
-            using (var cmd = connection.CreateCommand())
-            {
-                cmd.CommandText = @"SELECT 1 FROM sqlite_master WHERE type='table' AND name=?";
-                cmd.Parameters.Add(new SQLiteParameter { Value = tableName });
-                using (var reader = cmd.ExecuteReader())
-                {
-                    return reader.Read();
-                }
-            }
+            return DbConnection.Of(connection).TableExists(tableName);
         }
 
         public static bool ColumnExists(IDbConnection connection, string tableName, string columnName)

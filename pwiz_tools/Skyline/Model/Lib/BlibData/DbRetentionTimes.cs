@@ -17,6 +17,7 @@
  * limitations under the License.
  */
 using System;
+using System.Runtime.CompilerServices;
 
 namespace pwiz.Skyline.Model.Lib.BlibData
 {
@@ -35,5 +36,10 @@ namespace pwiz.Skyline.Model.Lib.BlibData
         public virtual double? IonMobility { get; set; }
         public virtual double? IonMobilityHighEnergyOffset { get; set; }
         public virtual int IonMobilityType { get; set; }
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        public static void ExecuteAction(Action action)
+        {
+            action();
+        }
     }
 }

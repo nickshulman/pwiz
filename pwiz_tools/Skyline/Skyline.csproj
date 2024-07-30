@@ -540,6 +540,7 @@
     </Compile>
     <Compile Include="Model\FullScanProperties.cs" />
     <Compile Include="Model\IdPeptideDocNode.cs" />
+    <Compile Include="Model\Lib\BlibData\BlibDbInfo.cs" />
     <Compile Include="Model\Lib\LibraryFiles.cs" />
     <Compile Include="Model\Results\Scoring\ReintegrateDlgSettings.cs" />
     <Compile Include="Model\Results\Spectra\Alignment\BinnedSpectrum.cs" />
@@ -6794,6 +6795,10 @@
     <ProjectReference Include="..\Shared\BiblioSpec\BiblioSpec.csproj">
       <Project>{32CC9B1A-9442-4B56-AF34-FB47595278A1}</Project>
       <Name>BiblioSpec</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\Shared\CommonDatabase\CommonDatabase.csproj">
+      <Project>{27A827E1-A132-42B7-81E3-4BFC3E9C6774}</Project>
+      <Name>CommonDatabase</Name>
     </ProjectReference>
     <ProjectReference Include="..\Shared\Common\Common.csproj">
       <Project>{A5527BE9-4A62-458F-AE47-F0F9204A5CF9}</Project>

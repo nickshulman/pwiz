@@ -33,6 +33,11 @@
             this.btnCancel = new System.Windows.Forms.Button();
             this.labelMessage = new System.Windows.Forms.Label();
             this.clboxPackages = new System.Windows.Forms.CheckedListBox();
+            this.tabs = new pwiz.Skyline.Controls.WizardPages();
+            this.tabStandard = new System.Windows.Forms.TabPage();
+            this.tabVirtualEnvironment = new System.Windows.Forms.TabPage();
+            this.tabs.SuspendLayout();
+            this.tabStandard.SuspendLayout();
             this.SuspendLayout();
             // 
             // btnInstall
@@ -57,10 +62,32 @@
             // 
             // clboxPackages
             // 
-            resources.ApplyResources(this.clboxPackages, "clboxPackages");
             this.clboxPackages.CheckOnClick = true;
+            resources.ApplyResources(this.clboxPackages, "clboxPackages");
             this.clboxPackages.FormattingEnabled = true;
             this.clboxPackages.Name = "clboxPackages";
+            // 
+            // tabs
+            // 
+            resources.ApplyResources(this.tabs, "tabs");
+            this.tabs.Controls.Add(this.tabStandard);
+            this.tabs.Controls.Add(this.tabVirtualEnvironment);
+            this.tabs.Name = "tabs";
+            this.tabs.SelectedIndex = 0;
+            // 
+            // tabStandard
+            // 
+            this.tabStandard.BackColor = System.Drawing.SystemColors.Control;
+            this.tabStandard.Controls.Add(this.clboxPackages);
+            this.tabStandard.Controls.Add(this.labelMessage);
+            resources.ApplyResources(this.tabStandard, "tabStandard");
+            this.tabStandard.Name = "tabStandard";
+            // 
+            // tabVirtualEnvironment
+            // 
+            this.tabVirtualEnvironment.BackColor = System.Drawing.SystemColors.Control;
+            resources.ApplyResources(this.tabVirtualEnvironment, "tabVirtualEnvironment");
+            this.tabVirtualEnvironment.Name = "tabVirtualEnvironment";
             // 
             // PythonInstaller
             // 
@@ -68,8 +95,7 @@
             resources.ApplyResources(this, "$this");
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.CancelButton = this.btnCancel;
-            this.Controls.Add(this.clboxPackages);
-            this.Controls.Add(this.labelMessage);
+            this.Controls.Add(this.tabs);
             this.Controls.Add(this.btnCancel);
             this.Controls.Add(this.btnInstall);
             this.MaximizeBox = false;
@@ -78,6 +104,8 @@
             this.ShowIcon = false;
             this.ShowInTaskbar = false;
             this.Load += new System.EventHandler(this.PythonInstaller_Load);
+            this.tabs.ResumeLayout(false);
+            this.tabStandard.ResumeLayout(false);
             this.ResumeLayout(false);
 
         }
@@ -88,5 +116,8 @@
         private System.Windows.Forms.Button btnCancel;
         private System.Windows.Forms.Label labelMessage;
         private System.Windows.Forms.CheckedListBox clboxPackages;
+        private Controls.WizardPages tabs;
+        private System.Windows.Forms.TabPage tabStandard;
+        private System.Windows.Forms.TabPage tabVirtualEnvironment;
     }
 }

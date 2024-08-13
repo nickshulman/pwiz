@@ -165,9 +165,12 @@ namespace pwiz.Common.SystemUtil
                     {
                         if (progress.IsCanceled)
                         {
-                            proc.Kill();
+                            if (!proc.HasExited)
+                            {
+                                proc.Kill();
+                            }
                             progress.UpdateProgress(status = status.Cancel());
-                            CleanupTmpDir(); // Clean out any tempfiles left behind, if forceTempfilesCleanup was set
+                            CleanupTmpDir(psi); // Clean out any tempfiles left behind, if forceTempfilesCleanup was set
                             return;
                         }
 
@@ -249,7 +252,7 @@ namespace pwiz.Common.SystemUtil
                 if (!proc.HasExited)
                     try { proc.Kill(); } catch (InvalidOperationException) { }
 
-                CleanupTmpDir(); // Clean out any tempfiles left behind, if forceTempfilesCleanup was set
+                CleanupTmpDir(psi); // Clean out any tempfiles left behind, if forceTempfilesCleanup was set
             }
         }
 
@@ -264,7 +267,7 @@ namespace pwiz.Common.SystemUtil
         }
 
         // Clean out any tempfiles left behind, if forceTempfilesCleanup was set
-        private void CleanupTmpDir()
+        private void CleanupTmpDir(ProcessStartInfo psi)
         {
             if (!string.IsNullOrEmpty(_tmpDirForCleanup))
             {
@@ -273,7 +276,9 @@ namespace pwiz.Common.SystemUtil
                 {
                     try
                     {
-                        Directory.Delete(_tmpDirForCleanup, true);
+                        if (Directory.Exists(_tmpDirForCleanup))
+                            Directory.Delete(_tmpDirForCleanup, true);
+                        psi.Environment[@"TMP"] = Path.GetDirectoryName(_tmpDirForCleanup); // restore previous TMP value in case ProcessStartInfo is re-used
                         return;
                     }
                     catch (Exception e)
@@ -298,8 +303,7 @@ namespace pwiz.Common.SystemUtil
             {
                 try
                 {
-                    tmpDirForCleanup = Path.GetTempFileName(); // Creates a file
-                    File.Delete(tmpDirForCleanup); // But we want a directory
+                    tmpDirForCleanup = psi.Environment.TryGetValue(@"TMP", out var value) ? value : Path.GetTempPath();
                     var exeName = string.Empty;
                     if (!string.IsNullOrEmpty(psi.FileName))
                     {
@@ -307,7 +311,7 @@ namespace pwiz.Common.SystemUtil
                         exeName = Path.GetFileNameWithoutExtension(psi.FileName);
                         if (!string.IsNullOrEmpty(exeName))
                         {
-                            tmpDirForCleanup = Path.ChangeExtension(tmpDirForCleanup, exeName);
+                            tmpDirForCleanup = Path.Combine(tmpDirForCleanup, exeName + "_" + Path.GetRandomFileName());
                         }
                     }
 

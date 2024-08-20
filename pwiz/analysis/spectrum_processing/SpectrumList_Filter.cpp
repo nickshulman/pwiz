@@ -215,7 +215,7 @@ PWIZ_API_DECL SpectrumList_FilterPredicate_ScanNumberSet::SpectrumList_FilterPre
 PWIZ_API_DECL tribool SpectrumList_FilterPredicate_ScanNumberSet::accept(const SpectrumIdentity& spectrumIdentity) const
 {
     int scanNumber = 0;
-    if (bal::starts_with(spectrumIdentity.id, "scan="))
+    if (bal::contains(spectrumIdentity.id, "scan="))
         scanNumber = id::valueAs<int>(spectrumIdentity.id, "scan");
     else if (bal::starts_with(spectrumIdentity.id, "index=")) 
         scanNumber = id::valueAs<int>(spectrumIdentity.id, "index");
@@ -426,14 +426,115 @@ PWIZ_API_DECL double SpectrumList_FilterPredicate_PrecursorMzSet::getPrecursorMz
                     if (param.cvid != CVID_Unknown)
                         return lexical_cast<double>(param.value);
                 }
+                break;
             }
             case TargetMode_Isolated:
             {
                 CVParam param = spectrum.precursors[i].isolationWindow.cvParam(MS_isolation_window_target_m_z);
                 if (param.cvid != CVID_Unknown)
                     return lexical_cast<double>(param.value);
+                break;
             }
         }
+    }
+    return 0;
+}
+
+
+
+//
+// SpectrumList_FilterPredicate_IsolationWindowSet 
+//
+
+
+PWIZ_API_DECL SpectrumList_FilterPredicate_IsolationWindowSet::SpectrumList_FilterPredicate_IsolationWindowSet(const std::set<std::pair<double, double>>& isolationWindowSet, chemistry::MZTolerance tolerance, FilterMode mode)
+    : isolationWindowSet_(isolationWindowSet), tolerance_(tolerance), mode_(mode)
+{}
+
+
+PWIZ_API_DECL boost::logic::tribool SpectrumList_FilterPredicate_IsolationWindowSet::accept(const msdata::Spectrum& spectrum) const
+{
+    const auto isolationWindow = getIsolationWindow(spectrum);
+    if (isolationWindow.first + isolationWindow.second == 0)
+    {
+        const CVParam param = spectrum.cvParam(MS_ms_level);
+        if (param.cvid == CVID_Unknown) return boost::logic::indeterminate;
+        int msLevel = param.valueAs<int>();
+        // If not level 1, then it should have a precursor, so request more metadata.
+        if (msLevel != 1) return boost::logic::indeterminate;
+    }
+    auto lowerWindow = isolationWindow;
+    lowerWindow.first -= tolerance_;
+    lowerWindow.second -= tolerance_;
+    auto upperWindow = isolationWindow;
+    upperWindow.first += tolerance_;
+    upperWindow.second += tolerance_;
+    auto lb = isolationWindowSet_.lower_bound(lowerWindow);
+    auto ub = isolationWindowSet_.lower_bound(upperWindow);
+    bool found = (lb != ub) || (lb != isolationWindowSet_.end() && *lb == isolationWindow) || (ub != isolationWindowSet_.end() && *ub == isolationWindow);
+    if (mode_ == FilterMode_Include)
+	  return found;
+    else
+	  return !found;
+}
+
+PWIZ_API_DECL pair<double, double> SpectrumList_FilterPredicate_IsolationWindowSet::getIsolationWindow(const msdata::Spectrum& spectrum)
+{
+    for (const auto& precursor : spectrum.precursors)
+    {
+        const CVParam upperOffset = precursor.isolationWindow.cvParam(MS_isolation_window_upper_offset);
+        const CVParam lowerOffset = precursor.isolationWindow.cvParam(MS_isolation_window_lower_offset);
+        const CVParam isolationMz = precursor.isolationWindow.cvParam(MS_isolation_window_target_m_z);
+        if (upperOffset.empty() || lowerOffset.empty() || isolationMz.empty())
+            continue;
+        double mz = isolationMz.valueAs<double>();
+        return make_pair(mz - fabs(lowerOffset.valueAs<double>()), mz + upperOffset.valueAs<double>());
+    }
+    return make_pair(0, 0);
+}
+
+
+
+//
+// SpectrumList_FilterPredicate_IsolationWidthSet 
+//
+
+
+PWIZ_API_DECL SpectrumList_FilterPredicate_IsolationWidthSet::SpectrumList_FilterPredicate_IsolationWidthSet(const std::set<double>& isolationWidthSet, chemistry::MZTolerance tolerance, FilterMode mode)
+    : isolationWidthSet_(isolationWidthSet), tolerance_(tolerance), mode_(mode)
+{}
+
+
+PWIZ_API_DECL boost::logic::tribool SpectrumList_FilterPredicate_IsolationWidthSet::accept(const msdata::Spectrum& spectrum) const
+{
+    double isolationWidth = getIsolationWidth(spectrum);
+    if (isolationWidth == 0)
+    {
+        const CVParam param = spectrum.cvParam(MS_ms_level);
+        if (param.cvid == CVID_Unknown) return boost::logic::indeterminate;
+        int msLevel = param.valueAs<int>();
+        // If not level 1, then it should have a precursor, so request more metadata.
+        if (msLevel != 1) return boost::logic::indeterminate;
+    }
+
+    auto lb = isolationWidthSet_.lower_bound(isolationWidth - tolerance_);
+    auto ub = isolationWidthSet_.lower_bound(isolationWidth + tolerance_);
+    bool found = (lb != ub) || (lb != isolationWidthSet_.end() && *lb == isolationWidth);
+    if (mode_ == FilterMode_Include)
+        return found;
+    else
+        return !found;
+}
+
+PWIZ_API_DECL double SpectrumList_FilterPredicate_IsolationWidthSet::getIsolationWidth(const msdata::Spectrum& spectrum)
+{
+    for (const auto& precursor : spectrum.precursors)
+    {
+        const CVParam upperOffset = precursor.isolationWindow.cvParam(MS_isolation_window_upper_offset);
+        const CVParam lowerOffset = precursor.isolationWindow.cvParam(MS_isolation_window_lower_offset);
+        if (upperOffset.empty() || lowerOffset.empty())
+            continue;
+        return upperOffset.valueAs<double>() + fabs(lowerOffset.valueAs<double>());
     }
     return 0;
 }
@@ -462,7 +563,7 @@ PWIZ_API_DECL boost::logic::tribool SpectrumList_FilterPredicate_DefaultArrayLen
 //
 
 
-PWIZ_API_DECL SpectrumList_FilterPredicate_ActivationType::SpectrumList_FilterPredicate_ActivationType(const set<CVID> cvFilterItems_, bool hasNoneOf_)
+PWIZ_API_DECL SpectrumList_FilterPredicate_ActivationType::SpectrumList_FilterPredicate_ActivationType(const set<CVID>& cvFilterItems_, bool hasNoneOf_)
 : hasNoneOf(hasNoneOf_)
 {
     BOOST_FOREACH(const CVID cvid, cvFilterItems_)
@@ -515,7 +616,7 @@ PWIZ_API_DECL boost::logic::tribool SpectrumList_FilterPredicate_ActivationType:
 //
 
 
-PWIZ_API_DECL SpectrumList_FilterPredicate_AnalyzerType::SpectrumList_FilterPredicate_AnalyzerType(const set<CVID> cvFilterItems_, const util::IntegerSet& msLevelSet)
+PWIZ_API_DECL SpectrumList_FilterPredicate_AnalyzerType::SpectrumList_FilterPredicate_AnalyzerType(const set<CVID>& cvFilterItems_, const util::IntegerSet& msLevelSet)
     : msLevelSet(msLevelSet)
 {
     BOOST_FOREACH(const CVID cvid, cvFilterItems_)
@@ -594,7 +695,7 @@ PWIZ_API_DECL boost::logic::tribool SpectrumList_FilterPredicate_Polarity::accep
 // SpectrumList_FilterPredicate_MzPresent
 //
 
-SpectrumList_FilterPredicate_MzPresent::SpectrumList_FilterPredicate_MzPresent(chemistry::MZTolerance mzt, std::set<double> mzSet, ThresholdFilter tf, FilterMode mode) : mzt_(mzt), mzSet_(mzSet), tf_(tf), mode_(mode) {}
+SpectrumList_FilterPredicate_MzPresent::SpectrumList_FilterPredicate_MzPresent(const chemistry::MZTolerance& mzt, const std::set<double>& mzSet, ThresholdFilter tf, FilterMode mode) : mzt_(mzt), mzSet_(mzSet), tf_(tf), mode_(mode) {}
 
 boost::logic::tribool SpectrumList_FilterPredicate_MzPresent::accept(const msdata::Spectrum& spectrum) const
 {

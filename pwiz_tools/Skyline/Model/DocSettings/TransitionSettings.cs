@@ -28,6 +28,7 @@ using System.Xml.Serialization;
 using pwiz.Common.Chemistry;
 using pwiz.Common.Collections;
 using pwiz.Common.DataBinding;
+using pwiz.Common.DataBinding.Filtering;
 using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Model.AuditLog;
 using pwiz.Skyline.Model.Optimization;
@@ -35,6 +36,7 @@ using pwiz.Skyline.Model.Results;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
 using pwiz.Skyline.Util.Extensions;
+using pwiz.Skyline.Model.Results.Spectra;
 
 namespace pwiz.Skyline.Model.DocSettings
 {
@@ -80,7 +82,7 @@ namespace pwiz.Skyline.Model.DocSettings
 
         [TrackChildren(true)]
         public TransitionIonMobilityFiltering IonMobilityFiltering { get; private set; }
-        
+
         public bool IsMeasurablePrecursor(double mz)
         {
             if (!Instrument.IsMeasurable(mz))
@@ -163,14 +165,14 @@ namespace pwiz.Skyline.Model.DocSettings
                     Prediction != null && Prediction.PrecursorMassType.IsAverage())
             {
                 throw new InvalidDataException(
-                    Resources.TransitionSettings_DoValidate_High_resolution_MS1_filtering_requires_use_of_monoisotopic_precursor_masses);
+                    DocSettingsResources.TransitionSettings_DoValidate_High_resolution_MS1_filtering_requires_use_of_monoisotopic_precursor_masses);
             }
 
             if (FullScan != null && FullScan.IsolationScheme != null && FullScan.IsolationScheme.WindowsPerScan.HasValue &&
                 (Instrument == null || !Instrument.MaxInclusions.HasValue))
             {
                 throw new InvalidDataException(
-                    Resources.TransitionSettings_DoValidate_The_instrument_s_firmware_inclusion_limit_must_be_specified_before_doing_a_multiplexed_DIA_scan);
+                    DocSettingsResources.TransitionSettings_DoValidate_The_instrument_s_firmware_inclusion_limit_must_be_specified_before_doing_a_multiplexed_DIA_scan);
             }
         }
 
@@ -213,7 +215,7 @@ namespace pwiz.Skyline.Model.DocSettings
                                                       FullScanMassAnalyzerType.qit,
                                                       Instrument.ProductFilter/TransitionFullScan.RES_PER_FILTER, null,
                                                       FullScanPrecursorIsotopes.None, null,
-                                                      FullScanMassAnalyzerType.none, null, null, false, false,
+                                                      FullScanMassAnalyzerType.none, null, null, false,
                                                       null, RetentionTimeFilterType.none, 0);
                     Instrument = Instrument.ClearFullScanSettings();
                 }
@@ -303,9 +305,9 @@ namespace pwiz.Skyline.Model.DocSettings
             {
                 return new[]
                 {
-                    Resources.OptimizedMethodTypeExtension_LOCALIZED_VALUES_None,
-                    Resources.OptimizedMethodTypeExtension_LOCALIZED_VALUES_Precursor,
-                    Resources.OptimizedMethodTypeExtension_LOCALIZED_VALUES_Transition
+                    DocSettingsResources.OptimizedMethodTypeExtension_LOCALIZED_VALUES_None,
+                    DocSettingsResources.OptimizedMethodTypeExtension_LOCALIZED_VALUES_Precursor,
+                    DocSettingsResources.OptimizedMethodTypeExtension_LOCALIZED_VALUES_Transition
                 };
             }
         }
@@ -418,7 +420,7 @@ namespace pwiz.Skyline.Model.DocSettings
             {
                 if (DeclusteringPotential == null)
                     throw new InvalidDataException(
-                        Resources.
+                        DocSettingsResources.
                             SkylineWindow_ImportResults_A_regression_for_declustering_potention_must_be_selected_in_the_Prediction_tab_of_the_Transition_Settings_in_order_to_import_optimization_data_for_decluserting_potential);
 
                 return DeclusteringPotential;
@@ -427,7 +429,7 @@ namespace pwiz.Skyline.Model.DocSettings
             {
                 if (CompensationVoltage == null)
                     throw new InvalidDataException(
-                        Resources
+                        DocSettingsResources
                             .TransitionPrediction_GetOptimizeFunction_Compensation_voltage_parameters_must_be_selected_in_the_Prediction_tab_of_the_Transition_Settings_in_order_to_import_optimization_data_for_compensation_voltage);
 
                 switch (CompensationVoltageParameters.GetTuneLevel(optimize))
@@ -506,7 +508,7 @@ namespace pwiz.Skyline.Model.DocSettings
         private void DoValidate()
         {
             if (CollisionEnergy == null)
-                throw new InvalidDataException(Resources.TransitionPrediction_DoValidate_Transition_prediction_requires_a_collision_energy_regression_function);
+                throw new InvalidDataException(DocSettingsResources.TransitionPrediction_DoValidate_Transition_prediction_requires_a_collision_energy_regression_function);
         }
 
         public static TransitionPrediction Deserialize(XmlReader reader)
@@ -706,7 +708,7 @@ namespace pwiz.Skyline.Model.DocSettings
             get { return _peptidePrecursorCharges; }
             private set
             {
-                ValidateCharges(Resources.TransitionFilter_PrecursorCharges_Precursor_charges, value,
+                ValidateCharges(DocSettingsResources.TransitionFilter_PrecursorCharges_Precursor_charges, value,
                     TransitionGroup.MIN_PRECURSOR_CHARGE, TransitionGroup.MAX_PRECURSOR_CHARGE, true);
                 _peptidePrecursorCharges = MakeChargeCollection(value);
             }
@@ -717,7 +719,7 @@ namespace pwiz.Skyline.Model.DocSettings
             get { return _peptideProductCharges; }
             private set
             {
-                ValidateCharges(Resources.TransitionFilter_ProductCharges_Product_ion_charges, value,
+                ValidateCharges(DocSettingsResources.TransitionFilter_ProductCharges_Product_ion_charges, value,
                     Transition.MIN_PRODUCT_CHARGE, Transition.MAX_PRODUCT_CHARGE, true);
                 _peptideProductCharges = MakeChargeCollection(value);
             }
@@ -728,7 +730,7 @@ namespace pwiz.Skyline.Model.DocSettings
             get { return _smallMoleculePrecursorAdducts; }
             private set
             {
-                ValidateCharges(Resources.TransitionFilter_SmallMoleculePrecursorAdducts_Small_molecule_precursor_adducts, value,
+                ValidateCharges(DocSettingsResources.TransitionFilter_SmallMoleculePrecursorAdducts_Small_molecule_precursor_adducts, value,
                     TransitionGroup.MIN_PRECURSOR_CHARGE, TransitionGroup.MAX_PRECURSOR_CHARGE, false);
                 _smallMoleculePrecursorAdducts = MakeChargeCollection(value);
             }
@@ -742,7 +744,7 @@ namespace pwiz.Skyline.Model.DocSettings
 
         public static ImmutableList<Adduct> MakeChargeCollection(IList<Adduct> charges)
         {
-            var arrayCharges = charges.ToArrayStd();
+            var arrayCharges = charges.Select(adduct => adduct.Unlabeled).Distinct().ToArray(); // Ignore any isotope labeling in small mol adducts
             Array.Sort(arrayCharges);
             return MakeReadOnly(arrayCharges);
         }
@@ -753,7 +755,7 @@ namespace pwiz.Skyline.Model.DocSettings
             private set
             {
                 if (value.Count == 0)
-                    throw new InvalidDataException(Resources.TransitionFilter_IonTypes_At_least_one_ion_type_is_required);
+                    throw new InvalidDataException(DocSettingsResources.TransitionFilter_IonTypes_At_least_one_ion_type_is_required);
                 TypeSafeEnum.ValidateList(value);
                 _peptideIonTypes = MakeReadOnly(value);
             }
@@ -765,7 +767,7 @@ namespace pwiz.Skyline.Model.DocSettings
             private set
             {
                 if (value.Count == 0)
-                    throw new InvalidDataException(Resources.TransitionFilter_IonTypes_At_least_one_ion_type_is_required);
+                    throw new InvalidDataException(DocSettingsResources.TransitionFilter_IonTypes_At_least_one_ion_type_is_required);
                 TypeSafeEnum.ValidateList(value);
                 _smallMoleculeIonTypes = MakeReadOnly(value);
             }
@@ -782,7 +784,7 @@ namespace pwiz.Skyline.Model.DocSettings
                 if (_fragmentRangeFirst == null)
                 {
                     throw new InvalidDataException(
-                        string.Format(Resources.TransitionFilter_FragmentRangeFirstName_Unsupported_first_fragment_name__0__,
+                        string.Format(DocSettingsResources.TransitionFilter_FragmentRangeFirstName_Unsupported_first_fragment_name__0__,
                                       FragmentRangeFirst));
                 }
             }
@@ -811,7 +813,7 @@ namespace pwiz.Skyline.Model.DocSettings
                 if (_fragmentRangeLast == null)
                 {
                     throw new InvalidDataException(
-                        string.Format(Resources.TransitionFilter_FragmentRangeLastName_Unsupported_last_fragment_name__0__,
+                        string.Format(DocSettingsResources.TransitionFilter_FragmentRangeLastName_Unsupported_last_fragment_name__0__,
                                       FragmentRangeLast));
                 }
             }
@@ -976,14 +978,14 @@ namespace pwiz.Skyline.Model.DocSettings
         public static void ValidateCharges(string label, ICollection<Adduct> adducts, int min, int max, bool proteomic)
         {
             if (adducts == null || adducts.Count == 0)
-                throw new InvalidDataException(string.Format(Resources.TransitionFilter_ValidateCharges__0__cannot_be_empty, label));
+                throw new InvalidDataException(string.Format(DocSettingsResources.TransitionFilter_ValidateCharges__0__cannot_be_empty, label));
             var seen = new HashSet<Adduct>();
             foreach (var adduct in adducts)
             {
                 if (seen.Contains(adduct))
-                    throw new InvalidDataException(string.Format(Resources.TransitionFilter_ValidateCharges_Precursor_charges_specified_charge__0__more_than_once, adduct));
+                    throw new InvalidDataException(string.Format(DocSettingsResources.TransitionFilter_ValidateCharges_Precursor_charges_specified_charge__0__more_than_once, adduct));
                 if (!IsChargeInRange(adduct, min, max, proteomic))
-                    throw new InvalidDataException(string.Format(Resources.TransitionFilter_ValidateCharges_Invalid_charge__1__found__0__must_be_between__2__and__3__, label, adduct, min, max));
+                    throw new InvalidDataException(string.Format(DocSettingsResources.TransitionFilter_ValidateCharges_Invalid_charge__1__found__0__must_be_between__2__and__3__, label, adduct, min, max));
                 seen.Add(adduct);
             }            
         }
@@ -1001,7 +1003,7 @@ namespace pwiz.Skyline.Model.DocSettings
                 if (MIN_EXCLUSION_WINDOW > PrecursorMzWindow || PrecursorMzWindow > MAX_EXCLUSION_WINDOW)
                 {
                     throw new InvalidDataException(
-                        string.Format(Resources.TransitionFilter_Validate_A_precursor_exclusion_window_must_be_between__0__and__1__,
+                        string.Format(DocSettingsResources.TransitionFilter_Validate_A_precursor_exclusion_window_must_be_between__0__and__1__,
                                       MIN_EXCLUSION_WINDOW, MAX_EXCLUSION_WINDOW));
                 }
             }
@@ -1242,7 +1244,7 @@ namespace pwiz.Skyline.Model.DocSettings
                     return FragmentStartFinders[i].Name;
                 }
             }
-            throw new ArgumentException(string.Format(Resources.TransitionFilter_GetStartFragmentNameFromLabel_The_label__0__is_not_a_valid_start_fragment_filter_, label));
+            throw new ArgumentException(string.Format(DocSettingsResources.TransitionFilter_GetStartFragmentNameFromLabel_The_label__0__is_not_a_valid_start_fragment_filter_, label));
         }
 
         public static IStartFragmentFinder GetStartFragmentFinder(string finderName)
@@ -1260,7 +1262,7 @@ namespace pwiz.Skyline.Model.DocSettings
                 if (int.TryParse(finderName, out index))
                     return FragmentStartFinders[index];
             }
-            throw new InvalidDataException(string.Format(Resources.TransitionFilter_GetEndFragmentFinder_Unknown_fragment_name_in_Transition_Settings__0__, finderName));
+            throw new InvalidDataException(string.Format(DocSettingsResources.TransitionFilter_GetEndFragmentFinder_Unknown_fragment_name_in_Transition_Settings__0__, finderName));
         }
 
         private static MappedList<string, StartFragmentFinder> FragmentStartFinders
@@ -1303,7 +1305,7 @@ namespace pwiz.Skyline.Model.DocSettings
                     return FragmentEndFinders[i].Name;
                 }
             }
-            throw new ArgumentException(string.Format(Resources.TransitionFilter_GetEndFragmentNameFromLabel_The_label__0__is_not_a_valid_end_fragment_filter_, label));
+            throw new ArgumentException(string.Format(DocSettingsResources.TransitionFilter_GetEndFragmentNameFromLabel_The_label__0__is_not_a_valid_end_fragment_filter_, label));
         }
 
         public static IEnumerable<string> GetEndFragmentFinderLabels()
@@ -1333,7 +1335,7 @@ namespace pwiz.Skyline.Model.DocSettings
                 if (int.TryParse(finderName, out index))
                     return FragmentEndFinders[index];
             }
-            throw new InvalidDataException(string.Format(Resources.TransitionFilter_GetEndFragmentFinder_Unknown_fragment_name_in_Transition_Settings__0__, finderName));
+            throw new InvalidDataException(string.Format(DocSettingsResources.TransitionFilter_GetEndFragmentFinder_Unknown_fragment_name_in_Transition_Settings__0__, finderName));
         }
 
         private class KeyContainerWrapper<T> : IKeyContainer<T>
@@ -1391,16 +1393,16 @@ namespace pwiz.Skyline.Model.DocSettings
         public abstract class StartFragmentFinder : LabeledValues<string>, IStartFragmentFinder
         {
             public static readonly StartFragmentFinder ION_1 = new OrdinalFragmentFinder(@"ion 1", () => Resources.TransitionFilter_FragmentStartFinders_ion_1, 1);
-            public static readonly StartFragmentFinder ION_2 = new OrdinalFragmentFinder(@"ion 2", () => Resources.TransitionFilter_FragmentStartFinders_ion_2, 2);
+            public static readonly StartFragmentFinder ION_2 = new OrdinalFragmentFinder(@"ion 2", () => DocSettingsResources.TransitionFilter_FragmentStartFinders_ion_2, 2);
             public static readonly StartFragmentFinder ION_3 = new OrdinalFragmentFinder(@"ion 3", () => Resources.TransitionFilter_FragmentStartFinders_ion_3, 3);
-            public static readonly StartFragmentFinder ION_4 = new OrdinalFragmentFinder(@"ion 4", () => Resources.TransitionFilter_FragmentStartFinders_ion_4, 4);
+            public static readonly StartFragmentFinder ION_4 = new OrdinalFragmentFinder(@"ion 4", () => DocSettingsResources.TransitionFilter_FragmentStartFinders_ion_4, 4);
 
-            public static readonly StartFragmentFinder MZ_PRECURSOR = new MzFragmentFinder(DEFAULT_START_FINDER, () => Resources.TransitionFilter_FragmentStartFinders_m_z_precursor, 0);
+            public static readonly StartFragmentFinder MZ_PRECURSOR = new MzFragmentFinder(DEFAULT_START_FINDER, () => DocSettingsResources.TransitionFilter_FragmentStartFinders_m_z_precursor, 0);
 
-            public static readonly StartFragmentFinder MZ_PRECURSOR_MINUS_1 = new MzFragmentFinder(@"(m/z > precursor) - 1", () => Resources.TransitionFilter_FragmentStartFinders_m_z_precursor_minus_1, -1);
-            public static readonly StartFragmentFinder MZ_PRECURSOR_MINUS_2 = new MzFragmentFinder(@"(m/z > precursor) - 2", () => Resources.TransitionFilter_FragmentStartFinders_m_z_precursor_minus_2, -2);
-            public static readonly StartFragmentFinder MZ_PRECURSOR_PLUS_1 = new MzFragmentFinder(@"(m/z > precursor) + 1", () => Resources.TransitionFilter_FragmentStartFinders_m_z_precursor_plus_1, 1);
-            public static readonly StartFragmentFinder MZ_PRECURSOR_PLUS_2 = new MzFragmentFinder(@"(m/z > precursor) + 2", () => Resources.TransitionFilter_FragmentStartFinders_m_z_precursor_plus_2, 2);
+            public static readonly StartFragmentFinder MZ_PRECURSOR_MINUS_1 = new MzFragmentFinder(@"(m/z > precursor) - 1", () => DocSettingsResources.TransitionFilter_FragmentStartFinders_m_z_precursor_minus_1, -1);
+            public static readonly StartFragmentFinder MZ_PRECURSOR_MINUS_2 = new MzFragmentFinder(@"(m/z > precursor) - 2", () => DocSettingsResources.TransitionFilter_FragmentStartFinders_m_z_precursor_minus_2, -2);
+            public static readonly StartFragmentFinder MZ_PRECURSOR_PLUS_1 = new MzFragmentFinder(@"(m/z > precursor) + 1", () => DocSettingsResources.TransitionFilter_FragmentStartFinders_m_z_precursor_plus_1, 1);
+            public static readonly StartFragmentFinder MZ_PRECURSOR_PLUS_2 = new MzFragmentFinder(@"(m/z > precursor) + 2", () => DocSettingsResources.TransitionFilter_FragmentStartFinders_m_z_precursor_plus_2, 2);
 
             protected StartFragmentFinder(string name, Func<string> label)
                 : base(name, label)
@@ -1528,15 +1530,15 @@ namespace pwiz.Skyline.Model.DocSettings
         {
             public static readonly EndFragmentFinder LAST_ION = new LastFragmentFinder(@"last ion", () => Resources.TransitionFilter_FragmentEndFinders_last_ion, 0);
             public static readonly EndFragmentFinder LAST_ION_MINUS_1 = new LastFragmentFinder(@"last ion - 1", () => Resources.TransitionFilter_FragmentEndFinders_last_ion_minus_1, 1);
-            public static readonly EndFragmentFinder LAST_ION_MINUS_2 = new LastFragmentFinder(@"last ion - 2", () => Resources.TransitionFilter_FragmentEndFinders_last_ion_minus_2, 2);
-            public static readonly EndFragmentFinder LAST_ION_MINUS_3 = new LastFragmentFinder(@"last ion - 3", () => Resources.TransitionFilter_FragmentEndFinders_last_ion_minus_3, 3);
+            public static readonly EndFragmentFinder LAST_ION_MINUS_2 = new LastFragmentFinder(@"last ion - 2", () => DocSettingsResources.TransitionFilter_FragmentEndFinders_last_ion_minus_2, 2);
+            public static readonly EndFragmentFinder LAST_ION_MINUS_3 = new LastFragmentFinder(@"last ion - 3", () => DocSettingsResources.TransitionFilter_FragmentEndFinders_last_ion_minus_3, 3);
 
-            public static readonly EndFragmentFinder ION_1 = new DeltaFragmentFinder(@"1 ion", () => Resources.TransitionFilter_FragmentEndFinders_1_ion, 1);
-            public static readonly EndFragmentFinder IONS_2 = new DeltaFragmentFinder(@"2 ions", () => Resources.TransitionFilter_FragmentEndFinders_2_ions, 2);
+            public static readonly EndFragmentFinder ION_1 = new DeltaFragmentFinder(@"1 ion", () => DocSettingsResources.TransitionFilter_FragmentEndFinders_1_ion, 1);
+            public static readonly EndFragmentFinder IONS_2 = new DeltaFragmentFinder(@"2 ions", () => DocSettingsResources.TransitionFilter_FragmentEndFinders_2_ions, 2);
             public static readonly EndFragmentFinder IONS_3 = new DeltaFragmentFinder(DEFAULT_END_FINDER, () => Resources.TransitionFilter_FragmentEndFinders_3_ions, 3);
             public static readonly EndFragmentFinder IONS_4 = new DeltaFragmentFinder(@"4 ions", () => Resources.TransitionFilter_FragmentEndFinders_4_ions, 4);
-            public static readonly EndFragmentFinder IONS_5 = new DeltaFragmentFinder(@"5 ions", () => Resources.TransitionFilter_FragmentEndFinders_5_ions, 5);
-            public static readonly EndFragmentFinder IONS_6 = new DeltaFragmentFinder(@"6 ions", () => Resources.TransitionFilter_FragmentEndFinders_6_ions, 6);
+            public static readonly EndFragmentFinder IONS_5 = new DeltaFragmentFinder(@"5 ions", () => DocSettingsResources.TransitionFilter_FragmentEndFinders_5_ions, 5);
+            public static readonly EndFragmentFinder IONS_6 = new DeltaFragmentFinder(@"6 ions", () => DocSettingsResources.TransitionFilter_FragmentEndFinders_6_ions, 6);
 
             protected EndFragmentFinder(string name, Func<string> label)
                 : base(name, label)
@@ -1636,10 +1638,11 @@ namespace pwiz.Skyline.Model.DocSettings
         public const int MAX_ION_COUNT = 50;
         public const double MIN_MATCH_TOLERANCE = 0.001;    // Reduced from 0.1 to 0.001 (1 ppm at 1000 m/z) for high accuracy MS/MS
         public const double MAX_MATCH_TOLERANCE = 1.0;
+        public const double MAX_MATCH_TOLERANCE_PPM = 100.1;    // Increased from 1 to 100 for ppm tolerance units
 
-        public TransitionLibraries(double ionMatchTolerance, int minIonCount, int ionCount, TransitionLibraryPick pick)
+        public TransitionLibraries(MzTolerance ionMatchMzTolerance, int minIonCount, int ionCount, TransitionLibraryPick pick)
         {
-            IonMatchTolerance = ionMatchTolerance;
+            IonMatchMzTolerance = ionMatchMzTolerance;
             MinIonCount = minIonCount;
             IonCount = ionCount;
             Pick = pick;
@@ -1648,8 +1651,15 @@ namespace pwiz.Skyline.Model.DocSettings
         }
 
         [Track]
-        public double IonMatchTolerance { get; private set; }
+        public MzTolerance IonMatchMzTolerance { get; set; }
 
+        public static double GetMaxMatchTolerance(MzTolerance.Units unit)
+        {
+                if (unit == MzTolerance.Units.mz)
+                    return MAX_MATCH_TOLERANCE;
+                else 
+                    return MAX_MATCH_TOLERANCE_PPM;
+        }
         [Track]
         public int MinIonCount { get; private set; }
 
@@ -1679,9 +1689,9 @@ namespace pwiz.Skyline.Model.DocSettings
 
         #region Property change methods
 
-        public TransitionLibraries ChangeIonMatchTolerance(double prop)
+        public TransitionLibraries ChangeIonMatchMzTolerance(MzTolerance prop)
         {
-            return ChangeProp(ImClone(this), (im, v) => im.IonMatchTolerance = v, prop);
+            return ChangeProp(ImClone(this), (im, v) => im.IonMatchMzTolerance = v, prop);
         }
 
         public TransitionLibraries ChangeMinIonCount(int prop)
@@ -1713,6 +1723,7 @@ namespace pwiz.Skyline.Model.DocSettings
         private enum ATTR
         {
             ion_match_tolerance,
+            ion_match_tolerance_unit,
             min_ion_count,
             ion_count,
             pick_from,
@@ -1725,19 +1736,21 @@ namespace pwiz.Skyline.Model.DocSettings
 
         private void DoValidate()
         {
-            if (MIN_MATCH_TOLERANCE > IonMatchTolerance || IonMatchTolerance > MAX_MATCH_TOLERANCE)
+            if (MIN_MATCH_TOLERANCE > IonMatchMzTolerance.Value || IonMatchMzTolerance.Value > GetMaxMatchTolerance(IonMatchMzTolerance.Unit))
             {
-                throw new InvalidDataException(string.Format(Resources.TransitionLibraries_DoValidate_Library_ion_match_tolerance_value__0__must_be_between__1__and__2__,
-                                                             IonMatchTolerance, MIN_MATCH_TOLERANCE, MAX_MATCH_TOLERANCE));                
+                throw new InvalidDataException(string.Format(
+                    DocSettingsResources.TransitionLibraries_DoValidate_Library_ion_match_tolerance_value__0__must_be_between__1__and__2__,
+                    IonMatchMzTolerance, MIN_MATCH_TOLERANCE, GetMaxMatchTolerance(IonMatchMzTolerance.Unit)));
             }
+
             if (0 > MinIonCount || MinIonCount > MAX_ION_COUNT)
             {
-                throw new InvalidDataException(string.Format(Resources.TransitionLibraries_DoValidate_Library_min_ion_count_value__0__must_be_between__1__and__2__,
+                throw new InvalidDataException(string.Format(DocSettingsResources.TransitionLibraries_DoValidate_Library_min_ion_count_value__0__must_be_between__1__and__2__,
                                                              MinIonCount, 0, MAX_ION_COUNT));
             }
             if (MIN_ION_COUNT > IonCount || IonCount > MAX_ION_COUNT)
             {
-                throw new InvalidDataException(string.Format(Resources.TransitionLibraries_DoValidate_Library_ion_count_value__0__must_be_between__1__and__2__,
+                throw new InvalidDataException(string.Format(DocSettingsResources.TransitionLibraries_DoValidate_Library_ion_count_value__0__must_be_between__1__and__2__,
                                                              IonCount, MIN_ION_COUNT, MAX_ION_COUNT));
             }
             if (MinIonCount > IonCount)
@@ -1760,7 +1773,8 @@ namespace pwiz.Skyline.Model.DocSettings
         public void ReadXml(XmlReader reader)
         {
             // Read start tag attributes
-            IonMatchTolerance = reader.GetDoubleAttribute(ATTR.ion_match_tolerance);
+            IonMatchMzTolerance = new MzTolerance(reader.GetDoubleAttribute(ATTR.ion_match_tolerance),
+                reader.GetEnumAttribute(ATTR.ion_match_tolerance_unit, MzTolerance.Units.mz));
             MinIonCount = reader.GetIntAttribute(ATTR.min_ion_count);
             IonCount = reader.GetIntAttribute(ATTR.ion_count);
             Pick = reader.GetEnumAttribute(ATTR.pick_from, TransitionLibraryPick.all);
@@ -1774,7 +1788,9 @@ namespace pwiz.Skyline.Model.DocSettings
         public void WriteXml(XmlWriter writer)
         {
             // Write attributes
-            writer.WriteAttribute(ATTR.ion_match_tolerance, IonMatchTolerance);
+            writer.WriteAttribute(ATTR.ion_match_tolerance, IonMatchMzTolerance.Value);
+            if(IonMatchMzTolerance.Unit != MzTolerance.Units.mz)
+                writer.WriteAttribute(ATTR.ion_match_tolerance_unit, IonMatchMzTolerance.Unit);
             writer.WriteAttribute(ATTR.min_ion_count, MinIonCount);
             writer.WriteAttribute(ATTR.ion_count, IonCount);
             writer.WriteAttribute(ATTR.pick_from, Pick);
@@ -1788,7 +1804,7 @@ namespace pwiz.Skyline.Model.DocSettings
         {
             if (ReferenceEquals(null, obj)) return false;
             if (ReferenceEquals(this, obj)) return true;
-            return obj.IonMatchTolerance == IonMatchTolerance && obj.MinIonCount == MinIonCount && obj.IonCount == IonCount && Equals(obj.Pick, Pick);
+            return Equals(obj.IonMatchMzTolerance, IonMatchMzTolerance) && obj.MinIonCount == MinIonCount && obj.IonCount == IonCount && Equals(obj.Pick, Pick);
         }
 
         public override bool Equals(object obj)
@@ -1803,7 +1819,7 @@ namespace pwiz.Skyline.Model.DocSettings
         {
             unchecked
             {
-                int result = IonMatchTolerance.GetHashCode();
+                int result = IonMatchMzTolerance.GetHashCode();
                 result = (result*397) ^ MinIonCount;
                 result = (result*397) ^ IonCount;
                 result = (result*397) ^ Pick.GetHashCode();
@@ -1824,9 +1840,9 @@ namespace pwiz.Skyline.Model.DocSettings
             {
                 return new[]
                 {
-                    Resources.FullScanPrecursorIsotopesExtension_LOCALIZED_VALUES_None,
-                    Resources.FullScanPrecursorIsotopesExtension_LOCALIZED_VALUES_Count,
-                    Resources.FullScanPrecursorIsotopesExtension_LOCALIZED_VALUES_Percent
+                    DocSettingsResources.FullScanPrecursorIsotopesExtension_LOCALIZED_VALUES_None,
+                    DocSettingsResources.FullScanPrecursorIsotopesExtension_LOCALIZED_VALUES_Count,
+                    DocSettingsResources.FullScanPrecursorIsotopesExtension_LOCALIZED_VALUES_Percent
                 };
             }
         }
@@ -2050,55 +2066,55 @@ namespace pwiz.Skyline.Model.DocSettings
             if (MIN_MEASUREABLE_MZ > MinMz || MinMz > MAX_MEASURABLE_MZ - MIN_MZ_RANGE)
             {
                 throw new InvalidDataException(
-                    string.Format(Resources.TransitionInstrument_DoValidate_Instrument_minimum_mz_value__0__must_be_between__1__and__2__,
+                    string.Format(DocSettingsResources.TransitionInstrument_DoValidate_Instrument_minimum_mz_value__0__must_be_between__1__and__2__,
                                   MinMz, MIN_MEASUREABLE_MZ, MAX_MEASURABLE_MZ - MIN_MZ_RANGE));
             }
             if (MinMz + MIN_MZ_RANGE > MaxMz)
             {
                 throw new InvalidDataException(
-                    string.Format(Resources.TransitionInstrument_DoValidate_Instrument_maximum_m_z_value__0__is_less_than__1__from_minimum__2__,
+                    string.Format(DocSettingsResources.TransitionInstrument_DoValidate_Instrument_maximum_m_z_value__0__is_less_than__1__from_minimum__2__,
                                   MaxMz, MIN_MZ_RANGE, MinMz));
             }
             if (MaxMz > MAX_MEASURABLE_MZ)
             {
                 throw new InvalidDataException(
-                    string.Format(Resources.TransitionInstrument_DoValidate_Instrument_maximum_mz_exceeds_allowable_maximum__0__,
+                    string.Format(DocSettingsResources.TransitionInstrument_DoValidate_Instrument_maximum_mz_exceeds_allowable_maximum__0__,
                                   MAX_MEASURABLE_MZ));
             }
             if (MIN_MZ_MATCH_TOLERANCE > MzMatchTolerance || MzMatchTolerance > MAX_MZ_MATCH_TOLERANCE)
             {
                 throw new InvalidDataException(
-                    string.Format(Resources.TransitionInstrument_DoValidate_The_mz_match_tolerance__0__must_be_between__1__and__2__,
+                    string.Format(DocSettingsResources.TransitionInstrument_DoValidate_The_mz_match_tolerance__0__must_be_between__1__and__2__,
                                   MzMatchTolerance, MIN_MZ_MATCH_TOLERANCE, MAX_MZ_MATCH_TOLERANCE));
             }
             if (MIN_TRANSITION_MAX_ORIGINAL > MaxTransitions || MaxTransitions > MAX_TRANSITION_MAX)
             {
                 throw new InvalidDataException(
-                    string.Format(Resources.TransitionInstrument_DoValidate_The_maximum_number_of_transitions__0__must_be_between__1__and__2__,
+                    string.Format(DocSettingsResources.TransitionInstrument_DoValidate_The_maximum_number_of_transitions__0__must_be_between__1__and__2__,
                                   MaxTransitions, MIN_TRANSITION_MAX_ORIGINAL, MAX_TRANSITION_MAX));
             }
             if (MIN_INCLUSION_MAX > MaxInclusions || MaxInclusions > MAX_INCLUSION_MAX)
             {
                 throw new InvalidDataException(
-                    string.Format(Resources.TransitionInstrument_DoValidate_The_maximum_number_of_inclusions__0__must_be_between__1__and__2__,
+                    string.Format(DocSettingsResources.TransitionInstrument_DoValidate_The_maximum_number_of_inclusions__0__must_be_between__1__and__2__,
                                   MaxInclusions, MIN_INCLUSION_MAX, MAX_INCLUSION_MAX));
             }
             if (MinTime.HasValue && (MIN_TIME > MinTime || MinTime > MAX_TIME))
             {
                 throw new InvalidDataException(
-                    string.Format(Resources.TransitionInstrument_DoValidate_The_minimum_retention_time__0__must_be_between__1__and__2__,
+                    string.Format(DocSettingsResources.TransitionInstrument_DoValidate_The_minimum_retention_time__0__must_be_between__1__and__2__,
                                   MinTime, MIN_TIME, MAX_TIME));
             }
             if (MaxTime.HasValue && (MIN_TIME > MaxTime || MaxTime > MAX_TIME))
             {
                 throw new InvalidDataException(
-                    string.Format(Resources.TransitionInstrument_DoValidate_The_maximum_retention_time__0__must_be_between__1__and__2__,
+                    string.Format(DocSettingsResources.TransitionInstrument_DoValidate_The_maximum_retention_time__0__must_be_between__1__and__2__,
                                   MaxTime, MIN_TIME, MAX_TIME));
             }
             if (MinTime.HasValue && MaxTime.HasValue && MaxTime.Value - MinTime.Value < MIN_TIME_RANGE)
             {
                 throw new InvalidDataException(
-                    string.Format(Resources.TransitionInstrument_DoValidate_The_allowable_retention_time_range__0__to__1__must_be_at_least__2__minutes_apart_,
+                    string.Format(DocSettingsResources.TransitionInstrument_DoValidate_The_allowable_retention_time_range__0__to__1__must_be_at_least__2__minutes_apart_,
                                   MinTime, MaxTime, MIN_TIME_RANGE));
             }
             if (PrecursorAcquisitionMethod == FullScanAcquisitionMethod.None)
@@ -2106,7 +2122,7 @@ namespace pwiz.Skyline.Model.DocSettings
                 if (ProductFilterType != null || PrecursorFilter.HasValue || ProductFilter.HasValue)
                 {
                     throw new InvalidDataException(
-                        string.Format(Resources.TransitionInstrument_DoValidate_No_other_full_scan_MS_MS_filter_settings_are_allowed_when_precursor_filter_is_none));
+                        string.Format(DocSettingsResources.TransitionInstrument_DoValidate_No_other_full_scan_MS_MS_filter_settings_are_allowed_when_precursor_filter_is_none));
                 }
             }
             else if (PrecursorAcquisitionMethod == FullScanAcquisitionMethod.DIA)
@@ -2116,7 +2132,7 @@ namespace pwiz.Skyline.Model.DocSettings
                 if (!PrecursorFilter.HasValue || minFilter > PrecursorFilter || PrecursorFilter > maxFilter)
                 {
                     throw new InvalidDataException(
-                        string.Format(Resources.TransitionInstrument_DoValidate_The_precursor_mz_filter_must_be_between__0__and__1__,
+                        string.Format(DocSettingsResources.TransitionInstrument_DoValidate_The_precursor_mz_filter_must_be_between__0__and__1__,
                                       minFilter, maxFilter));
                 }
             }
@@ -2305,7 +2321,6 @@ namespace pwiz.Skyline.Model.DocSettings
                                     FullScanMassAnalyzerType precursorMassAnalyzer,
                                     double? precursorRes,
                                     double? precursorResMz,
-                                    bool ignoreSim,
                                     bool selectiveExtraction,
                                     IsotopeEnrichments isotopeEnrichments,
                                     RetentionTimeFilterType retentionTimeFilterType,
@@ -2321,7 +2336,6 @@ namespace pwiz.Skyline.Model.DocSettings
             PrecursorMassAnalyzer = precursorMassAnalyzer;
             PrecursorRes = precursorRes;
             PrecursorResMz = precursorResMz;
-            IgnoreSimScans = ignoreSim;
 
             UseSelectiveExtraction = selectiveExtraction;
 
@@ -2367,21 +2381,21 @@ namespace pwiz.Skyline.Model.DocSettings
         {
             if (acquisitionMethod == FullScanAcquisitionMethod.None)
             {
-                throw new InvalidDataException(Resources.TransitionFullScan_CreateIsolationSchemeForFilter_Tried_to_create_an_isolation_scheme_for_non_DIA_mode);
+                throw new InvalidDataException(DocSettingsResources.TransitionFullScan_CreateIsolationSchemeForFilter_Tried_to_create_an_isolation_scheme_for_non_DIA_mode);
             }
 
             if (acquisitionMethod == FullScanAcquisitionMethod.DIA)
             {
                 if (!precursorFilter.HasValue)
                 {
-                    throw new InvalidDataException(Resources.TransitionFullScan_CreateIsolationSchemeForFilter_Tried_to_create_an_isolation_scheme_without_precursor_filter);
+                    throw new InvalidDataException(DocSettingsResources.TransitionFullScan_CreateIsolationSchemeForFilter_Tried_to_create_an_isolation_scheme_without_precursor_filter);
                 }
                 else
                 {
                     string name = precursorRightFilter.HasValue
-                        ? string.Format(Resources.TransitionFullScanCreateIsolationSchemeForFilterResults__0__0__1_0__Th,
+                        ? string.Format(DocSettingsResources.TransitionFullScanCreateIsolationSchemeForFilterResults__0__0__1_0__Th,
                             precursorFilter.Value, precursorRightFilter.Value)
-                        : string.Format(Resources.TransitionFullScanCreateIsolationSchemeForFilterResults__0__0__Th,
+                        : string.Format(DocSettingsResources.TransitionFullScanCreateIsolationSchemeForFilterResults__0__0__Th,
                             precursorFilter.Value);
                     return new IsolationScheme(name, precursorFilter, precursorRightFilter);
                 }
@@ -2489,6 +2503,15 @@ namespace pwiz.Skyline.Model.DocSettings
         public RetentionTimeFilterType RetentionTimeFilterType { get; private set; }
         [Track]
         public double RetentionTimeFilterLength { get; private set; }
+
+        public SpectrumClassFilter SpectrumClassFilter { get; private set; }
+
+        [TrackChildren(defaultValues: typeof(DefaultValuesNullOrEmpty))]
+        public IList<FilterClause> SpectrumFilter
+        {
+            get { return SpectrumClassFilter.Clauses; }
+        }
+
         public bool IsEnabled
         {
             get { return IsEnabledMs || IsEnabledMsMs; }
@@ -2617,6 +2640,8 @@ namespace pwiz.Skyline.Model.DocSettings
             }
         }
 
+
+
         #region Property change methods
 
         public TransitionFullScan ChangeAcquisitionMethod(FullScanAcquisitionMethod typeProp, IsolationScheme isolationScheme)
@@ -2718,6 +2743,11 @@ namespace pwiz.Skyline.Model.DocSettings
             return ChangeProp(ImClone(this), im => im.UseSelectiveExtraction = prop);
         }
 
+        public TransitionFullScan ChangeIgnoreSimScans(bool prop)
+        {
+            return ChangeProp(ImClone(this), im => im.IgnoreSimScans = prop);
+        }
+
         public TransitionFullScan ChangeRetentionTimeFilter(RetentionTimeFilterType retentionTimeFilterType,
             double retentionTimeFilterLength)
         {
@@ -2726,6 +2756,10 @@ namespace pwiz.Skyline.Model.DocSettings
                 im.RetentionTimeFilterType = retentionTimeFilterType;
                 im.RetentionTimeFilterLength = retentionTimeFilterLength;
             });
+        }
+        public TransitionFullScan ChangeSpectrumFilter(SpectrumClassFilter spectrumFilter)
+        {
+            return ChangeProp(ImClone(this), im => im.SpectrumClassFilter = spectrumFilter);
         }
 
         #endregion
@@ -2764,7 +2798,7 @@ namespace pwiz.Skyline.Model.DocSettings
             if (PrecursorIsotopes == FullScanPrecursorIsotopes.None)
             {
                 if (PrecursorMassAnalyzer != FullScanMassAnalyzerType.none || PrecursorIsotopeFilter.HasValue || PrecursorRes.HasValue || PrecursorResMz.HasValue || IgnoreSimScans)
-                    throw new InvalidDataException(Resources.TransitionFullScan_DoValidate_No_other_full_scan_MS1_filter_settings_are_allowed_when_no_precursor_isotopes_are_included);
+                    throw new InvalidDataException(DocSettingsResources.TransitionFullScan_DoValidate_No_other_full_scan_MS1_filter_settings_are_allowed_when_no_precursor_isotopes_are_included);
             }
             else
             {
@@ -2772,7 +2806,7 @@ namespace pwiz.Skyline.Model.DocSettings
                 {
                     if (PrecursorIsotopes != FullScanPrecursorIsotopes.Count || PrecursorIsotopeFilter != 1)
                     {
-                        throw new InvalidDataException(Resources.TransitionFullScan_DoValidate_For_MS1_filtering_with_a_QIT_mass_analyzer_only_1_isotope_peak_is_supported);
+                        throw new InvalidDataException(DocSettingsResources.TransitionFullScan_DoValidate_For_MS1_filtering_with_a_QIT_mass_analyzer_only_1_isotope_peak_is_supported);
                     }
                 }
                 else
@@ -2782,12 +2816,12 @@ namespace pwiz.Skyline.Model.DocSettings
                     if (PrecursorIsotopes == FullScanPrecursorIsotopes.Count)
                     {
                         ValidateRange(PrecursorIsotopeFilter, MIN_ISOTOPE_COUNT, MAX_ISOTOPE_COUNT,
-                                      Resources.TransitionFullScan_DoValidate_The_precursor_isotope_count_for_MS1_filtering_must_be_between__0__and__1__peaks);
+                                      DocSettingsResources.TransitionFullScan_DoValidate_The_precursor_isotope_count_for_MS1_filtering_must_be_between__0__and__1__peaks);
                     }
                     else
                     {
                         ValidateRange(PrecursorIsotopeFilter, MIN_ISOTOPE_PERCENT, MAX_ISOTOPE_PERCENT,
-                                      Resources.TransitionFullScan_DoValidate_The_precursor_isotope_percent_for_MS1_filtering_must_be_between__0___and__1___of_the_base_peak);
+                                      DocSettingsResources.TransitionFullScan_DoValidate_The_precursor_isotope_percent_for_MS1_filtering_must_be_between__0___and__1___of_the_base_peak);
                     }
                 }
                 _cachedPrecursorRes = ValidateRes(PrecursorMassAnalyzer, PrecursorRes, PrecursorResMz);
@@ -2796,7 +2830,7 @@ namespace pwiz.Skyline.Model.DocSettings
             if (AcquisitionMethod == FullScanAcquisitionMethod.None)
             {
                 if (ProductMassAnalyzer != FullScanMassAnalyzerType.none || IsolationScheme != null || ProductRes.HasValue || ProductResMz.HasValue)
-                    throw new InvalidDataException(Resources.TransitionInstrument_DoValidate_No_other_full_scan_MS_MS_filter_settings_are_allowed_when_precursor_filter_is_none);
+                    throw new InvalidDataException(DocSettingsResources.TransitionInstrument_DoValidate_No_other_full_scan_MS_MS_filter_settings_are_allowed_when_precursor_filter_is_none);
             }
             else
             {
@@ -2834,7 +2868,7 @@ namespace pwiz.Skyline.Model.DocSettings
                 if (!res.HasValue || MIN_LO_RES > res.Value || res.Value > MAX_LO_RES)
                 {
                     throw new InvalidDataException(
-                        string.Format(Resources.TransitionFullScan_ValidateRes_Resolution_must_be_between__0__and__1__for_QIT_,
+                        string.Format(DocSettingsResources.TransitionFullScan_ValidateRes_Resolution_must_be_between__0__and__1__for_QIT_,
                                       MIN_LO_RES, MAX_LO_RES));
                 }
             }
@@ -2851,7 +2885,7 @@ namespace pwiz.Skyline.Model.DocSettings
                 if (!res.HasValue || MIN_HI_RES > res.Value || res.Value > MAX_HI_RES)
                 {
                     throw new InvalidDataException(
-                        string.Format(Resources.TransitionFullScan_ValidateRes_Resolving_power_must_be_between__0__and__1__for__2__,
+                        string.Format(DocSettingsResources.TransitionFullScan_ValidateRes_Resolving_power_must_be_between__0__and__1__for__2__,
                                       MIN_HI_RES, MAX_HI_RES, MassAnalyzerToString(analyzerType)));
                 }
                 expectMz = (analyzerType != FullScanMassAnalyzerType.tof);
@@ -2861,14 +2895,14 @@ namespace pwiz.Skyline.Model.DocSettings
                 if (!resMz.HasValue || MIN_RES_MZ > resMz.Value || resMz.Value > MAX_RES_MZ)
                 {
                     throw new InvalidDataException(
-                        string.Format(Resources.TransitionFullScan_ValidateRes_The_mz_value_at_which_the_resolving_power_is_calibrated_is_required_for__0__,
+                        string.Format(DocSettingsResources.TransitionFullScan_ValidateRes_The_mz_value_at_which_the_resolving_power_is_calibrated_is_required_for__0__,
                                       MassAnalyzerToString(analyzerType)));
                 }
             }
             else if (resMz.HasValue)
             {
                 throw new InvalidDataException(
-                    string.Format(Resources.TransitionFullScan_ValidateRes_Unexpected_resolving_power_mz_value_for__0__,
+                    string.Format(DocSettingsResources.TransitionFullScan_ValidateRes_Unexpected_resolving_power_mz_value_for__0__,
                                   MassAnalyzerToString(analyzerType)));
             }
 
@@ -2927,8 +2961,24 @@ namespace pwiz.Skyline.Model.DocSettings
                         PrecursorResMz = reader.GetNullableDoubleAttribute(ATTR.precursor_res_mz) ?? DEFAULT_RES_MZ;
                 }
             }
-
-            IgnoreSimScans = reader.GetBoolAttribute(ATTR.ignore_sim_scans);
+            SpectrumClassFilter = default;
+            if (reader.GetBoolAttribute(ATTR.ignore_sim_scans))
+            {
+                if (PrecursorIsotopes == FullScanPrecursorIsotopes.None)
+                {
+                    // Set "IgnoreSimScans" to true so Validate will throw exception
+                    IgnoreSimScans = true;
+                }
+                else
+                {
+                    var clauses = new List<FilterClause> { IgnoreSimScansFilter };
+                    if (AcquisitionMethod != FullScanAcquisitionMethod.None)
+                    {
+                        clauses.Add(SpectrumClassFilter.Ms2FilterPage.Discriminant);
+                    }
+                    SpectrumClassFilter = new SpectrumClassFilter(clauses);
+                }
+            }
             UseSelectiveExtraction = reader.GetBoolAttribute(ATTR.selective_extraction);
             RetentionTimeFilterType = RetentionTimeFilterType.none;
             RetentionTimeFilterLength = 0;
@@ -2981,6 +3031,11 @@ namespace pwiz.Skyline.Model.DocSettings
                     IsolationScheme = readIsolationHelper.Deserialize(reader);
                 }
 
+                var spectrumFilter = SpectrumClassFilter.ReadXml(reader);
+                if (!spectrumFilter.IsEmpty)
+                {
+                    SpectrumClassFilter = spectrumFilter;
+                }
                 // If there is an inner tag, there must be an end tag.
                 reader.ReadEndElement();
             }
@@ -3022,6 +3077,7 @@ namespace pwiz.Skyline.Model.DocSettings
                 writer.WriteElement(IsotopeEnrichments);
             if (AcquisitionMethod == FullScanAcquisitionMethod.DIA && IsolationScheme != null)
                 writer.WriteElement(IsolationScheme);
+            SpectrumClassFilter.WriteXml(writer);
         }
 
         #endregion
@@ -3046,7 +3102,8 @@ namespace pwiz.Skyline.Model.DocSettings
                 other.UseSelectiveExtraction == UseSelectiveExtraction &&
                 other.PrecursorResMz.Equals(PrecursorResMz) &&
                 other.RetentionTimeFilterType == RetentionTimeFilterType &&
-                other.RetentionTimeFilterLength == RetentionTimeFilterLength;
+                other.RetentionTimeFilterLength == RetentionTimeFilterLength &&
+                SpectrumFilter.Equals(other.SpectrumFilter);
         }
 
         public override bool Equals(object obj)
@@ -3076,11 +3133,19 @@ namespace pwiz.Skyline.Model.DocSettings
                 result = (result*397) ^ UseSelectiveExtraction.GetHashCode();
                 result = (result*397) ^ RetentionTimeFilterType.GetHashCode();
                 result = (result*397) ^ RetentionTimeFilterLength.GetHashCode();
+                result = (result*397) ^ SpectrumFilter.GetHashCode();
                 return result;
             }
         }
 
         #endregion
+
+        public static readonly FilterClause IgnoreSimScansFilter = new FilterClause(
+            SpectrumClassFilter.Ms1FilterPage.Discriminant.FilterSpecs.Append(
+                new FilterSpec(PropertyPath.Root.Property(nameof(SpectrumClassColumn.ScanWindowWidth)),
+                    FilterPredicate.CreateFilterPredicate(FilterOperations.OP_IS_GREATER_THAN,
+                        Results.SpectrumFilter.SIM_ISOLATION_CUTOFF)
+                )));
     }
 
     [XmlRoot("transition_integration")]

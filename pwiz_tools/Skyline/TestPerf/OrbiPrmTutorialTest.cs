@@ -69,15 +69,16 @@ namespace TestPerf
         private static string SAMPLES_DIR = Path.Combine(DATA_DIR, "Samples");
         private static string STANDARDS_DIR = Path.Combine(DATA_DIR, "Standards");
 
-        [TestMethod]
+        [TestMethod, NoParallelTesting(TestExclusionReason.RESOURCE_INTENSIVE)]
         public void TestOrbiPrmTutorial()
         {
 //            IsPauseForScreenShots = true;
 //            RunPerfTests = true;
 //            IsCoverShotMode = true;
-            CoverShotName = "PRM-Obitrap";
+//            IsRecordMode = true;
+            CoverShotName = "PRM-Orbitrap";
 
-            LinkPdf = "https://skyline.ms/_webdav/home/software/Skyline/%40files/tutorials/PRM-Orbitrap-21_2.pdf";
+            LinkPdf = "https://skyline.ms/_webdav/home/software/Skyline/%40files/tutorials/PRMOrbitrap-22_2.pdf";
 
             TestFilesZipPaths = new[]
             {
@@ -795,7 +796,25 @@ namespace TestPerf
 
             SaveBackup("PRM_Annotated");
         }
-        
+
+        private bool IsRecordMode { get; set; }
+
+        private double[] _g2mVsG1ExpectedValues =
+        {
+            1.5286469717562821, 4.874113625610951, 5.128623998938858, 222.57295652235459, 15.126911230574555,
+            9.939563798555195, 6.7226216850762333, 3.1161292093995954, 1.8189607778393124, 2.064459535964366,
+            3.7649086208478413, double.NaN, 6.4036328515894549, 4.2893195693229664, 1.6064067964057505,
+            1.6279241673160754, 6.92160352043457, 3.0280590361718085, double.NaN
+        };
+
+        private double[] _sVsG1ExpectedValues =
+        {
+            1.1419407081866504, 1.6314748479061998, 2.3479516646002074, 73.796520585047276, 4.8909493908231827,
+            3.481615608843597, 2.534098370995451, 1.5713834547583743, 1.0172178911029632, 1.4498342882211142,
+            1.6399900997690167, double.NaN, 2.9069059800754355, 1.5243590656323309, 0.71120566400961516,
+            0.97698627509986857, 2.0368205021689181, 1.7926981758208846, 1.0616603699699454
+        };
+
         private void GroupComparison()
         {
             var docBeforeComparison = SkylineWindow.Document;
@@ -821,12 +840,14 @@ namespace TestPerf
 
             var foldChangeGrid1 = ShowDialog<FoldChangeGrid>(() => SkylineWindow.ShowGroupComparisonWindow(comparisonName1));
             WaitForConditionUI(() => 19 == foldChangeGrid1.DataboundGridControl.RowCount);
+            VerifyFoldChangeValues(foldChangeGrid1, _g2mVsG1ExpectedValues, nameof(_g2mVsG1ExpectedValues));
             RunUI(() => foldChangeGrid1.Parent.Parent.Width = 383);
             PauseForScreenShot<FoldChangeGrid>(comparisonName1 + ":Grid", 37);
             OkDialog(foldChangeGrid1, () => foldChangeGrid1.Close());
 
             var foldChangeGrid2 = ShowDialog<FoldChangeGrid>(() => SkylineWindow.ShowGroupComparisonWindow(comparisonName2));
             WaitForConditionUI(() => 19 == foldChangeGrid2.DataboundGridControl.RowCount);
+            VerifyFoldChangeValues(foldChangeGrid2, _sVsG1ExpectedValues, nameof(_sVsG1ExpectedValues));
             RunUI(() => foldChangeGrid2.Parent.Parent.Width = 383);
             PauseForScreenShot<FoldChangeGrid>(comparisonName2 + ":Grid", 37);
             OkDialog(foldChangeGrid2, () => foldChangeGrid2.Close());
@@ -845,10 +866,12 @@ namespace TestPerf
             PauseForScreenShot<FoldChangeBarGraph>(comparisonName1 + ":Graph metafile", 38);
 
             foldChangeGridWithGraph = WaitForOpenForm<FoldChangeGrid>();
+            WaitForConditionUI(() => foldChangeGridWithGraph.IsComplete);
             RunUI(() =>
             {
                 var foldChangeResultColumn =
                     foldChangeGridWithGraph.DataboundGridControl.FindColumn(PropertyPath.Root.Property("FoldChangeResult"));
+                Assert.IsNotNull(foldChangeResultColumn, "Could not find FoldChangeResultColumn");
                 foldChangeGridWithGraph.DataboundGridControl.DataGridView.Sort(foldChangeResultColumn, ListSortDirection.Ascending);
             });
             RestoreViewOnScreen(39);
@@ -888,8 +911,8 @@ namespace TestPerf
                 Assert.IsTrue(editGroupComparisonDlg.ComboCaseValue.Items.Contains(caseValue));
                 editGroupComparisonDlg.ComboIdentityAnnotation.SelectedItem = identityAnnotation;
                 Assert.IsTrue(editGroupComparisonDlg.ComboIdentityAnnotation.Items.Contains(identityAnnotation));
-                editGroupComparisonDlg.ComboNormalizationMethod.SelectedItem =
-                    NormalizationMethod.FromIsotopeLabelTypeName("heavy");
+                editGroupComparisonDlg.NormalizeOption =
+                    NormalizeOption.FromNormalizationMethod(NormalizationMethod.FromIsotopeLabelTypeName("heavy"));
                 editGroupComparisonDlg.TextBoxConfidenceLevel.Text = 95.ToString(CultureInfo.CurrentCulture);
                 editGroupComparisonDlg.RadioScopePerProtein.Checked = true;
                 editGroupComparisonDlg.ShowAdvanced(true);
@@ -952,6 +975,45 @@ namespace TestPerf
             Assert.IsTrue(SkylineWindow.Document.Settings.DataSettings.ViewSpecList.ViewSpecs
                 .Contains(s => Equals(REPORT_QUANT, s.Name)));
             RunUI(() => SkylineWindow.SaveDocument());
+        }
+
+        private void VerifyFoldChangeValues(FoldChangeGrid foldChangeGrid, double[] expectedValues, string variableName)
+        {
+            RunUI(() =>
+            {
+                var foldChangeRows = foldChangeGrid.FoldChangeBindingSource.GetBindingListSource().Cast<RowItem>()
+                    .Select(rowItem => (FoldChangeBindingSource.FoldChangeRow)rowItem.Value).ToList();
+                double[] actualValues = foldChangeRows.Select(foldChangeResult => foldChangeResult.FoldChangeResult.FoldChange).ToArray();
+                if (IsRecordMode)
+                {
+                    var commaSeparatedValues = string.Join(",", actualValues.Select(DoubleToString));
+                    Console.Out.WriteLine("private double[] {0} = {{ {1} }};", variableName, commaSeparatedValues);
+                }
+                else
+                {
+                    CollectionAssert.AreEqual(expectedValues, actualValues);
+                }
+            });
+        }
+
+        private static string DoubleToString(double value)
+        {
+            if (Equals(value, double.NaN))
+            {
+                return "double.NaN";
+            }
+
+            if (Equals(value, double.PositiveInfinity))
+            {
+                return "double.PositiveInfinity";
+            }
+
+            if (Equals(value, double.NegativeInfinity))
+            {
+                return "double.NegativeInfinity";
+            }
+
+            return value.ToString("R", CultureInfo.InvariantCulture);
         }
     }
 }

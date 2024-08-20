@@ -81,6 +81,8 @@
             this.cbAutoSelect = new System.Windows.Forms.CheckBox();
             this.lbPrecursorMzWindow = new System.Windows.Forms.Label();
             this.tabLibrary = new System.Windows.Forms.TabPage();
+            this.label23 = new System.Windows.Forms.Label();
+            this.comboToleranceUnits = new System.Windows.Forms.ComboBox();
             this.label9 = new System.Windows.Forms.Label();
             this.panelPick = new System.Windows.Forms.Panel();
             this.label22 = new System.Windows.Forms.Label();
@@ -93,8 +95,9 @@
             this.textIonCount = new System.Windows.Forms.TextBox();
             this.textTolerance = new System.Windows.Forms.TextBox();
             this.cbLibraryPick = new System.Windows.Forms.CheckBox();
-            this.label13 = new System.Windows.Forms.Label();
             this.tabInstrument = new System.Windows.Forms.TabPage();
+            this.tbxSpectrumFilter = new System.Windows.Forms.TextBox();
+            this.btnEditSpectrumFilter = new System.Windows.Forms.Button();
             this.cbxTriggeredAcquisition = new System.Windows.Forms.CheckBox();
             this.textMaxInclusions = new System.Windows.Forms.TextBox();
             this.label21 = new System.Windows.Forms.Label();
@@ -122,6 +125,7 @@
             this.helpTip = new System.Windows.Forms.ToolTip(this.components);
             this.contextMenuStripPrecursorAdduct = new System.Windows.Forms.ContextMenuStrip(this.components);
             this.contextMenuStripFragmentAdduct = new System.Windows.Forms.ContextMenuStrip(this.components);
+            this.label13 = new System.Windows.Forms.Label();
             this.tabControl1.SuspendLayout();
             this.tabGeneral.SuspendLayout();
             this.tabFilter.SuspendLayout();
@@ -515,14 +519,31 @@
             // 
             // tabLibrary
             // 
+            this.tabLibrary.Controls.Add(this.label23);
+            this.tabLibrary.Controls.Add(this.comboToleranceUnits);
             this.tabLibrary.Controls.Add(this.label9);
             this.tabLibrary.Controls.Add(this.panelPick);
             this.tabLibrary.Controls.Add(this.textTolerance);
             this.tabLibrary.Controls.Add(this.cbLibraryPick);
-            this.tabLibrary.Controls.Add(this.label13);
             resources.ApplyResources(this.tabLibrary, "tabLibrary");
             this.tabLibrary.Name = "tabLibrary";
             this.tabLibrary.UseVisualStyleBackColor = true;
+            // 
+            // label23
+            // 
+            resources.ApplyResources(this.label23, "label23");
+            this.label23.Name = "label23";
+            // 
+            // comboToleranceUnits
+            // 
+            this.comboToleranceUnits.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.comboToleranceUnits.FormattingEnabled = true;
+            this.comboToleranceUnits.Items.AddRange(new object[] {
+            resources.GetString("comboToleranceUnits.Items"),
+            resources.GetString("comboToleranceUnits.Items1")});
+            resources.ApplyResources(this.comboToleranceUnits, "comboToleranceUnits");
+            this.comboToleranceUnits.Name = "comboToleranceUnits";
+            this.comboToleranceUnits.SelectedIndexChanged += new System.EventHandler(this.comboToleranceUnits_SelectedIndexChanged);
             // 
             // label9
             // 
@@ -610,13 +631,11 @@
             this.cbLibraryPick.UseVisualStyleBackColor = true;
             this.cbLibraryPick.CheckedChanged += new System.EventHandler(this.cbLibraryPick_CheckedChanged);
             // 
-            // label13
-            // 
-            resources.ApplyResources(this.label13, "label13");
-            this.label13.Name = "label13";
-            // 
             // tabInstrument
             // 
+            this.tabInstrument.Controls.Add(this.btnEditSpectrumFilter);
+            this.tabInstrument.Controls.Add(this.tbxSpectrumFilter);
+            this.tabInstrument.Controls.Add(this.label13);
             this.tabInstrument.Controls.Add(this.cbxTriggeredAcquisition);
             this.tabInstrument.Controls.Add(this.textMaxInclusions);
             this.tabInstrument.Controls.Add(this.label21);
@@ -641,6 +660,19 @@
             resources.ApplyResources(this.tabInstrument, "tabInstrument");
             this.tabInstrument.Name = "tabInstrument";
             this.tabInstrument.UseVisualStyleBackColor = true;
+            // 
+            // tbxSpectrumFilter
+            // 
+            resources.ApplyResources(this.tbxSpectrumFilter, "tbxSpectrumFilter");
+            this.tbxSpectrumFilter.Name = "tbxSpectrumFilter";
+            this.tbxSpectrumFilter.ReadOnly = true;
+            // 
+            // btnEditSpectrumFilter
+            // 
+            resources.ApplyResources(this.btnEditSpectrumFilter, "btnEditSpectrumFilter");
+            this.btnEditSpectrumFilter.Name = "btnEditSpectrumFilter";
+            this.btnEditSpectrumFilter.UseVisualStyleBackColor = true;
+            this.btnEditSpectrumFilter.Click += new System.EventHandler(this.btnEditSpectrumFilter_Click);
             // 
             // cbxTriggeredAcquisition
             // 
@@ -796,6 +828,11 @@
             this.contextMenuStripFragmentAdduct.Name = "contextMenuStripFragmentAdduct";
             resources.ApplyResources(this.contextMenuStripFragmentAdduct, "contextMenuStripFragmentAdduct");
             // 
+            // label13
+            // 
+            resources.ApplyResources(this.label13, "label13");
+            this.label13.Name = "label13";
+            // 
             // TransitionSettingsUI
             // 
             this.AcceptButton = this.btnOk;
@@ -869,7 +906,6 @@
         private System.Windows.Forms.Label label8;
         private System.Windows.Forms.TabPage tabLibrary;
         private System.Windows.Forms.Label label14;
-        private System.Windows.Forms.Label label13;
         private System.Windows.Forms.TextBox textTolerance;
         private System.Windows.Forms.Label label9;
         private System.Windows.Forms.RadioButton radioFiltered;
@@ -927,5 +963,10 @@
         private System.Windows.Forms.Label label22;
         private System.Windows.Forms.TextBox textMinIonCount;
         private System.Windows.Forms.CheckBox cbxTriggeredAcquisition;
+        private System.Windows.Forms.Label label23;
+        private System.Windows.Forms.ComboBox comboToleranceUnits;
+        private System.Windows.Forms.TextBox tbxSpectrumFilter;
+        private System.Windows.Forms.Button btnEditSpectrumFilter;
+        private System.Windows.Forms.Label label13;
     }
 }

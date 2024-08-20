@@ -1,8 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using SkylineTool;
 
 namespace ToolServiceCmd
@@ -87,6 +83,31 @@ namespace ToolServiceCmd
         public void Dispose()
         {
             
+        }
+
+        public int GetProcessId()
+        {
+            return RemoteCallFunction(GetProcessId);
+        }
+
+        public void DeleteElements(string[] elementLocators)
+        {
+            RemoteCall(DeleteElements, elementLocators);
+        }
+
+        public void ImportProperties(string csvText)
+        {
+            RemoteCall(ImportProperties, csvText);
+        }
+
+        public void ImportPeakBoundaries(string csvText)
+        {
+            RemoteCall(ImportPeakBoundaries, csvText);
+        }
+
+        public string GetSelectedElementLocator(string elementType)
+        {
+            return RemoteCallFunction(GetSelectedElementLocator, elementType);
         }
     }
 }

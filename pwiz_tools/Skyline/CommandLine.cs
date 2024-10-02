@@ -19,6 +19,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -48,6 +49,7 @@ using pwiz.Skyline.Model.Optimization;
 using pwiz.Skyline.Model.Proteome;
 using pwiz.Skyline.Model.Results;
 using pwiz.Skyline.Model.Results.Scoring;
+using pwiz.Skyline.Model.Results.Spectra;
 using pwiz.Skyline.Model.Tools;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
@@ -1088,7 +1090,8 @@ namespace pwiz.Skyline
                 }
                 if (commandArgs.FullScanPrecursorIgnoreSimScans.HasValue)
                 {
-                    newSettings = newSettings.ChangeIgnoreSimScans(commandArgs.FullScanPrecursorIgnoreSimScans.Value);
+                    newSettings = newSettings.ChangeSpectrumFilter(new SpectrumClassFilter(
+                        TransitionFullScan.IgnoreSimScansFilter, SpectrumClassFilter.Ms2FilterPage.Discriminant));
                 }
 
                 if (commandArgs.FullScanAcquisitionMethod != FullScanAcquisitionMethod.None)
@@ -2282,7 +2285,6 @@ namespace pwiz.Skyline
                     commandArgs.AssociateProteinsMinPeptidesPerProtein.GetValueOrDefault(),
                     progressMonitor);
                 Settings.Default.LastProteinAssociationFastaFilepath = fastaPath;
-                Settings.Default.Save();
                 ModifyDocument(doc => proteinAssociation.CreateDocTree(doc, progressMonitor), AuditLogEntry.SettingsLogFunction);
                 
             }, Resources.CommandLine_AssociateProteins_Failed_to_associate_proteins);
@@ -2814,7 +2816,7 @@ namespace pwiz.Skyline
 
             var matcher = new ModificationMatcher();
             var sequences = new List<string>();
-            foreach (var line in lineList)
+            foreach (var line in lineList.Where(l => !l.StartsWith(@">")))
             {
                 string sequence = FastaSequence.NormalizeNTerminalMod(line.Trim());
                 sequences.Add(sequence);
@@ -3665,6 +3667,7 @@ namespace pwiz.Skyline
             }
         }
 
+        [SuppressMessage("ReSharper", "UnusedMethodReturnValue.Local")]
         private bool SaveSettings(CommandArgs commandArgs)
         {
             return HandleExceptions(commandArgs, () =>
@@ -3899,8 +3902,6 @@ namespace pwiz.Skyline
                 Assume.IsNotNull(imported);
                 if ((bool)imported)
                 {
-                    if (!SaveSettings(commandArgs))
-                        return false;
                     _out.WriteLine(Resources.CommandLine_ImportSkyr_Success__Imported_Reports_from__0_, Path.GetFileName(commandArgs.SkyrPath));
                 }
                 else

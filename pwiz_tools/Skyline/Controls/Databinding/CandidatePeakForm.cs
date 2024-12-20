@@ -278,28 +278,38 @@ namespace pwiz.Skyline.Controls.Databinding
                 return candidatePeakGroups;
             }
 
-            var precursorIdentityPath =
-                new IdentityPath(selector.PeptideIdentityPath, selector.TransitionGroups.First());
-            var precursor = new Precursor(_dataSchema, precursorIdentityPath);
-            var precursorResult = new PrecursorResult(precursor,
-                new ResultFile(new Replicate(_dataSchema, selector.ReplicateIndex), selector.ChromFileInfoId, 0));
-
-            var transitionGroup = (TransitionGroup)precursorIdentityPath.Child;
-            foreach (var peakGroupData in featureCalculator.GetCandidatePeakGroups(transitionGroup))
+            foreach (var transitionGroupDocNode in selector.TransitionGroups)
             {
-                candidatePeakGroups.Add(new CandidatePeakGroup(precursorResult, peakGroupData));
-            }
+                var precursorIdentityPath =
+                    new IdentityPath(selector.PeptideIdentityPath, transitionGroupDocNode);
+                var precursor = new Precursor(_dataSchema, precursorIdentityPath);
+                var precursorResult = new PrecursorResult(precursor,
+                    new ResultFile(new Replicate(_dataSchema, selector.ReplicateIndex), selector.ChromFileInfoId, 0));
 
-            if (!candidatePeakGroups.Any(peak => peak.Chosen))
-            {
-                var chosenPeak = featureCalculator.GetChosenPeakGroupData(transitionGroup);
-                if (chosenPeak != null)
+                var transitionGroup = (TransitionGroup)precursorIdentityPath.Child;
+                foreach (var peakGroupData in featureCalculator.GetCandidatePeakGroups(transitionGroup))
                 {
-                    candidatePeakGroups.Add(new CandidatePeakGroup(precursorResult, chosenPeak));
+                    candidatePeakGroups.Add(new CandidatePeakGroup(precursorResult, peakGroupData));
                 }
-            }
 
-            return candidatePeakGroups.OrderBy(peak => Tuple.Create(peak.PeakGroupStartTime, peak.PeakGroupEndTime)).ToList();
+                if (!candidatePeakGroups.Any(peak => peak.Chosen))
+                {
+                    var chosenPeak = featureCalculator.GetChosenPeakGroupData(transitionGroup);
+                    if (chosenPeak != null)
+                    {
+                        candidatePeakGroups.Add(new CandidatePeakGroup(precursorResult, chosenPeak));
+                    }
+                }
+
+                if (candidatePeakGroups.Any())
+                {
+                    return candidatePeakGroups.OrderBy(peak => Tuple.Create(peak.PeakGroupStartTime, peak.PeakGroupEndTime)).ToList();
+                }
+                // If no candidate peaks were found for a TransitionGroupDocNode, it might mean that precursor had no chromatograms.
+                // Continue iterating over the transition groups.
+            }
+            // No candidate peaks were found for any transition groups. Return an empty array.
+            return Array.Empty<CandidatePeakGroup>();
         }
 
         private Selector GetSelector()

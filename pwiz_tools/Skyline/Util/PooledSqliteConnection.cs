@@ -17,6 +17,7 @@
  * limitations under the License.
  */
 using System;
+using System.Data;
 using System.Data.Common;
 using System.Data.SQLite;
 using System.IO;
@@ -38,18 +39,24 @@ namespace pwiz.Skyline.Util
 
         protected override IDisposable Connect()
         {
+            return OpenConnection(FilePath);
+        }
+
+        public static SQLiteConnection OpenConnection(string path)
+        {
             DbProviderFactory fact = new SQLiteFactory();
-            SQLiteConnection conn = (SQLiteConnection) fact.CreateConnection();
+            SQLiteConnection conn = (SQLiteConnection)fact.CreateConnection();
             if (conn != null)
             {
                 var connectionStringBuilder =
-                    SessionFactoryFactory.SQLiteConnectionStringBuilderFromFilePath(FilePath);
+                    SessionFactoryFactory.SQLiteConnectionStringBuilderFromFilePath(path);
                 connectionStringBuilder.Version = 3;
 
                 conn.ConnectionString = connectionStringBuilder.ToString();
                 conn.Open();
             }
             return conn;
+
         }
 
         Stream IPooledStream.Stream

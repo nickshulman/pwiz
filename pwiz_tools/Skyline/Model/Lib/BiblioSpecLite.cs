@@ -19,19 +19,23 @@
 using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Data.Common;
 using System.Data.SQLite;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Xml;
 using System.Xml.Serialization;
 using JetBrains.Annotations;
+using NHibernate.Driver;
 using pwiz.BiblioSpec;
 using pwiz.Common.Chemistry;
 using pwiz.Common.Collections;
 using pwiz.Common.Database;
+using pwiz.Common.Database.NHibernate;
 using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Model.Crosslinking;
 using pwiz.Skyline.Model.DocSettings;
@@ -42,6 +46,7 @@ using pwiz.Skyline.Model.RetentionTimes;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.Util;
 using pwiz.Skyline.Util.Extensions;
+using static alglib;
 
 namespace pwiz.Skyline.Model.Lib
 {
@@ -1155,10 +1160,8 @@ namespace pwiz.Skyline.Model.Lib
                     if (SqliteOperations.TableExists(_sqliteConnection.Connection, @"RetentionTimes")) // Only a filtered library will have this table
                     {
                         using var cmd = _sqliteConnection.Connection.CreateCommand();
-                        cmd.CommandText = @"SELECT * FROM RetentionTimes";
-                        using var dataReader = cmd.ExecuteReader();
-                        var retentionTimeReader = new RetentionTimeReader(dataReader, schemaVer);
-                        retentionTimeReader.ReadAllRows();
+                        var retentionTimeReader = new RetentionTimeReader(schemaVer);
+                        retentionTimeReader.ReadAllRows(FilePath);
                         var retentionTimesBySpectraId = retentionTimeReader.GetRetentionTimes();
                         var driftTimesBySpectraId = retentionTimeReader.GetIonMobilities();
                         var peakBoundsBySpectraId = retentionTimeReader.GetExplicitPeakBounds();
@@ -2355,8 +2358,6 @@ namespace pwiz.Skyline.Model.Lib
 
             private int?[] _columnIndexes;
             private int _schemaVer;
-            private IDataReader _reader;
-            private List<object[]> _rows;
 
             private List<KeyValuePair<int, IndexedRetentionTimes>> _retentionTimes =
                 new List<KeyValuePair<int, IndexedRetentionTimes>>();
@@ -2367,20 +2368,9 @@ namespace pwiz.Skyline.Model.Lib
             private List<KeyValuePair<int, ExplicitPeakBoundsDict<int>>> _explicitPeakBounds =
                 new List<KeyValuePair<int, ExplicitPeakBoundsDict<int>>>();
 
-            public RetentionTimeReader(IDataReader dataReader, int schemaVer)
+            public RetentionTimeReader(int schemaVer)
             {
                 _schemaVer = schemaVer;
-                _columnIndexes = new int?[(int) Column.MAX_COLUMN];
-                _reader = dataReader;
-                for (int colEnum = 0; colEnum < (int) Column.MAX_COLUMN; colEnum++)
-                {
-                    string columnName = ((Column)colEnum).ToString();
-                    int ordinal = dataReader.GetOrdinal(columnName);
-                    if (ordinal >= 0)
-                    {
-                        _columnIndexes[colEnum] = ordinal;
-                    }
-                }
             }
 
             public Dictionary<int, IndexedRetentionTimes> GetRetentionTimes()
@@ -2446,72 +2436,104 @@ namespace pwiz.Skyline.Model.Lib
                 return dictionary;
             }
             
-            public void ReadAllRows()
+            public void ReadAllRows(string dbPath)
             {
-                using var rowConsumer = new QueueWorker<List<object[]>>(consume:ConsumeRows);
-                rowConsumer.RunAsync(2, "ProcessRetentionTimeRows");
+                int threadCount = ParallelEx.GetThreadCount();
+                int[] finishedCount = new int[1];
+                for (int i = 0; i < threadCount; i++)
+                {
+                    int threadIndex = i;
+                    ActionUtil.RunAsync(() =>
+                    {
+                        try
+                        {
+                            ReadAllRows(dbPath, threadIndex, threadCount);
+                        }
+                        finally
+                        {
+                            lock (finishedCount)
+                            {
+                                finishedCount[0]++;
+                                Monitor.PulseAll(finishedCount);
+                            }
+                        }
+                    }, "ReadRetentionTimes" + i);
+                }
+
+                while (true)
+                {
+                    lock (finishedCount)
+                    {
+                        if (finishedCount[0] == threadCount)
+                        {
+                            return;
+                        }
+
+                        Monitor.Wait(finishedCount);
+                    }
+                }
+            }
+
+            private void ReadAllRows(string dbPath, int threadIndex, int threadCount)
+            {
+                var conn = PooledSqliteConnection.OpenConnection(dbPath);
+                using var stmt = conn.CreateCommand();
+                stmt.CommandText = "SELECT * From RetentionTimes WHERE RefSpectraId % " + threadCount + " = " +
+                                   threadIndex;
+                var reader = stmt.ExecuteReader();
+                InitializeColumnIndexes(reader);
                 List<object[]> rows = new List<object[]>();
-                int columnCount = _reader.FieldCount;
+                int columnCount = reader.FieldCount;
                 int? lastRefSpectraId = null;
-                while (_reader.Read())
+                while (reader.Read())
                 {
                     var row = new object[columnCount];
-                    _reader.GetValues(row);
+                    reader.GetValues(row);
                     int? refSpectraId = GetInt(Column.RefSpectraID, row);
                     if (refSpectraId == null)
                     {
                         continue;
                     }
-
                     if (refSpectraId != lastRefSpectraId)
                     {
                         if (rows.Count != 0)
                         {
-                            rowConsumer.Add(rows);
+                            ConsumeRows(rows);
                             rows = new List<object[]>();
                         }
 
                         lastRefSpectraId = refSpectraId;
                     }
-
-                    rows.Add(row);
                 }
 
-                if (rows.Count > 0)
+                if (rows.Count != 0)
                 {
-                    rowConsumer.Add(rows);
+                    ConsumeRows(rows);
                 }
-                rowConsumer.Wait();
-
-                // int? spectrumSourceId = GetInt(Column.SpectrumSourceID);
-                //     if (!refSpectraId.HasValue || !spectrumSourceId.HasValue)
-                //     {
-                //         continue;
-                //     }
-                //     double? retentionTime = ReadRetentionTime();
-                //     if (retentionTime.HasValue)
-                //     {
-                //         SpectraIdFileIdTimes.Add(new KeyValuePair<int, KeyValuePair<int, double>>(refSpectraId.Value,
-                //             new KeyValuePair<int, double>(spectrumSourceId.Value, retentionTime.Value)));
-                //     }
-                //     IonMobilityAndCCS ionMobilityInfo = ReadIonMobilityInfo();
-                //     if (!IonMobilityAndCCS.IsNullOrEmpty(ionMobilityInfo))
-                //     {
-                //         SpectraIdFileIdIonMobilities.Add(
-                //             new KeyValuePair<int, KeyValuePair<int, IonMobilityAndCCS>>(refSpectraId.Value,
-                //                 new KeyValuePair<int, IonMobilityAndCCS>(spectrumSourceId.Value, ionMobilityInfo)));
-                //     }
-                //     var peakBounds = ReadPeakBounds();
-                //     if (peakBounds != null)
-                //     {
-                //         PeakBoundaries.Add(
-                //             new KeyValuePair<int, KeyValuePair<int, ExplicitPeakBounds>>(refSpectraId.Value,
-                //                 new KeyValuePair<int, ExplicitPeakBounds>(spectrumSourceId.Value, peakBounds)));
-                //     }
-                // }
             }
 
-            private void ConsumeRows(List<object[]> rows, int threadIndex)
+            private void InitializeColumnIndexes(IDataReader dataReader)
+            {
+                lock (this)
+                {
+                    if (_columnIndexes != null)
+                    {
+                        return;
+                    }
+                    _columnIndexes = new int?[(int)Column.MAX_COLUMN];
+                    for (int colEnum = 0; colEnum < (int)Column.MAX_COLUMN; colEnum++)
+                    {
+                        string columnName = ((Column)colEnum).ToString();
+                        int ordinal = dataReader.GetOrdinal(columnName);
+                        if (ordinal >= 0)
+                        {
+                            _columnIndexes[colEnum] = ordinal;
+                        }
+                    }
+                }
+            }
+
+            private void ConsumeRows(List<object[]> rows)
             {
                 var refSpectraId = GetInt(Column.RefSpectraID, rows[0]);
                 var retentionTimes = new List<KeyValuePair<int, double>>();

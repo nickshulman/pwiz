@@ -24,6 +24,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Xml;
 using System.Xml.Serialization;
@@ -122,33 +123,13 @@ namespace pwiz.Skyline.Model.Lib
     [XmlRoot("bibliospec_lite_library")]
     public sealed class BiblioSpecLiteLibrary : CachedLibrary<BiblioLiteSpectrumInfo>
     {
-        private const int FORMAT_VERSION_CACHE = 20;
-        // V19 add protein/MoleculeGroupName
-        // V18 crosslinks
-        // V17 add ID file (alongside already-cached spectrum source file)
-        // V16 scores and score types
-        // V15 add score to peak boundaries
-        // V14 adds peak annotations
-        // V13 adds variable precision modifications
-        // v12 adds small molecule support
-        // v11 startTime and endTime in RetentionTimes table
-        // v10 changes ion mobility encoding
-
         public const string DEFAULT_AUTHORITY = "proteome.gs.washington.edu";
-
-        public const string EXT_CACHE = ".slc";
-
         private PooledSqliteConnection _sqliteConnection;
         private PooledSqliteConnection _sqliteConnectionRedundant;
 
         private BiblioLiteSourceInfo[] _librarySourceFiles;
         private LibraryFiles _libraryFiles = LibraryFiles.EMPTY;
         private bool _anyExplicitPeakBounds;
-
-        public static string GetLibraryCachePath(string libraryPath)
-        {
-            return Path.ChangeExtension(libraryPath, EXT_CACHE);
-        }
 
         public static BiblioSpecLiteLibrary Load(BiblioSpecLiteSpec spec, ILoadMonitor loader)
         {
@@ -176,7 +157,6 @@ namespace pwiz.Skyline.Model.Lib
         {
             _librarySourceFiles = new BiblioLiteSourceInfo[0];
             FilePath = spec.FilePath;
-            CachePath = GetLibraryCachePath(FilePath);
         }
 
         /// <summary>
@@ -886,7 +866,6 @@ namespace pwiz.Skyline.Model.Lib
             var startTime = DateTime.UtcNow;
             if (hasRetentionTimesTable) // Only a filtered library will have this table
             {
-                using var cmd = _sqliteConnection.Connection.CreateCommand();
                 status = status.ChangeSegments(1, segmentCount).ChangeMessage(string.Format("Reading retention times from {0}", Path.GetFileName(FilePath)));
                 var retentionTimeReader = new RetentionTimeReader(FilePath, schemaVer);
                 retentionTimeReader.ReadAllRows(loader, ref status, rows);
@@ -925,7 +904,7 @@ namespace pwiz.Skyline.Model.Lib
 
             _librarySourceFiles = librarySourceFiles.ToArray();
             _libraryFiles = new LibraryFiles(_librarySourceFiles.Select(file => file.FilePath));
-            SetLibraryEntries(FilterInvalidLibraryEntries(ref status, libraryEntries));
+            SetLibraryEntries(FilterInvalidLibraryEntries(ref status, libraryEntries.OrderBy(spec=>spec.Id)));
             EnsureConnections(sm);
             loader.UpdateProgress(status.ChangeSegments(segmentCount - 1, segmentCount).Complete());
             return true;
@@ -963,45 +942,21 @@ namespace pwiz.Skyline.Model.Lib
         {
             ProgressStatus status = new ProgressStatus(string.Empty);
             loader.UpdateProgress(status);
-
-            bool cached = loader.StreamManager.IsCached(FilePath, CachePath);
-            if (Load(loader, status, cached))
-                return true;
-
-            // If loading from the cache failed, rebuild it.
-            if (cached)
-            {
-                // Reset readStream so we don't read corrupt file.
-                if (_sqliteConnection != null)
-                {
-                    _sqliteConnection.CloseStream();
-                    _sqliteConnection = null;
-                }
-                if (Load(loader, status, false))
-                    return true;
-            }
-
-            // Close any streams that got opened
-            foreach (var pooledStream in ReadStreams)
-                pooledStream.CloseStream();
-
-            return false;
-        }
-
-        private bool Load(ILoadMonitor loader, IProgressStatus status, bool cached)
-        {
             try
             {
                 var start = DateTime.UtcNow;
                 bool result = ReadFromDatabase(loader, status);
                 Console.Out.WriteLine("Load Library {0} in {1}", FilePath, DateTime.UtcNow.Subtract(start));
-                return result;
+                if (result)
+                {
+                    return true;
+                }
             }
             catch (Exception x)
             {
                 // SQLiteExceptions are not considered programming defects and should be shown to the user
                 // as an ordinary error message
-                if (x is SQLiteException || !ExceptionUtil.IsProgrammingDefect(x))
+                if (x is SQLiteException || x is TargetInvocationException && x.InnerException is SQLiteException || !ExceptionUtil.IsProgrammingDefect(x))
                 {
                     var message = string.Format(Resources.BiblioSpecLiteLibrary_Load_Failed_loading_library__0__, FilePath);
                     // This will show the user the error message after which the operation can be treated as canceled.
@@ -1012,8 +967,13 @@ namespace pwiz.Skyline.Model.Lib
                     // Other sorts of exceptions should be posted to the Exception Web
                     throw new Exception(FormatErrorMessage(x), x);
                 }
-                return false;
             }
+
+            // Close any streams that got opened
+            foreach (var pooledStream in ReadStreams)
+                pooledStream.CloseStream();
+
+            return false;
         }
 
         string FormatErrorMessage(Exception x)
@@ -2198,7 +2158,7 @@ namespace pwiz.Skyline.Model.Lib
                 int threadCount = ParallelEx.GetThreadCount();
                 ParallelEx.For(0, threadCount, threadIndex =>
                 {
-                    var conn = SqliteOperations.OpenConnection(_dbPath);
+                    using var conn = SqliteOperations.OpenConnection(_dbPath);
                     using var stmt = conn.CreateCommand();
                     stmt.CommandText = "SELECT * From RetentionTimes WHERE RefSpectraId % "
                                        + threadCount + " = " + threadIndex;

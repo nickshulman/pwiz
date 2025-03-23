@@ -18,6 +18,7 @@
  */
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Drawing;
 using System.Linq;
 using pwiz.Common.Collections;
@@ -703,6 +704,16 @@ namespace pwiz.Skyline.Model
                                                      im.BestResult = im.CalcBestResult();
                                                  });
         }
+        public PeptideDocNode ChangeStoredResults(Results<PeptideChromInfo> prop)
+        {
+            if (ReferenceEquals(prop, Results))
+            {
+                return this;
+            }
+            Debug.Assert(true == Results?.EqualsIncludingFileIds(prop));
+            return ChangeProp(ImClone(this), im => im.Results = prop);
+        }
+
 
         public PeptideDocNode ChangeExplicitRetentionTime(ExplicitRetentionTimeInfo prop)
         {
@@ -1417,8 +1428,7 @@ namespace pwiz.Skyline.Model
                 var listChromInfoList = _listResultCalcs.ConvertAll(calc => calc.CalcChromInfoList(TransitionGroupCount));
                 listChromInfoList = CopyChromInfoAttributes(nodePeptide, listChromInfoList);
                 var results = (nodePeptide.Results??PeptideResults.Empty).Merge(listChromInfoList);
-                if (!ReferenceEquals(results, nodePeptide.Results))
-                    nodePeptide = nodePeptide.ChangeResults(results.ValueFromCache(valueCache));
+                nodePeptide = nodePeptide.ChangeStoredResults(results.ValueFromCache(valueCache));
 
                 var listGroupsNew = new List<DocNode>();
                 foreach (TransitionGroupDocNode nodeGroup in nodePeptide.Children)

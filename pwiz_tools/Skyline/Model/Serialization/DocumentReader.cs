@@ -1541,7 +1541,7 @@ namespace pwiz.Skyline.Model.Serialization
                     if (transitionDocNode.Results != null)
                     {
                         transitionDocNode =
-                            transitionDocNode.ChangeResults(transitionDocNode.Results.ValueFromCache(_valueCache));
+                            transitionDocNode.ChangeStoredResults(transitionDocNode.Results.ValueFromCache(_valueCache));
                     }
                     list.Add(transitionDocNode);
                 }

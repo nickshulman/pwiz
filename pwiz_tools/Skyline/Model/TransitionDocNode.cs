@@ -18,6 +18,7 @@
  */
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -892,6 +893,17 @@ namespace pwiz.Skyline.Model
             return ChangeProp(ImClone(this), im => im.Results = prop);
         }
 
+        public TransitionDocNode ChangeStoredResults(Results<TransitionChromInfo> prop)
+        {
+            if (ReferenceEquals(prop, Results))
+            {
+                return this;
+            }
+            Debug.Assert(true == prop?.EqualsIncludingFileIds(Results));
+            return ChangeProp(ImClone(this), im => im.Results = prop);
+        }
+
+
         public TransitionDocNode ChangeResultsRank(int? prop)
         {
             return ChangeProp(ImClone(this), im => im.ResultsRank = prop);
@@ -990,8 +1002,7 @@ namespace pwiz.Skyline.Model
             if (!ReferenceEquals(annotations, Annotations))
                 result = (TransitionDocNode)result.ChangeAnnotations(annotations);
             var resultsInfo = MergeResultsUserInfo(settings, nodeTranMerge.Results);
-            if (!ReferenceEquals(resultsInfo, Results))
-                result = result.ChangeResults(resultsInfo);
+            result = result.ChangeResults(resultsInfo);
             return result;
         }
 

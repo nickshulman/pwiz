@@ -2043,8 +2043,7 @@ namespace pwiz.Skyline.Model
                 var results = (nodeGroup.Results ?? TransitionGroupResults.Empty).Merge(listChromInfoLists);
 
                 var nodeGroupNew = nodeGroup;
-                if (!Results<TransitionGroupChromInfo>.EqualsDeep(results, nodeGroupNew.Results))
-                    nodeGroupNew = nodeGroupNew.ChangeResults(results);
+                nodeGroupNew = nodeGroupNew.ChangeResults(results);
 
                 nodeGroupNew = (TransitionGroupDocNode)nodeGroupNew.ChangeChildrenChecked(childrenNew);
                 return nodeGroupNew;
@@ -2054,8 +2053,7 @@ namespace pwiz.Skyline.Model
             {
                 var chromInfoSet = _arrayTransitionChromInfoSets[iTran];
                 var results = (nodeTran.Results??TransitionResults.Empty).Merge(chromInfoSet.ChromInfoLists);
-                if (!Results<TransitionChromInfo>.EqualsDeep(results, nodeTran.Results))
-                    nodeTran = nodeTran.ChangeResults(results);
+                nodeTran = nodeTran.ChangeResults(results);
                 if (nodeTran.ResultsRank != chromInfoSet.AverageRank)
                     nodeTran = nodeTran.ChangeResultsRank(chromInfoSet.AverageRank);
                 return nodeTran;
@@ -2789,6 +2787,16 @@ namespace pwiz.Skyline.Model
                    ChangeProp(ImClone(this), im => im.Results = prop);
         }
 
+        public TransitionGroupDocNode ChangeStoredResults(Results<TransitionGroupChromInfo> prop)
+        {
+            if (ReferenceEquals(prop, Results))
+            {
+                return this;
+            }
+            Debug.Assert(true == Results?.EqualsIncludingFileIds(prop));
+            return ChangeProp(ImClone(this), im => im.Results = prop);
+        }
+
         public TransitionGroupDocNode ChangePrecursorAnnotations(ChromFileInfoId fileId, Annotations annotations)
         {
             var groupChromInfo = ChromInfos.FirstOrDefault(info => ReferenceEquals(info.FileId, fileId));
@@ -3086,8 +3094,7 @@ namespace pwiz.Skyline.Model
             if (!ReferenceEquals(annotations, Annotations))
                 result = (TransitionGroupDocNode)result.ChangeAnnotations(annotations);
             var resultsInfo = MergeResultsUserInfo(settings, nodeGroupMerge.Results);
-            if (!ReferenceEquals(resultsInfo, Results))
-                result = result.ChangeResults(resultsInfo);
+            result = result.ChangeResults(resultsInfo);
             return result.UpdateResults(settings, diff, nodePep, this);
         }
 
@@ -3136,7 +3143,7 @@ namespace pwiz.Skyline.Model
             return Results.ChangeResults(listResults);
         }
 
-        #endregion
+#endregion
 
         #region object overrides
 

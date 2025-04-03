@@ -107,6 +107,7 @@
 						<xs:enumeration value="read-write" />
 						<xs:enumeration value="nonstrict-read-write" />
 						<xs:enumeration value="transactional" />
+						<xs:enumeration value="never" />
 					</xs:restriction>
 				</xs:simpleType>
 			</xs:attribute>
@@ -280,6 +281,7 @@
 			</xs:attribute>
 			<xs:attribute name="lazy" default="false" type="xs:boolean">
 			</xs:attribute>
+			<xs:attribute name="lazy-group" type="xs:string" />
 			<xs:attribute name="optimistic-lock" default="true" type="xs:boolean">
 			</xs:attribute>
 			<xs:attribute name="node" type="xs:string" />
@@ -1038,6 +1040,7 @@
 			</xs:attribute>
 			<xs:attribute name="constrained" default="false" type="xs:boolean">
 			</xs:attribute>
+			<xs:attribute name="optimistic-lock" default="true" type="xs:boolean" />
 			<xs:attribute name="foreign-key" type="xs:string" />
 			<xs:attribute name="property-ref" type="xs:string" />
 			<xs:attribute name="lazy" type="laziness">
@@ -1168,6 +1171,7 @@
 			<xs:attribute name="formula" type="xs:string" />
 			<xs:attribute name="lazy" default="false" type="xs:boolean">
 			</xs:attribute>
+			<xs:attribute name="lazy-group" type="xs:string" />
 			<xs:attribute name="generated" default="never" type="propertyGeneration">
 			</xs:attribute>
 		</xs:complexType>

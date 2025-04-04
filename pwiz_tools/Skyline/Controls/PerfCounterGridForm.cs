@@ -1,11 +1,13 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Linq;
 using System.Reflection;
 using pwiz.Common.Collections;
 using pwiz.Common.DataBinding;
 using pwiz.Common.DataBinding.Attributes;
+using pwiz.Common.DataBinding.Layout;
 using pwiz.Common.SystemUtil;
 using pwiz.Common.SystemUtil.PerfCounters;
 using pwiz.Skyline.Controls.Databinding;
@@ -24,18 +26,13 @@ namespace pwiz.Skyline.Controls
         {
             InitializeComponent();
             _rowSource = new RowSource(GetPerfCounters(typeof(SkylinePerfCounters)));
-            var viewSpec = new ViewSpec().SetName("default").SetRowType(typeof(Row)).SetColumns(new[]
-            {
-                nameof(Row.Name),
-                nameof(Row.Counts),
-
-            }.Select(name => new ColumnSpec(PropertyPath.Root.Property(name))));
+            var viewSpec = GetBuiltInViews().ViewSpecs.First();
             var dataSchema = new DataSchema();
             var rowSourceInfo = new RowSourceInfo(typeof(Row), _rowSource,
                 new[] { new ViewInfo(dataSchema, typeof(Row), viewSpec).ChangeViewGroup(ViewGroup.BUILT_IN) });
-            var viewContext = new BaseSkylineViewContext(dataSchema, new[] { rowSourceInfo });
+            var viewContext = new PerfCounterViewContext(dataSchema, rowSourceInfo);
             bindingListSource1.SetViewContext(viewContext, rowSourceInfo.Views.First());
-            
+            UpdateNow();
         }
 
         private class Row
@@ -44,12 +41,14 @@ namespace pwiz.Skyline.Controls
             {
                 Name = name;
                 Counts = new FormattedPerfCounts(perfCounter.GetCounts());
+                Children = perfCounter.GetDetails().Select(detail => new Row(detail.Key, detail.Value)).ToImmutable();
             }
             public string Name { get; }
             public FormattedPerfCounts Counts { get; }
+            public ImmutableList<Row> Children { get; }
         }
 
-        private class FormattedPerfCounts : IComparable<FormattedPerfCounts>
+        private class FormattedPerfCounts : IComparable
         {
             private PerfCounts _perfCounts;
             public FormattedPerfCounts(PerfCounts perfCounts)
@@ -83,9 +82,9 @@ namespace pwiz.Skyline.Controls
                 return _perfCounts.ToString();
             }
 
-            public int CompareTo(FormattedPerfCounts other)
+            public int CompareTo(object other)
             {
-                return _perfCounts.CompareTo(other._perfCounts);
+                return _perfCounts.CompareTo(((FormattedPerfCounts) other)?._perfCounts);
             }
         }
 
@@ -125,9 +124,15 @@ namespace pwiz.Skyline.Controls
 
         private void btnGarbageCollect_Click(object sender, EventArgs e)
         {
+            CollectGarbage();
+        }
+
+        public void CollectGarbage()
+        {
             GC.Collect();
             GC.WaitForPendingFinalizers();
             GC.Collect();
+            UpdateNow();
         }
 
         public static void ShowForm()
@@ -164,6 +169,67 @@ namespace pwiz.Skyline.Controls
                 {
                     yield return new KeyValuePair<string, PerfCounter>(member.Name, perfCounter);
                 }
+            }
+        }
+
+        private class PerfCounterViewContext : BaseSkylineViewContext
+        {
+            public PerfCounterViewContext(DataSchema dataSchema, RowSourceInfo rowSourceInfo) : base(dataSchema,
+                new[] { rowSourceInfo })
+            {
+            }
+
+            public override ViewSpecList GetViewSpecList(ViewGroupId viewGroup)
+            {
+                if (Equals(viewGroup, ViewGroup.BUILT_IN.Id))
+                {
+                    return GetBuiltInViews();
+                }
+
+                return base.GetViewSpecList(viewGroup);
+            }
+        }
+
+        public static ViewSpecList GetBuiltInViews()
+        {
+            return new ViewSpecList(new[]
+                {
+                    new ViewSpec().SetName("Counters").SetRowType(typeof(Row)).SetColumns(new[]
+                    {
+                        nameof(Row.Name),
+                        nameof(Row.Counts),
+
+                    }.Select(name => new ColumnSpec(PropertyPath.Root.Property(name))))
+                },
+                new []
+                {
+                    new ViewLayoutList("Counters").ChangeLayouts(new []
+                    {
+                        new ViewLayout("Recent Activity").ChangeColumnFormats(new []
+                        {
+                            Tuple.Create(new ColumnId(nameof(Row.Name)), ColumnFormat.EMPTY.ChangeWidth(250)),
+                            Tuple.Create(new ColumnId(nameof(Row.Counts)), ColumnFormat.EMPTY.ChangeWidth(500))
+
+                        }).ChangeRowTransforms(new []
+                        {
+                            RowFilter.Empty.SetColumnSorts(new[]{new RowFilter.ColumnSort(new ColumnId(nameof(Row.Counts)), ListSortDirection.Descending)})
+                        })
+                    }).ChangeDefaultLayoutName("Recent Activity")
+                }
+            );
+        }
+
+        private void btnReset_Click(object sender, EventArgs e)
+        {
+            ResetCounters();
+            UpdateNow();
+        }
+
+        public void ResetCounters()
+        {
+            foreach (var counter in _rowSource.PerfCounters)
+            {
+                counter.Value.Reset();
             }
         }
     }

@@ -72,5 +72,14 @@ namespace pwiz.Common.SystemUtil.PerfCounters
         {
             return Measure(null, 0, function);
         }
+
+        public void Reset()
+        {
+            lock (this)
+            {
+                _counts = new HierarchicalCounter();
+                _detailCounters = null;
+            }
+        }
     }
 }

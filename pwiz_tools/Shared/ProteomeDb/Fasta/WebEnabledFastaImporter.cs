@@ -513,8 +513,6 @@ namespace pwiz.ProteomeDatabase.Fasta
                 httpRequest.Timeout = timeout;
                 httpRequest.UserAgent = @"Skyline";
                 MemoryStream stream = new MemoryStream();
-                ProteomePerfCounters.FetchProteinMetadata.Measure(httpRequest.Host, 0, () =>
-                {
                     using HttpWebResponse webResponse = (HttpWebResponse)httpRequest.GetResponse();
                     using (var webResponseStream = webResponse.GetResponseStream())
                     {
@@ -534,7 +532,6 @@ namespace pwiz.ProteomeDatabase.Fasta
                             }
                         }
                     }
-                });
                 return stream;
             }
 
@@ -1042,8 +1039,9 @@ namespace pwiz.ProteomeDatabase.Fasta
                             </Item>
                             </DocSum>
                         */
-                        using (var xmlTextReader = _webSearchProvider.GetXmlTextReader(urlString))
+                        ProteomePerfCounters.FetchProteinMetadata.Measure("entrez", searchterms.Count, ()=>
                         {
+                            using var xmlTextReader = _webSearchProvider.GetXmlTextReader(urlString);
                             var elementName = String.Empty;
                             var response = new ProteinSearchInfo();
                             bool dummy = addedKnowngood;
@@ -1147,15 +1145,14 @@ namespace pwiz.ProteomeDatabase.Fasta
                                 }
                             }
                             xmlTextReader.Close();
-                        }
+                        });
 
                         if (searchterms.Count > (addedKnowngood ? 1 : 0))
                         {
                             // now do full entrez search - unfortunately this pulls down sequence information so it's slow and we try to avoid it
                             urlString = _webSearchProvider.ConstructEntrezURL(searchterms, false); // not a summary
-
-                            using (var xmlTextReader = _webSearchProvider.GetXmlTextReader(urlString))
-                            {
+                            ProteomePerfCounters.FetchProteinMetadata.Measure("full entrez", searchterms.Count, ()=>{
+                                using var xmlTextReader = _webSearchProvider.GetXmlTextReader(urlString);
                                 var elementName = String.Empty;
                                 var latestGbQualifierName = string.Empty;
                                 var response = new ProteinSearchInfo(); // and start another
@@ -1230,15 +1227,16 @@ namespace pwiz.ProteomeDatabase.Fasta
                                     }
                                 }
                                 xmlTextReader.Close();
-                            }
+                            });
                         } // end full entrez search
                     } // End if GENINFO or ENTREZ
                     else if (searchType == UNIPROTKB_TAG)
                     {
                         int timeout = _webSearchProvider.GetTimeoutMsec(searchterms.Count); // 10 secs + 1 more for every 5 search terms
                         urlString = _webSearchProvider.ConstructUniprotURL(searchterms);
-                        using (var webResponseStream = _webSearchProvider.GetWebResponseStream(urlString, timeout))
+                        ProteomePerfCounters.FetchProteinMetadata.Measure("uniprot", searchterms.Count, () =>
                         {
+                            using var webResponseStream = _webSearchProvider.GetWebResponseStream(urlString, timeout);
                             if (webResponseStream != null)
                             {
                                 using (var reader = new StreamReader(webResponseStream))
@@ -1275,7 +1273,7 @@ namespace pwiz.ProteomeDatabase.Fasta
                                                         Species = NullForEmpty(fields[colSpecies]),
                                                     },
                                                     SeqLength = length,
-                                                    ReviewStatus = NullForEmpty(colStatus>=0 ? fields[colStatus] : null) // Reviewed or unreviewed
+                                                    ReviewStatus = NullForEmpty(colStatus >= 0 ? fields[colStatus] : null) // Reviewed or unreviewed
                                                 };
                                                 responses.Add(response);
                                             }
@@ -1285,7 +1283,7 @@ namespace pwiz.ProteomeDatabase.Fasta
                                 }
                                 webResponseStream.Close();
                             }
-                        }
+                        });
                     } // End if Uniprot
                 }
                 catch (WebException ex)

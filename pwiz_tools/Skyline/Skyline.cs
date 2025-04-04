@@ -1213,6 +1213,10 @@ namespace pwiz.Skyline
 
         private void sequenceTree_AfterSelect(object sender, TreeViewEventArgs e)
         {
+            if (SequenceTree.IsInUpdate)
+            {
+                return;
+            }
             // Hide any tool tips when selection changes
             SequenceTree.HideEffects();
 

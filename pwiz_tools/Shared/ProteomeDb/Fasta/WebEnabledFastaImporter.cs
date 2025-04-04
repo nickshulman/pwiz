@@ -31,6 +31,7 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Xml;
 using pwiz.Common.SystemUtil;
+using pwiz.Common.SystemUtil.PerfCounters;
 using pwiz.ProteomeDatabase.API;
 using pwiz.ProteomeDatabase.DataModel;
 using pwiz.ProteomeDatabase.Properties;
@@ -512,8 +513,9 @@ namespace pwiz.ProteomeDatabase.Fasta
                 httpRequest.Timeout = timeout;
                 httpRequest.UserAgent = @"Skyline";
                 MemoryStream stream = new MemoryStream();
-                using (HttpWebResponse webResponse = (HttpWebResponse)httpRequest.GetResponse())
+                ProteomePerfCounters.FetchProteinMetadata.Measure(httpRequest.Host, 0, () =>
                 {
+                    using HttpWebResponse webResponse = (HttpWebResponse)httpRequest.GetResponse();
                     using (var webResponseStream = webResponse.GetResponseStream())
                     {
                         if (webResponseStream != null)
@@ -532,7 +534,7 @@ namespace pwiz.ProteomeDatabase.Fasta
                             }
                         }
                     }
-                }
+                });
                 return stream;
             }
 

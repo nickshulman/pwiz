@@ -26,6 +26,7 @@ using Google.Protobuf;
 using pwiz.Common.Chemistry;
 using pwiz.Common.Collections;
 using pwiz.Common.SystemUtil;
+using pwiz.Common.SystemUtil.PerfCounters;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.Lib;
 using pwiz.Skyline.Model.Results.Legacy;
@@ -1889,9 +1890,12 @@ namespace pwiz.Skyline.Model.Results
 
         private IList<ChromPeak> ReadPeaksStartingAt(Stream stream, long startPeakIndex, int count)
         {
-            stream.Seek(_rawData.LocationPeaks + _rawData.CacheFormat.ChromPeakSize * startPeakIndex,
-                SeekOrigin.Begin);
-            return _rawData.CacheFormat.ChromPeakSerializer().ReadArray(stream, count);
+            return SkylinePerfCounters.ReadChromPeak.Measure(CachePath, count, ()=>
+            {
+                stream.Seek(_rawData.LocationPeaks + _rawData.CacheFormat.ChromPeakSize * startPeakIndex,
+                    SeekOrigin.Begin);
+                return _rawData.CacheFormat.ChromPeakSerializer().ReadArray(stream, count);
+            });
         }
 
 
@@ -1911,8 +1915,12 @@ namespace pwiz.Skyline.Model.Results
             {
                 return Array.Empty<float>();
             }
-            stream.Seek(_rawData.LocationScoreValues + startScoreIndex * SCORE_VALUE_SIZE, SeekOrigin.Begin);
-            return PrimitiveArrays.Read<float>(stream, scoreValueCount);
+
+            return SkylinePerfCounters.ReadChromScores.Measure(CachePath, scoreValueCount, () =>
+            {
+                stream.Seek(_rawData.LocationScoreValues + startScoreIndex * SCORE_VALUE_SIZE, SeekOrigin.Begin);
+                return PrimitiveArrays.Read<float>(stream, scoreValueCount);
+            });
         }
 
         /// <summary>

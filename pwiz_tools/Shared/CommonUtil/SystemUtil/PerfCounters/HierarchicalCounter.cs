@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 
 namespace pwiz.Common.SystemUtil.PerfCounters
 {
@@ -210,28 +211,25 @@ namespace pwiz.Common.SystemUtil.PerfCounters
 
         public override string ToString()
         {
-            var parts = new List<string>();
-            if (Size != 0)
-            {
-                parts.Add(Size.ToString());
-            }
-
+            var stringBuilder = new StringBuilder();
             if (Count != 0)
             {
-                parts.Add(@"#"+Count);
+                stringBuilder.Append(Count);
             }
+
 
             if (!Equals(Duration, TimeSpan.Zero))
             {
-                parts.Add(FormatDuration(Duration));
+                stringBuilder.Append(" in ");
+                stringBuilder.Append(FormatDuration(Duration));
             }
 
-            if (parts.Count == 0)
+            if (stringBuilder.Length == 0)
             {
-                return @"0";
+                return "0";
             }
 
-            return CommonTextUtil.SpaceSeparate(parts);
+            return stringBuilder.ToString();
         }
 
         public int CompareTo(PerfQuantity other)
@@ -247,27 +245,41 @@ namespace pwiz.Common.SystemUtil.PerfCounters
 
         private static string FormatDuration(TimeSpan timeSpan)
         {
-            if (timeSpan.TotalHours > 2)
+            if (timeSpan.TotalHours >= 1)
             {
-                return timeSpan.TotalHours.ToString("0.#") + "h";
+                return FormatNumber(timeSpan.TotalHours) + "h";
             }
 
-            if (timeSpan.TotalMinutes > 2)
+            if (timeSpan.TotalMinutes >= 10)
             {
-                return timeSpan.TotalMinutes.ToString("0.#") + "m";
+                return FormatNumber(timeSpan.TotalMinutes) + "m";
             }
 
-            if (timeSpan.TotalSeconds > 2)
+            if (timeSpan.TotalSeconds >= 10)
             {
-                return timeSpan.TotalSeconds.ToString("0.#") + "s";
+                return FormatNumber(timeSpan.TotalSeconds) + "s";
             }
 
-            if (timeSpan.TotalMilliseconds > 2)
+            if (timeSpan.TotalMilliseconds >= 10)
             {
-                return timeSpan.TotalMilliseconds.ToString("0.#") + "msec";
+                return FormatNumber(timeSpan.TotalMilliseconds) + "ms";
             }
 
-            return (timeSpan.Ticks / 10.0).ToString("0.#") + "usec";
+            return FormatNumber(timeSpan.Ticks / 10.0) + "us";
+        }
+
+        private static string FormatNumber(double value)
+        {
+            if (value >= 100)
+            {
+                return value.ToString("0");
+            }
+
+            if (value >= 10)
+            {
+                return value.ToString("0.#");
+            }
+            return value.ToString("0.##");
         }
 
         public int CompareTo(object obj)

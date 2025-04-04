@@ -30,6 +30,7 @@ using pwiz.Common.Chemistry;
 using pwiz.Common.Collections;
 using pwiz.Common.PeakFinding;
 using pwiz.Common.SystemUtil;
+using pwiz.Common.SystemUtil.PerfCounters;
 using pwiz.ProteowizardWrapper;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.Results.Crawdad;
@@ -2544,17 +2545,18 @@ namespace pwiz.Skyline.Model.Results
         public static void LoadPeaksForAll(IEnumerable<ChromatogramGroupInfo> chromatogramGroupInfos, bool loadScoresToo)
         {
             foreach (var grouping in chromatogramGroupInfos.Distinct()
-                .GroupBy(chromatogramGroupInfo => chromatogramGroupInfo._chromatogramCache))
+                         .GroupBy(chromatogramGroupInfo => chromatogramGroupInfo._chromatogramCache))
             {
                 if (grouping.Key == null)
                 {
                     continue;
                 }
+
                 var groupInfos = grouping.ToList();
                 var headers = groupInfos.Select(group => group.Header).ToList();
                 var peaksArray = new IList<ChromPeak>[headers.Count];
                 var scoresArray = loadScoresToo ? new IList<float>[headers.Count] : null;
-                grouping.Key.ReadDataForAll(headers, peaksArray, scoresArray);
+                SkylinePerfCounters.ReadChromatogramGroupData.Measure(grouping.Key.CachePath, groupInfos.Count, () => grouping.Key.ReadDataForAll(headers, peaksArray, scoresArray));
                 for (int i = 0; i < headers.Count; i++)
                 {
                     groupInfos[i]._chromPeaks = peaksArray[i];

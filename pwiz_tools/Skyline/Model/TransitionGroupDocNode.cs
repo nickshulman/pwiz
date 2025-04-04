@@ -24,6 +24,7 @@ using System.Linq;
 using pwiz.Common.Chemistry;
 using pwiz.Common.DataBinding.Filtering;
 using pwiz.Common.SystemUtil;
+using pwiz.Common.SystemUtil.PerfCounters;
 using pwiz.Skyline.Controls.SeqNode;
 using pwiz.Skyline.Model.Crosslinking;
 using pwiz.Skyline.Model.DocSettings;
@@ -1313,8 +1314,11 @@ namespace pwiz.Skyline.Model
 
             for (int chromIndex = 0; chromIndex < measuredResults.Chromatograms.Count; chromIndex++)
             {
-                CalcResultsForReplicate(resultsCalc, chromIndex, settingsNew, diff, nodePep, nodePrevious,
-                    setTranPrevious, allChromatogramGroupInfos?[chromIndex]);
+                SkylinePerfCounters.CalcTransitionGroupResult.Measure(() =>
+                {
+                    CalcResultsForReplicate(resultsCalc, chromIndex, settingsNew, diff, nodePep, nodePrevious,
+                        setTranPrevious, allChromatogramGroupInfos?[chromIndex]);
+                });
             }
 
             return resultsCalc.UpdateTransitionGroupNode(this);

@@ -29,13 +29,44 @@
         private void InitializeComponent()
         {
             this.components = new System.ComponentModel.Container();
-            this.navBar1 = new pwiz.Common.DataBinding.Controls.NavBar();
-            this.bindingListSource1 = new pwiz.Common.DataBinding.Controls.BindingListSource(this.components);
-            this.boundDataGridViewEx1 = new pwiz.Skyline.Controls.Databinding.BoundDataGridViewEx();
             this.timer1 = new System.Windows.Forms.Timer(this.components);
-            ((System.ComponentModel.ISupportInitialize)(this.bindingListSource1)).BeginInit();
+            this.boundDataGridViewEx1 = new pwiz.Skyline.Controls.Databinding.BoundDataGridViewEx();
+            this.bindingListSource1 = new pwiz.Common.DataBinding.Controls.BindingListSource(this.components);
+            this.navBar1 = new pwiz.Common.DataBinding.Controls.NavBar();
+            this.splitContainer1 = new System.Windows.Forms.SplitContainer();
+            this.label1 = new System.Windows.Forms.Label();
+            this.tbxMemory = new System.Windows.Forms.TextBox();
+            this.btnGarbageCollect = new System.Windows.Forms.Button();
             ((System.ComponentModel.ISupportInitialize)(this.boundDataGridViewEx1)).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)(this.bindingListSource1)).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)(this.splitContainer1)).BeginInit();
+            this.splitContainer1.Panel1.SuspendLayout();
+            this.splitContainer1.Panel2.SuspendLayout();
+            this.splitContainer1.SuspendLayout();
             this.SuspendLayout();
+            // 
+            // timer1
+            // 
+            this.timer1.Enabled = true;
+            this.timer1.Interval = 10000;
+            this.timer1.Tick += new System.EventHandler(this.timer1_Tick);
+            // 
+            // boundDataGridViewEx1
+            // 
+            this.boundDataGridViewEx1.AutoGenerateColumns = false;
+            this.boundDataGridViewEx1.ColumnHeadersHeightSizeMode = System.Windows.Forms.DataGridViewColumnHeadersHeightSizeMode.AutoSize;
+            this.boundDataGridViewEx1.DataSource = this.bindingListSource1;
+            this.boundDataGridViewEx1.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.boundDataGridViewEx1.Location = new System.Drawing.Point(0, 25);
+            this.boundDataGridViewEx1.MaximumColumnCount = 2000;
+            this.boundDataGridViewEx1.Name = "boundDataGridViewEx1";
+            this.boundDataGridViewEx1.ReportColorScheme = null;
+            this.boundDataGridViewEx1.Size = new System.Drawing.Size(800, 241);
+            this.boundDataGridViewEx1.TabIndex = 1;
+            // 
+            // bindingListSource1
+            // 
+            this.bindingListSource1.NewRowHandler = null;
             // 
             // navBar1
             // 
@@ -48,42 +79,72 @@
             this.navBar1.Size = new System.Drawing.Size(800, 25);
             this.navBar1.TabIndex = 0;
             // 
-            // bindingListSource1
+            // splitContainer1
             // 
-            this.bindingListSource1.NewRowHandler = null;
+            this.splitContainer1.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.splitContainer1.FixedPanel = System.Windows.Forms.FixedPanel.Panel1;
+            this.splitContainer1.Location = new System.Drawing.Point(0, 0);
+            this.splitContainer1.Name = "splitContainer1";
+            this.splitContainer1.Orientation = System.Windows.Forms.Orientation.Horizontal;
             // 
-            // boundDataGridViewEx1
+            // splitContainer1.Panel1
             // 
-            this.boundDataGridViewEx1.AutoGenerateColumns = false;
-            this.boundDataGridViewEx1.ColumnHeadersHeightSizeMode = System.Windows.Forms.DataGridViewColumnHeadersHeightSizeMode.AutoSize;
-            this.boundDataGridViewEx1.DataSource = this.bindingListSource1;
-            this.boundDataGridViewEx1.Dock = System.Windows.Forms.DockStyle.Fill;
-            this.boundDataGridViewEx1.Location = new System.Drawing.Point(0, 25);
-            this.boundDataGridViewEx1.MaximumColumnCount = 2000;
-            this.boundDataGridViewEx1.Name = "boundDataGridViewEx1";
-            this.boundDataGridViewEx1.ReportColorScheme = null;
-            this.boundDataGridViewEx1.Size = new System.Drawing.Size(800, 425);
-            this.boundDataGridViewEx1.TabIndex = 1;
+            this.splitContainer1.Panel1.Controls.Add(this.btnGarbageCollect);
+            this.splitContainer1.Panel1.Controls.Add(this.tbxMemory);
+            this.splitContainer1.Panel1.Controls.Add(this.label1);
             // 
-            // timer1
+            // splitContainer1.Panel2
             // 
-            this.timer1.Enabled = true;
-            this.timer1.Interval = 10000;
-            this.timer1.Tick += new System.EventHandler(this.timer1_Tick);
+            this.splitContainer1.Panel2.Controls.Add(this.boundDataGridViewEx1);
+            this.splitContainer1.Panel2.Controls.Add(this.navBar1);
+            this.splitContainer1.Size = new System.Drawing.Size(800, 450);
+            this.splitContainer1.SplitterDistance = 180;
+            this.splitContainer1.TabIndex = 2;
+            // 
+            // label1
+            // 
+            this.label1.AutoSize = true;
+            this.label1.Location = new System.Drawing.Point(12, 9);
+            this.label1.Name = "label1";
+            this.label1.Size = new System.Drawing.Size(47, 13);
+            this.label1.TabIndex = 0;
+            this.label1.Text = "Memory:";
+            // 
+            // tbxMemory
+            // 
+            this.tbxMemory.Location = new System.Drawing.Point(15, 25);
+            this.tbxMemory.Name = "tbxMemory";
+            this.tbxMemory.ReadOnly = true;
+            this.tbxMemory.Size = new System.Drawing.Size(100, 20);
+            this.tbxMemory.TabIndex = 1;
+            // 
+            // btnGarbageCollect
+            // 
+            this.btnGarbageCollect.Location = new System.Drawing.Point(137, 12);
+            this.btnGarbageCollect.Name = "btnGarbageCollect";
+            this.btnGarbageCollect.Size = new System.Drawing.Size(113, 23);
+            this.btnGarbageCollect.TabIndex = 2;
+            this.btnGarbageCollect.Text = "Collect Garbage";
+            this.btnGarbageCollect.UseVisualStyleBackColor = true;
+            this.btnGarbageCollect.Click += new System.EventHandler(this.btnGarbageCollect_Click);
             // 
             // PerfCounterGridForm
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(800, 450);
-            this.Controls.Add(this.boundDataGridViewEx1);
-            this.Controls.Add(this.navBar1);
+            this.Controls.Add(this.splitContainer1);
             this.Name = "PerfCounterGridForm";
             this.Text = "PerfCounterGridForm";
-            ((System.ComponentModel.ISupportInitialize)(this.bindingListSource1)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.boundDataGridViewEx1)).EndInit();
+            ((System.ComponentModel.ISupportInitialize)(this.bindingListSource1)).EndInit();
+            this.splitContainer1.Panel1.ResumeLayout(false);
+            this.splitContainer1.Panel1.PerformLayout();
+            this.splitContainer1.Panel2.ResumeLayout(false);
+            this.splitContainer1.Panel2.PerformLayout();
+            ((System.ComponentModel.ISupportInitialize)(this.splitContainer1)).EndInit();
+            this.splitContainer1.ResumeLayout(false);
             this.ResumeLayout(false);
-            this.PerformLayout();
 
         }
 
@@ -93,5 +154,9 @@
         private Common.DataBinding.Controls.BindingListSource bindingListSource1;
         private Databinding.BoundDataGridViewEx boundDataGridViewEx1;
         private System.Windows.Forms.Timer timer1;
+        private System.Windows.Forms.SplitContainer splitContainer1;
+        private System.Windows.Forms.Button btnGarbageCollect;
+        private System.Windows.Forms.TextBox tbxMemory;
+        private System.Windows.Forms.Label label1;
     }
 }

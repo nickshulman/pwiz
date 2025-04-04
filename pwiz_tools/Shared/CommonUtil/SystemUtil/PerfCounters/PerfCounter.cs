@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using JetBrains.Annotations;
 using pwiz.Common.Collections;
 
@@ -10,12 +11,6 @@ namespace pwiz.Common.SystemUtil.PerfCounters
         private HierarchicalCounter _counts = new HierarchicalCounter();
         private Dictionary<string, PerfCounter> _detailCounters;
 
-        public PerfCounter(string name)
-        {
-            Name = name;
-        }
-
-        public string Name { get; private set; }
         public void Increment(string detail, PerfQuantity perfQuantity)
         {
             lock (this)
@@ -27,7 +22,7 @@ namespace pwiz.Common.SystemUtil.PerfCounters
                     _detailCounters ??= new Dictionary<string, PerfCounter>();
                     if (!_detailCounters.TryGetValue(detail, out var detailCounter))
                     {
-                        detailCounter = new PerfCounter(detail);
+                        detailCounter = new PerfCounter();
                         _detailCounters.Add(detail, detailCounter);
                     }
 
@@ -41,32 +36,41 @@ namespace pwiz.Common.SystemUtil.PerfCounters
             return _counts.GetCounts();
         }
 
-        public ImmutableList<PerfCounter> GetDetails()
+        public ImmutableList<KeyValuePair<string, PerfCounter>> GetDetails()
         {
             lock (this)
             {
-                return _detailCounters?.Values.ToImmutable() ?? ImmutableList<PerfCounter>.EMPTY;
+                return _detailCounters?.ToImmutable() ?? ImmutableList<KeyValuePair<string, PerfCounter>>.EMPTY;
             }
         }
-    }
 
-    public static class PerfCounters
-    {
-        public static void Measure(this PerfCounter counter, string detail, int size, [InstantHandle] Action action)
+        public void Measure(string detail, int size, [InstantHandle] Action action)
         {
-            var start = DateTime.UtcNow;
+            var stopWatch = new Stopwatch();
+            stopWatch.Start();
             action();
-            counter.Increment(detail, new PerfQuantity(1, size, DateTime.UtcNow.Subtract(start)));
+            stopWatch.Stop();
+            Increment(detail, new PerfQuantity(1, size, stopWatch.Elapsed));
         }
 
-        public static T Measure<T>(this PerfCounter counter, string detail, int size, [InstantHandle] Func<T> function)
+        public void Measure([InstantHandle] Action action)
+        {
+            Measure(null, 0, action);
+        }
+
+        public T Measure<T>(string detail, int size, [InstantHandle] Func<T> function)
         {
             T result = default;
-            Measure(counter, detail, size, () =>
+            Measure(detail, size, () =>
             {
                 result = function();
             });
             return result;
+        }
+
+        public T Measure<T>([InstantHandle] Func<T> function)
+        {
+            return Measure(null, 0, function);
         }
     }
 }

@@ -4786,12 +4786,7 @@ namespace pwiz.Skyline
 
         private void perfCountersToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            var perfCounterForm = FormUtil.OpenForms.OfType<PerfCounterGridForm>().FirstOrDefault();
-            if (perfCounterForm == null)
-            {
-                perfCounterForm = new PerfCounterGridForm();
-                perfCounterForm.Show(null);
-            }
+            PerfCounterGridForm.ShowForm();
         }
     }
 }

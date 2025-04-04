@@ -33,6 +33,7 @@ using pwiz.Common.Chemistry;
 using pwiz.Common.Collections;
 using pwiz.Common.Database;
 using pwiz.Common.SystemUtil;
+using pwiz.Common.SystemUtil.PerfCounters;
 using pwiz.Skyline.Model.Crosslinking;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.Irt;
@@ -1360,20 +1361,25 @@ namespace pwiz.Skyline.Model.Lib
 
         public override SpectrumPeaksInfo LoadSpectrum(object spectrumKey)
         {
-            var spectrumLiteKey = spectrumKey as SpectrumLiteKey;
-            if (spectrumLiteKey != null)
+            return SkylinePerfCounters.ReadLibrarySpectrum.Measure(FilePath, 0, () =>
             {
-                if (!spectrumLiteKey.IsBest)
+                var spectrumLiteKey = spectrumKey as SpectrumLiteKey;
+                if (spectrumLiteKey != null)
                 {
-                    var redundantSpectrum = ReadRedundantSpectrum(spectrumLiteKey.RedundantId);
-                    return redundantSpectrum == null ? SpectrumPeaksInfo.EMPTY : new SpectrumPeaksInfo(redundantSpectrum);
+                    if (!spectrumLiteKey.IsBest)
+                    {
+                        var redundantSpectrum = ReadRedundantSpectrum(spectrumLiteKey.RedundantId);
+                        return redundantSpectrum == null
+                            ? SpectrumPeaksInfo.EMPTY
+                            : new SpectrumPeaksInfo(redundantSpectrum);
+                    }
+
+                    // Always get the best spectrum from the non-redundant library
+                    spectrumKey = spectrumLiteKey.NonRedundantId;
                 }
 
-                // Always get the best spectrum from the non-redundant library
-                spectrumKey = spectrumLiteKey.NonRedundantId;
-            }
-                
-            return base.LoadSpectrum(spectrumKey);
+                return base.LoadSpectrum(spectrumKey);
+            });
         }
 
         protected override SpectrumHeaderInfo CreateSpectrumHeaderInfo(BiblioLiteSpectrumInfo info)

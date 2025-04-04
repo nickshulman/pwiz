@@ -22,6 +22,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
+using pwiz.Common.SystemUtil.PerfCounters;
 using pwiz.Common.Chemistry;
 using pwiz.Common.Collections;
 using pwiz.Skyline.Model.Crosslinking;
@@ -674,7 +675,8 @@ namespace pwiz.Skyline.Model
 
         public MassDistribution GetMzDistribution(Target target, Adduct adduct, IsotopeAbundances abundances)
         {
-            return GetMzDistribution(target, adduct, abundances, null);
+            return SkylinePerfCounters.CalculateMassDistribution.Measure(() =>
+                GetMzDistribution(target, adduct, abundances, null));
         }
 
         public MassDistribution GetMzDistribution(Target target, Adduct adduct, IsotopeAbundances abundances, ExplicitSequenceMods mods = null)

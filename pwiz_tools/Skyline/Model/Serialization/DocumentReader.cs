@@ -1721,7 +1721,7 @@ namespace pwiz.Skyline.Model.Serialization
         /// <summary>
         /// Maintains a work queue for reading the XML for the peptides and molecules
         /// </summary>
-        public class PeptideProcessor : IDisposable
+        private class PeptideProcessor : IDisposable
         {
             private List<Exception> _exceptions = new List<Exception>();
             private int _totalPeptideCount;
@@ -1858,7 +1858,7 @@ namespace pwiz.Skyline.Model.Serialization
             }
         }
 
-        public class PeptideWorkItem
+        private class PeptideWorkItem
         {
             public PeptideWorkItem(PeptideGroupData peptideGroupData, int order, XElement element)
             {

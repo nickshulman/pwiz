@@ -45,6 +45,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Globalization;
 using System.Linq;
 using System.IO;
@@ -2223,19 +2224,22 @@ namespace pwiz.Skyline.Model
         public void SerializeToXmlWriter(XmlWriter writer, SkylineVersion skylineVersion, IProgressMonitor progressMonitor,
             IProgressStatus progressStatus)
         {
+            var stopwatch = new Stopwatch();
+            stopwatch.Start();
             var document = DocumentAnnotationUpdater.UpdateAnnotations(this, progressMonitor, progressStatus);
             var documentWriter = new DocumentWriter(document, skylineVersion);
             if (progressMonitor != null)
             {
-                int transitionsWritten = 0;
-                int totalTransitionCount = MoleculeTransitionCount;
-                documentWriter.WroteTransitions += count =>
+                int totalPeptideCount = document.MoleculeCount;
+                int peptidesWritten = 0;
+                documentWriter.WrotePeptide += () =>
                 {
-                    transitionsWritten += count;
-                    progressStatus = progressStatus.UpdatePercentCompleteProgress(progressMonitor, transitionsWritten, totalTransitionCount);
+                    peptidesWritten++;
+                    progressStatus = progressStatus.UpdatePercentCompleteProgress(progressMonitor, peptidesWritten, totalPeptideCount);
                 };
             }
             documentWriter.WriteXml(writer);
+            Console.Out.WriteLine("Document written in {0}", stopwatch.Elapsed);
         }
 
         public static string GetAuditLogPath(string docPath)

@@ -1066,6 +1066,16 @@ namespace pwiz.Skyline.Util
             }
             return true;
         }
+
+        /// <summary>
+        /// Convert a byte array to base64 and write it.
+        /// Note: do not use <see cref="XmlWriter.WriteBase64"/> because the XmlWriter that we get
+        /// from <see cref="XContainer.CreateWriter"/> will throw NotSupportedException.
+        /// </summary>
+        public static void WriteBase64String(this XmlWriter writer, byte[] bytes)
+        {
+            writer.WriteString(Convert.ToBase64String(bytes));
+        }
     }
 
     public static class XElementUtil

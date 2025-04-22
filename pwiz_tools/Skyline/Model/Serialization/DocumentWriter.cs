@@ -17,6 +17,7 @@
  * limitations under the License.
  */
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
@@ -62,23 +63,7 @@ namespace pwiz.Skyline.Model.Serialization
             writer.WriteAttribute(ATTR.software_version, SkylineVersion.InvariantVersionName);
 
             writer.WriteElement(Settings.RemoveUnsupportedFeatures(SkylineVersion.SrmDocumentVersion));
-            var proteinWriter = new ProteinWriter(this);
-            proteinWriter.WriteProteins(writer);
-        }
-
-        private void WritePeptideGroupDocNodeXml(XmlWriter writer, PeptideGroupDocNode nodeGroup,
-            IList<XElement> peptideXElements)
-        {
-            if (nodeGroup.Id is FastaSequenceGroup &&
-                SkylineVersion.SrmDocumentVersion >= DocumentFormat.PROTEIN_GROUPS)
-                writer.WriteStartElement(EL.protein_group);
-            else if (nodeGroup.Id is FastaSequence)
-                writer.WriteStartElement(EL.protein);
-            else
-                writer.WriteStartElement(EL.peptide_list);
-            WritePeptideGroupXml(writer, nodeGroup, peptideXElements);
-            writer.WriteEndElement();
-
+            WriteProteins(writer);
         }
 
         private void WriteProteinMetadataXML(XmlWriter writer, ProteinMetadata proteinMetadata, bool skipNameAndDescription)
@@ -101,11 +86,18 @@ namespace pwiz.Skyline.Model.Serialization
                    CompactFormatOption.UseCompactFormat(Document);
         }
         /// <summary>
-        /// Serializes the contents of a single <see cref="PeptideGroupDocNode"/>
-        /// to XML.
+        /// Writes the start tag for the PeptideGroupDocNode as well as everything that comes before the first PeptideDocNode
         /// </summary>
-        private void WritePeptideGroupXml(XmlWriter writer, PeptideGroupDocNode node, IList<XElement> peptideXElements)
+        private void WritePeptideGroupStart(XmlWriter writer, PeptideGroupDocNode node)
         {
+            if (node.Id is FastaSequenceGroup &&
+                SkylineVersion.SrmDocumentVersion >= DocumentFormat.PROTEIN_GROUPS)
+                writer.WriteStartElement(EL.protein_group);
+            else if (node.Id is FastaSequence)
+                writer.WriteStartElement(EL.protein);
+            else
+                writer.WriteStartElement(EL.peptide_list);
+
             // save the identity info
             if (node.PeptideGroup.Name != null)
             {
@@ -178,12 +170,6 @@ namespace pwiz.Skyline.Model.Serialization
                 FastaSequence seq = node.PeptideGroup as FastaSequence;
                 if (seq != null)
                     writeFastaSequence(seq);
-            }
-
-            foreach (var peptideXElement in peptideXElements)
-            {
-                peptideXElement.WriteTo(writer);
-                WrotePeptide?.Invoke();
             }
         }
 
@@ -989,144 +975,92 @@ namespace pwiz.Skyline.Model.Serialization
                 writer.WriteEndElement();
         }
 
-        private class ProteinWriter
+        private void WriteProteins(XmlWriter writer)
         {
-            private Exception _exception;
-            private int _consumedCount;
-            private int _producedCount;
-            private int _maxUnconsumed;
-            public ProteinWriter(DocumentWriter documentWriter)
+            using var cancellationTokenSource = new CancellationTokenSource();
+            var token = cancellationTokenSource.Token;
+            var completedItems = new BlockingCollection<Tuple<IdentityPath, XElement>>(ParallelEx.GetThreadCount());
+            Exception asyncException = null;
+
+            ActionUtil.RunAsync(() =>
             {
-                DocumentWriter = documentWriter;
-            }
-
-            public DocumentWriter DocumentWriter { get; }
-
-            public void WriteProteins(XmlWriter writer)
-            {
-                var proteinWorkItems = DocumentWriter.Document.MoleculeGroups
-                    .Select(peptideGroupDocNode => new ProteinWorkItem(this, peptideGroupDocNode)).ToArray();
-                var peptideWorkItems = proteinWorkItems.SelectMany(
-                    proteinWorkItem => proteinWorkItem.PeptideGroupDocNode.Molecules.Select(molecule =>
-                        Tuple.Create(proteinWorkItem, molecule))).ToArray();
-                ActionUtil.RunAsync(() =>
-                {
-                    try
-                    {
-                        WritePeptides(peptideWorkItems);
-                    }
-                    catch (Exception exception)
-                    {
-                        lock (this)
-                        {
-                            Interlocked.CompareExchange(ref _exception, exception, null);
-                            Monitor.PulseAll(this);
-                        }
-                    }
-                }, nameof(WritePeptides));
-                    
-
                 try
                 {
-                    for (int iWorkItem = 0; iWorkItem < proteinWorkItems.Length; iWorkItem++)
-                    {
-                        var workItem = proteinWorkItems[iWorkItem];
-                        proteinWorkItems[iWorkItem] = null;
-                        lock (this)
-                        {
-                            while (!workItem.IsComplete)
-                            {
-                                if (_exception != null)
-                                {
-                                    Helpers.WrapAndThrowException(_exception);
-                                }
-
-                                Monitor.Wait(this);
-                            }
-
-                            _consumedCount += workItem.PeptideGroupDocNode.MoleculeCount;
-                            _maxUnconsumed = Math.Max(_maxUnconsumed, _producedCount - _consumedCount);
-                        }
-                        DocumentWriter.WritePeptideGroupDocNodeXml(writer, workItem.PeptideGroupDocNode,
-                            workItem.GetPeptideXmlElements());
-                    }
+                    WritePeptidesToXElements(completedItems, token);
                 }
                 catch (Exception exception)
                 {
-                    Interlocked.CompareExchange(ref _exception, exception, null);
-                    throw;
-                }
-                Console.Out.WriteLine("Max unconsumed: {0}", _maxUnconsumed);
-            }
-
-            private void WritePeptides(Tuple<ProteinWorkItem, PeptideDocNode>[] peptideWorkItems)
-            {
-                ParallelEx.For(0, peptideWorkItems.Length, iWorkItem=> 
-                {
-                    var proteinWorkItem = peptideWorkItems[iWorkItem].Item1;
-                    var peptideDocNode = peptideWorkItems[iWorkItem].Item2;
-                    peptideWorkItems[iWorkItem] = null;
-                    var xElement = WritePeptide(peptideDocNode);
-                    Interlocked.Increment(ref _producedCount);
-                    lock (this)
+                    if (!token.IsCancellationRequested)
                     {
-                        var exception = _exception;
-                        if (exception != null)
-                        {
-                            throw new Exception(exception.Message, exception);
-                        }
-                        proteinWorkItem.SetPeptideXmlElement(peptideDocNode, xElement);
-                        if (proteinWorkItem.IsComplete)
-                        {
-                            Monitor.PulseAll(this);
-                        }
+                        asyncException = exception;
+                        cancellationTokenSource.Cancel();
                     }
-                });
-            }
-
-            private XElement WritePeptide(PeptideDocNode peptideDocNode)
+                }
+            }, nameof(WritePeptidesToXElements));
+            var peptideXElements = new Dictionary<IdentityPath, XElement>();
+            try
             {
-                XElement rootElement = new XElement(@"root");
-                using var xmlWriter = rootElement.CreateWriter();
-                DocumentWriter.WritePeptideXml(xmlWriter, peptideDocNode);
-                xmlWriter.Flush();
-                xmlWriter.Close();
-                return rootElement.Elements().Single();
+                foreach (var peptideGroupDocNode in Document.MoleculeGroups)
+                {
+                    WritePeptideGroupStart(writer, peptideGroupDocNode);
+                    foreach (var peptideDocNode in peptideGroupDocNode.Molecules)
+                    {
+                        var identityPath = new IdentityPath(peptideGroupDocNode.PeptideGroup, peptideDocNode.Peptide);
+                        if (peptideXElements.TryGetValue(identityPath, out var peptideXElement))
+                        {
+                            peptideXElements.Remove(identityPath);
+                        }
+                        while (null == peptideXElement)
+                        {
+                            var completedTuple = completedItems.Take(token);
+                            if (identityPath.Equals(completedTuple.Item1))
+                            {
+                                peptideXElement = completedTuple.Item2;
+                            }
+                            else
+                            {
+                                peptideXElements.Add(completedTuple.Item1, completedTuple.Item2);
+                            }
+                        }
+                        peptideXElement.WriteTo(writer);
+                        WrotePeptide?.Invoke();
+                    }
+                    writer.WriteEndElement();
+                }
+                Assume.AreEqual(0, peptideXElements.Count);
             }
-
-            class ProteinWorkItem
+            catch (Exception)
             {
-                private XElement[] _peptideXmlElements;
-                private int _remainingCount;
-                public ProteinWorkItem(object syncObject, PeptideGroupDocNode peptideGroupDocNode)
+                var existingException = asyncException;
+                cancellationTokenSource.Cancel();
+                if (existingException != null)
                 {
-                    PeptideGroupDocNode = peptideGroupDocNode;
-                    _peptideXmlElements = new XElement[peptideGroupDocNode.MoleculeCount];
-                    _remainingCount = _peptideXmlElements.Length;
+                    Helpers.WrapAndThrowException(existingException);
                 }
-
-                public PeptideGroupDocNode PeptideGroupDocNode { get; }
-
-                public void SetPeptideXmlElement(PeptideDocNode peptideDocNode, XElement xElement)
-                {
-                    int index = PeptideGroupDocNode.FindNodeIndex(peptideDocNode.Peptide);
-                    Assume.IsTrue(index >= 0);
-                    Assume.IsTrue(_remainingCount > 0);
-                    _peptideXmlElements[index] = xElement;
-                    _remainingCount--;
-                }
-
-                public bool IsComplete
-                {
-                    get { return _remainingCount == 0; }
-                }
-
-                public IList<XElement> GetPeptideXmlElements()
-                {
-                    Assume.IsTrue(IsComplete);
-                    return _peptideXmlElements;
-                }
+                throw;
             }
+        }
+        private void WritePeptidesToXElements(BlockingCollection<Tuple<IdentityPath, XElement>> completedItems, CancellationToken cancellationToken)
+        {
+            IEnumerable<Tuple<IdentityPath, PeptideDocNode>> workItems =
+                Document.MoleculeGroups.SelectMany(moleculeGroup => moleculeGroup.Molecules.Select(molecule =>
+                    Tuple.Create(new IdentityPath(moleculeGroup.PeptideGroup, molecule.Peptide), molecule)));
+            ParallelEx.ForEach(workItems, tuple =>
+            {
+                var peptideDocNode = tuple.Item2;
+                completedItems.Add(Tuple.Create(tuple.Item1, WritePeptideToXElement(peptideDocNode)),
+                    cancellationToken);
+            });
+        }
+
+        private XElement WritePeptideToXElement(PeptideDocNode peptideDocNode)
+        {
+            XElement rootElement = new XElement(@"root");
+            using var xmlWriter = rootElement.CreateWriter();
+            WritePeptideXml(xmlWriter, peptideDocNode);
+            xmlWriter.Flush();
+            xmlWriter.Close();
+            return rootElement.Elements().Single();
         }
     }
 }

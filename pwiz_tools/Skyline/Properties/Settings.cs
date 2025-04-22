@@ -173,6 +173,7 @@ namespace pwiz.Skyline.Properties
             {
                 lock (this)
                 {
+                    
                     object value = base[propertyName];
                     RememberOriginalValue(propertyName, value);
                     return value;

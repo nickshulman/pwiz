@@ -2239,7 +2239,6 @@ namespace pwiz.Skyline.Model
                 };
             }
             documentWriter.WriteXml(writer);
-            Console.Out.WriteLine("Document written in {0}", stopwatch.Elapsed);
         }
 
         public static string GetAuditLogPath(string docPath)

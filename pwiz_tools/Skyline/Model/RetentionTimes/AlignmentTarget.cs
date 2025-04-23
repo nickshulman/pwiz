@@ -19,6 +19,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using pwiz.Common.SystemUtil;
@@ -108,10 +109,19 @@ namespace pwiz.Skyline.Model.RetentionTimes
                         return null;
                     }
 
+                    var stopwatch = new Stopwatch();
+                    stopwatch.Start();
+                    var ySmoothedGpu = GpuLowessAlgorithm.LowessGpu(xValues.ToArray(), yValues.ToArray(), cancellationToken);
+                    Console.Out.WriteLine("GPU Lowess on {0} points: {1}", xValues.Count, stopwatch.Elapsed);
+                    stopwatch.Reset();
+                    stopwatch.Start();
                     var loessAligner = new LoessAligner(-1, -1, 0.4);
                     loessAligner.Train(xValues.ToArray(), yValues.ToArray(), cancellationToken);
                     loessAligner.GetSmoothedValues(out var xSmoothed, out var ySmoothed);
-                    return CreatePiecewiseLinearMap(xSmoothed, ySmoothed);
+                    Console.Out.WriteLine("CPU Lowess on {0} points in {1}", xValues.Count, stopwatch.Elapsed);
+                    
+                    return CreatePiecewiseLinearMap(xValues, ySmoothedGpu ?? ySmoothed);
+
                 }
                 default:
                     return null;

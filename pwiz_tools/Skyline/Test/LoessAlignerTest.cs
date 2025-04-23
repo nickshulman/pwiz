@@ -6,7 +6,7 @@ using System.Threading;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using pwiz.Skyline.Model.RetentionTimes;
 using pwiz.SkylineTestUtil;
-using static GpuLowessAlgorithm;
+using static pwiz.Skyline.Model.RetentionTimes.GpuLowessAlgorithm;
 
 namespace pwiz.SkylineTest
 {
@@ -16,10 +16,9 @@ namespace pwiz.SkylineTest
         [TestMethod]
         public void TestLoessAligner()
         {
-            Rtx4090Configuration.ConfigureForDoublePrecision();
             var loessAligner = new LoessAligner();
             loessAligner.Train(_xArray, _yArray, CancellationToken.None);
-            var result = GpuLowessAlgorithm.LowessGpu(_xArray, _yArray);
+            var result = GpuLowessAlgorithm.LowessGpu(_xArray, _yArray, CancellationToken.None);
             Assert.IsNotNull(result);
         }
         private double[] _xArray = new[]

@@ -187,7 +187,8 @@
       <HintPath>..\Shared\Lib\System.Interactive.Async.dll</HintPath>
     </Reference>
     <Reference Include="System.Management" />
-    <Reference Include="System.Memory">
+    <Reference Include="System.Memory, Version=4.0.1.2, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
       <HintPath>..\Shared\Lib\System.Memory.dll</HintPath>
     </Reference>
     <Reference Include="System.Net.Http" />
@@ -617,6 +618,7 @@
     <Compile Include="Model\RetentionTimes\AlignmentFunction.cs" />
     <Compile Include="Model\RetentionTimes\AlignmentResults.cs" />
     <Compile Include="Model\RetentionTimes\AlignmentTarget.cs" />
+    <Compile Include="Model\RetentionTimes\GpuConfig.cs" />
     <Compile Include="Model\RetentionTimes\GpuLowessAlgorithm.cs" />
     <Compile Include="Model\RetentionTimes\ResultFileAlignments.cs" />
     <Compile Include="Model\RetentionTimes\LibraryAlignment.cs" />

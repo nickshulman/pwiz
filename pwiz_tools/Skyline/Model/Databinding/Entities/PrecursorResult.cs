@@ -67,6 +67,25 @@ namespace pwiz.Skyline.Model.Databinding.Entities
         [Format(Formats.RETENTION_TIME, NullValue = TextUtil.EXCEL_NA)]
         public double? BestRetentionTime { get { return ChromInfo.RetentionTime; } }
         [Format(Formats.RETENTION_TIME, NullValue = TextUtil.EXCEL_NA)]
+        public double? NormalizedBestRetentionTime 
+        {
+            get
+            {
+                var retentionTime = ChromInfo.RetentionTime;
+                if (retentionTime == null)
+                {
+                    return null;
+                }
+                var alignmentFunction = SrmDocument.Settings.DocumentRetentionTimes.GetAlignmentFunction(
+                    SrmDocument.Settings.PeptideSettings.Libraries, GetResultFile().ChromFileInfo.FilePath, true);
+                if (alignmentFunction == null)
+                {
+                    return null;
+                }
+                return alignmentFunction.GetX(retentionTime.Value);
+            }
+        }
+        [Format(Formats.RETENTION_TIME, NullValue = TextUtil.EXCEL_NA)]
         public double? MaxFwhm { get { return ChromInfo.Fwhm; } }
         [Format(Formats.RETENTION_TIME, NullValue = TextUtil.EXCEL_NA)]
         public double? MinStartTime { get { return ChromInfo.StartRetentionTime; } }

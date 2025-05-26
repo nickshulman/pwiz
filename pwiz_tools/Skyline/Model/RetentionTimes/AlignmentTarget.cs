@@ -264,12 +264,16 @@ namespace pwiz.Skyline.Model.RetentionTimes
             return new RetentionScoreCalculatorImpl(this);
         }
 
+        public abstract double ChooseUnknownScore();
+
         private class RetentionScoreCalculatorImpl : RetentionScoreCalculatorSpec
         {
             private AlignmentTarget _alignmentTarget;
+            private double _unknownScore;
             public RetentionScoreCalculatorImpl(AlignmentTarget alignmentTarget) : base(alignmentTarget.DisplayName)
             {
                 _alignmentTarget = alignmentTarget;
+                _unknownScore = alignmentTarget.ChooseUnknownScore();
             }
 
             public override double? ScoreSequence(Target modifiedSequence)
@@ -279,7 +283,7 @@ namespace pwiz.Skyline.Model.RetentionTimes
 
             public override double UnknownScore
             {
-                get { return double.NaN; }
+                get { return _unknownScore; }
             }
             public override IEnumerable<Target> ChooseRegressionPeptides(IEnumerable<Target> peptides, out int minCount)
             {
@@ -416,6 +420,10 @@ namespace pwiz.Skyline.Model.RetentionTimes
                 return RegressionMethodRT.kde;
             }
 
+            public override double ChooseUnknownScore()
+            {
+                return Calculator.UnknownScore;
+            }
         }
 
         public class LibraryTarget : AlignmentTarget
@@ -487,6 +495,11 @@ namespace pwiz.Skyline.Model.RetentionTimes
                 {
                     return "Library " + Library.Name;
                 }
+            }
+
+            public override double ChooseUnknownScore()
+            {
+                return IrtDb.ChooseUnknownScore(_medianRetentionTimes.Value.GetFirstRetentionTimes().Values);
             }
         }
 
@@ -574,6 +587,11 @@ namespace pwiz.Skyline.Model.RetentionTimes
                 {
                     return (base.GetHashCode() * 397) ^ CollectionUtil.GetHashCodeDeep(_dictionary);
                 }
+            }
+
+            public override double ChooseUnknownScore()
+            {
+                return IrtDb.ChooseUnknownScore(_dictionary.Values);
             }
         }
 

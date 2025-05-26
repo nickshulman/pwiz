@@ -3590,5 +3590,17 @@ namespace pwiz.Skyline.Properties {
                 return ((string)(this["MsFraggerDownloadUrl"]));
             }
         }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("True")]
+        public bool ShowRtMissingValues {
+            get {
+                return ((bool)(this["ShowRtMissingValues"]));
+            }
+            set {
+                this["ShowRtMissingValues"] = value;
+            }
+        }
     }
 }

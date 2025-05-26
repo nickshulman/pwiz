@@ -2833,31 +2833,30 @@ namespace pwiz.Skyline
                 var showPointsTypeStandards = Document.GetRetentionTimeStandards().Any();
                 var showPointsTypeDecoys = Document.PeptideGroups.Any(nodePepGroup => nodePepGroup.Children.Cast<PeptideDocNode>().Any(nodePep => nodePep.IsDecoy));
                 var qvalues = Document.Settings.PeptideSettings.Integration.PeakScoringModel.IsTrained;
-                if (showPointsTypeStandards || showPointsTypeDecoys || qvalues)
+                menuStrip.Items.Insert(iInsert++, timePointsContextMenuItem);
+                if (timePointsContextMenuItem.DropDownItems.Count == 0)
                 {
-                    menuStrip.Items.Insert(iInsert++, timePointsContextMenuItem);
-                    if (timePointsContextMenuItem.DropDownItems.Count == 0)
+                    timePointsContextMenuItem.DropDownItems.AddRange(new ToolStripItem[]
                     {
-                        timePointsContextMenuItem.DropDownItems.AddRange(new ToolStripItem[]
-                        {
-                            timeTargetsContextMenuItem,
-                            timeStandardsContextMenuItem,
-                            timeDecoysContextMenuItem
-                        });
+                        timeTargetsContextMenuItem,
+                        timeStandardsContextMenuItem,
+                        timeDecoysContextMenuItem,
+                        timeMissingValuesContextMenuItem
+                    });
 
-                        if (Document.Settings.HasResults &&
-                            Document.Settings.PeptideSettings.Integration.PeakScoringModel.IsTrained)
-                        {
-                            timePointsContextMenuItem.DropDownItems.Insert(1, targetsAt1FDRToolStripMenuItem);
-                        }
+                    if (Document.Settings.HasResults &&
+                        Document.Settings.PeptideSettings.Integration.PeakScoringModel.IsTrained)
+                    {
+                        timePointsContextMenuItem.DropDownItems.Insert(1, targetsAt1FDRToolStripMenuItem);
                     }
-                    timeStandardsContextMenuItem.Visible = showPointsTypeStandards;
-                    timeDecoysContextMenuItem.Visible = showPointsTypeDecoys;
-                    timeTargetsContextMenuItem.Checked = RTGraphController.PointsType == PointsTypeRT.targets;
-                    targetsAt1FDRToolStripMenuItem.Checked = RTGraphController.PointsType == PointsTypeRT.targets_fdr;
-                    timeStandardsContextMenuItem.Checked = RTGraphController.PointsType == PointsTypeRT.standards;
-                    timeDecoysContextMenuItem.Checked = RTGraphController.PointsType == PointsTypeRT.decoys;
                 }
+                timeStandardsContextMenuItem.Visible = showPointsTypeStandards;
+                timeDecoysContextMenuItem.Visible = showPointsTypeDecoys;
+                timeTargetsContextMenuItem.Checked = RTGraphController.PointsType == PointsTypeRT.targets;
+                targetsAt1FDRToolStripMenuItem.Checked = RTGraphController.PointsType == PointsTypeRT.targets_fdr;
+                timeStandardsContextMenuItem.Checked = RTGraphController.PointsType == PointsTypeRT.standards;
+                timeDecoysContextMenuItem.Checked = RTGraphController.PointsType == PointsTypeRT.decoys;
+                timeMissingValuesContextMenuItem.Checked = Settings.Default.ShowRtMissingValues;
 
                 refineRTContextMenuItem.Checked = set.RTRefinePeptides;
                 //Grey out so user knows we cannot refine with current regression method
@@ -3154,6 +3153,17 @@ namespace pwiz.Skyline
         private void timeDecoysContextMenuItem_Click(object sender, EventArgs e)
         {
             ShowPointsType(PointsTypeRT.decoys);
+        }
+
+        private void timeMissingValuesContextMenuItem_Click(object sender, EventArgs e)
+        {
+            ShowRtMissingValues(!Settings.Default.ShowRtMissingValues);
+        }
+
+        public void ShowRtMissingValues(bool showMissingValues)
+        {
+            Settings.Default.ShowRtMissingValues = showMissingValues;
+            UpdateRetentionTimeGraph();
         }
 
         public void ShowPlotType(PlotTypeRT plotTypeRT)

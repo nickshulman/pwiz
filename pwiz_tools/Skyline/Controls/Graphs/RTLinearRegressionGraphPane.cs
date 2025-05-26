@@ -23,7 +23,6 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Windows.Forms;
-using Inference;
 using pwiz.Common.Collections;
 using pwiz.Common.SystemUtil;
 using pwiz.Common.SystemUtil.Caching;
@@ -634,11 +633,17 @@ namespace pwiz.Skyline.Controls.Graphs
                 // Only used if we are comparing two runs
                 var modifiedTargets = IsRunToRun ? new HashSet<Target>() : null;
                 int moleculeCount = document.MoleculeCount;
+                int progressLast = -1;
                 int iMolecule = 0;
                 foreach (var peptideGroupDocNode in document.MoleculeGroups)
                 foreach (var nodePeptide in peptideGroupDocNode.Molecules)
                 {
-                    productionMonitor.SetProgress(iMolecule * 100 / moleculeCount);
+                    int progressNew = iMolecule * 100 / moleculeCount;
+                    if (progressNew != progressLast)
+                    {
+                        productionMonitor.SetProgress(progressNew);
+                        progressLast = progressNew;
+                    }
                     iMolecule++;
                     if (false == modifiedTargets?.Add(nodePeptide.ModifiedTarget))
                     {
@@ -695,7 +700,7 @@ namespace pwiz.Skyline.Controls.Graphs
 
                 bool includeMissingValues = _regressionIncludesMissingValues &&
                                             RegressionSettings.RegressionMethod == RegressionMethodRT.linear;
-                var targetTimes = pointInfos.Where(pt => includeMissingValues || pt.Y.HasValue)
+                var targetTimes = pointInfos.Where(pt => includeMissingValues || !pt.IsMissing)
                     .Select(pt => new MeasuredRetentionTime(pt.ModifiedTarget, pt.Y ?? 0)).ToList();
 
                 if (IsRunToRun)
@@ -781,8 +786,8 @@ namespace pwiz.Skyline.Controls.Graphs
                 // Only refine, if not already exceeding the threshold
                 _refine = refine && !IsRefined();
                 _points = pointInfos.ToImmutable();
-                _refinedPoints = _points.Where(pt=>pt.X.HasValue && pt.Y.HasValue).ToImmutable();
-                _outlierPoints = _points.Where(pt => !pt.X.HasValue || !pt.Y.HasValue).ToImmutable();
+                _refinedPoints = _points.Where(pt=>!pt.IsMissing).ToImmutable();
+                _outlierPoints = _points.Where(pt => pt.IsMissing).ToImmutable();
                 if (refine && !IsRefined())
                 {
                     Refine(productionMonitor.CancellationToken);
@@ -850,7 +855,7 @@ namespace pwiz.Skyline.Controls.Graphs
                 var validPoints = new List<PointInfo>();
                 foreach (var pt in _points)
                 {
-                    if (pt.X.HasValue && pt.Y.HasValue)
+                    if (!pt.IsMissing)
                     {
                         validPoints.Add(pt);
                     }
@@ -1101,7 +1106,7 @@ namespace pwiz.Skyline.Controls.Graphs
 
             public double GetYResidual(PointInfo pt)
             {
-                if (!pt.X.HasValue || !pt.Y.HasValue)
+                if (pt.IsMissing)
                 {
                     return PointPairBase.Missing;
                 }
@@ -1196,20 +1201,36 @@ namespace pwiz.Skyline.Controls.Graphs
                 GraphRegression(Data._statisticsPredict, Data._regressionAll, GraphsResources.GraphData_Graph_Predictor, COLOR_LINE_PREDICT);
             }
 
-            var curve = AddCurve(labelPoints, Data.RefinedPoints.Select(Data.GetX).ToArray(),
-                Data.RefinedPoints.Select(Data.GetYCorrelation).ToArray(), Color.Black, SymbolType.Diamond);
+            var curve = AddCurve(labelPoints, GetPoints(Data.RefinedPoints, Data.GetX, Data.GetYCorrelation), Color.Black, SymbolType.Diamond);
             curve.Line.IsVisible = false;
             curve.Symbol.Border.IsVisible = false;
             curve.Symbol.Fill = new Fill(COLOR_REFINED);
 
             if (Data.Outliers != null)
             {
-                var curveOut = AddCurve(GraphsResources.GraphData_Graph_Outliers, Data.Outliers.Select(Data.GetX).ToArray(),
-                    Data.Outliers.Select(Data.GetYCorrelation).ToArray(), Color.Black, SymbolType.Diamond);
+                var curveOut = AddCurve(GraphsResources.GraphData_Graph_Outliers, 
+                    GetPoints(Data.Outliers, Data.GetX, Data.GetYCorrelation), Color.Black, SymbolType.Diamond);
                 curveOut.Line.IsVisible = false;
                 curveOut.Symbol.Border.IsVisible = false;
                 curveOut.Symbol.Fill = new Fill(COLOR_OUTLIERS);
             }
+        }
+
+        private PointPairList GetPoints(IEnumerable<PointInfo> pointInfos, Func<PointInfo, double> getX, Func<PointInfo, double> getY)
+        {
+            var points = new List<PointPair>();
+            bool showMissingValues = Settings.Default.ShowRtMissingValues;
+            foreach (var pointInfo in pointInfos)
+            {
+                if (!showMissingValues && (!pointInfo.X.HasValue || !pointInfo.Y.HasValue))
+                {
+                    continue;
+                }
+
+                points.Add(new PointPair(getX(pointInfo), getY(pointInfo)));
+            }
+
+            return new PointPairList(points);
         }
 
         private void GraphResiduals(IdentityPath selectedPeptide)
@@ -1237,16 +1258,16 @@ namespace pwiz.Skyline.Controls.Graphs
 
             string labelPoints = Helpers.PeptideToMoleculeTextMapper.Translate(
                 Data.IsRefined() ? GraphsResources.GraphData_Graph_Peptides_Refined : GraphsResources.GraphData_Graph_Peptides, Data.Document.DocumentType);
-            var curve = AddCurve(labelPoints, Data.RefinedPoints.Select(Data.GetX).ToArray(),
-                Data.RefinedPoints.Select(Data.GetYResidual).ToArray(), Color.Black, SymbolType.Diamond);
+            var curve = AddCurve(labelPoints, GetPoints(Data.RefinedPoints, Data.GetX, Data.GetYResidual), Color.Black,
+                SymbolType.Diamond);
             curve.Line.IsVisible = false;
             curve.Symbol.Border.IsVisible = false;
             curve.Symbol.Fill = new Fill(COLOR_REFINED);
 
             if (Data.Outliers != null)
             {
-                var curveOut = AddCurve(GraphsResources.GraphData_Graph_Outliers, Data.Outliers.Select(Data.GetX).ToArray(),
-                    Data.Outliers.Select(Data.GetYResidual).ToArray(), Color.Black, SymbolType.Diamond);
+                var curveOut = AddCurve(GraphsResources.GraphData_Graph_Outliers, 
+                    GetPoints(Data.Outliers, Data.GetX, Data.GetYResidual), Color.Black, SymbolType.Diamond);
                 curveOut.Line.IsVisible = false;
                 curveOut.Symbol.Border.IsVisible = false;
                 curveOut.Symbol.Fill = new Fill(COLOR_OUTLIERS);
@@ -1288,6 +1309,14 @@ namespace pwiz.Skyline.Controls.Graphs
             public PointInfo ChangeY(double? value)
             {
                 return ChangeProp(ImClone(this), im => im.Y = value);
+            }
+
+            public bool IsMissing
+            {
+                get
+                {
+                    return !X.HasValue || !Y.HasValue;
+                }
             }
         }
 

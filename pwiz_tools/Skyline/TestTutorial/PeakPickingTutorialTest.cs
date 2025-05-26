@@ -36,6 +36,7 @@ using pwiz.Skyline.Model;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.Results;
 using pwiz.Skyline.Model.Results.Scoring;
+using pwiz.Skyline.Model.RetentionTimes;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.SettingsUI;
 using pwiz.Skyline.Util.Extensions;
@@ -185,7 +186,7 @@ namespace pwiz.SkylineTestTutorial
             {
                 SkylineWindow.ShowRTRegressionGraphScoreToRun();
                 SkylineWindow.ShowPlotType(PlotTypeRT.correlation);
-                SkylineWindow.ChooseCalculator("iRT_SRMAtlas_20121202_noLGG");
+                SkylineWindow.ChooseCalculator(new RtCalculatorOption.Irt("iRT_SRMAtlas_20121202_noLGG"));
             });
             const int numDecoys = 30;
             CheckPointsTypeRT(PointsTypeRT.targets, SkylineWindow.Document.PeptideCount - numDecoys);

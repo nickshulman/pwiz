@@ -56,7 +56,7 @@ namespace pwiz.SkylineTestFunctional
 
             var summary =  ShowDialog<GraphSummary>(() => SkylineWindow.ShowRTRegressionGraphScoreToRun());
 
-            RunUI(() => SkylineWindow.ChooseCalculator(CALCULATOR_NAME));
+            RunUI(() => SkylineWindow.ChooseCalculator(new RtCalculatorOption.Irt(CALCULATOR_NAME)));
 
             CheckNonlinearRegressionMethods(summary);
             

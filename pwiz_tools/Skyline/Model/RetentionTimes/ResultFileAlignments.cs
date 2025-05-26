@@ -34,7 +34,7 @@ namespace pwiz.Skyline.Model.RetentionTimes
                 return;
             }
             _alignmentSources = GetAlignmentSources(document, filePaths);
-
+            MedianDocumentRetentionTimesTarget = new AlignmentTarget.MedianDocumentRetentionTimes(_alignmentSources.Values);
             foreach (var chromatogramSet in measuredResults.Chromatograms)
             {
                 foreach (var msDataFileInfo in chromatogramSet.MSDataFileInfos)
@@ -132,6 +132,8 @@ namespace pwiz.Skyline.Model.RetentionTimes
             }
         }
 
+        public AlignmentTarget.MedianDocumentRetentionTimes MedianDocumentRetentionTimesTarget { get; private set; }
+
         public static Dictionary<MsDataFileUri, AlignmentSource> GetAlignmentSources(SrmDocument document, ICollection<MsDataFileUri> dataFileUris)
         {
             var result = new Dictionary<MsDataFileUri, AlignmentSource>();
@@ -207,9 +209,17 @@ namespace pwiz.Skyline.Model.RetentionTimes
                 im._documentKey = new DocumentKey(newDocument);
             });
             var newSources = target == null ? new Dictionary<MsDataFileUri, AlignmentSource>() : GetAlignmentSources(newDocument, dataFiles);
-            if (Equals(target, AlignmentTarget) && CollectionUtil.EqualsDeep(_alignmentSources, newSources))
+            var medianRetentionTimesTarget = MedianDocumentRetentionTimesTarget;
+            if (CollectionUtil.EqualsDeep(_alignmentSources, newSources))
             {
-                return result;
+                if (Equals(target, AlignmentTarget))
+                {
+                    return result;
+                }
+            }
+            else
+            {
+                medianRetentionTimesTarget = new AlignmentTarget.MedianDocumentRetentionTimes(newSources.Values);
             }
 
             var missingSources = new List<AlignmentSource>();
@@ -218,7 +228,7 @@ namespace pwiz.Skyline.Model.RetentionTimes
             {
                 missingSources.AddRange(newSources.Values.Distinct());
             }
-            else if (target != null)
+            else
             {
                 foreach (var newSource in newSources.Values.Distinct())
                 {
@@ -233,14 +243,17 @@ namespace pwiz.Skyline.Model.RetentionTimes
                 }
             }
 
-            if (missingSources.Count == 0 || target == null)
+            if (missingSources.Count == 0)
             {
                 return ChangeProp(result, im =>
                 {
                     im._alignmentSources = newSources;
                     im._alignmentFunctions = newAlignmentFunctions;
+                    im.MedianDocumentRetentionTimesTarget = medianRetentionTimesTarget;
                 });
             }
+
+            target ??= medianRetentionTimesTarget;
 
             using var cancellationTokenSource = new PollingCancellationToken(() => loadMonitor.IsCanceled)
             {
@@ -265,6 +278,7 @@ namespace pwiz.Skyline.Model.RetentionTimes
             {
                 im._alignmentSources = newSources;
                 im._alignmentFunctions = newAlignmentFunctions;
+                im.MedianDocumentRetentionTimesTarget = medianRetentionTimesTarget;
             });
         }
 

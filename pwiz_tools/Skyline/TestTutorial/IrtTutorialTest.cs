@@ -32,6 +32,7 @@ using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.Find;
 using pwiz.Skyline.Model.Irt;
 using pwiz.Skyline.Model.Results;
+using pwiz.Skyline.Model.RetentionTimes;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.SettingsUI;
 using pwiz.Skyline.SettingsUI.Irt;
@@ -329,7 +330,7 @@ namespace pwiz.SkylineTestTutorial
             ImportNewResults(new[] { unschedHuman1Fileroot, unschedHuman2Fileroot }, -1, true);
 
             // Review iRT-C18 graph p. 13-14
-            RunUI(() => SkylineWindow.ChooseCalculator(irtCalcName));
+            RunUI(() => SkylineWindow.ChooseCalculator(new RtCalculatorOption.Irt(irtCalcName)));
             RunUI(SkylineWindow.ShowRTRegressionGraphScoreToRun);
             WaitForRegression();
 

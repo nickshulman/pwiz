@@ -23,6 +23,7 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Windows.Forms;
+using Inference;
 using pwiz.Common.Collections;
 using pwiz.Common.SystemUtil;
 using pwiz.Common.SystemUtil.Caching;
@@ -236,7 +237,7 @@ namespace pwiz.Skyline.Controls.Graphs
         public static PeptideDocNode[] CalcOutliers(SrmDocument document, double threshold, int? precision, bool bestResult)
         {
             var regressionSettings = new RegressionSettings(document, -1, -1, bestResult, threshold, true,
-                RTGraphController.PointsType, RTGraphController.RegressionMethod, Settings.Default.RTCalculatorName,
+                RTGraphController.PointsType, RTGraphController.RegressionMethod, Settings.Default.RtCalculatorOption,
                 false).ChangeThresholdPrecision(precision);
             var productionMonitor = new ProductionMonitor(CancellationToken.None, _ => { });
             var graphData = new GraphData(regressionSettings, productionMonitor);
@@ -499,13 +500,14 @@ namespace pwiz.Skyline.Controls.Graphs
             return new RegressionSettings(document, targetIndex, originalIndex, ShowReplicate == ReplicateDisplay.best,
                 RTGraphController.OutThreshold,
                 Settings.Default.RTRefinePeptides && RTGraphController.CanDoRefinementForRegressionMethod, pointsType,
-                RTGraphController.RegressionMethod, Settings.Default.RTCalculatorName, RunToRun);
+                RTGraphController.RegressionMethod, Settings.Default.RtCalculatorOption, RunToRun);
         }
 
         private class RegressionSettings : Immutable
         {
+            private Lazy<RetentionScoreCalculatorSpec> _calculator;
             public RegressionSettings(SrmDocument document, int targetIndex, int originalIndex, bool bestResult,
-                double threshold, bool refine, PointsTypeRT pointsType, RegressionMethodRT regressionMethod, string calculatorName, bool isRunToRun)
+                double threshold, bool refine, PointsTypeRT pointsType, RegressionMethodRT regressionMethod, RtCalculatorOption calculatorOption, bool isRunToRun)
             {
                 Document = document;
                 TargetIndex = targetIndex;
@@ -515,12 +517,14 @@ namespace pwiz.Skyline.Controls.Graphs
                 Refine = refine;
                 PointsType = pointsType;
                 RegressionMethod = regressionMethod;
-                CalculatorName = calculatorName;
-                if (!string.IsNullOrEmpty(CalculatorName))
-                    Calculators = ImmutableList.Singleton(Settings.Default.GetCalculatorByName(calculatorName));
-                else
-                    Calculators = Settings.Default.RTScoreCalculatorList.ToImmutable();
+                AllCalculators = Settings.Default.RTScoreCalculatorList.ToImmutable();
+                CalculatorName = calculatorOption;
                 IsRunToRun = isRunToRun;
+                if (CalculatorName != null)
+                {
+                    _calculator = new Lazy<RetentionScoreCalculatorSpec>(() =>
+                        CalculatorName.GetRetentionScoreCalculatorSpec(Document, AllCalculators));
+                }
             }
 
             protected bool Equals(RegressionSettings other)
@@ -528,8 +532,8 @@ namespace pwiz.Skyline.Controls.Graphs
                 return ReferenceEquals(Document, other.Document) && TargetIndex == other.TargetIndex &&
                        OriginalIndex == other.OriginalIndex && BestResult == other.BestResult &&
                        Threshold.Equals(other.Threshold) && Refine == other.Refine && PointsType == other.PointsType &&
-                       RegressionMethod == other.RegressionMethod && CalculatorName == other.CalculatorName &&
-                       Equals(Calculators, other.Calculators) && IsRunToRun == other.IsRunToRun;
+                       RegressionMethod == other.RegressionMethod && Equals(CalculatorName, other.CalculatorName) &&
+                       Equals(AllCalculators, other.AllCalculators) && IsRunToRun == other.IsRunToRun;
             }
 
             public override bool Equals(object obj)
@@ -553,7 +557,7 @@ namespace pwiz.Skyline.Controls.Graphs
                     hashCode = (hashCode * 397) ^ (int)PointsType;
                     hashCode = (hashCode * 397) ^ (int)RegressionMethod;
                     hashCode = (hashCode * 397) ^ (CalculatorName != null ? CalculatorName.GetHashCode() : 0);
-                    hashCode = (hashCode * 397) ^ (Calculators != null ? Calculators.GetHashCode() : 0);
+                    hashCode = (hashCode * 397) ^ (AllCalculators != null ? AllCalculators.GetHashCode() : 0);
                     hashCode = (hashCode * 397) ^ IsRunToRun.GetHashCode();
                     return hashCode;
                 }
@@ -565,7 +569,6 @@ namespace pwiz.Skyline.Controls.Graphs
             public bool BestResult { get; private set; }
             public double Threshold { get; private set; }
             public int? ThresholdPrecision { get; private set; }
-
             public RegressionSettings ChangeThresholdPrecision(int? value)
             {
                 return ChangeProp(ImClone(this), im => im.ThresholdPrecision = value);
@@ -573,17 +576,22 @@ namespace pwiz.Skyline.Controls.Graphs
             public bool Refine { get; private set; }
             public PointsTypeRT PointsType { get; private set; }
             public RegressionMethodRT RegressionMethod { get; private set; }
-            public string CalculatorName { get; private set; }
-
-            public RegressionSettings ChangeCalculatorName(string value)
+            public RtCalculatorOption CalculatorName { get; private set; }
+            public RegressionSettings ChangeCalculatorName(RtCalculatorOption value)
             {
                 return ChangeProp(ImClone(this), im => im.CalculatorName = value);
             }
-            public ImmutableList<RetentionScoreCalculatorSpec> Calculators { get; private set; }
+            public ImmutableList<RetentionScoreCalculatorSpec> AllCalculators { get; private set; }
 
-            public RegressionSettings ChangeCalculators(IEnumerable<RetentionScoreCalculatorSpec> value)
+            public IEnumerable<RetentionScoreCalculatorSpec> GetCalculators()
             {
-                return ChangeProp(ImClone(this), im => im.Calculators = value.ToImmutable());
+                var singleCalculator = _calculator?.Value;
+                if (singleCalculator != null)
+                {
+                    return ImmutableList.Singleton(singleCalculator);
+                }
+
+                return AllCalculators;
             }
             public bool IsRunToRun { get; private set; }
         }
@@ -620,7 +628,7 @@ namespace pwiz.Skyline.Controls.Graphs
                 bool refine = regressionSettings.Refine;
                 var pointInfos = new List<PointInfo>();
                 var standards = new HashSet<Target>();
-                if (RTGraphController.PointsType == PointsTypeRT.standards)
+                if (regressionSettings.PointsType == PointsTypeRT.standards)
                     standards = document.GetRetentionTimeStandards();
                 
                 // Only used if we are comparing two runs
@@ -638,7 +646,7 @@ namespace pwiz.Skyline.Controls.Graphs
                     }
                     var identityPath = new IdentityPath(peptideGroupDocNode.PeptideGroup, nodePeptide.Peptide);
                     productionMonitor.CancellationToken.ThrowIfCancellationRequested();
-                    switch (RTGraphController.PointsType)
+                    switch (regressionSettings.PointsType)
                     {
                         case PointsTypeRT.targets:
                             if (nodePeptide.IsDecoy)
@@ -706,7 +714,7 @@ namespace pwiz.Skyline.Controls.Graphs
                 }
                 else
                 {
-                    var usableCalculators = RegressionSettings.Calculators.Where(calc => calc.IsUsable).ToList();
+                    var usableCalculators = RegressionSettings.GetCalculators().Where(calc => calc.IsUsable).ToList();
                     if (RegressionSettings.CalculatorName == null)
                     {
                         var summary = RetentionTimeRegression.CalcBestRegressionBackground(XmlNamedElement.NAME_INTERNAL, usableCalculators, targetTimes, null, true,
@@ -910,7 +918,7 @@ namespace pwiz.Skyline.Controls.Graphs
                     {
                         _regressionPredict, _regressionRefined, _regressionAll
                     };
-                    return regressions.Where(regression => null != regression.Conversion).Concat(regressions)
+                    return regressions.Where(regression => null != regression?.Conversion).Concat(regressions)
                         .FirstOrDefault(regression => null != regression);
                 }
             }
@@ -1322,7 +1330,12 @@ namespace pwiz.Skyline.Controls.Graphs
 
             public override IEnumerable<WorkOrder> GetInputs(RegressionSettings parameter)
             {
-                foreach (var calculator in parameter.Calculators.Where(calc => !calc.IsUsable))
+                var calculatorOption = parameter.CalculatorName;
+                if (calculatorOption != null && !(calculatorOption is RtCalculatorOption.Irt))
+                {
+                    yield break;
+                }
+                foreach (var calculator in parameter.GetCalculators().Where(calc => !calc.IsUsable))
                 {
                     yield return _rtScoreInitializer.MakeWorkOrder(calculator);
                 }

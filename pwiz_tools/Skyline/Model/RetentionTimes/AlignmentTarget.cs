@@ -21,6 +21,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
+using pwiz.Common.Collections;
 using pwiz.Common.DataAnalysis;
 using pwiz.Common.SystemUtil;
 using pwiz.Skyline.Model.DocSettings;
@@ -198,7 +199,11 @@ namespace pwiz.Skyline.Model.RetentionTimes
 
         public static AlignmentTarget GetAlignmentTarget(SrmDocument document)
         {
-            TryGetAlignmentTarget(document.Settings, out var alignmentTarget);
+            if (TryGetAlignmentTarget(document.Settings, out var alignmentTarget))
+            {
+                return alignmentTarget ?? document.Settings.DocumentRetentionTimes.ResultFileAlignments
+                    ?.MedianDocumentRetentionTimesTarget;
+            }
             return alignmentTarget;
         }
 
@@ -227,14 +232,7 @@ namespace pwiz.Skyline.Model.RetentionTimes
                     return false;
                 }
 
-                // TODO: use actual regression type
-                var regressionType = RegressionMethodRT.kde;
-                if (irtCalculator.RegressionType == IrtRegressionType.LOWESS)
-                {
-                    regressionType = RegressionMethodRT.loess;
-                }
-
-                alignmentTarget = new Irt(regressionType, irtCalculator);
+                alignmentTarget = new Irt(irtCalculator);
                 return true;
             }
 
@@ -251,7 +249,6 @@ namespace pwiz.Skyline.Model.RetentionTimes
                 alignmentTarget = new LibraryTarget(RegressionMethodRT.loess, library);
                 return true;
             }
-
             alignmentTarget = null;
             return true;
         }
@@ -260,15 +257,60 @@ namespace pwiz.Skyline.Model.RetentionTimes
 
         public abstract string GetAlignmentMenuItemText();
 
+        public abstract string DisplayName { get; }
+
+        public virtual RetentionScoreCalculatorSpec AsRetentionScoreCalculator()
+        {
+            return new RetentionScoreCalculatorImpl(this);
+        }
+
+        private class RetentionScoreCalculatorImpl : RetentionScoreCalculatorSpec
+        {
+            private AlignmentTarget _alignmentTarget;
+            public RetentionScoreCalculatorImpl(AlignmentTarget alignmentTarget) : base(alignmentTarget.DisplayName)
+            {
+                _alignmentTarget = alignmentTarget;
+            }
+
+            public override double? ScoreSequence(Target modifiedSequence)
+            {
+                return _alignmentTarget.ScoreSequence(modifiedSequence);
+            }
+
+            public override double UnknownScore
+            {
+                get { return double.NaN; }
+            }
+            public override IEnumerable<Target> ChooseRegressionPeptides(IEnumerable<Target> peptides, out int minCount)
+            {
+                minCount = 0;
+                return peptides;
+            }
+
+            public override IEnumerable<Target> GetStandardPeptides(IEnumerable<Target> peptides)
+            {
+                return Array.Empty<Target>();
+            }
+
+            public override RetentionScoreProvider ScoreProvider
+            {
+                get { return null; }
+            }
+        }
+
         public class Irt : AlignmentTarget
         {
-            public Irt(RegressionMethodRT regressionMethod, IRetentionScoreCalculator calculator) : base(
+            public Irt(RegressionMethodRT regressionMethod, RetentionScoreCalculatorSpec calculator) : base(
                 regressionMethod)
             {
                 Calculator = calculator;
             }
 
-            public IRetentionScoreCalculator Calculator { get; }
+            public Irt(RetentionScoreCalculatorSpec calculator) : this(GetRegressionMethod(calculator), calculator)
+            {
+            }
+
+            public RetentionScoreCalculatorSpec Calculator { get; }
 
 
             protected override double? ScoreSequence(Target target)
@@ -337,6 +379,43 @@ namespace pwiz.Skyline.Model.RetentionTimes
                 }
                 return PerformAlignment(RegressionMethod, allPoints, cancellationToken);
             }
+
+            public override RetentionScoreCalculatorSpec AsRetentionScoreCalculator()
+            {
+                return Calculator;
+            }
+
+            public override string DisplayName
+            {
+                get { return Calculator.Name; }
+            }
+
+            public static RegressionMethodRT GetRegressionMethod(RetentionScoreCalculatorSpec calculator)
+            {
+                if (!(calculator is RCalcIrt rCalcIrt))
+                {
+                    return RegressionMethodRT.loess;
+                }
+
+                var irtRegressionType = rCalcIrt.RegressionType;
+                if (irtRegressionType == IrtRegressionType.LINEAR)
+                {
+                    return RegressionMethodRT.linear;
+                }
+
+                if (irtRegressionType == IrtRegressionType.LOGARITHMIC)
+                {
+                    return RegressionMethodRT.log;
+                }
+
+                if (irtRegressionType == IrtRegressionType.LOWESS)
+                {
+                    return RegressionMethodRT.loess;
+                }
+
+                return RegressionMethodRT.kde;
+            }
+
         }
 
         public class LibraryTarget : AlignmentTarget
@@ -401,6 +480,14 @@ namespace pwiz.Skyline.Model.RetentionTimes
                     return (base.GetHashCode() * 397) ^ Library.GetHashCode();
                 }
             }
+
+            public override string DisplayName
+            {
+                get
+                {
+                    return "Library " + Library.Name;
+                }
+            }
         }
 
         private static IEnumerable<KeyValuePair<LibrarySpec, Library>> GetAlignableLibraries(
@@ -422,5 +509,73 @@ namespace pwiz.Skyline.Model.RetentionTimes
             return librarySpec is BiblioSpecLiteSpec || librarySpec is EncyclopeDiaSpec ||
                    library is BiblioSpecLiteLibrary || library is EncyclopeDiaLibrary;
         }
+
+        public class MedianDocumentRetentionTimes : AlignmentTarget
+        {
+            private IDictionary<Target, double> _dictionary;
+            public MedianDocumentRetentionTimes(IEnumerable<ResultFileAlignments.AlignmentSource> files) : base(RegressionMethodRT.loess)
+            {
+                _dictionary = files.SelectMany(file => file.GetTimesDictionary().SelectMany(kvp => kvp.Key.Select(target => new KeyValuePair<Target, double>(target, kvp.Value))))
+                    .GroupBy(kvp => kvp.Key, kvp => kvp.Value)
+                    .ToDictionary(group => group.Key, MathNet.Numerics.Statistics.Statistics.Median);
+            }
+
+            public MedianDocumentRetentionTimes(SrmDocument document)
+                : this(ResultFileAlignments.GetAlignmentSources(document, null).Values)
+            {
+            }
+
+            protected override double? ScoreSequence(Target target)
+            {
+                if (_dictionary.TryGetValue(target, out var score))
+                {
+                    return score;
+                }
+
+                return null;
+            }
+
+            public override string GetAxisTitle(RTPeptideValue rtPeptideValue)
+            {
+                if (rtPeptideValue == RTPeptideValue.Retention || rtPeptideValue == RTPeptideValue.All)
+                {
+                    return "Normalized retention time";
+                }
+
+                return string.Format("Normalized {0}", rtPeptideValue.ToLocalizedString());
+            }
+
+            public override string GetAlignmentMenuItemText()
+            {
+                return string.Format("Align to Median Document Retention Times");
+            }
+
+            public override string DisplayName
+            {
+                get { return "Median LC Peak Time"; }
+            }
+
+            protected bool Equals(MedianDocumentRetentionTimes other)
+            {
+                return base.Equals(other) && CollectionUtil.EqualsDeep(_dictionary, other._dictionary);
+            }
+
+            public override bool Equals(object obj)
+            {
+                if (obj is null) return false;
+                if (ReferenceEquals(this, obj)) return true;
+                if (obj.GetType() != GetType()) return false;
+                return Equals((MedianDocumentRetentionTimes)obj);
+            }
+
+            public override int GetHashCode()
+            {
+                unchecked
+                {
+                    return (base.GetHashCode() * 397) ^ CollectionUtil.GetHashCodeDeep(_dictionary);
+                }
+            }
+        }
+
     }
 }

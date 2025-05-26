@@ -31,6 +31,7 @@ using pwiz.Skyline.FileUI;
 using pwiz.Skyline.Model;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.Irt;
+using pwiz.Skyline.Model.RetentionTimes;
 using pwiz.Skyline.Properties;
 using pwiz.Skyline.SettingsUI;
 using pwiz.Skyline.SettingsUI.Irt;
@@ -368,7 +369,7 @@ namespace pwiz.SkylineTestFunctional
             RunUI(() =>
             {
                 SkylineWindow.SetupCalculatorChooser();
-                SkylineWindow.ChooseCalculator(irtCalc);
+                SkylineWindow.ChooseCalculator(new RtCalculatorOption.Irt(irtCalc));
             });
             WaitForRegression();
             RunUI(() =>
@@ -384,7 +385,7 @@ namespace pwiz.SkylineTestFunctional
             Assert.AreEqual(14.17, line.Intercept, 0.01);
             Assert.AreEqual(0.15, line.Slope, 0.01);
 
-            RunUI(() => SkylineWindow.ChooseCalculator(ssrCalc));
+            RunUI(() => SkylineWindow.ChooseCalculator(new RtCalculatorOption.Irt(ssrCalc)));
             WaitForRegression();
             RunUI(() => stats = SkylineWindow.RTGraphController.RegressionRefined.CalcStatistics(docPeptides, null));
 
@@ -704,7 +705,7 @@ namespace pwiz.SkylineTestFunctional
             OkDialog(exportTransList, exportTransList.CancelDialog);
 
             // Used to cause a message box, but should work now, because iRT databases get loaded once
-            RunUI(() => SkylineWindow.ChooseCalculator(irtCalc));
+            RunUI(() => SkylineWindow.ChooseCalculator(new RtCalculatorOption.Irt(irtCalc)));
 
             /*
              * Now clean up by deleting all these calculators. If we don't, then the next functional test

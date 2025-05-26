@@ -1334,6 +1334,23 @@ namespace pwiz.Skyline.Properties
                 this[nameof(ArdiaRegistrationCodeEntries)] = value;
             }
         }
+
+        public RtCalculatorOption RtCalculatorOption
+        {
+            get
+            {
+                var calcName = RTCalculatorName;
+                if (string.IsNullOrEmpty(calcName))
+                {
+                    return null;
+                }
+                return RtCalculatorOption.FromPersistentString(calcName);
+            }
+            set
+            {
+                RTCalculatorName = value?.ToPersistentString();
+            }
+        }
     }
 
     [Serializable]

@@ -300,6 +300,11 @@ namespace pwiz.Skyline.Model.RetentionTimes
             {
                 get { return null; }
             }
+
+            public override bool IsAlignmentOnly
+            {
+                get { return true; }
+            }
         }
 
         public class Irt : AlignmentTarget

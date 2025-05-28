@@ -385,9 +385,9 @@ namespace pwiz.Skyline.Model.Databinding.Entities
 
             foreach (var result in results)
             {
-                if (result.RetentionTime.HasValue)
+                if (result.RetentionTime != null)
                 {
-                    retentionTimes.Add(result.RetentionTime.Value);
+                    retentionTimes.Add(result.RetentionTime);
                 }
                 if (result.Fwhm.HasValue)
                 {

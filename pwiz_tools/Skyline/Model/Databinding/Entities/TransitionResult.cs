@@ -26,6 +26,7 @@ using pwiz.Skyline.Model.ElementLocators;
 using pwiz.Skyline.Model.GroupComparison;
 using pwiz.Skyline.Model.Hibernate;
 using pwiz.Skyline.Model.Results;
+using pwiz.Skyline.Util;
 using pwiz.Skyline.Util.Extensions;
 
 namespace pwiz.Skyline.Model.Databinding.Entities
@@ -49,14 +50,17 @@ namespace pwiz.Skyline.Model.Databinding.Entities
         [HideWhen(AncestorOfType = typeof(Transition))]
         public Transition Transition { get { return (Transition)SkylineDocNode; } }
         [Format(Formats.RETENTION_TIME, NullValue = TextUtil.EXCEL_NA)]
-        public double? RetentionTime { get { return ChromInfo.IsEmpty ? (double?) null : ChromInfo.RetentionTime; } }
+        [ChildDisplayName("{0}{1}")]
+        public RetentionTimeValue RetentionTime { get { return ChromInfo.IsEmpty ? null : GetResultFile().MakeRetentionTime(ChromInfo.RetentionTime); } }
         [Format(Formats.RETENTION_TIME, NullValue = TextUtil.EXCEL_NA)]
         public double? Fwhm { get { return ChromInfo.IsEmpty ? (double?) null : ChromInfo.Fwhm; } }
         public bool FwhmDegenerate { get { return ChromInfo.IsFwhmDegenerate; } }
         [Format(Formats.RETENTION_TIME, NullValue = TextUtil.EXCEL_NA)]
-        public double? StartTime { get { return ChromInfo.IsEmpty ? (double?)null : ChromInfo.StartRetentionTime; } }
+        [ChildDisplayName("{0}{1}")]
+        public RetentionTimeValue StartTime { get { return ChromInfo.IsEmpty ? null : GetResultFile().MakeRetentionTime(ChromInfo.StartRetentionTime); } }
         [Format(Formats.RETENTION_TIME, NullValue = TextUtil.EXCEL_NA)]
-        public double? EndTime { get { return ChromInfo.IsEmpty ? (double?) null : ChromInfo.EndRetentionTime; } }
+        [ChildDisplayName("{0}{1}")]
+        public RetentionTimeValue EndTime { get { return ChromInfo.IsEmpty ? null : GetResultFile().MakeRetentionTime(ChromInfo.EndRetentionTime); } }
         [Format(Formats.PEAK_AREA, NullValue = TextUtil.EXCEL_NA)]
         public double? Area { get { return ChromInfo.IsEmpty ? (double?) null : ChromInfo.Area; } }
         [Format(Formats.PEAK_AREA, NullValue = TextUtil.EXCEL_NA)]

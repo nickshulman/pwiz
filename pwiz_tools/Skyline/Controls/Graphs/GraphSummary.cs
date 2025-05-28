@@ -350,7 +350,7 @@ namespace pwiz.Skyline.Controls.Graphs
             // Avoid updating when document container and state provider are out of sync
             if (!ReferenceEquals(DocumentUIContainer.Document, StateProvider.SelectionDocument))
             {
-                Console.Out.WriteLine("Documents different expected: {0} actual: {1}", DocumentUIContainer.Document.RevisionIndex, StateProvider.SelectionDocument.RevisionIndex);
+                Console.Out.WriteLine("Documents different expected: {0} actual: {1}", DocumentUIContainer.Document.RevisionIndex, StateProvider.SelectionDocument?.RevisionIndex);
                 return;
             }
 

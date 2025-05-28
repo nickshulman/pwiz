@@ -24,6 +24,7 @@ using pwiz.Common.DataBinding.Attributes;
 using pwiz.Skyline.Model.DocSettings;
 using pwiz.Skyline.Model.Hibernate;
 using pwiz.Skyline.Model.Results;
+using pwiz.Skyline.Util;
 
 namespace pwiz.Skyline.Model.Databinding.Entities
 {
@@ -44,29 +45,32 @@ namespace pwiz.Skyline.Model.Databinding.Entities
         }
 
         [Format(Formats.RETENTION_TIME)]
-        public double PeakGroupRetentionTime
+        [ChildDisplayName("{0}{1}")]
+        public RetentionTimeValue PeakGroupRetentionTime
         {
             get
             {
-                return _data.RetentionTime;
+                return _precursorResult.GetResultFile().MakeRetentionTime(_data.RetentionTime);
             }
         }
 
         [Format(Formats.RETENTION_TIME)]
-        public double PeakGroupStartTime
+        [ChildDisplayName("{0}{1}")]
+        public RetentionTimeValue PeakGroupStartTime
         {
             get
             {
-                return _data.MinStartTime;
+                return _precursorResult.GetResultFile().MakeRetentionTime(_data.MinStartTime);
             }
         }
 
         [Format(Formats.RETENTION_TIME)]
-        public double PeakGroupEndTime
+        [ChildDisplayName("{0}{1}")]
+        public RetentionTimeValue PeakGroupEndTime
         {
             get
             {
-                return _data.MaxEndTime;
+                return _precursorResult.GetResultFile().MakeRetentionTime(_data.MaxEndTime);
             }
         }
 

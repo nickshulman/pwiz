@@ -64,33 +64,21 @@ namespace pwiz.Skyline.Model.Databinding.Entities
         public double? DetectionZScore { get { return ChromInfo.ZScore; } }
         [Format(Formats.PEAK_FOUND_RATIO, NullValue = TextUtil.EXCEL_NA)]
         public double PrecursorPeakFoundRatio { get { return ChromInfo.PeakCountRatio; } }
+
         [Format(Formats.RETENTION_TIME, NullValue = TextUtil.EXCEL_NA)]
-        public double? BestRetentionTime { get { return ChromInfo.RetentionTime; } }
-        [Format(Formats.RETENTION_TIME, NullValue = TextUtil.EXCEL_NA)]
-        public double? NormalizedBestRetentionTime 
+        [ChildDisplayName("{0}"+nameof(BestRetentionTime))]
+        public RetentionTimeValue BestRetentionTime
         {
-            get
-            {
-                var retentionTime = ChromInfo.RetentionTime;
-                if (retentionTime == null)
-                {
-                    return null;
-                }
-                var alignmentFunction = SrmDocument.Settings.DocumentRetentionTimes.GetAlignmentFunction(
-                    SrmDocument.Settings.PeptideSettings.Libraries, GetResultFile().ChromFileInfo.FilePath, true);
-                if (alignmentFunction == null)
-                {
-                    return null;
-                }
-                return alignmentFunction.GetX(retentionTime.Value);
-            }
+            get { return GetResultFile().MakeRetentionTime(ChromInfo.RetentionTime); }
         }
         [Format(Formats.RETENTION_TIME, NullValue = TextUtil.EXCEL_NA)]
         public double? MaxFwhm { get { return ChromInfo.Fwhm; } }
         [Format(Formats.RETENTION_TIME, NullValue = TextUtil.EXCEL_NA)]
-        public double? MinStartTime { get { return ChromInfo.StartRetentionTime; } }
+        [ChildDisplayName("{0}{1}")]
+        public RetentionTimeValue MinStartTime { get { return GetResultFile().MakeRetentionTime(ChromInfo.StartRetentionTime); } }
         [Format(Formats.RETENTION_TIME, NullValue = TextUtil.EXCEL_NA)]
-        public double? MaxEndTime { get { return ChromInfo.EndRetentionTime; } }
+        [ChildDisplayName("{0}{1}")]
+        public RetentionTimeValue MaxEndTime { get { return GetResultFile().MakeRetentionTime(ChromInfo.EndRetentionTime); } }
         [Format(Formats.PEAK_AREA, NullValue = TextUtil.EXCEL_NA)]
         public double? TotalArea { get { return ChromInfo.Area; } }
         [Format(Formats.PEAK_AREA, NullValue = TextUtil.EXCEL_NA)]

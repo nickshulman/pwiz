@@ -56,9 +56,11 @@ namespace pwiz.Skyline.Model.Databinding.Entities
         public double PeptidePeakFoundRatio { get { return ChromInfo.PeakCountRatio; } }
         [Format(Formats.RETENTION_TIME, NullValue = TextUtil.EXCEL_NA)]
         [InvariantDisplayName("MoleculeRetentionTime", ExceptInUiMode = UiModes.PROTEOMIC)]
-        public double? PeptideRetentionTime { get { return ChromInfo.RetentionTime; } }
+        [ChildDisplayName("{0}{1}")]
+        public RetentionTimeValue PeptideRetentionTime { get { return GetResultFile().MakeRetentionTime(ChromInfo.RetentionTime); } }
         
         [Format(Formats.RETENTION_TIME, NullValue = TextUtil.EXCEL_NA)]
+        [ChildDisplayName("{0}{1}")]
         public double? PredictedResultRetentionTime
         {
             get
@@ -70,7 +72,7 @@ namespace pwiz.Skyline.Model.Databinding.Entities
                     double? scoreCalc = peptidePrediction.RetentionTime.Calculator.ScoreSequence(textId);
                     if (scoreCalc.HasValue)
                     {
-                        return peptidePrediction.RetentionTime.GetRetentionTime(scoreCalc.Value, ResultFile.ChromFileInfoId);
+                        return GetResultFile().MakeRetentionTime(peptidePrediction.RetentionTime.GetRetentionTime(scoreCalc.Value, ResultFile.ChromFileInfoId));
                     }
                 }
                 return null;

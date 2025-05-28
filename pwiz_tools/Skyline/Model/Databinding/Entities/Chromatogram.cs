@@ -65,17 +65,17 @@ namespace pwiz.Skyline.Model.Databinding.Entities
             } }
 
         [Format(Formats.RETENTION_TIME, NullValue = TextUtil.EXCEL_NA)]
-        public double? ChromatogramStartTime
+        [ChildDisplayName("{0}{1}")]
+        public RetentionTimeValue ChromatogramStartTime
         {
-            get { return _chromatogramInfo.Value?.Header.StartTime; }
+            get { return ChromatogramGroup.PrecursorResult.GetResultFile().MakeRetentionTime(_chromatogramInfo.Value?.Header.StartTime); }
         }
         [Format(Formats.RETENTION_TIME, NullValue = TextUtil.EXCEL_NA)]
-        public double? ChromatogramEndTime
+        [ChildDisplayName("{0}{1}")]
+        public RetentionTimeValue ChromatogramEndTime
         {
-            get { return _chromatogramInfo.Value?.Header.EndTime; }
+            get { return ChromatogramGroup.PrecursorResult.GetResultFile().MakeRetentionTime(_chromatogramInfo.Value?.Header.EndTime); }
         }
-
-
 
 
         [Format(Formats.RETENTION_TIME, NullValue = TextUtil.EXCEL_NA)]

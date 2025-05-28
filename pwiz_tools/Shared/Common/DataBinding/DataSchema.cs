@@ -282,7 +282,8 @@ namespace pwiz.Common.DataBinding
                 
             if (null != childDisplayNameAttribute)
             {
-                childDisplayName = new ColumnCaption(string.Format(childDisplayNameAttribute.InvariantFormat, childDisplayName.GetCaption(DataSchemaLocalizer.INVARIANT)));
+                var parentDisplayName = GetColumnCaption(columnDescriptor);
+                childDisplayName = new ColumnCaption(string.Format(childDisplayNameAttribute.InvariantFormat, childDisplayName.GetCaption(DataSchemaLocalizer.INVARIANT), parentDisplayName.GetCaption(DataSchemaLocalizer.INVARIANT)));
             }
             return FormatChildDisplayName(columnDescriptor.Parent, childDisplayName);
         }

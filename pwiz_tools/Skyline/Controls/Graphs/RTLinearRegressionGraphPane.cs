@@ -23,6 +23,7 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Windows.Forms;
+using Microsoft.Web.WebView2.Core.Raw;
 using pwiz.Common.Collections;
 using pwiz.Common.SystemUtil;
 using pwiz.Common.SystemUtil.Caching;
@@ -310,6 +311,11 @@ namespace pwiz.Skyline.Controls.Graphs
             }
 
             base.Draw(g);
+        }
+
+        private void AddLabels(Graphics g)
+        {
+
         }
 
         private PointInfo PeptideIndexFromPoint(PointF point)
@@ -1005,8 +1011,11 @@ namespace pwiz.Skyline.Controls.Graphs
 
                 if (!_refine)
                 {
-                    yNext += AddRegressionLabel(graphPane, g, scoreLeft, timeTop,
-                        _regressionAll, _statisticsAll, COLOR_LINE_REFINED);
+                    if (!Calculator.IsAlignmentOnly)
+                    {
+                        yNext += AddRegressionLabel(graphPane, g, scoreLeft, timeTop,
+                            _regressionAll, _statisticsAll, COLOR_LINE_REFINED);
+                    }
                 }
                 else
                 {

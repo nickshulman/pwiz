@@ -2500,6 +2500,15 @@ namespace pwiz.Skyline.Model.Databinding.Entities {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Normalized.
+        /// </summary>
+        public static string Normalized {
+            get {
+                return ResourceManager.GetString("Normalized", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Normalized Area.
         /// </summary>
         public static string NormalizedArea {
@@ -2532,6 +2541,123 @@ namespace pwiz.Skyline.Model.Databinding.Entities {
         public static string NormalizedAreaStrict {
             get {
                 return ResourceManager.GetString("NormalizedAreaStrict", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Normalized Best Retention Time.
+        /// </summary>
+        public static string NormalizedBestRetentionTime {
+            get {
+                return ResourceManager.GetString("NormalizedBestRetentionTime", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Normalized Chromatogram End Time.
+        /// </summary>
+        public static string NormalizedChromatogramEndTime {
+            get {
+                return ResourceManager.GetString("NormalizedChromatogramEndTime", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Normalized Chromatogram Start Time.
+        /// </summary>
+        public static string NormalizedChromatogramStartTime {
+            get {
+                return ResourceManager.GetString("NormalizedChromatogramStartTime", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Normalized End Time.
+        /// </summary>
+        public static string NormalizedEndTime {
+            get {
+                return ResourceManager.GetString("NormalizedEndTime", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Normalized Max End Time.
+        /// </summary>
+        public static string NormalizedMaxEndTime {
+            get {
+                return ResourceManager.GetString("NormalizedMaxEndTime", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Normalized Min Start Time.
+        /// </summary>
+        public static string NormalizedMinStartTime {
+            get {
+                return ResourceManager.GetString("NormalizedMinStartTime", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Normalized Molecule Retention Time.
+        /// </summary>
+        public static string NormalizedMoleculeRetentionTime {
+            get {
+                return ResourceManager.GetString("NormalizedMoleculeRetentionTime", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Normalized Peak Group End Time.
+        /// </summary>
+        public static string NormalizedPeakGroupEndTime {
+            get {
+                return ResourceManager.GetString("NormalizedPeakGroupEndTime", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Normalized Peak Group Retention Time.
+        /// </summary>
+        public static string NormalizedPeakGroupRetentionTime {
+            get {
+                return ResourceManager.GetString("NormalizedPeakGroupRetentionTime", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Normalized Peak Group Start Time.
+        /// </summary>
+        public static string NormalizedPeakGroupStartTime {
+            get {
+                return ResourceManager.GetString("NormalizedPeakGroupStartTime", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Normalized Peptide Retention Time.
+        /// </summary>
+        public static string NormalizedPeptideRetentionTime {
+            get {
+                return ResourceManager.GetString("NormalizedPeptideRetentionTime", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Normalized Retention Time.
+        /// </summary>
+        public static string NormalizedRetentionTime {
+            get {
+                return ResourceManager.GetString("NormalizedRetentionTime", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Normalized Start Time.
+        /// </summary>
+        public static string NormalizedStartTime {
+            get {
+                return ResourceManager.GetString("NormalizedStartTime", resourceCulture);
             }
         }
         

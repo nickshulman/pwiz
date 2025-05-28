@@ -26,6 +26,7 @@ using pwiz.Skyline.Model.Databinding.Collections;
 using pwiz.Skyline.Model.ElementLocators;
 using pwiz.Skyline.Model.Hibernate;
 using pwiz.Skyline.Model.Results;
+using pwiz.Skyline.Util;
 
 namespace pwiz.Skyline.Model.Databinding.Entities
 {
@@ -215,6 +216,18 @@ namespace pwiz.Skyline.Model.Databinding.Entities
                     Replicate.ReplicateIndex, ChromFileInfoId, out double? denominator);
                 return denominator;
             }
+        }
+
+        public RetentionTimeValue MakeRetentionTime(double? retentionTime)
+        {
+            if (!retentionTime.HasValue)
+            {
+                return null;
+            }
+            var alignmentFunction = SrmDocument.Settings.DocumentRetentionTimes.GetAlignmentFunction(
+                SrmDocument.Settings.PeptideSettings.Libraries, ChromFileInfo.FilePath, true);
+            return new RetentionTimeValue(retentionTime.Value, alignmentFunction?.GetX(retentionTime.Value));
+
         }
     }
 }

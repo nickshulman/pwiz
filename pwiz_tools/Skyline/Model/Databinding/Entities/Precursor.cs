@@ -598,9 +598,9 @@ namespace pwiz.Skyline.Model.Databinding.Entities
             var detectionQValues = new List<double>();
             foreach (var result in results)
             {
-                if (result.BestRetentionTime.HasValue)
+                if (result.BestRetentionTime != null)
                 {
-                    bestRetentionTimes.Add(result.BestRetentionTime.Value);
+                    bestRetentionTimes.Add(result.BestRetentionTime);
                 }
                 if (result.MaxFwhm.HasValue)
                 {

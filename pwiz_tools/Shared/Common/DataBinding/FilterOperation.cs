@@ -18,6 +18,7 @@
  */
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Linq;
 using pwiz.Common.DataBinding.Attributes;
 using pwiz.Common.Properties;
@@ -138,6 +139,10 @@ namespace pwiz.Common.DataBinding
                 return typeToConvertTo;
             }
 
+            if (CanConvertToDouble(columnType))
+            {
+                return typeof(double);
+            }
             return typeof(string);
         }
 
@@ -488,7 +493,23 @@ namespace pwiz.Common.DataBinding
                 }
                 var columnType = dataSchema.GetWrappedValueType(propertyType);
                 columnType = Nullable.GetUnderlyingType(columnType) ?? columnType;
-                return convertibleTypes.ContainsKey(columnType) && columnType != typeof (string) && columnType != typeof(bool);
+                if (columnType == typeof(string) || columnType == typeof(bool))
+                {
+                    return false;
+                }
+
+                if (convertibleTypes.ContainsKey(columnType))
+                {
+                    return true;
+                }
+
+                var typeConverter = TypeDescriptor.GetConverter(columnType);
+                if (typeConverter.CanConvertTo(typeof(double)))
+                {
+                    return true;
+                }
+
+                return false;
             }
 
             public override bool Matches(DataSchema dataSchema, Type columnType, object columnValue, object operandValue)
@@ -540,6 +561,16 @@ namespace pwiz.Common.DataBinding
             {
                 return true;
             }
+        }
+
+        private static bool CanConvertToDouble(Type columnType)
+        {
+            if (columnType == typeof(string) || columnType == typeof(bool))
+            {
+                return false;
+            }
+
+            return TypeDescriptor.GetConverter(columnType).CanConvertTo(typeof(double));
         }
     }
 }

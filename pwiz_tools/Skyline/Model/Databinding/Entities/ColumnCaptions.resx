@@ -930,6 +930,9 @@
   <data name="NormalizationMethod">
     <value>Normalization Method</value>
   </data>
+  <data name="Normalized">
+    <value>Normalized</value>
+  </data>
   <data name="NormalizedArea">
     <value>Normalized Area</value>
   </data>
@@ -941,6 +944,45 @@
   </data>
   <data name="NormalizedAreaStrict">
     <value>Normalized Area Strict</value>
+  </data>
+  <data name="NormalizedBestRetentionTime">
+    <value>Normalized Best Retention Time</value>
+  </data>
+  <data name="NormalizedChromatogramEndTime">
+    <value>Normalized Chromatogram End Time</value>
+  </data>
+  <data name="NormalizedChromatogramStartTime">
+    <value>Normalized Chromatogram Start Time</value>
+  </data>
+  <data name="NormalizedEndTime">
+    <value>Normalized End Time</value>
+  </data>
+  <data name="NormalizedMaxEndTime">
+    <value>Normalized Max End Time</value>
+  </data>
+  <data name="NormalizedMinStartTime">
+    <value>Normalized Min Start Time</value>
+  </data>
+  <data name="NormalizedMoleculeRetentionTime">
+    <value>Normalized Molecule Retention Time</value>
+  </data>
+  <data name="NormalizedPeakGroupEndTime">
+    <value>Normalized Peak Group End Time</value>
+  </data>
+  <data name="NormalizedPeakGroupRetentionTime">
+    <value>Normalized Peak Group Retention Time</value>
+  </data>
+  <data name="NormalizedPeakGroupStartTime">
+    <value>Normalized Peak Group Start Time</value>
+  </data>
+  <data name="NormalizedPeptideRetentionTime">
+    <value>Normalized Peptide Retention Time</value>
+  </data>
+  <data name="NormalizedRetentionTime">
+    <value>Normalized Retention Time</value>
+  </data>
+  <data name="NormalizedStartTime">
+    <value>Normalized Start Time</value>
   </data>
   <data name="NumberOfPoints">
     <value>Number of Points</value>

@@ -116,7 +116,7 @@ namespace pwiz.Skyline.Controls.Databinding
         public override bool TryRenameView(ViewGroupId groupId, string oldName, string newName)
         {
             if (!base.TryRenameView(groupId, oldName, newName))
-            {4
+            {
                 return false;
             }
             if (Equals(groupId, PersistedViews.MainGroup.Id))
@@ -241,26 +241,6 @@ namespace pwiz.Skyline.Controls.Databinding
             }
         }
 
-        protected void ChangeDocumentViewSpecList(Func<ViewSpecList, ViewSpecList> changeViewSpecFunc)
-        {
-            var skylineWindow = SkylineDataSchema.SkylineWindow;
-            if (skylineWindow != null)
-            {
-                skylineWindow.ModifyDocument(DatabindingResources.SkylineViewContext_ChangeDocumentViewSpec_Change_Document_Reports, doc =>
-                {
-                    var oldViewSpecList = doc.Settings.DataSettings.ViewSpecList;
-                    var newViewSpecList = changeViewSpecFunc(oldViewSpecList);
-                    if (Equals(newViewSpecList, oldViewSpecList))
-                    {
-                        return doc;
-                    }
-                    return doc.ChangeSettings(doc.Settings.ChangeDataSettings(
-                        doc.Settings.DataSettings.ChangeViewSpecList(newViewSpecList)));
-                }, AuditLogEntry.SettingsLogFunction);
-            }
-            
-        }
-
         public SkylineDataSchema SkylineDataSchema { get { return (SkylineDataSchema) DataSchema; } }
 
         public override string GetExportDirectory()
@@ -283,14 +263,6 @@ namespace pwiz.Skyline.Controls.Databinding
             yield return new TabularFileFormat(TextUtil.GetCsvSeparator(DataSchema.DataSchemaLocalizer.FormatProvider),
                 TextUtil.FILTER_CSV);
             yield return new TabularFileFormat('\t', TextUtil.FILTER_TSV);
-        }
-
-        public override DialogResult ShowMessageBox(Control owner, string message, MessageBoxButtons messageBoxButtons, Exception exception)
-        {
-            return new AlertDlg(message, messageBoxButtons)
-            {
-                Exception = exception
-            }.ShowAndDispose(FormUtil.FindTopLevelOwner(owner));
         }
 
         public override bool RunLongJob(Control owner, Action<CancellationToken, IProgressMonitor> job)
@@ -318,130 +290,6 @@ namespace pwiz.Skyline.Controls.Databinding
         protected override void SetClipboardText(Control owner, string text)
         {
             ClipboardHelper.SetClipboardText(owner, text);
-        }
-
-        public bool Export(Control owner, ViewInfo viewInfo)
-        {
-            using (var saveFileDialog = new SaveFileDialog())
-            {
-                saveFileDialog.InitialDirectory = GetExportDirectory();
-                saveFileDialog.OverwritePrompt = true;
-                saveFileDialog.DefaultExt = TextUtil.EXT_CSV;
-                saveFileDialog.Filter = TextUtil.FileDialogFiltersAll(TextUtil.FILTER_CSV, TextUtil.FILTER_TSV);
-                saveFileDialog.FileName = GetDefaultExportFilename(viewInfo);
-                // TODO: If document has been saved, initial directory should be document directory
-                if (saveFileDialog.ShowDialog(FormUtil.FindTopLevelOwner(owner)) == DialogResult.Cancel)
-                {
-                    return false;
-                }
-                char separator = saveFileDialog.FilterIndex == 2
-                    ? TextUtil.SEPARATOR_TSV
-                    : TextUtil.GetCsvSeparator(DataSchema.DataSchemaLocalizer.FormatProvider);
-                SetExportDirectory(Path.GetDirectoryName(saveFileDialog.FileName));
-                return ExportToFile(owner, viewInfo, saveFileDialog.FileName, separator);
-            }
-        }
-
-        public bool IsInvariantLanguage()
-        {
-            return ReferenceEquals(DataSchema.DataSchemaLocalizer, DataSchemaLocalizer.INVARIANT);
-        }
-
-        public override DsvWriter CreateDsvWriter(char separator, ColumnFormats columnFormats)
-        {
-            var dsvWriter = base.CreateDsvWriter(separator, columnFormats);
-            if (IsInvariantLanguage())
-            {
-                dsvWriter.NumberFormatOverride = Formats.RoundTrip;
-            }
-
-            return dsvWriter;
-        }
-
-        public DsvWriter GetDsvWriter(char separator)
-        {
-            return CreateDsvWriter(separator, null);
-        }
-
-        public bool ExportToFile(Control owner, ViewInfo viewInfo, string fileName, char separator)
-        {
-            try
-            {
-                return SafeWriteToFile(owner, fileName, stream =>
-                {
-                    bool success = false;
-                    using (var longWait = new LongWaitDlg())
-                    {
-                        longWait.Text = DatabindingResources.ExportReportDlg_ExportReport_Generating_Report;
-                        var action = new Action<IProgressMonitor>(progressMonitor =>
-                        {
-                            IProgressStatus status = new ProgressStatus(DatabindingResources.ExportReportDlg_ExportReport_Building_report);
-                            progressMonitor.UpdateProgress(status);
-                            using (var writer = new StreamWriter(stream))
-                            {
-                                success = Export(longWait.CancellationToken, progressMonitor, ref status, viewInfo, writer, separator);
-                                writer.Close();
-                            }
-                            if (success)
-                            {
-                                progressMonitor.UpdateProgress(status.Complete());
-                            }
-                        });
-                        longWait.PerformWork(owner, 1500, action);
-                    }
-                    return success;
-                });
-            }
-            catch (Exception x)
-            {
-                MessageDlg.ShowWithException(owner,
-                    string.Format(DatabindingResources.ExportReportDlg_ExportReport_Failed_exporting_to, fileName, x.Message), x);
-                return false;
-            }
-        }
-
-        public bool Export(CancellationToken cancellationToken, IProgressMonitor progressMonitor,
-            ref IProgressStatus status, ViewInfo viewInfo, TextWriter writer, char separator)
-        {
-            ViewLayout viewLayout = null;
-            if (viewInfo.ViewGroup != null)
-            {
-                var viewLayoutList = GetViewLayoutList(viewInfo.ViewGroup.Id.ViewName(viewInfo.Name));
-                if (viewLayoutList != null)
-                {
-                    viewLayout = viewLayoutList.DefaultLayout;
-                }
-            }
-
-            return Export(cancellationToken, progressMonitor, ref status, viewInfo, viewLayout, writer, separator);
-        }
-
-        public bool Export(CancellationToken cancellationToken, IProgressMonitor progressMonitor, ref IProgressStatus status, ViewInfo viewInfo, ViewLayout viewLayout, TextWriter writer, char separator)
-        {
-            progressMonitor ??= new SilentProgressMonitor(cancellationToken);
-            RowItemEnumerator rowItemEnumerator;
-            using (var bindingListSource = new BindingListSource(cancellationToken))
-            {
-                bindingListSource.SetViewContext(this, viewInfo);
-                if (viewLayout != null)
-                {
-                    foreach (var column in viewLayout.ColumnFormats)
-                    {
-                        bindingListSource.ColumnFormats.SetFormat(column.Item1, column.Item2);
-                    }
-                }
-
-                rowItemEnumerator = RowItemEnumerator.FromBindingListSource(bindingListSource);
-            }
-
-            progressMonitor.UpdateProgress(status = status.ChangePercentComplete(5)
-                .ChangeMessage(DatabindingResources.ExportReportDlg_ExportReport_Writing_report));
-            WriteDataWithStatus(progressMonitor, ref status, writer, rowItemEnumerator, separator);
-            if (progressMonitor.IsCanceled)
-                return false;
-            writer.Flush();
-            progressMonitor.UpdateProgress(status = status.Complete());
-            return true;
         }
 
         protected override bool SafeWriteToFile(Control owner, string fileName, Func<Stream, bool> writeFunc)
@@ -774,15 +622,6 @@ namespace pwiz.Skyline.Controls.Databinding
                 return;
             }
             CopyViewsToGroup(owner, group, views);
-        }
-
-        protected ViewSpecList LoadViews(string filename)
-        {
-            using (var stream = File.OpenRead(filename))
-            {
-                var reportOrViewSpecs = ReportSharing.DeserializeReportList(stream);
-                return new ViewSpecList(ReportSharing.ConvertAll(reportOrViewSpecs, ((SkylineDataSchema) DataSchema).Document));
-            }
         }
 
         public void SetRowSources(IList<RowSourceInfo> rowSources)

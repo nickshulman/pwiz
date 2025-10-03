@@ -8,13 +8,10 @@ namespace pwiz.Skyline.Model
     [UsedImplicitly(ImplicitUseTargetFlags.Members)]
     public static class SkylinePerfCounters
     {
-        public static readonly PerfCounter ReadFile = new PerfCounter();
-        public static readonly PerfCounter ReadChromPeak = new PerfCounter();
-        public static readonly PerfCounter ReadChromScores = new PerfCounter();
+        public static readonly PerfCounter ReadSkydFile = new PerfCounter();
         public static readonly PerfCounter ReadLibrarySpectrum = new PerfCounter();
-        public static readonly PerfCounter CalculateMassDistribution = new PerfCounter();
-        public static readonly PerfCounter CalcTransitionGroupResult = new PerfCounter();
+        // public static readonly PerfCounter CalculateMassDistribution = new PerfCounter();
+        // public static readonly PerfCounter CalcTransitionGroupResult = new PerfCounter();
         public static readonly PerfCounter FetchProteinMetadata = ProteomePerfCounters.FetchProteinMetadata;
-        public static readonly PerfCounter ReadChromatogramGroupData = new PerfCounter();
     }
 }

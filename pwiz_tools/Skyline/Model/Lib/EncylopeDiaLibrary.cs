@@ -712,12 +712,18 @@ namespace pwiz.Skyline.Model.Lib
 
         public override SpectrumPeaksInfo LoadSpectrum(object spectrumKey)
         {
-            var elibSpectrumKey = spectrumKey as ElibSpectrumKey;
-            if (null != elibSpectrumKey)
-            {
-                return new SpectrumPeaksInfo(ReadSpectrum(_libraryEntries[elibSpectrumKey.EntryIndex], elibSpectrumKey.FileId));
-            }
-            return base.LoadSpectrum(spectrumKey);
+            return SkylinePerfCounters.ReadLibrarySpectrum.Measure(nameof(EncyclopeDiaLibrary), 0,
+                () =>
+                {
+                    var elibSpectrumKey = spectrumKey as ElibSpectrumKey;
+                    if (null != elibSpectrumKey)
+                    {
+                        return new SpectrumPeaksInfo(ReadSpectrum(_libraryEntries[elibSpectrumKey.EntryIndex],
+                            elibSpectrumKey.FileId));
+                    }
+
+                    return base.LoadSpectrum(spectrumKey);
+                });
         }
 
         public override LibraryChromGroup LoadChromatogramData(object spectrumKey)

@@ -2,6 +2,8 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Diagnostics;
+using System.Drawing;
 using System.Linq;
 using System.Reflection;
 using pwiz.Common.Collections;
@@ -14,14 +16,15 @@ using pwiz.Skyline.Controls.Databinding;
 using pwiz.Skyline.Model;
 using pwiz.Skyline.Util;
 using pwiz.Skyline.Util.Extensions;
-using Process = System.Diagnostics.Process;
-using Type = System.Type;
 
 namespace pwiz.Skyline.Controls
 {
     public partial class PerfCounterGridForm : FormEx
     {
         private RowSource _rowSource;
+        private long _workingSet;
+        private long _availableBytes;
+        private long _totalBytes;
         public PerfCounterGridForm()
         {
             InitializeComponent();
@@ -96,7 +99,12 @@ namespace pwiz.Skyline.Controls
         public void UpdateNow()
         {
             _rowSource.Update();
-            tbxMemory.Text = Process.GetCurrentProcess().WorkingSet64.ToString(@"N0");
+            _workingSet = Process.GetCurrentProcess().WorkingSet64;
+            _totalBytes = MemoryInfo.TotalBytes;
+            _availableBytes = MemoryInfo.AvailableBytes;
+            lblMemoryUsage.Text = string.Format("Memory used by Skyline: {0:N0} All applications: {1:N0} Total available: {2:N0} MB",
+                _workingSet / 1024 / 1024, (_totalBytes - _availableBytes) / 1024 / 1024, _totalBytes / 1024 / 1024);
+            panelMemoryBar.Invalidate();
         }
 
         private class RowSource : AbstractRowSource
@@ -231,6 +239,20 @@ namespace pwiz.Skyline.Controls
             {
                 counter.Value.Reset();
             }
+        }
+
+        private void panelMemoryBar_Paint(object sender, System.Windows.Forms.PaintEventArgs e)
+        {
+            var skylineWidth = panelMemoryBar.Width * _workingSet / _totalBytes;
+            var usedWidth = panelMemoryBar.Width * (_totalBytes - _availableBytes) / _totalBytes;
+            e.Graphics.FillRectangle(new SolidBrush(Color.LightGray), 0, 0, panelMemoryBar.Width, panelMemoryBar.Height);
+            e.Graphics.FillRectangle(new SolidBrush(Color.Orange), 0, 0, usedWidth, panelMemoryBar.Height);
+            e.Graphics.FillRectangle(new SolidBrush(Color.DodgerBlue), 0, 0, skylineWidth, panelMemoryBar.Height);
+        }
+
+        private void panelMemoryBar_SizeChanged(object sender, EventArgs e)
+        {
+            Invalidate();
         }
     }
 }

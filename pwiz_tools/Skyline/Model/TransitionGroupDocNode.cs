@@ -1314,11 +1314,8 @@ namespace pwiz.Skyline.Model
 
             for (int chromIndex = 0; chromIndex < measuredResults.Chromatograms.Count; chromIndex++)
             {
-                SkylinePerfCounters.CalcTransitionGroupResult.Measure(() =>
-                {
-                    CalcResultsForReplicate(resultsCalc, chromIndex, settingsNew, diff, nodePep, nodePrevious,
-                        setTranPrevious, allChromatogramGroupInfos?[chromIndex]);
-                });
+                CalcResultsForReplicate(resultsCalc, chromIndex, settingsNew, diff, nodePep, nodePrevious,
+                    setTranPrevious, allChromatogramGroupInfos?[chromIndex]);
             }
 
             return resultsCalc.UpdateTransitionGroupNode(this);

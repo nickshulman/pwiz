@@ -211,36 +211,29 @@ namespace pwiz.Common.SystemUtil.PerfCounters
 
         public override string ToString()
         {
-            var stringBuilder = new StringBuilder();
-            if (Count != 0)
-            {
-                stringBuilder.Append(Count);
-            }
-
-
             if (!Equals(Duration, TimeSpan.Zero))
             {
-                stringBuilder.Append(" in ");
-                stringBuilder.Append(FormatDuration(Duration));
+                return FormatDuration(Duration);
             }
 
-            if (stringBuilder.Length == 0)
-            {
-                return "0";
-            }
-
-            return stringBuilder.ToString();
+            return Count.ToString();
         }
 
         public int CompareTo(PerfQuantity other)
         {
             if (ReferenceEquals(this, other)) return 0;
             if (other is null) return 1;
-            var durationComparison = Duration.CompareTo(other.Duration);
-            if (durationComparison != 0) return durationComparison;
-            var sizeComparison = Size.CompareTo(other.Size);
-            if (sizeComparison != 0) return sizeComparison;
-            return Count.CompareTo(other.Count);
+            int result = Duration.CompareTo(other.Duration);
+            if (result == 0)
+            {
+                result = Count.CompareTo(other.Count);
+            }
+
+            if (result == 0)
+            {
+                result = Size.CompareTo(other.Size);
+            }
+            return result;
         }
 
         private static string FormatDuration(TimeSpan timeSpan)

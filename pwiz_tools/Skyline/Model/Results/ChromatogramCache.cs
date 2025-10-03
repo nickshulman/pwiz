@@ -1890,7 +1890,7 @@ namespace pwiz.Skyline.Model.Results
 
         private IList<ChromPeak> ReadPeaksStartingAt(Stream stream, long startPeakIndex, int count)
         {
-            return SkylinePerfCounters.ReadChromPeak.Measure(CachePath, count, ()=>
+            return SkylinePerfCounters.ReadSkydFile.Measure(nameof(ReadPeaksStartingAt), count, ()=>
             {
                 stream.Seek(_rawData.LocationPeaks + _rawData.CacheFormat.ChromPeakSize * startPeakIndex,
                     SeekOrigin.Begin);
@@ -1916,7 +1916,7 @@ namespace pwiz.Skyline.Model.Results
                 return Array.Empty<float>();
             }
 
-            return SkylinePerfCounters.ReadChromScores.Measure(CachePath, scoreValueCount, () =>
+            return SkylinePerfCounters.ReadSkydFile.Measure(nameof(ReadScoresStartingAt), scoreValueCount, () =>
             {
                 stream.Seek(_rawData.LocationScoreValues + startScoreIndex * SCORE_VALUE_SIZE, SeekOrigin.Begin);
                 return PrimitiveArrays.Read<float>(stream, scoreValueCount);

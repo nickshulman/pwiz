@@ -2270,9 +2270,11 @@ namespace pwiz.Skyline.Model.Results
         {
             get
             {
-                if (_timeIntensitiesGroup == null)
+                if (_timeIntensitiesGroup == null && _chromatogramCache != null)
                 {
-                    _timeIntensitiesGroup = _chromatogramCache?.ReadTimeIntensities(Header);
+                    _timeIntensitiesGroup = SkylinePerfCounters.ReadSkydFile.Measure(
+                        nameof(ChromatogramCache.ReadTimeIntensities), 0,
+                        () => _chromatogramCache.ReadTimeIntensities(Header));
                 }
                 return _timeIntensitiesGroup;
             }
@@ -2556,7 +2558,7 @@ namespace pwiz.Skyline.Model.Results
                 var headers = groupInfos.Select(group => group.Header).ToList();
                 var peaksArray = new IList<ChromPeak>[headers.Count];
                 var scoresArray = loadScoresToo ? new IList<float>[headers.Count] : null;
-                SkylinePerfCounters.ReadChromatogramGroupData.Measure(grouping.Key.CachePath, groupInfos.Count, () => grouping.Key.ReadDataForAll(headers, peaksArray, scoresArray));
+                SkylinePerfCounters.ReadSkydFile.Measure(nameof(LoadPeaksForAll), groupInfos.Count, () => grouping.Key.ReadDataForAll(headers, peaksArray, scoresArray));
                 for (int i = 0; i < headers.Count; i++)
                 {
                     groupInfos[i]._chromPeaks = peaksArray[i];

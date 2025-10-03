@@ -675,8 +675,7 @@ namespace pwiz.Skyline.Model
 
         public MassDistribution GetMzDistribution(Target target, Adduct adduct, IsotopeAbundances abundances)
         {
-            return SkylinePerfCounters.CalculateMassDistribution.Measure(() =>
-                GetMzDistribution(target, adduct, abundances, null));
+            return GetMzDistribution(target, adduct, abundances, null);
         }
 
         public MassDistribution GetMzDistribution(Target target, Adduct adduct, IsotopeAbundances abundances, ExplicitSequenceMods mods = null)

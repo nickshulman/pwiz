@@ -1361,7 +1361,7 @@ namespace pwiz.Skyline.Model.Lib
 
         public override SpectrumPeaksInfo LoadSpectrum(object spectrumKey)
         {
-            return SkylinePerfCounters.ReadLibrarySpectrum.Measure(FilePath, 0, () =>
+            return SkylinePerfCounters.ReadLibrarySpectrum.Measure(nameof(BiblioSpecLiteLibrary), 0, () =>
             {
                 var spectrumLiteKey = spectrumKey as SpectrumLiteKey;
                 if (spectrumLiteKey != null)

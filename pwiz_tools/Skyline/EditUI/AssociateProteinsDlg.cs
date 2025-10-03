@@ -26,6 +26,7 @@ using System.Threading;
 using System.Windows.Forms;
 using pwiz.Common.SystemUtil;
 using pwiz.Common.SystemUtil.Caching;
+using pwiz.CommonMsData;
 using pwiz.Skyline.Alerts;
 using pwiz.Skyline.Controls;
 using pwiz.Skyline.Model;
@@ -218,6 +219,10 @@ namespace pwiz.Skyline.EditUI
             if (_skylineWindow != null)
             {
                 _skylineWindow.DocumentUIChangedEvent += SkylineWindowOnDocumentUIChangedEvent;
+                if (!ReferenceEquals(_document, _skylineWindow.DocumentUI))
+                {
+                    SkylineWindowOnDocumentUIChangedEvent(_skylineWindow, new DocumentChangedEventArgs(_document));
+                }
             }
 
             if (_overrideFastaPath != null)
@@ -349,6 +354,7 @@ namespace pwiz.Skyline.EditUI
             {
                 dgvAssociateResults.Rows.Clear();
                 dgvAssociateResults.Rows.Add(3);
+                dgvAssociateResults.ClearSelection();
             }
 
             var proteinRow = dgvAssociateResults.Rows[0];
@@ -718,6 +724,10 @@ namespace pwiz.Skyline.EditUI
                 {
                     lock (notifyObject)
                     {
+                        if (longWaitBroker.IsCanceled)
+                        {
+                            return;
+                        }
                         if (DocumentFinal != null && ReferenceEquals(_document, _skylineWindow.Document))
                         {
                             return;

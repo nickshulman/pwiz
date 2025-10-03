@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <mzML xmlns="http://psi.hupo.org/ms/mzml" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://psi.hupo.org/ms/mzml http://psidev.info/files/ms/mzML/xsd/mzML1.1.0.xsd" id="Hela_QC_PASEF_Slot1-first-6-frames" version="1.1.0">
   <cvList count="2">
-    <cv id="MS" fullName="Proteomics Standards Initiative Mass Spectrometry Ontology" version="4.1.99" URI="https://raw.githubusercontent.com/HUPO-PSI/psi-ms-CV/master/psi-ms.obo"/>
+    <cv id="MS" fullName="Proteomics Standards Initiative Mass Spectrometry Ontology" version="4.1.182" URI="https://raw.githubusercontent.com/HUPO-PSI/psi-ms-CV/master/psi-ms.obo"/>
     <cv id="UO" fullName="Unit Ontology" version="09:04:2014" URI="https://raw.githubusercontent.com/bio-ontology-research-group/unit-ontology/master/unit.obo"/>
   </cvList>
   <fileDescription>
@@ -34,7 +34,7 @@
     <software id="micrOTOFcontrol" version="5.0.2.528-10700-vc110">
       <cvParam cvRef="MS" accession="MS:1000726" name="micrOTOFcontrol" value=""/>
     </software>
-    <software id="pwiz_Reader_Bruker" version="3.0.22236">
+    <software id="pwiz_Reader_Bruker" version="3.0.25209">
       <cvParam cvRef="MS" accession="MS:1000615" name="ProteoWizard software" value=""/>
     </software>
   </softwareList>
@@ -8123,6 +8123,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1221.992746500243" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="1"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="38916.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="282.771013392761" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -8178,6 +8179,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1221.992746500243" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="1"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="38916.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="282.558992613596" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -8233,6 +8235,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1221.992746500243" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="1"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="38916.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="282.346968427917" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -8288,6 +8291,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1221.992746500243" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="1"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="38916.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="282.13494083564" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -8343,6 +8347,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1221.992746500243" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="1"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="38916.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="281.922909836685" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -8398,6 +8403,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1221.992746500243" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="1"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="38916.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="281.710875430968" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -8453,6 +8459,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1221.992746500243" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="1"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="38916.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="281.498837618408" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -8508,6 +8515,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1221.992746500243" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="1"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="38916.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="281.286796398923" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -8563,6 +8571,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1221.992746500243" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="1"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="38916.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="281.07475177243" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -8618,6 +8627,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1221.992746500243" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="1"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="38916.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="280.862703738847" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -8673,6 +8683,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1221.992746500243" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="1"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="38916.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="280.650652298093" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -8728,6 +8739,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1221.992746500243" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="1"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="38916.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="280.438597450084" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -8783,6 +8795,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1221.992746500243" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="1"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="38916.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="280.22653919474" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -8838,6 +8851,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1221.992746500243" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="1"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="38916.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="280.014477531978" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -8893,6 +8907,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1221.992746500243" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="1"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="38916.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="279.802412461715" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -8948,6 +8963,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1221.992746500243" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="1"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="38916.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="279.59034398387" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -9003,6 +9019,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1221.992746500243" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="1"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="38916.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="279.378272098361" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -9058,6 +9075,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1221.992746500243" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="1"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="38916.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="279.166196805104" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -9113,6 +9131,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1221.992746500243" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="1"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="38916.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="278.954118104019" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -9168,6 +9187,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1221.992746500243" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="1"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="38916.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="278.742035995024" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -9223,6 +9243,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1221.992746500243" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="1"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="38916.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="278.529950478035" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -9278,6 +9299,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1221.992746500243" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="1"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="38916.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="278.31786155297" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -9333,6 +9355,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1221.992746500243" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="1"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="38916.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="278.105769219749" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -9388,6 +9411,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1221.992746500243" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="1"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="38916.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="277.893673478288" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -9443,6 +9467,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1221.992746500243" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="1"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="38916.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="277.681574328505" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -11003,6 +11028,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="533.90780395267" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -11058,6 +11084,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="533.485500681214" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -11113,6 +11140,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="533.063190620948" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -11168,6 +11196,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="532.640873771709" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -11223,6 +11252,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="532.218550133334" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -11278,6 +11308,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="531.796219705657" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -11333,6 +11364,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="531.373882488517" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -11388,6 +11420,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="530.951538481748" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -11443,6 +11476,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="530.529187685188" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -11498,6 +11532,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="530.106830098672" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -11553,6 +11588,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="529.684465722037" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -11608,6 +11644,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="529.262094555118" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -11663,6 +11700,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="528.839716597753" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -11718,6 +11756,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="528.417331849778" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -11773,6 +11812,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="527.994940311028" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -11828,6 +11868,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="527.572541981341" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -11883,6 +11924,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="527.150136860551" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -11938,6 +11980,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="526.727724948496" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -11993,6 +12036,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="526.305306245012" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -12048,6 +12092,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="525.882880749934" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -12103,6 +12148,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="525.4604484631" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -12158,6 +12204,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="525.038009384345" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -12213,6 +12260,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="524.615563513505" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -12268,6 +12316,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="524.193110850417" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -12323,6 +12372,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="523.770651394917" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -22618,6 +22668,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="552.857823820205" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -22673,6 +22724,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="552.43619002816" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -22728,6 +22780,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="552.014549460573" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -22783,6 +22836,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="551.592902117281" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -22838,6 +22892,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="551.17124799812" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -22893,6 +22948,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="550.749587102928" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -22948,6 +23004,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="550.327919431539" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -23003,6 +23060,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="549.906244983793" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -23058,6 +23116,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="549.484563759524" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -23113,6 +23172,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="549.062875758571" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -23168,6 +23228,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="548.641180980768" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -23223,6 +23284,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="548.219479425954" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -23278,6 +23340,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="547.797771093964" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -23333,6 +23396,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="547.376055984635" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -23388,6 +23452,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="546.954334097804" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -23443,6 +23508,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="546.532605433308" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -23498,6 +23564,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="546.110869990982" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -23553,6 +23620,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="545.689127770665" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -23608,6 +23676,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="545.267378772191" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -23663,6 +23732,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="544.845622995399" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -23718,6 +23788,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="544.423860440123" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -23773,6 +23844,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="544.002091106202" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -23828,6 +23900,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="543.580314993472" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -23883,6 +23956,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="543.158532101768" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -23938,6 +24012,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="542.736742430929" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -24728,6 +24803,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="533.90780395267" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -24783,6 +24859,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="533.485500681214" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -24838,6 +24915,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="533.063190620948" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -24893,6 +24971,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="532.640873771709" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -24948,6 +25027,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="532.218550133334" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -25003,6 +25083,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="531.796219705657" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -25058,6 +25139,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="531.373882488517" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -25113,6 +25195,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="530.951538481748" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -25168,6 +25251,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="530.529187685188" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -25223,6 +25307,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="530.106830098672" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -25278,6 +25363,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="529.684465722037" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -25333,6 +25419,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="529.262094555118" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -25388,6 +25475,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="528.839716597753" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -25443,6 +25531,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="528.417331849778" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -25498,6 +25587,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="527.994940311028" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -25553,6 +25643,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="527.572541981341" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -25608,6 +25699,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="527.150136860551" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -25663,6 +25755,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="526.727724948496" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -25718,6 +25811,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="526.305306245012" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -25773,6 +25867,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="525.882880749934" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -25828,6 +25923,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="525.4604484631" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -25883,6 +25979,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="525.038009384345" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -25938,6 +26035,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="524.615563513505" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -25993,6 +26091,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="524.193110850417" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -26048,6 +26147,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="523.770651394917" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -36343,6 +36443,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="552.857823820205" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -36398,6 +36499,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="552.43619002816" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -36453,6 +36555,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="552.014549460573" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -36508,6 +36611,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="551.592902117281" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -36563,6 +36667,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="551.17124799812" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -36618,6 +36723,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="550.749587102928" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -36673,6 +36779,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="550.327919431539" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -36728,6 +36835,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="549.906244983793" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -36783,6 +36891,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="549.484563759524" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -36838,6 +36947,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="549.062875758571" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -36893,6 +37003,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="548.641180980768" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -36948,6 +37059,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="548.219479425954" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -37003,6 +37115,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="547.797771093964" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -37058,6 +37171,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="547.376055984635" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -37113,6 +37227,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="546.954334097804" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -37168,6 +37283,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="546.532605433308" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -37223,6 +37339,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="546.110869990982" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -37278,6 +37395,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="545.689127770665" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -37333,6 +37451,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="545.267378772191" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -37388,6 +37507,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="544.845622995399" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -37443,6 +37563,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="544.423860440123" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -37498,6 +37619,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="544.002091106202" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -37553,6 +37675,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="543.580314993472" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -37608,6 +37731,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="543.158532101768" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -37663,6 +37787,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="542.736742430929" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -38453,6 +38578,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="533.90780395267" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -38508,6 +38634,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="533.485500681214" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -38563,6 +38690,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="533.063190620948" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -38618,6 +38746,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="532.640873771709" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -38673,6 +38802,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="532.218550133334" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -38728,6 +38858,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="531.796219705657" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -38783,6 +38914,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="531.373882488517" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -38838,6 +38970,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="530.951538481748" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -38893,6 +39026,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="530.529187685188" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -38948,6 +39082,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="530.106830098672" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -39003,6 +39138,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="529.684465722037" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -39058,6 +39194,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="529.262094555118" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -39113,6 +39250,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="528.839716597753" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -39168,6 +39306,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="528.417331849778" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -39223,6 +39362,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="527.994940311028" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -39278,6 +39418,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="527.572541981341" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -39333,6 +39474,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="527.150136860551" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -39388,6 +39530,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="526.727724948496" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -39443,6 +39586,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="526.305306245012" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -39498,6 +39642,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="525.882880749934" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -39553,6 +39698,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="525.4604484631" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -39608,6 +39754,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="525.038009384345" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -39663,6 +39810,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="524.615563513505" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -39718,6 +39866,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="524.193110850417" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -39773,6 +39922,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="523.770651394917" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -50068,6 +50218,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="552.857823820205" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -50123,6 +50274,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="552.43619002816" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -50178,6 +50330,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="552.014549460573" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -50233,6 +50386,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="551.592902117281" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -50288,6 +50442,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="551.17124799812" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -50343,6 +50498,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="550.749587102928" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -50398,6 +50554,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="550.327919431539" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -50453,6 +50610,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="549.906244983793" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -50508,6 +50666,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="549.484563759524" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -50563,6 +50722,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="549.062875758571" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -50618,6 +50778,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="548.641180980768" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -50673,6 +50834,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="548.219479425954" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -50728,6 +50890,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="547.797771093964" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -50783,6 +50946,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="547.376055984635" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -50838,6 +51002,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="546.954334097804" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -50893,6 +51058,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="546.532605433308" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -50948,6 +51114,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="546.110869990982" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -51003,6 +51170,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="545.689127770665" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -51058,6 +51226,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="545.267378772191" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -51113,6 +51282,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="544.845622995399" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -51168,6 +51338,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="544.423860440123" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -51223,6 +51394,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="544.002091106202" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -51278,6 +51450,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="543.580314993472" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -51333,6 +51506,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="543.158532101768" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -51388,6 +51562,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="542.736742430929" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -52178,6 +52353,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="533.90780395267" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -52233,6 +52409,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="533.485500681214" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -52288,6 +52465,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="533.063190620948" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -52343,6 +52521,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="532.640873771709" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -52398,6 +52577,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="532.218550133334" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -52453,6 +52633,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="531.796219705657" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -52508,6 +52689,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="531.373882488517" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -52563,6 +52745,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="530.951538481748" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -52618,6 +52801,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="530.529187685188" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -52673,6 +52857,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="530.106830098672" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -52728,6 +52913,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="529.684465722037" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -52783,6 +52969,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="529.262094555118" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -52838,6 +53025,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="528.839716597753" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -52893,6 +53081,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="528.417331849778" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -52948,6 +53137,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="527.994940311028" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -53003,6 +53193,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="527.572541981341" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -53058,6 +53249,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="527.150136860551" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -53113,6 +53305,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="526.727724948496" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -53168,6 +53361,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="526.305306245012" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -53223,6 +53417,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="525.882880749934" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -53278,6 +53473,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="525.4604484631" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -53333,6 +53529,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="525.038009384345" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -53388,6 +53585,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="524.615563513505" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -53443,6 +53641,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="524.193110850417" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -53498,6 +53697,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="523.770651394917" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -63793,6 +63993,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="552.857823820205" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -63848,6 +64049,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="552.43619002816" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -63903,6 +64105,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="552.014549460573" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -63958,6 +64161,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="551.592902117281" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -64013,6 +64217,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="551.17124799812" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -64068,6 +64273,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="550.749587102928" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -64123,6 +64329,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="550.327919431539" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -64178,6 +64385,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="549.906244983793" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -64233,6 +64441,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="549.484563759524" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -64288,6 +64497,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="549.062875758571" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -64343,6 +64553,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="548.641180980768" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -64398,6 +64609,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="548.219479425954" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -64453,6 +64665,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="547.797771093964" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -64508,6 +64721,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="547.376055984635" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -64563,6 +64777,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="546.954334097804" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -64618,6 +64833,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="546.532605433308" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -64673,6 +64889,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="546.110869990982" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -64728,6 +64945,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="545.689127770665" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -64783,6 +65001,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="545.267378772191" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -64838,6 +65057,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="544.845622995399" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -64893,6 +65113,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="544.423860440123" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -64948,6 +65169,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="544.002091106202" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -65003,6 +65225,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="543.580314993472" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -65058,6 +65281,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="543.158532101768" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -65113,6 +65337,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1318.158480438941" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="693.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="542.736742430929" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -65903,6 +66128,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="533.90780395267" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -65958,6 +66184,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="533.485500681214" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -66013,6 +66240,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="533.063190620948" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -66068,6 +66296,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="532.640873771709" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -66123,6 +66352,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="532.218550133334" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -66178,6 +66408,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="531.796219705657" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -66233,6 +66464,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="531.373882488517" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -66288,6 +66520,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="530.951538481748" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -66343,6 +66576,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="530.529187685188" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -66398,6 +66632,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="530.106830098672" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -66453,6 +66688,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="529.684465722037" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -66508,6 +66744,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="529.262094555118" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -66563,6 +66800,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="528.839716597753" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -66618,6 +66856,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="528.417331849778" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -66673,6 +66912,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="527.994940311028" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -66728,6 +66968,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="527.572541981341" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -66783,6 +67024,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="527.150136860551" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -66838,6 +67080,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="526.727724948496" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -66893,6 +67136,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="526.305306245012" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -66948,6 +67192,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="525.882880749934" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -67003,6 +67248,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="525.4604484631" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -67058,6 +67304,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="525.038009384345" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -67113,6 +67360,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="524.615563513505" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -67168,6 +67416,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="524.193110850417" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -67223,6 +67472,7 @@
                 <cvParam cvRef="MS" accession="MS:1000744" name="selected ion m/z" value="1135.076451371559" unitCvRef="MS" unitAccession="MS:1000040" unitName="m/z"/>
                 <cvParam cvRef="MS" accession="MS:1000041" name="charge state" value="2"/>
                 <cvParam cvRef="MS" accession="MS:1000042" name="peak intensity" value="3367.0" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
+                <cvParam cvRef="MS" accession="MS:1002954" name="collisional cross sectional area" value="523.770651394917" unitCvRef="UO" unitAccession="UO:0000324" unitName="square angstrom"/>
               </selectedIon>
             </selectedIonList>
             <activation>
@@ -68228,49 +68478,49 @@
       </spectrum>
     </spectrumList>
     <chromatogramList count="2" defaultDataProcessingRef="pwiz_Reader_Bruker_conversion">
-      <chromatogram index="0" id="TIC" defaultArrayLength="5">
+      <chromatogram index="0" id="TIC" defaultArrayLength="14">
         <cvParam cvRef="MS" accession="MS:1000235" name="total ion current chromatogram" value=""/>
         <binaryDataArrayList count="3">
-          <binaryDataArray encodedLength="60">
+          <binaryDataArray encodedLength="144">
             <cvParam cvRef="MS" accession="MS:1000523" name="64-bit float" value=""/>
             <cvParam cvRef="MS" accession="MS:1000574" name="zlib compression" value=""/>
             <cvParam cvRef="MS" accession="MS:1000595" name="time array" value="" unitCvRef="UO" unitAccession="UO:0000010" unitName="second"/>
-            <binary>eJxbpR+x1FRhjUO/97H8AiCtt6nZbxWQXhV/af0TIH1lf5eCvOIaBwBpkxHt</binary>
+            <binary>eJybY9vPFaywxqHf+1h+AZA+ksu6qxlI/+x3YZkOpPU2NfutAtJrp3kc2Quktat5rS4C6VXxl9Y/AdI76ndp/QDSx+YvWsqtuMbhyv4uBXkgfVP+xjxVIH23XlVWB0g/ul802whIAwDlvjHi</binary>
           </binaryDataArray>
-          <binaryDataArray encodedLength="48">
+          <binaryDataArray encodedLength="40">
             <cvParam cvRef="MS" accession="MS:1000523" name="64-bit float" value=""/>
             <cvParam cvRef="MS" accession="MS:1000574" name="zlib compression" value=""/>
             <cvParam cvRef="MS" accession="MS:1000515" name="intensity array" value="" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
-            <binary>eJxjYGBg2MSk6AikGFK6IPSGm7JgOkYBQlvs4HYEAHoaBmQ=</binary>
+            <binary>eJxjYGBgaGB47MAAAn6rIDRDIYRe0Up1cQB8IRA0</binary>
           </binaryDataArray>
-          <binaryDataArray arrayLength="5" encodedLength="20">
+          <binaryDataArray arrayLength="14" encodedLength="20">
             <cvParam cvRef="MS" accession="MS:1000522" name="64-bit integer" value=""/>
             <cvParam cvRef="MS" accession="MS:1000574" name="zlib compression" value=""/>
             <cvParam cvRef="MS" accession="MS:1000786" name="non-standard data array" value="ms level" unitCvRef="UO" unitAccession="UO:0000186" unitName="dimensionless unit"/>
-            <binary>eJxjYoAAJgI0AAEYAAs=</binary>
+            <binary>eJxjYoAAJjrRAAcAAB0=</binary>
           </binaryDataArray>
         </binaryDataArrayList>
       </chromatogram>
-      <chromatogram index="1" id="BPC" defaultArrayLength="5">
+      <chromatogram index="1" id="BPC" defaultArrayLength="14">
         <cvParam cvRef="MS" accession="MS:1000628" name="basepeak chromatogram" value=""/>
         <binaryDataArrayList count="3">
-          <binaryDataArray encodedLength="60">
+          <binaryDataArray encodedLength="144">
             <cvParam cvRef="MS" accession="MS:1000523" name="64-bit float" value=""/>
             <cvParam cvRef="MS" accession="MS:1000574" name="zlib compression" value=""/>
             <cvParam cvRef="MS" accession="MS:1000595" name="time array" value="" unitCvRef="UO" unitAccession="UO:0000010" unitName="second"/>
-            <binary>eJxbpR+x1FRhjUO/97H8AiCtt6nZbxWQXhV/af0TIH1lf5eCvOIaBwBpkxHt</binary>
+            <binary>eJybY9vPFaywxqHf+1h+AZA+ksu6qxlI/+x3YZkOpPU2NfutAtJrp3kc2Quktat5rS4C6VXxl9Y/AdI76ndp/QDSx+YvWsqtuMbhyv4uBXkgfVP+xjxVIH23XlVWB0g/ul802whIAwDlvjHi</binary>
           </binaryDataArray>
-          <binaryDataArray encodedLength="44">
+          <binaryDataArray encodedLength="40">
             <cvParam cvRef="MS" accession="MS:1000523" name="64-bit float" value=""/>
             <cvParam cvRef="MS" accession="MS:1000574" name="zlib compression" value=""/>
             <cvParam cvRef="MS" accession="MS:1000515" name="intensity array" value="" unitCvRef="MS" unitAccession="MS:1000131" unitName="number of detector counts"/>
-            <binary>eJxjYACCJVMcQBSDRweEftAAoQNqIbRBoQMAeEgGFw==</binary>
+            <binary>eJxjYGBgaGB47MAAAn6rIDRDIYRe0Up1cQB8IRA0</binary>
           </binaryDataArray>
-          <binaryDataArray arrayLength="5" encodedLength="20">
+          <binaryDataArray arrayLength="14" encodedLength="20">
             <cvParam cvRef="MS" accession="MS:1000522" name="64-bit integer" value=""/>
             <cvParam cvRef="MS" accession="MS:1000574" name="zlib compression" value=""/>
             <cvParam cvRef="MS" accession="MS:1000786" name="non-standard data array" value="ms level" unitCvRef="UO" unitAccession="UO:0000186" unitName="dimensionless unit"/>
-            <binary>eJxjYoAAJgI0AAEYAAs=</binary>
+            <binary>eJxjYoAAJjrRAAcAAB0=</binary>
           </binaryDataArray>
         </binaryDataArrayList>
       </chromatogram>

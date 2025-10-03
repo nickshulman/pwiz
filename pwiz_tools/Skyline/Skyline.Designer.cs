@@ -1,5 +1,7 @@
 
 using System;
+using pwiz.CommonMsData.RemoteApi;
+using pwiz.CommonMsData.RemoteApi.Ardia;
 using pwiz.Skyline.Controls.SeqNode;
 using pwiz.Skyline.Model;
 using pwiz.Skyline.Properties;
@@ -242,6 +244,7 @@ namespace pwiz.Skyline
             this.saveAsMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.shareDocumentMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.publishMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.ardiaPublishMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.toolStripSeparator2 = new System.Windows.Forms.ToolStripSeparator();
             this.searchStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.runPeptideSearchToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
@@ -306,6 +309,7 @@ namespace pwiz.Skyline
             this.documentationToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.reportsHelpMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.commandLineHelpMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.keyboardShortcutsHelpMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.otherDocsHelpMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.supportMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.issuesMenuItem = new System.Windows.Forms.ToolStripMenuItem();
@@ -363,6 +367,7 @@ namespace pwiz.Skyline
             this.detectionsPropertiesToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.detectionsToolStripSeparator3 = new System.Windows.Forms.ToolStripSeparator();
             this.perfCountersToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.searchToolsMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.contextMenuTreeNode.SuspendLayout();
             this.contextMenuSpectrum.SuspendLayout();
             this.contextMenuRetentionTimes.SuspendLayout();
@@ -1783,6 +1788,7 @@ namespace pwiz.Skyline
             this.saveAsMenuItem,
             this.shareDocumentMenuItem,
             this.publishMenuItem,
+            this.ardiaPublishMenuItem,
             this.toolStripSeparator2,
             this.searchStripMenuItem,
             this.importToolStripMenuItem,
@@ -1858,6 +1864,14 @@ namespace pwiz.Skyline
             resources.ApplyResources(this.publishMenuItem, "publishMenuItem");
             this.publishMenuItem.Name = "publishMenuItem";
             this.publishMenuItem.Click += new System.EventHandler(this.publishMenuItem_Click);
+            // 
+            // ardiaPublishMenuItem
+            // 
+            this.ardiaPublishMenuItem.Image = global::pwiz.Skyline.Properties.Resources.ArdiaIcon;
+            resources.ApplyResources(this.ardiaPublishMenuItem, "ardiaPublishMenuItem");
+            this.ardiaPublishMenuItem.Name = "ardiaPublishMenuItem";
+            this.ardiaPublishMenuItem.Click += new System.EventHandler(this.ardiaPublishMenuItem_Click);
+
             // 
             // toolStripSeparator2
             // 
@@ -2171,6 +2185,7 @@ namespace pwiz.Skyline
             this.updatesToolsMenuItem,
             this.toolStoreMenuItem,
             this.configureToolsMenuItem,
+            this.searchToolsMenuItem,
             this.toolStripSeparator46,
             this.immediateWindowToolStripMenuItem,
             this.toolStripSeparator47,
@@ -2279,6 +2294,7 @@ namespace pwiz.Skyline
             this.documentationToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
             this.reportsHelpMenuItem,
             this.commandLineHelpMenuItem,
+            this.keyboardShortcutsHelpMenuItem,
             this.otherDocsHelpMenuItem});
             this.documentationToolStripMenuItem.Name = "documentationToolStripMenuItem";
             resources.ApplyResources(this.documentationToolStripMenuItem, "documentationToolStripMenuItem");
@@ -2294,6 +2310,396 @@ namespace pwiz.Skyline
             this.commandLineHelpMenuItem.Name = "commandLineHelpMenuItem";
             resources.ApplyResources(this.commandLineHelpMenuItem, "commandLineHelpMenuItem");
             this.commandLineHelpMenuItem.Click += new System.EventHandler(this.commandLineHelpMenuItem_Click);
+            // 
+            // keyboardShortcutsHelpMenuItem
+            // 
+            this.keyboardShortcutsHelpMenuItem.Name = "keyboardShortcutsHelpMenuItem";
+            resources.ApplyResources(this.keyboardShortcutsHelpMenuItem, "keyboardShortcutsHelpMenuItem");
+            this.keyboardShortcutsHelpMenuItem.Click += new System.EventHandler(this.keyboardShortcutsHelpMenuItem_Click);
+            // 
+            // otherDocsHelpMenuItem
+            // 
+            this.otherDocsHelpMenuItem.Name = "otherDocsHelpMenuItem";
+            resources.ApplyResources(this.otherDocsHelpMenuItem, "otherDocsHelpMenuItem");
+            this.otherDocsHelpMenuItem.Click += new System.EventHandler(this.otherDocsHelpMenuItem_Click);
+            // 
+            // supportMenuItem
+            // 
+            this.supportMenuItem.Name = "supportMenuItem";
+            resources.ApplyResources(this.supportMenuItem, "supportMenuItem");
+            this.supportMenuItem.Click += new System.EventHandler(this.supportMenuItem_Click);
+            // 
+            // issuesMenuItem
+            // 
+            this.issuesMenuItem.Name = "issuesMenuItem";
+            resources.ApplyResources(this.issuesMenuItem, "issuesMenuItem");
+            this.issuesMenuItem.Click += new System.EventHandler(this.issuesMenuItem_Click);
+            // 
+            // submitErrorReportMenuItem
+            // 
+            this.submitErrorReportMenuItem.Name = "submitErrorReportMenuItem";
+            resources.ApplyResources(this.submitErrorReportMenuItem, "submitErrorReportMenuItem");
+            this.submitErrorReportMenuItem.Click += new System.EventHandler(this.submitErrorReportMenuItem_Click);
+            // 
+            // crashSkylineMenuItem
+            // 
+            this.crashSkylineMenuItem.Name = "crashSkylineMenuItem";
+            resources.ApplyResources(this.crashSkylineMenuItem, "crashSkylineMenuItem");
+            this.crashSkylineMenuItem.Click += new System.EventHandler(this.crashSkylineMenuItem_Click);
+            // 
+            // checkForUpdatesSeparator
+            // 
+            this.checkForUpdatesSeparator.Name = "checkForUpdatesSeparator";
+            resources.ApplyResources(this.checkForUpdatesSeparator, "checkForUpdatesSeparator");
+            // 
+            // checkForUpdatesMenuItem
+            // 
+            this.checkForUpdatesMenuItem.Name = "checkForUpdatesMenuItem";
+            resources.ApplyResources(this.checkForUpdatesMenuItem, "checkForUpdatesMenuItem");
+            this.checkForUpdatesMenuItem.Click += new System.EventHandler(this.checkForUpdatesMenuItem_Click);
+            // 
+            // toolStripSeparator29
+            // 
+            this.toolStripSeparator29.Name = "toolStripSeparator29";
+            resources.ApplyResources(this.toolStripSeparator29, "toolStripSeparator29");
+            // 
+            // aboutMenuItem
+            // 
+            this.aboutMenuItem.Name = "aboutMenuItem";
+            resources.ApplyResources(this.aboutMenuItem, "aboutMenuItem");
+            this.aboutMenuItem.Click += new System.EventHandler(this.aboutMenuItem_Click);
+            // 
+            // eSPFeaturesMenuItem
+            // 
+            this.eSPFeaturesMenuItem.Name = "eSPFeaturesMenuItem";
+            resources.ApplyResources(this.eSPFeaturesMenuItem, "eSPFeaturesMenuItem");
+            this.modeUIHandler.SetUIMode(this.eSPFeaturesMenuItem, pwiz.Skyline.Util.Helpers.ModeUIExtender.MODE_UI_HANDLING_TYPE.proteomic);
+            this.eSPFeaturesMenuItem.Click += new System.EventHandler(this.espFeaturesMenuItem_Click);
+            // 
+            // contextMenuMassErrors
+            // 
+            this.contextMenuMassErrors.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.massErrorGraphContextMenuItem,
+            this.massErrorPropsContextMenuItem,
+            this.showMassErrorLegendContextMenuItem,
+            this.massErrorPointsContextMenuItem,
+            this.binCountContextMenuItem,
+            this.massErrorTransitionsContextMenuItem,
+            this.massErrorXAxisContextMenuItem,
+            this.massErrorlogScaleContextMenuItem});
+            this.contextMenuMassErrors.Name = "contextMenuMassErrors";
+            resources.ApplyResources(this.contextMenuMassErrors, "contextMenuMassErrors");
+            // 
+            // massErrorGraphContextMenuItem
+            // 
+            this.massErrorGraphContextMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.massErrorReplicateComparisonContextMenuItem,
+            this.massErrorPeptideComparisonContextMenuItem,
+            this.massErrorHistogramContextMenuItem,
+            this.massErrorHistogram2DContextMenuItem});
+            this.massErrorGraphContextMenuItem.Name = "massErrorGraphContextMenuItem";
+            resources.ApplyResources(this.massErrorGraphContextMenuItem, "massErrorGraphContextMenuItem");
+            this.massErrorGraphContextMenuItem.DropDownOpening += new System.EventHandler(this.massErrorMenuItem_DropDownOpening);
+            // 
+            // massErrorReplicateComparisonContextMenuItem
+            // 
+            this.massErrorReplicateComparisonContextMenuItem.CheckOnClick = true;
+            this.massErrorReplicateComparisonContextMenuItem.Name = "massErrorReplicateComparisonContextMenuItem";
+            resources.ApplyResources(this.massErrorReplicateComparisonContextMenuItem, "massErrorReplicateComparisonContextMenuItem");
+            this.massErrorReplicateComparisonContextMenuItem.Click += new System.EventHandler(this.massErrorReplicateComparisonMenuItem_Click);
+            // 
+            // massErrorPeptideComparisonContextMenuItem
+            // 
+            this.massErrorPeptideComparisonContextMenuItem.Name = "massErrorPeptideComparisonContextMenuItem";
+            resources.ApplyResources(this.massErrorPeptideComparisonContextMenuItem, "massErrorPeptideComparisonContextMenuItem");
+            this.massErrorPeptideComparisonContextMenuItem.Click += new System.EventHandler(this.massErrorPeptideComparisonMenuItem_Click);
+            // 
+            // massErrorHistogramContextMenuItem
+            // 
+            this.massErrorHistogramContextMenuItem.Name = "massErrorHistogramContextMenuItem";
+            resources.ApplyResources(this.massErrorHistogramContextMenuItem, "massErrorHistogramContextMenuItem");
+            this.massErrorHistogramContextMenuItem.Click += new System.EventHandler(this.massErrorHistogramMenuItem_Click);
+            // 
+            // massErrorHistogram2DContextMenuItem
+            // 
+            this.massErrorHistogram2DContextMenuItem.Name = "massErrorHistogram2DContextMenuItem";
+            resources.ApplyResources(this.massErrorHistogram2DContextMenuItem, "massErrorHistogram2DContextMenuItem");
+            this.massErrorHistogram2DContextMenuItem.Click += new System.EventHandler(this.massErrorHistogram2DMenuItem_Click);
+            // 
+            // massErrorPropsContextMenuItem
+            // 
+            this.massErrorPropsContextMenuItem.Name = "massErrorPropsContextMenuItem";
+            resources.ApplyResources(this.massErrorPropsContextMenuItem, "massErrorPropsContextMenuItem");
+            this.massErrorPropsContextMenuItem.Click += new System.EventHandler(this.massErrorPropsContextMenuItem_Click);
+            // 
+            // showMassErrorLegendContextMenuItem
+            // 
+            this.showMassErrorLegendContextMenuItem.Name = "showMassErrorLegendContextMenuItem";
+            resources.ApplyResources(this.showMassErrorLegendContextMenuItem, "showMassErrorLegendContextMenuItem");
+            this.showMassErrorLegendContextMenuItem.Click += new System.EventHandler(this.showMassErrorLegendContextMenuItem_Click);
+            // 
+            // massErrorPointsContextMenuItem
+            // 
+            this.massErrorPointsContextMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.massErrorTargetsContextMenuItem,
+            this.massErrorTargets1FDRContextMenuItem,
+            this.massErrorDecoysContextMenuItem});
+            this.massErrorPointsContextMenuItem.Name = "massErrorPointsContextMenuItem";
+            resources.ApplyResources(this.massErrorPointsContextMenuItem, "massErrorPointsContextMenuItem");
+            // 
+            // massErrorTargetsContextMenuItem
+            // 
+            this.massErrorTargetsContextMenuItem.Name = "massErrorTargetsContextMenuItem";
+            resources.ApplyResources(this.massErrorTargetsContextMenuItem, "massErrorTargetsContextMenuItem");
+            this.massErrorTargetsContextMenuItem.Click += new System.EventHandler(this.massErrorTargetsContextMenuItem_Click);
+            // 
+            // massErrorTargets1FDRContextMenuItem
+            // 
+            this.massErrorTargets1FDRContextMenuItem.Name = "massErrorTargets1FDRContextMenuItem";
+            resources.ApplyResources(this.massErrorTargets1FDRContextMenuItem, "massErrorTargets1FDRContextMenuItem");
+            this.massErrorTargets1FDRContextMenuItem.Click += new System.EventHandler(this.massErrorTargets1FDRContextMenuItem_Click);
+            // 
+            // massErrorDecoysContextMenuItem
+            // 
+            this.massErrorDecoysContextMenuItem.Name = "massErrorDecoysContextMenuItem";
+            resources.ApplyResources(this.massErrorDecoysContextMenuItem, "massErrorDecoysContextMenuItem");
+            this.massErrorDecoysContextMenuItem.Click += new System.EventHandler(this.massErrorDecoysContextMenuItem_Click);
+            // 
+            // binCountContextMenuItem
+            // 
+            this.binCountContextMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.ppm05ContextMenuItem,
+            this.ppm10ContextMenuItem,
+            this.ppm15ContextMenuItem,
+            this.ppm20ContextMenuItem});
+            this.binCountContextMenuItem.Name = "binCountContextMenuItem";
+            resources.ApplyResources(this.binCountContextMenuItem, "binCountContextMenuItem");
+            this.binCountContextMenuItem.DropDownOpening += new System.EventHandler(this.binCountContextMenuItem_DropDownOpening);
+            // 
+            // ppm05ContextMenuItem
+            // 
+            this.ppm05ContextMenuItem.Name = "ppm05ContextMenuItem";
+            resources.ApplyResources(this.ppm05ContextMenuItem, "ppm05ContextMenuItem");
+            this.ppm05ContextMenuItem.Click += new System.EventHandler(this.ppm05ContextMenuItem_Click);
+            // 
+            // ppm10ContextMenuItem
+            // 
+            this.ppm10ContextMenuItem.Name = "ppm10ContextMenuItem";
+            resources.ApplyResources(this.ppm10ContextMenuItem, "ppm10ContextMenuItem");
+            this.ppm10ContextMenuItem.Click += new System.EventHandler(this.ppm10ContextMenuItem_Click);
+            // 
+            // ppm15ContextMenuItem
+            // 
+            this.ppm15ContextMenuItem.Name = "ppm15ContextMenuItem";
+            resources.ApplyResources(this.ppm15ContextMenuItem, "ppm15ContextMenuItem");
+            this.ppm15ContextMenuItem.Click += new System.EventHandler(this.ppm15ContextMenuItem_Click);
+            // 
+            // ppm20ContextMenuItem
+            // 
+            this.ppm20ContextMenuItem.Name = "ppm20ContextMenuItem";
+            resources.ApplyResources(this.ppm20ContextMenuItem, "ppm20ContextMenuItem");
+            this.ppm20ContextMenuItem.Click += new System.EventHandler(this.ppm20ContextMenuItem_Click);
+            // 
+            // massErrorTransitionsContextMenuItem
+            // 
+            this.massErrorTransitionsContextMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.massErrorAllTransitionsContextMenuItem,
+            this.massErrorBestTransitionsContextMenuItem,
+            this.toolStripSeparator55,
+            this.MassErrorPrecursorsContextMenuItem,
+            this.MassErrorProductsContextMenuItem});
+            this.massErrorTransitionsContextMenuItem.Name = "massErrorTransitionsContextMenuItem";
+            resources.ApplyResources(this.massErrorTransitionsContextMenuItem, "massErrorTransitionsContextMenuItem");
+            this.massErrorTransitionsContextMenuItem.DropDownOpening += new System.EventHandler(this.massErrorTransitionsContextMenuItem_DropDownOpening);
+            // 
+            // massErrorAllTransitionsContextMenuItem
+            // 
+            this.massErrorAllTransitionsContextMenuItem.Name = "massErrorAllTransitionsContextMenuItem";
+            resources.ApplyResources(this.massErrorAllTransitionsContextMenuItem, "massErrorAllTransitionsContextMenuItem");
+            this.massErrorAllTransitionsContextMenuItem.Click += new System.EventHandler(this.massErrorAllTransitionsContextMenuItem_Click);
+            // 
+            // massErrorBestTransitionsContextMenuItem
+            // 
+            this.massErrorBestTransitionsContextMenuItem.Name = "massErrorBestTransitionsContextMenuItem";
+            resources.ApplyResources(this.massErrorBestTransitionsContextMenuItem, "massErrorBestTransitionsContextMenuItem");
+            this.massErrorBestTransitionsContextMenuItem.Click += new System.EventHandler(this.massErrorBestTransitionsContextMenuItem_Click);
+            // 
+            // toolStripSeparator55
+            // 
+            this.toolStripSeparator55.Name = "toolStripSeparator55";
+            resources.ApplyResources(this.toolStripSeparator55, "toolStripSeparator55");
+            // 
+            // MassErrorPrecursorsContextMenuItem
+            // 
+            this.MassErrorPrecursorsContextMenuItem.Name = "MassErrorPrecursorsContextMenuItem";
+            resources.ApplyResources(this.MassErrorPrecursorsContextMenuItem, "MassErrorPrecursorsContextMenuItem");
+            this.MassErrorPrecursorsContextMenuItem.Click += new System.EventHandler(this.MassErrorPrecursorsContextMenuItem_Click);
+            // 
+            // MassErrorProductsContextMenuItem
+            // 
+            this.MassErrorProductsContextMenuItem.Name = "MassErrorProductsContextMenuItem";
+            resources.ApplyResources(this.MassErrorProductsContextMenuItem, "MassErrorProductsContextMenuItem");
+            this.MassErrorProductsContextMenuItem.Click += new System.EventHandler(this.MassErrorProductsContextMenuItem_Click);
+            // 
+            // massErrorXAxisContextMenuItem
+            // 
+            this.massErrorXAxisContextMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.massErorrRetentionTimeContextMenuItem,
+            this.massErrorMassToChargContextMenuItem});
+            this.massErrorXAxisContextMenuItem.Name = "massErrorXAxisContextMenuItem";
+            resources.ApplyResources(this.massErrorXAxisContextMenuItem, "massErrorXAxisContextMenuItem");
+            this.massErrorXAxisContextMenuItem.DropDownOpening += new System.EventHandler(this.massErrorXAxisContextMenuItem_DropDownOpening);
+            // 
+            // massErorrRetentionTimeContextMenuItem
+            // 
+            this.massErorrRetentionTimeContextMenuItem.Name = "massErorrRetentionTimeContextMenuItem";
+            resources.ApplyResources(this.massErorrRetentionTimeContextMenuItem, "massErorrRetentionTimeContextMenuItem");
+            this.massErorrRetentionTimeContextMenuItem.Click += new System.EventHandler(this.massErorrRetentionTimeContextMenuItem_Click);
+            // 
+            // massErrorMassToChargContextMenuItem
+            // 
+            this.massErrorMassToChargContextMenuItem.Name = "massErrorMassToChargContextMenuItem";
+            resources.ApplyResources(this.massErrorMassToChargContextMenuItem, "massErrorMassToChargContextMenuItem");
+            this.massErrorMassToChargContextMenuItem.Click += new System.EventHandler(this.massErrorMassToChargContextMenuItem_Click);
+            // 
+            // massErrorlogScaleContextMenuItem
+            // 
+            this.massErrorlogScaleContextMenuItem.Name = "massErrorlogScaleContextMenuItem";
+            resources.ApplyResources(this.massErrorlogScaleContextMenuItem, "massErrorlogScaleContextMenuItem");
+            this.massErrorlogScaleContextMenuItem.Click += new System.EventHandler(this.massErrorlogScaleContextMenuItem_Click);
+            // 
+            // contextMenuDetections
+            // 
+            this.contextMenuDetections.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.detectionsTargetToolStripMenuItem,
+            this.detectionsGraphTypeToolStripMenuItem,
+            this.detectionsToolStripSeparator1,
+            this.detectionsShowToolStripMenuItem,
+            this.detectionsYScaleToolStripMenuItem,
+            this.detectionsToolStripSeparator2,
+            this.detectionsPropertiesToolStripMenuItem,
+            this.detectionsToolStripSeparator3});
+            this.contextMenuDetections.Name = "contextMenuDetections";
+            resources.ApplyResources(this.contextMenuDetections, "contextMenuDetections");
+            // 
+            // detectionsTargetToolStripMenuItem
+            // 
+            this.detectionsTargetToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.detectionsTargetPrecursorToolStripMenuItem,
+            this.detectionsTargetPeptideToolStripMenuItem});
+            this.detectionsTargetToolStripMenuItem.Name = "detectionsTargetToolStripMenuItem";
+            resources.ApplyResources(this.detectionsTargetToolStripMenuItem, "detectionsTargetToolStripMenuItem");
+            // 
+            // detectionsTargetPrecursorToolStripMenuItem
+            // 
+            this.detectionsTargetPrecursorToolStripMenuItem.Name = "detectionsTargetPrecursorToolStripMenuItem";
+            resources.ApplyResources(this.detectionsTargetPrecursorToolStripMenuItem, "detectionsTargetPrecursorToolStripMenuItem");
+            this.detectionsTargetPrecursorToolStripMenuItem.Tag = 0;
+            this.detectionsTargetPrecursorToolStripMenuItem.Click += new System.EventHandler(this.detectionsTargetPrecursorToolStripMenuItem_Click);
+            // 
+            // detectionsTargetPeptideToolStripMenuItem
+            // 
+            this.detectionsTargetPeptideToolStripMenuItem.Name = "detectionsTargetPeptideToolStripMenuItem";
+            resources.ApplyResources(this.detectionsTargetPeptideToolStripMenuItem, "detectionsTargetPeptideToolStripMenuItem");
+            this.detectionsTargetPeptideToolStripMenuItem.Tag = 1;
+            this.detectionsTargetPeptideToolStripMenuItem.Click += new System.EventHandler(this.detectionsTargetPeptideToolStripMenuItem_Click);
+            // 
+            // detectionsGraphTypeToolStripMenuItem
+            // 
+            this.detectionsGraphTypeToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.detectionsGraphTypeReplicateToolStripMenuItem,
+            this.detectionsGraphTypeHistogramToolStripMenuItem});
+            this.detectionsGraphTypeToolStripMenuItem.Name = "detectionsGraphTypeToolStripMenuItem";
+            resources.ApplyResources(this.detectionsGraphTypeToolStripMenuItem, "detectionsGraphTypeToolStripMenuItem");
+            // 
+            // detectionsGraphTypeReplicateToolStripMenuItem
+            // 
+            this.detectionsGraphTypeReplicateToolStripMenuItem.Name = "detectionsGraphTypeReplicateToolStripMenuItem";
+            resources.ApplyResources(this.detectionsGraphTypeReplicateToolStripMenuItem, "detectionsGraphTypeReplicateToolStripMenuItem");
+            this.detectionsGraphTypeReplicateToolStripMenuItem.Click += new System.EventHandler(this.detectionsGraphTypeReplicateToolStripMenuItem_Click);
+            // 
+            // detectionsGraphTypeHistogramToolStripMenuItem
+            // 
+            this.detectionsGraphTypeHistogramToolStripMenuItem.Name = "detectionsGraphTypeHistogramToolStripMenuItem";
+            resources.ApplyResources(this.detectionsGraphTypeHistogramToolStripMenuItem, "detectionsGraphTypeHistogramToolStripMenuItem");
+            this.detectionsGraphTypeHistogramToolStripMenuItem.Click += new System.EventHandler(this.detectionsGraphTypeHistogramToolStripMenuItem_Click);
+            // 
+            // detectionsToolStripSeparator1
+            // 
+            this.detectionsToolStripSeparator1.Name = "detectionsToolStripSeparator1";
+            resources.ApplyResources(this.detectionsToolStripSeparator1, "detectionsToolStripSeparator1");
+            // 
+            // detectionsShowToolStripMenuItem
+            // 
+            this.detectionsShowToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.detectionsShowSelectionToolStripMenuItem,
+            this.detectionsShowLegendToolStripMenuItem,
+            this.detectionsShowMeanToolStripMenuItem,
+            this.detectionsShowAtLeastNToolStripMenuItem});
+            this.detectionsShowToolStripMenuItem.Name = "detectionsShowToolStripMenuItem";
+            resources.ApplyResources(this.detectionsShowToolStripMenuItem, "detectionsShowToolStripMenuItem");
+            // 
+            // detectionsShowSelectionToolStripMenuItem
+            // 
+            this.detectionsShowSelectionToolStripMenuItem.Name = "detectionsShowSelectionToolStripMenuItem";
+            resources.ApplyResources(this.detectionsShowSelectionToolStripMenuItem, "detectionsShowSelectionToolStripMenuItem");
+            this.detectionsShowSelectionToolStripMenuItem.Click += new System.EventHandler(this.detectionsShowSelectionToolStripMenuItem_Click);
+            // 
+            // detectionsShowLegendToolStripMenuItem
+            // 
+            this.detectionsShowLegendToolStripMenuItem.Name = "detectionsShowLegendToolStripMenuItem";
+            resources.ApplyResources(this.detectionsShowLegendToolStripMenuItem, "detectionsShowLegendToolStripMenuItem");
+            this.detectionsShowLegendToolStripMenuItem.Click += new System.EventHandler(this.detectionsShowLegendToolStripMenuItem_Click);
+            // 
+            // detectionsShowMeanToolStripMenuItem
+            // 
+            this.detectionsShowMeanToolStripMenuItem.Name = "detectionsShowMeanToolStripMenuItem";
+            resources.ApplyResources(this.detectionsShowMeanToolStripMenuItem, "detectionsShowMeanToolStripMenuItem");
+            this.detectionsShowMeanToolStripMenuItem.Click += new System.EventHandler(this.detectionsShowMeanToolStripMenuItem_Click);
+            // 
+            // detectionsShowAtLeastNToolStripMenuItem
+            // 
+            this.detectionsShowAtLeastNToolStripMenuItem.Name = "detectionsShowAtLeastNToolStripMenuItem";
+            resources.ApplyResources(this.detectionsShowAtLeastNToolStripMenuItem, "detectionsShowAtLeastNToolStripMenuItem");
+            this.detectionsShowAtLeastNToolStripMenuItem.Click += new System.EventHandler(this.detectionsShowAtLeastNToolStripMenuItem_Click);
+            // 
+            // detectionsYScaleToolStripMenuItem
+            // 
+            this.detectionsYScaleToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.detectionsYScaleOneToolStripMenuItem,
+            this.detectionsYScalePercentToolStripMenuItem});
+            this.detectionsYScaleToolStripMenuItem.Name = "detectionsYScaleToolStripMenuItem";
+            resources.ApplyResources(this.detectionsYScaleToolStripMenuItem, "detectionsYScaleToolStripMenuItem");
+            // 
+            // detectionsYScaleOneToolStripMenuItem
+            // 
+            this.detectionsYScaleOneToolStripMenuItem.Name = "detectionsYScaleOneToolStripMenuItem";
+            resources.ApplyResources(this.detectionsYScaleOneToolStripMenuItem, "detectionsYScaleOneToolStripMenuItem");
+            this.detectionsYScaleOneToolStripMenuItem.Tag = 1;
+            this.detectionsYScaleOneToolStripMenuItem.Click += new System.EventHandler(this.detectionsYScaleOneToolStripMenuItem_Click);
+            // 
+            // detectionsYScalePercentToolStripMenuItem
+            // 
+            this.detectionsYScalePercentToolStripMenuItem.Name = "detectionsYScalePercentToolStripMenuItem";
+            resources.ApplyResources(this.detectionsYScalePercentToolStripMenuItem, "detectionsYScalePercentToolStripMenuItem");
+            this.detectionsYScalePercentToolStripMenuItem.Tag = 0;
+            this.detectionsYScalePercentToolStripMenuItem.Click += new System.EventHandler(this.detectionsYScalePercentToolStripMenuItem_Click);
+            // 
+            // detectionsToolStripSeparator2
+            // 
+            this.detectionsToolStripSeparator2.Name = "detectionsToolStripSeparator2";
+            resources.ApplyResources(this.detectionsToolStripSeparator2, "detectionsToolStripSeparator2");
+            // 
+            // detectionsPropertiesToolStripMenuItem
+            // 
+            this.detectionsPropertiesToolStripMenuItem.Name = "detectionsPropertiesToolStripMenuItem";
+            resources.ApplyResources(this.detectionsPropertiesToolStripMenuItem, "detectionsPropertiesToolStripMenuItem");
+            this.detectionsPropertiesToolStripMenuItem.Click += new System.EventHandler(this.detectionsPropertiesToolStripMenuItem_Click);
+            // 
+            // detectionsToolStripSeparator3
+            // 
+            this.detectionsToolStripSeparator3.Name = "detectionsToolStripSeparator3";
+            resources.ApplyResources(this.detectionsToolStripSeparator3, "detectionsToolStripSeparator3");
             // 
             // otherDocsHelpMenuItem
             // 
@@ -2685,6 +3091,12 @@ namespace pwiz.Skyline
             resources.ApplyResources(this.perfCountersToolStripMenuItem, "perfCountersToolStripMenuItem");
             this.perfCountersToolStripMenuItem.Click += new System.EventHandler(this.perfCountersToolStripMenuItem_Click);
             // 
+            // searchToolsMenuItem
+            // 
+            this.searchToolsMenuItem.Name = "searchToolsMenuItem";
+            resources.ApplyResources(this.searchToolsMenuItem, "searchToolsMenuItem");
+            this.searchToolsMenuItem.Click += new System.EventHandler(this.searchToolsMenuItem_Click);
+            // 
             // SkylineWindow
             // 
             resources.ApplyResources(this, "$this");
@@ -3003,6 +3415,7 @@ namespace pwiz.Skyline
         private System.Windows.Forms.ToolStripMenuItem documentationToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem reportsHelpMenuItem;
         private System.Windows.Forms.ToolStripMenuItem commandLineHelpMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem keyboardShortcutsHelpMenuItem;
         private System.Windows.Forms.ToolStripMenuItem otherDocsHelpMenuItem;
         private System.Windows.Forms.ToolStripMenuItem toggleQuantitativeContextMenuItem;
         private System.Windows.Forms.ToolStripMenuItem markTransitionsQuantitativeContextMenuItem;
@@ -3048,6 +3461,8 @@ namespace pwiz.Skyline
         private System.Windows.Forms.ToolStripMenuItem encyclopeDiaSearchMenuItem;
         private System.Windows.Forms.ToolStripMenuItem importFeatureDetectionMenuItem;
         private System.Windows.Forms.ToolStripMenuItem perfCountersToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem ardiaPublishMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem searchToolsMenuItem;
     }
 }
 

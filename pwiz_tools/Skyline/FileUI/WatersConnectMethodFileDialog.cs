@@ -57,6 +57,11 @@ namespace pwiz.Skyline.FileUI
             throw new Exception(FileUIResources.OpenFileDialogNEWatersConnectMethod_CreateNewRemoteSession_remoteAccount_is_NOT_WatersConnectAccount);
         }
 
+        protected override bool IsSuitableAccount(RemoteAccount account)
+        {
+            return account is WatersConnectAccount wca && wca.SupportsMethodDevelopment(out _);
+        }
+
         protected override RemoteUrl GetRootUrl(RemoteAccount account)
         {   // Making sure the root URL has the correct type for method retrieval
             return (base.GetRootUrl(account) as WatersConnectUrl)?.ChangeType(WatersConnectUrl.ItemType.folder_with_methods);

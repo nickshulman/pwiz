@@ -206,92 +206,100 @@ namespace pwiz.Skyline.FileUI
 
         public void SetCurrentDirectory(MsDataFileUri url)
         {
-            if (url is RemoteUrl remoteUrl && !remoteUrl.Equals(RemoteUrl.EMPTY)) // if RemoteUrl
+            var directory = ResolveDirectory(url);
+            if (directory == null)
+                return;
+
+            try
             {
-                var remoteAccount = GetRemoteAccount(remoteUrl);
-                if (remoteAccount == null) // If no accounts found
-                {
-                    // Can happen if user selects a remote URL but then deletes the associated account.
-                    // Show error message, set the currentDirectory to RemoteUrl.EMPTY
-                    var message = TextUtil.LineSeparate(
-                        FileUIResources
-                            .ExportMethodDlg_OkDialog_Cannot_find_waters_connect_account_for_the_selected_URL_,
-                        remoteUrl.Username + @"@" + remoteUrl.ServerUrl);
-                    MessageDlg.ShowError(Visible ? (IWin32Window)this : Program.MainWindow, message);
-                    CurrentDirectory = RemoteUrl.EMPTY;
-                }
-                else
-                {
-                    try
-                    {
-                        CurrentDirectory = url;
-                    }
-                    catch (AuthenticationException x)
-                    {   // If invalid account
-                        var errorType = WatersConnectAccount.HandleAuthenticationException(x, out var msg);
-                        // Show error message
-                        var message = TextUtil.LineSeparate(
-                            string.Format(FileUIResources.BaseFileDialogNE_Authentication_exception_message,
-                                remoteAccount.AccountAlias, errorType.ToUserMessage()));
-                        if (!string.IsNullOrEmpty(msg))
-                        {
-                            message = TextUtil.LineSeparate(message,
-                                string.Format(FileUIResources.BaseFileDialogNE_Authentication_exception_server_response, msg));
-                        }
-                        // Dialog owner is not yet available when this is invoked from the ShowDialog override. Use the Skyline's main window as a parent in that case.
-                        MessageDlg.ShowError(Visible ? (IWin32Window)this : Program.MainWindow, message);
-                        // and populate it with the root remote URL
-                        CurrentDirectory = RemoteUrl.EMPTY;
-                    }
-                }
+                ApplyDirectory(directory);
             }
-            else
-                CurrentDirectory = url ?? new MsDataFilePath(Environment.CurrentDirectory);
+            catch (AuthenticationException x) when (directory is RemoteUrl remoteUrl && !remoteUrl.Equals(RemoteUrl.EMPTY))
+            {
+                ShowAuthenticationError(remoteUrl, x);
+                var fallback = ResolveEmptyRemoteUrl();
+                if (fallback != null)
+                    ApplyDirectory(fallback);
+            }
         }
 
         public MsDataFileUri CurrentDirectory
         {
             get { return _currentDirectory; }
-            private set
+        }
+
+        private MsDataFileUri ResolveDirectory(MsDataFileUri url)
+        {
+            if (url == null)
+                return new MsDataFilePath(Environment.CurrentDirectory);
+
+            if (!(url is RemoteUrl remoteUrl))
+                return url;
+
+            if (remoteUrl.Equals(RemoteUrl.EMPTY))
+                return ResolveEmptyRemoteUrl();
+
+            // Non-empty remote URL — validate account exists
+            var remoteAccount = GetRemoteAccount(remoteUrl);
+            if (remoteAccount == null)
             {
-                if (Equals(value, RemoteUrl.EMPTY))
-                {
-                    EnsureRemoteAccount();
-                    if (!_remoteAccounts.Any())
-                    {
-                        return;
-                    }
-                    if (_remoteAccounts.Count == 1)
-                    {
-                        // If there is exactly one account, then skip the level that
-                        // lists the accounts to choose from unless this is an invalid WatersConnect account.
-                        if (this is WatersConnectMethodFileDialog)
-                        {
-                            var wca = _remoteAccounts[0] as WatersConnectAccount;
-                            if (wca != null && wca.SupportsMethodDevelopment(out _))
-                            {
-                                value = GetRootUrl(_remoteAccounts.First());
-                            }
-                        }
-                        else
-                            value = GetRootUrl(_remoteAccounts.First());
-                    }
-                }
-                if (value != null)
-                {
-                    _currentDirectory = value;
-                    // Populate the dialog with the given URL/account
-                    OnCurrentDirectoryChange();
-                    populateListViewFromDirectory(_currentDirectory);
-                    populateComboBoxFromDirectory(_currentDirectory);
-                }
+                // Can happen if user selects a remote URL but then deletes the associated account.
+                var message = TextUtil.LineSeparate(
+                    FileUIResources.ExportMethodDlg_OkDialog_Cannot_find_waters_connect_account_for_the_selected_URL_,
+                    remoteUrl.Username + @"@" + remoteUrl.ServerUrl);
+                MessageDlg.ShowError(Visible ? (IWin32Window)this : Program.MainWindow, message);
+                return ResolveEmptyRemoteUrl();
             }
+
+            return url;
+        }
+
+        private MsDataFileUri ResolveEmptyRemoteUrl()
+        {
+            EnsureRemoteAccount();
+            if (!_remoteAccounts.Any())
+                return null;
+
+            if (_remoteAccounts.Count == 1 && IsSuitableAccount(_remoteAccounts.First()))
+                return GetRootUrl(_remoteAccounts.First());
+
+            return RemoteUrl.EMPTY;
+        }
+
+        private void ApplyDirectory(MsDataFileUri directory)
+        {
+            _currentDirectory = directory;
+            OnCurrentDirectoryChange();
+            populateListViewFromDirectory(_currentDirectory);
+            populateComboBoxFromDirectory(_currentDirectory);
+        }
+
+        private void ShowAuthenticationError(RemoteUrl remoteUrl, AuthenticationException x)
+        {
+            var remoteAccount = GetRemoteAccount(remoteUrl);
+            var errorType = WatersConnectAccount.HandleAuthenticationException(x, out var msg);
+            // Dialog owner is not yet available when this is invoked from the ShowDialog override. Use the Skyline's main window as a parent in that case.
+            var message = TextUtil.LineSeparate(
+                string.Format(FileUIResources.BaseFileDialogNE_Authentication_exception_message,
+                    remoteAccount.AccountAlias, errorType.ToUserMessage()));
+            if (!string.IsNullOrEmpty(msg))
+            {
+                message = TextUtil.LineSeparate(message,
+                    string.Format(FileUIResources.BaseFileDialogNE_Authentication_exception_server_response, msg));
+            }
+            MessageDlg.ShowError(Visible ? (IWin32Window)this : Program.MainWindow, message);
         }
 
         protected virtual RemoteUrl GetRootUrl(RemoteAccount account)
         {
             return account.GetRootUrl();
         }
+
+        protected virtual bool IsSuitableAccount(RemoteAccount account)
+        {
+            return true;
+        }
+
         public RemoteSession RemoteSession
         {
             get { return _remoteSession; }
@@ -1002,7 +1010,7 @@ namespace pwiz.Skyline.FileUI
                 // clear listView contents if all remote accounts have been removed
                 if (!list.Any())
                     listView.Clear();
-                CurrentDirectory = RemoteUrl.EMPTY;
+                SetCurrentDirectory(RemoteUrl.EMPTY);
                 return true;
             }
             return false;
@@ -1285,22 +1293,22 @@ namespace pwiz.Skyline.FileUI
                 if (!list.Any())
                     listView.Clear();
             }
-            CurrentDirectory = RemoteUrl.EMPTY;
+            SetCurrentDirectory(RemoteUrl.EMPTY);
         }
 
         private void desktopButton_Click( object sender, EventArgs e )
         {
-            CurrentDirectory = new MsDataFilePath(Environment.GetFolderPath( Environment.SpecialFolder.DesktopDirectory ));
+            SetCurrentDirectory(new MsDataFilePath(Environment.GetFolderPath( Environment.SpecialFolder.DesktopDirectory )));
         }
 
         private void myDocumentsButton_Click( object sender, EventArgs e )
         {
-            CurrentDirectory = new MsDataFilePath(Environment.GetFolderPath( Environment.SpecialFolder.MyDocuments ));
+            SetCurrentDirectory(new MsDataFilePath(Environment.GetFolderPath( Environment.SpecialFolder.MyDocuments )));
         }
 
         private void myComputerButton_Click( object sender, EventArgs e )
         {
-            CurrentDirectory = new MsDataFilePath(Environment.GetFolderPath(Environment.SpecialFolder.MyComputer));
+            SetCurrentDirectory(new MsDataFilePath(Environment.GetFolderPath(Environment.SpecialFolder.MyComputer)));
         }
 
 //        private void myNetworkPlacesButton_Click( object sender, EventArgs e )
@@ -1484,7 +1492,7 @@ namespace pwiz.Skyline.FileUI
 
         private void recentDocumentsButton_Click(object sender, EventArgs e)
         {
-            CurrentDirectory = new MsDataFilePath(Environment.GetFolderPath(Environment.SpecialFolder.Recent));
+            SetCurrentDirectory(new MsDataFilePath(Environment.GetFolderPath(Environment.SpecialFolder.Recent)));
         }
 
         public bool WaitingForData { get { return _waitingForData; } }

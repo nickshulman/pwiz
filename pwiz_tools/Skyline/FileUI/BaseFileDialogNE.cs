@@ -212,20 +212,28 @@ namespace pwiz.Skyline.FileUI
 
             try
             {
-                ApplyDirectory(directory);
+                CurrentDirectory = directory;
             }
             catch (AuthenticationException x) when (directory is RemoteUrl remoteUrl && !remoteUrl.Equals(RemoteUrl.EMPTY))
             {
                 ShowAuthenticationError(remoteUrl, x);
                 var fallback = ResolveEmptyRemoteUrl();
                 if (fallback != null)
-                    ApplyDirectory(fallback);
+                    CurrentDirectory = fallback;
             }
         }
 
         public MsDataFileUri CurrentDirectory
         {
             get { return _currentDirectory; }
+            set
+            {
+                _currentDirectory = value;
+                OnCurrentDirectoryChange();
+                populateListViewFromDirectory(_currentDirectory);
+                populateComboBoxFromDirectory(_currentDirectory);
+
+            }
         }
 
         private MsDataFileUri ResolveDirectory(MsDataFileUri url)
@@ -264,14 +272,6 @@ namespace pwiz.Skyline.FileUI
                 return GetRootUrl(_remoteAccounts.First());
 
             return RemoteUrl.EMPTY;
-        }
-
-        private void ApplyDirectory(MsDataFileUri directory)
-        {
-            _currentDirectory = directory;
-            OnCurrentDirectoryChange();
-            populateListViewFromDirectory(_currentDirectory);
-            populateComboBoxFromDirectory(_currentDirectory);
         }
 
         private void ShowAuthenticationError(RemoteUrl remoteUrl, AuthenticationException x)

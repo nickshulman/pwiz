@@ -1,18 +1,21 @@
+using pwiz.Common.Collections;
 using pwiz.Common.SystemUtil;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Globalization;
 using System.Linq;
-using pwiz.Common.Collections;
+using System.Text.RegularExpressions;
+using Microsoft.SqlServer.Server;
+using pwiz.Common.DataBinding.Attributes;
 
 namespace pwiz.Common.DataBinding.Filtering
 {
     public interface IFilterHandler
     {
         bool IsBlank(object value);
-        object ParseOperand(IFilterOperation operation, string text, CultureInfo cultureInfo);
-        string OperandToString(IFilterOperation operation, object operand, CultureInfo cultureInfo);
+        object ParseOperand(FilterContext context, string text);
+        string OperandToString(FilterContext context, object operand);
         bool ValueEqualsOperand(object value, object operand);
         bool CanBeBlank { get; }
         public interface IComparison
@@ -30,23 +33,23 @@ namespace pwiz.Common.DataBinding.Filtering
 
     public abstract class FilterHandler<TColumn, TOperand> : IFilterHandler
     {
-        object IFilterHandler.ParseOperand(IFilterOperation operation, string text, CultureInfo cultureInfo)
+        object IFilterHandler.ParseOperand(FilterContext context, string text)
         {
-            return ParseOperand(operation, text, cultureInfo);
+            return ParseOperand(context, text);
         }
 
-        protected abstract TOperand ParseOperand(IFilterOperation operation, string text, CultureInfo cultureInfo);
+        protected abstract TOperand ParseOperand(FilterContext context, string text);
 
-        public string OperandToString(IFilterOperation operation, object operand, CultureInfo cultureInfo)
+        public string OperandToString(FilterContext context, object operand)
         {
             if (operand is TOperand tOperand)
             {
-                return OperandToString(operation, tOperand, cultureInfo);
+                return OperandToString(context, tOperand);
             }
             return string.Empty;
         }
 
-        protected abstract string OperandToString(IFilterOperation operation, TOperand operand, CultureInfo cultureInfo);
+        protected abstract string OperandToString(FilterContext context, TOperand operand);
 
         public abstract bool IsBlank(object value);
 
@@ -84,12 +87,12 @@ namespace pwiz.Common.DataBinding.Filtering
         }
 
 
-        protected override string ParseOperand(IFilterOperation operation, string text, CultureInfo cultureInfo)
+        protected override string ParseOperand(FilterContext context, string text)
         {
             return text;
         }
 
-        protected override string OperandToString(IFilterOperation operation, string operand, CultureInfo cultureInfo)
+        protected override string OperandToString(FilterContext context, string operand)
         {
             return operand;
         }
@@ -134,14 +137,14 @@ namespace pwiz.Common.DataBinding.Filtering
             return value == null;
         }
 
-        protected override PrecisionNumber ParseOperand(IFilterOperation filterOperation, string text, CultureInfo cultureInfo)
+        protected override PrecisionNumber ParseOperand(FilterContext context, string text)
         {
-            return PrecisionNumber.Parse(text, cultureInfo, ExplicitPrecision(filterOperation, cultureInfo));
+            return PrecisionNumber.Parse(text, context.CultureInfo, context.DefaultDecimalPlaces);
         }
 
-        protected override string OperandToString(IFilterOperation operation, PrecisionNumber operand, CultureInfo cultureInfo)
+        protected override string OperandToString(FilterContext context, PrecisionNumber operand)
         {
-            return operand.ToString(cultureInfo, ExplicitPrecision(operation, cultureInfo));
+            return operand.ToString(context.CultureInfo, context.DefaultDecimalPlaces);
         }
 
         protected override bool ValueEqualsOperand(double value, PrecisionNumber operand)
@@ -203,21 +206,21 @@ namespace pwiz.Common.DataBinding.Filtering
             return 0 == ((value as IListColumnValue)?.Count ?? 0);
         }
 
-        public object ParseOperand(IFilterOperation operation, string text, CultureInfo cultureInfo)
+        public object ParseOperand(FilterContext context, string text)
         {
             if (text == null)
             {
                 return null;
             }
 
-            var strings = ListColumnValue.Parse(text, ListColumnValue.GetCsvSeparator(cultureInfo));
+            var strings = ListColumnValue.Parse(text, ListColumnValue.GetCsvSeparator(context.CultureInfo));
             if (strings == null)
             {
                 return null;
             }
 
             return ListColumnValue.FromItems(strings.Items.Select(str =>
-                ElementHandler.ParseOperand(FilterOperations.OP_EQUALS, str, cultureInfo)));
+                ElementHandler.ParseOperand(context.ChangeFilterOperation(FilterOperations.OP_EQUALS), str)));
         }
 
         public bool ValueEqualsOperand(object value, object operand)
@@ -250,7 +253,7 @@ namespace pwiz.Common.DataBinding.Filtering
             return ElementsEqual(listValue.AsEnumerable(), listOperand.AsEnumerable().ToList());
         }
 
-        public string OperandToString(IFilterOperation operation, object operand, CultureInfo cultureInfo)
+        public string OperandToString(FilterContext context, object operand)
         {
             var operandList = operand as IListColumnValue;
             if (operandList == null)
@@ -259,9 +262,9 @@ namespace pwiz.Common.DataBinding.Filtering
             }
 
             var strings = operandList.AsEnumerable()
-                .Select(v => ElementHandler.OperandToString(FilterOperations.OP_EQUALS, v, cultureInfo))
+                .Select(v => ElementHandler.OperandToString(context.ChangeFilterOperation(FilterOperations.OP_EQUALS), v))
                 .ToImmutable();
-            return ListColumnValue.ItemsToString(cultureInfo, strings);
+            return ListColumnValue.ItemsToString(context.CultureInfo, strings);
         }
 
         public bool StartsWith(object value, object operand)
@@ -335,7 +338,7 @@ namespace pwiz.Common.DataBinding.Filtering
             return value == null;
         }
 
-        public object ParseOperand(IFilterOperation operation, string text, CultureInfo cultureInfo)
+        public object ParseOperand(FilterContext context, string text)
         {
             if (string.IsNullOrEmpty(text))
             {
@@ -351,7 +354,7 @@ namespace pwiz.Common.DataBinding.Filtering
             }
         }
 
-        public string OperandToString(IFilterOperation operation, object operand, CultureInfo cultureInfo)
+        public string OperandToString(FilterContext context, object operand)
         {
             return operand?.ToString() ?? string.Empty;
         }
@@ -386,16 +389,16 @@ namespace pwiz.Common.DataBinding.Filtering
             return value == null;
         }
 
-        public object ParseOperand(IFilterOperation operation, string text, CultureInfo cultureInfo)
+        public object ParseOperand(FilterContext context, string text)
         {
             var typeConverter = TypeDescriptor.GetConverter(ValueType);
             // ReSharper disable AssignNullToNotNullAttribute
-            return typeConverter.ConvertFrom(null, cultureInfo, text);
+            return typeConverter.ConvertFrom(null, context.CultureInfo, text);
         }
 
-        public string OperandToString(IFilterOperation operation, object operand, CultureInfo cultureInfo)
+        public string OperandToString(FilterContext context, object operand)
         {
-            return Convert.ToString(operand, cultureInfo);
+            return Convert.ToString(operand, context.CultureInfo);
         }
 
         public bool ValueEqualsOperand(object value, object operand)
@@ -421,6 +424,83 @@ namespace pwiz.Common.DataBinding.Filtering
             {
                 return (value as IComparable)?.CompareTo(operand);
             }
+        }
+    }
+
+    public class FilterContext : Immutable
+    {
+        public FilterContext(CultureInfo cultureInfo, IFilterOperation filterOperation, int? defaultDecimalPlaces)
+        {
+            CultureInfo = cultureInfo;
+            FilterOperation = filterOperation;
+            DefaultDecimalPlaces = defaultDecimalPlaces;
+        }
+        public CultureInfo CultureInfo { get; }
+        public IFilterOperation FilterOperation { get; private set; }
+        public int? DefaultDecimalPlaces { get; }
+
+        public FilterContext ChangeFilterOperation(IFilterOperation filterOperation)
+        {
+            return ChangeProp(ImClone(this), im => im.FilterOperation = filterOperation);
+        }
+
+        public static FilterContext Invariant(IFilterOperation operation)
+        {
+            return new FilterContext(CultureInfo.InvariantCulture, operation, null);
+        }
+
+        public static FilterContext ForColumn(DataPropertyDescriptor propertyDescriptor, IFilterOperation filterOperation)
+        {
+            int? precision = GetFormatStringPrecision(((FormatAttribute)propertyDescriptor.Attributes[typeof(FormatAttribute)])?.Format);
+            return new FilterContext(CultureInfo.CurrentCulture, filterOperation, precision);
+        }
+
+        public static int? GetFormatStringPrecision(string format)
+        {
+            if (string.IsNullOrWhiteSpace(format))
+                return null;
+
+            format = format.Trim();
+
+            // Standard numeric format strings: F2, N4, C2, P2, E6, G8
+            var standardMatch = Regex.Match(format, @"^([FfNnCcPpEeGg])(\d{0,2})$");
+            if (standardMatch.Success)
+            {
+                var specifier = standardMatch.Groups[1].Value.ToUpper();
+                var digits = standardMatch.Groups[2].Value;
+
+                // These specifiers don't have a meaningful decimal precision
+                if (specifier == @"D" || specifier == @"X" || specifier == @"R")
+                    return null;
+
+                if (digits.Length > 0)
+                    return int.Parse(digits);
+
+                // Defaults when no digit is specified
+                switch (specifier)
+                {
+                    case "F":
+                    case "N": return 2;
+                    case "E": return 6;
+                    case "G": return null;  // Varies — too ambiguous
+                    case "C": return 2;     // Culture-dependent, but 2 is a safe guess
+                    case "P": return 2;
+                    default: return null;
+                }
+            }
+
+            // Custom format strings: "0.00##", "#,##0.0000", etc.
+            var decimalIndex = format.IndexOf('.');
+            if (decimalIndex >= 0)
+            {
+                var afterDecimal = format.Substring(decimalIndex + 1);
+                // Stop at any non-placeholder character (e.g. 'E' in "0.00E+0")
+                var precisionChars = Regex.Match(afterDecimal, @"^[0#]+");
+                if (precisionChars.Success)
+                    return precisionChars.Value.Length;
+            }
+
+            return null;
         }
     }
 }

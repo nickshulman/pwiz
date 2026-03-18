@@ -19,6 +19,7 @@
 using System;
 using System.Globalization;
 using System.Xml;
+using pwiz.Common.DataBinding.Filtering;
 using pwiz.Common.SystemUtil;
 
 namespace pwiz.Common.DataBinding
@@ -54,7 +55,8 @@ namespace pwiz.Common.DataBinding
             }
 
             var handler = dataSchema.GetFilterHandler(columnType);
-            return new FilterPredicate(filterOperation, handler.OperandToString(filterOperation, handler.ParseOperand(filterOperation, operandText, CultureInfo.CurrentCulture), CultureInfo.InvariantCulture));
+            var context = new FilterContext(CultureInfo.CurrentCulture, filterOperation, null);
+            return new FilterPredicate(filterOperation, handler.OperandToString(FilterContext.Invariant(filterOperation), handler.ParseOperand(context, operandText)));
         }
 
         public static FilterPredicate SafeParse(DataSchema dataSchema, Type columnType,
@@ -88,7 +90,7 @@ namespace pwiz.Common.DataBinding
 
         public object GetOperandValue(DataSchema dataSchema, Type columnType)
         {
-            return dataSchema.GetFilterHandler(columnType).ParseOperand(FilterOperation, InvariantOperandText, CultureInfo.InvariantCulture);
+            return dataSchema.GetFilterHandler(columnType).ParseOperand(FilterContext.Invariant(FilterOperation), InvariantOperandText);
         }
 
         public string GetOperandDisplayText(ColumnDescriptor columnDescriptor)
@@ -105,7 +107,7 @@ namespace pwiz.Common.DataBinding
             try
             {
                 var handler = dataSchema.GetFilterHandler(propertyType);
-                return handler.OperandToString(FilterOperation, handler.ParseOperand(FilterOperation, InvariantOperandText, CultureInfo.InvariantCulture), CultureInfo.CurrentCulture);
+                return handler.OperandToString(new FilterContext(CultureInfo.CurrentCulture, FilterOperation, null), handler.ParseOperand(FilterContext.Invariant(FilterOperation), InvariantOperandText));
             }
             catch (Exception)
             {
@@ -119,7 +121,7 @@ namespace pwiz.Common.DataBinding
             object operandValue;
             if (FilterOperation.HasOperand())
             {
-                operandValue = filterHandler.ParseOperand(FilterOperation, InvariantOperandText, CultureInfo.InvariantCulture);
+                operandValue = filterHandler.ParseOperand(FilterContext.Invariant(FilterOperation), InvariantOperandText);
             }
             else
             {

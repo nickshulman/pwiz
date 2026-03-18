@@ -200,19 +200,19 @@ namespace pwiz.Common.SystemUtil
             return (decimal)Math.Pow(10, power);
         }
 
-        public static PrecisionNumber Parse(string text, CultureInfo cultureInfo, bool explicitPrecision)
+        public static PrecisionNumber Parse(string text, CultureInfo cultureInfo, int? defaultPrecision)
         {
-            if (TryParse(text, cultureInfo, explicitPrecision, out var result))
+            if (TryParse(text, cultureInfo, defaultPrecision, out var result))
                 return result;
             throw new FormatException(string.Format(MessageResources.PrecisionNumber_Parse_Unable_to_parse___0___as_a_number, text));
         }
 
         public static PrecisionNumber Parse(string text)
         {
-            return Parse(text, CultureInfo.CurrentCulture, false);
+            return Parse(text, CultureInfo.CurrentCulture, 0);
         }
 
-        public static bool TryParse(string text, CultureInfo cultureInfo, bool defaultToFullPrecision, out PrecisionNumber result)
+        public static bool TryParse(string text, CultureInfo cultureInfo, int? defaultPrecision, out PrecisionNumber result)
         {
             result = default;
             if (string.IsNullOrWhiteSpace(text))
@@ -245,12 +245,12 @@ namespace pwiz.Common.SystemUtil
                 return false;
             }
 
-            int decimalPlaces = CountDecimalPlaces(text, cultureInfo, defaultToFullPrecision);
+            int decimalPlaces = CountDecimalPlaces(text, cultureInfo, defaultPrecision);
             result = WithDecimalPlaces(value, decimalPlaces);
             return true;
         }
 
-        private static int CountDecimalPlaces(string text, CultureInfo culture, bool defaultToFullPrecision)
+        private static int CountDecimalPlaces(string text, CultureInfo culture, int? defaultDecimalPlaces)
         {
             string decimalSep = culture.NumberFormat.NumberDecimalSeparator;
 
@@ -267,7 +267,7 @@ namespace pwiz.Common.SystemUtil
                     exponent = exp;
                 }
             }
-            else if (defaultToFullPrecision)
+            else if (!defaultDecimalPlaces.HasValue)
             {
                 return MAX_SIGNIFICANT_DIGITS;
             }
@@ -279,7 +279,13 @@ namespace pwiz.Common.SystemUtil
 
             // Count digits after the decimal separator
             int digitsAfterDecimal = mantissa.Length - decimalIndex - decimalSep.Length;
-            return digitsAfterDecimal - exponent;
+            int decimalPlaces = digitsAfterDecimal - exponent;
+            if (defaultDecimalPlaces.HasValue)
+            {
+                decimalPlaces = Math.Max(decimalPlaces, defaultDecimalPlaces.Value);
+            }
+
+            return decimalPlaces;
         }
 
         public bool EqualsWithinPrecision(double other)
@@ -321,21 +327,21 @@ namespace pwiz.Common.SystemUtil
 
         string IFormattable.ToString(string format, IFormatProvider formatProvider)
         {
-            return ToString(formatProvider, true);
+            return ToString(formatProvider, null);
         }
 
-        public string ToString(IFormatProvider formatProvider, bool explicitPrecision)
+        public string ToString(IFormatProvider formatProvider, int? defaultDecimalPlaces)
         {
             if (!IsFinite)
             {
                 return ToDouble().ToString(null, formatProvider);
             }
-            if (explicitPrecision && DecimalPlaces == MAX_SIGNIFICANT_DIGITS)
+            if (DecimalPlaces == (defaultDecimalPlaces ?? MAX_SIGNIFICANT_DIGITS))
             {
                 return Value.ToString(formatProvider);
             }
 
-            if (DecimalPlaces >= 0 && !explicitPrecision && _magnitude > -1)
+            if (defaultDecimalPlaces.HasValue && DecimalPlaces >= defaultDecimalPlaces && _magnitude > -1)
             {
                 return Value.ToString(@"F" + DecimalPlaces, formatProvider);
             }
@@ -366,7 +372,7 @@ namespace pwiz.Common.SystemUtil
 
         public override string ToString()
         {
-            return ToString(CultureInfo.CurrentCulture, SignificantDigits == MAX_SIGNIFICANT_DIGITS);
+            return ToString(CultureInfo.CurrentCulture, null);
         }
 
         public int CompareTo(double value)

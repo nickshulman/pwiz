@@ -146,10 +146,22 @@ if %IAGREE%==1 (
     echo ##teamcity[message text='Vendor support: DISABLED ^(no --i-agree-to-the-vendor-licenses^); building core only']
 )
 
-REM # Build targets: Skyline.csproj pulls in every ProjectReference (BiblioSpec,
-REM # CommonMsData, ProteomeDb, ProteowizardWrapper, ZedGraph, the pwiz-sharp
-REM # vendor + BiblioSpec tool projects, ...). The test projects add the suites,
-REM # and TestRunner is the harness that stages + runs them.
+REM # Out-of-solution prerequisites. ProteowizardWrapper.csproj and Skyline.csproj consume
+REM # the pwiz-sharp assemblies, the bundled pwiz-sharp tools (BlibBuild, BlibFilter,
+REM # msconvert, bullseye-sharp) and SkylineProcessRunner as plain file references and
+REM # Content taken from bin\%CONFIG%\net10.0 - NOT as ProjectReferences. Those projects
+REM # are not in Skyline.sln, and a ProjectReference to a project outside the solution
+REM # loses its Configuration inside Visual Studio (a Release IDE build linked Debug
+REM # pwiz-sharp). Nothing builds them implicitly any more, so build them here first,
+REM # with the same Configuration and vendor-license properties. Each vendor project
+REM # pulls in the pwiz-sharp core (Util, Common, MsData, Analysis) through its own
+REM # ProjectReferences. This is also the step a developer needs before the IDE can
+REM # build Skyline.sln:  build.bat [Debug|Release] --no-tests
+set PREREQ_TARGET=..\..\pwiz-sharp\pwiz\src\Vendor\Thermo\Thermo.csproj ..\..\pwiz-sharp\pwiz\src\Vendor\Waters\Waters.csproj ..\..\pwiz-sharp\pwiz\src\Vendor\Sciex\Sciex.csproj ..\..\pwiz-sharp\pwiz\src\Vendor\Shimadzu\Shimadzu.csproj ..\..\pwiz-sharp\pwiz\src\Vendor\Agilent\Agilent.csproj ..\..\pwiz-sharp\pwiz\src\Vendor\Bruker\Bruker.csproj ..\..\pwiz-sharp\pwiz\src\Vendor\UIMF\UIMF.csproj ..\..\pwiz-sharp\pwiz\src\Vendor\UNIFI\UNIFI.csproj ..\..\pwiz-sharp\pwiz\src\Vendor\Mobilion\Mobilion.csproj ..\..\pwiz-sharp\pwiz\src\Vendor\Bruker.PrmScheduling\Bruker.PrmScheduling.csproj ..\..\pwiz-sharp\Tools\BiblioSpec\src\BlibBuild\BlibBuild.csproj ..\..\pwiz-sharp\Tools\BiblioSpec\src\BlibFilter\BlibFilter.csproj ..\..\pwiz-sharp\Tools\Commandline\MsConvert\src\MsConvert.csproj ..\..\pwiz-sharp\Tools\BullseyeSharp\src\BullseyeSharp.csproj Executables\SkylineProcessRunner\SkylineProcessRunner\SkylineProcessRunner.csproj
+
+REM # Build targets: Skyline.csproj pulls in every in-solution ProjectReference
+REM # (BiblioSpec, CommonMsData, ProteomeDb, ProteowizardWrapper, ZedGraph, ...). The
+REM # test projects add the suites, and TestRunner is the harness that stages + runs them.
 set BUILD_TARGET=Skyline.csproj CommonTest\CommonTest.csproj Test\Test.csproj TestData\TestData.csproj TestFunctional\TestFunctional.csproj TestConnected\TestConnected.csproj TestRunner\TestRunner.csproj
 
 echo ##teamcity[progressMessage 'dotnet --version']
@@ -166,6 +178,9 @@ REM # Skyline.csproj deploys that exe next to Skyline via a Content include so t
 REM # Hardklor/Bullseye feature-detection pipeline can shell out to it.
 REM # ------------------------------------------------------------------------
 call :build_hardklor
+if %EXIT% NEQ 0 goto error
+
+for %%P in (%PREREQ_TARGET%) do call :build_prereq "%%~P"
 if %EXIT% NEQ 0 goto error
 
 for %%P in (%BUILD_TARGET%) do call :restore_one "%%~P"
@@ -328,6 +343,15 @@ goto :eof
 :build_one
 echo ##teamcity[progressMessage 'dotnet build %~1 (%CONFIG%)']
 dotnet build "%~1" -f net10.0-windows --no-restore -nologo %MSBUILD_PROPS%
+if errorlevel 1 (set EXIT=1 & set "ERROR_TEXT=dotnet build %~1 failed")
+goto :eof
+
+REM # Out-of-solution prerequisite (a pwiz-sharp project or SkylineProcessRunner): restore
+REM # and build in one step. No -f: the pwiz-sharp projects are plain net10.0, not
+REM # net10.0-windows, and every one of them declares a single TargetFramework.
+:build_prereq
+echo ##teamcity[progressMessage 'dotnet build %~1 (%CONFIG%, prerequisite)']
+dotnet build "%~1" -nologo %MSBUILD_PROPS%
 if errorlevel 1 (set EXIT=1 & set "ERROR_TEXT=dotnet build %~1 failed")
 goto :eof
 

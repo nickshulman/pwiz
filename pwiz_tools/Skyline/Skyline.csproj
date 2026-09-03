@@ -212,18 +212,17 @@
     <ProjectReference Include="..\Shared\zedgraph\ZedGraph.csproj" />
     <ProjectReference Include="SkylineTool\SkylineTool.csproj" />
 
-    <!-- BiblioSpec CLI tools (BlibBuild, BlibFilter). Skyline shells out to these via
-         ProcessStartInfo expecting them to sit next to Skyline in the bin dir. Reference
-         the projects so they build first; the Content include below deploys their outputs. -->
-    <ProjectReference Include="..\..\pwiz-sharp\Tools\BiblioSpec\src\BlibBuild\BlibBuild.csproj"
-                      ReferenceOutputAssembly="false"
-                      Private="false" />
-    <ProjectReference Include="..\..\pwiz-sharp\Tools\BiblioSpec\src\BlibFilter\BlibFilter.csproj"
-                      ReferenceOutputAssembly="false"
-                      Private="false" />
   </ItemGroup>
 
-  <!-- Copy BlibBuild.exe / BlibFilter.exe + their runtime deps (unimod.xml etc.) to
+  <!-- BiblioSpec CLI tools (BlibBuild, BlibFilter). Skyline shells out to these via
+       ProcessStartInfo expecting them to sit next to Skyline in the bin dir. They live in
+       pwiz-sharp, outside Skyline.sln, and are built ahead of this project by
+       pwiz_tools\Skyline\build.bat rather than through a ProjectReference: a ProjectReference
+       to a project outside the solution loses its Configuration inside Visual Studio and
+       put Debug tool builds into a Release tree (see ProteowizardWrapper.csproj). The
+       Content include below deploys the output matching $(Configuration).
+
+       Copy BlibBuild.exe / BlibFilter.exe + their runtime deps (unimod.xml etc.) to
        Skyline's bin dir AND to any project that references Skyline via ProjectReference
        (test assemblies). Content items propagate through ProjectReference by default. -->
   <ItemGroup>
@@ -278,14 +277,9 @@
 
   <!-- msconvert (managed pwiz-sharp port). Skyline shells out to msconvert for DIA-Umpire and
        EncyclopeDIA demultiplexing conversions, expecting msconvert.exe next to Skyline in the bin
-       dir (resolved via PathEx.ResolveBundledExe). Reference the project so it builds first; the
-       Content include below deploys its output. net8-only: the net472 build gets the native
-       msconvert from the Jam toolchain. -->
-  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows'">
-    <ProjectReference Include="..\..\pwiz-sharp\Tools\Commandline\MsConvert\src\MsConvert.csproj"
-                      ReferenceOutputAssembly="false"
-                      Private="false" />
-  </ItemGroup>
+       dir (resolved via PathEx.ResolveBundledExe). Built ahead of this project by build.bat (see
+       the BiblioSpec note above); the Content include below deploys its output. net8-only: the
+       net472 build gets the native msconvert from the Jam toolchain. -->
   <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows' And Exists('..\..\pwiz-sharp\Tools\Commandline\MsConvert\src\bin\$(Configuration)\net10.0')">
     <Content Include="..\..\pwiz-sharp\Tools\Commandline\MsConvert\src\bin\$(Configuration)\net10.0\**\*">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
@@ -297,14 +291,10 @@
   <!-- BullseyeSharp (managed pwiz-sharp port; its AssemblyName is "bullseye-sharp", so it emits
        bullseye-sharp.exe). Skyline's Hardklor feature-detection pipeline shells out to it to match
        MS1 features against MS2 scans, expecting bullseye-sharp.exe next to Skyline in the bin dir
-       (resolved via PathEx.ResolveBundledExe). Reference the project so it builds first; the Content
-       include below deploys its output. net8-only: the net472 build gets the legacy BullseyeSharp.exe
-       from pwiz_tools\Skyline\BullseyeSharp\BullseyeSharp.csproj via the Jam toolchain. -->
-  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows'">
-    <ProjectReference Include="..\..\pwiz-sharp\Tools\BullseyeSharp\src\BullseyeSharp.csproj"
-                      ReferenceOutputAssembly="false"
-                      Private="false" />
-  </ItemGroup>
+       (resolved via PathEx.ResolveBundledExe). Built ahead of this project by build.bat (see the
+       BiblioSpec note above); the Content include below deploys its output. net8-only: the net472
+       build gets the legacy BullseyeSharp.exe from pwiz_tools\Skyline\BullseyeSharp\BullseyeSharp.csproj
+       via the Jam toolchain. -->
   <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows' And Exists('..\..\pwiz-sharp\Tools\BullseyeSharp\src\bin\$(Configuration)\net10.0')">
     <Content Include="..\..\pwiz-sharp\Tools\BullseyeSharp\src\bin\$(Configuration)\net10.0\**\*">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
@@ -354,14 +344,10 @@
   <!-- SkylineProcessRunner (tiny console helper Skyline shells out to, often elevated, to run a
        command via cmd.exe and stream output back over a named pipe - used by the R/Python/tool
        installers). Skyline resolves SkylineProcessRunner.exe from its own assembly directory
-       (UtilIO.GetSkylineProcessRunnerExePath). Reference the project so it builds first; the Content
+       (UtilIO.GetSkylineProcessRunnerExePath). Not in Skyline.sln, so it is built ahead of this
+       project by build.bat like the pwiz-sharp tools (see the BiblioSpec note above); the Content
        include deploys its net8 apphost bundle (.exe + .dll + .runtimeconfig.json + .deps.json) next
        to Skyline. net8-only: the net472 build gets SkylineProcessRunner.exe from the Jam toolchain. -->
-  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows'">
-    <ProjectReference Include="Executables\SkylineProcessRunner\SkylineProcessRunner\SkylineProcessRunner.csproj"
-                      ReferenceOutputAssembly="false"
-                      Private="false" />
-  </ItemGroup>
   <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows' And Exists('Executables\SkylineProcessRunner\SkylineProcessRunner\bin\$(Configuration)\net10.0-windows')">
     <Content Include="Executables\SkylineProcessRunner\SkylineProcessRunner\bin\$(Configuration)\net10.0-windows\**\*">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
@@ -441,7 +427,18 @@
        pwiz.CLI.Bruker.PrmScheduling assembly. P/Invokes prmscheduler.dll shipped
        inside pwiz. Only wired for net8; net472 keeps the old C++/CLI reference. -->
   <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows'">
-    <ProjectReference Include="..\..\pwiz-sharp\pwiz\src\Vendor\Bruker.PrmScheduling\Bruker.PrmScheduling.csproj" />
+    <!-- File reference, not ProjectReference: pwiz-sharp is outside Skyline.sln and is built
+         first from the command line - see ProteowizardWrapper.csproj for the full story. -->
+    <Reference Include="Pwiz.Vendor.Bruker.PrmScheduling">
+      <HintPath>..\..\pwiz-sharp\pwiz\src\Vendor\Bruker.PrmScheduling\bin\$(Configuration)\net10.0\Pwiz.Vendor.Bruker.PrmScheduling.dll</HintPath>
+    </Reference>
+    <!-- prmscheduler.dll is Content of that project, so deploy its output folder. -->
+    <Content Include="..\..\pwiz-sharp\pwiz\src\Vendor\Bruker.PrmScheduling\bin\$(Configuration)\net10.0\**\*"
+             Exclude="..\..\pwiz-sharp\pwiz\src\Vendor\Bruker.PrmScheduling\bin\$(Configuration)\net10.0\*.deps.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <Visible>false</Visible>
+    </Content>
   </ItemGroup>
 
   <!-- Build batch hooks (preserved from legacy) - PreBuildEvents.bat is what

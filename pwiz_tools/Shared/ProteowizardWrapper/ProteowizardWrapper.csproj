@@ -63,27 +63,129 @@
     <DefineConstants>$(DefineConstants);NO_VENDOR_SUPPORT</DefineConstants>
   </PropertyGroup>
 
+  <!-- On net8 the data layer comes from pwiz-sharp. No pwiz.CLI, no C++/CLI bindings.
+
+       pwiz-sharp is not part of Skyline.sln and Visual Studio never builds it: the
+       command-line build (pwiz_tools\Skyline\build.bat) builds it first, and the IDE
+       consumes the already-built assemblies. So these are plain file References, not
+       ProjectReferences. A ProjectReference to a project outside the solution being
+       built has no solution-configuration entry, so MSBuild strips Configuration and
+       Platform before invoking it and the referenced project answers with its own
+       default, Debug: a Release build of Skyline.sln silently linked pwiz-sharp's Debug
+       binaries (observed 2026-09-02). With $(Configuration) in the path, the Debug or
+       Release choice made in the IDE selects the matching pwiz-sharp build.
+
+       pwiz-sharp always builds AnyCPU into bin\<Config>\net10.0, whatever platform
+       Skyline.sln is built with, so the paths carry $(Configuration) but not $(Platform).
+       Only the assemblies this project compiles against are listed; their own
+       dependencies (Pwiz.Vendor.Common, Pwiz.Data.IdentData, the vendor SDK
+       assemblies, ...) sit next to them and ResolveAssemblyReferences picks them up. -->
+  <PropertyGroup>
+    <PwizSharpSrc>$(MSBuildThisFileDirectory)..\..\..\pwiz-sharp\pwiz\src\</PwizSharpSrc>
+    <PwizSharpBin>bin\$(Configuration)\net10.0\</PwizSharpBin>
+  </PropertyGroup>
+
   <ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
-    <!-- On net8 the data layer comes from pwiz-sharp. No pwiz.CLI, no
-         C++/CLI bindings. -->
-    <ProjectReference Include="..\..\..\pwiz-sharp\pwiz\src\MsData\MsData.csproj" />
-    <ProjectReference Include="..\..\..\pwiz-sharp\pwiz\src\Analysis\Analysis.csproj" />
-    <ProjectReference Include="..\..\..\pwiz-sharp\pwiz\src\Common\Common.csproj" />
-    <ProjectReference Include="..\..\..\pwiz-sharp\pwiz\src\Util\Util.csproj" />
+    <Reference Include="Pwiz.Data.MsData">
+      <HintPath>$(PwizSharpSrc)MsData\$(PwizSharpBin)Pwiz.Data.MsData.dll</HintPath>
+    </Reference>
+    <Reference Include="Pwiz.Analysis">
+      <HintPath>$(PwizSharpSrc)Analysis\$(PwizSharpBin)Pwiz.Analysis.dll</HintPath>
+    </Reference>
+    <Reference Include="Pwiz.Data.Common">
+      <HintPath>$(PwizSharpSrc)Common\$(PwizSharpBin)Pwiz.Data.Common.dll</HintPath>
+    </Reference>
+    <Reference Include="Pwiz.Util">
+      <HintPath>$(PwizSharpSrc)Util\$(PwizSharpBin)Pwiz.Util.dll</HintPath>
+    </Reference>
     <!-- Vendor readers: pwiz-sharp's ReaderList.Default only has mzML/mzMLb/mzXML/MGF/MSn/BTDX.
-         Reference the vendor projects so their Reader_X classes can be added to
+         Reference the vendor assemblies so their Reader_X classes can be added to
          ReaderList.AdditionalReaders at MsDataFileImpl static-ctor time (see
          MsDataFileImpl.cs). Without these, Thermo/Waters/Sciex/etc. files fail
          with "No registered reader recognized the file". -->
-    <ProjectReference Include="..\..\..\pwiz-sharp\pwiz\src\Vendor\Thermo\Thermo.csproj" />
-    <ProjectReference Include="..\..\..\pwiz-sharp\pwiz\src\Vendor\Waters\Waters.csproj" />
-    <ProjectReference Include="..\..\..\pwiz-sharp\pwiz\src\Vendor\Sciex\Sciex.csproj" />
-    <ProjectReference Include="..\..\..\pwiz-sharp\pwiz\src\Vendor\Shimadzu\Shimadzu.csproj" />
-    <ProjectReference Include="..\..\..\pwiz-sharp\pwiz\src\Vendor\Agilent\Agilent.csproj" />
-    <ProjectReference Include="..\..\..\pwiz-sharp\pwiz\src\Vendor\Bruker\Bruker.csproj" />
-    <ProjectReference Include="..\..\..\pwiz-sharp\pwiz\src\Vendor\UIMF\UIMF.csproj" />
-    <ProjectReference Include="..\..\..\pwiz-sharp\pwiz\src\Vendor\UNIFI\UNIFI.csproj" />
-    <ProjectReference Include="..\..\..\pwiz-sharp\pwiz\src\Vendor\Mobilion\Mobilion.csproj" />
+    <Reference Include="Pwiz.Vendor.Thermo">
+      <HintPath>$(PwizSharpSrc)Vendor\Thermo\$(PwizSharpBin)Pwiz.Vendor.Thermo.dll</HintPath>
+    </Reference>
+    <Reference Include="Pwiz.Vendor.Waters">
+      <HintPath>$(PwizSharpSrc)Vendor\Waters\$(PwizSharpBin)Pwiz.Vendor.Waters.dll</HintPath>
+    </Reference>
+    <Reference Include="Pwiz.Vendor.Sciex">
+      <HintPath>$(PwizSharpSrc)Vendor\Sciex\$(PwizSharpBin)Pwiz.Vendor.Sciex.dll</HintPath>
+    </Reference>
+    <Reference Include="Pwiz.Vendor.Shimadzu">
+      <HintPath>$(PwizSharpSrc)Vendor\Shimadzu\$(PwizSharpBin)Pwiz.Vendor.Shimadzu.dll</HintPath>
+    </Reference>
+    <Reference Include="Pwiz.Vendor.Agilent">
+      <HintPath>$(PwizSharpSrc)Vendor\Agilent\$(PwizSharpBin)Pwiz.Vendor.Agilent.dll</HintPath>
+    </Reference>
+    <Reference Include="Pwiz.Vendor.Bruker">
+      <HintPath>$(PwizSharpSrc)Vendor\Bruker\$(PwizSharpBin)Pwiz.Vendor.Bruker.dll</HintPath>
+    </Reference>
+    <Reference Include="Pwiz.Vendor.UIMF">
+      <HintPath>$(PwizSharpSrc)Vendor\UIMF\$(PwizSharpBin)Pwiz.Vendor.UIMF.dll</HintPath>
+    </Reference>
+    <Reference Include="Pwiz.Vendor.UNIFI">
+      <HintPath>$(PwizSharpSrc)Vendor\UNIFI\$(PwizSharpBin)Pwiz.Vendor.UNIFI.dll</HintPath>
+    </Reference>
+    <Reference Include="Pwiz.Vendor.Mobilion">
+      <HintPath>$(PwizSharpSrc)Vendor\Mobilion\$(PwizSharpBin)Pwiz.Vendor.Mobilion.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+  <!-- Fail early, and say why, when pwiz-sharp has not been built for this Configuration.
+       Without this the build reports MSB3245 plus hundreds of CS0246s. -->
+  <Target Name="CheckPwizSharpBuilt" BeforeTargets="ResolveAssemblyReferences"
+          Condition="'$(TargetFramework)' == 'net10.0'">
+    <Error Condition="'%(Reference.HintPath)' != '' And !Exists('%(Reference.HintPath)')"
+           Text="pwiz-sharp assembly not found: %(Reference.HintPath). pwiz-sharp is not part of Skyline.sln; build it for the $(Configuration) configuration from the command line first (pwiz_tools\Skyline\build.bat $(Configuration) --no-tests)." />
+  </Target>
+
+  <!-- Two things a ProjectReference carried along implicitly that a file reference does not.
+
+       1. The NuGet packages the pwiz-sharp assemblies need at run time. They are not in the
+          pwiz-sharp bin folders (SDK libraries do not copy package assemblies), and they only
+          reached Skyline.deps.json through the transitive project graph. Declare them here so
+          the runtime still finds HDF5 (mzMLb), SQLite (Bruker, UIMF) and the framework
+          compatibility packages the Sciex, Agilent and Shimadzu SDKs use. Versions match the
+          pwiz-sharp csprojs; keep them in sync. -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
+    <PackageReference Include="HDF.PInvoke.1.10" Version="1.10.612" />
+    <PackageReference Include="MathNet.Numerics" Version="5.0.0" />
+    <PackageReference Include="System.Data.SQLite.Core" Version="1.0.119" />
+    <PackageReference Include="System.Configuration.ConfigurationManager" Version="8.0.0" />
+    <PackageReference Include="System.Runtime.Caching" Version="8.0.0" />
+    <PackageReference Include="System.Runtime.Serialization.Formatters" Version="9.0.0" />
+    <PackageReference Include="System.Security.Cryptography.Xml" Version="8.0.4" />
+    <PackageReference Include="System.ServiceModel.Primitives" Version="8.1.2" />
+  </ItemGroup>
+
+  <!-- 2. The vendor projects' Content: native SDK libraries (timsdata.dll, MassLynxRaw.dll,
+          MobilionShim.dll, ...), license.key files, .config files, the VC90 side-by-side
+          folders Bruker needs, and assemblies loaded by reflection. A ProjectReference
+          propagated them through GetCopyToOutputDirectoryItems; deploy the pwiz-sharp output
+          folders wholesale instead. The managed assemblies come along twice (here and
+          copy-local from the References above) - same source file, same destination,
+          harmless. Content items propagate through ProjectReference, so Skyline and the
+          test projects that reference it get all of this too. -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
+    <Content Include="$(PwizSharpSrc)MsData\$(PwizSharpBin)**\*;
+                      $(PwizSharpSrc)Analysis\$(PwizSharpBin)**\*;
+                      $(PwizSharpSrc)Common\$(PwizSharpBin)**\*;
+                      $(PwizSharpSrc)Util\$(PwizSharpBin)**\*;
+                      $(PwizSharpSrc)Vendor\Thermo\$(PwizSharpBin)**\*;
+                      $(PwizSharpSrc)Vendor\Waters\$(PwizSharpBin)**\*;
+                      $(PwizSharpSrc)Vendor\Sciex\$(PwizSharpBin)**\*;
+                      $(PwizSharpSrc)Vendor\Shimadzu\$(PwizSharpBin)**\*;
+                      $(PwizSharpSrc)Vendor\Agilent\$(PwizSharpBin)**\*;
+                      $(PwizSharpSrc)Vendor\Bruker\$(PwizSharpBin)**\*;
+                      $(PwizSharpSrc)Vendor\UIMF\$(PwizSharpBin)**\*;
+                      $(PwizSharpSrc)Vendor\UNIFI\$(PwizSharpBin)**\*;
+                      $(PwizSharpSrc)Vendor\Mobilion\$(PwizSharpBin)**\*"
+             Exclude="$(PwizSharpSrc)*\$(PwizSharpBin)*.deps.json;$(PwizSharpSrc)Vendor\*\$(PwizSharpBin)*.deps.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Link>%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <Visible>false</Visible>
+    </Content>
   </ItemGroup>
 
   <ItemGroup>
